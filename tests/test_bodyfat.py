@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 import math
 from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 
