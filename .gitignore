@@ -13,3 +13,8 @@ uvicorn.log
 .uvicorn.pid
 uvicorn.log
 .uvicorn.pid
+
+# runtime artifacts
+uvicorn.*
+tunnel.*
+*.bak
