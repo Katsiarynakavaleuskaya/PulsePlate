@@ -196,3 +196,6 @@ def debug_env():
     data["insight_enabled"] = str(str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() in {"1", "true", "yes", "on"})
     return JSONResponse(content=data)
 
+
+from bodyfat import get_router as get_bodyfat_router
+app.include_router(get_bodyfat_router())
