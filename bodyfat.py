@@ -88,3 +88,8 @@ def get_router() -> APIRouter:
         return resp
 
     return router
+
+# ---- export aliases for tests ----
+deurenberg = bf_deurenberg
+us_navy = bf_us_navy
+ymca = bf_ymca
