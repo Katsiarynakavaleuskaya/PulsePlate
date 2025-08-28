@@ -1,20 +1,19 @@
+# Python cache
 __pycache__/
 *.pyc
-.pytest_cache/
-*.egg-info/
-.coverage
-.env
-.venv/
-.env
-.venv/
-__pycache__/
-*.pyc
-uvicorn.log
-.uvicorn.pid
-uvicorn.log
-.uvicorn.pid
+*.pyo
 
-# runtime artifacts
-uvicorn.*
-tunnel.*
-*.bak
+# pytest
+.pytest_cache/
+.coverage
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
