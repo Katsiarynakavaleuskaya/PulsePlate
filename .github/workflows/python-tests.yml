@@ -33,7 +33,7 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: PYTHONPATH=$GITHUB_WORKSPACE pytest --cov-report=term-missing --cov-report=xml -q
+        run: PYTHONPATH=. pytest --cov-report=term-missing --cov-report=xml -q
 
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
