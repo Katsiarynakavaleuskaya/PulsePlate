@@ -1,10 +1,5 @@
-pytest>=8,<9
-pytest-httpx==0.35.0
-httpx==0.28.1
-# опционально инструменты разработчика:
-ruff
-mypy
-pre-commit
+fastapi
+uvicorn
+pytest
+httpx
 python-dotenv
-pytest-cov>=5.0.0
-pytest-cov>=5.0.0

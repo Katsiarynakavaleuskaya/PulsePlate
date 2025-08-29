@@ -3,12 +3,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 from typing import Literal, Optional, Dict
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    
+except Exception:
+    # dotenv is optional; skip if missing in test env
+    pass
 from llm import get_provider
 
 
 # Загружаем .env
-load_dotenv()
+
 
 app = FastAPI(title="BMI-App 2025")
 
@@ -199,3 +204,57 @@ def debug_env():
 
 from bodyfat import get_router as get_bodyfat_router
 app.include_router(get_bodyfat_router())
+
+
+# --- API v1: health ---
+@app.get("/api/v1/health")
+def api_v1_health():
+    return {"status": "ok", "version": "v1"}
+
+
+# --- API v1: bmi ---
+from pydantic import BaseModel, Field
+from fastapi import HTTPException
+
+class BMIRequest(BaseModel):
+    weight_kg: float = Field(..., gt=0, description="Weight in kilograms")
+    height_cm: float = Field(..., gt=0, description="Height in centimeters")
+    group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
+
+class BMIResponse(BaseModel):
+    bmi: float
+    category: str
+    interpretation: str
+
+def _bmi_value(w: float, h_cm: float) -> float:
+    h = h_cm / 100.0
+    if h <= 0:
+        raise ValueError("height must be > 0")
+    return round(w / (h * h), 2)
+
+def _bmi_category(b: float) -> str:
+    if b < 18.5: return "Underweight"
+    if b < 25:   return "Normal"
+    if b < 30:   return "Overweight"
+    return "Obese"
+
+def _interpretation(b: float, g: str) -> str:
+    base = _bmi_category(b)
+    g = g.lower().strip()
+    if g == "athlete":  return f"{base} (мышечная масса может искажать BMI)"
+    if g == "pregnant": return "BMI не применим при беременности"
+    if g == "elderly":  return f"{base} (возрастные изменения состава тела)"
+    if g == "teen":     return "Используйте педиатрические перцентили BMI"
+    return base
+
+@app.post("/api/v1/bmi", response_model=BMIResponse)
+def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
+    try:
+        v = _bmi_value(payload.weight_kg, payload.height_cm)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return BMIResponse(
+        bmi=v,
+        category=_bmi_category(v),
+        interpretation=_interpretation(v, payload.group)
+    )

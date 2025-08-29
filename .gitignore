@@ -17,3 +17,11 @@ venv/
 
 # MacOS
 .DS_Store
+.env
+uvicorn.log
+uvicorn.out
+uvicorn.pid
+tunnel.log
+tunnel.out
+*.pid
+*.log
