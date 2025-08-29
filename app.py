@@ -1,8 +1,8 @@
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, model_validator
-# optional dotenv
+from pydantic import BaseModel, Field, model_validator, StrictFloat
+# optio, StrictFloatnal dotenv
 ##DOTENV_OPTIONAL##
 
 
@@ -23,7 +23,7 @@ app = FastAPI(title="BMI-App 2025")
 
 # ---------- Models ----------
 class BMIRequest(BaseModel):
-    weight_kg: float = Field(..., gt=0)
+    weight_kg: StrictFloat = Field(..., gt=0)
     height_m: float = Field(..., gt=0)
     age: int = Field(..., ge=0, le=120)
     gender: str
@@ -44,7 +44,7 @@ class BMIRequest(BaseModel):
 
 
 # ---------- Core logic ----------
-def calc_bmi(weight_kg: float, height_m: float) -> float:
+def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(weight_kg / (height_m ** 2), 1)
 
 
@@ -221,8 +221,8 @@ from pydantic import BaseModel, Field
 from fastapi import HTTPException
 
 class BMIRequest(BaseModel):
-    weight_kg: float = Field(..., gt=0, description="Weight in kilograms")
-    height_cm: float = Field(..., gt=0, description="Height in centimeters")
+    weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kilograms")
+    height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
     group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
 
 class BMIResponse(BaseModel):
