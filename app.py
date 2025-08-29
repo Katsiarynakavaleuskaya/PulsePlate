@@ -3,17 +3,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 # optional dotenv
-try:
-    from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
-except Exception:
-    pass
 ##DOTENV_OPTIONAL##
+
 
 from typing import Literal, Optional, Dict
 try:
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
+
 except Exception:
     # dotenv is optional; skip if missing in test env
     pass
