@@ -25,3 +25,5 @@ tunnel.log
 tunnel.out
 *.pid
 *.log
+*.bak
+*.backup
