@@ -1,8 +1,20 @@
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 # -*- coding: utf-8 -*-
 """Маленькие edge-тесты, которые добивают покрытие до ~99–100% при нашей версии ядра."""
-
-import pytest
-
 from bmi_core import (
     bmi_value,
     build_premium_plan,

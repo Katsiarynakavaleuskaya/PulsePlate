@@ -1,16 +1,24 @@
 from __future__ import annotations
-import json, os
+
 import httpx
+
 from providers import ProviderBase
+
 
 class OllamaProvider(ProviderBase):
     """
     Провайдер для локального Ollama (и совместимых серверов).
     Пытается сначала /api/chat, затем /api/generate.
     """
+
     name = "ollama"
 
-    def __init__(self, endpoint: str = "http://localhost:11434", model: str = "llama3.1:8b", timeout_s: float = 120.0):
+    def __init__(
+        self,
+        endpoint: str = "http://localhost:11434",
+        model: str = "llama3.1:8b",
+        timeout_s: float = 120.0,
+    ):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.timeout_s = float(timeout_s)
@@ -23,10 +31,8 @@ class OllamaProvider(ProviderBase):
                     f"{self.endpoint}/api/chat",
                     json={
                         "model": self.model,
-                        "messages": [
-                            {"role": "user", "content": text}
-                        ],
-                        "stream": False
+                        "messages": [{"role": "user", "content": text}],
+                        "stream": False,
                     },
                     headers={"Content-Type": "application/json"},
                 )
@@ -47,7 +53,7 @@ class OllamaProvider(ProviderBase):
                     # Если 200, но пусто — пойдём на /api/generate
                 else:
                     r.raise_for_status()
-        except Exception as last_err:
+        except Exception:
             # переходим ко 2-му пути ниже
             pass
 

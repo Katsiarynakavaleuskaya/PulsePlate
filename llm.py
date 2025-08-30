@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import os
 from datetime import datetime
+
 from providers import ProviderBase
 
 # Опциональные импорты — чтоб модуль грузился даже без установленных либ
@@ -22,6 +24,7 @@ except Exception:
 
 class StubProvider(ProviderBase):
     name = "stub"
+
     def generate(self, text: str) -> str:
         return f"[stub @ {datetime.utcnow().isoformat()}] Insight: {text}"
 
@@ -31,8 +34,10 @@ def _get_stub() -> ProviderBase:
 
 
 def _get_grok() -> ProviderBase | None:
-    if os.getenv("LLM_PROVIDER", "").strip().lower() not in {"grok", ""} and \
-       os.getenv("LLM_PROVIDER", "").strip().lower() != "auto":
+    if (
+        os.getenv("LLM_PROVIDER", "").strip().lower() not in {"grok", ""}
+        and os.getenv("LLM_PROVIDER", "").strip().lower() != "auto"
+    ):
         # Если явно выбран другой провайдер, не инициализируем grok
         pass
     api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
@@ -44,8 +49,10 @@ def _get_grok() -> ProviderBase | None:
 
 
 def _get_ollama() -> ProviderBase | None:
-    if os.getenv("LLM_PROVIDER", "").strip().lower() not in {"ollama", ""} and \
-       os.getenv("LLM_PROVIDER", "").strip().lower() != "auto":
+    if (
+        os.getenv("LLM_PROVIDER", "").strip().lower() not in {"ollama", ""}
+        and os.getenv("LLM_PROVIDER", "").strip().lower() != "auto"
+    ):
         pass
     endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
     model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
@@ -57,8 +64,10 @@ def _get_ollama() -> ProviderBase | None:
 
 def _get_pico() -> ProviderBase | None:
     # Pico — Ollama-совместимый; если есть свой провайдер — используем, иначе None
-    if os.getenv("LLM_PROVIDER", "").strip().lower() not in {"pico", ""} and \
-       os.getenv("LLM_PROVIDER", "").strip().lower() != "auto":
+    if (
+        os.getenv("LLM_PROVIDER", "").strip().lower() not in {"pico", ""}
+        and os.getenv("LLM_PROVIDER", "").strip().lower() != "auto"
+    ):
         pass
     endpoint = os.getenv("PICO_ENDPOINT", "http://localhost:11434")
     model = os.getenv("PICO_MODEL", "llama3.1:8b")

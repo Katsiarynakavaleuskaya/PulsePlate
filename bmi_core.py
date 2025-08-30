@@ -8,12 +8,14 @@ WHtR, расчёт «здорового» диапазона ИМТ, build_premi
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, Dict, Any
+
 import re
+from typing import Any, Dict, Optional, Tuple
 
 # -------------------------
 # Конфиг и локализация
 # -------------------------
+
 
 class Config:
     MIN_AGE = 1
@@ -30,6 +32,7 @@ class Config:
 
     ELDERLY_AGE = 60
     ATHLETE_BMI_MAX = 27.0  # в спорт-моде верхняя граница не ниже 27
+
 
 LANG: Dict[str, Any] = {
     "ru": {
@@ -98,41 +101,53 @@ LANG: Dict[str, Any] = {
 # Валидация
 # -------------------------
 
+
 def _validate_age(age: int) -> None:
     if not (Config.MIN_AGE <= age <= Config.MAX_AGE):
         raise ValueError("Unrealistic age")
+
 
 def _validate_weight(weight_kg: float) -> None:
     if not (Config.MIN_WEIGHT_KG <= weight_kg <= Config.MAX_WEIGHT_KG):
         raise ValueError("Unrealistic weight")
 
+
 def _validate_height(height_m: float) -> None:
     if not (Config.MIN_HEIGHT_M <= height_m <= Config.MAX_HEIGHT_M):
         raise ValueError("Unrealistic height")
+
 
 def validate_measurements(weight_kg: float, height_m: float) -> None:
     _validate_weight(float(weight_kg))
     _validate_height(float(height_m))
 
+
 # -------------------------
 # BMI и категории
 # -------------------------
+
 
 def bmi_value(weight_kg: float, height_m: float) -> float:
     """Возвращает ИМТ с округлением до 1 знака. Валидирует вход."""
     validate_measurements(weight_kg, height_m)
     return round(float(weight_kg) / (float(height_m) ** 2), 1)
 
+
 def bmi_category(bmi: float, lang: str) -> str:
     c = LANG["ru" if lang not in ("ru", "en") else lang]["cat"]
-    if bmi < 18.5: return c["under"]
-    if bmi < 25.0: return c["norm"]
-    if bmi < 30.0: return c["over"]
+    if bmi < 18.5:
+        return c["under"]
+    if bmi < 25.0:
+        return c["norm"]
+    if bmi < 30.0:
+        return c["over"]
     return c["obese"]
+
 
 # -------------------------
 # Группы пользователей
 # -------------------------
+
 
 def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) -> str:
     g = (gender or "").strip().lower()
@@ -156,14 +171,16 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
         return "elderly"
 
     # беременность учитываем только у женского пола
-    if (lang == "ru" and g.startswith("жен") and p in yes_vals) or \
-       (lang == "en" and g == "female" and p in yes_vals):
+    if (lang == "ru" and g.startswith("жен") and p in yes_vals) or (
+        lang == "en" and g == "female" and p in yes_vals
+    ):
         return "pregnant"
 
     if is_athlete:
         return "athlete"
 
     return "general"
+
 
 def interpret_group(bmi: float, group: str, lang: str) -> str:
     c = LANG["ru" if lang not in ("ru", "en") else lang]
@@ -179,10 +196,26 @@ def interpret_group(bmi: float, group: str, lang: str) -> str:
     txt = f"{base}. {note}".strip().rstrip(".")
     return txt
 
+
 def group_display_name(group: str, lang: str) -> str:
-    mapping_ru = {'general':'общая','athlete':'спортсмен','pregnant':'беременная','elderly':'пожилой','child':'подросток/ребёнок','too_young':'слишком юный'}
-    mapping_en = {'general':'general','athlete':'athlete','pregnant':'pregnant','elderly':'elderly','child':'child/teen','too_young':'too young'}
-    return (mapping_ru if lang == 'ru' else mapping_en).get(group, group)
+    mapping_ru = {
+        "general": "общая",
+        "athlete": "спортсмен",
+        "pregnant": "беременная",
+        "elderly": "пожилой",
+        "child": "подросток/ребёнок",
+        "too_young": "слишком юный",
+    }
+    mapping_en = {
+        "general": "general",
+        "athlete": "athlete",
+        "pregnant": "pregnant",
+        "elderly": "elderly",
+        "child": "child/teen",
+        "too_young": "too young",
+    }
+    return (mapping_ru if lang == "ru" else mapping_en).get(group, group)
+
 
 def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
     if years >= 5 and freq_per_week >= 3:
@@ -193,9 +226,11 @@ def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
         return "novice" if lang == "en" else LANG["ru"]["levels"]["novice"]
     return "beginner" if lang == "en" else LANG["ru"]["levels"]["beginner"]
 
+
 # -------------------------
 # WHtR
 # -------------------------
+
 
 def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[float]:
     """WHtR с мягкой обработкой отсутствующих/некорректных значений.
@@ -218,9 +253,11 @@ def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[fl
     except Exception:
         return None
 
+
 # -------------------------
 # Диапазоны «здорового» BMI и премиум-план
 # -------------------------
+
 
 def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float]:
     """Базово: 18.5–25.0; для 60+: верх 27.5; для athlete+premium: верх >= 27.0."""
@@ -232,8 +269,10 @@ def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float
         bmax = max(bmax, Config.ATHLETE_BMI_MAX)
     return (bmin, bmax)
 
-def build_premium_plan(age: int, weight_kg: float, height_m: float, bmi: float,
-                       lang: str, group: str, premium: bool) -> Dict[str, Any]:
+
+def build_premium_plan(
+    age: int, weight_kg: float, height_m: float, bmi: float, lang: str, group: str, premium: bool
+) -> Dict[str, Any]:
     """Возвращает план: healthy_bmi, healthy_weight, action, delta_kg, est_weeks, tips."""
     _validate_age(int(age))
     validate_measurements(weight_kg, height_m)

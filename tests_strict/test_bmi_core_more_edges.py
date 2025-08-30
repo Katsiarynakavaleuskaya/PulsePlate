@@ -1,6 +1,20 @@
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 # -*- coding: utf-8 -*-
 """Дополнительные edge-тесты: _validate_age error и ветка 'general' в auto_group."""
-
 import pytest
 
 from bmi_core import auto_group, bmi_value, build_premium_plan

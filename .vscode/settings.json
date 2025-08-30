@@ -7,5 +7,27 @@
         "*test.py"
     ],
     "python.testing.pytestEnabled": false,
-    "python.testing.unittestEnabled": true
+    "python.testing.unittestEnabled": true,
+    "cSpell.words": [
+        "1",
+        "85",
+        "90",
+        "автотестами",
+        "запуск",
+        "Избыточный",
+        "Локальный",
+        "Нормальный",
+        "Приложение",
+        "расчёта",
+        "спортсмен",
+        "bodyfat",
+        "deurenberg",
+        "kg",
+        "LEXAKM",
+        "m",
+        "Ollama",
+        "pytest",
+        "uvicorn",
+        "venv"
+    ]
 }

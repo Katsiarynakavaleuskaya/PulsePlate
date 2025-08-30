@@ -1,4 +1,5 @@
-import sys, pathlib
+import pathlib
+import sys
 
 # Корень репозитория = родитель папки tests
 ROOT = pathlib.Path(__file__).resolve().parent.parent

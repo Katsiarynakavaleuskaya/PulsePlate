@@ -1,8 +1,20 @@
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 # -*- coding: utf-8 -*-
 """Комплексные тесты для bmi_core с покрытием граничных случаев."""
-
-import math
-
 import pytest
 
 from bmi_core import (

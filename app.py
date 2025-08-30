@@ -1,25 +1,32 @@
 import os
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, model_validator, StrictFloat
+
 # optio, StrictFloatnal dotenv
 ##DOTENV_OPTIONAL##
+from typing import Dict, Literal, Optional
 
-
-from typing import Literal, Optional, Dict
+# --- Optional bodyfat router ---
 try:
-    from dotenv import load_dotenv  # type: ignore
+    from bodyfat import get_router as get_bodyfat_router  # type: ignore
+except Exception:  # pragma: no cover
+    get_bodyfat_router = None  # type: ignore
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field, StrictFloat, model_validator
+
+try:
+    pass  # type: ignore
 
 except Exception:
     # dotenv is optional; skip if missing in test env
     pass
-from llm import get_provider
 
 
 # Загружаем .env
 
 
 app = FastAPI(title="BMI-App 2025")
+
 
 # ---------- Models ----------
 class BMIRequest(BaseModel):
@@ -45,7 +52,7 @@ class BMIRequest(BaseModel):
 
 # ---------- Core logic ----------
 def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    return round(weight_kg / (height_m ** 2), 1)
+    return round(weight_kg / (height_m**2), 1)
 
 
 def category_by_bmi(bmi: float, lang: str = "ru") -> str:
@@ -61,8 +68,12 @@ def category_by_bmi(bmi: float, lang: str = "ru") -> str:
 
 def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
     gender_norm = {
-        "male": "male", "муж": "male", "м": "male",
-        "female": "female", "жен": "female", "ж": "female",
+        "male": "male",
+        "муж": "male",
+        "м": "male",
+        "female": "female",
+        "жен": "female",
+        "ж": "female",
     }.get(gender, gender)
 
     preg_true = pregnant in {"да", "беременна", "pregnant", "yes", "y"}
@@ -71,7 +82,11 @@ def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]
 
     is_athlete = athlete in {"спортсмен", "да", "yes", "y", "athlete"}
 
-    return {"gender_male": gender_norm == "male", "is_pregnant": is_pregnant, "is_athlete": is_athlete}
+    return {
+        "gender_male": gender_norm == "male",
+        "is_pregnant": is_pregnant,
+        "is_athlete": is_athlete,
+    }
 
 
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str = "ru") -> str:
@@ -103,7 +118,11 @@ def bmi_endpoint(req: BMIRequest):
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
     if flags["is_pregnant"]:
-        note = "BMI не применим при беременности" if req.lang == "ru" else "BMI is not valid during pregnancy"
+        note = (
+            "BMI не применим при беременности"
+            if req.lang == "ru"
+            else "BMI is not valid during pregnancy"
+        )
         return {
             "bmi": bmi,
             "category": None,
@@ -115,8 +134,11 @@ def bmi_endpoint(req: BMIRequest):
     category = category_by_bmi(bmi, req.lang)
     notes = []
     if flags["is_athlete"]:
-        notes.append("У спортсменов BMI может завышать жировую массу" if req.lang == "ru"
-                     else "For athletes, BMI may overestimate body fat")
+        notes.append(
+            "У спортсменов BMI может завышать жировую массу"
+            if req.lang == "ru"
+            else "For athletes, BMI may overestimate body fat"
+        )
     wr = waist_risk(req.waist_cm, flags["gender_male"], req.lang)
     if wr:
         notes.append(wr)
@@ -184,7 +206,10 @@ def insight(req: InsightReq):
 
     provider = get_provider()
     if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok")
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok",
+        )
 
     insight_text = provider.generate(req.text)
     return {"provider": provider.name, "insight": insight_text}
@@ -202,33 +227,32 @@ def debug_env():
         "GROK_MODEL": os.getenv("GROK_MODEL", ""),
         "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
     }
-    data["insight_enabled"] = str(str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() in {"1", "true", "yes", "on"})
+    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
+    data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
     return JSONResponse(content=data)
 
 
-from bodyfat import get_router as get_bodyfat_router
-app.include_router(get_bodyfat_router())
+if get_bodyfat_router is not None:
+    app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
 
-# --- API v1: health ---
 @app.get("/api/v1/health")
 def api_v1_health():
     return {"status": "ok", "version": "v1"}
 
 
 # --- API v1: bmi ---
-from pydantic import BaseModel, Field
-from fastapi import HTTPException
-
 class BMIRequest(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kilograms")
     height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
     group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
 
+
 class BMIResponse(BaseModel):
     bmi: float
     category: str
     interpretation: str
+
 
 def _bmi_value(w: float, h_cm: float) -> float:
     h = h_cm / 100.0
@@ -236,20 +260,31 @@ def _bmi_value(w: float, h_cm: float) -> float:
         raise ValueError("height must be > 0")
     return round(w / (h * h), 2)
 
+
 def _bmi_category(b: float) -> str:
-    if b < 18.5: return "Underweight"
-    if b < 25:   return "Normal"
-    if b < 30:   return "Overweight"
+    if b < 18.5:
+        return "Underweight"
+    if b < 25:
+        return "Normal"
+    if b < 30:
+        return "Overweight"
     return "Obese"
+
 
 def _interpretation(b: float, g: str) -> str:
     base = _bmi_category(b)
     g = g.lower().strip()
-    if g == "athlete":  return f"{base} (мышечная масса может искажать BMI)"
-    if g == "pregnant": return "BMI не применим при беременности"
-    if g == "elderly":  return f"{base} (возрастные изменения состава тела)"
-    if g == "teen":     return "Используйте педиатрические перцентили BMI"
+
+    if g == "athlete":
+        return f"{base} (мышечная масса может искажать BMI)"
+    if g == "pregnant":
+        return "BMI не применим при беременности"
+    if g == "elderly":
+        return f"{base} (возрастные изменения состава тела)"
+    if g == "teen":
+        return "Используйте педиатрические перцентили BMI"
     return base
+
 
 @app.post("/api/v1/bmi", response_model=BMIResponse)
 def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
@@ -258,7 +293,5 @@ def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return BMIResponse(
-        bmi=v,
-        category=_bmi_category(v),
-        interpretation=_interpretation(v, payload.group)
+        bmi=v, category=_bmi_category(v), interpretation=_interpretation(v, payload.group)
     )

@@ -1,8 +1,20 @@
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 # -*- coding: utf-8 -*-
 """Edge-тесты для доведения покрытия до ~100%."""
-
-import pytest
-
 from bmi_core import (
     auto_group,
     bmi_category,

@@ -2,6 +2,7 @@
 # EN: Simple stub provider — no external deps
 from datetime import datetime
 
+
 class StubProvider:
     name = "stub"
 
