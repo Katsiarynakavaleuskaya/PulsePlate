@@ -26,6 +26,7 @@
         "LEXAKM",
         "m",
         "Ollama",
+        "pycache",
         "pytest",
         "uvicorn",
         "venv"

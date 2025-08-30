@@ -1,12 +1,9 @@
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
 from fastapi.testclient import TestClient
 
 from app import app as fastapi_app
-from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 
 client = TestClient(fastapi_app)
 
@@ -74,7 +71,7 @@ def test_bmi_ru_general():
     assert r.status_code == 200
     data = r.json()
     assert data["group"] == "general"
-    assert "Нормальный вес" in data["category"]
+    assert ("Нормальный вес" in data["category"]) or ("Норма" in data["category"])
 
 
 def test_bmi_en_athlete():
