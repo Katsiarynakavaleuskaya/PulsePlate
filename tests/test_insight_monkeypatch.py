@@ -58,6 +58,16 @@ def test_insight_with_provider_exception(monkeypatch):
     assert "unavailable" in data.get("detail", "")
 
 
+def test_insight_no_provider(monkeypatch):
+    # Подменяем фабрику провайдера на None
+    monkeypatch.setattr(llm, "get_provider", lambda: None)
+
+    r = client.post("/api/v1/insight", json={"text": "test"})
+    assert r.status_code == 503
+    data = r.json()
+    assert "not configured" in data.get("detail", "")
+
+
 def test_health_smoke():
     r = client.get("/api/v1/health")
     assert r.status_code == 200

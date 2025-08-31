@@ -1,12 +1,11 @@
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import math
 import sys
 from pathlib import Path
 
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-import math
 
 from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 
@@ -31,8 +30,15 @@ def test_us_navy_male_smoke():
 
 
 def test_us_navy_female_smoke():
-    val = bf_us_navy(height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female")
+    val = bf_us_navy(
+        height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female"
+    )
     assert_percent(val)
+
+
+def test_us_navy_female_missing_hip():
+    with pytest.raises(ValueError, match="hip_cm required for female"):
+        bf_us_navy(height_cm=170, neck_cm=34, waist_cm=74, gender="female")
 
 
 def test_ymca_male_smoke():
@@ -67,6 +73,25 @@ def test_estimate_all_smoke():
     # если есть медиана — тоже должна быть корректным процентом
     if res.get("median") is not None:
         assert_percent(res["median"])
+
+
+def test_estimate_all_female_no_hip():
+    data = {
+        "height_cm": 170,
+        "neck_cm": 34,
+        "waist_cm": 74,
+        "weight_kg": 65,
+        "age": 28,
+        "gender": "female",
+        "bmi": 22.5,
+    }
+    res = estimate_all(data)
+    assert "methods" in res
+    # us_navy should not be in methods because hip_cm missing
+    assert "us_navy" not in res["methods"]
+    # but deurenberg and ymca should be
+    assert "deurenberg" in res["methods"]
+    assert "ymca" in res["methods"]
 
 
 # --- TODO: строгие диапазоны ---
