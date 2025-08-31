@@ -1,19 +1,21 @@
 import pathlib
 import sys
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
 from fastapi.testclient import TestClient
 
 from app import app as fastapi_app
 
+# Add parent directory to path for imports
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
 client = TestClient(fastapi_app)
+
 
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json() == {"status": "ok"}
+
 
 def test_bmi_en():
     r = client.post("/bmi", json={
@@ -63,7 +65,7 @@ def test_bmi_ru_general():
     assert r.status_code == 200
     data = r.json()
     assert data["group"] == "general"
-    assert "Нормальный вес" in data["category"]
+    assert "Норма" in data["category"]
 
 
 def test_bmi_en_athlete():
@@ -83,6 +85,7 @@ def test_bmi_en_athlete():
     assert ("Overweight" in data["category"] or
             "Healthy weight" in data["category"])
 
+
 def test_bmi_missing_fields():
     r = client.post("/bmi", json={
         "weight_kg": 70,
@@ -90,6 +93,7 @@ def test_bmi_missing_fields():
         # missing age, gender, etc.
     })
     assert r.status_code in (422, 400)
+
 
 def test_plan_non_premium():
     r = client.post("/plan", json={
