@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-RU: Насильно подменяем get_provider() на заглушку, чтобы пройти ветку /api/v1/insight.
+RU: Насильно подменяем get_provider() на заглушку,
+   чтобы пройти ветку /api/v1/insight.
 EN: Monkeypatch get_provider() to a stub to exercise the insight endpoint.
 """
 
@@ -8,11 +9,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    import app as app_mod  # type: ignore
+    from app import app as fastapi_app  # type: ignore
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app_mod.app)  # type: ignore
+try:
+    import llm  # type: ignore
+except Exception as exc:  # pragma: no cover
+    pytest.skip(f"llm import failed: {exc}", allow_module_level=True)
+
+app_mod = pytest.importorskip("app")
+client = TestClient(fastapi_app)
 
 
 class _StubProvider:
@@ -23,20 +30,32 @@ class _StubProvider:
         return f"insight::{text[::-1]}"
 
 
-def test_insight_with_monkeypatched_provider(monkeypatch):
-    # Если маршрута нет — аккуратно скипаем
-    r0 = client.post("/api/v1/insight", json={"text": "probe"})
-    if r0.status_code == 404:
-        pytest.skip("No /api/v1/insight route (skipping)")
+class _StubProviderException:
+    name = "stub-exception"
 
+    def generate(self, text: str) -> str:
+        raise RuntimeError("Simulated provider error")
+
+
+def test_insight_with_monkeypatched_provider(monkeypatch):
     # Подменяем фабрику провайдера на нашу заглушку
-    monkeypatch.setattr(app_mod, "get_provider", lambda: _StubProvider())
+    monkeypatch.setattr(llm, "get_provider", lambda: _StubProvider())
 
     r = client.post("/api/v1/insight", json={"text": "hello"})
     assert r.status_code == 200
     data = r.json()
     assert data.get("insight", "").startswith("insight::")
     assert "hello"[::-1] in data["insight"]
+
+
+def test_insight_with_provider_exception(monkeypatch):
+    # Подменяем фабрику провайдера на заглушку, которая вызывает исключение
+    monkeypatch.setattr(llm, "get_provider", lambda: _StubProviderException())
+
+    r = client.post("/api/v1/insight", json={"text": "error"})
+    assert r.status_code == 503
+    data = r.json()
+    assert "unavailable" in data.get("detail", "")
 
 
 def test_health_smoke():

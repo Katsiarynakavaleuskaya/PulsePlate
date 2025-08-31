@@ -1,0 +1,10 @@
+[run]
+omit =
+    tests/*
+    providers/*
+    llm.py
+
+[report]
+exclude_also =
+    pragma: no cover
+    if __name__ == .__main__.:

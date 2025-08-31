@@ -60,9 +60,7 @@ def category_by_bmi(bmi: float, lang: str = "ru") -> str:
     return "Ожирение" if lang == "ru" else "Obesity"
 
 
-def normalize_flags(
-    gender: str, pregnant: str, athlete: str
-) -> Dict[str, bool]:
+def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",
@@ -143,7 +141,8 @@ def bmi_endpoint(req: BMIRequest):
             if req.lang == "ru"
             else "For athletes, BMI may overestimate body fat"
         )
-    if (wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang)):
+    wr = waist_risk(req.waist_cm, flags["gender_male"], req.lang)
+    if wr:
         notes.append(wr)
 
     return {
@@ -205,14 +204,15 @@ def plan_endpoint(req: BMIRequest):
     return base
 
 
+# ---------- /api/v1/insight ----------
+
 @app.post("/api/v1/insight")
 def api_v1_insight(req: InsightRequest):
     try:
         from llm import get_provider
     except Exception as e:
         raise HTTPException(
-            status_code=503,
-            detail="LLM module is not available"
+            status_code=503, detail="LLM module is not available"
         ) from e
 
     provider = get_provider()
@@ -225,14 +225,12 @@ def api_v1_insight(req: InsightRequest):
         txt = provider.generate(req.text)
     except Exception:
         raise HTTPException(
-            status_code=503,
-            detail="insight provider unavailable"
+            status_code=503, detail="insight provider unavailable"
         )
-    return {
-        "provider": getattr(provider, "name", "unknown"),
-        "insight": txt
-    }
+    return {"provider": getattr(provider, "name", "unknown"), "insight": txt}
 
+
+# ---------- /insight (фича-флаг + быстрые 503) ----------
 
 @app.post("/insight")
 def insight(req: InsightRequest):
@@ -253,8 +251,7 @@ def insight(req: InsightRequest):
         from llm import get_provider
     except Exception as e:
         raise HTTPException(
-            status_code=503,
-            detail="LLM module is not available"
+            status_code=503, detail="LLM module is not available"
         ) from e
 
     provider = get_provider()
@@ -271,15 +268,13 @@ def insight(req: InsightRequest):
         txt = provider.generate(req.text)
     except Exception:
         raise HTTPException(
-            status_code=503,
-            detail="insight provider unavailable"
+            status_code=503, detail="insight provider unavailable"
         )
 
-    return {
-        "provider": getattr(provider, "name", "unknown"),
-        "insight": txt
-    }
+    return {"provider": getattr(provider, "name", "unknown"), "insight": txt}
 
+
+# ---------- Debug env ----------
 
 @app.get("/debug_env")
 def debug_env():
@@ -329,12 +324,11 @@ def _bmi_value(w: float, h_cm: float) -> float:
 def _bmi_category(b: float) -> str:
     if b < 18.5:
         return "Underweight"
-    elif b < 25:
+    if b < 25:
         return "Normal"
-    elif b < 30:
+    if b < 30:
         return "Overweight"
-    else:
-        return "Obese"
+    return "Obese"
 
 
 def _interpretation(b: float, g: str) -> str:
@@ -342,14 +336,13 @@ def _interpretation(b: float, g: str) -> str:
     g = g.lower().strip()
     if g == "athlete":
         return f"{base} (мышечная масса может искажать BMI)"
-    elif g == "pregnant":
+    if g == "pregnant":
         return "BMI не применим при беременности"
-    elif g == "elderly":
+    if g == "elderly":
         return f"{base} (возрастные изменения состава тела)"
-    elif g == "teen":
+    if g == "teen":
         return "Используйте педиатрические перцентили BMI"
-    else:
-        return base
+    return base
 
 
 @app.post("/api/v1/bmi", response_model=BMIResponse)
@@ -357,15 +350,10 @@ def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
         v = _bmi_value(payload.weight_kg, payload.height_cm)
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        ) from e
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     return BMIResponse(
         bmi=v,
         category=_bmi_category(v),
-        interpretation=_interpretation(
-            v, payload.group
-        ),
+        interpretation=_interpretation(v, payload.group),
     )

@@ -32,7 +32,12 @@ def test_bmi_422_missing_fields():
 )
 def test_bmi_categories_via_api(weight, height, expected_cat):
     r = client.post(
-        "/api/v1/bmi", json={"weight_kg": weight, "height_cm": height, "group": "general"}
+        "/api/v1/bmi",
+        json={
+            "weight_kg": weight,
+            "height_cm": height,
+            "group": "general"
+        }
     )
     assert r.status_code == 200
     data = r.json()

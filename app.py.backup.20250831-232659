@@ -1,4 +1,6 @@
 import os
+
+# Optional dotenv
 from contextlib import suppress
 from typing import Dict, Literal, Optional
 
@@ -10,6 +12,7 @@ with suppress(ImportError):
     import dotenv
     dotenv.load_dotenv()
 
+# Optional bodyfat router
 try:
     from bodyfat import get_router as get_bodyfat_router
 except ImportError:
@@ -23,7 +26,6 @@ app = FastAPI(title="BMI-App 2025")
 class InsightRequest(BaseModel):
     text: str = Field(..., min_length=1)
 
-
 class BMIRequest(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0)
     height_m: float = Field(..., gt=0)
@@ -35,6 +37,7 @@ class BMIRequest(BaseModel):
     lang: Literal["ru", "en"] = "ru"
     premium: Optional[bool] = False
 
+    # Нормализуем строковые флаги до нижнего регистра
     @model_validator(mode="before")
     @classmethod
     def _normalize_values(cls, values: Dict):
@@ -45,12 +48,12 @@ class BMIRequest(BaseModel):
 
 
 # ---------- Core logic ----------
-
 def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    return round(weight_kg / (height_m ** 2), 1)
+    return round(weight_kg / (height_m**2), 1)
 
 
 def category_by_bmi(bmi: float, lang: str = "ru") -> str:
+    # В тестах ожидается "Healthy weight" (а не "Normal")
     if bmi < 18.5:
         return "Недостаточная масса" if lang == "ru" else "Underweight"
     if bmi < 25:
@@ -85,27 +88,31 @@ def normalize_flags(
     }
 
 
-def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str) -> str:
+def waist_risk(
+    waist_cm: Optional[float], gender_male: bool, lang: str = "ru"
+) -> str:
     if waist_cm is None:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
     if waist_cm >= high:
         return (
-            "Высокий риск по талии" if lang == "ru"
+            "Высокий риск по талии"
+            if lang == "ru"
             else "High waist-related risk"
         )
     if waist_cm >= warn:
         return (
-            "Повышенный риск по талии" if lang == "ru"
+            "Повышенный риск по талии"
+            if lang == "ru"
             else "Increased waist-related risk"
         )
     return ""
 
 
-# ---------- Misc routes ----------
-
+# ---------- Endpoints ----------
 @app.get("/favicon.ico")
 def favicon():
+    # Пустой ответ, чтобы не было 404 в логах
     return Response(status_code=204)
 
 
@@ -114,19 +121,15 @@ def health():
     return {"status": "ok"}
 
 
-# ---------- v0 endpoints (bmi/plan) ----------
-
 @app.post("/bmi")
 def bmi_endpoint(req: BMIRequest):
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
-    if flags["is_pregnant"]:
-        note = (
-            "BMI не применим при беременности"
-            if req.lang == "ru"
-            else "BMI is not valid during pregnancy"
-        )
+    if flags["is_pregnant"] and (
+        note := "BMI не применим при беременности" if req.lang == "ru"
+        else "BMI is not valid during pregnancy"
+    ):
         return {
             "bmi": bmi,
             "category": None,
@@ -172,7 +175,7 @@ def plan_endpoint(req: BMIRequest):
             "next_steps": [
                 "Шаги: 7–10 тыс/день",
                 "Белок: 1.2–1.6 г/кг",
-                "Сон: 7–9 часов",
+                "Сон: 7–9 часов"
             ],
             "healthy_bmi": healthy_bmi,
             "action": "Сделай сегодня 20-мин быструю прогулку",
@@ -180,7 +183,7 @@ def plan_endpoint(req: BMIRequest):
         if req.premium:
             base["premium_reco"] = [
                 "Дефицит 300–500 ккал",
-                "2–3 силовые тренировки/нед",
+                "2–3 силовые тренировки/нед"
             ]
     else:
         base = {
@@ -191,7 +194,7 @@ def plan_endpoint(req: BMIRequest):
             "next_steps": [
                 "Steps: 7–10k/day",
                 "Protein: 1.2–1.6 g/kg",
-                "Sleep: 7–9 h",
+                "Sleep: 7–9 h"
             ],
             "healthy_bmi": healthy_bmi,
             "action": "Take a brisk 20-min walk today",
@@ -199,90 +202,77 @@ def plan_endpoint(req: BMIRequest):
         if req.premium:
             base["premium_reco"] = [
                 "Calorie deficit 300–500 kcal",
-                "2–3 strength sessions/week",
+                "2–3 strength sessions/week"
             ]
 
     return base
 
 
 @app.post("/api/v1/insight")
-def api_v1_insight(req: InsightRequest):
+def insight(req: InsightRequest):
+    # Отложенный импорт, чтобы не падать, если модуль/зависимости не доступны
     try:
         from llm import get_provider
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail="LLM module is not available"
-        ) from e
+        raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
     provider = get_provider()
     if provider is None:
-        raise HTTPException(
-            status_code=503, detail="insight provider not configured"
-        )
+        # Нет настроенного провайдера — мгновенно 503 (и никакой сети)
+        raise HTTPException(status_code=503, detail="insight provider not configured")
 
     try:
-        txt = provider.generate(req.text)
+        insight_text = provider.generate(req.text)
     except Exception:
-        raise HTTPException(
-            status_code=503,
-            detail="insight provider unavailable"
-        )
-    return {
-        "provider": getattr(provider, "name", "unknown"),
-        "insight": txt
-    }
+        # Любая ошибка провайдера (таймаут/нет коннекта) → быстрый 503
+        raise HTTPException(status_code=503, detail="insight provider unavailable")
+
+    return {"provider": getattr(provider, "name", "unknown"), "insight": insight_text}
+
+
+# ---------- Insight (LLM) ----------
+class InsightReq(BaseModel):
+    text: str = Field(..., min_length=1)
 
 
 @app.post("/insight")
-def insight(req: InsightRequest):
-    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-    if flag not in {"1", "true", "yes", "on"}:
-        raise HTTPException(status_code=503, detail="insight feature disabled")
-
-    if not os.getenv("LLM_PROVIDER", "").strip():
+def insight(req: InsightReq):
+    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
+        "1", "true", "on", "yes"
+    }:
         raise HTTPException(
-            status_code=503,
-            detail=(
-                "No LLM provider configured. "
-                "Set LLM_PROVIDER=stub|grok|ollama"
-            ),
+            status_code=503, detail="FEATURE_INSIGHT is disabled"
         )
 
-    try:
-        from llm import get_provider
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail="LLM module is not available"
-        ) from e
+    # отложенный импорт, чтобы не падать, если модуля нет
+try:
+    from llm import get_provider
+except Exception as e:
+    raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
-    provider = get_provider()
-    if provider is None:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "No LLM provider configured. "
-                "Set LLM_PROVIDER=stub|grok|ollama"
-            ),
-        )
+provider = get_provider()
+if provider is None:
+    # Нет настроенного провайдера — мгновенно 503 без сетевых попыток
+    raise HTTPException(
+        status_code=503,
+        detail="No LLM provider configured. Set LLM_PROVIDER=stub|ollama",
+    )
 
-    try:
-        txt = provider.generate(req.text)
-    except Exception:
-        raise HTTPException(
-            status_code=503,
-            detail="insight provider unavailable"
-        )
+try:
+    insight_text = provider.generate(req.text)
+except Exception:
+    # Любая ошибка провайдера (таймаут/нет коннекта) → 503, быстро
+    raise HTTPException(status_code=503, detail="insight provider unavailable")
 
-    return {
-        "provider": getattr(provider, "name", "unknown"),
-        "insight": txt
-    }
+return {"provider": provider.name, "insight": insight_text}
 
 
+# ---------- Debug env ----------
 @app.get("/debug_env")
 def debug_env():
+    """
+    Diagnostic endpoint to inspect env flags (.env).
+    """
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
@@ -294,23 +284,24 @@ def debug_env():
     return JSONResponse(content=data)
 
 
-# ---------- Optional routers ----------
-
 if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
-
-# ---------- v1 health/bmi ----------
 
 @app.get("/api/v1/health")
 def api_v1_health():
     return {"status": "ok", "version": "v1"}
 
 
+# --- API v1: bmi ---
 class BMIRequestV1(BaseModel):
-    weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kg")
-    height_cm: StrictFloat = Field(..., gt=0, description="Height in cm")
-    group: str = "general"
+    weight_kg: StrictFloat = Field(
+        ..., gt=0, description="Weight in kilograms"
+    )
+    height_cm: StrictFloat = Field(
+        ..., gt=0, description="Height in centimeters"
+    )
+    group: str = "general"  # Allow any string, not just Literal
 
 
 class BMIResponse(BaseModel):
@@ -340,16 +331,14 @@ def _bmi_category(b: float) -> str:
 def _interpretation(b: float, g: str) -> str:
     base = _bmi_category(b)
     g = g.lower().strip()
-    if g == "athlete":
-        return f"{base} (мышечная масса может искажать BMI)"
-    elif g == "pregnant":
-        return "BMI не применим при беременности"
-    elif g == "elderly":
-        return f"{base} (возрастные изменения состава тела)"
-    elif g == "teen":
-        return "Используйте педиатрические перцентили BMI"
-    else:
-        return base
+
+    return (
+        f"{base} (мышечная масса может искажать BMI)" if g == "athlete"
+        else "BMI не применим при беременности" if g == "pregnant"
+        else f"{base} (возрастные изменения состава тела)" if g == "elderly"
+        else "Используйте педиатрические перцентили BMI" if g == "teen"
+        else base
+    )
 
 
 @app.post("/api/v1/bmi", response_model=BMIResponse)
@@ -357,15 +346,39 @@ def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
         v = _bmi_value(payload.weight_kg, payload.height_cm)
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        ) from e
-
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return BMIResponse(
         bmi=v,
         category=_bmi_category(v),
-        interpretation=_interpretation(
-            v, payload.group
-        ),
+        interpretation=_interpretation(v, payload.group)
     )
+
+@app.post("/insight")
+def insight(req: InsightRequest):
+    # Фича-флаг: если выключено — мгновенно 503
+    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=503, detail="insight feature disabled")
+
+    # Отложенный импорт — чтобы падать предсказуемо, если llm.py сломан/не установлен
+    try:
+        from llm import get_provider
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="LLM module is not available") from e
+
+    provider = get_provider()
+    if provider is None:
+        # Именно это ждёт тест "no provider"
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok|ollama",
+        )
+
+    # Любые сбои провайдера — быстрый 503 (никаких зависаний)
+    try:
+        insight_text = provider.generate(req.text)
+    except Exception:
+        raise HTTPException(status_code=503, detail="insight provider unavailable")
+
+    return {"provider": getattr(provider, "name", "unknown"), "insight": insight_text}
+
+
