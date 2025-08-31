@@ -21,6 +21,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
+    - name: Security scan with Bandit
+      run: |
+        bandit -r . -f json -o bandit-report.json
+    - name: Security scan with Safety
+      run: |
+        safety check --output json > safety-report.json
     - name: Run tests
       run: |
         pytest --cov=app --cov=bmi_core --cov=bodyfat --cov-report=xml

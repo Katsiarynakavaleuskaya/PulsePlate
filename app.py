@@ -11,8 +11,8 @@ except ImportError:
     Histogram = None
     generate_latest = None
 
-from fastapi import Depends, FastAPI, HTTPException, Response
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 
 try:
@@ -50,13 +50,27 @@ app = FastAPI(title="BMI-App 2025")
 
 start_time = time.time()
 
+# Add logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time_req = time.time()
+    client_host = request.client.host if request.client else "unknown"
+    logger.info(f"Request: {request.method} {request.url} from {client_host}")
+    response = await call_next(request)
+    process_time = time.time() - start_time_req
+    logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
+    return response
+
+
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
 
 def get_api_key(api_key: str = Depends(api_key_header)):
     expected = os.getenv("API_KEY")
     if expected and api_key != expected:
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return api_key
+
 
 if slowapi_available:
     limiter = Limiter(key_func=get_remote_address)
@@ -151,20 +165,113 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str) -> str:
 
 # ---------- Misc routes ----------
 
+@app.get("/")
+async def root():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BMI Calculator 2025</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+            form { margin-bottom: 20px; }
+            input, button { display: block; margin: 10px 0; padding: 10px; width: 100%; }
+            .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+        </style>
+    </head>
+    <body>
+        <h1>BMI Calculator</h1>
+        <form id="bmiForm">
+            <label for="weight">Weight (kg):</label>
+            <input type="number" id="weight" step="0.1" required>
+
+            <label for="height">Height (m):</label>
+            <input type="number" id="height" step="0.01" required>
+
+            <label for="age">Age:</label>
+            <input type="number" id="age" required>
+
+            <label for="gender">Gender:</label>
+            <select id="gender" required>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+
+            <label for="pregnant">Pregnant:</label>
+            <select id="pregnant">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+            </select>
+
+            <label for="athlete">Athlete:</label>
+            <select id="athlete">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+            </select>
+
+            <label for="waist">Waist (cm, optional):</label>
+            <input type="number" id="waist" step="0.1">
+
+            <button type="submit">Calculate BMI</button>
+        </form>
+
+        <div id="result" class="result" style="display:none;"></div>
+
+        <script>
+            document.getElementById('bmiForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const data = {
+                    weight_kg: parseFloat(document.getElementById('weight').value),
+                    height_m: parseFloat(document.getElementById('height').value),
+                    age: parseInt(document.getElementById('age').value),
+                    gender: document.getElementById('gender').value,
+                    pregnant: document.getElementById('pregnant').value,
+                    athlete: document.getElementById('athlete').value,
+                    waist_cm: document.getElementById('waist').value ? parseFloat(document.getElementById('waist').value) : null,
+                    lang: 'en'
+                };
+
+                try {
+                    const response = await fetch('/bmi', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+                    document.getElementById('result').innerHTML = `
+                        <h2>BMI: ${result.bmi}</h2>
+                        <p>Category: ${result.category}</p>
+                        <p>Note: ${result.note}</p>
+                    `;
+                    document.getElementById('result').style.display = 'block';
+                } catch (error) {
+                    document.getElementById('result').innerHTML = '<p>Error calculating BMI</p>';
+                    document.getElementById('result').style.display = 'block';
+                }
+            });
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
 @app.get("/favicon.ico")
-def favicon():
+async def favicon():
     return Response(status_code=204)
 
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok"}
 
 
 # ---------- v0 endpoints (bmi/plan) ----------
 
 @app.post("/bmi")
-def bmi_endpoint(req: BMIRequest):
+async def bmi_endpoint(req: BMIRequest):
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
@@ -203,7 +310,7 @@ def bmi_endpoint(req: BMIRequest):
 
 
 @app.post("/plan")
-def plan_endpoint(req: BMIRequest):
+async def plan_endpoint(req: BMIRequest):
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
     category = None if flags["is_pregnant"] else category_by_bmi(bmi, req.lang)
@@ -253,7 +360,7 @@ def plan_endpoint(req: BMIRequest):
 
 
 @app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
-def api_v1_insight(req: InsightRequest):
+async def api_v1_insight(req: InsightRequest):
     try:
         from llm import get_provider
     except Exception as e:
@@ -269,7 +376,7 @@ def api_v1_insight(req: InsightRequest):
         )
 
     try:
-        txt = provider.generate(req.text)
+        txt = await provider.generate(req.text)
     except Exception:
         raise HTTPException(
             status_code=503,
@@ -282,7 +389,7 @@ def api_v1_insight(req: InsightRequest):
 
 
 @app.post("/insight")
-def insight(req: InsightRequest):
+async def insight(req: InsightRequest):
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     if flag not in {"1", "true", "yes", "on"}:
         raise HTTPException(status_code=503, detail="insight feature disabled")
@@ -315,7 +422,7 @@ def insight(req: InsightRequest):
         )
 
     try:
-        txt = provider.generate(req.text)
+        txt = await provider.generate(req.text)
     except Exception:
         raise HTTPException(
             status_code=503,
@@ -328,26 +435,13 @@ def insight(req: InsightRequest):
     }
 
 
-@app.get("/debug_env")
-def debug_env():
-    data = {
-        "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
-        "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
-        "GROK_MODEL": os.getenv("GROK_MODEL", ""),
-        "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
-    }
-    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-    data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
-    return JSONResponse(content=data)
-
-
 @app.get("/metrics")
-def metrics():
+async def metrics():
     return {"uptime_seconds": time.time() - start_time}
 
 
 @app.get("/privacy")
-def privacy():
+async def privacy():
     return {
         "policy": (
             "This app processes BMI data for health insights. "
@@ -366,7 +460,7 @@ if get_bodyfat_router is not None:
 # ---------- v1 health/bmi ----------
 
 @app.get("/api/v1/health")
-def api_v1_health():
+async def api_v1_health():
     return {"status": "ok", "version": "v1"}
 
 
@@ -420,7 +514,7 @@ def _interpretation(b: float, g: str) -> str:
     response_model=BMIResponse,
     dependencies=[Depends(get_api_key)]
 )
-def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
+async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
         v = bmi_value(payload.weight_kg, payload.height_cm / 100.0)
     except ValueError as e:
@@ -434,3 +528,16 @@ def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
         category=bmi_category(v, "en"),
         interpretation="",
     )
+
+
+@app.get("/debug_env")
+async def debug_env():
+    data = {
+        "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
+        "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
+        "GROK_MODEL": os.getenv("GROK_MODEL", ""),
+        "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
+    }
+    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
+    data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
+    return JSONResponse(content=data)

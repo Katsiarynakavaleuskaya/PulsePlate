@@ -3,6 +3,12 @@ from __future__ import annotations
 import os
 
 import httpx
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from providers import ProviderBase
 
@@ -34,8 +40,8 @@ class OllamaProvider(ProviderBase):
                 timeout_s = 1.5
         self.timeout_s = float(timeout_s)
 
-    def _chat(self, c: httpx.Client, text: str) -> str | None:
-        r = c.post(
+    async def _chat(self, c: httpx.AsyncClient, text: str) -> str | None:
+        r = await c.post(
             f"{self.endpoint}/api/chat",
             json={
                 "model": self.model,
@@ -59,8 +65,8 @@ class OllamaProvider(ProviderBase):
             )
         return msg or None
 
-    def _generate(self, c: httpx.Client, text: str) -> str | None:
-        r = c.post(
+    async def _generate(self, c: httpx.AsyncClient, text: str) -> str | None:
+        r = await c.post(
             f"{self.endpoint}/api/generate",
             json={"model": self.model, "prompt": text, "stream": False},
             headers={"Content-Type": "application/json"},
@@ -72,18 +78,28 @@ class OllamaProvider(ProviderBase):
         # generate обычно возвращает {"response": "..."}
         return data.get("response") or data.get("content") or None
 
-    def generate(self, text: str) -> str:
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(RuntimeError),
+        reraise=True
+    )
+    async def generate(self, text: str) -> str:
         try:
-            with httpx.Client() as c:
+            async with httpx.AsyncClient() as c:
                 # 1) пробуем chat
-                msg = self._chat(c, text)
+                msg = await self._chat(c, text)
                 if msg:
                     return msg
                 # 2) fallback на generate
-                msg = self._generate(c, text)
+                msg = await self._generate(c, text)
                 if msg:
                     return msg
-        except (httpx.RequestError, httpx.HTTPStatusError, httpx.TimeoutException) as e:
+        except (
+            httpx.RequestError,
+            httpx.HTTPStatusError,
+            httpx.TimeoutException
+        ) as e:
             # конвертируем сетевую ошибку в контролируемую
             raise RuntimeError("ollama_unavailable") from e
 

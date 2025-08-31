@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Protocol
 
-class ProviderBase:
+
+class ProviderBase(Protocol):
     """Базовый интерфейс для всех LLM-провайдеров."""
 
-    name: str = "base"
+    name: str
 
-    def generate(self, text: str) -> str:
+    async def generate(self, text: str) -> str:
         raise NotImplementedError("Provider must implement .generate(text)")
 
 

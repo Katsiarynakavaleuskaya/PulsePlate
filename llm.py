@@ -29,7 +29,7 @@ except Exception:
 class StubProvider(ProviderBase):
     name = "stub"
 
-    def generate(self, text: str) -> str:
+    async def generate(self, text: str) -> str:
         # RU: простая заглушка, чтобы не было сетевых вызовов
         # EN: simple stub to avoid any network calls
         dt = datetime.now(timezone.utc).isoformat()
