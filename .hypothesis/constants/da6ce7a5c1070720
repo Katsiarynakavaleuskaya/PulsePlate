@@ -1,0 +1,4 @@
+# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/providers/pico.py
+# hypothesis_version: 6.138.9
+
+[30.0, '/api/chat', 'OLLAMA_ENDPOINT', 'OLLAMA_MODEL', 'PICO_ENDPOINT', 'PICO_MODEL', 'choices', 'content', 'llama3.1:8b', 'message', 'messages', 'model', 'pico', 'response', 'role', 'stream', 'user']

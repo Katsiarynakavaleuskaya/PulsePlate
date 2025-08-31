@@ -1,0 +1,4 @@
+# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/bodyfat.py
+# hypothesis_version: 6.138.9
+
+[0.23, 0.732, 1.082, 1.2, 2.20462, 2.54, 3.14, 4.15, 5.4, 8.987, 10.8, 36.76, 70.041, 78.387, 86.01, 94.42, 97.684, 100.0, 163.205, '%', '/bodyfat', 'age', 'bmi', 'deurenberg', 'en', 'gender', 'height_cm', 'height_m', 'hip_cm', 'labels', 'lang', 'male', 'median', 'methods', 'neck_cm', 'ru', 'units', 'us_navy', 'waist_cm', 'weight_kg', 'ymca', 'медиана', 'методы']

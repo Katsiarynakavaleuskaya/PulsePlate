@@ -152,9 +152,9 @@ def normalize_lang(lang: str) -> str:
 
 
 def bmi_value(weight_kg: float, height_m: float) -> float:
-    """Возвращает ИМТ с округлением до 1 знака. Валидирует вход."""
+    """Возвращает ИМТ с округлением до 2 знаков. Валидирует вход."""
     validate_measurements(weight_kg, height_m)
-    return round(weight_kg / (height_m ** 2), 1)
+    return round(weight_kg / (height_m ** 2), 2)
 
 
 def bmi_category(bmi: float, lang: str) -> str:

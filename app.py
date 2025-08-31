@@ -1,9 +1,34 @@
+import logging
 import os
+import time
 from contextlib import suppress
 from typing import Dict, Literal, Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, Response
+try:
+    from prometheus_client import Counter, Histogram, generate_latest
+except ImportError:
+    Counter = None
+    Histogram = None
+    generate_latest = None
+
+from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
+
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from slowapi.util import get_remote_address
+    slowapi_available = True
+except ImportError:
+    Limiter = None
+    _rate_limit_exceeded_handler = None
+    get_remote_address = None
+    RateLimitExceeded = None
+    SlowAPIMiddleware = None
+    slowapi_available = False
+
 from pydantic import BaseModel, Field, StrictFloat, model_validator
 
 with suppress(ImportError):
@@ -15,7 +40,29 @@ try:
 except ImportError:
     get_bodyfat_router = None
 
+from bmi_core import bmi_category, bmi_value
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="BMI-App 2025")
+
+start_time = time.time()
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_api_key(api_key: str = Depends(api_key_header)):
+    expected = os.getenv("API_KEY")
+    if expected and api_key != expected:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+    return api_key
+
+if slowapi_available:
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
 
 # ---------- Models ----------
@@ -205,7 +252,7 @@ def plan_endpoint(req: BMIRequest):
     return base
 
 
-@app.post("/api/v1/insight")
+@app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
 def api_v1_insight(req: InsightRequest):
     try:
         from llm import get_provider
@@ -294,6 +341,22 @@ def debug_env():
     return JSONResponse(content=data)
 
 
+@app.get("/metrics")
+def metrics():
+    return {"uptime_seconds": time.time() - start_time}
+
+
+@app.get("/privacy")
+def privacy():
+    return {
+        "policy": (
+            "This app processes BMI data for health insights. "
+            "Data is not stored or shared. Complies with GDPR."
+        ),
+        "contact": "For privacy concerns, contact the developer."
+    }
+
+
 # ---------- Optional routers ----------
 
 if get_bodyfat_router is not None:
@@ -352,10 +415,14 @@ def _interpretation(b: float, g: str) -> str:
         return base
 
 
-@app.post("/api/v1/bmi", response_model=BMIResponse)
+@app.post(
+    "/api/v1/bmi",
+    response_model=BMIResponse,
+    dependencies=[Depends(get_api_key)]
+)
 def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
-        v = _bmi_value(payload.weight_kg, payload.height_cm)
+        v = bmi_value(payload.weight_kg, payload.height_cm / 100.0)
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -364,8 +431,6 @@ def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
 
     return BMIResponse(
         bmi=v,
-        category=_bmi_category(v),
-        interpretation=_interpretation(
-            v, payload.group
-        ),
+        category=bmi_category(v, "en"),
+        interpretation="",
     )

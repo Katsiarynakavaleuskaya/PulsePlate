@@ -1,7 +1,8 @@
 fastapi
 uvicorn
 pytest
+pytest-cov
 httpx
 python-dotenv
-
+prometheus-client
 python-multipart

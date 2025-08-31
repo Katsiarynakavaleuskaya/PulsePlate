@@ -13,6 +13,7 @@ def _post_bmi(weight, height, group="general"):
     return client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height, "group": group},
+        headers={"X-API-Key": "test_key"}
     )
 
 
@@ -23,7 +24,7 @@ def test_bmi_groups_smoke(group):
     data = r.json()
     # базовые инварианты
     assert data["bmi"] == 24.22
-    assert data["category"] == "Normal"
+    assert data["category"] == "Healthy weight"
     assert isinstance(data.get("interpretation", ""), str)
     assert len(data.get("interpretation", "")) >= 0  # строка может быть и "Normal"
 
@@ -32,9 +33,9 @@ def test_bmi_groups_smoke(group):
     "w,h,expected_category",
     [
         (45, 170, "Underweight"),  # ~15.57
-        (70, 170, "Normal"),  # 24.22
+        (70, 170, "Healthy weight"),  # 24.22
         (80, 170, "Overweight"),  # ~27.68
-        (95, 170, "Obese"),  # ~32.87
+        (95, 170, "Obesity"),  # ~32.87
     ],
 )
 def test_bmi_categories_boundaries(w, h, expected_category):
@@ -60,5 +61,9 @@ def test_bmi_invalid_inputs(w, h):
 
 def test_bmi_missing_field_validation():
     # Нет height_cm → 422 от pydantic
-    r = client.post("/api/v1/bmi", json={"weight_kg": 70})
+    r = client.post(
+        "/api/v1/bmi",
+        json={"weight_kg": 70},
+        headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 422

@@ -12,12 +12,16 @@ client = TestClient(fastapi_app)
 
 def test_bmi_422_missing_fields():
     # пустой payload -> 422
-    r = client.post("/api/v1/bmi", json={})
+    r = client.post("/api/v1/bmi", json={}, headers={"X-API-Key": "test_key"})
     assert r.status_code in (400, 422)
 
     # отрицательные значения -> 422
     bad = {"weight_kg": -1, "height_cm": 0, "group": "general"}
-    r2 = client.post("/api/v1/bmi", json=bad)
+    r2 = client.post(
+        "/api/v1/bmi",
+        json=bad,
+        headers={"X-API-Key": "test_key"}
+    )
     assert r2.status_code in (400, 422)
 
 
@@ -25,9 +29,9 @@ def test_bmi_422_missing_fields():
     "weight,height,expected_cat",
     [
         (50, 170, "Underweight"),  # ~17.3
-        (70, 170, "Normal"),  # ~24.2
+        (70, 170, "Healthy weight"),  # ~24.2
         (80, 170, "Overweight"),  # ~27.7
-        (95, 170, "Obese"),  # ~32.9
+        (95, 170, "Obesity"),  # ~32.9
     ],
 )
 def test_bmi_categories_via_api(weight, height, expected_cat):
@@ -37,7 +41,8 @@ def test_bmi_categories_via_api(weight, height, expected_cat):
             "weight_kg": weight,
             "height_cm": height,
             "group": "general"
-        }
+        },
+        headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()

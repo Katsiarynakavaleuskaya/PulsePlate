@@ -1,0 +1,4 @@
+# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/llm.py
+# hypothesis_version: 6.138.9
+
+['5', 'GROK_API_KEY', 'GROK_ENDPOINT', 'GROK_MODEL', 'LLM_PROVIDER', 'OLLAMA_ENDPOINT', 'OLLAMA_MODEL', 'OLLAMA_TIMEOUT', 'XAI_API_KEY', 'grok', 'grok-4-latest', 'https://api.x.ai/v1', 'llama3.1:8b', 'no', 'none', 'ollama', 'stub']

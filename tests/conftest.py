@@ -17,3 +17,8 @@ import pytest
 def _neutral_llm_env():
     for k in ("LLM_PROVIDER","GROK_ENDPOINT","GROK_MODEL","OPENAI_API_KEY","XAI_API_KEY"):
         os.environ.pop(k, None)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _set_api_key():
+    os.environ["API_KEY"] = "test_key"

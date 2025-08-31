@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import importlib
+from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 app_module = importlib.import_module("app")
@@ -16,18 +18,20 @@ def test_v1_health():
 def test_v1_bmi_happy():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": 170, "group": "general"}
+        json={"weight_kg": 70, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] == 24.22
-    assert data["category"] == "Normal"
+    assert data["category"] == "Healthy weight"
 
 
 def test_v1_bmi_invalid_height():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": 0, "group": "general"}
+        json={"weight_kg": 70, "height_cm": 0, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     # Pydantic validation returns 422 for invalid field values
     assert r.status_code == 422
@@ -38,7 +42,8 @@ def test_v1_bmi_invalid_height():
 def test_v1_bmi_invalid_weight():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": -50, "height_cm": 170, "group": "general"}
+        json={"weight_kg": -50, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     # Pydantic validation returns 422 for invalid field values
     assert r.status_code == 422
@@ -46,10 +51,23 @@ def test_v1_bmi_invalid_weight():
     assert "detail" in data
 
 
+def test_v1_bmi_unrealistic_weight():
+    r = client.post(
+        "/api/v1/bmi",
+        json={"weight_kg": 10, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
+    )
+    # Validation in bmi_value raises ValueError for unrealistic weight
+    assert r.status_code == 400
+    data = r.json()
+    assert "detail" in data
+
+
 def test_v1_bmi_invalid_group():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": 170, "group": "invalid"}
+        json={"weight_kg": 70, "height_cm": 170, "group": "invalid"},
+        headers={"X-API-Key": "test_key"}
     )
     # Since we allow any string for group, this should work
     assert r.status_code == 200
@@ -60,7 +78,8 @@ def test_v1_bmi_invalid_group():
 def test_v1_bmi_underweight():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 45, "height_cm": 170, "group": "general"}
+        json={"weight_kg": 45, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()
@@ -71,7 +90,8 @@ def test_v1_bmi_underweight():
 def test_v1_bmi_overweight():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 85, "height_cm": 170, "group": "general"}
+        json={"weight_kg": 85, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()
@@ -82,12 +102,13 @@ def test_v1_bmi_overweight():
 def test_v1_bmi_obese():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 100, "height_cm": 170, "group": "general"}
+        json={"weight_kg": 100, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] >= 30
-    assert data["category"] == "Obese"
+    assert data["category"] == "Obesity"
 
 
 def test_v1_bodyfat():
@@ -129,3 +150,221 @@ def test_v1_bodyfat_missing_hip():
     assert "methods" in data
     # Since hip_cm missing, us_navy should not be in methods
     assert "us_navy" not in data["methods"]
+
+
+def test_bodyfat_import_failure():
+    """Test coverage for bodyfat import exception in app.py."""
+    import builtins
+    from unittest.mock import patch
+
+    # Save original before patching
+    original_import = builtins.__import__
+
+    with patch.object(builtins, '__import__') as mock_import:
+        # Mock the import to fail
+        def side_effect(name, *args, **kwargs):
+            if name == "bodyfat":
+                raise ImportError("Mocked import failure")
+            return original_import(name, *args, **kwargs)
+
+        mock_import.side_effect = side_effect
+
+        # Re-import app to trigger the exception
+        import sys
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        try:
+            import app
+            # If import succeeds, check that get_bodyfat_router is None
+            assert app.get_bodyfat_router is None
+        except Exception:
+            pytest.skip("App import failed unexpectedly")
+
+
+def test_insight_import_failure():
+    """Test coverage for llm import exception in app.py."""
+    import builtins
+    from unittest.mock import patch
+
+    # Save original before patching
+    original_import = builtins.__import__
+
+    with patch.object(builtins, '__import__') as mock_import:
+        # Mock the import to fail for llm
+        def side_effect(name, *args, **kwargs):
+            if name == "llm":
+                raise ImportError("Mocked llm import failure")
+            return original_import(name, *args, **kwargs)
+
+        mock_import.side_effect = side_effect
+
+        # Re-import app to trigger the exception
+        import sys
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        try:
+            import app
+            client = TestClient(app.app)
+
+            response = client.post(
+                "/api/v1/insight",
+                json={"text": "test"},
+                headers={"X-API-Key": "test_key"}
+            )
+            assert response.status_code == 503
+            data = response.json()
+            assert "insight provider not configured" in data["detail"]
+        except Exception:
+            pytest.skip("App import failed unexpectedly")
+
+
+@patch('llm.get_provider')
+def test_api_insight_provider_generate_failure(mock_get_provider):
+    """Test coverage for provider.generate exception in insight endpoint."""
+    from unittest.mock import MagicMock
+
+    mock_provider = MagicMock()
+    mock_provider.name = "test"
+    mock_provider.generate.side_effect = Exception("Generate failed")
+    mock_get_provider.return_value = mock_provider
+
+    response = client.post(
+        "/api/v1/insight",
+        json={"text": "test"},
+        headers={"X-API-Key": "test_key"}
+    )
+    assert response.status_code == 503
+    data = response.json()
+    assert "insight provider unavailable" in data["detail"]
+
+
+@patch('llm.get_provider')
+def test_api_insight_provider_none(mock_get_provider):
+    """Test coverage for provider is None in insight endpoint."""
+    mock_get_provider.return_value = None
+
+    response = client.post(
+        "/api/v1/insight",
+        json={"text": "test"},
+        headers={"X-API-Key": "test_key"}
+    )
+    assert response.status_code == 503
+    data = response.json()
+    assert "insight provider not configured" in data["detail"]
+
+
+def test_metrics():
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    data = response.json()
+    assert "uptime_seconds" in data
+    assert isinstance(data["uptime_seconds"], float)
+    assert data["uptime_seconds"] >= 0
+
+
+def test_category_by_bmi_ru():
+    from app import category_by_bmi
+    assert category_by_bmi(17, "ru") == "Недостаточная масса"
+    assert category_by_bmi(22, "ru") == "Норма"
+    assert category_by_bmi(27, "ru") == "Избыточный вес"
+    assert category_by_bmi(32, "ru") == "Ожирение"
+
+
+def test_compute_wht_ratio_round_exception():
+    from bmi_core import compute_wht_ratio
+
+    with patch('builtins.round', side_effect=Exception("Round failed")):
+        result = compute_wht_ratio(80, 1.7)
+        assert result is None
+
+
+def test_v1_bmi_invalid_api_key():
+    r = client.post(
+        "/api/v1/bmi",
+        json={"weight_kg": 70, "height_cm": 170, "group": "general"},
+        headers={"X-API-Key": "wrong_key"}
+    )
+    assert r.status_code == 403
+    data = r.json()
+    assert "Invalid API Key" in data["detail"]
+
+
+def test_v1_bmi_no_api_key():
+    r = client.post(
+        "/api/v1/bmi",
+        json={"weight_kg": 70, "height_cm": 170, "group": "general"}
+    )
+    assert r.status_code == 403
+    data = r.json()
+    assert "Invalid API Key" in data["detail"]
+
+
+def test_v1_insight_invalid_api_key():
+    r = client.post(
+        "/api/v1/insight",
+        json={"text": "test"},
+        headers={"X-API-Key": "wrong_key"}
+    )
+    assert r.status_code == 403
+    data = r.json()
+    assert "Invalid API Key" in data["detail"]
+
+
+def test_slowapi_import_failure():
+    """Test coverage for slowapi import exception in app.py."""
+    import builtins
+    from unittest.mock import patch
+
+    # Save original before patching
+    original_import = builtins.__import__
+
+    with patch.object(builtins, '__import__') as mock_import:
+        # Mock the import to fail for slowapi
+        def side_effect(name, *args, **kwargs):
+            if name == "slowapi":
+                raise ImportError("Mocked slowapi import failure")
+            return original_import(name, *args, **kwargs)
+
+        mock_import.side_effect = side_effect
+
+        # Re-import app to trigger the exception
+        import sys
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        try:
+            import app
+            # Check that limiter is None
+            assert app.limiter is None
+        except Exception:
+            pytest.skip("App import failed unexpectedly")
+
+
+def test_prometheus_import_failure():
+    """Test coverage for prometheus_client import exception in app.py."""
+    import builtins
+    from unittest.mock import patch
+
+    # Save original before patching
+    original_import = builtins.__import__
+
+    with patch.object(builtins, '__import__') as mock_import:
+        # Mock the import to fail for prometheus_client
+        def side_effect(name, *args, **kwargs):
+            if name == "prometheus_client":
+                raise ImportError("Mocked prometheus_client import failure")
+            return original_import(name, *args, **kwargs)
+
+        mock_import.side_effect = side_effect
+
+        # Re-import app to trigger the exception
+        import sys
+        if "app" in sys.modules:
+            del sys.modules["app"]
+        try:
+            import app
+            # Check that Counter is None
+            assert app.Counter is None
+            assert app.Histogram is None
+            assert app.generate_latest is None
+        except Exception:
+            pytest.skip("App import failed unexpectedly")

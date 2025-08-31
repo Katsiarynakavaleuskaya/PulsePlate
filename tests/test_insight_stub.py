@@ -26,7 +26,11 @@ client = TestClient(fastapi_app)
 
 
 def test_insight_stub_provider():
-    r = client.post("/api/v1/insight", json={"text": "ping"})
+    r = client.post(
+        "/api/v1/insight",
+        json={"text": "ping"},
+        headers={"X-API-Key": "test_key"}
+    )
     if r.status_code == 404:
         pytest.skip("No /api/v1/insight route (skipping)")
     assert r.status_code == 200

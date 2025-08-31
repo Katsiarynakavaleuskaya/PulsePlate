@@ -90,3 +90,29 @@ def test__bmi_value_raises_on_zero_height():
     from app import _bmi_value
     with pytest.raises(ValueError):
         _bmi_value(70, 0)
+
+
+def test__bmi_value_valid():
+    from app import _bmi_value
+    assert _bmi_value(70, 170) == 24.22
+
+
+def test__bmi_category():
+    from app import _bmi_category
+    assert _bmi_category(17) == "Underweight"
+    assert _bmi_category(22) == "Normal"
+    assert _bmi_category(27) == "Overweight"
+    assert _bmi_category(32) == "Obese"
+
+
+def test__interpretation():
+    from app import _interpretation
+    assert _interpretation(22, "general") == "Normal"
+    expected_athlete = "Normal (мышечная масса может искажать BMI)"
+    assert _interpretation(22, "athlete") == expected_athlete
+    expected_pregnant = "BMI не применим при беременности"
+    assert _interpretation(22, "pregnant") == expected_pregnant
+    expected_elderly = "Normal (возрастные изменения состава тела)"
+    assert _interpretation(22, "elderly") == expected_elderly
+    expected_teen = "Используйте педиатрические перцентили BMI"
+    assert _interpretation(22, "teen") == expected_teen
