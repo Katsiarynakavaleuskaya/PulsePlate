@@ -27,6 +27,16 @@ except Exception:
 
 app = FastAPI(title="BMI-App 2025")
 
+from fastapi.exceptions import RequestValidationError
+from fastapi import Request
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"error": "invalid input", "details": exc.errors()},
+    )
+
 
 # ---------- Models ----------
 class BMIRequest(BaseModel):
@@ -245,7 +255,8 @@ def api_v1_health():
 class BMIRequest(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kilograms")
     height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
-    group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
+    group: Literal["general", "athlete", "pregnant", "elderly", "teen"] = "general"
+
 
 
 class BMIResponse(BaseModel):
