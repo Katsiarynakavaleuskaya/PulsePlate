@@ -5,11 +5,13 @@
 **Что изменено:** Увеличен таймаут с 30 до 120 секунд
 
 **БЫЛО:**
+
 ```python
 def __init__(self, endpoint: str = "http://localhost:11434", model: str = "llama3.1:8b", timeout_s: float = 30.0):
 ```
 
 **СТАЛО:**
+
 ```python
 def __init__(self, endpoint: str = "http://localhost:11434", model: str = "llama3.1:8b", timeout_s: float = 120.0):
 ```
@@ -19,6 +21,7 @@ def __init__(self, endpoint: str = "http://localhost:11434", model: str = "llama
 ## 2. НОВЫЕ ФАЙЛЫ
 
 ### A. ollama_diagnostic.sh - ДИАГНОСТИЧЕСКИЙ СКРИПТ
+
 **Создать файл:** `/ollama_diagnostic.sh`
 **Права:** `chmod +x ollama_diagnostic.sh`
 
@@ -95,6 +98,7 @@ echo "🏁 Diagnostic Complete!"
 ```
 
 ### B. ollama_monitor.sh - МОНИТОРИНГ В РЕАЛЬНОМ ВРЕМЕНИ
+
 **Создать файл:** `/ollama_monitor.sh`
 **Права:** `chmod +x ollama_monitor.sh`
 
@@ -157,14 +161,16 @@ monitor_process
 
 ## 3. КОМАНДЫ ДЛЯ НАСТРОЙКИ LLM ПРОВАЙДЕРОВ
 
-### Переключение на STUB (для разработки):
+### Переключение на STUB (для разработки)
+
 ```bash
 export LLM_PROVIDER=stub
 export FEATURE_INSIGHT=1
 make run
 ```
 
-### Переключение на OLLAMA (для продакшена):
+### Переключение на OLLAMA (для продакшена)
+
 ```bash
 export LLM_PROVIDER=ollama
 export FEATURE_INSIGHT=1
@@ -175,21 +181,24 @@ make run
 
 ## 4. ТЕСТОВЫЕ КОМАНДЫ API
 
-### Тест BMI endpoint:
+### Тест BMI endpoint
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/bmi \
   -H "Content-Type: application/json" \
   -d '{"height_m":1.75,"weight_kg":85,"age":30,"gender":"male","pregnant":"no","athlete":"no","user_group":"general","language":"en"}'
 ```
 
-### Тест Insight endpoint:
+### Тест Insight endpoint
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/insight \
   -H "Content-Type: application/json" \
   -d '{"text": "Provide health advice for BMI 27.8"}'
 ```
 
-### Тест Plan endpoint:
+### Тест Plan endpoint
+
 ```bash
 curl -s -X POST http://127.0.0.1:8001/plan \
   -H "Content-Type: application/json" \
