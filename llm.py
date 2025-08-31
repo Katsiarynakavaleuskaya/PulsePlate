@@ -53,7 +53,8 @@ def get_provider():
         # пример: можно пробросить ключ и модель через env
         api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
         model = os.getenv("GROK_MODEL", "grok-4-latest")
-        return GrokProvider(api_key=api_key, model=model)
+        endpoint = os.getenv("GROK_ENDPOINT", "https://api.x.ai/v1")
+        return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
 
     if val == "ollama" and OllamaProvider:
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
