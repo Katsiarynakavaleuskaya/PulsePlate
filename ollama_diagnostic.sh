@@ -28,9 +28,8 @@ echo ""
 
 # 3. Загруженные модели
 echo "3️⃣ Loaded Models:"
-MODELS=$(curl -s --max-time 5 http://localhost:11434/api/tags | jq -r '.models[].name' 2>/dev/null)
-if [ $? -eq 0 ]; then
-    echo "$MODELS" | while read model; do
+if MODELS=$(curl -s --max-time 5 http://localhost:11434/api/tags | jq -r '.models[].name' 2>/dev/null); then
+    echo "$MODELS" | while read -r model; do
         echo "   📦 $model"
     done
 else
@@ -43,18 +42,17 @@ echo "4️⃣ Response Time Test:"
 echo "   Testing with simple prompt..."
 START_TIME=$(date +%s)
 
-RESPONSE=$(curl -s --max-time 30 -X POST http://localhost:11434/api/generate \
+if RESPONSE=$(curl -s --max-time 30 -X POST http://localhost:11434/api/generate \
     -H "Content-Type: application/json" \
-    -d '{"model":"llama3.1:8b","prompt":"Hello","stream":false}' 2>/dev/null)
-
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-
-if [ $? -eq 0 ] && [ ! -z "$RESPONSE" ]; then
+    -d '{"model":"llama3.1:8b","prompt":"Hello","stream":false}' 2>/dev/null) && [ -n "$RESPONSE" ]; then
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
     echo "   ✅ Response received in ${DURATION}s"
     RESPONSE_TEXT=$(echo "$RESPONSE" | jq -r '.response' 2>/dev/null | head -c 50)
     echo "   💬 Response: \"$RESPONSE_TEXT...\""
 else
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
     echo "   ❌ Request failed or timed out after ${DURATION}s"
 fi
 echo ""
