@@ -45,7 +45,7 @@ except ImportError:
     get_bodyfat_router = None
 
 try:
-    from bmi_visualization import generate_bmi_visualization, MATPLOTLIB_AVAILABLE
+    from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 except ImportError:
     generate_bmi_visualization = None
     MATPLOTLIB_AVAILABLE = False
@@ -289,7 +289,7 @@ async def bmi_endpoint(req: BMIRequest):
             "athlete": flags["is_athlete"],
             "group": "athlete" if flags["is_athlete"] else "general",
         }
-        
+
         # Add visualization if requested and available
         if req.include_chart and generate_bmi_visualization:
             viz_result = generate_bmi_visualization(
@@ -298,10 +298,10 @@ async def bmi_endpoint(req: BMIRequest):
             )
             if viz_result.get("available"):
                 result["visualization"] = viz_result
-        
+
         return result
 
-    category = bmi_category(bmi, req.lang, req.age, 
+    category = bmi_category(bmi, req.lang, req.age,
                           "athlete" if flags["is_athlete"] else "general")
     notes = []
     if flags["is_athlete"]:
@@ -320,7 +320,7 @@ async def bmi_endpoint(req: BMIRequest):
         "athlete": flags["is_athlete"],
         "group": "athlete" if flags["is_athlete"] else "general",
     }
-    
+
     # Add visualization if requested and available
     if req.include_chart and generate_bmi_visualization:
         viz_result = generate_bmi_visualization(
@@ -334,7 +334,7 @@ async def bmi_endpoint(req: BMIRequest):
                 "error": "Visualization not available - matplotlib not installed",
                 "available": False
             }
-    
+
     return result
 
 
@@ -343,35 +343,35 @@ async def bmi_visualize_endpoint(req: BMIRequest, api_key: str = Depends(get_api
     """Generate BMI visualization chart."""
     if not generate_bmi_visualization:
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail="Visualization not available - module not found"
         )
-    
+
     if not MATPLOTLIB_AVAILABLE:
         raise HTTPException(
             status_code=503,
             detail="Visualization not available - matplotlib not installed"
         )
-    
+
     # Calculate BMI
     bmi = calc_bmi(req.weight_kg, req.height_m)
-    
+
     # Generate visualization
     viz_result = generate_bmi_visualization(
         bmi=bmi, age=req.age, gender=req.gender,
         pregnant=req.pregnant, athlete=req.athlete, lang=req.lang
     )
-    
+
     if not viz_result.get("available"):
         raise HTTPException(
             status_code=500,
             detail=viz_result.get("error", "Visualization generation failed")
         )
-    
+
     return {
         "bmi": bmi,
         "visualization": viz_result,
-        "message": "BMI visualization generated successfully" if req.lang == "en" 
+        "message": "BMI visualization generated successfully" if req.lang == "en"
                   else "Визуализация ИМТ создана успешно"
     }
 

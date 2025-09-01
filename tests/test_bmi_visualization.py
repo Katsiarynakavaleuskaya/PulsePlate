@@ -5,6 +5,7 @@ Tests both the enhanced BMI endpoint and dedicated visualization endpoint.
 """
 
 import importlib
+
 from fastapi.testclient import TestClient
 
 app_module = importlib.import_module("app")
@@ -23,15 +24,15 @@ def test_bmi_endpoint_with_visualization_request():
         "lang": "en",
         "include_chart": True
     }
-    
+
     response = client.post("/bmi", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "bmi" in data
     assert "category" in data
     assert "visualization" in data
-    
+
     # Since matplotlib might not be installed, check graceful degradation
     viz = data["visualization"]
     if viz.get("available"):
@@ -55,10 +56,10 @@ def test_bmi_endpoint_without_visualization():
         "lang": "en",
         "include_chart": False
     }
-    
+
     response = client.post("/bmi", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "bmi" in data
     assert "category" in data
@@ -76,10 +77,10 @@ def test_enhanced_teen_segmentation():
         "athlete": "no",
         "lang": "en"
     }
-    
+
     response = client.post("/bmi", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "bmi" in data
     assert "category" in data
@@ -94,13 +95,13 @@ def test_enhanced_athlete_segmentation():
         "age": 25,
         "gender": "male",
         "pregnant": "no",
-        "athlete": "yes", 
+        "athlete": "yes",
         "lang": "en"
     }
-    
+
     response = client.post("/bmi", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "bmi" in data
     assert "category" in data
@@ -119,7 +120,7 @@ def test_bmi_visualization_endpoint_without_api_key():
         "athlete": "no",
         "lang": "en"
     }
-    
+
     response = client.post("/api/v1/bmi/visualize", json=payload)
     assert response.status_code == 403  # Should require API key
 
@@ -130,22 +131,22 @@ def test_bmi_visualization_endpoint_with_api_key():
         "weight_kg": 70,
         "height_m": 1.75,
         "age": 30,
-        "gender": "male", 
+        "gender": "male",
         "pregnant": "no",
         "athlete": "no",
         "lang": "en"
     }
-    
+
     response = client.post(
-        "/api/v1/bmi/visualize", 
+        "/api/v1/bmi/visualize",
         json=payload,
         headers={"X-API-Key": "test_key"}
     )
-    
+
     # Expect 503 since matplotlib likely not installed in test environment
     expected_codes = [503, 200]  # 503 if no matplotlib, 200 if available
     assert response.status_code in expected_codes
-    
+
     if response.status_code == 503:
         data = response.json()
         assert "detail" in data

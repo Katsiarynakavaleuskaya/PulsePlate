@@ -35,7 +35,7 @@ class Config:
     TEEN_MIN_AGE = 13
     TEEN_MAX_AGE = 19
     ATHLETE_BMI_MAX = 27.0  # в спорт-моде верхняя граница не ниже 27
-    
+
     # Age-specific BMI adjustments
     ELDERLY_BMI_ADJUST = 1.0  # Allow slightly higher BMI for elderly
     TEEN_BMI_LOWER = 17.5  # Lower underweight threshold for teens
@@ -171,12 +171,12 @@ def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Option
     """Enhanced BMI categorization with age and population-specific adjustments."""
     lang = normalize_lang(lang)
     c = LANG[lang]["cat"]
-    
+
     # Age-specific adjustments
     underweight_threshold = 18.5
     normal_upper = 25.0
     overweight_upper = 30.0
-    
+
     if age and group:
         if group == "elderly":
             # Slightly higher thresholds for elderly (sarcopenia consideration)
@@ -189,7 +189,7 @@ def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Option
         elif group == "athlete":
             # Higher normal range for athletes due to muscle mass
             normal_upper = Config.ATHLETE_BMI_MAX
-    
+
     if bmi < underweight_threshold:
         return c["under"]
     elif bmi < normal_upper:
