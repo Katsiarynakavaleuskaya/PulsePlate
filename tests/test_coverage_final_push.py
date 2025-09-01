@@ -1,7 +1,7 @@
 """Final push tests to reach 97% coverage"""
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +18,7 @@ def test_api_v1_bmi_endpoint():
         "height_cm": 175,
         "group": "general"
     }
-    
+
     response = client.post("/api/v1/bmi", json=payload)
     # This endpoint might not be fully implemented, but we want to cover the code
     # Expected responses: 200 (if implemented), 404 (if not found), 422 (validation error), 403 (forbidden)
@@ -36,10 +36,10 @@ def test_plan_endpoint_premium_path():
         "lang": "en",
         "premium": True  # This should trigger premium_reco lines
     }
-    
+
     response = client.post("/plan", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "premium_reco" in data
     assert isinstance(data["premium_reco"], list)
@@ -56,17 +56,17 @@ def test_plan_endpoint_russian_premium():
         "lang": "ru",
         "premium": True
     }
-    
+
     response = client.post("/plan", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "premium_reco" in data
     assert "Дефицит" in str(data["premium_reco"])
 
 def test_import_coverage_with_missing_modules():
     """Test various import scenarios to improve coverage"""
-    
+
     # Test import scenarios that might not be covered
     with patch.dict('sys.modules', {
         'slowapi': None,
@@ -76,39 +76,40 @@ def test_import_coverage_with_missing_modules():
     }):
         # This should cover the ImportError paths
         import importlib
+
         import app as app_module
         importlib.reload(app_module)
 
 def test_grok_lite_provider():
     """Test GrokLiteProvider fallback"""
     from llm import GrokLiteProvider
-    
+
     provider = GrokLiteProvider()
     assert provider.name == "grok"
-    
+
     # Test the generate method
     import asyncio
-    
+
     async def test_generate():
         result = await provider.generate("test input")
         assert "[grok-lite]" in result
         assert "test input" in result
-    
+
     asyncio.run(test_generate())
 
 def test_build_premium_plan_edge_cases():
     """Test build_premium_plan to cover missing bmi_core lines"""
     from bmi_core import build_premium_plan, healthy_bmi_range
-    
+
     # Test healthy_bmi_range with different parameters
     bmin, bmax = healthy_bmi_range(age=70, group="elderly", premium=True)
     assert bmin > 0
     assert bmax > bmin
-    
-    bmin, bmax = healthy_bmi_range(age=25, group="athlete", premium=True)  
+
+    bmin, bmax = healthy_bmi_range(age=25, group="athlete", premium=True)
     assert bmin > 0
     assert bmax >= 27.0  # Athletes should have higher max
-    
+
     # Try to call build_premium_plan to cover those lines
     try:
         plan = build_premium_plan(
@@ -142,10 +143,10 @@ def test_api_key_header_coverage():
     """Test API key header dependency"""
     # Test the API key header creation and usage
     from app import api_key_header, get_api_key
-    
+
     assert api_key_header is not None
     assert api_key_header.model.name == "X-API-Key"
-    
+
     # Test get_api_key with no environment API_KEY
     with patch.dict(os.environ, {}, clear=True):
         api_key = get_api_key("any_key")
