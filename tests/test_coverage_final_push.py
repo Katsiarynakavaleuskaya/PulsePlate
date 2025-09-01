@@ -108,9 +108,14 @@ def test_build_premium_plan_edge_cases():
 
     # Try to call build_premium_plan to cover those lines
     try:
+        # Calculate BMI for the test
+        weight_kg = 75
+        height_m = 1.80
+        bmi = weight_kg / (height_m ** 2)
+
         plan = build_premium_plan(
-            age=30, weight_kg=75, height_m=1.80,
-            goal="lose", group="general", lang="en"
+            age=30, weight_kg=weight_kg, height_m=height_m,
+            bmi=bmi, group="general", lang="en", premium=True
         )
         # Function might return something or raise NotImplementedError
         if plan is not None:

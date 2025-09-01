@@ -11,6 +11,7 @@ omit =
     ./test_visualization.py
     */test_visualization.py
     bmi_visualization.py
+    example_nutrition_api.py
 
 [report]
 show_missing = True
@@ -21,6 +22,9 @@ exclude_lines =
     if __name__ == "__main__": 
     @overload
     @abstractmethod
+    if TYPE_CHECKING:
+    except ImportError:
+    except Exception:
 
 [html]
 directory = htmlcov

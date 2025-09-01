@@ -59,6 +59,13 @@ except ImportError:
     generate_bmi_visualization = None
     MATPLOTLIB_AVAILABLE = False
 
+try:
+    from nutrition_core import calculate_all_bmr, calculate_all_tdee, get_activity_descriptions
+except ImportError:
+    calculate_all_bmr = None
+    calculate_all_tdee = None
+    get_activity_descriptions = None
+
 from bmi_core import bmi_category, bmi_value
 
 # Set up logging
@@ -551,6 +558,21 @@ class BMIRequestV1(BaseModel):
     group: str = "general"
 
 
+class BMRRequest(BaseModel):
+    """Request model for Premium BMR/TDEE calculation"""
+    weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kilograms")
+    height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
+    age: int = Field(..., ge=0, le=120, description="Age in years")
+    sex: Literal["male", "female"] = Field(..., description="Biological sex")
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = Field(
+        ..., description="Physical activity level"
+    )
+    bodyfat: Optional[float] = Field(
+        None, ge=0, le=50, description="Body fat percentage (optional, for Katch-McArdle formula)"
+    )
+    lang: Literal["ru", "en"] = Field("en", description="Response language")
+
+
 class BMIResponse(BaseModel):
     bmi: float
     category: str
@@ -610,6 +632,96 @@ async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
         category=bmi_category(v, "en"),
         interpretation="",
     )
+
+
+@app.post(
+    "/api/v1/premium/bmr",
+    dependencies=[Depends(get_api_key)]
+)
+async def api_premium_bmr(data: BMRRequest):
+    """Premium BMR/TDEE calculation endpoint with multiple formulas.
+    
+    Returns BMR calculated using multiple validated formulas:
+    - Mifflin-St Jeor (most accurate for general population)
+    - Harris-Benedict (traditional formula)
+    - Katch-McArdle (optional, requires body fat percentage)
+    
+    Also calculates TDEE (Total Daily Energy Expenditure) based on activity level.
+    """
+    if not calculate_all_bmr or not calculate_all_tdee:
+        raise HTTPException(
+            status_code=503,
+            detail="Nutrition module not available"
+        )
+
+    try:
+        # Calculate BMR using all available formulas
+        bmr_results = calculate_all_bmr(
+            weight=data.weight_kg,
+            height=data.height_cm,
+            age=data.age,
+            sex=data.sex,
+            bodyfat_percent=data.bodyfat
+        )
+
+        # Calculate TDEE for all BMR formulas
+        tdee_results = calculate_all_tdee(bmr_results, data.activity)
+
+        # Get activity descriptions
+        activity_descriptions = get_activity_descriptions() if get_activity_descriptions else {}
+
+        # Build response based on language
+        if data.lang == "ru":
+            response = {
+                "bmr": bmr_results,
+                "tdee": tdee_results,
+                "activity_level": data.activity,
+                "activity_description": activity_descriptions.get(data.activity, ""),
+                "recommended_intake": {
+                    "description": "Рекомендуемое потребление калорий на основе TDEE",
+                    "maintenance": tdee_results.get("mifflin", 0),
+                    "weight_loss": round(tdee_results.get("mifflin", 0) * 0.8),  # 20% deficit
+                    "weight_gain": round(tdee_results.get("mifflin", 0) * 1.1)   # 10% surplus
+                },
+                "formulas_used": list(bmr_results.keys()),
+                "notes": {
+                    "mifflin": "Наиболее точная формула для общей популяции",
+                    "harris": "Традиционная формула, менее точная",
+                    "katch": "Для спортсменов с известным % жира" if "katch" in bmr_results else None
+                }
+            }
+        else:
+            response = {
+                "bmr": bmr_results,
+                "tdee": tdee_results,
+                "activity_level": data.activity,
+                "activity_description": activity_descriptions.get(data.activity, ""),
+                "recommended_intake": {
+                    "description": "Recommended calorie intake based on TDEE",
+                    "maintenance": tdee_results.get("mifflin", 0),
+                    "weight_loss": round(tdee_results.get("mifflin", 0) * 0.8),  # 20% deficit
+                    "weight_gain": round(tdee_results.get("mifflin", 0) * 1.1)   # 10% surplus
+                },
+                "formulas_used": list(bmr_results.keys()),
+                "notes": {
+                    "mifflin": "Most accurate formula for general population",
+                    "harris": "Traditional formula, less accurate",
+                    "katch": "For athletes with known body fat %" if "katch" in bmr_results else None
+                }
+            }
+
+        return response
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"BMR calculation failed: {str(e)}"
+        ) from e
 
 
 @app.get("/debug_env")
