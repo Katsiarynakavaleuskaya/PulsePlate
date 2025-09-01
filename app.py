@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from contextlib import suppress
-from typing import TYPE_CHECKING, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 try:
     from prometheus_client import Counter, Histogram, generate_latest
@@ -40,7 +40,7 @@ else:
         SlowAPIMiddleware = None
         slowapi_available = False
 
-from pydantic import BaseModel, Field, StrictFloat, model_validator
+from pydantic import BaseModel, Field, StrictFloat, conset, model_validator
 
 with suppress(ImportError):
     import dotenv
@@ -67,14 +67,46 @@ except ImportError:
     get_activity_descriptions = None
 
 from bmi_core import bmi_category, bmi_value
+from core.food_apis.scheduler import (
+    get_update_scheduler,
+    start_background_updates,
+    stop_background_updates,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="BMI-App 2025")
+from contextlib import asynccontextmanager
+
+# ... existing imports ...
+
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        await start_background_updates(update_interval_hours=24)
+        logger.info("Started background database updates")
+    except Exception as e:
+        logger.error(f"Failed to start background updates: {e}")
+
+    yield
+
+    # Shutdown
+    try:
+        await stop_background_updates()
+        logger.info("Stopped background database updates")
+    except Exception as e:
+        logger.error(f"Error stopping background updates: {e}")
+
+app = FastAPI(title="BMI-App 2025", lifespan=lifespan)
 
 start_time = time.time()
+
+# Legacy event handlers - replaced with lifespan
+# @app.on_event("startup")
+# @app.on_event("shutdown")
 
 # Add logging middleware
 @app.middleware("http")
@@ -640,12 +672,12 @@ async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
 )
 async def api_premium_bmr(data: BMRRequest):
     """Premium BMR/TDEE calculation endpoint with multiple formulas.
-    
+
     Returns BMR calculated using multiple validated formulas:
     - Mifflin-St Jeor (most accurate for general population)
     - Harris-Benedict (traditional formula)
     - Katch-McArdle (optional, requires body fat percentage)
-    
+
     Also calculates TDEE (Total Daily Energy Expenditure) based on activity level.
     """
     if not calculate_all_bmr or not calculate_all_tdee:
@@ -724,6 +756,428 @@ async def api_premium_bmr(data: BMRRequest):
         ) from e
 
 
+try:
+    from core.menu_engine import analyze_nutrient_gaps, make_daily_menu, make_weekly_menu
+    from core.plate import make_plate
+    from core.recommendations import build_nutrition_targets
+except ImportError:
+    make_plate = None
+    build_nutrition_targets = None
+    make_daily_menu = None
+    make_weekly_menu = None
+    analyze_nutrient_gaps = None
+
+
+# Enhanced Plate API Models
+Sex = Literal["female", "male"]
+Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
+Goal = Literal["loss", "maintain", "gain"]
+DietFlag = Literal["VEG", "GF", "DAIRY_FREE", "LOW_COST"]
+
+class PlateRequest(BaseModel):
+    """RU: Запрос на генерацию «Моей Тарелки».
+    EN: Request to generate 'My Plate'.
+    """
+    sex: Sex
+    age: int = Field(..., ge=10, le=100)
+    height_cm: float = Field(..., gt=0)
+    weight_kg: float = Field(..., gt=0)
+    activity: Activity
+    goal: Goal
+    # RU: Для цели loss/gain задаём процент; для maintain можно опустить или 0.
+    # EN: For loss/gain provide percent; for maintain can omit or use 0.
+    deficit_pct: Optional[float] = Field(None, ge=5, le=25)   # for loss
+    surplus_pct: Optional[float] = Field(None, ge=5, le=20)   # for gain
+    bodyfat: Optional[float] = Field(None, ge=3, le=60)
+    diet_flags: Optional[conset(DietFlag, min_length=0)] = None
+
+class VisualShape(BaseModel):
+    """RU: Примитив для фронтенда (сектор тарелки/чашка/метка).
+    EN: Primitive for frontend (plate sector/bowl/dot).
+    """
+    kind: Literal["plate_sector", "bowl", "marker"]
+    # fraction: доля сектора 0..1 для plate_sector, или вместимость чашки в 'cups'
+    fraction: float
+    label: str
+    tooltip: str
+
+class PlateResponse(BaseModel):
+    kcal: int
+    macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
+    portions: Dict[str, Any]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
+    layout: List[VisualShape]  # спецификация визуалки
+    meals: List[Dict[str, Any]]  # список блюд с калориями/макро
+
+
+# WHO-Based Nutrition Models
+class WHOTargetsRequest(BaseModel):
+    """RU: Запрос на расчёт целей по нормам ВОЗ.
+    EN: Request for WHO-based nutrition targets.
+    """
+    sex: Sex
+    age: int = Field(..., ge=1, le=120)
+    height_cm: float = Field(..., gt=0)
+    weight_kg: float = Field(..., gt=0)
+    activity: Activity
+    goal: Goal = "maintain"
+    deficit_pct: Optional[float] = Field(None, ge=5, le=25)
+    surplus_pct: Optional[float] = Field(None, ge=5, le=20)
+    bodyfat: Optional[float] = Field(None, ge=3, le=60)
+    diet_flags: Optional[conset(DietFlag, min_length=0)] = None
+    life_stage: Literal["adult", "pregnant", "lactating"] = "adult"
+
+
+class WHOTargetsResponse(BaseModel):
+    """RU: Ответ с целевыми значениями по ВОЗ.
+    EN: Response with WHO-based targets.
+    """
+    kcal_daily: int
+    macros: Dict[str, int]
+    water_ml: int
+    priority_micros: Dict[str, float]  # Key micronutrients
+    activity_weekly: Dict[str, int]    # Weekly activity targets
+    calculation_date: str
+    warnings: List[str] = []  # Safety warnings if any
+
+
+class NutrientGapsRequest(BaseModel):
+    """RU: Запрос на анализ дефицитов нутриентов.
+    EN: Request for nutrient gap analysis.
+    """
+    consumed_nutrients: Dict[str, float]  # Actual daily intake
+    user_profile: WHOTargetsRequest      # User profile for targets
+
+
+class NutrientGapsResponse(BaseModel):
+    """RU: Ответ с анализом дефицитов и рекомендациями.
+    EN: Response with gap analysis and recommendations.
+    """
+    gaps: Dict[str, Dict[str, Any]]     # Detailed gap analysis
+    food_recommendations: List[str]     # Food-based solutions
+    adherence_score: float              # Overall adequacy score
+
+
+class WeeklyMenuResponse(BaseModel):
+    """RU: Ответ с недельным меню.
+    EN: Response with weekly menu.
+    """
+    week_summary: Dict[str, Any]
+    daily_menus: List[Dict[str, Any]]
+    weekly_coverage: Dict[str, float]   # Average nutrient coverage
+    shopping_list: Dict[str, float]     # Weekly shopping needs
+    total_cost: float
+    adherence_score: float
+
+
+@app.post(
+    "/api/v1/premium/plate",
+    dependencies=[Depends(get_api_key)],
+    response_model=PlateResponse
+)
+async def api_premium_plate(req: PlateRequest) -> PlateResponse:
+    """
+    RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.
+    EN: Generates 'My Plate' for goal/deficit/activity.
+
+    Enhanced Plate API with visual sectors and hand/cup portions:
+    - Visual plate layout with 4 sectors + 2 bowls
+    - Precise deficit/surplus percentage control
+    - Hand/cup portion method for real-world application
+    - Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)
+    - Macro-balanced meal suggestions
+    """
+    try:
+        if make_plate is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Enhanced plate feature not available"
+            )
+
+        if calculate_all_bmr is None or calculate_all_tdee is None:
+            raise HTTPException(
+                status_code=503,
+                detail="BMR/TDEE calculation not available"
+            )
+
+        # 1) Calculate BMR/TDEE (using Mifflin-St Jeor as default, can add formula choice later)
+        bmr_results = calculate_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
+        tdee_results = calculate_all_tdee(bmr_results, req.activity)
+        tdee_val = tdee_results["mifflin"]  # Use Mifflin-St Jeor as primary
+
+        # 2) Generate plate with enhanced logic
+        diet_flags = set(req.diet_flags or [])
+        plate_data = make_plate(
+            weight_kg=req.weight_kg,
+            tdee_val=tdee_val,
+            goal=req.goal,
+            deficit_pct=req.deficit_pct,
+            surplus_pct=req.surplus_pct,
+            diet_flags=diet_flags,
+        )
+
+        # 3) Convert layout to VisualShape objects
+        layout = [VisualShape(**item) for item in plate_data["layout"]]
+
+        return PlateResponse(
+            kcal=plate_data["kcal"],
+            macros=plate_data["macros"],
+            portions=plate_data["portions"],
+            layout=layout,
+            meals=plate_data["meals"]
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Enhanced plate generation failed: {str(e)}"
+        ) from e
+
+
+# WHO-Based Nutrition Endpoints
+
+@app.post(
+    "/api/v1/premium/targets",
+    dependencies=[Depends(get_api_key)],
+    response_model=WHOTargetsResponse
+)
+async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
+    """
+    RU: Рассчитывает индивидуальные цели по нормам ВОЗ.
+    EN: Calculates individual nutrition targets based on WHO guidelines.
+
+    Evidence-based targets for:
+    - Daily calorie needs (BMR/TDEE + goal adjustments)
+    - Macronutrient distribution (WHO/IOM acceptable ranges)
+    - Priority micronutrients (WHO/EFSA RDA values)
+    - Hydration requirements (body weight + activity)
+    - Physical activity goals (WHO recommendations)
+
+    All targets are personalized based on age, sex, activity level,
+    and special conditions (pregnancy, lactation).
+    """
+    try:
+        if build_nutrition_targets is None:
+            raise HTTPException(
+                status_code=503,
+                detail="WHO nutrition targets feature not available"
+            )
+
+        # Convert request to UserProfile
+        from core.targets import UserProfile
+        profile = UserProfile(
+            sex=req.sex,
+            age=req.age,
+            height_cm=req.height_cm,
+            weight_kg=req.weight_kg,
+            activity=req.activity,
+            goal=req.goal,
+            deficit_pct=req.deficit_pct,
+            surplus_pct=req.surplus_pct,
+            bodyfat=req.bodyfat,
+            diet_flags=set(req.diet_flags or []),
+            life_stage=req.life_stage
+        )
+
+        # Calculate WHO-based targets
+        targets = build_nutrition_targets(profile)
+
+        # Validate safety
+        from core.recommendations import validate_targets_safety
+        warnings = validate_targets_safety(targets)
+
+        return WHOTargetsResponse(
+            kcal_daily=targets.kcal_daily,
+            macros={
+                "protein_g": targets.macros.protein_g,
+                "fat_g": targets.macros.fat_g,
+                "carbs_g": targets.macros.carbs_g,
+                "fiber_g": targets.macros.fiber_g
+            },
+            water_ml=targets.water_ml_daily,
+            priority_micros=targets.micros.get_priority_nutrients(),
+            activity_weekly={
+                "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
+                "strength_sessions": targets.activity.strength_sessions,
+                "steps_daily": targets.activity.steps_daily
+            },
+            calculation_date=targets.calculation_date,
+            warnings=warnings
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"WHO targets calculation failed: {str(e)}"
+        ) from e
+
+
+@app.post(
+    "/api/v1/premium/plan/week",
+    dependencies=[Depends(get_api_key)],
+    response_model=WeeklyMenuResponse
+)
+async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
+    """
+    RU: Генерирует недельное меню на основе целей ВОЗ.
+    EN: Generates weekly menu based on WHO nutrition targets.
+
+    Advanced weekly planning with:
+    - 7-day menu with nutritional variety
+    - Micronutrient adequacy over the week (>80% average)
+    - Shopping list with quantities
+    - Cost estimation and adherence scoring
+    - Diet flag adaptations (VEG, GF, DAIRY_FREE, LOW_COST)
+
+    Uses WHO guidelines for nutrient priorities and food-first approach
+    for meeting micronutrient needs without supplements.
+    """
+    try:
+        if make_weekly_menu is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Weekly menu generation feature not available"
+            )
+
+        # Convert to UserProfile
+        from core.targets import UserProfile
+        profile = UserProfile(
+            sex=req.sex,
+            age=req.age,
+            height_cm=req.height_cm,
+            weight_kg=req.weight_kg,
+            activity=req.activity,
+            goal=req.goal,
+            deficit_pct=req.deficit_pct,
+            surplus_pct=req.surplus_pct,
+            bodyfat=req.bodyfat,
+            diet_flags=set(req.diet_flags or []),
+            life_stage=req.life_stage
+        )
+
+        # Generate weekly menu
+        week_menu = make_weekly_menu(profile)
+
+        return WeeklyMenuResponse(
+            week_summary={
+                "week_start": week_menu.week_start,
+                "total_days": len(week_menu.daily_menus),
+                "avg_daily_cost": round(week_menu.total_cost / 7, 2)
+            },
+            daily_menus=[
+                {
+                    "date": menu.date,
+                    "meals": menu.meals,
+                    "total_kcal": sum(meal.get("kcal", 0) for meal in menu.meals),
+                    "daily_cost": menu.estimated_cost
+                }
+                for menu in week_menu.daily_menus
+            ],
+            weekly_coverage=week_menu.weekly_coverage,
+            shopping_list=week_menu.shopping_list,
+            total_cost=week_menu.total_cost,
+            adherence_score=week_menu.adherence_score
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Weekly menu generation failed: {str(e)}"
+        ) from e
+
+
+@app.post(
+    "/api/v1/premium/gaps",
+    dependencies=[Depends(get_api_key)],
+    response_model=NutrientGapsResponse
+)
+async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
+    """
+    RU: Анализирует дефициты нутриентов и даёт рекомендации.
+    EN: Analyzes nutrient deficiencies and provides food recommendations.
+
+    Smart gap analysis:
+    - Compares actual intake vs WHO targets
+    - Identifies priority deficiencies (iron, calcium, folate, etc.)
+    - Suggests specific foods to close gaps
+    - Adapts recommendations for dietary restrictions
+    - No supplement recommendations (food-first approach)
+
+    Perfect for food diary analysis and meal optimization.
+    """
+    try:
+        if analyze_nutrient_gaps is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Nutrient gap analysis feature not available"
+            )
+
+        # Build targets from profile
+        from core.targets import UserProfile
+        profile = UserProfile(
+            sex=req.user_profile.sex,
+            age=req.user_profile.age,
+            height_cm=req.user_profile.height_cm,
+            weight_kg=req.user_profile.weight_kg,
+            activity=req.user_profile.activity,
+            goal=req.user_profile.goal,
+            deficit_pct=req.user_profile.deficit_pct,
+            surplus_pct=req.user_profile.surplus_pct,
+            bodyfat=req.user_profile.bodyfat,
+            diet_flags=set(req.user_profile.diet_flags or []),
+            life_stage=req.user_profile.life_stage
+        )
+
+        targets = build_nutrition_targets(profile)
+
+        # Analyze gaps
+        gaps = analyze_nutrient_gaps(targets, req.consumed_nutrients)
+
+        # Generate food recommendations
+        from core.recommendations import (
+            generate_deficiency_recommendations,
+            score_nutrient_coverage,
+        )
+        coverage = score_nutrient_coverage(req.consumed_nutrients, targets)
+        food_recommendations = generate_deficiency_recommendations(coverage, profile)
+
+        # Calculate adherence score
+        total_nutrients = len(coverage)
+        adequate_nutrients = sum(1 for cov in coverage.values() if cov.coverage_percent >= 80)
+        adherence_score = (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
+
+        return NutrientGapsResponse(
+            gaps=gaps,
+            food_recommendations=food_recommendations,
+            adherence_score=round(adherence_score, 1)
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Nutrient gap analysis failed: {str(e)}"
+        ) from e
+
+
 @app.get("/debug_env")
 async def debug_env():
     data = {
@@ -735,3 +1189,137 @@ async def debug_env():
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
     return JSONResponse(content=data)
+
+
+# ========================================
+# Database Auto-Update Management Endpoints
+# ========================================
+
+@app.get("/api/v1/admin/db-status", dependencies=[Depends(get_api_key)])
+async def get_database_status():
+    """
+    RU: Получить статус всех баз данных и планировщика обновлений.
+    EN: Get status of all databases and update scheduler.
+
+    Returns information about:
+    - Database versions and last update times
+    - Update scheduler status
+    - Retry counts and error states
+    - Data integrity checksums
+    """
+    try:
+        scheduler = await get_update_scheduler()
+        status = scheduler.get_status()
+        return JSONResponse(content=status)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get database status: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/admin/force-update", dependencies=[Depends(get_api_key)])
+async def force_database_update(source: Optional[str] = None):
+    """
+    RU: Принудительно запустить обновление баз данных.
+    EN: Force immediate database update.
+
+    Args:
+        source: Optional specific source to update ("usda", "openfoodfacts")
+                If None, updates all sources
+
+    Returns:
+        Update results with statistics on records changed
+    """
+    try:
+        scheduler = await get_update_scheduler()
+        results = await scheduler.force_update(source)
+
+        # Format response
+        response = {
+            "message": f"Force update completed for {source or 'all sources'}",
+            "results": {}
+        }
+
+        for src, result in results.items():
+            response["results"][src] = {
+                "success": result.success,
+                "old_version": result.old_version,
+                "new_version": result.new_version,
+                "records_added": result.records_added,
+                "records_updated": result.records_updated,
+                "records_removed": result.records_removed,
+                "duration_seconds": result.duration_seconds,
+                "errors": result.errors
+            }
+
+        return JSONResponse(content=response)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Force update failed: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/admin/check-updates", dependencies=[Depends(get_api_key)])
+async def check_for_updates():
+    """
+    RU: Проверить наличие доступных обновлений без их установки.
+    EN: Check for available updates without installing them.
+
+    Returns:
+        Dictionary showing which sources have updates available
+    """
+    try:
+        scheduler = await get_update_scheduler()
+        available_updates = await scheduler.update_manager.check_for_updates()
+
+        response = {
+            "message": "Update check completed",
+            "updates_available": available_updates,
+            "total_sources_with_updates": sum(available_updates.values())
+        }
+
+        return JSONResponse(content=response)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Update check failed: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/admin/rollback", dependencies=[Depends(get_api_key)])
+async def rollback_database(source: str, target_version: str):
+    """
+    RU: Откатить базу данных к предыдущей версии.
+    EN: Rollback database to a previous version.
+
+    Args:
+        source: Data source name ("usda", "openfoodfacts")
+        target_version: Version to rollback to
+
+    Returns:
+        Success status and rollback details
+    """
+    try:
+        scheduler = await get_update_scheduler()
+        success = await scheduler.update_manager.rollback_database(source, target_version)
+
+        if success:
+            return JSONResponse(content={
+                "message": f"Successfully rolled back {source} to version {target_version}",
+                "success": True
+            })
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Rollback failed for {source} to version {target_version}"
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Rollback operation failed: {str(e)}"
+        ) from e

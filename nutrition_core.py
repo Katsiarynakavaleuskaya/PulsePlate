@@ -39,10 +39,10 @@ def bmr_mifflin(weight: float, height: float, age: int, sex: Sex) -> float:
         height: Height in centimeters
         age: Age in years
         sex: Biological sex ("male" or "female")
-    
+
     Returns:
         BMR in calories per day
-    
+
     Formula:
         Men: BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age(years) + 5
         Women: BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age(years) - 161
@@ -68,10 +68,10 @@ def bmr_harris(weight: float, height: float, age: int, sex: Sex) -> float:
         height: Height in centimeters
         age: Age in years
         sex: Biological sex ("male" or "female")
-    
+
     Returns:
         BMR in calories per day
-    
+
     Formula:
         Men: BMR = 66.5 + (13.75 × weight) + (5.003 × height) - (6.755 × age)
         Women: BMR = 655.1 + (9.563 × weight) + (1.850 × height) - (4.676 × age)
@@ -92,7 +92,7 @@ def bmr_harris(weight: float, height: float, age: int, sex: Sex) -> float:
 def bmr_katch(weight: float, bodyfat_percent: float) -> float:
     """
     Calculate BMR using Katch-McArdle equation.
-    
+
     Most accurate for athletes and people with known body fat percentage.
     Requires lean body mass calculation.
 
@@ -102,7 +102,7 @@ def bmr_katch(weight: float, bodyfat_percent: float) -> float:
 
     Returns:
         BMR in calories per day
-    
+
     Formula:
         BMR = 370 + (21.6 × lean_mass_kg)
         where lean_mass = weight × (1 - bodyfat_percent/100)

@@ -24,7 +24,7 @@ def call_premium_bmr_api(
 ) -> Dict[str, Any]:
     """
     Call the Premium BMR API endpoint.
-    
+
     Args:
         weight_kg: Weight in kilograms
         height_cm: Height in centimeters
@@ -35,7 +35,7 @@ def call_premium_bmr_api(
         lang: Response language ("en" or "ru")
         api_key: API key for authentication
         base_url: Base URL of the API server
-    
+
     Returns:
         API response as dictionary
     """
