@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Изолированные юнит‑тесты для провайдеров: grok, ollama, pico.
+"""Изолированные юнит‑тесты для провайдеров: stub, grok, ollama, pico.
 Все сетевые вызовы замещаются фейковыми клиентами; ретраи не ждут времени,
 т.к. мы обращаемся к __wrapped__ при необходимости.
 """
@@ -14,6 +14,38 @@ from typing import Any, Dict
 
 import httpx
 import pytest
+
+# ---------------- StubProvider -----------------
+
+
+def test_stub_provider_generate():
+    """Test that StubProvider generates proper timestamp format and insight."""
+    from providers.stub import StubProvider
+
+    provider = StubProvider()
+    text = "hello world"
+    result = provider.generate(text)
+
+    # Check that result contains expected components
+    assert result.startswith("[stub @")
+    assert "Insight: hello world" in result
+    # Should contain UTC timezone offset or Z
+    assert ("+00:00" in result) or ("Z" in result)
+
+
+def test_stub_provider_text_truncation():
+    """Test that StubProvider truncates long text to 120 chars."""
+    from providers.stub import StubProvider
+
+    provider = StubProvider()
+    long_text = "a" * 150  # Longer than 120 chars
+    result = provider.generate(long_text)
+
+    # Should truncate to 120 chars
+    expected_text = "a" * 120
+    assert f"Insight: {expected_text}" in result
+    # Should not contain the full 150 chars
+    assert "a" * 121 not in result
 
 # ---------------- GrokProvider -----------------
 

@@ -18,6 +18,12 @@ def _reload_app_with_fake_slowapi():
     slowapi_mw = types.ModuleType("slowapi.middleware")
     slowapi_util = types.ModuleType("slowapi.util")
 
+    # Store original modules for cleanup
+    orig_slowapi = sys.modules.get("slowapi")
+    orig_slowapi_errors = sys.modules.get("slowapi.errors")
+    orig_slowapi_mw = sys.modules.get("slowapi.middleware")
+    orig_slowapi_util = sys.modules.get("slowapi.util")
+
     class Limiter:
         def __init__(self, key_func=None):
             self.key_func = key_func
@@ -51,6 +57,34 @@ def _reload_app_with_fake_slowapi():
     else:
         import app  # noqa: F401
 
+    # Вернуть cleanup, чтобы тест мог восстановить окружение
+    def _cleanup():
+        # Restore original modules or remove if they weren't there
+        if orig_slowapi is not None:
+            sys.modules["slowapi"] = orig_slowapi
+        else:
+            sys.modules.pop("slowapi", None)
+
+        if orig_slowapi_errors is not None:
+            sys.modules["slowapi.errors"] = orig_slowapi_errors
+        else:
+            sys.modules.pop("slowapi.errors", None)
+
+        if orig_slowapi_mw is not None:
+            sys.modules["slowapi.middleware"] = orig_slowapi_mw
+        else:
+            sys.modules.pop("slowapi.middleware", None)
+
+        if orig_slowapi_util is not None:
+            sys.modules["slowapi.util"] = orig_slowapi_util
+        else:
+            sys.modules.pop("slowapi.util", None)
+
+        if "app" in sys.modules:
+            importlib.reload(sys.modules["app"])
+
+    return _cleanup
+
 
 def test_root_route_html_renders():
     import app as app_mod
@@ -61,33 +95,25 @@ def test_root_route_html_renders():
     assert "<title>BMI Calculator 2025</title>" in r.text
 
 
-def test_feature_insight_disabled_other_string():
+def test_feature_insight_disabled_other_string(monkeypatch):
     import app as app_mod
 
     client = TestClient(app_mod.app)
-    original = os.environ.get("FEATURE_INSIGHT")
-    original_provider = os.environ.get("LLM_PROVIDER")
-    os.environ["FEATURE_INSIGHT"] = "disabled"
-    os.environ["LLM_PROVIDER"] = "stub"
-    try:
-        r = client.post("/insight", json={"text": "x"})
-        assert r.status_code == 503
-        assert "disabled" in r.json().get("detail", "")
-    finally:
-        if original is not None:
-            os.environ["FEATURE_INSIGHT"] = original
-        else:
-            os.environ.pop("FEATURE_INSIGHT", None)
-        if original_provider is not None:
-            os.environ["LLM_PROVIDER"] = original_provider
-        else:
-            os.environ.pop("LLM_PROVIDER", None)
+    monkeypatch.setenv("FEATURE_INSIGHT", "disabled")
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+
+    r = client.post("/insight", json={"text": "x"})
+    assert r.status_code == 503
+    assert "disabled" in r.json().get("detail", "")
 
 
 def test_slowapi_branch_executes():
-    _reload_app_with_fake_slowapi()
-    import app as app_mod
+    cleanup = _reload_app_with_fake_slowapi()
+    try:
+        import app as app_mod
 
-    # наличие лимитера на состоянии приложения подсказывает, что ветка прошла
-    assert hasattr(app_mod.app.state, "limiter")
+        # наличие лимитера на состоянии приложения подсказывает, что ветка прошла
+        assert hasattr(app_mod.app.state, "limiter")
+    finally:
+        cleanup()
 

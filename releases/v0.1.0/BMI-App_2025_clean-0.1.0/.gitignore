@@ -6,11 +6,6 @@ __pycache__/
 # pytest
 .pytest_cache/
 .coverage
-.coverage.*
-htmlcov/
-coverage.xml
-coverage*.txt
-coverage_report*.txt
 
 # Virtual environments
 .venv/
@@ -19,7 +14,6 @@ venv/
 
 # VSCode
 .vscode/
-.cursor/
 
 # MacOS
 .DS_Store
@@ -32,13 +26,4 @@ tunnel.out
 *.pid
 *.log
 *.bak
-*.bak.*
-*.broken.*
 *.backup
-
-# Hypothesis test cache
-.hypothesis/
-
-# Mypy and Ruff cache
-.mypy_cache/
-.ruff_cache/

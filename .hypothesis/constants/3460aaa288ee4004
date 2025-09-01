@@ -1,4 +1,0 @@
-# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/llm.py
-# hypothesis_version: 6.138.11
-
-['GROK_API_KEY', 'INSIGHT_PROVIDER', 'ProviderBase', 'XAI_API_KEY', 'get_provider', 'grok', 'groklite', 'ollama', 'pico', 'stub']

@@ -1,15 +1,9 @@
-fastapi
-uvicorn
+-r requirements.txt
 pytest==8.4.1
 pytest-cov==6.2.1
-httpx
-python-dotenv
-prometheus-client
-python-multipart
 coverage==7.10.6
 ruff==0.12.11
 bandit==1.8.6
 safety==3.6.0
 mypy==1.17.1
 black==25.1.0
-hypothesis
