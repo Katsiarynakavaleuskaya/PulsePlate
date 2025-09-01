@@ -263,11 +263,11 @@ def test_metrics():
 
 
 def test_category_by_bmi_ru():
-    from app import category_by_bmi
-    assert category_by_bmi(17, "ru") == "Недостаточная масса"
-    assert category_by_bmi(22, "ru") == "Норма"
-    assert category_by_bmi(27, "ru") == "Избыточный вес"
-    assert category_by_bmi(32, "ru") == "Ожирение"
+    from bmi_core import bmi_category
+    assert bmi_category(17, "ru") == "Недовес"
+    assert bmi_category(22, "ru") == "Нормальный вес"
+    assert bmi_category(27, "ru") == "Избыточный вес"
+    assert bmi_category(32, "ru") == "Ожирение"
 
 
 def test_compute_wht_ratio_round_exception():

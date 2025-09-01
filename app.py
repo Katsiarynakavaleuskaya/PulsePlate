@@ -115,16 +115,6 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(weight_kg / (height_m ** 2), 1)
 
 
-def category_by_bmi(bmi: float, lang: str = "ru") -> str:
-    if bmi < 18.5:
-        return "Недостаточная масса" if lang == "ru" else "Underweight"
-    if bmi < 25:
-        return "Норма" if lang == "ru" else "Healthy weight"
-    if bmi < 30:
-        return "Избыточный вес" if lang == "ru" else "Overweight"
-    return "Ожирение" if lang == "ru" else "Obesity"
-
-
 def normalize_flags(
     gender: str, pregnant: str, athlete: str
 ) -> Dict[str, bool]:
@@ -293,7 +283,7 @@ async def bmi_endpoint(req: BMIRequest):
             "group": "athlete" if flags["is_athlete"] else "general",
         }
 
-    category = category_by_bmi(bmi, req.lang)
+    category = bmi_category(bmi, req.lang)
     notes = []
     if flags["is_athlete"]:
         notes.append(
@@ -317,7 +307,7 @@ async def bmi_endpoint(req: BMIRequest):
 async def plan_endpoint(req: BMIRequest):
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
-    category = None if flags["is_pregnant"] else category_by_bmi(bmi, req.lang)
+    category = None if flags["is_pregnant"] else bmi_category(bmi, req.lang)
 
     healthy_bmi = {"min": 18.5, "max": 24.9}
 
