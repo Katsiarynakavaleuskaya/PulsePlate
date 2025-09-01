@@ -1,0 +1,4 @@
+# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/llm.py
+# hypothesis_version: 6.138.11
+
+['LLM_PROVIDER', 'ProviderBase', 'get_provider', 'grok', 'name', 'ollama', 'stub']

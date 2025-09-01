@@ -46,13 +46,13 @@ jobs:
           pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=100
 
       - name: Upload coverage.xml
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: coverage-${{ matrix.python-version }}
           path: coverage.xml
 
       - name: Upload coverage to Codecov (non-blocking)
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4
         with:
           file: ./coverage.xml
         continue-on-error: true

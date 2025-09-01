@@ -1,0 +1,4 @@
+# file: /Users/katsiarynakavaleuskaya/BMI-App_2025_clean/providers/grok.py
+# hypothesis_version: 6.138.10
+
+[30.0, '/', 'content', 'grok', 'role', 'user']

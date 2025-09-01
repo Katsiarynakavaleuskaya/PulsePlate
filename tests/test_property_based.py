@@ -5,6 +5,8 @@ Tests BMI calculations, body fat estimates, and insight generation
 with random inputs.
 """
 
+import unittest.mock
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -157,7 +159,6 @@ def test_api_bmi_property(weight, height):
 def test_api_insight_property(text):
     """Test /api/v1/insight endpoint with random text inputs."""
     # Use a context manager instead of monkeypatch to avoid fixture scope issues
-    import unittest.mock
     with unittest.mock.patch.object(llm, "get_provider", lambda: _StubProvider()):
         response = client.post(
             "/api/v1/insight",

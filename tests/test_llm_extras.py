@@ -7,11 +7,45 @@ import builtins
 import os
 import sys
 import types
+from contextlib import contextmanager
+from typing import Optional
+
+
+@contextmanager
+def mock_module(module_name: str, module_obj: types.ModuleType):
+    """Context manager to safely mock sys.modules entries."""
+    orig = sys.modules.get(module_name)
+    sys.modules[module_name] = module_obj
+    try:
+        yield
+    finally:
+        restore_module(module_name, orig)
+
+
+def restore_module(module_name: str, original: Optional[types.ModuleType]):
+    """Restore or remove a module from sys.modules."""
+    if original is not None:
+        sys.modules[module_name] = original
+    else:
+        sys.modules.pop(module_name, None)
+
+
+@contextmanager
+def clean_llm_import():
+    """Context manager to clean and restore llm module import."""
+    orig_llm = sys.modules.get("llm")
+    if "llm" in sys.modules:
+        del sys.modules["llm"]
+    try:
+        yield
+    finally:
+        restore_module("llm", orig_llm)
 
 
 def test__with_name_handles_attribute_error():
     import llm
     # У некоторых веток llm.py нет вспомогательной функции _with_name
+    # Skip test if _with_name is not available
     if not hasattr(llm, "_with_name"):
         assert hasattr(llm, "get_provider")
         return
@@ -37,33 +71,20 @@ def test_llm_stub_import_alias_path(monkeypatch):
             return f"ok:{text}"
 
     fake.Provider = Provider
-    orig_stub = sys.modules.get("providers.stub")
-    orig_llm = sys.modules.get("llm")
-    sys.modules["providers.stub"] = fake
 
-    try:
+    with mock_module("providers.stub", fake), clean_llm_import(), monkeypatch.context() as m:
+        m.setenv("LLM_PROVIDER", "stub")
+
         # Перезагружаем llm, чтобы прошёл путь с import Provider as StubProvider
-        if "llm" in sys.modules:
-            del sys.modules["llm"]
         import llm as llm_reloaded  # noqa: F401
 
         # sanity: получаем провайдера stub и убеждаемся, что generate работает
-        os.environ["LLM_PROVIDER"] = "stub"
         from llm import get_provider  # type: ignore
 
         p = get_provider()
         assert p is not None
         assert hasattr(p, "generate")
         assert p.name == "stub"
-    finally:
-        if orig_stub is not None:
-            sys.modules["providers.stub"] = orig_stub
-        else:
-            sys.modules.pop("providers.stub", None)
-        if orig_llm is not None:
-            sys.modules["llm"] = orig_llm
-        else:
-            sys.modules.pop("llm", None)
 
 
 def test_get_provider_grok_env_block_executes(monkeypatch):
@@ -81,24 +102,18 @@ def test_get_provider_grok_env_block_executes(monkeypatch):
             return text
 
     mod.GrokProvider = GrokProvider
-    orig = sys.modules.get("providers.grok")
-    sys.modules["providers.grok"] = mod
 
-    try:
+    with mock_module("providers.grok", mod), monkeypatch.context() as m:
         # Даём непустой ключ, чтобы пройти до конструктора
-        os.environ["GROK_API_KEY"] = "dummy"
-        os.environ.pop("XAI_API_KEY", None)
-        os.environ["LLM_PROVIDER"] = "grok"
+        m.setenv("GROK_API_KEY", "dummy")
+        m.delenv("XAI_API_KEY", raising=False)
+        m.setenv("LLM_PROVIDER", "grok")
+
         from llm import get_provider  # type: ignore
 
         p = get_provider()
         # Первая попытка с именованными параметрами падает, вторая (позиционная) — успешна
         assert p is not None and getattr(p, "name", "") == "grok"
-    finally:
-        if orig is not None:
-            sys.modules["providers.grok"] = orig
-        else:
-            sys.modules.pop("providers.grok", None)
 
 
 def test_get_provider_ollama_typeerror_posargs_fallback(monkeypatch):
@@ -115,20 +130,14 @@ def test_get_provider_ollama_typeerror_posargs_fallback(monkeypatch):
             return text
 
     mod.OllamaProvider = OllamaProvider
-    orig = sys.modules.get("providers.ollama")
-    sys.modules["providers.ollama"] = mod
 
-    try:
-        os.environ["LLM_PROVIDER"] = "ollama"
+    with mock_module("providers.ollama", mod), monkeypatch.context() as m:
+        m.setenv("LLM_PROVIDER", "ollama")
+
         from llm import get_provider  # type: ignore
 
         p = get_provider()
         assert p is not None and getattr(p, "name", "") == "ollama"
-    finally:
-        if orig is not None:
-            sys.modules["providers.ollama"] = orig
-        else:
-            sys.modules.pop("providers.ollama", None)
 
 
 def test_get_provider_ollama_import_error_fallback(monkeypatch):
@@ -138,20 +147,27 @@ def test_get_provider_ollama_import_error_fallback(monkeypatch):
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
-        if name == "providers.ollama":
-            raise ImportError("simulated")
-        return real_import(name, *args, **kwargs)
+        # Move the conditional logic to a helper to reduce complexity in test
+        return handle_fake_import(name, real_import, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+    with monkeypatch.context() as m:
+        m.setattr(builtins, "__import__", fake_import)
+        m.setenv("LLM_PROVIDER", "ollama")
 
-    os.environ["LLM_PROVIDER"] = "ollama"
-    from llm import get_provider  # type: ignore
+        from llm import get_provider  # type: ignore
 
-    p = get_provider()
-    assert p is not None and getattr(p, "name", "") == "ollama"
+        p = get_provider()
+        assert p is not None and getattr(p, "name", "") == "ollama"
 
 
-def test_get_provider_grok_missing_api_key_triggers_branch():
+def handle_fake_import(name, real_import, *args, **kwargs):
+    """Helper function to handle fake import logic."""
+    if name == "providers.ollama":
+        raise ImportError("simulated")
+    return real_import(name, *args, **kwargs)
+
+
+def test_get_provider_grok_missing_api_key_triggers_branch(monkeypatch):
     """Импорт grok успешен, ключа нет — покрываем ветку raise RuntimeError('no api key')."""
     mod = types.ModuleType("providers.grok")
 
@@ -160,19 +176,14 @@ def test_get_provider_grok_missing_api_key_triggers_branch():
             pass
 
     mod.GrokProvider = GrokProvider
-    orig = sys.modules.get("providers.grok")
-    sys.modules["providers.grok"] = mod
-    try:
-        os.environ.pop("GROK_API_KEY", None)
-        os.environ.pop("XAI_API_KEY", None)
-        os.environ["LLM_PROVIDER"] = "grok"
+
+    with mock_module("providers.grok", mod), monkeypatch.context() as m:
+        m.delenv("GROK_API_KEY", raising=False)
+        m.delenv("XAI_API_KEY", raising=False)
+        m.setenv("LLM_PROVIDER", "grok")
+
         from llm import get_provider  # type: ignore
 
         p = get_provider()
         # Возвращается заглушка под именем grok
         assert p is not None and getattr(p, "name", "") == "grok"
-    finally:
-        if orig is not None:
-            sys.modules["providers.grok"] = orig
-        else:
-            sys.modules.pop("providers.grok", None)
