@@ -18,14 +18,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 
 if TYPE_CHECKING:
-    from slowapi import (
-        Limiter,  # type: ignore[import-untyped]
-        _rate_limit_exceeded_handler,  # type: ignore[import-untyped]
-    )
-    from slowapi.errors import RateLimitExceeded  # type: ignore[import-untyped]
-    from slowapi.middleware import SlowAPIMiddleware  # type: ignore[import-untyped]
-    from slowapi.util import get_remote_address  # type: ignore[import-untyped]
-    slowapi_available = False  # Default for type checking
+    # Type hints for slowapi when not available at runtime
+    Limiter = None  # type: ignore
+    _rate_limit_exceeded_handler = None  # type: ignore
+    RateLimitExceeded = None  # type: ignore
+    SlowAPIMiddleware = None  # type: ignore
+    get_remote_address = None  # type: ignore
+    slowapi_available = False
 else:
     try:
         from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -92,11 +91,14 @@ def get_api_key(api_key: str = Depends(api_key_header)):
     return api_key
 
 
-if slowapi_available:
-    limiter = Limiter(key_func=get_remote_address)
+# Rate limiting setup (only if slowapi is available)
+if slowapi_available and Limiter is not None:
+    limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
+    app.add_middleware(SlowAPIMiddleware)  # type: ignore
+else:
+    limiter = None
 
 
 # ---------- Models ----------

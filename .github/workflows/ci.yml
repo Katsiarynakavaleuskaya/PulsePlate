@@ -34,8 +34,10 @@ jobs:
       - name: Security scan with Bandit (non-blocking)
         run: bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
 
-      - name: Security scan with Safety (non-blocking)
-        run: safety check --output json > safety-report.json || true
+      # Safety scan disabled due to typer compatibility issue
+      # See: https://github.com/pyupio/safety/issues/566
+      # - name: Security scan with Safety (non-blocking)
+      #   run: safety scan --output json > safety-report.json || true
 
       - name: Run tests with coverage (97% required)
         env:

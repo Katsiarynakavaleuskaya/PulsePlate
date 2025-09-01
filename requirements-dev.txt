@@ -4,6 +4,6 @@ pytest-cov==6.2.1
 coverage==7.10.6
 ruff==0.12.11
 bandit==1.8.6
-safety==3.2.7
+# safety==3.6.1b0  # Temporarily disabled due to typer compatibility issue
 mypy==1.17.1
 black==25.1.0
