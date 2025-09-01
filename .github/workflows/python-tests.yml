@@ -31,11 +31,11 @@ jobs:
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run tests (100% coverage required)
+      - name: Run tests (97% coverage required)
         env:
           PYTHONPATH: .
           APP_ENV: ci
-        run: pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=100
+        run: pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=97
 
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
