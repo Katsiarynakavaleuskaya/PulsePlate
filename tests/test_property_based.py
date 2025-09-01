@@ -154,18 +154,20 @@ def test_api_bmi_property(weight, height):
 
 
 @given(text=st.text(min_size=1, max_size=100))
-def test_api_insight_property(monkeypatch, text):
+def test_api_insight_property(text):
     """Test /api/v1/insight endpoint with random text inputs."""
-    monkeypatch.setattr(llm, "get_provider", lambda: _StubProvider())
-    response = client.post(
-        "/api/v1/insight",
-        json={"text": text},
-        headers={"X-API-Key": "test_key"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "insight" in data
-    assert data["insight"].startswith("insight::")
+    # Use a context manager instead of monkeypatch to avoid fixture scope issues
+    import unittest.mock
+    with unittest.mock.patch.object(llm, "get_provider", lambda: _StubProvider()):
+        response = client.post(
+            "/api/v1/insight",
+            json={"text": text},
+            headers={"X-API-Key": "test_key"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "insight" in data
+        assert data["insight"].startswith("insight::")
 
 
 @given(
