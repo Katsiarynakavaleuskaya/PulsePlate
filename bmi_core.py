@@ -32,7 +32,13 @@ class Config:
     MAX_WAIST_CM = 300.0
 
     ELDERLY_AGE = 60
+    TEEN_MIN_AGE = 13
+    TEEN_MAX_AGE = 19
     ATHLETE_BMI_MAX = 27.0  # в спорт-моде верхняя граница не ниже 27
+    
+    # Age-specific BMI adjustments
+    ELDERLY_BMI_ADJUST = 1.0  # Allow slightly higher BMI for elderly
+    TEEN_BMI_LOWER = 17.5  # Lower underweight threshold for teens
 
 
 LANG: Dict[str, Any] = {
@@ -55,6 +61,9 @@ LANG: Dict[str, Any] = {
             ),
             "child": (
                 "Для подростков используйте возрастные центильные таблицы."
+            ),
+            "teen": (
+                "Подростковый возраст: учитывайте этап полового созревания."
             ),
         },
         "levels": {
@@ -90,6 +99,7 @@ LANG: Dict[str, Any] = {
                 "In older adults, BMI can underestimate body fat (sarcopenia)."
             ),
             "child": "Use BMI-for-age percentiles for youth.",
+            "teen": "Teenage years: consider pubertal development stage.",
         },
         "levels": {
             "advanced": "advanced",
@@ -157,14 +167,34 @@ def bmi_value(weight_kg: float, height_m: float) -> float:
     return round(weight_kg / (height_m ** 2), 1)
 
 
-def bmi_category(bmi: float, lang: str) -> str:
+def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None) -> str:
+    """Enhanced BMI categorization with age and population-specific adjustments."""
     lang = normalize_lang(lang)
     c = LANG[lang]["cat"]
-    if bmi < 18.5:
+    
+    # Age-specific adjustments
+    underweight_threshold = 18.5
+    normal_upper = 25.0
+    overweight_upper = 30.0
+    
+    if age and group:
+        if group == "elderly":
+            # Slightly higher thresholds for elderly (sarcopenia consideration)
+            underweight_threshold = 17.5
+            normal_upper = 26.0
+        elif group == "teen":
+            # Adjusted thresholds for teenagers
+            underweight_threshold = Config.TEEN_BMI_LOWER
+            normal_upper = 24.5
+        elif group == "athlete":
+            # Higher normal range for athletes due to muscle mass
+            normal_upper = Config.ATHLETE_BMI_MAX
+    
+    if bmi < underweight_threshold:
         return c["under"]
-    elif bmi < 25.0:
+    elif bmi < normal_upper:
         return c["norm"]
-    elif bmi < 30.0:
+    elif bmi < overweight_upper:
         return c["over"]
     else:
         return c["obese"]
@@ -182,6 +212,7 @@ def auto_group(
     athlete: str,
     lang: str
 ) -> str:
+    """Enhanced user group detection with better teen/child distinction."""
     lang = normalize_lang(lang)
     g = (gender or "").strip().lower()
     p = (pregnant or "").strip().lower()
@@ -201,10 +232,13 @@ def auto_group(
     ):
         is_athlete = True
 
+    # Enhanced age-based grouping
     if age < 12:
         return "too_young"
-    if 12 <= age <= 18:
-        return "child"
+    if Config.TEEN_MIN_AGE <= age <= Config.TEEN_MAX_AGE:
+        return "teen"  # Distinct teen group
+    if 12 <= age < Config.TEEN_MIN_AGE:
+        return "child"  # Pre-teen children
     if age >= Config.ELDERLY_AGE:
         return "elderly"
 
@@ -217,15 +251,17 @@ def auto_group(
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(bmi: float, group: str, lang: str) -> str:
+def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
+    """Enhanced group interpretation with age-specific BMI categorization."""
     lang = normalize_lang(lang)
     c = LANG[lang]
-    base = bmi_category(bmi, lang)
+    base = bmi_category(bmi, lang, age, group)
     note = {
         "athlete": c["notes"]["athlete"],
         "pregnant": c["notes"]["pregnant"],
         "elderly": c["notes"]["elderly"],
         "child": c["notes"]["child"],
+        "teen": c["notes"]["teen"],
         "too_young": c["notes"]["child"],
         "general": "",
     }.get(group, "")
@@ -239,7 +275,8 @@ def group_display_name(group: str, lang: str) -> str:
         "athlete": "спортсмен",
         "pregnant": "беременная",
         "elderly": "пожилой",
-        "child": "подросток/ребёнок",
+        "child": "ребёнок",
+        "teen": "подросток",
         "too_young": "слишком юный",
     }
     mapping_en = {
@@ -247,7 +284,8 @@ def group_display_name(group: str, lang: str) -> str:
         "athlete": "athlete",
         "pregnant": "pregnant",
         "elderly": "elderly",
-        "child": "child/teen",
+        "child": "child",
+        "teen": "teenager",
         "too_young": "too young",
     }
     return (mapping_ru if lang == "ru" else mapping_en).get(group, group)
