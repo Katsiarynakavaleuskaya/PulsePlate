@@ -70,7 +70,7 @@ def test_llm_stub_import_alias_path(monkeypatch):
         def generate(self, text: str) -> str:
             return f"ok:{text}"
 
-    fake.Provider = Provider
+    fake.Provider = Provider  # pyright: ignore[reportAttributeAccessIssue]
 
     with mock_module("providers.stub", fake), clean_llm_import(), monkeypatch.context() as m:
         m.setenv("LLM_PROVIDER", "stub")
@@ -101,7 +101,7 @@ def test_get_provider_grok_env_block_executes(monkeypatch):
         async def generate(self, text: str) -> str:
             return text
 
-    mod.GrokProvider = GrokProvider
+    mod.GrokProvider = GrokProvider  # pyright: ignore[reportAttributeAccessIssue]
 
     with mock_module("providers.grok", mod), monkeypatch.context() as m:
         # Даём непустой ключ, чтобы пройти до конструктора
@@ -129,7 +129,7 @@ def test_get_provider_ollama_typeerror_posargs_fallback(monkeypatch):
         async def generate(self, text: str) -> str:
             return text
 
-    mod.OllamaProvider = OllamaProvider
+    mod.OllamaProvider = OllamaProvider  # pyright: ignore[reportAttributeAccessIssue]
 
     with mock_module("providers.ollama", mod), monkeypatch.context() as m:
         m.setenv("LLM_PROVIDER", "ollama")
@@ -175,7 +175,7 @@ def test_get_provider_grok_missing_api_key_triggers_branch(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-    mod.GrokProvider = GrokProvider
+    mod.GrokProvider = GrokProvider  # pyright: ignore[reportAttributeAccessIssue]
 
     with mock_module("providers.grok", mod), monkeypatch.context() as m:
         m.delenv("GROK_API_KEY", raising=False)

@@ -73,7 +73,7 @@ def test_grok_generate_success(monkeypatch):
             self.chat = types.SimpleNamespace(completions=_FakeChat())
 
     openai_fake = types.ModuleType("openai")
-    openai_fake.AsyncOpenAI = _FakeClient
+    openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     # гарантируем, что модуль grok увидит наш openai
     if "providers.grok" in sys.modules:
@@ -101,7 +101,7 @@ def test_grok_generate_error_wrapped(monkeypatch):
             self.chat = types.SimpleNamespace(completions=_FakeChat())
 
     openai_fake = types.ModuleType("openai")
-    openai_fake.AsyncOpenAI = _FakeClient
+    openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     if "providers.grok" in sys.modules:
         grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
@@ -288,7 +288,7 @@ def test_pico_generate_http_error(monkeypatch):
 
     class _Resp:
         def raise_for_status(self):
-            raise httpx.HTTPStatusError("bad", request=None, response=None)
+            raise httpx.HTTPStatusError("bad", request=None, response=None)  # pyright: ignore[reportArgumentType]
 
         def json(self):  # pragma: no cover - не будет вызван
             return {}
@@ -325,8 +325,8 @@ def test_ollama_helpers_non_200(monkeypatch):
     loop = asyncio.new_event_loop()
     try:
         c = _ClientNon200()
-        assert loop.run_until_complete(p._chat(c, "t")) is None
-        assert loop.run_until_complete(p._generate(c, "t")) is None
+        assert loop.run_until_complete(p._chat(c, "t")) is None  # pyright: ignore[reportArgumentType]
+        assert loop.run_until_complete(p._generate(c, "t")) is None  # pyright: ignore[reportArgumentType]
     finally:
         loop.close()
 

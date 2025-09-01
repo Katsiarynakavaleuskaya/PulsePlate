@@ -40,11 +40,11 @@ def _reload_app_with_fake_slowapi():
     def _rate_limit_exceeded_handler(*args, **kwargs):
         return None
 
-    slowapi.Limiter = Limiter
-    slowapi._rate_limit_exceeded_handler = _rate_limit_exceeded_handler
-    slowapi_errors.RateLimitExceeded = RateLimitExceeded
-    slowapi_mw.SlowAPIMiddleware = SlowAPIMiddleware
-    slowapi_util.get_remote_address = get_remote_address
+    slowapi.Limiter = Limiter  # pyright: ignore[reportAttributeAccessIssue]
+    slowapi._rate_limit_exceeded_handler = _rate_limit_exceeded_handler  # pyright: ignore[reportAttributeAccessIssue]
+    slowapi_errors.RateLimitExceeded = RateLimitExceeded  # pyright: ignore[reportAttributeAccessIssue]
+    slowapi_mw.SlowAPIMiddleware = SlowAPIMiddleware  # pyright: ignore[reportAttributeAccessIssue]
+    slowapi_util.get_remote_address = get_remote_address  # pyright: ignore[reportAttributeAccessIssue]
 
     sys.modules["slowapi"] = slowapi
     sys.modules["slowapi.errors"] = slowapi_errors
