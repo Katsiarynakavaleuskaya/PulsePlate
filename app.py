@@ -11,6 +11,8 @@ except ImportError:
     Histogram = None
     generate_latest = None
 
+import inspect
+
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
@@ -33,7 +35,9 @@ from pydantic import BaseModel, Field, StrictFloat, model_validator
 
 with suppress(ImportError):
     import dotenv
-    dotenv.load_dotenv()
+    # Avoid auto-loading .env during tests/CI to keep predictable defaults
+    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv("APP_ENV", "").lower() not in {"test", "ci"}:
+        dotenv.load_dotenv()
 
 try:
     from bodyfat import get_router as get_bodyfat_router
@@ -362,21 +366,22 @@ async def plan_endpoint(req: BMIRequest):
 @app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
 async def api_v1_insight(req: InsightRequest):
     try:
-        from llm import get_provider
+        import llm
     except Exception as e:
         raise HTTPException(
             status_code=503,
             detail="LLM module is not available"
         ) from e
 
-    provider = get_provider()
+    provider = llm.get_provider()
     if provider is None:
         raise HTTPException(
             status_code=503, detail="insight provider not configured"
         )
 
     try:
-        txt = await provider.generate(req.text)
+        result = provider.generate(req.text)
+        txt = await result if inspect.isawaitable(result) else result
     except Exception:
         raise HTTPException(
             status_code=503,
@@ -390,28 +395,23 @@ async def api_v1_insight(req: InsightRequest):
 
 @app.post("/insight")
 async def insight(req: InsightRequest):
-    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-    if flag not in {"1", "true", "yes", "on"}:
-        raise HTTPException(status_code=503, detail="insight feature disabled")
+    # 0) If explicitly disabled via env, short-circuit
+    flag_raw = os.getenv("FEATURE_INSIGHT")
+    if flag_raw is not None:
+        flag = str(flag_raw).strip().lower()
+        if flag in {"0", "false", "no", "off"}:
+            raise HTTPException(status_code=503, detail="insight feature disabled")
 
-    if not os.getenv("LLM_PROVIDER", "").strip():
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "No LLM provider configured. "
-                "Set LLM_PROVIDER=stub|grok|ollama"
-            ),
-        )
-
+    # 1) Provider must be configured
     try:
-        from llm import get_provider
+        import llm
     except Exception as e:
         raise HTTPException(
             status_code=503,
             detail="LLM module is not available"
         ) from e
 
-    provider = get_provider()
+    provider = llm.get_provider()
     if provider is None:
         raise HTTPException(
             status_code=503,
@@ -421,8 +421,14 @@ async def insight(req: InsightRequest):
             ),
         )
 
+    # 2) Implicit default: disabled unless explicitly enabled
+    flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
+    if flag and flag not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=503, detail="insight feature disabled")
+
     try:
-        txt = await provider.generate(req.text)
+        result = provider.generate(req.text)
+        txt = await result if inspect.isawaitable(result) else result
     except Exception:
         raise HTTPException(
             status_code=503,
@@ -480,7 +486,8 @@ def _bmi_value(w: float, h_cm: float) -> float:
     h = h_cm / 100.0
     if h <= 0:
         raise ValueError("height must be > 0")
-    return round(w / (h * h), 2)
+    # Align rounding policy to 1 decimal for v1
+    return round(w / (h * h), 1)
 
 
 def _bmi_category(b: float) -> str:

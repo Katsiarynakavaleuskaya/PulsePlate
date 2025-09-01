@@ -94,7 +94,7 @@ def test__bmi_value_raises_on_zero_height():
 
 def test__bmi_value_valid():
     from app import _bmi_value
-    assert _bmi_value(70, 170) == 24.22
+    assert _bmi_value(70, 170) == 24.2
 
 
 def test__bmi_category():

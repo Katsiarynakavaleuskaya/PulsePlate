@@ -25,8 +25,8 @@ from bmi_core import (
 
 
 def test_bmi_value_rounding():
-    # 70 / 1.7^2 ≈ 24.22 → 24.22
-    assert bmi_value(70.0, 1.7) == 24.22
+    # 70 / 1.7^2 ≈ 24.22 → 24.2
+    assert bmi_value(70.0, 1.7) == 24.2
 
 
 def test_bmi_value_invalid_inputs():

@@ -23,7 +23,7 @@ def test_bmi_groups_smoke(group):
     assert r.status_code == 200
     data = r.json()
     # базовые инварианты
-    assert data["bmi"] == 24.22
+    assert data["bmi"] == 24.2
     assert data["category"] == "Healthy weight"
     assert isinstance(data.get("interpretation", ""), str)
     assert len(data.get("interpretation", "")) >= 0  # строка может быть и "Normal"
@@ -33,7 +33,7 @@ def test_bmi_groups_smoke(group):
     "w,h,expected_category",
     [
         (45, 170, "Underweight"),  # ~15.57
-        (70, 170, "Healthy weight"),  # 24.22
+        (70, 170, "Healthy weight"),  # 24.2
         (80, 170, "Overweight"),  # ~27.68
         (95, 170, "Obesity"),  # ~32.87
     ],

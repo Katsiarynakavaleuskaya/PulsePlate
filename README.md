@@ -39,7 +39,7 @@ make docker-run
 - `POST /bmi` - Legacy BMI endpoint
 - `POST /api/v1/bmi` - V1 BMI calculation (requires X-API-Key header)
   - Input: `{"weight_kg": 70, "height_cm": 170, "group": "general"}`
-  - Output: `{"bmi": 24.22, "category": "Healthy weight", "interpretation": ""}`
+  - Output: `{"bmi": 24.2, "category": "Healthy weight", "interpretation": ""}`
 
 ### Web UI
 
@@ -95,4 +95,3 @@ make lint
 - Simple web UI at root path for easy BMI calculation
 - Structured logging and request monitoring
 - Security hardening with automated dependency updates and scans
-

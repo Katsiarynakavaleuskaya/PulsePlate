@@ -23,7 +23,7 @@ def test_v1_bmi_happy():
     )
     assert r.status_code == 200
     data = r.json()
-    assert data["bmi"] == 24.22
+    assert data["bmi"] == 24.2
     assert data["category"] == "Healthy weight"
 
 
