@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from contextlib import suppress
-from typing import Dict, Literal, Optional
+from typing import TYPE_CHECKING, Dict, Literal, Optional
 
 try:
     from prometheus_client import Counter, Histogram, generate_latest
@@ -17,19 +17,29 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 
-try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-    from slowapi.middleware import SlowAPIMiddleware
-    from slowapi.util import get_remote_address
-    slowapi_available = True
-except ImportError:
-    Limiter = None
-    _rate_limit_exceeded_handler = None
-    get_remote_address = None
-    RateLimitExceeded = None
-    SlowAPIMiddleware = None
-    slowapi_available = False
+if TYPE_CHECKING:
+    from slowapi import (
+        Limiter,  # type: ignore[import-untyped]
+        _rate_limit_exceeded_handler,  # type: ignore[import-untyped]
+    )
+    from slowapi.errors import RateLimitExceeded  # type: ignore[import-untyped]
+    from slowapi.middleware import SlowAPIMiddleware  # type: ignore[import-untyped]
+    from slowapi.util import get_remote_address  # type: ignore[import-untyped]
+    slowapi_available = False  # Default for type checking
+else:
+    try:
+        from slowapi import Limiter, _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        from slowapi.middleware import SlowAPIMiddleware
+        from slowapi.util import get_remote_address
+        slowapi_available = True
+    except ImportError:
+        Limiter = None
+        _rate_limit_exceeded_handler = None
+        get_remote_address = None
+        RateLimitExceeded = None
+        SlowAPIMiddleware = None
+        slowapi_available = False
 
 from pydantic import BaseModel, Field, StrictFloat, model_validator
 

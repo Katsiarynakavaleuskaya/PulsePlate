@@ -17,6 +17,7 @@ try:
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
+    plt = None
 
 
 class BMIVisualizer:
@@ -52,6 +53,9 @@ class BMIVisualizer:
         include_guidance: bool = True
     ) -> str:
         """Generate BMI visualization chart as base64 encoded PNG."""
+
+        if plt is None:
+            raise ImportError("matplotlib not available for visualization")
 
         # Set up the figure
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
