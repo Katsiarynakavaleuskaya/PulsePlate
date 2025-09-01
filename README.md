@@ -1,5 +1,6 @@
 # BMI-App 2025 (FastAPI)
 [![python-tests](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml)
+[![CI](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml)
 
 Приложение для расчёта BMI на FastAPI с автотестами, покрытием и Docker.
 
@@ -66,6 +67,14 @@ make test
 make coverage
 ```
 
+Locally (without Makefile):
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -q --maxfail=1 --cov=. --cov-report=term-missing
+```
+
 ### Linting
 
 ```bash
@@ -73,6 +82,14 @@ make lint
 ```
 
 ---
+
+## 🧪 CI & Coverage Policy
+
+- GitHub Actions runs on Python 3.12 and 3.13 (matrix).
+- Coverage is enforced at 100% via `--cov-fail-under=100`.
+- Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
+- Bandit & Safety run as non-blocking checks (artifacts available in CI logs).
+- Coverage report (`coverage.xml`) is uploaded as an artifact per job.
 
 ## 🔒 Security & Compliance
 
@@ -89,7 +106,7 @@ make lint
 - BMI calculation with categories
 - Body fat estimation using multiple formulas
 - AI insights via configurable LLM providers (Stub, Grok, Ollama) with retry mechanisms
-- Comprehensive test suite with 100% coverage goal
+- Comprehensive test suite with 100% coverage (enforced in CI)
 - Docker support
 - CI/CD with GitHub Actions
 - Simple web UI at root path for easy BMI calculation

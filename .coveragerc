@@ -1,10 +1,22 @@
 [run]
+source = .
 omit =
+    */tests/*
     tests/*
-    providers/*
-    llm.py
+    tests_strict/*
+    .venv/*
+    venv/*
+    */site-packages/*
+    **/__init__.py
 
 [report]
-exclude_also =
+show_missing = True
+skip_covered = True
+exclude_lines =
     pragma: no cover
-    if __name__ == .__main__.:
+    if __name__ == .__main__.: 
+    @overload
+    @abstractmethod
+
+[html]
+directory = htmlcov
