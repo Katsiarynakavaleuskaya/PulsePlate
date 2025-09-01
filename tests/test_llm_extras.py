@@ -3,10 +3,10 @@
 Дополнительные тесты для покрытия llm.py и связанных веток.
 """
 
-import types
 import builtins
 import os
 import sys
+import types
 
 
 def test__with_name_handles_attribute_error():

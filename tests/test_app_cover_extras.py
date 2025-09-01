@@ -3,10 +3,10 @@
 Доп. покрытие для app.py: корневой HTML, ветка slowapi, альтернативная ветка отключения инсайта.
 """
 
-import types
 import importlib
 import os
 import sys
+import types
 
 from fastapi.testclient import TestClient
 
