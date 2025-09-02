@@ -9,6 +9,7 @@ if p not in sys.path:
 
 
 import os
+from unittest.mock import patch
 
 import pytest
 
@@ -19,6 +20,29 @@ def _neutral_llm_env():
         os.environ.pop(k, None)
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="function")
 def _set_api_key():
+    original_api_key = os.environ.get("API_KEY")
     os.environ["API_KEY"] = "test_key"
+    yield
+    if original_api_key is not None:
+        os.environ["API_KEY"] = original_api_key
+    else:
+        os.environ.pop("API_KEY", None)
+
+
+@pytest.fixture(autouse=True, scope="function")
+def _reset_scheduler():
+    """Reset the global scheduler instance between tests."""
+    import core.food_apis.scheduler
+    core.food_apis.scheduler._scheduler_instance = None
+    yield
+
+
+@pytest.fixture
+def client():
+    """Create a test client for each test."""
+    from fastapi.testclient import TestClient
+
+    from app import app
+    return TestClient(app)

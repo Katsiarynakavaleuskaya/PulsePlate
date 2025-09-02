@@ -328,5 +328,6 @@
         "venv",
         "wmax",
         "wmin"
-    ]
+    ],
+    "chatgpt.openOnStartup": true
 }

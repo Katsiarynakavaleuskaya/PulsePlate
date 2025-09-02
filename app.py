@@ -40,7 +40,7 @@ else:
         SlowAPIMiddleware = None
         slowapi_available = False
 
-from pydantic import BaseModel, Field, StrictFloat, conset, model_validator
+from pydantic import BaseModel, Field, StrictFloat, model_validator
 
 with suppress(ImportError):
     import dotenv
@@ -79,7 +79,6 @@ logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
 
-# ... existing imports ...
 
 # Lifespan event handler
 @asynccontextmanager
@@ -392,13 +391,18 @@ async def bmi_endpoint(req: BMIRequest):
 @app.post("/api/v1/bmi/visualize")
 async def bmi_visualize_endpoint(req: BMIRequest, api_key: str = Depends(get_api_key)):
     """Generate BMI visualization chart."""
-    if not generate_bmi_visualization:
+    import sys as _sys
+    _module = _sys.modules[__name__]
+    _viz_func = getattr(_module, "generate_bmi_visualization", None)
+    _mpl_available = getattr(_module, "MATPLOTLIB_AVAILABLE", False)
+
+    if not _viz_func:
         raise HTTPException(
             status_code=503,
             detail="Visualization not available - module not found"
         )
 
-    if not MATPLOTLIB_AVAILABLE:
+    if not _mpl_available:
         raise HTTPException(
             status_code=503,
             detail="Visualization not available - matplotlib not installed"
@@ -408,7 +412,7 @@ async def bmi_visualize_endpoint(req: BMIRequest, api_key: str = Depends(get_api
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
     # Generate visualization
-    viz_result = generate_bmi_visualization(
+    viz_result = _viz_func(
         bmi=bmi, age=req.age, gender=req.gender,
         pregnant=req.pregnant, athlete=req.athlete, lang=req.lang
     )
@@ -680,7 +684,11 @@ async def api_premium_bmr(data: BMRRequest):
 
     Also calculates TDEE (Total Daily Energy Expenditure) based on activity level.
     """
-    if not calculate_all_bmr or not calculate_all_tdee:
+    import sys as _sys
+    _module = _sys.modules[__name__]
+    _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
+    _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
+    if not _calc_all_bmr or not _calc_all_tdee:
         raise HTTPException(
             status_code=503,
             detail="Nutrition module not available"
@@ -688,7 +696,7 @@ async def api_premium_bmr(data: BMRRequest):
 
     try:
         # Calculate BMR using all available formulas
-        bmr_results = calculate_all_bmr(
+        bmr_results = _calc_all_bmr(
             weight=data.weight_kg,
             height=data.height_cm,
             age=data.age,
@@ -697,10 +705,11 @@ async def api_premium_bmr(data: BMRRequest):
         )
 
         # Calculate TDEE for all BMR formulas
-        tdee_results = calculate_all_tdee(bmr_results, data.activity)
+        tdee_results = _calc_all_tdee(bmr_results, data.activity)
 
         # Get activity descriptions
-        activity_descriptions = get_activity_descriptions() if get_activity_descriptions else {}
+        _get_act_desc = getattr(_module, "get_activity_descriptions", None)
+        activity_descriptions = _get_act_desc() if _get_act_desc else {}
 
         # Build response based on language
         if data.lang == "ru":
@@ -744,6 +753,9 @@ async def api_premium_bmr(data: BMRRequest):
 
         return response
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -789,7 +801,7 @@ class PlateRequest(BaseModel):
     deficit_pct: Optional[float] = Field(None, ge=5, le=25)   # for loss
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)   # for gain
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[conset(DietFlag, min_length=0)] = None
+    diet_flags: Optional[set[DietFlag]] = None
 
 class VisualShape(BaseModel):
     """RU: Примитив для фронтенда (сектор тарелки/чашка/метка).
@@ -823,7 +835,7 @@ class WHOTargetsRequest(BaseModel):
     deficit_pct: Optional[float] = Field(None, ge=5, le=25)
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[conset(DietFlag, min_length=0)] = None
+    diet_flags: Optional[set[DietFlag]] = None
     life_stage: Literal["adult", "pregnant", "lactating"] = "adult"
 
 
@@ -887,32 +899,37 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     - Macro-balanced meal suggestions
     """
     try:
-        if make_plate is None:
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _make_plate = getattr(_module, "make_plate", None)
+        if _make_plate is None:
             raise HTTPException(
                 status_code=503,
                 detail="Enhanced plate feature not available"
             )
 
-        if calculate_all_bmr is None or calculate_all_tdee is None:
+        _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
+        _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
+        if _calc_all_bmr is None or _calc_all_tdee is None:
             raise HTTPException(
                 status_code=503,
                 detail="BMR/TDEE calculation not available"
             )
 
         # 1) Calculate BMR/TDEE (using Mifflin-St Jeor as default, can add formula choice later)
-        bmr_results = calculate_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
-        tdee_results = calculate_all_tdee(bmr_results, req.activity)
+        bmr_results = _calc_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
+        tdee_results = _calc_all_tdee(bmr_results, req.activity)
         tdee_val = tdee_results["mifflin"]  # Use Mifflin-St Jeor as primary
 
         # 2) Generate plate with enhanced logic
-        diet_flags = set(req.diet_flags or [])
-        plate_data = make_plate(
+        diet_flags_str = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
+        plate_data = _make_plate(
             weight_kg=req.weight_kg,
             tdee_val=tdee_val,
             goal=req.goal,
             deficit_pct=req.deficit_pct,
             surplus_pct=req.surplus_pct,
-            diet_flags=diet_flags,
+            diet_flags=diet_flags_str,
         )
 
         # 3) Convert layout to VisualShape objects
@@ -926,6 +943,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             meals=plate_data["meals"]
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -961,7 +981,10 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     and special conditions (pregnancy, lactation).
     """
     try:
-        if build_nutrition_targets is None:
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _build_targets = getattr(_module, "build_nutrition_targets", None)
+        if _build_targets is None:
             raise HTTPException(
                 status_code=503,
                 detail="WHO nutrition targets feature not available"
@@ -984,7 +1007,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
         )
 
         # Calculate WHO-based targets
-        targets = build_nutrition_targets(profile)
+        targets = _build_targets(profile)
 
         # Validate safety
         from core.recommendations import validate_targets_safety
@@ -1009,6 +1032,9 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             warnings=warnings
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -1042,7 +1068,10 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
     for meeting micronutrient needs without supplements.
     """
     try:
-        if make_weekly_menu is None:
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _make_weekly_menu = getattr(_module, "make_weekly_menu", None)
+        if _make_weekly_menu is None:
             raise HTTPException(
                 status_code=503,
                 detail="Weekly menu generation feature not available"
@@ -1065,7 +1094,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         )
 
         # Generate weekly menu
-        week_menu = make_weekly_menu(profile)
+        week_menu = _make_weekly_menu(profile)
 
         return WeeklyMenuResponse(
             week_summary={
@@ -1088,6 +1117,9 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
             adherence_score=week_menu.adherence_score
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -1120,7 +1152,10 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     Perfect for food diary analysis and meal optimization.
     """
     try:
-        if analyze_nutrient_gaps is None:
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _analyze_gaps = getattr(_module, "analyze_nutrient_gaps", None)
+        if _analyze_gaps is None:
             raise HTTPException(
                 status_code=503,
                 detail="Nutrient gap analysis feature not available"
@@ -1142,10 +1177,17 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
             life_stage=req.user_profile.life_stage
         )
 
-        targets = build_nutrition_targets(profile)
+        _build_targets = getattr(_module, "build_nutrition_targets", None)
+        if _build_targets is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Nutrition targets calculation feature not available"
+            )
+
+        targets = _build_targets(profile)
 
         # Analyze gaps
-        gaps = analyze_nutrient_gaps(targets, req.consumed_nutrients)
+        gaps = _analyze_gaps(targets, req.consumed_nutrients)
 
         # Generate food recommendations
         from core.recommendations import (
@@ -1166,6 +1208,9 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
             adherence_score=round(adherence_score, 1)
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -1208,7 +1253,10 @@ async def get_database_status():
     - Data integrity checksums
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _get_sched = getattr(_module, "get_update_scheduler")
+        scheduler = await _get_sched()
         status = scheduler.get_status()
         return JSONResponse(content=status)
     except Exception as e:
@@ -1232,7 +1280,10 @@ async def force_database_update(source: Optional[str] = None):
         Update results with statistics on records changed
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _get_sched = getattr(_module, "get_update_scheduler")
+        scheduler = await _get_sched()
         results = await scheduler.force_update(source)
 
         # Format response
@@ -1272,7 +1323,10 @@ async def check_for_updates():
         Dictionary showing which sources have updates available
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _get_sched = getattr(_module, "get_update_scheduler")
+        scheduler = await _get_sched()
         available_updates = await scheduler.update_manager.check_for_updates()
 
         response = {
@@ -1304,7 +1358,10 @@ async def rollback_database(source: str, target_version: str):
         Success status and rollback details
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _module = _sys.modules[__name__]
+        _get_sched = getattr(_module, "get_update_scheduler")
+        scheduler = await _get_sched()
         success = await scheduler.update_manager.rollback_database(source, target_version)
 
         if success:

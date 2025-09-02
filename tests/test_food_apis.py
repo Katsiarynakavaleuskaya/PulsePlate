@@ -145,6 +145,375 @@ class TestUSDAClient:
 
         await client.close()
 
+    @pytest.mark.asyncio
+    async def test_search_foods_error_handling(self):
+        """Test search_foods error handling."""
+        client = USDAClient()
+
+        # Mock HTTP error
+        with patch.object(client.client, 'get') as mock_get:
+            mock_get.side_effect = Exception("HTTP Error")
+
+            results = await client.search_foods("test")
+            assert results == []
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_food_details_success(self):
+        """Test get_food_details with successful response."""
+        client = USDAClient()
+
+        mock_response_data = {
+            "fdcId": 168149,
+            "description": "Test food",
+            "dataType": "Foundation",
+            "foodNutrients": [
+                {"nutrientId": 1003, "value": 25.0},
+                {"nutrientId": 1004, "value": 5.0},
+                {"nutrientId": 1005, "value": 0.0},
+                {"nutrientId": 1008, "value": 150.0}
+            ]
+        }
+
+        with patch.object(client.client, 'get') as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = await client.get_food_details(168149)
+
+            assert result is not None
+            assert result.fdc_id == 168149
+            assert result.description == "Test food"
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_food_details_error(self):
+        """Test get_food_details error handling."""
+        client = USDAClient()
+
+        with patch.object(client.client, 'get') as mock_get:
+            mock_get.side_effect = Exception("API Error")
+
+            result = await client.get_food_details(123)
+            assert result is None
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_multiple_foods_success(self):
+        """Test get_multiple_foods with successful response."""
+        client = USDAClient()
+
+        mock_response_data = [
+            {
+                "fdcId": 123,
+                "description": "Food 1",
+                "dataType": "Foundation",
+                "foodNutrients": [
+                    {"nutrientId": 1003, "value": 20.0},
+                    {"nutrientId": 1004, "value": 10.0},
+                    {"nutrientId": 1005, "value": 5.0},
+                    {"nutrientId": 1008, "value": 180.0}
+                ]
+            },
+            {
+                "fdcId": 124,
+                "description": "Food 2",
+                "dataType": "Foundation",
+                "foodNutrients": [
+                    {"nutrientId": 1003, "value": 15.0},
+                    {"nutrientId": 1004, "value": 8.0},
+                    {"nutrientId": 1005, "value": 12.0},
+                    {"nutrientId": 1008, "value": 160.0}
+                ]
+            }
+        ]
+
+        with patch.object(client.client, 'post') as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_post.return_value = mock_response
+
+            results = await client.get_multiple_foods([123, 124])
+
+            assert len(results) == 2
+            assert results[0].fdc_id == 123
+            assert results[1].fdc_id == 124
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_multiple_foods_error(self):
+        """Test get_multiple_foods error handling."""
+        client = USDAClient()
+
+        with patch.object(client.client, 'post') as mock_post:
+            mock_post.side_effect = Exception("API Error")
+
+            results = await client.get_multiple_foods([123, 124])
+            assert results == []
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_parse_food_item_invalid_data(self):
+        """Test _parse_food_item with invalid data types."""
+        client = USDAClient()
+
+        # Test non-dict input
+        result = client._parse_food_item("not a dict")
+        assert result is None
+
+        # Test dict with missing required data
+        result = client._parse_food_item({})
+        assert result is None
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_parse_food_item_different_formats(self):
+        """Test _parse_food_item with different API response formats."""
+        client = USDAClient()
+
+        # Test with nested nutrient format (details API)
+        food_data = {
+            "fdcId": 123,
+            "description": "Test food",
+            "dataType": "Foundation",
+            "foodCategory": {"description": "Test Category"},
+            "publicationDate": "2024-01-01",
+            "foodNutrients": [
+                {
+                    "nutrient": {"id": 1003},
+                    "amount": 20.0
+                },
+                {
+                    "nutrient": {"id": 1004},
+                    "amount": 10.0
+                },
+                {
+                    "nutrient": {"id": 1005},
+                    "amount": 5.0
+                },
+                {
+                    "nutrient": {"id": 1008},
+                    "amount": 180.0
+                }
+            ]
+        }
+
+        result = client._parse_food_item(food_data)
+        assert result is not None
+        assert result.food_category == "Test Category"
+        assert result.publication_date == "2024-01-01"
+
+        # Test with string food category
+        food_data["foodCategory"] = "String Category"
+        result = client._parse_food_item(food_data)
+        assert result.food_category == "String Category"
+
+        # Test with publishedDate instead of publicationDate
+        del food_data["publicationDate"]
+        food_data["publishedDate"] = "2024-01-02"
+        result = client._parse_food_item(food_data)
+        assert result.publication_date == "2024-01-02"
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_parse_food_item_exception_handling(self):
+        """Test _parse_food_item exception handling."""
+        client = USDAClient()
+
+        # Test with data that causes parsing exception
+        malformed_data = {
+            "fdcId": "not_an_int",  # This should cause an error
+            "description": "Test",
+            "foodNutrients": "not_a_list"
+        }
+
+        result = client._parse_food_item(malformed_data)
+        assert result is None
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_common_foods_database(self):
+        """Test get_common_foods_database function."""
+        from core.food_apis.usda_client import get_common_foods_database
+
+        # Mock the search results for common foods
+        with patch('core.food_apis.usda_client.USDAClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Mock search results
+            mock_food = USDAFoodItem(
+                fdc_id=123,
+                description="Test chicken breast",
+                food_category="Poultry",
+                nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
+                data_type="Foundation",
+                publication_date="2024-01-01"
+            )
+
+            mock_client.search_foods.return_value = [mock_food]
+            mock_client.close.return_value = None
+
+            # Test the function
+            result = await get_common_foods_database()
+
+            # Should have attempted to search for common foods
+            assert mock_client.search_foods.call_count > 0
+            assert mock_client.close.called
+
+            # Check that it handles the case where some foods are found
+            if result:
+                assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    async def test_usda_food_item_vegan_detection(self):
+        """Test vegan food detection in tag generation."""
+
+        # Test food with dairy (should be VEG but not VEGAN)
+        dairy_food = USDAFoodItem(
+            fdc_id=123,
+            description="Milk, whole",
+            food_category="Dairy",
+            nutrients_per_100g={"protein_g": 3.0, "fat_g": 3.0, "carbs_g": 5.0, "kcal": 60.0},
+            data_type="Foundation",
+            publication_date="2024-01-01"
+        )
+
+        tags = dairy_food._generate_tags()
+        assert "VEG" in tags
+        assert "VEGAN" not in tags  # Contains dairy
+
+        # Test animal product (should be neither VEG nor VEGAN)
+        meat_food = USDAFoodItem(
+            fdc_id=124,
+            description="Chicken breast, meat only",
+            food_category="Poultry",
+            nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
+            data_type="Foundation",
+            publication_date="2024-01-01"
+        )
+
+        tags = meat_food._generate_tags()
+        assert "VEG" not in tags
+        assert "VEGAN" not in tags
+
+    @pytest.mark.asyncio
+    async def test_usda_food_item_gluten_detection(self):
+        """Test gluten-free detection in tag generation."""
+
+        # Test food with wheat (should not be GF)
+        wheat_food = USDAFoodItem(
+            fdc_id=125,
+            description="Bread, whole wheat",
+            food_category="Baked Products",
+            nutrients_per_100g={"protein_g": 10.0, "fat_g": 3.0, "carbs_g": 50.0, "kcal": 250.0},
+            data_type="Foundation",
+            publication_date="2024-01-01"
+        )
+
+        tags = wheat_food._generate_tags()
+        assert "GF" not in tags  # Contains wheat
+
+    @pytest.mark.asyncio
+    async def test_search_foods_success_with_results(self):
+        """Test search_foods success path with actual results."""
+        client = USDAClient()
+
+        mock_response_data = {
+            "foods": [
+                {
+                    "fdcId": 168149,
+                    "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, roasted",
+                    "dataType": "Foundation",
+                    "foodCategory": {"description": "Poultry Products"},
+                    "foodNutrients": [
+                        {"nutrientId": 1003, "value": 30.54},
+                        {"nutrientId": 1004, "value": 3.57},
+                        {"nutrientId": 1005, "value": 0.0},
+                        {"nutrientId": 1008, "value": 165.0}
+                    ]
+                }
+            ]
+        }
+
+        with patch.object(client.client, 'get') as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            results = await client.search_foods("chicken breast")
+
+            assert len(results) == 1
+            assert results[0].fdc_id == 168149
+            assert "Chicken" in results[0].description
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_search_foods_with_empty_results(self):
+        """Test search_foods with empty API response."""
+        client = USDAClient()
+
+        mock_response_data = {"foods": []}
+
+        with patch.object(client.client, 'get') as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            results = await client.search_foods("nonexistent food")
+
+            assert results == []
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_common_foods_database_with_errors(self):
+        """Test get_common_foods_database with some search errors."""
+        from core.food_apis.usda_client import get_common_foods_database
+
+        with patch('core.food_apis.usda_client.USDAClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Mock some successful and some failed searches
+            def mock_search_side_effect(query, page_size=25):
+                if "chicken" in query:
+                    return [USDAFoodItem(
+                        fdc_id=123,
+                        description="Test chicken",
+                        food_category="Poultry",
+                        nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
+                        data_type="Foundation",
+                        publication_date="2024-01-01"
+                    )]
+                else:
+                    raise Exception("Search failed")
+
+            mock_client.search_foods.side_effect = mock_search_side_effect
+            mock_client.close.return_value = None
+
+            # Test with asyncio.sleep mocked to speed up test
+            with patch('asyncio.sleep', return_value=None):
+                result = await get_common_foods_database()
+
+            # Should handle errors gracefully and continue with other foods
+            assert mock_client.close.called
+            assert isinstance(result, dict)
+
 
 class TestUnifiedFoodDatabase:
     """Test unified food database interface."""
