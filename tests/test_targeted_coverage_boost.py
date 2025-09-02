@@ -260,7 +260,7 @@ class TestTargetedCoverageBoost:
         meals = [{"title": "Test Meal"}]  # Fix the key name
         food_db = {}
         recipe_db = {}
-        result = _enhance_meals_with_micros(meals, food_db, recipe_db, None)
+        result = _enhance_meals_with_micros(meals, food_db, recipe_db, set())  # Changed None to set()
         assert isinstance(result, list)
 
     def test_menu_engine_py_line_467(self):
