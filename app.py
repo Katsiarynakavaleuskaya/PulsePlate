@@ -78,6 +78,7 @@ from core.bmi_extras import (
     wht_ratio,
 )
 from core.food_apis.scheduler import (
+    get_update_scheduler,
     start_background_updates,
     stop_background_updates,
 )
