@@ -67,6 +67,16 @@ except ImportError:
     get_activity_descriptions = None
 
 from bmi_core import bmi_category, bmi_value
+
+# Add import for the new BMI Pro functions
+from core.bmi_extras import (
+    ffmi,
+    interpret_whr_ratio,
+    interpret_wht_ratio,
+    stage_obesity,
+    whr_ratio,
+    wht_ratio,
+)
 from core.food_apis.scheduler import (
     get_update_scheduler,
     start_background_updates,
@@ -164,6 +174,41 @@ class BMIRequest(BaseModel):
             if k in values and isinstance(values[k], str):
                 values[k] = values[k].strip().lower()
         return values
+
+
+# Add the new BMI Pro request model
+class BMIProRequest(BaseModel):
+    """Request model for BMI Pro analysis"""
+    weight_kg: StrictFloat = Field(..., gt=0)
+    height_cm: float = Field(..., gt=0)
+    age: int = Field(..., ge=0, le=120)
+    gender: str
+    pregnant: str
+    athlete: str
+    waist_cm: float = Field(..., gt=0)
+    hip_cm: Optional[float] = Field(None, gt=0)
+    bodyfat_pct: Optional[float] = Field(None, ge=0, le=100)
+    lang: Literal["ru", "en"] = "en"
+
+
+# Add the new BMI Pro response model
+class BMIProResponse(BaseModel):
+    """Response model for BMI Pro analysis"""
+    bmi: float
+    bmi_category: str
+    wht_ratio: float
+    wht_risk_category: str
+    wht_risk_level: str
+    wht_description: str
+    whr_ratio: Optional[float] = None
+    whr_risk_level: Optional[str] = None
+    whr_description: Optional[str] = None
+    ffmi: Optional[float] = None
+    ffm_kg: Optional[float] = None
+    obesity_stage: str
+    risk_factors: int
+    recommendation: str
+    note: str
 
 
 # ---------- Core logic ----------
@@ -1253,10 +1298,7 @@ async def get_database_status():
     - Data integrity checksums
     """
     try:
-        import sys as _sys
-        _module = _sys.modules[__name__]
-        _get_sched = getattr(_module, "get_update_scheduler")
-        scheduler = await _get_sched()
+        scheduler = await get_update_scheduler()
         status = scheduler.get_status()
         return JSONResponse(content=status)
     except Exception as e:
@@ -1280,10 +1322,7 @@ async def force_database_update(source: Optional[str] = None):
         Update results with statistics on records changed
     """
     try:
-        import sys as _sys
-        _module = _sys.modules[__name__]
-        _get_sched = getattr(_module, "get_update_scheduler")
-        scheduler = await _get_sched()
+        scheduler = await get_update_scheduler()
         results = await scheduler.force_update(source)
 
         # Format response
@@ -1323,10 +1362,7 @@ async def check_for_updates():
         Dictionary showing which sources have updates available
     """
     try:
-        import sys as _sys
-        _module = _sys.modules[__name__]
-        _get_sched = getattr(_module, "get_update_scheduler")
-        scheduler = await _get_sched()
+        scheduler = await get_update_scheduler()
         available_updates = await scheduler.update_manager.check_for_updates()
 
         response = {
@@ -1358,10 +1394,7 @@ async def rollback_database(source: str, target_version: str):
         Success status and rollback details
     """
     try:
-        import sys as _sys
-        _module = _sys.modules[__name__]
-        _get_sched = getattr(_module, "get_update_scheduler")
-        scheduler = await _get_sched()
+        scheduler = await get_update_scheduler()
         success = await scheduler.update_manager.rollback_database(source, target_version)
 
         if success:
@@ -1379,4 +1412,86 @@ async def rollback_database(source: str, target_version: str):
         raise HTTPException(
             status_code=500,
             detail=f"Rollback operation failed: {str(e)}"
+        ) from e
+
+
+@app.post(
+    "/api/v1/bmi/pro",
+    response_model=BMIProResponse,
+    dependencies=[Depends(get_api_key)]
+)
+async def api_v1_bmi_pro(payload: BMIProRequest):
+    """
+    BMI Pro: Advanced BMI analysis with waist measurements, body composition, and risk staging.
+    
+    Provides comprehensive health risk assessment including:
+    - Traditional BMI and category
+    - Waist-to-Height Ratio (WHtR) with risk interpretation
+    - Waist-to-Hip Ratio (WHR) with sex-specific risk thresholds
+    - Fat-Free Mass Index (FFMI) for body composition analysis
+    - Multi-factor obesity staging and personalized recommendations
+    """
+    try:
+        # Calculate traditional BMI
+        height_m = payload.height_cm / 100.0
+        bmi = round(payload.weight_kg / (height_m ** 2), 1)
+        bmi_cat = bmi_category(bmi, payload.lang)
+
+        # Calculate WHtR
+        wht = wht_ratio(payload.waist_cm, payload.height_cm)
+        wht_interpretation = interpret_wht_ratio(wht)
+
+        # Calculate WHR if hip measurement provided
+        whr = None
+        whr_interpretation = None
+        if payload.hip_cm:
+            whr = whr_ratio(payload.waist_cm, payload.hip_cm, payload.gender)
+            whr_interpretation = interpret_whr_ratio(whr, payload.gender)
+
+        # Calculate FFMI if body fat percentage provided
+        ffm_result = None
+        if payload.bodyfat_pct is not None:
+            ffm_result = ffmi(payload.weight_kg, payload.height_cm, payload.bodyfat_pct)
+
+        # Stage obesity using multiple metrics
+        obesity_staging = stage_obesity(
+            bmi, wht, whr or 0, payload.gender
+        )
+
+        # Build response
+        response = BMIProResponse(
+            bmi=bmi,
+            bmi_category=bmi_cat,
+            wht_ratio=wht,
+            wht_risk_category=wht_interpretation["category"],
+            wht_risk_level=wht_interpretation["risk"],
+            wht_description=wht_interpretation["description"],
+            obesity_stage=obesity_staging["stage"],
+            risk_factors=obesity_staging["risk_factors"],
+            recommendation=obesity_staging["recommendation"],
+            note="BMI Pro analysis complete"
+        )
+
+        # Add WHR data if available
+        if whr is not None and whr_interpretation is not None:
+            response.whr_ratio = whr
+            response.whr_risk_level = whr_interpretation["risk"]
+            response.whr_description = whr_interpretation["description"]
+
+        # Add FFMI data if available
+        if ffm_result is not None:
+            response.ffmi = ffm_result["ffmi"]
+            response.ffm_kg = ffm_result["ffm_kg"]
+
+        return response
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid input: {str(e)}"
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"BMI Pro analysis failed: {str(e)}"
         ) from e
