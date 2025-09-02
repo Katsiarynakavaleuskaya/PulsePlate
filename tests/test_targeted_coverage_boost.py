@@ -103,7 +103,8 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_line_1215(self):
         """Test line 1215 in app.py (get_database_status with missing scheduler)."""
-        with patch('app.get_update_scheduler', side_effect=Exception("Test error")):
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
+            mock_get_scheduler.side_effect = Exception("Test error")
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code == 500
 

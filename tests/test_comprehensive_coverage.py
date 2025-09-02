@@ -59,7 +59,7 @@ class TestComprehensiveCoverage:
 
     def test_database_status_endpoint_exception(self):
         """Test database status endpoint exception handling."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
@@ -69,7 +69,7 @@ class TestComprehensiveCoverage:
 
     def test_force_update_endpoint_success(self):
         """Test force update endpoint success case."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_result = MagicMock()
             mock_result.success = True
@@ -91,7 +91,7 @@ class TestComprehensiveCoverage:
 
     def test_force_update_endpoint_with_source(self):
         """Test force update endpoint with specific source."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_result = MagicMock()
             mock_result.success = True
@@ -113,7 +113,7 @@ class TestComprehensiveCoverage:
 
     def test_force_update_endpoint_exception(self):
         """Test force update endpoint exception handling."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
@@ -123,7 +123,7 @@ class TestComprehensiveCoverage:
 
     def test_check_updates_endpoint_success(self):
         """Test check updates endpoint success case."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.check_for_updates = AsyncMock(return_value={
                 "usda": True,
@@ -139,7 +139,7 @@ class TestComprehensiveCoverage:
 
     def test_check_updates_endpoint_exception(self):
         """Test check updates endpoint exception handling."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
@@ -149,7 +149,7 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
             mock_get_scheduler.return_value = mock_scheduler
@@ -166,7 +166,7 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
             mock_get_scheduler.return_value = mock_scheduler
@@ -181,7 +181,7 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
-        with patch('app.get_update_scheduler') as mock_get_scheduler:
+        with patch('app.get_update_scheduler', new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(

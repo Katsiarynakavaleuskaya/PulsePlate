@@ -22,4 +22,5 @@ known-third-party = ["hypothesis"]
 "bodyfat.py" = ["E501"]
 "providers/ollama.py" = ["E501"]
 "providers/pico.py" = ["E501"]
-
+"debug_*.py" = ["E402", "E501"]
+"reproduce_issue.py" = ["E402", "E501"]

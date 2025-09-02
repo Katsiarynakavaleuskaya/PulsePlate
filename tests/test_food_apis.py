@@ -107,6 +107,9 @@ class TestUSDAClient:
         food_data = mock_usda_response["foods"][0]
         food_item = client._parse_food_item(food_data)
 
+        # Ensure food_item is not None before proceeding
+        assert food_item is not None, "Failed to parse food item from mock data"
+
         menu_format = food_item.to_menu_engine_format()
 
         assert menu_format["name"] == food_item.description
@@ -137,6 +140,8 @@ class TestUSDAClient:
         }
 
         veg_food = client._parse_food_item(veg_food_data)
+        # Ensure veg_food is not None before proceeding
+        assert veg_food is not None, "Failed to parse vegetarian food item"
         veg_tags = veg_food._generate_tags()
 
         assert "VEG" in veg_tags

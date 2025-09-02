@@ -78,7 +78,6 @@ from core.bmi_extras import (
     wht_ratio,
 )
 from core.food_apis.scheduler import (
-    get_update_scheduler,
     start_background_updates,
     stop_background_updates,
 )
@@ -1298,7 +1297,11 @@ async def get_database_status():
     - Data integrity checksums
     """
     try:
-        scheduler = await get_update_scheduler()
+        # Resolve getter dynamically to respect runtime patches in tests
+        import sys as _sys
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        logger.debug(f"get_database_status using getter: {_getter!r}")
+        scheduler = await _getter()
         status = scheduler.get_status()
         return JSONResponse(content=status)
     except Exception as e:
@@ -1322,7 +1325,10 @@ async def force_database_update(source: Optional[str] = None):
         Update results with statistics on records changed
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        logger.debug(f"force_database_update using getter: {_getter!r}")
+        scheduler = await _getter()
         results = await scheduler.force_update(source)
 
         # Format response
@@ -1362,7 +1368,10 @@ async def check_for_updates():
         Dictionary showing which sources have updates available
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        logger.debug(f"check_for_updates using getter: {_getter!r}")
+        scheduler = await _getter()
         available_updates = await scheduler.update_manager.check_for_updates()
 
         response = {
@@ -1394,7 +1403,10 @@ async def rollback_database(source: str, target_version: str):
         Success status and rollback details
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        logger.debug(f"rollback_database using getter: {_getter!r}")
+        scheduler = await _getter()
         success = await scheduler.update_manager.rollback_database(source, target_version)
 
         if success:
@@ -1423,7 +1435,7 @@ async def rollback_database(source: str, target_version: str):
 async def api_v1_bmi_pro(payload: BMIProRequest):
     """
     BMI Pro: Advanced BMI analysis with waist measurements, body composition, and risk staging.
-    
+
     Provides comprehensive health risk assessment including:
     - Traditional BMI and category
     - Waist-to-Height Ratio (WHtR) with risk interpretation
