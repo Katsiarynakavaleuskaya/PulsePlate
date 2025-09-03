@@ -16,11 +16,45 @@ from typing import Any, Dict, Optional
 
 # Check if reportlab is available
 REPORTLAB_AVAILABLE = False
+REPORTLAB_CLASSES = {}
+
+# Try to import reportlab
 try:
-    __import__('reportlab')
+    from reportlab.lib import colors  # type: ignore
+    from reportlab.lib.pagesizes import letter  # type: ignore
+    from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
+    from reportlab.platypus import (  # type: ignore
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
     REPORTLAB_AVAILABLE = True
+    REPORTLAB_CLASSES.update({
+        'colors': colors,
+        'letter': letter,
+        'getSampleStyleSheet': getSampleStyleSheet,
+        'Paragraph': Paragraph,
+        'SimpleDocTemplate': SimpleDocTemplate,
+        'Spacer': Spacer,
+        'Table': Table,
+        'TableStyle': TableStyle
+    })
 except ImportError:
     REPORTLAB_AVAILABLE = False
+
+
+def _import_reportlab_modules():
+    """Return reportlab modules, importing them if necessary."""
+    global REPORTLAB_CLASSES
+    if not REPORTLAB_AVAILABLE:
+        raise ImportError(
+            "ReportLab is required for PDF export. "
+            "Install with 'pip install reportlab'"
+        )
+    return REPORTLAB_CLASSES
+
 
 def to_csv_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
     """
@@ -139,19 +173,16 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
             "Install with 'pip install reportlab'"
         )
 
-    # Import ReportLab components locally to avoid import errors when library is not available
-    from reportlab.lib import colors  # pyright: ignore[reportMissingModuleSource]
-    from reportlab.lib.pagesizes import letter  # pyright: ignore[reportMissingModuleSource]
-    from reportlab.lib.styles import (
-        getSampleStyleSheet,  # pyright: ignore[reportMissingModuleSource]
-    )
-    from reportlab.platypus import (  # pyright: ignore[reportMissingModuleSource]
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    # Lazy import reportlab modules
+    reportlab_classes = _import_reportlab_modules()
+    colors = reportlab_classes['colors']
+    letter = reportlab_classes['letter']
+    getSampleStyleSheet = reportlab_classes['getSampleStyleSheet']
+    Paragraph = reportlab_classes['Paragraph']
+    SimpleDocTemplate = reportlab_classes['SimpleDocTemplate']
+    Spacer = reportlab_classes['Spacer']
+    Table = reportlab_classes['Table']
+    TableStyle = reportlab_classes['TableStyle']
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -227,19 +258,16 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
             "Install with 'pip install reportlab'"
         )
 
-    # Import ReportLab components locally to avoid import errors when library is not available
-    from reportlab.lib import colors  # pyright: ignore[reportMissingModuleSource]
-    from reportlab.lib.pagesizes import letter  # pyright: ignore[reportMissingModuleSource]
-    from reportlab.lib.styles import (
-        getSampleStyleSheet,  # pyright: ignore[reportMissingModuleSource]
-    )
-    from reportlab.platypus import (  # pyright: ignore[reportMissingModuleSource]
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    # Lazy import reportlab modules
+    reportlab_classes = _import_reportlab_modules()
+    colors = reportlab_classes['colors']
+    letter = reportlab_classes['letter']
+    getSampleStyleSheet = reportlab_classes['getSampleStyleSheet']
+    Paragraph = reportlab_classes['Paragraph']
+    SimpleDocTemplate = reportlab_classes['SimpleDocTemplate']
+    Spacer = reportlab_classes['Spacer']
+    Table = reportlab_classes['Table']
+    TableStyle = reportlab_classes['TableStyle']
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)

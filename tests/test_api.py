@@ -155,7 +155,11 @@ def test_v1_bodyfat_missing_hip():
 def test_bodyfat_import_failure():
     """Test coverage for bodyfat import exception in app.py."""
     import builtins
+    import sys
     from unittest.mock import patch
+
+    # Save original app module if it exists
+    original_app = sys.modules.get("app")
 
     # Save original before patching
     original_import = builtins.__import__
@@ -170,7 +174,6 @@ def test_bodyfat_import_failure():
         mock_import.side_effect = side_effect
 
         # Re-import app to trigger the exception
-        import sys
         if "app" in sys.modules:
             del sys.modules["app"]
         try:
@@ -179,12 +182,22 @@ def test_bodyfat_import_failure():
             assert app.get_bodyfat_router is None
         except Exception:
             pytest.skip("App import failed unexpectedly")
+        finally:
+            # Restore original app module
+            if original_app is not None:
+                sys.modules["app"] = original_app
+            elif "app" in sys.modules:
+                del sys.modules["app"]
 
 
 def test_insight_import_failure():
     """Test coverage for llm import exception in app.py."""
     import builtins
+    import sys
     from unittest.mock import patch
+
+    # Save original app module if it exists
+    original_app = sys.modules.get("app")
 
     # Save original before patching
     original_import = builtins.__import__
@@ -199,7 +212,6 @@ def test_insight_import_failure():
         mock_import.side_effect = side_effect
 
         # Re-import app to trigger the exception
-        import sys
         if "app" in sys.modules:
             del sys.modules["app"]
         try:
@@ -216,6 +228,12 @@ def test_insight_import_failure():
             assert "insight provider not configured" in data["detail"]
         except Exception:
             pytest.skip("App import failed unexpectedly")
+        finally:
+            # Restore original app module
+            if original_app is not None:
+                sys.modules["app"] = original_app
+            elif "app" in sys.modules:
+                del sys.modules["app"]
 
 
 @patch('llm.get_provider')
@@ -313,7 +331,11 @@ def test_v1_insight_invalid_api_key():
 def test_slowapi_import_failure():
     """Test coverage for slowapi import exception in app.py."""
     import builtins
+    import sys
     from unittest.mock import patch
+
+    # Save original app module if it exists
+    original_app = sys.modules.get("app")
 
     # Save original before patching
     original_import = builtins.__import__
@@ -328,7 +350,6 @@ def test_slowapi_import_failure():
         mock_import.side_effect = side_effect
 
         # Re-import app to trigger the exception
-        import sys
         if "app" in sys.modules:
             del sys.modules["app"]
         try:
@@ -337,12 +358,22 @@ def test_slowapi_import_failure():
             assert app.limiter is None
         except Exception:
             pytest.skip("App import failed unexpectedly")
+        finally:
+            # Restore original app module
+            if original_app is not None:
+                sys.modules["app"] = original_app
+            elif "app" in sys.modules:
+                del sys.modules["app"]
 
 
 def test_prometheus_import_failure():
     """Test coverage for prometheus_client import exception in app.py."""
     import builtins
+    import sys
     from unittest.mock import patch
+
+    # Save original app module if it exists
+    original_app = sys.modules.get("app")
 
     # Save original before patching
     original_import = builtins.__import__
@@ -357,7 +388,6 @@ def test_prometheus_import_failure():
         mock_import.side_effect = side_effect
 
         # Re-import app to trigger the exception
-        import sys
         if "app" in sys.modules:
             del sys.modules["app"]
         try:
@@ -368,3 +398,9 @@ def test_prometheus_import_failure():
             assert app.generate_latest is None
         except Exception:
             pytest.skip("App import failed unexpectedly")
+        finally:
+            # Restore original app module
+            if original_app is not None:
+                sys.modules["app"] = original_app
+            elif "app" in sys.modules:
+                del sys.modules["app"]

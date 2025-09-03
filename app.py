@@ -98,7 +98,6 @@ async def get_update_scheduler():  # type: ignore[no-redef]
 # Add import for export functions
 from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
 
-
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1547,7 +1546,7 @@ async def export_daily_plan_csv(plan_id: str):
         # In a real implementation, this would fetch the plan from a database
         # For now, we'll return a placeholder response
         from fastapi.responses import Response
-        
+
         # Mock data - in real implementation, fetch from database
         mock_plan = {
             "meals": [
@@ -1560,15 +1559,15 @@ async def export_daily_plan_csv(plan_id: str):
             "total_carbs": 85,
             "total_fat": 50
         }
-        
+
         csv_data = to_csv_day(mock_plan)
-        
+
         return Response(
             content=csv_data,
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"}
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -1590,7 +1589,7 @@ async def export_weekly_plan_csv(plan_id: str):
     """
     try:
         from fastapi.responses import Response
-        
+
         # Mock data - in real implementation, fetch from database
         mock_weekly_plan = {
             "daily_menus": [
@@ -1618,15 +1617,15 @@ async def export_weekly_plan_csv(plan_id: str):
             "total_cost": 150.0,
             "adherence_score": 92.5
         }
-        
+
         csv_data = to_csv_week(mock_weekly_plan)
-        
+
         return Response(
             content=csv_data,
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"}
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -1648,7 +1647,7 @@ async def export_daily_plan_pdf(plan_id: str):
     """
     try:
         from fastapi.responses import Response
-        
+
         # Mock data - in real implementation, fetch from database
         mock_plan = {
             "meals": [
@@ -1661,15 +1660,15 @@ async def export_daily_plan_pdf(plan_id: str):
             "total_carbs": 85,
             "total_fat": 50
         }
-        
+
         pdf_data = to_pdf_day(mock_plan)
-        
+
         return Response(
             content=pdf_data,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"}
         )
-        
+
     except ImportError:
         raise HTTPException(
             status_code=503,
@@ -1696,7 +1695,7 @@ async def export_weekly_plan_pdf(plan_id: str):
     """
     try:
         from fastapi.responses import Response
-        
+
         # Mock data - in real implementation, fetch from database
         mock_weekly_plan = {
             "daily_menus": [
@@ -1724,15 +1723,15 @@ async def export_weekly_plan_pdf(plan_id: str):
             "total_cost": 150.0,
             "adherence_score": 92.5
         }
-        
+
         pdf_data = to_pdf_week(mock_weekly_plan)
-        
+
         return Response(
             content=pdf_data,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"}
         )
-        
+
     except ImportError:
         raise HTTPException(
             status_code=503,
