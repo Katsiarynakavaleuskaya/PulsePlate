@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
 
@@ -81,6 +82,7 @@ class DatabaseUpdateManager:
 
         # Data sources
         self.usda_client = USDAClient()
+        self.off_client = OFFClient() if OFF_AVAILABLE else None
         self.unified_db = UnifiedFoodDatabase(str(self.cache_dir))
 
         # Update callbacks
@@ -147,8 +149,14 @@ class DatabaseUpdateManager:
             logger.error(f"Error checking USDA updates: {e}")
             updates_available["usda"] = False
 
-        # TODO: Add Open Food Facts update checking
-        # updates_available["openfoodfacts"] = await self._check_off_updates()
+        # Check Open Food Facts updates
+        if self.off_client and OFF_AVAILABLE:
+            try:
+                off_available = await self._check_off_updates()
+                updates_available["openfoodfacts"] = off_available
+            except Exception as e:
+                logger.error(f"Error checking Open Food Facts updates: {e}")
+                updates_available["openfoodfacts"] = False
 
         return updates_available
 
@@ -169,6 +177,23 @@ class DatabaseUpdateManager:
         # For now, assume updates available if interval passed
         return True
 
+    async def _check_off_updates(self) -> bool:
+        """Check if Open Food Facts database has updates."""
+        current_version = self.versions.get("openfoodfacts")
+
+        # If no current version, updates are available
+        if not current_version:
+            return True
+
+        # Check if enough time has passed for an update
+        last_update = datetime.fromisoformat(current_version.last_updated)
+        if datetime.now() - last_update < self.update_interval:
+            return False
+
+        # For Open Food Facts, check for updates based on their update frequency
+        # For now, assume updates available if interval passed
+        return True
+
     async def update_database(self, source: str, force: bool = False) -> UpdateResult:
         """
         RU: Обновляет базу данных из указанного источника.
@@ -185,6 +210,8 @@ class DatabaseUpdateManager:
 
         if source == "usda":
             result = await self._update_usda_database(force)
+        elif source == "openfoodfacts" and self.off_client and OFF_AVAILABLE:
+            result = await self._update_off_database(force)
         else:
             result = UpdateResult(
                 success=False,
@@ -318,6 +345,150 @@ class DatabaseUpdateManager:
                 errors=[str(e)],
                 duration_seconds=0.0
             )
+
+    async def _update_off_database(self, force: bool = False) -> UpdateResult:
+        """Update Open Food Facts database."""
+        source = "openfoodfacts"
+        current_version = self.versions.get(source)
+        old_version = current_version.version if current_version else None
+
+        try:
+            # Create backup of current data
+            if current_version:
+                await self._create_backup(source, current_version.version)
+
+            # For Open Food Facts, we'll fetch a sample of popular products
+            # In a real implementation, this would be more sophisticated
+            logger.info("Fetching Open Food Facts data...")
+
+            # This is a simplified approach - in reality, we'd want to implement
+            # a more comprehensive update strategy for Open Food Facts
+            sample_products = []
+            if self.off_client:
+                # Search for some common products to include in our database
+                common_searches = ["apple", "banana", "chicken", "bread", "milk", "cheese", "rice"]
+                for search_term in common_searches:
+                    try:
+                        products = await self.off_client.search_products(search_term, page_size=5)
+                        sample_products.extend(products)
+                        # Small delay to respect API limits
+                        await asyncio.sleep(0.1)
+                    except Exception as e:
+                        logger.warning(f"Error searching for {search_term}: {e}")
+
+            # Convert to unified format
+            unified_foods = {}
+            for off_item in sample_products:
+                try:
+                    unified_item = UnifiedFoodItem.from_off_item(off_item)
+                    # Use a standardized name for the key
+                    key = self._generate_food_key(unified_item.name)
+                    unified_foods[key] = unified_item
+                except Exception as e:
+                    logger.warning(f"Error converting OFF item to unified format: {e}")
+
+            # Calculate new version info
+            new_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+            checksum = self._calculate_checksum({
+                name: asdict(food) for name, food in unified_foods.items()
+            })
+
+            # Check if data actually changed (unless forced)
+            if not force and current_version and current_version.checksum == checksum:
+                return UpdateResult(
+                    success=True,
+                    source=source,
+                    old_version=old_version,
+                    new_version=old_version,  # No change
+                    records_added=0,
+                    records_updated=0,
+                    records_removed=0,
+                    errors=[],
+                    duration_seconds=0.0
+                )
+
+            # Validate new data
+            validation_errors = await self._validate_food_data(unified_foods)
+            if validation_errors:
+                return UpdateResult(
+                    success=False,
+                    source=source,
+                    old_version=old_version,
+                    new_version=None,
+                    records_added=0,
+                    records_updated=0,
+                    records_removed=0,
+                    errors=validation_errors,
+                    duration_seconds=0.0
+                )
+
+            # Calculate changes
+            old_foods = {}
+            if current_version:
+                try:
+                    old_foods = await self._load_backup(source, current_version.version)
+                except Exception as e:
+                    logger.warning(f"Could not load old data for comparison: {e}")
+
+            records_added = len(unified_foods) - len(old_foods)
+            records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
+            records_removed = len(old_foods) - len(unified_foods)
+
+            # Update version tracking
+            new_db_version = DatabaseVersion(
+                source=source,
+                version=new_version,
+                last_updated=datetime.now().isoformat(),
+                record_count=len(unified_foods),
+                checksum=checksum,
+                metadata={
+                    "update_type": "scheduled" if not force else "forced",
+                    "api_source": "Open Food Facts",
+                    "sample_size": len(sample_products)
+                }
+            )
+
+            self.versions[source] = new_db_version
+            self._save_versions()
+
+            # Clean up old backups
+            await self._cleanup_old_backups(source)
+
+            logger.info(f"Successfully updated {source} database: {len(unified_foods)} foods")
+
+            return UpdateResult(
+                success=True,
+                source=source,
+                old_version=old_version,
+                new_version=new_version,
+                records_added=max(0, records_added),
+                records_updated=records_updated,
+                records_removed=max(0, records_removed),
+                errors=[],
+                duration_seconds=0.0
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating {source} database: {e}")
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=[str(e)],
+                duration_seconds=0.0
+            )
+
+    def _generate_food_key(self, name: str) -> str:
+        """Generate a standardized key for food items."""
+        # Convert to lowercase and replace spaces with underscores
+        key = name.lower().strip().replace(" ", "_")
+        # Remove special characters
+        key = "".join(c for c in key if c.isalnum() or c == "_")
+        return key
 
     async def _validate_food_data(self, foods: Dict[str, UnifiedFoodItem]) -> List[str]:
         """
@@ -476,6 +647,8 @@ class DatabaseUpdateManager:
     async def close(self):
         """Close all connections."""
         await self.usda_client.close()
+        if self.off_client and OFF_AVAILABLE:
+            await self.off_client.close()
         await self.unified_db.close()
 
 

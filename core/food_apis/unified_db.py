@@ -177,10 +177,19 @@ class UnifiedFoodDatabase:
                 if not self._memory_cache.get(cache_key):
                     self._memory_cache[cache_key] = unified_item
 
-        # TODO: Add Open Food Facts search here
-        # if prefer_source == "openfoodfacts" or not results:
-        #     off_results = await self.off_client.search_foods(query)
-        #     ...
+        # Search Open Food Facts if USDA results are empty or if preferred
+        if (prefer_source == "openfoodfacts" or not results) and self.off_client:
+            try:
+                off_results = await self.off_client.search_products(query, page_size=5)
+                for off_item in off_results:
+                    unified_item = UnifiedFoodItem.from_off_item(off_item)
+                    results.append(unified_item)
+
+                    # Cache the best result
+                    if not self._memory_cache.get(cache_key):
+                        self._memory_cache[cache_key] = unified_item
+            except Exception as e:
+                logger.error(f"Error searching Open Food Facts: {e}")
 
         if results:
             self._save_cache()
@@ -207,6 +216,17 @@ class UnifiedFoodDatabase:
                     return unified_item
             except ValueError:
                 logger.error(f"Invalid USDA FDC ID: {food_id}")
+
+        elif source == "openfoodfacts" and self.off_client:
+            try:
+                off_item = await self.off_client.get_product_details(food_id)
+                if off_item:
+                    unified_item = UnifiedFoodItem.from_off_item(off_item)
+                    self._memory_cache[cache_key] = unified_item
+                    self._save_cache()
+                    return unified_item
+            except Exception as e:
+                logger.error(f"Error fetching Open Food Facts item {food_id}: {e}")
 
         return None
 
@@ -289,6 +309,8 @@ class UnifiedFoodDatabase:
     async def close(self):
         """Close all API clients."""
         await self.usda_client.close()
+        if self.off_client:
+            await self.off_client.close()
 
 
 # Global instance for easy access

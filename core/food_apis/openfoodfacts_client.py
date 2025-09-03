@@ -23,6 +23,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Flag to indicate if Open Food Facts client is available
+OFF_AVAILABLE = True
+
 
 @dataclass
 class OFFFoodItem:

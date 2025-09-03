@@ -98,9 +98,14 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_food_by_id_non_usda_source(self):
         """Test get_food_by_id with non-USDA source."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class, \
+             patch('core.food_apis.unified_db.OFFClient') as mock_off_class:
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
+
+            mock_off_instance = MagicMock()
+            mock_off_instance.get_product_details = AsyncMock(return_value=None)
+            mock_off_class.return_value = mock_off_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 db = UnifiedFoodDatabase(cache_dir=temp_dir)
