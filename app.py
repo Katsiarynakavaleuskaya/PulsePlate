@@ -95,6 +95,10 @@ async def get_update_scheduler():  # type: ignore[no-redef]
         return await _late_getter()
     return await _scheduler_getter()  # type: ignore[misc]
 
+# Add import for export functions
+from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
+
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1466,12 +1470,15 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
         wht = wht_ratio(payload.waist_cm, payload.height_cm)
         wht_interpretation = interpret_wht_ratio(wht)
 
+        # Normalize gender for functions that expect Literal["male", "female"]
+        normalized_gender = "male" if payload.gender.lower() in {"male", "муж", "м"} else "female"
+
         # Calculate WHR if hip measurement provided
         whr = None
         whr_interpretation = None
         if payload.hip_cm:
-            whr = whr_ratio(payload.waist_cm, payload.hip_cm, payload.gender)
-            whr_interpretation = interpret_whr_ratio(whr, payload.gender)
+            whr = whr_ratio(payload.waist_cm, payload.hip_cm, normalized_gender)
+            whr_interpretation = interpret_whr_ratio(whr, normalized_gender)
 
         # Calculate FFMI if body fat percentage provided
         ffm_result = None
@@ -1480,7 +1487,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
 
         # Stage obesity using multiple metrics
         obesity_staging = stage_obesity(
-            bmi, wht, whr or 0, payload.gender
+            bmi, wht, whr or 0, normalized_gender
         )
 
         # Build response
@@ -1492,7 +1499,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
             wht_risk_level=wht_interpretation["risk"],
             wht_description=wht_interpretation["description"],
             obesity_stage=obesity_staging["stage"],
-            risk_factors=obesity_staging["risk_factors"],
+            risk_factors=int(obesity_staging["risk_factors"]),
             recommendation=obesity_staging["recommendation"],
             note="BMI Pro analysis complete"
         )
@@ -1519,4 +1526,220 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
         raise HTTPException(
             status_code=500,
             detail=f"BMI Pro analysis failed: {str(e)}"
+        ) from e
+
+
+# Export Endpoints
+
+@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+async def export_daily_plan_csv(plan_id: str):
+    """
+    RU: Экспортировать дневной план в CSV.
+    EN: Export daily meal plan to CSV.
+
+    Args:
+        plan_id: ID of the daily plan to export
+
+    Returns:
+        CSV file download
+    """
+    try:
+        # In a real implementation, this would fetch the plan from a database
+        # For now, we'll return a placeholder response
+        from fastapi.responses import Response
+        
+        # Mock data - in real implementation, fetch from database
+        mock_plan = {
+            "meals": [
+                {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5},
+                {"name": "Lunch", "food_item": "Chicken Salad", "kcal": 450, "protein_g": 35, "carbs_g": 20, "fat_g": 25},
+                {"name": "Dinner", "food_item": "Grilled Fish", "kcal": 400, "protein_g": 40, "carbs_g": 15, "fat_g": 20}
+            ],
+            "total_kcal": 1150,
+            "total_protein": 85,
+            "total_carbs": 85,
+            "total_fat": 50
+        }
+        
+        csv_data = to_csv_day(mock_plan)
+        
+        return Response(
+            content=csv_data,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"CSV export failed: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+async def export_weekly_plan_csv(plan_id: str):
+    """
+    RU: Экспортировать недельный план в CSV.
+    EN: Export weekly meal plan to CSV.
+
+    Args:
+        plan_id: ID of the weekly plan to export
+
+    Returns:
+        CSV file download
+    """
+    try:
+        from fastapi.responses import Response
+        
+        # Mock data - in real implementation, fetch from database
+        mock_weekly_plan = {
+            "daily_menus": [
+                {
+                    "date": "2023-01-01",
+                    "meals": [
+                        {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5, "cost": 1.5},
+                        {"name": "Lunch", "food_item": "Chicken Salad", "kcal": 450, "protein_g": 35, "carbs_g": 20, "fat_g": 25, "cost": 3.2}
+                    ]
+                },
+                {
+                    "date": "2023-01-02",
+                    "meals": [
+                        {"name": "Breakfast", "food_item": "Scrambled Eggs", "kcal": 250, "protein_g": 18, "carbs_g": 1, "fat_g": 20, "cost": 1.2},
+                        {"name": "Lunch", "food_item": "Beef Stir Fry", "kcal": 500, "protein_g": 30, "carbs_g": 40, "fat_g": 20, "cost": 4.5}
+                    ]
+                }
+            ],
+            "shopping_list": {
+                "oats": 500,
+                "chicken_breast": 300,
+                "eggs": 12,
+                "beef": 400
+            },
+            "total_cost": 150.0,
+            "adherence_score": 92.5
+        }
+        
+        csv_data = to_csv_week(mock_weekly_plan)
+        
+        return Response(
+            content=csv_data,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"CSV export failed: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+async def export_daily_plan_pdf(plan_id: str):
+    """
+    RU: Экспортировать дневной план в PDF.
+    EN: Export daily meal plan to PDF.
+
+    Args:
+        plan_id: ID of the daily plan to export
+
+    Returns:
+        PDF file download
+    """
+    try:
+        from fastapi.responses import Response
+        
+        # Mock data - in real implementation, fetch from database
+        mock_plan = {
+            "meals": [
+                {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5},
+                {"name": "Lunch", "food_item": "Chicken Salad", "kcal": 450, "protein_g": 35, "carbs_g": 20, "fat_g": 25},
+                {"name": "Dinner", "food_item": "Grilled Fish", "kcal": 400, "protein_g": 40, "carbs_g": 15, "fat_g": 20}
+            ],
+            "total_kcal": 1150,
+            "total_protein": 85,
+            "total_carbs": 85,
+            "total_fat": 50
+        }
+        
+        pdf_data = to_pdf_day(mock_plan)
+        
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"}
+        )
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF export not available - ReportLab not installed"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF export failed: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+async def export_weekly_plan_pdf(plan_id: str):
+    """
+    RU: Экспортировать недельный план в PDF.
+    EN: Export weekly meal plan to PDF.
+
+    Args:
+        plan_id: ID of the weekly plan to export
+
+    Returns:
+        PDF file download
+    """
+    try:
+        from fastapi.responses import Response
+        
+        # Mock data - in real implementation, fetch from database
+        mock_weekly_plan = {
+            "daily_menus": [
+                {
+                    "date": "2023-01-01",
+                    "meals": [
+                        {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5, "cost": 1.5},
+                        {"name": "Lunch", "food_item": "Chicken Salad", "kcal": 450, "protein_g": 35, "carbs_g": 20, "fat_g": 25, "cost": 3.2}
+                    ]
+                },
+                {
+                    "date": "2023-01-02",
+                    "meals": [
+                        {"name": "Breakfast", "food_item": "Scrambled Eggs", "kcal": 250, "protein_g": 18, "carbs_g": 1, "fat_g": 20, "cost": 1.2},
+                        {"name": "Lunch", "food_item": "Beef Stir Fry", "kcal": 500, "protein_g": 30, "carbs_g": 40, "fat_g": 20, "cost": 4.5}
+                    ]
+                }
+            ],
+            "shopping_list": {
+                "oats": 500,
+                "chicken_breast": 300,
+                "eggs": 12,
+                "beef": 400
+            },
+            "total_cost": 150.0,
+            "adherence_score": 92.5
+        }
+        
+        pdf_data = to_pdf_week(mock_weekly_plan)
+        
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"}
+        )
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF export not available - ReportLab not installed"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF export failed: {str(e)}"
         ) from e

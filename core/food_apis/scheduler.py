@@ -295,7 +295,7 @@ async def stop_background_updates():
 if __name__ == "__main__":
     # Test the scheduler
     async def test_scheduler():
-        scheduler = DatabaseUpdateScheduler(update_interval_hours=0.1)  # 6 minutes for testing
+        scheduler = DatabaseUpdateScheduler(update_interval_hours=1)  # 1 hour for testing (minimum int value)
 
         try:
             print("Testing database update scheduler...")
