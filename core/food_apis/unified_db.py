@@ -19,6 +19,15 @@ from typing import Any, Dict, List, Optional
 
 from .usda_client import USDAClient, USDAFoodItem
 
+# Try to import Open Food Facts client
+try:
+    from .openfoodfacts_client import OFFClient, OFFFoodItem
+    OFF_AVAILABLE = True
+except ImportError:
+    OFFClient = None
+    OFFFoodItem = None
+    OFF_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +47,11 @@ class UnifiedFoodItem:
     category: Optional[str] = None
 
     @classmethod
-    def from_usda_item(cls, usda_item: USDAFoodItem, estimated_cost: float = 1.0) -> 'UnifiedFoodItem':
+    def from_usda_item(
+        cls,
+        usda_item: USDAFoodItem,
+        estimated_cost: float = 1.0
+    ) -> 'UnifiedFoodItem':
         """Convert USDA item to unified format."""
         return cls(
             name=usda_item.description,
@@ -49,6 +62,24 @@ class UnifiedFoodItem:
             source="USDA FoodData Central",
             source_id=str(usda_item.fdc_id),
             category=usda_item.food_category
+        )
+
+    @classmethod
+    def from_off_item(
+        cls,
+        off_item: OFFFoodItem,
+        estimated_cost: float = 1.5
+    ) -> 'UnifiedFoodItem':
+        """Convert Open Food Facts item to unified format."""
+        return cls(
+            name=off_item.product_name,
+            nutrients_per_100g=off_item.nutrients_per_100g,
+            cost_per_100g=estimated_cost,
+            tags=off_item._generate_tags(),
+            availability_regions=off_item.countries,
+            source="Open Food Facts",
+            source_id=off_item.code,
+            category=off_item.categories[0] if off_item.categories else None
         )
 
     def to_menu_engine_format(self) -> Dict[str, Any]:
@@ -73,6 +104,7 @@ class UnifiedFoodDatabase:
 
     def __init__(self, cache_dir: Optional[str] = None):
         self.usda_client = USDAClient()
+        self.off_client = OFFClient() if OFF_AVAILABLE else None
         self.cache_dir = Path(cache_dir or "cache/food_db")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
