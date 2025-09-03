@@ -9,16 +9,18 @@ for user download and record keeping.
 """
 
 from __future__ import annotations
+
+import csv
 from io import StringIO
 from pathlib import Path
-from typing import Iterable
-import csv
+
+from reportlab.lib import colors
 
 # PDF: лёгкая табличка через reportlab
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
 
 def to_csv_day(plate: dict) -> str:
     """RU: CSV по дню (заголовок + блюда).
@@ -48,25 +50,64 @@ def to_csv_week(week: dict) -> str:
 def to_pdf_day(plate: dict, path: Path) -> None:
     """RU: Простой PDF со сводкой и таблицей блюд.
        EN: Simple PDF with summary and meals table."""
+    story = []
     doc = SimpleDocTemplate(str(path), pagesize=A4)
     styles = getSampleStyleSheet()
-    elems = []
-    elems.append(Paragraph("Daily Plate Summary", styles["Title"]))
+    story.append(Paragraph("Daily Plate Summary", styles["Title"]))
     m = plate["macros"]
-    elems.append(Paragraph(f"Target kcal: {plate['kcal']}", styles["Normal"]))
-    elems.append(Paragraph(f"Protein/Fat/Carbs/Fiber: {m['protein_g']}g / {m['fat_g']}g / {m['carbs_g']}g / {m['fiber_g']}g", styles["Normal"]))
-    elems.append(Spacer(1, 12))
+    story.append(Paragraph(
+        f"Target kcal: {plate['kcal']}",
+        styles["Normal"]
+    ))
+    story.append(Paragraph(
+        f"Protein/Fat/Carbs/Fiber: {m['protein_g']}g / {m['fat_g']}g / "
+        f"{m['carbs_g']}g / {m['fiber_g']}g",
+        styles["Normal"]
+    ))
+
+    # Add meals
+    story.append(Paragraph(
+        f"Total: {plate['kcal']} kcal, "
+        f"{plate['macros']['protein_g']}g protein, "
+        f"{plate['macros']['fat_g']}g fat, "
+        f"{plate['macros']['carbs_g']}g carbs, "
+        f"{plate['macros']['fiber_g']}g fiber",
+        styles["Normal"]
+    ))
+
+    story.append(Spacer(1, 12))
+
+    # Add meals details
+    for m in plate["meals"]:
+        # Handle missing fiber_g key gracefully
+        fiber_g = m.get('fiber_g', 0)
+        story.append(Paragraph(
+            f"{m['title']}: {m['kcal']} kcal, "
+            f"{m['protein_g']}g / {m['fat_g']}g / "
+            f"{m['carbs_g']}g / {fiber_g}g",
+            styles["Normal"]
+        ))
+
+    story.append(Spacer(1, 12))
+
+    # Add macros table
     data = [["Meal", "kcal", "Protein (g)", "Fat (g)", "Carbs (g)"]]
     for meal in plate["meals"]:
-        data.append([meal["title"], meal["kcal"], meal["protein_g"], meal["fat_g"], meal["carbs_g"]])
+        data.append([
+            meal["title"],
+            meal["kcal"],
+            meal["protein_g"],
+            meal["fat_g"],
+            meal["carbs_g"]
+        ])
     table = Table(data, hAlign="LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
         ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
         ("ALIGN", (1,1), (-1,-1), "RIGHT"),
     ]))
-    elems.append(table)
-    doc.build(elems)
+    story.append(table)
+    doc.build(story)
 
 def to_pdf_week(week: dict, path: Path) -> None:
     """RU: PDF по неделе (суммы по дням).

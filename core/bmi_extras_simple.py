@@ -9,6 +9,7 @@ This module implements professional-level BMI analysis including:
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Literal
 

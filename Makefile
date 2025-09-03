@@ -20,13 +20,13 @@ dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
 test: ## Run pytest
 	. .venv/bin/activate && pytest -q
 
-## Coverage in terminal + XML
-cov: ## Run pytest with coverage (terminal + XML)
-	. .venv/bin/activate && pytest -q --cov=app --cov=bmi_core --cov-report=term-missing --cov-report=xml
+## Coverage in terminal + XML (uses .coveragerc)
+cov: ## Run coverage with pytest (term + XML)
+	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
 
-## Coverage HTML and open report
+## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && pytest --cov=app --cov=bmi_core --cov-report=html && open htmlcov/index.html
+	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
 ## Lint (ruff)
 lint: ## Lint with ruff

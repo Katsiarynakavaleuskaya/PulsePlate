@@ -85,7 +85,8 @@ def get_router() -> APIRouter:
     @router.post("/bodyfat")
     def calc_bodyfat(req: BodyFatRequest):
         lang = (req.language or "en").lower()
-        data = req.dict(exclude_none=True)
+        # Use Pydantic v2 API to avoid deprecation warning
+        data = req.model_dump(exclude_none=True)
         if "bmi" not in data and ("weight_kg" in data and "height_m" in data):
             data["bmi"] = data["weight_kg"] / (data["height_m"] ** 2)
 

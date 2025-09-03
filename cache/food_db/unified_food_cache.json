@@ -340,5 +340,23 @@
     "source": "USDA FoodData Central",
     "source_id": "330137",
     "category": "Dairy and Egg Products"
+  },
+  "search_apple": {
+    "name": "Sidi Ali",
+    "nutrients_per_100g": {
+      "protein_g": 0.0,
+      "fat_g": 0.0,
+      "carbs_g": 4.2,
+      "fiber_g": 0.0,
+      "kcal": 0.0
+    },
+    "cost_per_100g": 1.5,
+    "tags": [],
+    "availability_regions": [
+      "Morocco"
+    ],
+    "source": "Open Food Facts",
+    "source_id": "6111035000430",
+    "category": "Beverages and beverages preparations"
   }
 }

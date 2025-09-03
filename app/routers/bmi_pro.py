@@ -1,9 +1,21 @@
 from __future__ import annotations
+
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+
 from fastapi import APIRouter, HTTPException
-from bmi_core import calc_bmi  # твоя текущая функция
-from core.bmi_extras import wht_ratio, whr_ratio, ffmi, stage_obesity, BMIProCard
+from pydantic import BaseModel, Field
+
+# Use calc_bmi defined in main app module
+from app import calc_bmi
+
+# Use the simplified extras module that matches the function signatures used here
+from core.bmi_extras_simple import (
+    BMIProCard,
+    ffmi,
+    stage_obesity,
+    whr_ratio,
+    wht_ratio,
+)
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
@@ -29,12 +41,28 @@ class BMIProResponse(BaseModel):
 @router.post("/pro", response_model=BMIProResponse)
 def bmi_pro(req: BMIProRequest):
     try:
-        bmi_val = calc_bmi(req.height_cm, req.weight_kg)
+        # Convert height to meters for calc_bmi(weight, height_m)
+        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
         v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-        v_whr = whr_ratio(req.waist_cm, req.hip_cm) if req.hip_cm else None
-        v_ffmi = ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent) if req.bodyfat_percent is not None else None
+        v_whr = (
+            whr_ratio(req.waist_cm, float(req.hip_cm))
+            if req.hip_cm is not None
+            else None
+        )
+        v_ffmi = (
+            ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)
+            if req.bodyfat_percent is not None
+            else None
+        )
         risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    card = BMIProCard(bmi=bmi_val, whtr=v_whtr, whr=v_whr, ffmi=v_ffmi, risk_level=risk, notes=notes)
+    card = BMIProCard(
+        bmi=bmi_val,
+        whtr=v_whtr,
+        whr=v_whr,
+        ffmi=v_ffmi,
+        risk_level=risk,
+        notes=notes
+    )
     return BMIProResponse(**card.__dict__)

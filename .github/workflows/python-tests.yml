@@ -1,4 +1,6 @@
 name: python-tests
+permissions:
+  contents: read
 on:
   push:
     branches: [ "main" ]
@@ -41,3 +43,11 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}
           path: coverage.xml
+
+      - name: Upload coverage to Codecov (non-blocking)
+        if: ${{ always() }}
+        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4
+        with:
+          file: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
