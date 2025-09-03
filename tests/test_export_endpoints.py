@@ -34,7 +34,7 @@ class TestExportEndpoints:
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
         assert "daily_plan_test_plan.csv" in response.headers["content-disposition"]
-        
+
         # Check that response contains CSV data
         content = response.content.decode('utf-8')
         assert len(content) > 0
@@ -47,7 +47,7 @@ class TestExportEndpoints:
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
         assert "weekly_plan_test_plan.csv" in response.headers["content-disposition"]
-        
+
         # Check that response contains CSV data
         content = response.content.decode('utf-8')
         assert len(content) > 0
@@ -91,7 +91,7 @@ class TestExportEndpoints:
         # Patch the function in the app module where it's used
         with patch('app.to_csv_day') as mock_export:
             mock_export.side_effect = Exception("Test error")
-            
+
             response = self.client.get("/api/v1/premium/exports/day/error_plan.csv", headers={"X-API-Key": "test_key"})
             assert response.status_code == 500
             data = response.json()
@@ -102,7 +102,7 @@ class TestExportEndpoints:
         # Patch the function in the app module where it's used
         with patch('app.to_csv_week') as mock_export:
             mock_export.side_effect = Exception("Test error")
-            
+
             response = self.client.get("/api/v1/premium/exports/week/error_plan.csv", headers={"X-API-Key": "test_key"})
             assert response.status_code == 500
             data = response.json()
