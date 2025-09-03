@@ -191,6 +191,8 @@ make docker-run
 
 ## 🔧 Development
 
+See also: `CONTRIBUTING.md` for branch policy and PR rules.
+
 ### Testing
 
 ```bash
