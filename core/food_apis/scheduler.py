@@ -245,7 +245,8 @@ class DatabaseUpdateScheduler:
         status = {
             "scheduler": {
                 "is_running": self.is_running,
-                "last_update_check": self.last_update_check.isoformat() if self.last_update_check else None,
+                "last_update_check": (self.last_update_check.isoformat()
+                                    if self.last_update_check else None),
                 "update_interval_hours": self.update_interval.total_seconds() / 3600,
                 "retry_counts": self.retry_counts.copy()
             },
@@ -295,7 +296,8 @@ async def stop_background_updates():
 if __name__ == "__main__":
     # Test the scheduler
     async def test_scheduler():
-        scheduler = DatabaseUpdateScheduler(update_interval_hours=1)  # 1 hour for testing (minimum int value)
+        # 1 hour for testing (minimum int value)
+        scheduler = DatabaseUpdateScheduler(update_interval_hours=1)
 
         try:
             print("Testing database update scheduler...")

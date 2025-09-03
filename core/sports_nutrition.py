@@ -150,8 +150,10 @@ class SportsNutritionCalculator:
         volume_multiplier = min(1.2, 1.0 + (training_hours_per_week - 5) * 0.02)
 
         # Calculate targets
-        protein_per_kg = protein_range[0] + (protein_range[1] - protein_range[0]) * protein_multiplier
-        carb_per_kg = carb_range[0] + (carb_range[1] - carb_range[0]) * carb_multiplier
+        protein_per_kg = (protein_range[0] + (protein_range[1] - protein_range[0])
+                         * protein_multiplier)
+        carb_per_kg = (carb_range[0] + (carb_range[1] - carb_range[0])
+                      * carb_multiplier)
 
         # Apply volume adjustment
         protein_per_kg *= volume_multiplier
@@ -164,9 +166,12 @@ class SportsNutritionCalculator:
         fluid_per_hour = int(base_hydration * volume_multiplier)
 
         # Pre/post workout nutrition
-        pre_workout_carbs = cls._calculate_pre_workout_carbs(sport, carb_per_kg * weight_kg)
-        post_workout_protein = cls._calculate_post_workout_protein(sport, protein_per_kg * weight_kg)
-        post_workout_carbs = cls._calculate_post_workout_carbs(sport, carb_per_kg * weight_kg)
+        pre_workout_carbs = cls._calculate_pre_workout_carbs(sport,
+                                                           carb_per_kg * weight_kg)
+        post_workout_protein = cls._calculate_post_workout_protein(sport,
+                                                                 protein_per_kg * weight_kg)
+        post_workout_carbs = cls._calculate_post_workout_carbs(sport,
+                                                             carb_per_kg * weight_kg)
 
         return SportsNutritionTargets(
             protein_g_per_kg=round(protein_per_kg, 1),
@@ -177,11 +182,15 @@ class SportsNutritionCalculator:
             pre_workout_carbs_g=pre_workout_carbs,
             post_workout_protein_g=post_workout_protein,
             post_workout_carbs_g=post_workout_carbs,
-            creatine_recommended=sport in [SportCategory.STRENGTH, SportCategory.POWER, SportCategory.COMBAT],
+            creatine_recommended=(sport in [SportCategory.STRENGTH, SportCategory.POWER,
+                                       SportCategory.COMBAT]),
             caffeine_timing=cls._get_caffeine_timing(sport),
             meal_frequency=cls._get_meal_frequency(sport, training_hours_per_week),
             carb_loading_recommended=sport == SportCategory.ENDURANCE,
-            weight_cutting_considerations=cls._get_weight_cutting_advice(sport) if sport in [SportCategory.COMBAT, SportCategory.AESTHETIC] else None
+            weight_cutting_considerations=(cls._get_weight_cutting_advice(sport)
+                                     if sport in [SportCategory.COMBAT,
+                                                 SportCategory.AESTHETIC]
+                                     else None)
         )
 
     @staticmethod
@@ -229,7 +238,8 @@ class SportsNutritionCalculator:
         return None
 
     @staticmethod
-    def _calculate_post_workout_protein(sport: SportCategory, daily_protein: float) -> Optional[float]:
+    def _calculate_post_workout_protein(sport: SportCategory,
+                                       daily_protein: float) -> Optional[float]:
         """Calculate post-workout protein needs."""
         return round(daily_protein * 0.25, 1)  # ~25% of daily protein within 2h
 

@@ -296,14 +296,19 @@ def _get_nutrient_food_sources(lang: str = "en") -> Dict[str, List[str]]:
         }
     else:
         return {
-            "iron_mg": ["lean red meat", "lentils", "spinach", "pumpkin seeds", "fortified cereals"],
-            "calcium_mg": ["dairy products", "leafy greens", "sardines", "almonds", "fortified plant milk"],
-            "folate_ug": ["legumes", "leafy greens", "avocado", "asparagus", "fortified grains"],
-            "vitamin_d_iu": ["fatty fish", "egg yolks", "fortified milk", "mushrooms"],
+            "iron_mg": ["lean red meat", "lentils", "spinach", "pumpkin seeds",
+                       "fortified cereals"],
+            "calcium_mg": ["dairy products", "leafy greens", "sardines", "almonds",
+                          "fortified plant milk"],
+            "folate_ug": ["legumes", "leafy greens", "avocado", "asparagus",
+                         "fortified grains"],
+            "vitamin_d_iu": ["fatty fish", "egg yolks", "fortified milk",
+                            "mushrooms"],
             "b12_ug": ["meat", "fish", "dairy", "eggs", "nutritional yeast"],
             "iodine_ug": ["seaweed", "fish", "iodized salt", "dairy"],
             "zinc_mg": ["meat", "nuts", "seeds", "legumes", "whole grains"],
-            "magnesium_mg": ["nuts", "seeds", "dark leafy greens", "whole grains", "dark chocolate"]
+            "magnesium_mg": ["nuts", "seeds", "dark leafy greens", "whole grains",
+                             "dark chocolate"]
         }
 
 
@@ -331,7 +336,8 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
     return recommendation
 
 
-def calculate_weekly_coverage(daily_coverages: List[Dict[str, NutrientCoverage]]) -> Dict[str, float]:
+def calculate_weekly_coverage(daily_coverages: List[Dict[str, NutrientCoverage]]
+                             ) -> Dict[str, float]:
     """
     RU: Рассчитывает среднее покрытие нутриентов за неделю.
     EN: Calculates average nutrient coverage over a week.

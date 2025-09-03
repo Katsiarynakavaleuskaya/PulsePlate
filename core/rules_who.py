@@ -224,7 +224,8 @@ def get_activity_guidelines(age: int) -> Dict[str, int]:
         return WHO_ACTIVITY_GUIDELINES["adult"].copy()
 
 
-def calculate_hydration_target(weight_kg: float, activity_level: str, climate: str = "temperate") -> int:
+def calculate_hydration_target(weight_kg: float, activity_level: str,
+                              climate: str = "temperate") -> int:
     """
     RU: Рассчитывает целевое потребление воды по весу и активности.
     EN: Calculates hydration target based on weight and activity.

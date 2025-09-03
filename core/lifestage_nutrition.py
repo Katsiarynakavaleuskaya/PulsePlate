@@ -89,7 +89,8 @@ class LifeStageNutritionCalculator:
                 "omega3_dha_mg": 100,
             },
             avoid_foods=["honey", "whole_nuts", "high_mercury_fish", "excessive_juice"],
-            emphasize_foods=["breast_milk", "iron_fortified_foods", "fruits", "vegetables", "whole_grains"],
+            emphasize_foods=["breast_milk", "iron_fortified_foods", "fruits", "vegetables",
+                           "whole_grains"],
             feeding_notes=[
                 "Transition to family foods by age 2",
                 "Offer variety to prevent picky eating",
@@ -114,7 +115,8 @@ class LifeStageNutritionCalculator:
                 "magnesium_mg": 200,
             },
             avoid_foods=["excessive_caffeine", "energy_drinks", "high_sodium_processed"],
-            emphasize_foods=["dairy", "lean_proteins", "colorful_vegetables", "whole_grains", "calcium_rich"],
+            emphasize_foods=["dairy", "lean_proteins", "colorful_vegetables",
+                           "whole_grains", "calcium_rich"],
             feeding_notes=[
                 "Establish healthy eating patterns",
                 "Encourage family meals",
@@ -139,7 +141,8 @@ class LifeStageNutritionCalculator:
                 "magnesium_mg": 300,
             },
             avoid_foods=["excessive_fast_food", "energy_drinks", "restrictive_dieting"],
-            emphasize_foods=["iron_rich_foods", "calcium_sources", "lean_proteins", "complex_carbs"],
+            emphasize_foods=["iron_rich_foods", "calcium_sources", "lean_proteins",
+                           "complex_carbs"],
             feeding_notes=[
                 "Support growth spurt nutritional needs",
                 "Address body image concerns positively",
@@ -164,7 +167,8 @@ class LifeStageNutritionCalculator:
                 "vitamin_c_mg": 75,
             },
             avoid_foods=["excessive_alcohol", "high_sodium_processed", "trans_fats"],
-            emphasize_foods=["whole_grains", "lean_proteins", "fruits", "vegetables", "healthy_fats"],
+            emphasize_foods=["whole_grains", "lean_proteins", "fruits", "vegetables",
+                           "healthy_fats"],
             feeding_notes=[
                 "Follow balanced dietary patterns",
                 "Maintain healthy weight",
@@ -188,8 +192,10 @@ class LifeStageNutritionCalculator:
                 "omega3_dha_mg": 200,
                 "zinc_mg": 11,
             },
-            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat", "unpasteurized_dairy", "excess_caffeine"],
-            emphasize_foods=["folate_rich_foods", "lean_proteins", "whole_grains", "prenatal_vitamins"],
+            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat",
+                        "unpasteurized_dairy", "excess_caffeine"],
+            emphasize_foods=["folate_rich_foods", "lean_proteins", "whole_grains",
+                           "prenatal_vitamins"],
             feeding_notes=[
                 "Take prenatal vitamins with folate",
                 "Manage morning sickness with small frequent meals",
@@ -213,8 +219,10 @@ class LifeStageNutritionCalculator:
                 "omega3_dha_mg": 200,
                 "zinc_mg": 11,
             },
-            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat", "unpasteurized_dairy", "excess_caffeine"],
-            emphasize_foods=["protein_rich_foods", "iron_rich_foods", "healthy_fats", "complex_carbs"],
+            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat",
+                        "unpasteurized_dairy", "excess_caffeine"],
+            emphasize_foods=["protein_rich_foods", "iron_rich_foods", "healthy_fats",
+                           "complex_carbs"],
             feeding_notes=[
                 "Focus on steady weight gain",
                 "Continue prenatal vitamins",
@@ -238,8 +246,10 @@ class LifeStageNutritionCalculator:
                 "omega3_dha_mg": 200,
                 "zinc_mg": 11,
             },
-            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat", "unpasteurized_dairy", "excess_caffeine"],
-            emphasize_foods=["protein_rich_foods", "calcium_rich_foods", "healthy_fats", "fiber_rich_foods"],
+            avoid_foods=["alcohol", "high_mercury_fish", "raw_fish_meat",
+                        "unpasteurized_dairy", "excess_caffeine"],
+            emphasize_foods=["protein_rich_foods", "calcium_rich_foods", "healthy_fats",
+                           "fiber_rich_foods"],
             feeding_notes=[
                 "Manage heartburn with smaller frequent meals",
                 "Prepare for breastfeeding nutrition",
@@ -264,7 +274,8 @@ class LifeStageNutritionCalculator:
                 "zinc_mg": 12,
             },
             avoid_foods=["excessive_alcohol", "high_mercury_fish", "excess_caffeine"],
-            emphasize_foods=["protein_rich_foods", "calcium_sources", "healthy_fats", "hydrating_foods"],
+            emphasize_foods=["protein_rich_foods", "calcium_sources", "healthy_fats",
+                           "hydrating_foods"],
             feeding_notes=[
                 "Maintain adequate hydration (extra 700ml/day)",
                 "Continue prenatal vitamins while breastfeeding",
@@ -289,7 +300,8 @@ class LifeStageNutritionCalculator:
                 "potassium_mg": 4700,
             },
             avoid_foods=["excess_sodium", "undercooked_foods", "grapefruit_if_on_meds"],
-            emphasize_foods=["high_protein_foods", "calcium_rich", "vitamin_d_fortified", "fiber_rich", "colorful_vegetables"],
+            emphasize_foods=["high_protein_foods", "calcium_rich", "vitamin_d_fortified",
+                           "fiber_rich", "colorful_vegetables"],
             feeding_notes=[
                 "Focus on nutrient-dense foods",
                 "Address chewing/swallowing difficulties",
@@ -367,19 +379,22 @@ class LifeStageNutritionCalculator:
             "medical_disclaimer": (
                 "This is general nutritional guidance based on WHO/EFSA recommendations. "
                 "Individual needs vary significantly, especially during pregnancy, childhood, "
-                "and elderly years. Always consult qualified healthcare professionals including "
-                "registered dietitians, pediatricians, obstetricians, or geriatricians for "
-                "personalized medical and nutritional advice. This is NOT medical diagnosis or treatment."
+                "and elderly years. Always consult qualified healthcare professionals "
+                "including registered dietitians, pediatricians, obstetricians, or "
+                "geriatricians for personalized medical and nutritional advice. "
+                "This is NOT medical diagnosis or treatment."
             ),
             "professional_referral_note": (
                 "Consider consulting: Registered Dietitian, Pediatrician (children), "
-                "Obstetrician/Midwife (pregnancy), Geriatrician (elderly), or Primary Care Physician"
+                "Obstetrician/Midwife (pregnancy), Geriatrician (elderly), or "
+                "Primary Care Physician"
             )
         }
 
     @classmethod
     def get_appropriate_lifestage(cls, age: int, sex: str, is_pregnant: bool = False,
-                                is_lactating: bool = False, trimester: Optional[int] = None) -> LifeStage:
+                                is_lactating: bool = False,
+                                trimester: Optional[int] = None) -> LifeStage:
         """
         RU: Определяет подходящий этап жизни на основе возраста и состояния.
         EN: Determine appropriate life stage based on age and conditions.
@@ -396,7 +411,8 @@ class LifeStageNutritionCalculator:
             return LifeStage.LACTATING
 
         if age < 2:
-            raise ValueError("This app is not suitable for infants under 2 years. Consult pediatrician.")
+            raise ValueError("This app is not suitable for infants under 2 years. "
+                           "Consult pediatrician.")
         elif age <= 5:
             return LifeStage.CHILD_2_5
         elif age <= 11:

@@ -267,7 +267,8 @@ class USDAClient:
                 # Handle different API response formats
                 if isinstance(nutrient_data, dict):
                     # Search API uses 'nutrientId', details API might use 'nutrient.id'
-                    nutrient_id = nutrient_data.get("nutrientId") or nutrient_data.get("nutrient", {}).get("id")
+                    nutrient_id = (nutrient_data.get("nutrientId") or
+                                  nutrient_data.get("nutrient", {}).get("id"))
                     amount = nutrient_data.get("value") or nutrient_data.get("amount")
 
                     if nutrient_id in self.nutrient_mapping and amount is not None:
@@ -276,7 +277,8 @@ class USDAClient:
 
             # Only return foods with substantial nutrition data
             if len(nutrients_per_100g) < 3:
-                logger.warning(f"Food {description} has insufficient nutrition data ({len(nutrients_per_100g)} nutrients)")
+                logger.warning(f"Food {description} has insufficient nutrition data "
+                             f"({len(nutrients_per_100g)} nutrients)")
                 return None
 
             return USDAFoodItem(

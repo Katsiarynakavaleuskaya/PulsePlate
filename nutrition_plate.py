@@ -43,7 +43,8 @@ class PlateRecommendation(BaseModel):
     notes: List[str]
 
 
-def get_macro_distribution(goal: str = "maintenance", activity_level: str = "moderate") -> MacroDistribution:
+def get_macro_distribution(goal: str = "maintenance",
+                          activity_level: str = "moderate") -> MacroDistribution:
     """
     Get recommended macro distribution based on goal and activity level.
 
@@ -160,7 +161,8 @@ def get_nutrition_notes(macro_dist: MacroDistribution, goal: str, lang: str = "e
     """
     if lang == "ru":
         notes = [
-            f"Целевое распределение: {macro_dist.protein_percent}% белки, {macro_dist.carbs_percent}% углеводы, {macro_dist.fat_percent}% жиры",
+            f"Целевое распределение: {macro_dist.protein_percent}% белки, "
+            f"{macro_dist.carbs_percent}% углеводы, {macro_dist.fat_percent}% жиры",
             "Пейте достаточно воды (8-10 стаканов в день)",
             "Включайте разнообразные источники белка и овощи"
         ]
@@ -172,7 +174,8 @@ def get_nutrition_notes(macro_dist: MacroDistribution, goal: str, lang: str = "e
 
     else:
         notes = [
-            f"Target distribution: {macro_dist.protein_percent}% protein, {macro_dist.carbs_percent}% carbs, {macro_dist.fat_percent}% fat",
+            f"Target distribution: {macro_dist.protein_percent}% protein, "
+            f"{macro_dist.carbs_percent}% carbs, {macro_dist.fat_percent}% fat",
             "Stay hydrated (8-10 glasses of water daily)",
             "Include variety in protein sources and vegetables"
         ]

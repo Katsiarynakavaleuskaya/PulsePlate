@@ -24,7 +24,8 @@ SERVE = {
 }
 
 
-def _target_kcal(tdee_val: float, goal: Goal, deficit_pct: Optional[float], surplus_pct: Optional[float]) -> int:
+def _target_kcal(tdee_val: float, goal: Goal, deficit_pct: Optional[float],
+                 surplus_pct: Optional[float]) -> int:
     """RU: Выставляем целевую калорийность под цель.
     EN: Set target kcal per goal.
     """
