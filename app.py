@@ -78,10 +78,22 @@ from core.bmi_extras import (
     wht_ratio,
 )
 from core.food_apis.scheduler import (
-    get_update_scheduler,
     start_background_updates,
     stop_background_updates,
 )
+
+# Ensure a patchable getter is always available on this module
+try:
+    from core.food_apis.scheduler import get_update_scheduler as _scheduler_getter  # type: ignore
+except Exception:  # pragma: no cover
+    _scheduler_getter = None  # type: ignore
+
+async def get_update_scheduler():  # type: ignore[no-redef]
+    """Return the global update scheduler (wrapper to aid patching in tests)."""
+    if _scheduler_getter is None:
+        from core.food_apis.scheduler import get_update_scheduler as _late_getter  # type: ignore
+        return await _late_getter()
+    return await _scheduler_getter()  # type: ignore[misc]
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

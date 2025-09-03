@@ -12,6 +12,9 @@ omit =
     */test_visualization.py
     bmi_visualization.py
     example_nutrition_api.py
+    debug_*.py
+    reproduce_issue.py
+    test_patch_verification.py
 
 [report]
 show_missing = True
