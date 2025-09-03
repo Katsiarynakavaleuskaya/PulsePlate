@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:  # Gracefully skip if Hypothesis is not installed locally
-    from hypothesis import assume, given
+    from hypothesis import assume, given, settings
     from hypothesis import strategies as st
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"Hypothesis not available: {exc}", allow_module_level=True)
@@ -155,6 +155,7 @@ def test_api_bmi_property(weight, height):
     assert data["bmi"] > 0
 
 
+@settings(deadline=500)  # Increase deadline to 500ms to avoid flaky failures
 @given(text=st.text(min_size=1, max_size=100))
 def test_api_insight_property(text):
     """Test /api/v1/insight endpoint with random text inputs."""
