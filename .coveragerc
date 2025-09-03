@@ -22,7 +22,7 @@ skip_covered = True
 fail_under = 96
 exclude_lines =
     pragma: no cover
-    if __name__ == "__main__": 
+    if __name__ == "__main__":
     @overload
     @abstractmethod
     if TYPE_CHECKING:

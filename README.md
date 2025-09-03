@@ -198,6 +198,32 @@ make test
 make coverage
 ```
 
+### Testing & Coverage (pytest)
+
+- Run all tests with coverage summary:
+
+```bash
+pytest -q --maxfail=1 --disable-warnings --cov --cov-report=term-missing
+```
+
+- Generate HTML coverage report (open `htmlcov/index.html`):
+
+```bash
+pytest --cov --cov-report=html
+```
+
+- Run only fast, focused tests for the integrations layer:
+
+```bash
+pytest -q tests/test_food_apis_*.py
+```
+
+- Example env for endpoints requiring API key:
+
+```bash
+export API_KEY=test_key
+```
+
 Locally (without Makefile):
 
 ```bash

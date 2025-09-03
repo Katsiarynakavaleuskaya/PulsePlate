@@ -293,3 +293,42 @@ make kill
 ✅ **Тестирование:** Все endpoints функциональны
 
 **Проект готов к продолжению разработки!** 🎉
+
+---
+
+## 🧪 Улучшение покрытия тестами (сентябрь 2025)
+
+**Итог:** общее покрытие 99%+, без исключения `core/food_apis/*`.
+
+Добавлены тесты:
+- `tests/test_app_missing_lines_extra.py` — дополнительные ветки в `app.py` (lifespan, визуализация, ошибки BMR/Plate/Pro/Exports)
+- `tests/test_sports_nutrition_extra.py` — оставшиеся ветки `core/sports_nutrition.py`
+- `tests/test_food_apis_full_coverage.py` — базовое покрытие `core/food_apis/*`
+- `tests/test_food_apis_more_edges.py` — дополнительные крайние случаи и ошибки
+- `tests/test_food_apis_push95.py` — доведение покрытия `core/food_apis` до 95%+
+
+Покрытие по ключевым модулям:
+- `core/food_apis/usda_client.py`: ~96%
+- `core/food_apis/unified_db.py`: ~98%
+- `core/food_apis/update_manager.py`: ~99%
+
+Как запустить покрытие локально:
+
+```bash
+pytest -q --maxfail=1 --disable-warnings --cov --cov-report=term-missing
+# или HTML-отчет:
+pytest --cov --cov-report=html
+open htmlcov/index.html  # macOS
+```
+
+Запуск только интеграционного слоя:
+
+```bash
+pytest -q tests/test_food_apis_*.py
+```
+
+Тесты, требующие API ключа, используют заголовок `X-API-Key`:
+
+```bash
+export API_KEY=test_key
+```
