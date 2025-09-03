@@ -193,6 +193,8 @@ make docker-run
 
 See also: `CONTRIBUTING.md` for branch policy and PR rules.
 
+<!-- verify auto-delete workflow: temporary PR note -->
+
 ### Testing
 
 ```bash
