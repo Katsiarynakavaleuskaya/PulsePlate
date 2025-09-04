@@ -1,0 +1,25 @@
+:root {
+  /* Primary Colors */
+  --primary-blue: #339FFF;
+  --accent-green: #20C997;
+  --heart-red: #FF5D5D;
+  
+  /* Background */
+  --background-navy: #0F172A;
+  
+  /* Text & UI */
+  --text-light: #FFFFFF;
+  --text-gray: #9FB0C9;
+  --border-gray: #1F2937;
+  
+  /* UI Elements */
+  --surface-dark: #111827;
+  --radius-lg: 20px;
+  --radius-md: 16px;
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.25);
+  --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  /* Plate Elements */
+  --plate-white: #FFFFFF;
+  --plate-glow: rgba(32, 201, 151, 0.4);
+}

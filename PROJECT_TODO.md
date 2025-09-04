@@ -69,6 +69,78 @@ This document tracks the progress of the BMI App project, showing what has been 
 - [ ] Add user guides for all features
 - [ ] Create developer documentation for contributing
 
+### 🌟 Brand Identity & App Design (PulsePlate)
+- [ ] Finalize app name: PulsePlate with subtitle "Nutrition • Body • Lifestyle"
+- [ ] Design app icon in Figma:
+  - Background: Navy #0F172A
+  - Plate: White circle with soft turquoise glow (Accent Green #20C997)
+  - Fork and knife: Thin lines, white/gray
+  - Scales with heart (#FF5D5D) and apple (#20C997)
+  - Primary Blue #339FFF for scale pointer
+  - Flat style, clean, 20px rounded corners, soft shadow
+- [ ] Export app icon (1024×1024 PNG) and generate full iOS App Icon Set
+- [ ] Implement color system in tokens.css:
+  - Primary Blue #339FFF (intelligence, analytics, science)
+  - Accent Green #20C997 (life, nutrition, growth)
+  - Heart Red #FF5D5D (pulse, health, energy)
+  - Background Navy #0F172A (calm, balance)
+  - White/gray for plate and utensils
+- [ ] Set up fonts: SF Pro (iOS system) + Inter for numbers
+- [ ] Configure SF Symbols and custom SVG icons (heart, apple, scales)
+- [ ] Create Lottie splash screen animation:
+  - Plate glow, pulsing heart (ECG), bouncing apple, scale needle oscillation
+  - 2.7s duration, seamless loop
+  - Two versions: splash-lite (≤120KB) and splash-full (≤300KB)
+  - Color palette from design tokens
+  - Export via Bodymovin from After Effects
+  - Integrate in React (lottie-web/react) and Capacitor (iOS webview)
+
+### 🌟 Frontend Development (React + Vite + Capacitor, iOS-first)
+- [ ] P0 — Foundation (today/tomorrow):
+  - [ ] Design system (tokens): frontend/src/styles/tokens.css with PulsePlate color palette
+  - [ ] UI stack: Tailwind + clsx/cva (component variants), fonts (SF Pro/Inter)
+  - [ ] Routing: react-router (routes: /, /weekly, /progress, /premium)
+  - [ ] API client: api.ts with fetch + error interceptors; Vite proxy /api → :8000
+  - [ ] State: lightweight store (zustand) for user parameters (height/weight/sex/age/goal/activity)
+  - [ ] i18n: i18next (RU/EN), translation placeholders
+  - [ ] Accessibility (A11y): focus rings, contrast, 44×44pt touch targets, semantic roles
+  - [ ] Screen "My Plate (MVP)": input form (height/weight/sex/age/activity/goal) → BMI/TDEE cards + "plate" (SVG/grid)
+  - [ ] /api/v1/health: API status display on home screen (diagnostics)
+- [ ] P1 — Product Value (next):
+  - [ ] Charts: recharts (or visx) — weight/calorie/step progress; dark/light theme
+  - [ ] Screen "Weekly": 7×(breakfasts/lunches/dinners/snacks) grid, "diet-flags" state (VEG/GF/DAIRY_FREE/LOW_COST)
+  - [ ] User profiles: local storage (IndexedDB via idb-keyval) + JSON export/import
+  - [ ] Error/empty states: beautiful states for 4xx/5xx/timeout, offline-banner
+  - [ ] Skeleton/Loading: for all API requests
+  - [ ] Form validation: zod + react-hook-form, proper error messages
+  - [ ] UI Tests: Vitest + Testing Library (render/validation/routes)
+  - [ ] Logo/icons/splash: SVG logo, iOS icon set, adaptive splash
+- [ ] P2 — Polish and iOS:
+  - [ ] Capacitor: pnpm cap add ios → Xcode → simulator build
+  - [ ] Performance: code splitting, lazy routes, prefetch critical data, vite-plugin-compression
+  - [ ] Analytics: privacy-safe (e.g., self-hosted Plausible), basic events (onboarding, plate save, weekly open)
+  - [ ] E2E: Playwright (main scenarios: input → calculation → save → transitions)
+  - [ ] CI: GitHub Actions — lint, typing, unit/UI tests, build; preview (gh-pages or Vercel) for frontend
+  - [ ] ASO package: screenshots 6.1″/6.7″ (light/dark), promo texts, 15–20 sec video screencast
+
+### 🌟 Database Expansion and Integration
+- [ ] Research FooDB API/data format and create adapter to enhance phytonutrient data
+- [ ] Evaluate WHO Food Composition Database for international food data integration
+- [ ] Assess EuroFIR datasets for European regional food data
+- [ ] Add phytonutrient fields to unified food database schema
+- [ ] Implement international food mapping logic for global database integration
+- [ ] Research TheMealDB API integration for international recipe expansion
+- [ ] Evaluate dpapathanasiou/recipes JSON collection for regional cuisine data
+- [ ] Design regional cuisine classification system for recipe database
+- [ ] Investigate AtoZ World Foods database access for cultural context
+- [ ] Implement culinary characteristics tagging system for recipes
+- [ ] Expand USDA FoodData Central integration to utilize full API capabilities
+- [ ] Implement Open Food Facts daily export processing for branded foods
+- [ ] Enhance TheMealDB integration to leverage area/category filters
+- [ ] Evaluate CalorieNinjas API as backup nutrition data source
+- [ ] Expand nutrient schema to include missing vitamins and minerals (A, C, E, K, B-complex, Zinc, Selenium)
+- [ ] Implement comprehensive food category expansion (add fruits, dairy, nuts/seeds, herbs/spices)
+
 ## Pending Tasks
 
 ### 🔜 UI/UX Improvements

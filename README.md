@@ -1,10 +1,10 @@
-# BMI-App 2025
+# PulsePlate
 
 [![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
 
 ## Overview
 
-BMI-App 2025 is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
+PulsePlate is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
 
 ## Features
 
@@ -80,8 +80,8 @@ The merged food database follows a standardized schema:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/BMI-App-2025.git
-   cd BMI-App-2025
+   git clone https://github.com/your-username/PulsePlate.git
+   cd PulsePlate
    ```
 
 2. Install dependencies:

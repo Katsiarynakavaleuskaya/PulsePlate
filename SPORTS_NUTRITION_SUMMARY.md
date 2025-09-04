@@ -1,4 +1,4 @@
-# BMI-App 2025 - Sports Nutrition & Life-Stage Enhancement
+# PulsePlate — Sports Nutrition & Life-Stage Enhancement
 
 ## ✅ COMPLETED FEATURES
 

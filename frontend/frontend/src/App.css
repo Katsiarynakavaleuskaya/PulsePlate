@@ -1,42 +1,225 @@
-#root {
-  max-width: 1280px;
+.app {
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 1rem;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 1rem;
+}
+
+.app-header h1 {
+  color: var(--primary-blue);
+  margin-bottom: 0.5rem;
+  font-size: 2.5rem;
+}
+
+.app-header p {
+  color: var(--text-gray);
+  font-size: 1.2rem;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.input-section {
+  background-color: var(--surface-dark);
+  border-radius: var(--radius-lg);
   padding: 2rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.input-section h2 {
+  margin-top: 0;
+  color: var(--text-light);
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.form-group {
+  margin-bottom: 1.5rem;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-gray);
+  background-color: var(--background-navy);
+  color: var(--text-light);
+  font-size: 1rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: 2px solid var(--primary-blue);
+  border-color: var(--primary-blue);
+}
+
+button {
+  width: 100%;
+  padding: 1rem;
+  background-color: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  margin-top: 1rem;
+}
+
+button:hover {
+  background-color: #1b7fe0;
+}
+
+.results-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.result-item {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.result-item h3 {
+  margin-top: 0;
+  color: var(--text-light);
+}
+
+.result-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin: 0.5rem 0;
+}
+
+.result-description {
+  color: var(--text-gray);
+  margin: 0;
+}
+
+.plate-visualization {
+  background-color: var(--surface-dark);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.plate-visualization h2 {
+  margin-top: 0;
+  color: var(--text-light);
+  text-align: center;
+}
+
+.plate-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+}
+
+.plate {
+  position: relative;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background-color: var(--plate-white);
+  box-shadow: 0 0 40px var(--plate-glow);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.plate-center {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background-color: var(--accent-green);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.plate-glow {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: white;
+}
+
+.plate-item {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 600;
+  color: white;
+  border-radius: 10px;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.protein {
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--heart-red);
+  width: 70px;
+  height: 70px;
+}
+
+.carbs {
+  bottom: 10%;
+  left: 20%;
+  background-color: #FFB020;
+  width: 70px;
+  height: 70px;
+}
+
+.fats {
+  bottom: 10%;
+  right: 20%;
+  background-color: #339FFF;
+  width: 70px;
+  height: 70px;
+}
+
+.vegetables {
+  top: 30%;
+  right: 15%;
+  background-color: #20C997;
+  width: 70px;
+  height: 70px;
+}
+
+@media (max-width: 768px) {
+  .results-section {
+    grid-template-columns: 1fr;
   }
-  to {
-    transform: rotate(360deg);
+  
+  .app {
+    padding: 0.5rem;
   }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+  
+  .input-section,
+  .plate-visualization {
+    padding: 1rem;
   }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }

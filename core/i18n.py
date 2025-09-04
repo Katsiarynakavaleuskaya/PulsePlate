@@ -134,7 +134,7 @@ TRANSLATIONS = {
                          "physical activity are recommended.",
         "advice_obese": "You need to reduce your weight. Consult a doctor for "
                     "advice and a weight loss plan.",
-        "advice_athlete_bmi": "For athletes, BMI may overestimate body fat",
+        "advice_athlete_bmi": "For athletes, BMI may overestimate body fat due to muscle mass",
 
         # Risk Assessment
         "risk_high_waist": "High waist-related risk",
