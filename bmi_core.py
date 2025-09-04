@@ -75,6 +75,9 @@ def validate_measurements(weight_kg: float, height_m: float) -> None:
 
 def normalize_lang(lang: str) -> Language:
     lang = (lang or "ru").lower()
+    # Handle locale-specific codes (e.g., es-ES, en-US)
+    if "-" in lang:
+        lang = lang.split("-")[0]
     if lang not in ("ru", "en", "es"):
         lang = "ru"
     return lang  # type: ignore

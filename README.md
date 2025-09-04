@@ -6,6 +6,14 @@
 
 ---
 
+## 🌍 Languages / Idiomas
+
+The application now supports three languages: Russian (ru), English (en), and Spanish (es). You can select `lang=es` in the web interface or in API endpoints for Spanish responses.
+
+Seleccione `lang=es` en la interfaz web o en los endpoints API para respuestas en español.
+
+---
+
 ## 🚀 Quick Start
 
 ### 1) Локальный запуск (venv)
@@ -189,6 +197,43 @@ make docker-run
 
 ---
 
+## 🌍 Language Examples / Ejemplos de Idioma
+
+### BMI Calculation in Spanish / Cálculo de IMC en Español
+
+```bash
+curl -X POST "http://localhost:8000/bmi" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "weight_kg": 70,
+    "height_m": 1.75,
+    "age": 30,
+    "gender": "hombre",
+    "pregnant": "no",
+    "athlete": "no",
+    "waist_cm": 80,
+    "lang": "es"
+  }'
+```
+
+### Body Fat Estimation in Spanish / Estimación de Grasa Corporal en Español
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/bodyfat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "weight_kg": 70,
+    "height_m": 1.75,
+    "age": 30,
+    "gender": "hombre",
+    "waist_cm": 80,
+    "neck_cm": 35,
+    "language": "es"
+  }'
+```
+
+---
+
 ## 🔧 Development
 
 See also: `CONTRIBUTING.md` for branch policy and PR rules.
@@ -198,90 +243,4 @@ See also: `CONTRIBUTING.md` for branch policy and PR rules.
 ### Testing
 
 ```bash
-make test
-make coverage
 ```
-
-### Testing & Coverage (pytest)
-
-- Run all tests with coverage summary:
-
-```bash
-pytest -q --maxfail=1 --disable-warnings --cov --cov-report=term-missing
-```
-
-- Generate HTML coverage report (open `htmlcov/index.html`):
-
-```bash
-pytest --cov --cov-report=html
-```
-
-- Run only fast, focused tests for the integrations layer:
-
-```bash
-pytest -q tests/test_food_apis_*.py
-```
-
-- Example env for endpoints requiring API key:
-
-```bash
-export API_KEY=test_key
-```
-
-Locally (without Makefile):
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-pytest -q --maxfail=1 --cov=. --cov-report=term-missing
-```
-
-### Linting
-
-```bash
-make lint
-```
-
----
-
-## 🧪 CI & Coverage Policy
-
-- GitHub Actions runs on Python 3.12 and 3.13 (matrix).
-- Coverage is enforced at 100% via `--cov-fail-under=100`.
-- Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
-- Bandit & Safety run as non-blocking checks (artifacts available in CI logs).
-- Coverage report (`coverage.xml`) is uploaded as an artifact per job.
-
-## 🔒 Security & Compliance
-
-- API Key authentication for sensitive endpoints
-- Optional rate limiting with SlowAPI
-- GDPR compliance for health data (no storage, privacy policy)
-- Property-based testing with Hypothesis for robustness
-
----
-
-## 📊 Features
-
-- **Asynchronous Endpoints**: All endpoints are now async for better concurrency and scalability
-- **Free Tier**:
-  - BMI calculation with categories and special population support
-  - Body fat estimation using multiple formulas
-  - BMI visualization charts (when matplotlib available)
-  - AI insights via configurable LLM providers (Stub, Grok, Ollama)
-- **Premium Tier**:
-  - Advanced BMR calculations (Harris-Benedict, Mifflin-St Jeor, Katch-McArdle)
-  - TDEE calculations with activity level factors
-  - **Enhanced My Plate**: Visual nutrition planning with plate sectors and hand/cup portions
-  - Precise deficit/surplus percentage control (5-25% loss, 5-20% gain)
-  - Diet flag adaptations (VEG, GF, DAIRY_FREE, LOW_COST)
-  - Visual layout specification for frontend rendering (SVG/Canvas ready)
-  - Goal-specific macro optimization and meal suggestions
-  - Real-world portion measurements (palms, thumbs, cups)
-- **Development & Operations**:
-  - Comprehensive test suite with 97%+ coverage (enforced in CI)
-  - Docker support with optimized production builds
-  - CI/CD with GitHub Actions and automated security scans
-  - Simple web UI at root path for easy BMI calculation
-  - Structured logging and request monitoring
-  - API key authentication and optional rate limiting

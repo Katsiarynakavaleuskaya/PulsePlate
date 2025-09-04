@@ -300,44 +300,99 @@ async def root():
             </select>
         </div>
 
-        <h1>BMI Calculator</h1>
+        <h1 id="title">BMI Calculator</h1>
         <form id="bmiForm">
-            <label for="weight">Weight (kg):</label>
+            <label for="weight" id="label_weight">Weight (kg):</label>
             <input type="number" id="weight" step="0.1" required>
 
-            <label for="height">Height (m):</label>
+            <label for="height" id="label_height">Height (m):</label>
             <input type="number" id="height" step="0.01" required>
 
-            <label for="age">Age:</label>
+            <label for="age" id="label_age">Age:</label>
             <input type="number" id="age" required>
 
-            <label for="gender">Gender:</label>
+            <label for="gender" id="label_gender">Gender:</label>
             <select id="gender" required>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="male" id="option_male">Male</option>
+                <option value="female" id="option_female">Female</option>
             </select>
 
-            <label for="pregnant">Pregnant:</label>
+            <label for="pregnant" id="label_pregnant">Pregnant:</label>
             <select id="pregnant">
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
+                <option value="no" id="option_pregnant_no">No</option>
+                <option value="yes" id="option_pregnant_yes">Yes</option>
             </select>
 
-            <label for="athlete">Athlete:</label>
+            <label for="athlete" id="label_athlete">Athlete:</label>
             <select id="athlete">
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
+                <option value="no" id="option_athlete_no">No</option>
+                <option value="yes" id="option_athlete_yes">Yes</option>
             </select>
 
-            <label for="waist">Waist (cm, optional):</label>
+            <label for="waist" id="label_waist">Waist (cm, optional):</label>
             <input type="number" id="waist" step="0.1">
 
-            <button type="submit">Calculate BMI</button>
+            <button type="submit" id="button_calculate">Calculate BMI</button>
         </form>
 
         <div id="result" class="result" style="display:none;"></div>
 
         <script>
+            // Language translations
+            const translations = {
+                en: {
+                    title: "BMI Calculator",
+                    label_weight: "Weight (kg):",
+                    label_height: "Height (m):",
+                    label_age: "Age:",
+                    label_gender: "Gender:",
+                    option_male: "Male",
+                    option_female: "Female",
+                    label_pregnant: "Pregnant:",
+                    option_pregnant_no: "No",
+                    option_pregnant_yes: "Yes",
+                    label_athlete: "Athlete:",
+                    option_athlete_no: "No",
+                    option_athlete_yes: "Yes",
+                    label_waist: "Waist (cm, optional):",
+                    button_calculate: "Calculate BMI"
+                },
+                ru: {
+                    title: "Калькулятор ИМТ",
+                    label_weight: "Вес (кг):",
+                    label_height: "Рост (м):",
+                    label_age: "Возраст:",
+                    label_gender: "Пол:",
+                    option_male: "Мужской",
+                    option_female: "Женский",
+                    label_pregnant: "Беременность:",
+                    option_pregnant_no: "Нет",
+                    option_pregnant_yes: "Да",
+                    label_athlete: "Спортсмен:",
+                    option_athlete_no: "Нет",
+                    option_athlete_yes: "Да",
+                    label_waist: "Талия (см, опционально):",
+                    button_calculate: "Рассчитать ИМТ"
+                },
+                es: {
+                    title: "Calculadora de IMC",
+                    label_weight: "Peso (kg):",
+                    label_height: "Altura (m):",
+                    label_age: "Edad:",
+                    label_gender: "Género:",
+                    option_male: "Masculino",
+                    option_female: "Femenino",
+                    label_pregnant: "Embarazada:",
+                    option_pregnant_no: "No",
+                    option_pregnant_yes: "Sí",
+                    label_athlete: "Atleta:",
+                    option_athlete_no: "No",
+                    option_athlete_yes: "Sí",
+                    label_waist: "Cintura (cm, opcional):",
+                    button_calculate: "Calcular IMC"
+                }
+            };
+
             // Set language from cookie or URL parameter
             function getLanguage() {
                 // Check URL parameter first
@@ -357,16 +412,43 @@ async def root():
                 return 'en';
             }
 
+            // Update UI based on selected language
+            function updateUILanguage(lang) {
+                const langCode = translations[lang] ? lang : 'en';
+                const t = translations[langCode];
+
+                // Update text elements
+                document.getElementById('title').textContent = t.title;
+                document.getElementById('label_weight').textContent = t.label_weight;
+                document.getElementById('label_height').textContent = t.label_height;
+                document.getElementById('label_age').textContent = t.label_age;
+                document.getElementById('label_gender').textContent = t.label_gender;
+                document.getElementById('option_male').textContent = t.option_male;
+                document.getElementById('option_female').textContent = t.option_female;
+                document.getElementById('label_pregnant').textContent = t.label_pregnant;
+                document.getElementById('option_pregnant_no').textContent = t.option_pregnant_no;
+                document.getElementById('option_pregnant_yes').textContent = t.option_pregnant_yes;
+                document.getElementById('label_athlete').textContent = t.label_athlete;
+                document.getElementById('option_athlete_no').textContent = t.option_athlete_no;
+                document.getElementById('option_athlete_yes').textContent = t.option_athlete_yes;
+                document.getElementById('label_waist').textContent = t.label_waist;
+                document.getElementById('button_calculate').textContent = t.button_calculate;
+
+                // Set language selector
+                document.getElementById('language').value = langCode;
+            }
+
             // Set language selector based on current language
-            document.getElementById('language').value = getLanguage();
+            const currentLang = getLanguage();
+            updateUILanguage(currentLang);
 
             // Change language function
             function changeLanguage() {
                 const lang = document.getElementById('language').value;
                 // Set cookie
                 document.cookie = `lang=${lang}; path=/`;
-                // Reload page with language parameter
-                window.location.search = `lang=${lang}`;
+                // Update UI
+                updateUILanguage(lang);
             }
 
             document.getElementById('bmiForm').addEventListener('submit', async (e) => {
