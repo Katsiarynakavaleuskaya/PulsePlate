@@ -122,7 +122,9 @@ class MicroTargets:
             "folate_ug": self.folate_ug,
             "vitamin_d_iu": self.vitamin_d_iu,
             "b12_ug": self.b12_ug,
-            "iodine_ug": self.iodine_ug
+            "iodine_ug": self.iodine_ug,
+            "magnesium_mg": self.magnesium_mg,
+            "potassium_mg": self.potassium_mg
         }
 
 

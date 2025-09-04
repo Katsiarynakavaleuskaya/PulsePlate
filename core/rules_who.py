@@ -34,6 +34,33 @@ WHO_ACTIVITY_GUIDELINES = {
     }
 }
 
+# Compact RDA/AI table for key micronutrients (19-50 years, male/female)
+# Required for Premium Targets: Fe, Ca, VitD, B12, I, Folate, K, Mg
+COMPACT_MICRONUTRIENT_RDA = {
+    # Adult women (19-50 years)
+    "female": {
+        "iron_mg": 18.0,      # High due to menstruation
+        "calcium_mg": 1000.0,
+        "vitamin_d_iu": 600.0,
+        "b12_ug": 2.4,
+        "iodine_ug": 150.0,
+        "folate_ug": 400.0,
+        "magnesium_mg": 310.0,
+        "potassium_mg": 3500.0
+    },
+    # Adult men (19-50 years)
+    "male": {
+        "iron_mg": 8.0,       # Lower than women
+        "calcium_mg": 1000.0,
+        "vitamin_d_iu": 600.0,
+        "b12_ug": 2.4,
+        "iodine_ug": 150.0,
+        "folate_ug": 400.0,
+        "magnesium_mg": 400.0,
+        "potassium_mg": 3500.0
+    }
+}
+
 # WHO/EFSA Micronutrient RDA (Recommended Daily Allowances)
 # Key: (sex, age_range, life_stage) -> nutrient values
 WHO_MICRONUTRIENT_RDA = {
@@ -182,6 +209,20 @@ def get_age_category(age: int) -> str:
         return "19-50"
     else:
         return "51+"
+
+
+def get_compact_micronutrient_rda(sex: Sex) -> Dict[str, float]:
+    """
+    RU: Получает компактную таблицу RDA для ключевых микронутриентов.
+    EN: Gets compact RDA table for key micronutrients.
+
+    Args:
+        sex: Biological sex ("male" or "female")
+
+    Returns:
+        Dictionary with compact micronutrient RDA values for 19-50 age group
+    """
+    return COMPACT_MICRONUTRIENT_RDA[sex].copy()
 
 
 def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -> Dict[str, float]:
