@@ -1028,7 +1028,7 @@ async def api_premium_bmr(data: BMRRequest):
         ) from e
 
 try:
-    from core.menu_engine import analyze_nutrient_gaps
+    from core.menu_engine import analyze_nutrient_gaps, make_daily_menu, make_weekly_menu
     from core.plate import make_plate
     from core.recommendations import build_nutrition_targets
 except ImportError:
@@ -1040,6 +1040,24 @@ except ImportError:
         analyze_nutrient_gaps = _analyze_ng  # type: ignore
     except Exception:
         analyze_nutrient_gaps = None  # type: ignore
+    make_daily_menu = None
+    make_weekly_menu = None
+
+# Ensure analyze_nutrient_gaps is available at module level for tests
+if 'analyze_nutrient_gaps' not in globals():
+    try:
+        from core.menu_engine import analyze_nutrient_gaps
+        globals()['analyze_nutrient_gaps'] = analyze_nutrient_gaps
+    except Exception:
+        pass
+
+# Ensure make_weekly_menu is available at module level for tests
+if 'make_weekly_menu' not in globals():
+    try:
+        from core.menu_engine import make_weekly_menu
+        globals()['make_weekly_menu'] = make_weekly_menu
+    except Exception:
+        pass
 
 # Enhanced Plate API Models
 Sex = Literal["female", "male"]
