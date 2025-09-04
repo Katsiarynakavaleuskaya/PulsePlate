@@ -1,0 +1,7 @@
+name,meal,ingredients,tags
+oatmeal_breakfast,breakfast,"oats:60;greek_yogurt:150;banana:100",VEG
+chicken_rice_lunch,lunch,"chicken_breast:160;brown_rice:180;spinach:120;olive_oil:10",OMNI;GF
+tofu_bowl_dinner,dinner,"tofu:180;brown_rice:160;spinach:150;olive_oil:10",VEG;GF
+salmon_plate_dinner,dinner,"salmon:160;brown_rice:160;spinach:120;olive_oil:10",PESC;GF
+lentil_salad_lunch,lunch,"lentils:180;spinach:120;olive_oil:10",VEG;GF;LOW_COST
+yogurt_snack,snack,"greek_yogurt:180;banana:120",VEG

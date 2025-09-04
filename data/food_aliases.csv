@@ -1,0 +1,33 @@
+alias,canonical
+spinach raw,spinach_raw
+spinach fresh,spinach_raw
+spinach,spinach_raw
+épinard cru,spinach_raw
+espinaca cruda,spinach_raw
+chicken breast,chicken_breast
+chicken breast raw,chicken_breast
+pollo pechuga,chicken_breast
+salmon,salmon
+salmon raw,salmon
+salmón crudo,salmon
+greek yogurt,greek_yogurt
+yaourt grec,greek_yogurt
+yogur griego,greek_yogurt
+tofu,tofu
+tofu raw,tofu
+tofu crudo,tofu
+lentils,lentils
+lentilles,lentils
+lentejas,lentils
+oats,oats
+avoine,oats
+avena,oats
+brown rice,brown_rice
+riz brun,brown_rice
+arroz integral,brown_rice
+olive oil,olive_oil
+huile d'olive,olive_oil
+aceite de oliva,olive_oil
+banana,banana
+banane,banana
+plátano,banana

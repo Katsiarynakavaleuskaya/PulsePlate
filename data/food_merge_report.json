@@ -1,0 +1,151 @@
+{
+  "generated_at": "2025-09-04T14:18:44.696362",
+  "total_items": 10,
+  "sources": [
+    "USDA",
+    "OFF"
+  ],
+  "merge_stats": {
+    "usda_records": 10,
+    "off_records": 10
+  },
+  "food_groups": {
+    "protein": 7,
+    "grain": 2,
+    "fat": 1
+  },
+  "top_foods_by_nutrient": {
+    "protein_g": [
+      {
+        "name": "chicken_breast",
+        "value": 31.0
+      },
+      {
+        "name": "salmon",
+        "value": 20.0
+      },
+      {
+        "name": "oats",
+        "value": 16.9
+      },
+      {
+        "name": "greek_yogurt",
+        "value": 10.0
+      },
+      {
+        "name": "lentils",
+        "value": 9.0
+      }
+    ],
+    "fat_g": [
+      {
+        "name": "olive_oil",
+        "value": 100.0
+      },
+      {
+        "name": "salmon",
+        "value": 13.0
+      },
+      {
+        "name": "oats",
+        "value": 6.9
+      },
+      {
+        "name": "tofu",
+        "value": 4.8
+      },
+      {
+        "name": "chicken_breast",
+        "value": 3.6
+      }
+    ],
+    "carbs_g": [
+      {
+        "name": "oats",
+        "value": 66.3
+      },
+      {
+        "name": "brown_rice",
+        "value": 23.0
+      },
+      {
+        "name": "banana",
+        "value": 23.0
+      },
+      {
+        "name": "lentils",
+        "value": 20.0
+      },
+      {
+        "name": "spinach_raw",
+        "value": 3.6
+      }
+    ],
+    "fiber_g": [
+      {
+        "name": "oats",
+        "value": 10.6
+      },
+      {
+        "name": "lentils",
+        "value": 8.0
+      },
+      {
+        "name": "banana",
+        "value": 2.6
+      },
+      {
+        "name": "spinach_raw",
+        "value": 2.2
+      },
+      {
+        "name": "brown_rice",
+        "value": 1.8
+      }
+    ],
+    "Fe_mg": [
+      {
+        "name": "oats",
+        "value": 4.7
+      },
+      {
+        "name": "lentils",
+        "value": 3.3
+      },
+      {
+        "name": "spinach_raw",
+        "value": 2.7
+      },
+      {
+        "name": "tofu",
+        "value": 2.7
+      },
+      {
+        "name": "chicken_breast",
+        "value": 0.7
+      }
+    ],
+    "Ca_mg": [
+      {
+        "name": "tofu",
+        "value": 350.0
+      },
+      {
+        "name": "greek_yogurt",
+        "value": 110.0
+      },
+      {
+        "name": "spinach_raw",
+        "value": 99.0
+      },
+      {
+        "name": "oats",
+        "value": 54.0
+      },
+      {
+        "name": "lentils",
+        "value": 19.0
+      }
+    ]
+  }
+}

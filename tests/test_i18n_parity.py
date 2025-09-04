@@ -40,7 +40,7 @@ class TestI18nParity:
         """Test that validate_translation_key works correctly."""
         # Test with a valid key
         assert validate_translation_key("bmi_underweight")
-        
+
         # Test with an invalid key
         assert not validate_translation_key("non_existent_key")
 

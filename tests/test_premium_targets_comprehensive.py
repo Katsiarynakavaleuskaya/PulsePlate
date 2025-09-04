@@ -112,19 +112,19 @@ class TestPremiumTargetsComprehensive:
         result = response.json()
         assert "macros" in result
         macros = result["macros"]
-        
+
         # Check that all required macronutrients are present
         required_macros = {"protein_g", "fat_g", "carbs_g", "fiber_g"}
         for macro in required_macros:
             assert macro in macros, f"Missing required macronutrient: {macro}"
             assert macros[macro] > 0, f"Macronutrient {macro} should have a positive value"
-            
+
         # Check protein target (1.6-1.8 g/kg for maintenance)
         expected_protein_min = int(70 * 1.6)  # 112g
         expected_protein_max = int(70 * 1.8)  # 126g
         assert expected_protein_min <= macros["protein_g"] <= expected_protein_max, \
             f"Protein target {macros['protein_g']}g not in expected range {expected_protein_min}-{expected_protein_max}g"
-            
+
         # Check fat target (0.8-1.0 g/kg for maintenance)
         expected_fat_min = int(70 * 0.8)  # 56g
         expected_fat_max = int(70 * 1.0)  # 70g
@@ -147,7 +147,7 @@ class TestPremiumTargetsComprehensive:
 
         result = response.json()
         assert "water_ml" in result
-        
+
         # Check that water target is approximately 30 ml/kg (±20% tolerance)
         expected_water = 70 * 30  # 2100 ml
         tolerance = expected_water * 0.2  # 20% tolerance
@@ -171,12 +171,12 @@ class TestPremiumTargetsComprehensive:
         result = response.json()
         assert "activity_weekly" in result
         activity = result["activity_weekly"]
-        
+
         # Check that all required activity targets are present
         required_activity = {"moderate_aerobic_min", "strength_sessions", "steps_daily"}
         for activity_item in required_activity:
             assert activity_item in activity, f"Missing required activity target: {activity_item}"
-            
+
         # Check WHO activity guidelines for adults
         assert activity["moderate_aerobic_min"] == 150, \
             f"Moderate aerobic activity should be 150 min/week, got {activity['moderate_aerobic_min']}"

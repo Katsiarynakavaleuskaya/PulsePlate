@@ -34,6 +34,56 @@ WHO_ACTIVITY_GUIDELINES = {
     }
 }
 
+# RDA/AI values for 19-50 years, male/female (Required for Premium Targets)
+# Source: WHO/EFSA/DRI standards
+# Last updated: January 2025
+RDA_AI_19_50 = {
+    # Adult women (19-50 years)
+    "female": {
+        # Macronutrients (g/day)
+        "protein_g": 1.6,  # 1.6-1.8 g/kg body weight
+        "fat_g": 0.8,      # 0.8-1.0 g/kg body weight
+        # Note: Carbs calculated as residual after protein and fat
+        "fiber_g": (25, 30),  # 25-30 g/day
+
+        # Micronutrients (mg/μg/day)
+        "iron_mg": 18.0,      # High due to menstruation
+        "calcium_mg": 1000.0,
+        "magnesium_mg": 310.0,
+        "zinc_mg": 8.0,
+        "potassium_mg": 3500.0,
+        "iodine_ug": 150.0,
+        "selenium_ug": 55.0,
+        "folate_ug": 400.0,   # Critical for reproductive age
+        "b12_ug": 2.4,
+        "vitamin_d_iu": 600.0,
+        "vitamin_a_ug": 700.0,
+        "vitamin_c_mg": 75.0
+    },
+    # Adult men (19-50 years)
+    "male": {
+        # Macronutrients (g/day)
+        "protein_g": 1.6,  # 1.6-1.8 g/kg body weight
+        "fat_g": 0.8,      # 0.8-1.0 g/kg body weight
+        # Note: Carbs calculated as residual after protein and fat
+        "fiber_g": (25, 30),  # 25-30 g/day
+
+        # Micronutrients (mg/μg/day)
+        "iron_mg": 8.0,       # Lower than women
+        "calcium_mg": 1000.0,
+        "magnesium_mg": 400.0,
+        "zinc_mg": 11.0,      # Higher than women
+        "potassium_mg": 3500.0,
+        "iodine_ug": 150.0,
+        "selenium_ug": 55.0,
+        "folate_ug": 400.0,
+        "b12_ug": 2.4,
+        "vitamin_d_iu": 600.0,
+        "vitamin_a_ug": 900.0, # Higher than women
+        "vitamin_c_mg": 90.0   # Higher than women
+    }
+}
+
 # Compact RDA/AI table for key micronutrients (19-50 years, male/female)
 # Required for Premium Targets: Fe, Ca, VitD, B12, I, Folate, K, Mg
 COMPACT_MICRONUTRIENT_RDA = {

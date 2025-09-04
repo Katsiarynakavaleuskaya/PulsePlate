@@ -1,0 +1,11 @@
+name,group,per_g,protein_g,fat_g,carbs_g,fiber_g,Fe_mg,Ca_mg,VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price
+chicken_breast,protein,100,31,3.6,0,0,0.7,15,7,0.3,6,7,256,27,OMNI;GF;LOW_COST,8.5
+salmon,protein,100,20,13,0,0,0.3,9,526,2.8,25,30,490,30,OMNI;PESC,14.0
+greek_yogurt,dairy,100,10,0.4,3.6,0,0.1,110,5,0.9,12,5,141,11,OMNI;VEG,6.5
+tofu,protein,100,12,5,2,1,2.7,350,0,0,25,0,237,35,VEG;GF,7.0
+spinach,veg,100,2.9,0.4,3.6,2.2,2.7,99,0,0,194,20,558,79,VEG;GF;LOW_COST,5.0
+lentils,legume,100,9,0.4,20,8,3.3,19,0,0,181,3,369,36,VEG;GF;LOW_COST,4.0
+oats,grain,100,13,7,68,10,4.7,54,0,0,56,2,429,177,VEG;GF?,3.5
+brown_rice,grain,100,2.6,1,23,1.8,0.4,10,0,0,9,1,79,44,VEG;GF,3.0
+olive_oil,fat,100,0,100,0,0,0,1,0,0,0,0,1,1,VEG;GF,12.0
+banana,fruit,100,1.1,0.3,23,2.6,0.3,5,0,0,20,1,358,27,VEG;GF;LOW_COST,2.5

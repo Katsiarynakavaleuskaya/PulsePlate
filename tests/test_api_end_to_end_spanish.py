@@ -104,7 +104,7 @@ class TestAPIEndToEndSpanish:
             "hip_cm": 90,
             "lang": "es"
         }, headers={"X-API-Key": "test_key"})
-        
+
         assert response.status_code == 200
 
         # Check that the response contains Spanish text in the analysis
@@ -122,16 +122,16 @@ class TestAPIEndToEndSpanish:
             "athlete": "no",
             "waist_cm": 80
         }
-        
+
         # Test BMI endpoint
         bmi_response = self.client.post("/bmi", json={**test_data, "lang": "es"})
         assert bmi_response.status_code == 200
-        
+
         # Test BodyFat endpoint
         bodyfat_response = self.client.post("/api/v1/bodyfat", json={**test_data, "neck_cm": 35, "language": "es"})
         assert bodyfat_response.status_code == 200
-        
+
         # Check responses
         bodyfat_result = bodyfat_response.json()
-        
+
         assert bodyfat_result["lang"] == "es"

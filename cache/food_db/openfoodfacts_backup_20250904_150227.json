@@ -1,0 +1,320 @@
+{
+  "chicken_breast": {
+    "name": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, braised",
+    "nutrients_per_100g": {
+      "folate_ug": 0.921,
+      "fat_g": 3.24,
+      "kcal": 166.0,
+      "calcium_mg": 6.0,
+      "potassium_mg": 343.0,
+      "zinc_mg": 0.96,
+      "niacin_mg": 9.45,
+      "b12_ug": 0.2,
+      "protein_g": 32.1,
+      "iron_mg": 0.49,
+      "magnesium_mg": 32.0,
+      "thiamin_mg": 0.098,
+      "riboflavin_mg": 0.187
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "331960",
+    "category": "Poultry Products"
+  },
+  "salmon": {
+    "name": "Fish, salmon, Atlantic, farm raised, raw",
+    "nutrients_per_100g": {
+      "iron_mg": 0.259,
+      "magnesium_mg": 25.4,
+      "potassium_mg": 378.0,
+      "zinc_mg": 0.339,
+      "fat_g": 13.1,
+      "iodine_ug": 3.24,
+      "b12_ug": 5.7,
+      "calcium_mg": 9.42,
+      "protein_g": 20.3
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "2684441",
+    "category": "Finfish and Shellfish Products"
+  },
+  "lentils": {
+    "name": "Spinach, mature",
+    "nutrients_per_100g": {
+      "iron_mg": 1.05,
+      "magnesium_mg": 93.0,
+      "potassium_mg": 460.0,
+      "zinc_mg": 0.423,
+      "vitamin_c_mg": 30.3,
+      "iodine_ug": 6.09,
+      "thiamin_mg": 0.0765,
+      "riboflavin_mg": 0.192,
+      "niacin_mg": 0.51,
+      "folate_ug": 0.214,
+      "fat_g": 0.604,
+      "fiber_g": 1.59,
+      "calcium_mg": 66.6,
+      "protein_g": 2.91,
+      "carbs_g": 2.64,
+      "vitamin_a_ug": 306.0
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "1999633",
+    "category": "Vegetables and Vegetable Products"
+  },
+  "spinach": {
+    "name": "Spinach, baby",
+    "nutrients_per_100g": {
+      "iron_mg": 1.26,
+      "magnesium_mg": 92.9,
+      "potassium_mg": 582.0,
+      "zinc_mg": 0.447,
+      "vitamin_c_mg": 26.5,
+      "thiamin_mg": 0.0769,
+      "riboflavin_mg": 0.194,
+      "niacin_mg": 0.551,
+      "folate_ug": 0.195,
+      "fat_g": 0.619,
+      "fiber_g": 1.56,
+      "calcium_mg": 68.4,
+      "protein_g": 2.85,
+      "carbs_g": 2.41,
+      "vitamin_a_ug": 283.0
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "1999632",
+    "category": "Vegetables and Vegetable Products"
+  },
+  "oats": {
+    "name": "Rice, red, unenriched, dry, raw",
+    "nutrients_per_100g": {
+      "iron_mg": 1.2,
+      "magnesium_mg": 126.0,
+      "potassium_mg": 245.0,
+      "zinc_mg": 2.56,
+      "fat_g": 3.44,
+      "thiamin_mg": 0.339,
+      "niacin_mg": 6.68,
+      "folate_ug": 0.137,
+      "fiber_g": 4.2,
+      "calcium_mg": 9.22,
+      "protein_g": 8.56,
+      "carbs_g": 76.2
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "2710838",
+    "category": "Cereal Grains and Pasta"
+  },
+  "broccoli": {
+    "name": "Broccoli, raw",
+    "nutrients_per_100g": {
+      "carbs_g": 6.27,
+      "kcal": 31.0,
+      "fat_g": 0.34,
+      "calcium_mg": 46.0,
+      "potassium_mg": 303.0,
+      "zinc_mg": 0.42,
+      "niacin_mg": 0.639,
+      "folate_ug": 0.191,
+      "protein_g": 2.57,
+      "fiber_g": 2.4,
+      "iron_mg": 0.69,
+      "magnesium_mg": 21.0,
+      "vitamin_c_mg": 91.3,
+      "thiamin_mg": 0.077,
+      "riboflavin_mg": 0.114,
+      "vitamin_a_ug": 8.0
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "747447",
+    "category": "Vegetables and Vegetable Products"
+  },
+  "brown_rice": {
+    "name": "Rice, brown, long grain, unenriched, raw",
+    "nutrients_per_100g": {
+      "iron_mg": 1.24,
+      "magnesium_mg": 115.0,
+      "potassium_mg": 250.0,
+      "zinc_mg": 1.85,
+      "fat_g": 3.31,
+      "thiamin_mg": 0.326,
+      "riboflavin_mg": 0.102,
+      "niacin_mg": 6.27,
+      "folate_ug": 0.161,
+      "fiber_g": 3.02,
+      "calcium_mg": 8.06,
+      "protein_g": 7.25,
+      "carbs_g": 76.7
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "2512380",
+    "category": "Cereal Grains and Pasta"
+  },
+  "quinoa": {
+    "name": "Flour, quinoa",
+    "nutrients_per_100g": {
+      "iron_mg": 4.53,
+      "magnesium_mg": 164.0,
+      "potassium_mg": 551.0,
+      "zinc_mg": 2.77,
+      "thiamin_mg": 0.345,
+      "riboflavin_mg": 0.316,
+      "niacin_mg": 1.21,
+      "folate_ug": 0.222,
+      "fat_g": 6.6,
+      "fiber_g": 6.3,
+      "calcium_mg": 37.6,
+      "protein_g": 11.9,
+      "carbs_g": 69.5
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "2512372",
+    "category": "Cereal Grains and Pasta"
+  },
+  "almonds": {
+    "name": "Nuts, almonds, whole, raw",
+    "nutrients_per_100g": {
+      "iron_mg": 3.74,
+      "magnesium_mg": 258.0,
+      "potassium_mg": 733.0,
+      "zinc_mg": 2.86,
+      "thiamin_mg": 0.16,
+      "niacin_mg": 3.77,
+      "folate_ug": 0.101,
+      "fat_g": 51.1,
+      "fiber_g": 10.8,
+      "calcium_mg": 254.0,
+      "carbs_g": 20.0,
+      "protein_g": 21.5
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "VEGAN",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "2346393",
+    "category": "Nut and Seed Products"
+  },
+  "greek_yogurt": {
+    "name": "Yogurt, Greek, plain, nonfat",
+    "nutrients_per_100g": {
+      "magnesium_mg": 10.7,
+      "b12_ug": 0.7,
+      "thiamin_mg": 0.022,
+      "riboflavin_mg": 0.281,
+      "iron_mg": 0.07,
+      "protein_g": 10.3,
+      "vitamin_a_ug": 1.0,
+      "fat_g": 0.37,
+      "carbs_g": 3.64,
+      "kcal": 61.0,
+      "calcium_mg": 111.0,
+      "potassium_mg": 141.0,
+      "zinc_mg": 0.53,
+      "niacin_mg": 0.211,
+      "folate_ug": 0.064
+    },
+    "cost_per_100g": 1.0,
+    "tags": [
+      "VEG",
+      "GF"
+    ],
+    "availability_regions": [
+      "US",
+      "BY",
+      "RU"
+    ],
+    "source": "USDA FoodData Central",
+    "source_id": "330137",
+    "category": "Dairy and Egg Products"
+  }
+}

@@ -12,7 +12,7 @@ and physical activity guidelines.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Optional, Set
+from typing import Any, Dict, Literal, Optional, Set
 
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]
@@ -188,7 +188,7 @@ class NutritionTargets:
         tolerance = 0.05
         return abs(macro_calories - self.kcal_daily) / self.kcal_daily <= tolerance
 
-    def get_summary(self) -> Dict[str, any]:
+    def get_summary(self) -> Dict[str, Any]:
         """
         RU: Краткая сводка таргетов для API ответа.
         EN: Summary of targets for API response.
@@ -201,10 +201,11 @@ class NutritionTargets:
                 "carbs_g": self.macros.carbs_g,
                 "fiber_g": self.macros.fiber_g
             },
-            "water_ml": self.water_ml_daily,
-            "priority_micros": self.micros.get_priority_nutrients(),
-            "activity_weekly": {
-                "moderate_min": self.activity.moderate_aerobic_min,
+            "water_ml_daily": self.water_ml_daily,
+            "micros": self.micros.get_priority_nutrients(),
+            "activity": {
+                "moderate_aerobic_min": self.activity.moderate_aerobic_min,
+                "vigorous_aerobic_min": self.activity.vigorous_aerobic_min,
                 "strength_sessions": self.activity.strength_sessions,
                 "steps_daily": self.activity.steps_daily
             }
