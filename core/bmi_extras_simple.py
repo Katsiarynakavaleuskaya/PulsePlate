@@ -13,6 +13,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+# Import i18n functionality
+from core.i18n import Language, t
+
 Sex = Literal["female", "male"]
 
 @dataclass(frozen=True)
@@ -50,7 +53,7 @@ def ffmi(value_weight_kg: float, height_cm: float, bodyfat_percent: float) -> fl
     return round(ffm / (h_m * h_m), 1)
 
 def stage_obesity(
-    *, bmi: float, whtr: float, whr: float | None, sex: Sex
+    *, bmi: float, whtr: float, whr: float | None, sex: Sex, lang: Language = "en"
 ) -> tuple[str, list[str]]:
     """RU: Мягкое стадирование риска по BMI+WHtR(+WHR).
        EN: Light risk staging using BMI+WHtR(+WHR).
@@ -61,24 +64,24 @@ def stage_obesity(
         risk = "low"
     elif whtr < 0.6:
         risk = "moderate"
-        notes.append("Повышенный центральный жир (WHtR ≥ 0.5).")
+        notes.append(t(lang, "risk_moderate_central_fat"))
     else:
         risk = "high"
-        notes.append("Высокий центральный жир (WHtR ≥ 0.6).")
+        notes.append(t(lang, "risk_high_central_fat"))
 
     # Корректировка по WHR (пороги зависят от пола)
     if whr is not None:
         thr = 0.9 if sex == "male" else 0.85
         if whr >= thr:
-            notes.append(f"WHR ≥ {thr} для пола → дополнительный риск.")
+            notes.append(t(lang, "risk_high_whr", threshold=thr))
             risk = "high" if risk == "moderate" else risk
 
     # Доп. акцент по очень высокому BMI
     if bmi >= 35:
-        notes.append("BMI ≥ 35: высокий общий риск.")
+        notes.append(t(lang, "risk_high_bmi"))
         risk = "high"
     elif bmi >= 30 and risk == "low":
         risk = "moderate"
-        notes.append("BMI 30–34.9: умеренно повышенный риск.")
+        notes.append(t(lang, "risk_moderate_bmi"))
 
     return risk, notes

@@ -24,7 +24,8 @@ def test_v1_bmi_happy():
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] == 24.2
-    assert data["category"] == "Healthy weight"
+    # v1 endpoint uses core/i18n categories in EN
+    assert data["category"] == "Normal weight"
 
 
 def test_v1_bmi_invalid_height():
@@ -108,7 +109,8 @@ def test_v1_bmi_obese():
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] >= 30
-    assert data["category"] == "Obesity"
+    # Uses obesity classes
+    assert data["category"] == "Obese Class I"
 
 
 def test_v1_bodyfat():
@@ -282,10 +284,11 @@ def test_metrics():
 
 def test_category_by_bmi_ru():
     from bmi_core import bmi_category
-    assert bmi_category(17, "ru") == "Недовес"
-    assert bmi_category(22, "ru") == "Нормальный вес"
-    assert bmi_category(27, "ru") == "Избыточный вес"
-    assert bmi_category(32, "ru") == "Ожирение"
+    assert bmi_category(17, "ru") == "Недостаточная масса"
+    assert bmi_category(22, "ru") == "Норма"
+    assert bmi_category(27, "ru") == "Избыточная масса"
+    # Obesity classes now include степени, accept any obesity class
+    assert bmi_category(32, "ru").startswith("Ожирение")
 
 
 def test_compute_wht_ratio_round_exception():

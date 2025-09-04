@@ -18,12 +18,12 @@ from bmi_core import (
 
 def test_bmi_category_lang_fallback_to_ru():
     # Неизвестная локаль -> берём RU-словарь
-    assert bmi_category(24.0, "de") == "Нормальный вес"
+    assert bmi_category(24.0, "de") == "Норма"
 
 
 def test_interpret_group_general_ru_no_note():
     # Для general заметка пустая -> должен вернуться только base без точки
-    assert interpret_group(22.0, "general", "ru") == "Нормальный вес"
+    assert interpret_group(22.0, "general", "ru") == "Норма"
 
 
 def test_auto_group_regex_phrase_sportswoman():

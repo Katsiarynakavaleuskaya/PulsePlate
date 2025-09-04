@@ -44,21 +44,22 @@ def test_bmi_value_invalid_inputs():
 
 
 def test_bmi_category_edges_ru():
-    assert bmi_category(18.49, "ru") == "Недовес"
-    assert bmi_category(18.5, "ru") == "Нормальный вес"
-    assert bmi_category(24.99, "ru") == "Нормальный вес"
-    assert bmi_category(25.0, "ru") == "Избыточный вес"
-    assert bmi_category(29.99, "ru") == "Избыточный вес"
-    assert bmi_category(30.0, "ru") == "Ожирение"
+    assert bmi_category(18.49, "ru") == "Недостаточная масса"
+    assert bmi_category(18.5, "ru") == "Норма"
+    assert bmi_category(24.99, "ru") == "Норма"
+    assert bmi_category(25.0, "ru") == "Избыточная масса"
+    assert bmi_category(29.99, "ru") == "Избыточная масса"
+    # Obesity in RU now has classes
+    assert bmi_category(30.0, "ru") == "Ожирение I степени"
 
 
 def test_bmi_category_edges_en():
     assert bmi_category(18.49, "en") == "Underweight"
-    assert bmi_category(18.5, "en") == "Healthy weight"
-    assert bmi_category(24.99, "en") == "Healthy weight"
+    assert bmi_category(18.5, "en") == "Normal weight"
+    assert bmi_category(24.99, "en") == "Normal weight"
     assert bmi_category(25.0, "en") == "Overweight"
     assert bmi_category(29.99, "en") == "Overweight"
-    assert bmi_category(30.0, "en") == "Obesity"
+    assert bmi_category(30.0, "en") == "Obese Class I"
 
 
 # ---------- Группы пользователей ----------
@@ -76,7 +77,8 @@ def test_auto_group_variants():
 
 def test_interpret_group_notes_en():
     txt = interpret_group(26.0, "athlete", "en")
-    assert "muscle" in txt.lower()
+    # Updated i18n phrasing focuses on body fat wording
+    assert "body fat" in txt.lower() or "overestimate" in txt.lower()
 
 
 # ---------- Уровень подготовки ----------

@@ -94,11 +94,21 @@ def get_router() -> APIRouter:
 
         labels_en = {"methods": "methods", "median": "median", "units": "%"}
         labels_ru = {"methods": "методы", "median": "медиана", "units": "%"}
+        labels_es = {"methods": "métodos", "median": "mediana", "units": "%"}
+
+        # Select labels based on language
+        if lang == "ru":
+            labels = labels_ru
+        elif lang == "es":
+            labels = labels_es
+        else:
+            labels = labels_en
+
         resp = {
             "methods": result["methods"],
             "median": result["median"],
             "lang": lang,
-            "labels": labels_ru if lang == "ru" else labels_en,
+            "labels": labels,
         }
         return resp
 

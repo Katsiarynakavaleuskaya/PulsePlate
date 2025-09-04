@@ -122,14 +122,14 @@ class TestBMIFunctions:
         # Low risk case
         result = stage_obesity(22, 0.4, 0.8, "male")
         assert result["stage"] == "low_risk"
-        assert result["risk_factors"] == 0
+        assert int(result["risk_factors"]) == 0
 
         # Moderate risk case
         result = stage_obesity(28, 0.5, 0.8, "male")
         assert result["stage"] == "moderate_risk"
-        assert result["risk_factors"] == 1
+        assert int(result["risk_factors"]) == 1
 
         # High risk case
         result = stage_obesity(32, 0.6, 1.0, "male")
         assert result["stage"] == "high_risk"
-        assert result["risk_factors"] == 3
+        assert int(result["risk_factors"]) == 3

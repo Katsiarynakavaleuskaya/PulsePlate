@@ -24,7 +24,8 @@ def test_bmi_groups_smoke(group):
     data = r.json()
     # базовые инварианты
     assert data["bmi"] == 24.2
-    assert data["category"] == "Healthy weight"
+    # v1 endpoint uses core/i18n EN categories
+    assert data["category"] == "Normal weight"
     assert isinstance(data.get("interpretation", ""), str)
     assert len(data.get("interpretation", "")) >= 0  # строка может быть и "Normal"
 
@@ -33,9 +34,9 @@ def test_bmi_groups_smoke(group):
     "w,h,expected_category",
     [
         (45, 170, "Underweight"),  # ~15.57
-        (70, 170, "Healthy weight"),  # 24.2
+        (70, 170, "Normal weight"),  # 24.2
         (80, 170, "Overweight"),  # ~27.68
-        (95, 170, "Obesity"),  # ~32.87
+        (95, 170, "Obese Class I"),  # ~32.87
     ],
 )
 def test_bmi_categories_boundaries(w, h, expected_category):

@@ -82,6 +82,9 @@ from core.food_apis.scheduler import (
     stop_background_updates,
 )
 
+# Import i18n functionality
+from core.i18n import Language, t
+
 # Ensure a patchable getter is always available on this module
 try:
     from core.food_apis.scheduler import get_update_scheduler as _scheduler_getter  # type: ignore
@@ -178,7 +181,7 @@ class BMIRequest(BaseModel):
     pregnant: str
     athlete: str
     waist_cm: Optional[float] = Field(None, gt=0)
-    lang: Literal["ru", "en"] = "ru"
+    lang: Language = "ru"
     premium: Optional[bool] = False
     include_chart: Optional[bool] = False  # New parameter for visualization
 
@@ -203,7 +206,7 @@ class BMIProRequest(BaseModel):
     waist_cm: float = Field(..., gt=0)
     hip_cm: Optional[float] = Field(None, gt=0)
     bodyfat_pct: Optional[float] = Field(None, ge=0, le=100)
-    lang: Literal["ru", "en"] = "en"
+    lang: Language = "en"
 
 
 # Add the new BMI Pro response model
@@ -257,20 +260,14 @@ def normalize_flags(
     }
 
 
-def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str) -> str:
+def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
     if waist_cm is None:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
     if waist_cm >= high:
-        return (
-            "Высокий риск по талии" if lang == "ru"
-            else "High waist-related risk"
-        )
+        return t(lang, "risk_high_waist")
     if waist_cm >= warn:
-        return (
-            "Повышенный риск по талии" if lang == "ru"
-            else "Increased waist-related risk"
-        )
+        return t(lang, "risk_increased_waist")
     return ""
 
 
@@ -288,11 +285,21 @@ async def root():
         <style>
             body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
             form { margin-bottom: 20px; }
-            input, button { display: block; margin: 10px 0; padding: 10px; width: 100%; }
+            input, button, select { display: block; margin: 10px 0; padding: 10px; width: 100%; }
             .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+            .language-selector { position: absolute; top: 20px; right: 20px; }
         </style>
     </head>
     <body>
+        <div class="language-selector">
+            <label for="language">Language:</label>
+            <select id="language" onchange="changeLanguage()">
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="es">Español</option>
+            </select>
+        </div>
+
         <h1>BMI Calculator</h1>
         <form id="bmiForm">
             <label for="weight">Weight (kg):</label>
@@ -331,8 +338,40 @@ async def root():
         <div id="result" class="result" style="display:none;"></div>
 
         <script>
+            // Set language from cookie or URL parameter
+            function getLanguage() {
+                // Check URL parameter first
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('lang')) {
+                    return urlParams.get('lang');
+                }
+                // Check cookie
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'lang') {
+                        return value;
+                    }
+                }
+                // Default to English
+                return 'en';
+            }
+
+            // Set language selector based on current language
+            document.getElementById('language').value = getLanguage();
+
+            // Change language function
+            function changeLanguage() {
+                const lang = document.getElementById('language').value;
+                // Set cookie
+                document.cookie = `lang=${lang}; path=/`;
+                // Reload page with language parameter
+                window.location.search = `lang=${lang}`;
+            }
+
             document.getElementById('bmiForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                const lang = getLanguage();
                 const data = {
                     weight_kg: parseFloat(document.getElementById('weight').value),
                     height_m: parseFloat(document.getElementById('height').value),
@@ -341,7 +380,7 @@ async def root():
                     pregnant: document.getElementById('pregnant').value,
                     athlete: document.getElementById('athlete').value,
                     waist_cm: document.getElementById('waist').value ? parseFloat(document.getElementById('waist').value) : null,
-                    lang: 'en'
+                    lang: lang
                 };
 
                 try {
@@ -387,11 +426,7 @@ async def bmi_endpoint(req: BMIRequest):
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
     if flags["is_pregnant"]:
-        note = (
-            "BMI не применим при беременности"
-            if req.lang == "ru"
-            else "BMI is not valid during pregnancy"
-        )
+        note = t(req.lang, "bmi_not_valid_during_pregnancy")
         result = {
             "bmi": bmi,
             "category": None,
@@ -416,9 +451,7 @@ async def bmi_endpoint(req: BMIRequest):
     notes = []
     if flags["is_athlete"]:
         notes.append(
-            "У спортсменов BMI может завышать жировую массу"
-            if req.lang == "ru"
-            else "For athletes, BMI may overestimate body fat"
+            t(req.lang, "advice_athlete_bmi")
         )
     if (wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang)):
         notes.append(wr)
@@ -446,49 +479,6 @@ async def bmi_endpoint(req: BMIRequest):
             }
 
     return result
-
-
-@app.post("/api/v1/bmi/visualize")
-async def bmi_visualize_endpoint(req: BMIRequest, api_key: str = Depends(get_api_key)):
-    """Generate BMI visualization chart."""
-    import sys as _sys
-    _module = _sys.modules[__name__]
-    _viz_func = getattr(_module, "generate_bmi_visualization", None)
-    _mpl_available = getattr(_module, "MATPLOTLIB_AVAILABLE", False)
-
-    if not _viz_func:
-        raise HTTPException(
-            status_code=503,
-            detail="Visualization not available - module not found"
-        )
-
-    if not _mpl_available:
-        raise HTTPException(
-            status_code=503,
-            detail="Visualization not available - matplotlib not installed"
-        )
-
-    # Calculate BMI
-    bmi = calc_bmi(req.weight_kg, req.height_m)
-
-    # Generate visualization
-    viz_result = _viz_func(
-        bmi=bmi, age=req.age, gender=req.gender,
-        pregnant=req.pregnant, athlete=req.athlete, lang=req.lang
-    )
-
-    if not viz_result.get("available"):
-        raise HTTPException(
-            status_code=500,
-            detail=viz_result.get("error", "Visualization generation failed")
-        )
-
-    return {
-        "bmi": bmi,
-        "visualization": viz_result,
-        "message": "BMI visualization generated successfully" if req.lang == "en"
-                  else "Визуализация ИМТ создана успешно"
-    }
 
 
 @app.post("/plan")
@@ -539,6 +529,48 @@ async def plan_endpoint(req: BMIRequest):
             ]
 
     return base
+
+
+@app.post("/api/v1/bmi/visualize")
+async def bmi_visualize_endpoint(req: BMIRequest, api_key: str = Depends(get_api_key)):
+    """Generate BMI visualization chart."""
+    import sys as _sys
+    _module = _sys.modules[__name__]
+    _viz_func = getattr(_module, "generate_bmi_visualization", None)
+    _mpl_available = getattr(_module, "MATPLOTLIB_AVAILABLE", False)
+
+    if not _viz_func:
+        raise HTTPException(
+            status_code=503,
+            detail="Visualization not available - module not found"
+        )
+
+    if not _mpl_available:
+        raise HTTPException(
+            status_code=503,
+            detail="Visualization not available - matplotlib not installed"
+        )
+
+    # Calculate BMI
+    bmi = calc_bmi(req.weight_kg, req.height_m)
+
+    # Generate visualization
+    viz_result = _viz_func(
+        bmi=bmi, age=req.age, gender=req.gender,
+        pregnant=req.pregnant, athlete=req.athlete, lang=req.lang
+    )
+
+    if not viz_result.get("available"):
+        raise HTTPException(
+            status_code=500,
+            detail="Visualization generation failed"
+        )
+
+    return {
+        "bmi": bmi,
+        "visualization": viz_result,
+        "message": t(req.lang, "bmi_visualization_success")
+    }
 
 
 @app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
@@ -666,7 +698,7 @@ class BMRRequest(BaseModel):
     bodyfat: Optional[float] = Field(
         None, ge=0, le=50, description="Body fat percentage (optional, for Katch-McArdle formula)"
     )
-    lang: Literal["ru", "en"] = Field("en", description="Response language")
+    lang: Language = Field("en", description="Response language")
 
 
 class BMIResponse(BaseModel):
@@ -826,7 +858,6 @@ async def api_premium_bmr(data: BMRRequest):
             status_code=500,
             detail=f"BMR calculation failed: {str(e)}"
         ) from e
-
 
 try:
     from core.menu_engine import analyze_nutrient_gaps, make_daily_menu, make_weekly_menu
@@ -1467,7 +1498,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
 
         # Calculate WHtR
         wht = wht_ratio(payload.waist_cm, payload.height_cm)
-        wht_interpretation = interpret_wht_ratio(wht)
+        wht_interpretation = interpret_wht_ratio(wht, payload.lang)
 
         # Normalize gender for functions that expect Literal["male", "female"]
         normalized_gender = "male" if payload.gender.lower() in {"male", "муж", "м"} else "female"
@@ -1477,7 +1508,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
         whr_interpretation = None
         if payload.hip_cm:
             whr = whr_ratio(payload.waist_cm, payload.hip_cm, normalized_gender)
-            whr_interpretation = interpret_whr_ratio(whr, normalized_gender)
+            whr_interpretation = interpret_whr_ratio(whr, normalized_gender, payload.lang)
 
         # Calculate FFMI if body fat percentage provided
         ffm_result = None
@@ -1486,7 +1517,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
 
         # Stage obesity using multiple metrics
         obesity_staging = stage_obesity(
-            bmi, wht, whr or 0, normalized_gender
+            bmi, wht, whr or 0, normalized_gender, payload.lang
         )
 
         # Build response
@@ -1500,7 +1531,7 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
             obesity_stage=obesity_staging["stage"],
             risk_factors=int(obesity_staging["risk_factors"]),
             recommendation=obesity_staging["recommendation"],
-            note="BMI Pro analysis complete"
+            note=t(payload.lang, "bmi_pro_analysis_complete")
         )
 
         # Add WHR data if available

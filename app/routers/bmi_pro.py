@@ -17,6 +17,9 @@ from core.bmi_extras_simple import (
     wht_ratio,
 )
 
+# Import i18n functionality
+from core.i18n import Language
+
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 Sex = Literal["female", "male"]
@@ -29,6 +32,7 @@ class BMIProRequest(BaseModel):
     waist_cm: float = Field(..., gt=0)
     hip_cm: Optional[float] = Field(None, gt=0)
     bodyfat_percent: Optional[float] = Field(None, ge=0, le=60)
+    lang: Language = "en"  # Add language parameter
 
 class BMIProResponse(BaseModel):
     bmi: float
@@ -54,7 +58,7 @@ def bmi_pro(req: BMIProRequest):
             if req.bodyfat_percent is not None
             else None
         )
-        risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex)
+        risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(
@@ -62,7 +66,7 @@ def bmi_pro(req: BMIProRequest):
         whtr=v_whtr,
         whr=v_whr,
         ffmi=v_ffmi,
-        risk_level=risk,
+        risk_level=risk,  # type: ignore
         notes=notes
     )
     return BMIProResponse(**card.__dict__)

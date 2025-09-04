@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 BMI Core – чистая доменная логика без ввода/вывода.
-Поддерживает: валидацию, локализацию (RU/EN), группы
+Поддерживает: валидацию, локализацию (RU/EN/ES), группы
 (athlete/pregnant/elderly/child), WHtR, расчёт «здорового» диапазона ИМТ,
 build_premium_plan.
 
@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import re
 from typing import Any, Dict, Optional, Tuple
+
+# Import i18n functionality
+from core.i18n import Language, t
 
 # -------------------------
 # Конфиг и локализация
@@ -39,90 +42,6 @@ class Config:
     # Age-specific BMI adjustments
     ELDERLY_BMI_ADJUST = 1.0  # Allow slightly higher BMI for elderly
     TEEN_BMI_LOWER = 17.5  # Lower underweight threshold for teens
-
-
-LANG: Dict[str, Any] = {
-    "ru": {
-        "cat": {
-            "under": "Недовес",
-            "norm": "Нормальный вес",
-            "over": "Избыточный вес",
-            "obese": "Ожирение",
-        },
-        "notes": {
-            "athlete": (
-                "ИМТ может быть завышен из-за развитой мускулатуры."
-            ),
-            "pregnant": (
-                "Во время беременности ИМТ не диагностичен."
-            ),
-            "elderly": (
-                "У пожилых ИМТ может занижать долю жира (саркопения)."
-            ),
-            "child": (
-                "Для подростков используйте возрастные центильные таблицы."
-            ),
-            "teen": (
-                "Подростковый возраст: учитывайте этап полового созревания."
-            ),
-        },
-        "levels": {
-            "advanced": "продвинутый",
-            "intermediate": "средний",
-            "novice": "начальный",
-            "beginner": "базовый",
-        },
-        "actions": {
-            "maintain": "Поддерживайте текущий баланс.",
-            "lose": (
-                "Сократите ~300–500 ккал/день; белок и овощи в приоритете."
-            ),
-            "gain": "Добавьте ~300–500 ккал/день; 1.6–2.2 г белка/кг.",
-        },
-        "activities": {
-            "maintain": "2–3 силовых тренировки/нед.",
-            "lose": "6–10 тыс. шагов/день, +2–3 силовые трен./нед.",
-            "gain": "2–3 силовых/нед; прогрессия нагрузок.",
-        },
-    },
-    "en": {
-        "cat": {
-            "under": "Underweight",
-            "norm": "Healthy weight",
-            "over": "Overweight",
-            "obese": "Obesity",
-        },
-        "notes": {
-            "athlete": "BMI may be overestimated due to muscle mass.",
-            "pregnant": "BMI is not diagnostic during pregnancy.",
-            "elderly": (
-                "In older adults, BMI can underestimate body fat (sarcopenia)."
-            ),
-            "child": "Use BMI-for-age percentiles for youth.",
-            "teen": "Teenage years: consider pubertal development stage.",
-        },
-        "levels": {
-            "advanced": "advanced",
-            "intermediate": "intermediate",
-            "novice": "novice",
-            "beginner": "beginner",
-        },
-        "actions": {
-            "maintain": "Maintain current balance.",
-            "lose": (
-                "Reduce ~300–500 kcal/day; focus on protein & veggies."
-            ),
-            "gain": (
-                "Add ~300–500 kcal/day; 1.6–2.2 g protein/kg."
-            ),
-        },
-        "activities": {
-            "maintain": "2–3 strength sessions/week.",
-            "lose": "6–10k steps/day, +2–3 strength sessions/wk.",
-            "gain": "2–3 strength sessions/wk; progressive overload.",
-        },
-    },
-}
 
 # -------------------------
 # Валидация
@@ -154,11 +73,11 @@ def validate_measurements(weight_kg: float, height_m: float) -> None:
 # -------------------------
 
 
-def normalize_lang(lang: str) -> str:
+def normalize_lang(lang: str) -> Language:
     lang = (lang or "ru").lower()
-    if lang not in ("ru", "en"):
+    if lang not in ("ru", "en", "es"):
         lang = "ru"
-    return lang
+    return lang  # type: ignore
 
 
 def bmi_value(weight_kg: float, height_m: float) -> float:
@@ -169,8 +88,7 @@ def bmi_value(weight_kg: float, height_m: float) -> float:
 
 def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None) -> str:
     """Enhanced BMI categorization with age and population-specific adjustments."""
-    lang = normalize_lang(lang)
-    c = LANG[lang]["cat"]
+    lang_code: Language = normalize_lang(lang)
 
     # Age-specific adjustments
     underweight_threshold = 18.5
@@ -191,13 +109,19 @@ def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Option
             normal_upper = Config.ATHLETE_BMI_MAX
 
     if bmi < underweight_threshold:
-        return c["under"]
+        return t(lang_code, "bmi_underweight")
     elif bmi < normal_upper:
-        return c["norm"]
+        return t(lang_code, "bmi_normal")
     elif bmi < overweight_upper:
-        return c["over"]
+        return t(lang_code, "bmi_overweight")
     else:
-        return c["obese"]
+        # Categorize obesity levels
+        if bmi < 35:
+            return t(lang_code, "bmi_obese_1")
+        elif bmi < 40:
+            return t(lang_code, "bmi_obese_2")
+        else:
+            return t(lang_code, "bmi_obese_3")
 
 
 # -------------------------
@@ -213,22 +137,23 @@ def auto_group(
     lang: str
 ) -> str:
     """Enhanced user group detection with better teen/child distinction."""
-    lang = normalize_lang(lang)
+    lang_code: Language = normalize_lang(lang)
     g = (gender or "").strip().lower()
     p = (pregnant or "").strip().lower()
     a_raw = (athlete or "").strip().lower()
 
-    yes_vals = {"yes", "y", "true", "1", "да", "д", "истина"}
+    yes_vals = {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
 
     # Поддержка "спортсменка", "спортсмен", "атлетка", "атлет" + англ. athlete
     athlete_yes = {
         "спорт", "спортсмен", "спортсменка",
-        "атлет", "атлетка", "athlete"
+        "атлет", "атлетка", "athlete", "atleta"
     }
     is_athlete = (a_raw in yes_vals) or (a_raw in athlete_yes)
     if not is_athlete and a_raw and (
         re.search(r"спортсмен(ка)?", a_raw)
         or re.search(r"атлет(ка)?", a_raw)
+        or re.search(r"atleta", a_raw)
     ):
         is_athlete = True
 
@@ -243,8 +168,9 @@ def auto_group(
         return "elderly"
 
     # беременность учитываем только у женского пола
-    if (lang == "ru" and g.startswith("жен") and p in yes_vals) or (
-        lang == "en" and g == "female" and p in yes_vals
+    if (lang_code == "ru" and g.startswith("жен") and p in yes_vals) or (
+        lang_code == "en" and g == "female" and p in yes_vals) or (
+        lang_code == "es" and g.startswith("mujer") and p in yes_vals
     ):
         return "pregnant"
 
@@ -253,55 +179,85 @@ def auto_group(
 
 def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
-    lang = normalize_lang(lang)
-    c = LANG[lang]
-    base = bmi_category(bmi, lang, age, group)
-    note = {
-        "athlete": c["notes"]["athlete"],
-        "pregnant": c["notes"]["pregnant"],
-        "elderly": c["notes"]["elderly"],
-        "child": c["notes"]["child"],
-        "teen": c["notes"]["teen"],
-        "too_young": c["notes"]["child"],
+    lang_code: Language = normalize_lang(lang)
+
+    # Use i18n for group notes instead of hardcoded strings
+    base_category = bmi_category(bmi, lang, age, group)
+
+    # Define group notes using i18n keys
+    group_notes = {
+        "athlete": "advice_athlete_bmi",
+        "pregnant": "bmi_not_valid_during_pregnancy",
+        "elderly": "risk_elderly_note",
+        "child": "risk_child_note",
+        "teen": "risk_teen_note",
+        "too_young": "risk_child_note",
         "general": "",
-    }.get(group, "")
-    return f"{base}. {note}".strip().rstrip(".")
+    }
+
+    note_key = group_notes.get(group, "")
+    if note_key:
+        note = t(lang_code, note_key)
+        return f"{base_category}. {note}".strip().rstrip(".")
+    return base_category
 
 
 def group_display_name(group: str, lang: str) -> str:
-    lang = normalize_lang(lang)
-    mapping_ru = {
-        "general": "общая",
-        "athlete": "спортсмен",
-        "pregnant": "беременная",
-        "elderly": "пожилой",
-        "child": "ребёнок",
-        "teen": "подросток",
-        "too_young": "слишком юный",
+    lang_code: Language = normalize_lang(lang)
+
+    # Use i18n for group display names
+    group_names = {
+        "general": {
+            "ru": "общая",
+            "en": "general",
+            "es": "general"
+        },
+        "athlete": {
+            "ru": "спортсмен",
+            "en": "athlete",
+            "es": "atleta"
+        },
+        "pregnant": {
+            "ru": "беременная",
+            "en": "pregnant",
+            "es": "embarazada"
+        },
+        "elderly": {
+            "ru": "пожилой",
+            "en": "elderly",
+            "es": "anciano"
+        },
+        "child": {
+            "ru": "ребёнок",
+            "en": "child",
+            "es": "niño"
+        },
+        "teen": {
+            "ru": "подросток",
+            "en": "teenager",
+            "es": "adolescente"
+        },
+        "too_young": {
+            "ru": "слишком юный",
+            "en": "too young",
+            "es": "muy joven"
+        }
     }
-    mapping_en = {
-        "general": "general",
-        "athlete": "athlete",
-        "pregnant": "pregnant",
-        "elderly": "elderly",
-        "child": "child",
-        "teen": "teenager",
-        "too_young": "too young",
-    }
-    return (mapping_ru if lang == "ru" else mapping_en).get(group, group)
+
+    return group_names.get(group, {}).get(lang_code, group)
 
 
 def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
-    lang = normalize_lang(lang)
+    lang_code: Language = normalize_lang(lang)
+
+    # Use i18n for level names
     if years >= 5 and freq_per_week >= 3:
-        return ("advanced" if lang == "en"
-                else LANG["ru"]["levels"]["advanced"])
+        return t(lang_code, "level_advanced")
     if years >= 2 and freq_per_week >= 2:
-        return ("intermediate" if lang == "en"
-                else LANG["ru"]["levels"]["intermediate"])
+        return t(lang_code, "level_intermediate")
     if years >= 0.5 and freq_per_week >= 1:
-        return "novice" if lang == "en" else LANG["ru"]["levels"]["novice"]
-    return "beginner" if lang == "en" else LANG["ru"]["levels"]["beginner"]
+        return t(lang_code, "level_novice")
+    return t(lang_code, "level_beginner")
 
 
 # -------------------------
@@ -360,7 +316,7 @@ def build_premium_plan(
     group: str,
     premium: bool
 ) -> Dict[str, Any]:
-    lang = normalize_lang(lang)
+    lang_code: Language = normalize_lang(lang)
     _validate_age(age)
     validate_measurements(weight_kg, height_m)
 
@@ -368,8 +324,43 @@ def build_premium_plan(
     wmin = round(bmin * height_m * height_m, 1)
     wmax = round(bmax * height_m * height_m, 1)
 
-    actions = LANG[lang]["actions"]
-    activities = LANG[lang]["activities"]
+    # Use i18n for action tips
+    action_tips = {
+        "maintain": {
+            "ru": "Поддерживайте текущий баланс.",
+            "en": "Maintain current balance.",
+            "es": "Mantén el equilibrio actual."
+        },
+        "lose": {
+            "ru": "Сократите ~300–500 ккал/день; белок и овощи в приоритете.",
+            "en": "Reduce ~300–500 kcal/day; focus on protein & veggies.",
+            "es": "Reduce ~300–500 kcal/día; enfócate en proteínas y verduras."
+        },
+        "gain": {
+            "ru": "Добавьте ~300–500 ккал/день; 1.6–2.2 г белка/кг.",
+            "en": "Add ~300–500 kcal/day; 1.6–2.2 g protein/kg.",
+            "es": "Agrega ~300–500 kcal/día; 1.6–2.2 g proteína/kg."
+        }
+    }
+
+    # Use i18n for activity tips
+    activity_tips = {
+        "maintain": {
+            "ru": "2–3 силовых тренировки/нед.",
+            "en": "2–3 strength sessions/week.",
+            "es": "2–3 sesiones de fuerza/semana."
+        },
+        "lose": {
+            "ru": "6–10 тыс. шагов/день, +2–3 силовые трен./нед.",
+            "en": "6–10k steps/day, +2–3 strength sessions/wk.",
+            "es": "6–10k pasos/día, +2–3 sesiones de fuerza/sem."
+        },
+        "gain": {
+            "ru": "2–3 силовых/нед; прогрессия нагрузок.",
+            "en": "2–3 strength sessions/wk; progressive overload.",
+            "es": "2–3 sesiones de fuerza/sem; sobrecarga progresiva."
+        }
+    }
 
     action = ("maintain" if wmin <= weight_kg <= wmax else
               "lose" if weight_kg > wmax else "gain")
@@ -389,6 +380,6 @@ def build_premium_plan(
         "action": action,
         "delta_kg": delta,
         "est_weeks": est_weeks,
-        "nutrition_tip": actions[action],
-        "activity_tip": activities[action],
+        "nutrition_tip": action_tips[action][lang_code],
+        "activity_tip": activity_tips[action][lang_code],
     }

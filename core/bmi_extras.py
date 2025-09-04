@@ -10,6 +10,9 @@ This module implements professional-level BMI analysis including:
 
 from typing import Dict, Literal, Optional
 
+# Import i18n functionality
+from core.i18n import Language, t
+
 
 def wht_ratio(waist_cm: float, height_cm: float) -> float:
     """Calculate Waist-to-Height Ratio (WHtR).
@@ -104,11 +107,12 @@ def ffmi(
     }
 
 
-def interpret_wht_ratio(wht_ratio_value: float) -> Dict[str, str]:
+def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[str, str]:
     """Interpret WHtR value according to health risk categories.
 
     Args:
         wht_ratio_value: Calculated WHtR value
+        lang: Language for descriptions
 
     Returns:
         Dictionary with risk category and description
@@ -117,34 +121,39 @@ def interpret_wht_ratio(wht_ratio_value: float) -> Dict[str, str]:
         return {
             "category": "underweight",
             "risk": "low",
-            "description": "Low health risk"
+            "description": t(lang, "risk_low_health")
         }
     elif wht_ratio_value < 0.5:
         return {
             "category": "healthy",
             "risk": "low",
-            "description": "Healthy weight range"
+            "description": t(lang, "risk_healthy_weight")
         }
     elif wht_ratio_value < 0.6:
         return {
             "category": "overweight",
             "risk": "moderate",
-            "description": "Moderate health risk"
+            "description": t(lang, "risk_moderate_health")
         }
     else:
         return {
             "category": "obese",
             "risk": "high",
-            "description": "High health risk"
+            "description": t(lang, "risk_high_health")
         }
 
 
-def interpret_whr_ratio(whr_ratio_value: float, sex: Literal["male", "female"]) -> Dict[str, str]:
+def interpret_whr_ratio(
+    whr_ratio_value: float,
+    sex: Literal["male", "female"],
+    lang: Language = "en"
+) -> Dict[str, str]:
     """Interpret WHR value according to sex-specific health risk thresholds.
 
     Args:
         whr_ratio_value: Calculated WHR value
         sex: Biological sex ("male" or "female")
+        lang: Language for descriptions
 
     Returns:
         Dictionary with risk category and description
@@ -153,17 +162,17 @@ def interpret_whr_ratio(whr_ratio_value: float, sex: Literal["male", "female"]) 
     if sex.lower() == "male":
         if whr_ratio_value < 0.95:
             risk_level = "low"
-            description = "Low health risk"
+            description = t(lang, "risk_low_health")
         else:
             risk_level = "high"
-            description = "High health risk (android/apple shape)"
+            description = t(lang, "risk_high_android_shape")
     else:  # female
         if whr_ratio_value < 0.80:
             risk_level = "low"
-            description = "Low health risk"
+            description = t(lang, "risk_low_health")
         else:
             risk_level = "high"
-            description = "High health risk (android/apple shape)"
+            description = t(lang, "risk_high_android_shape")
 
     return {
         "risk": risk_level,
@@ -175,7 +184,8 @@ def stage_obesity(
     bmi: float,
     wht: float,
     whr: float,
-    sex: Literal["male", "female"]
+    sex: Literal["male", "female"],
+    lang: Language = "en"
 ) -> Dict[str, str]:
     """Stage obesity based on multiple metrics.
 
@@ -186,13 +196,14 @@ def stage_obesity(
         wht: Waist-to-Height Ratio
         whr: Waist-to-Hip Ratio
         sex: Biological sex
+        lang: Language for recommendations
 
     Returns:
         Dictionary with staging information and recommendations
     """
     # Get individual risk assessments
-    wht_interpretation = interpret_wht_ratio(wht)
-    whr_interpretation = interpret_whr_ratio(whr, sex)
+    wht_interpretation = interpret_wht_ratio(wht, lang)
+    whr_interpretation = interpret_whr_ratio(whr, sex, lang)
 
     # Determine overall staging
     risk_factors = 0
@@ -205,15 +216,13 @@ def stage_obesity(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = (
-            "Consider consulting with a healthcare professional for comprehensive assessment"
-        )
+        recommendation = t(lang, "recommendation_consult_healthcare")
     elif risk_factors == 1:
         stage = "moderate_risk"
-        recommendation = "Monitor health metrics and consider lifestyle modifications"
+        recommendation = t(lang, "recommendation_monitor_health")
     else:
         stage = "low_risk"
-        recommendation = "Maintain current healthy habits"
+        recommendation = t(lang, "recommendation_maintain_habits")
 
     bmi_category = (
         "obese" if bmi >= 30 else
@@ -224,7 +233,7 @@ def stage_obesity(
 
     return {
         "stage": stage,
-        "risk_factors": risk_factors,
+        "risk_factors": str(risk_factors),
         "recommendation": recommendation,
         "bmi_category": bmi_category,
         "wht_risk": wht_interpretation["risk"],

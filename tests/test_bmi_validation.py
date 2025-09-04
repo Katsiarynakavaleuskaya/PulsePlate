@@ -34,5 +34,6 @@ def test_bmi_group_unknown_still_ok():
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] == 24.2
-    assert data["category"] == "Healthy weight"
+    # v1 endpoint returns "Normal weight" (EN)
+    assert data["category"] == "Normal weight"
     assert isinstance(data.get("interpretation", ""), str)

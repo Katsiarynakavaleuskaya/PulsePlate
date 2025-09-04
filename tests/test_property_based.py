@@ -69,17 +69,24 @@ def test_bmi_category_property(bmi_val, lang):
     """Test that BMI categories are consistent."""
     category = bmi_category(bmi_val, lang)
     assert category in [
-        "Underweight", "Healthy weight", "Overweight", "Obesity",
-        "Недовес", "Нормальный вес", "Избыточный вес", "Ожирение"
+        # EN
+        "Underweight", "Normal weight", "Overweight",
+        "Obese Class I", "Obese Class II", "Obese Class III",
+        # RU
+        "Недостаточная масса", "Норма", "Избыточная масса",
+        "Ожирение I степени", "Ожирение II степени", "Ожирение III степени",
     ]
     if bmi_val < 18.5:
-        assert category in ["Underweight", "Недовес"]
+        assert category in ["Underweight", "Недостаточная масса"]
     elif bmi_val < 25:
-        assert category in ["Healthy weight", "Нормальный вес"]
+        assert category in ["Normal weight", "Норма"]
     elif bmi_val < 30:
-        assert category in ["Overweight", "Избыточный вес"]
+        assert category in ["Overweight", "Избыточная масса"]
     else:
-        assert category in ["Obesity", "Ожирение"]
+        assert category in [
+            "Obese Class I", "Obese Class II", "Obese Class III",
+            "Ожирение I степени", "Ожирение II степени", "Ожирение III степени",
+        ]
 
 
 # Property-based tests for body fat functions

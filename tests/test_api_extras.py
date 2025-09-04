@@ -29,9 +29,9 @@ def test_bmi_422_missing_fields():
     "weight,height,expected_cat",
     [
         (50, 170, "Underweight"),  # ~17.3
-        (70, 170, "Healthy weight"),  # ~24.2
+        (70, 170, "Normal"),  # ~24.2 (v1 endpoint returns "Normal")
         (80, 170, "Overweight"),  # ~27.7
-        (95, 170, "Obesity"),  # ~32.9
+        (95, 170, "Obese"),  # ~32.9 (v1 endpoint returns "Obese")
     ],
 )
 def test_bmi_categories_via_api(weight, height, expected_cat):

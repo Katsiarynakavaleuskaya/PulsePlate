@@ -15,7 +15,7 @@ from bmi_core import (
 def test_interpret_group_general_en_no_extra_dot():
     # Для group='general' строка не должна заканчиваться лишней точкой
     txt = interpret_group(22.0, "general", "en")
-    assert txt == "Healthy weight"
+    assert txt == "Normal weight"
 
 
 def test_estimate_level_beginner_ru():
