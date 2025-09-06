@@ -4,7 +4,6 @@
 """
 
 import builtins
-import os
 import sys
 import types
 from contextlib import contextmanager
@@ -44,6 +43,7 @@ def clean_llm_import():
 
 def test__with_name_handles_attribute_error():
     import llm
+
     # У некоторых веток llm.py нет вспомогательной функции _with_name
     # Skip test if _with_name is not available
     if not hasattr(llm, "_with_name"):
@@ -72,7 +72,9 @@ def test_llm_stub_import_alias_path(monkeypatch):
 
     fake.Provider = Provider  # pyright: ignore[reportAttributeAccessIssue]
 
-    with mock_module("providers.stub", fake), clean_llm_import(), monkeypatch.context() as m:
+    with mock_module(
+        "providers.stub", fake
+    ), clean_llm_import(), monkeypatch.context() as m:
         m.setenv("LLM_PROVIDER", "stub")
 
         # Перезагружаем llm, чтобы прошёл путь с import Provider as StubProvider

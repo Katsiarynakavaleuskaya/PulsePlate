@@ -8,7 +8,6 @@ RU: Точечные юнит-тесты внутренних функций app
 EN: Unit tests for internal helpers in app.py.
 """
 
-import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,7 +50,7 @@ def test_bmi_with_group_note_variants(group, lang, expect_sub):
     Не лочимся на точный текст кроме RU-веток, где ожидаем часть фразы.
     """
     fn = getattr(app_mod, "_bmi_with_group_note", None)
-# sourcery skip: no-conditionals-in-tests
+    # sourcery skip: no-conditionals-in-tests
     if fn is None:
         pytest.skip("_bmi_with_group_note not found")
     msg = fn(27.3, group)  # b в зоне Overweight, чтобы заметка вклеилась
@@ -63,7 +62,7 @@ def test_bmi_with_group_note_variants(group, lang, expect_sub):
 
 def test_normalize_flags_variants():
     fn = getattr(app_mod, "_normalize_flags", None)
-# sourcery skip: no-conditionals-in-tests
+    # sourcery skip: no-conditionals-in-tests
     if fn is None:
         pytest.skip("_normalize_flags not found")
     flags = fn("male", "ДА", "y")  # ru/eng варианты
@@ -84,7 +83,7 @@ def test_debug_env_insight_flag(monkeypatch, val, expected):
     """Проворачиваем FEATURE_INSIGHT и смотрим, как вернётся строковые флаг."""
     monkeypatch.setenv("FEATURE_INSIGHT", val)
     r = client.get("/debug_env")
-# sourcery skip: no-conditionals-in-tests
+    # sourcery skip: no-conditionals-in-tests
     if r.status_code == 404:
         pytest.skip("No /debug_env route (skipping)")
     assert r.status_code == 200

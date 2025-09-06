@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Маленькие edge-тесты, которые добивают покрытие до ~99–100% при нашей версии ядра."""
 
-import pytest
 
 from bmi_core import (
     bmi_value,

@@ -19,27 +19,20 @@ class GrokProvider:
     name = "grok"
 
     def __init__(
-        self,
-        endpoint: str,
-        model: str,
-        api_key: str,
-        timeout: Optional[float] = 30.0
+        self, endpoint: str, model: str, api_key: str, timeout: Optional[float] = 30.0
     ):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.api_key = api_key
         # создаём асинхронного клиента (OpenAI совместимый эндпоинт у x.ai)
-        self.client = AsyncOpenAI(
-            base_url=self.endpoint,
-            api_key=self.api_key
-        )
+        self.client = AsyncOpenAI(base_url=self.endpoint, api_key=self.api_key)
         self.timeout = timeout
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type(Exception),
-        reraise=True
+        reraise=True,
     )
     async def generate(self, text: str) -> str:
         try:

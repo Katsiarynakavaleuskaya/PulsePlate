@@ -4,7 +4,6 @@ RU: Тестируем /api/v1/insight с LLM_PROVIDER=stub, чтобы акти
 EN: Test /api/v1/insight with LLM_PROVIDER=stub to exercise provider branch.
 """
 
-import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,9 +26,7 @@ client = TestClient(fastapi_app)
 
 def test_insight_stub_provider():
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "ping"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "ping"}, headers={"X-API-Key": "test_key"}
     )
     if r.status_code == 404:
         pytest.skip("No /api/v1/insight route (skipping)")

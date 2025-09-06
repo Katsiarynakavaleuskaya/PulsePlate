@@ -11,7 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion, UpdateResult
+from core.food_apis.update_manager import (
+    DatabaseUpdateManager,
+    DatabaseVersion,
+    UpdateResult,
+)
 
 
 class TestUpdateManagerCoverage:
@@ -32,7 +36,7 @@ class TestUpdateManagerCoverage:
 
             # Create an invalid versions file
             versions_file = manager.cache_dir / "database_versions.json"
-            with open(versions_file, 'w') as f:
+            with open(versions_file, "w") as f:
                 f.write("invalid json")
 
             # Should handle gracefully
@@ -45,7 +49,10 @@ class TestUpdateManagerCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock json.dump to raise an exception
-            with patch('core.food_apis.update_manager.json.dump', side_effect=Exception("Test error")):
+            with patch(
+                "core.food_apis.update_manager.json.dump",
+                side_effect=Exception("Test error"),
+            ):
                 # Should not crash
                 manager._save_versions()
 
@@ -56,7 +63,9 @@ class TestUpdateManagerCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock _check_usda_updates to raise an exception
-            with patch.object(manager, '_check_usda_updates', side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_check_usda_updates", side_effect=Exception("Test error")
+            ):
                 updates = await manager.check_for_updates()
                 # Should still return dict with USDA set to False
                 assert isinstance(updates, dict)
@@ -87,7 +96,7 @@ class TestUpdateManagerCoverage:
                 last_updated=recent_time,
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
@@ -129,9 +138,11 @@ class TestUpdateManagerCoverage:
                 records_updated=0,
                 records_removed=0,
                 errors=[],
-                duration_seconds=1.0
+                duration_seconds=1.0,
             )
-            with patch.object(manager, '_update_usda_database', return_value=mock_result):
+            with patch.object(
+                manager, "_update_usda_database", return_value=mock_result
+            ):
                 # Should not crash despite callback exception
                 result = await manager.update_database("usda")
                 assert result.success is True
@@ -149,14 +160,20 @@ class TestUpdateManagerCoverage:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock _create_backup to raise an exception
-            with patch.object(manager, '_create_backup', side_effect=Exception("Backup error")):
+            with patch.object(
+                manager, "_create_backup", side_effect=Exception("Backup error")
+            ):
                 # Mock unified_db.get_common_foods_database
-                with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+                with patch.object(
+                    manager.unified_db,
+                    "get_common_foods_database",
+                    new_callable=AsyncMock,
+                ) as mock_get_foods:
                     mock_get_foods.return_value = {"chicken": MagicMock()}
 
                     # Should handle the exception and still complete the update
@@ -177,16 +194,20 @@ class TestUpdateManagerCoverage:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="old_checksum",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock unified_db.get_common_foods_database
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_get_foods.return_value = {"chicken": MagicMock()}
 
                 # Mock _load_backup to raise an exception
-                with patch.object(manager, '_load_backup', side_effect=Exception("Load error")):
+                with patch.object(
+                    manager, "_load_backup", side_effect=Exception("Load error")
+                ):
                     # Should handle the exception and still complete the update
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
@@ -198,7 +219,11 @@ class TestUpdateManagerCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(manager.unified_db, 'get_common_foods_database', side_effect=Exception("Test error")):
+            with patch.object(
+                manager.unified_db,
+                "get_common_foods_database",
+                side_effect=Exception("Test error"),
+            ):
                 # Should handle the exception
                 result = await manager._update_usda_database()
                 assert result.success is False
@@ -211,6 +236,7 @@ class TestUpdateManagerCoverage:
 
             # Create food item with missing name
             from core.food_apis.unified_db import UnifiedFoodItem
+
             invalid_food = UnifiedFoodItem(
                 name="",  # Missing required field
                 nutrients_per_100g={"protein_g": 20.0},
@@ -218,7 +244,7 @@ class TestUpdateManagerCoverage:
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -234,6 +260,7 @@ class TestUpdateManagerCoverage:
 
             # Create food item with missing required nutrients
             from core.food_apis.unified_db import UnifiedFoodItem
+
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
                 nutrients_per_100g={},  # Missing required nutrients
@@ -241,7 +268,7 @@ class TestUpdateManagerCoverage:
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -257,14 +284,19 @@ class TestUpdateManagerCoverage:
 
             # Create food item with negative nutrient values
             from core.food_apis.unified_db import UnifiedFoodItem
+
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
-                nutrients_per_100g={"protein_g": -5.0, "fat_g": 2.0, "carbs_g": 3.0},  # Negative value
+                nutrients_per_100g={
+                    "protein_g": -5.0,
+                    "fat_g": 2.0,
+                    "carbs_g": 3.0,
+                },  # Negative value
                 cost_per_100g=1.0,
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -280,14 +312,19 @@ class TestUpdateManagerCoverage:
 
             # Create food item with unrealistic nutrient values
             from core.food_apis.unified_db import UnifiedFoodItem
+
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
-                nutrients_per_100g={"protein_g": 150.0, "fat_g": 2.0, "carbs_g": 3.0},  # Unrealistic value (>100g per 100g)
+                nutrients_per_100g={
+                    "protein_g": 150.0,
+                    "fat_g": 2.0,
+                    "carbs_g": 3.0,
+                },  # Unrealistic value (>100g per 100g)
                 cost_per_100g=1.0,
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -303,7 +340,11 @@ class TestUpdateManagerCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(manager.unified_db, 'get_common_foods_database', side_effect=Exception("Test error")):
+            with patch.object(
+                manager.unified_db,
+                "get_common_foods_database",
+                side_effect=Exception("Test error"),
+            ):
                 # Should handle the exception
                 await manager._create_backup("usda", "1.0")
 
@@ -323,12 +364,12 @@ class TestUpdateManagerCoverage:
                     "availability_regions": ["US"],
                     "source": "USDA",
                     "source_id": "12345",
-                    "category": "Meat"
+                    "category": "Meat",
                 }
             }
 
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
-            with open(backup_file, 'w') as f:
+            with open(backup_file, "w") as f:
                 json.dump(backup_data, f)
 
             # Should load the backup successfully
@@ -336,6 +377,7 @@ class TestUpdateManagerCoverage:
             assert isinstance(foods, dict)
             assert "chicken" in foods
             from core.food_apis.unified_db import UnifiedFoodItem
+
             assert isinstance(foods["chicken"], UnifiedFoodItem)
 
     @pytest.mark.asyncio
@@ -350,7 +392,7 @@ class TestUpdateManagerCoverage:
 
             # Just test that the function doesn't crash when there are files to clean up
             # We'll mock the unlink method on one of the files to raise an exception
-            with patch('pathlib.Path.unlink', side_effect=Exception("Test error")):
+            with patch("pathlib.Path.unlink", side_effect=Exception("Test error")):
                 # Should handle the exception gracefully
                 await manager._cleanup_old_backups("usda")
 
@@ -367,12 +409,14 @@ class TestUpdateManagerCoverage:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock _load_backup to raise an exception
-            with patch.object(manager, '_load_backup', side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_load_backup", side_effect=Exception("Test error")
+            ):
                 # Should handle the exception
                 success = await manager.rollback_database("usda", "1.0")
                 assert success is False
@@ -402,7 +446,7 @@ class TestUpdateManagerCoverage:
                 last_updated=test_time,
                 record_count=100,
                 checksum="abc123def456",
-                metadata={"test": "data"}
+                metadata={"test": "data"},
             )
             manager.versions["usda"] = version
 
@@ -446,6 +490,7 @@ class TestUpdateManagerCoverage:
 
             # Should run updates for available sources
             from core.food_apis.update_manager import run_scheduled_update
+
             results = await run_scheduled_update(manager)
 
             assert "usda" in results

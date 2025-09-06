@@ -30,6 +30,7 @@ class UserProfile:
     Combines basic anthropometric data with lifestyle factors to generate
     personalized nutrition and activity recommendations based on WHO guidelines.
     """
+
     # Basic characteristics
     sex: Sex
     age: int  # years
@@ -41,8 +42,8 @@ class UserProfile:
     goal: Goal
 
     # Goal-specific parameters
-    deficit_pct: Optional[float] = None   # for loss (5-25%)
-    surplus_pct: Optional[float] = None   # for gain (5-20%)
+    deficit_pct: Optional[float] = None  # for loss (5-25%)
+    surplus_pct: Optional[float] = None  # for gain (5-20%)
 
     # Additional context
     bodyfat: Optional[float] = None  # body fat percentage
@@ -71,6 +72,7 @@ class MacroTargets:
     RU: Целевые значения макронутриентов.
     EN: Macronutrient targets in grams per day.
     """
+
     protein_g: int
     fat_g: int
     carbs_g: int
@@ -89,6 +91,7 @@ class MicroTargets:
 
     All values are daily requirements. Units specified in field names for clarity.
     """
+
     # Essential minerals (mg/day)
     iron_mg: float
     calcium_mg: float
@@ -122,7 +125,7 @@ class MicroTargets:
             "folate_ug": self.folate_ug,
             "vitamin_d_iu": self.vitamin_d_iu,
             "b12_ug": self.b12_ug,
-            "iodine_ug": self.iodine_ug
+            "iodine_ug": self.iodine_ug,
         }
 
 
@@ -132,6 +135,7 @@ class ActivityTargets:
     RU: Целевые значения физической активности по ВОЗ.
     EN: WHO physical activity targets per week.
     """
+
     # Aerobic activity (minutes per week)
     moderate_aerobic_min: int  # e.g., 150 min/week
     vigorous_aerobic_min: int  # e.g., 75 min/week (alternative to moderate)
@@ -159,6 +163,7 @@ class NutritionTargets:
     This is the main output of the WHO-based calculation system,
     providing all daily and weekly targets for an individual.
     """
+
     # Energy and macronutrients
     kcal_daily: int
     macros: MacroTargets
@@ -197,15 +202,15 @@ class NutritionTargets:
                 "protein_g": self.macros.protein_g,
                 "fat_g": self.macros.fat_g,
                 "carbs_g": self.macros.carbs_g,
-                "fiber_g": self.macros.fiber_g
+                "fiber_g": self.macros.fiber_g,
             },
             "water_ml": self.water_ml_daily,
             "priority_micros": self.micros.get_priority_nutrients(),
             "activity_weekly": {
                 "moderate_min": self.activity.moderate_aerobic_min,
                 "strength_sessions": self.activity.strength_sessions,
-                "steps_daily": self.activity.steps_daily
-            }
+                "steps_daily": self.activity.steps_daily,
+            },
         }
 
 
@@ -215,6 +220,7 @@ class NutrientCoverage:
     RU: Оценка покрытия нутриентов в рационе.
     EN: Assessment of nutrient coverage in diet.
     """
+
     nutrient_name: str
     target_amount: float
     consumed_amount: float

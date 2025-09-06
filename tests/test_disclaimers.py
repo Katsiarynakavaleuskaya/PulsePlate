@@ -50,7 +50,10 @@ class TestMedicalDisclaimers:
         # Test pregnancy disclaimer
         pregnancy_disclaimer = get_disclaimer_text("medical", "pregnancy", "en")
         assert "pregnancy" in pregnancy_disclaimer.lower()
-        assert "obstetrician" in pregnancy_disclaimer.lower() or "prenatal" in pregnancy_disclaimer.lower()
+        assert (
+            "obstetrician" in pregnancy_disclaimer.lower()
+            or "prenatal" in pregnancy_disclaimer.lower()
+        )
 
         # Test children disclaimer
         children_disclaimer = get_disclaimer_text("medical", "children", "en")
@@ -58,7 +61,10 @@ class TestMedicalDisclaimers:
 
         # Test elderly disclaimer
         elderly_disclaimer = get_disclaimer_text("medical", "elderly", "en")
-        assert "elderly" in elderly_disclaimer.lower() or "older adults" in elderly_disclaimer.lower()
+        assert (
+            "elderly" in elderly_disclaimer.lower()
+            or "older adults" in elderly_disclaimer.lower()
+        )
 
     def test_legal_disclaimer(self):
         """Test legal disclaimer."""
@@ -97,11 +103,17 @@ class TestMedicalDisclaimers:
         """Test professional referral recommendations."""
         # Test general referral
         general_referral = get_professional_referral("general")
-        assert "dietitian" in general_referral.lower() or "physician" in general_referral.lower()
+        assert (
+            "dietitian" in general_referral.lower()
+            or "physician" in general_referral.lower()
+        )
 
         # Test pregnancy referral
         pregnancy_referral = get_professional_referral("pregnancy")
-        assert "obstetrician" in pregnancy_referral.lower() or "midwife" in pregnancy_referral.lower()
+        assert (
+            "obstetrician" in pregnancy_referral.lower()
+            or "midwife" in pregnancy_referral.lower()
+        )
 
         # Test pediatric referral
         pediatric_referral = get_professional_referral("pediatric")
@@ -118,7 +130,10 @@ class TestDisclaimerConstants:
 
         for lang_disclaimer in MEDICAL_DISCLAIMER.values():
             assert len(lang_disclaimer) > 100  # Should be substantial
-            assert "medical" in lang_disclaimer.lower() or "медицинский" in lang_disclaimer.lower()
+            assert (
+                "medical" in lang_disclaimer.lower()
+                or "медицинский" in lang_disclaimer.lower()
+            )
 
     def test_special_population_structure(self):
         """Test special population disclaimers structure."""
@@ -140,7 +155,10 @@ class TestDisclaimerConstants:
 
         for lang_disclaimer in LEGAL_DISCLAIMER.values():
             assert len(lang_disclaimer) > 50
-            assert "liable" in lang_disclaimer.lower() or "ответственности" in lang_disclaimer.lower()
+            assert (
+                "liable" in lang_disclaimer.lower()
+                or "ответственности" in lang_disclaimer.lower()
+            )
 
     def test_privacy_disclaimer_structure(self):
         """Test privacy disclaimer structure."""
@@ -149,7 +167,10 @@ class TestDisclaimerConstants:
 
         for lang_disclaimer in PRIVACY_DISCLAIMER.values():
             assert len(lang_disclaimer) > 50
-            assert "privacy" in lang_disclaimer.lower() or "конфиденциальности" in lang_disclaimer.lower()
+            assert (
+                "privacy" in lang_disclaimer.lower()
+                or "конфиденциальности" in lang_disclaimer.lower()
+            )
 
 
 class TestDisclaimerIntegration:
@@ -163,9 +184,18 @@ class TestDisclaimerIntegration:
         privacy_en = get_disclaimer_text("privacy", language="en")
 
         # All should be in English (no Cyrillic characters)
-        assert not any(russian_char in medical_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
-        assert not any(russian_char in legal_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
-        assert not any(russian_char in privacy_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
+        assert not any(
+            russian_char in medical_en
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
+        assert not any(
+            russian_char in legal_en
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
+        assert not any(
+            russian_char in privacy_en
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
 
         # Russian
         medical_ru = get_disclaimer_text("medical", language="ru")
@@ -173,9 +203,18 @@ class TestDisclaimerIntegration:
         privacy_ru = get_disclaimer_text("privacy", language="ru")
 
         # Should contain Cyrillic characters
-        assert any(russian_char in medical_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
-        assert any(russian_char in legal_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
-        assert any(russian_char in privacy_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
+        assert any(
+            russian_char in medical_ru
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
+        assert any(
+            russian_char in legal_ru
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
+        assert any(
+            russian_char in privacy_ru
+            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        )
 
     def test_disclaimer_length_appropriate(self):
         """Test that disclaimers are appropriately detailed."""
@@ -205,7 +244,10 @@ class TestDisclaimerIntegration:
 
         # Should emphasize medical supervision during pregnancy
         assert "pregnancy" in pregnancy_disclaimer.lower()
-        assert "medical supervision" in pregnancy_disclaimer.lower() or "healthcare provider" in pregnancy_disclaimer.lower()
+        assert (
+            "medical supervision" in pregnancy_disclaimer.lower()
+            or "healthcare provider" in pregnancy_disclaimer.lower()
+        )
 
 
 if __name__ == "__main__":

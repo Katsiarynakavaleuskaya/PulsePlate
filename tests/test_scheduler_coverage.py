@@ -3,7 +3,7 @@ Additional tests to improve coverage for scheduler.py to reach 97%+.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,7 +25,10 @@ class TestSchedulerCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock signal.signal to raise an exception
-        with patch('core.food_apis.scheduler.signal.signal', side_effect=Exception("Test error")):
+        with patch(
+            "core.food_apis.scheduler.signal.signal",
+            side_effect=Exception("Test error"),
+        ):
             # Should not crash
             scheduler._setup_signal_handlers()
             # Should log warning (we can't easily test logging, but at least it shouldn't crash)
@@ -37,7 +40,7 @@ class TestSchedulerCoverage:
         scheduler.is_running = True
 
         # Mock datetime.now to return consistent values
-        with patch('core.food_apis.scheduler.datetime') as mock_datetime:
+        with patch("core.food_apis.scheduler.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
@@ -45,10 +48,14 @@ class TestSchedulerCoverage:
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 
             # Mock _run_update_check to raise CancelledError
-            scheduler._run_update_check = AsyncMock(side_effect=asyncio.CancelledError())
+            scheduler._run_update_check = AsyncMock(
+                side_effect=asyncio.CancelledError()
+            )
 
             # Mock asyncio.sleep to avoid waiting
-            with patch('core.food_apis.scheduler.asyncio.sleep', new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Should not crash
                 await scheduler._update_loop()
 
@@ -59,7 +66,7 @@ class TestSchedulerCoverage:
         scheduler.is_running = True
 
         # Mock datetime.now to return consistent values
-        with patch('core.food_apis.scheduler.datetime') as mock_datetime:
+        with patch("core.food_apis.scheduler.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
@@ -70,7 +77,9 @@ class TestSchedulerCoverage:
             scheduler._run_update_check = AsyncMock(side_effect=Exception("Test error"))
 
             # Mock asyncio.sleep to control execution
-            with patch('core.food_apis.scheduler.asyncio.sleep', new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Create a task to run the loop
                 loop_task = asyncio.create_task(scheduler._update_loop())
 
@@ -90,7 +99,9 @@ class TestSchedulerCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should not crash
         await scheduler._run_update_check()
@@ -101,7 +112,9 @@ class TestSchedulerCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.update_database = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should handle the exception gracefully
         await scheduler._run_source_update("test_source")
@@ -141,7 +154,7 @@ class TestSchedulerCoverage:
             records_updated=5,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
         # Should not crash
@@ -157,7 +170,7 @@ class TestSchedulerCoverage:
             records_updated=0,
             records_removed=0,
             errors=["Test error"],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
         # Should not crash
@@ -178,7 +191,7 @@ class TestSchedulerCoverage:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -194,7 +207,9 @@ class TestSchedulerCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"test_source": True})
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            return_value={"test_source": True}
+        )
 
         # Mock update_manager.update_database
         mock_result = UpdateResult(
@@ -206,7 +221,7 @@ class TestSchedulerCoverage:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -233,21 +248,23 @@ class TestSchedulerCoverage:
             last_updated="2023-01-01T10:00:00",
             record_count=100,
             checksum="abc123",
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
         scheduler.update_manager.versions["test_source"] = test_version
 
         # Mock update_manager.get_database_status
-        scheduler.update_manager.get_database_status = MagicMock(return_value={
-            "test_source": {
-                "version": "1.0",
-                "last_updated": "2023-01-01T10:00:00",
-                "hours_since_update": 2.0,
-                "record_count": 100,
-                "checksum": "abc123...",
-                "metadata": {"test": "data"}
+        scheduler.update_manager.get_database_status = MagicMock(
+            return_value={
+                "test_source": {
+                    "version": "1.0",
+                    "last_updated": "2023-01-01T10:00:00",
+                    "hours_since_update": 2.0,
+                    "record_count": 100,
+                    "checksum": "abc123...",
+                    "metadata": {"test": "data"},
+                }
             }
-        })
+        )
 
         status = scheduler.get_status()
 
@@ -267,13 +284,13 @@ class TestSchedulerCoverage:
         assert scheduler1 is scheduler2
 
         # Test start_background_updates
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await start_background_updates(1)  # 1 hour interval
             # Should log that updates started
             mock_logger.info.assert_called()
 
         # Test stop_background_updates
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
             # Should log that updates stopped
             mock_logger.info.assert_called()

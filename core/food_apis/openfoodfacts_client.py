@@ -33,6 +33,7 @@ class OFFFoodItem:
     RU: Элемент из базы данных Open Food Facts с полной информацией.
     EN: Open Food Facts food item with complete information.
     """
+
     code: str  # Barcode
     product_name: str
     categories: List[str]
@@ -57,7 +58,7 @@ class OFFFoodItem:
             "tags": self._generate_tags(),
             "availability_regions": self.countries,
             "source": "Open Food Facts",
-            "source_id": self.code
+            "source_id": self.code,
         }
 
     def _generate_tags(self) -> List[str]:
@@ -118,25 +119,21 @@ class OFFClient:
             "carbohydrates_100g": "carbs_g",
             "fiber_100g": "fiber_g",
             "energy-kcal_100g": "kcal",
-
             # Minerals (mg)
             "calcium_100g": "calcium_mg",
             "iron_100g": "iron_mg",
             "magnesium_100g": "magnesium_mg",
             "zinc_100g": "zinc_mg",
             "potassium_100g": "potassium_mg",
-
             # Trace elements (μg)
             "selenium_100g": "selenium_ug",
             "iodine_100g": "iodine_ug",
-
             # Vitamins
             "vitamin-a_100g": "vitamin_a_ug",
             "vitamin-d_100g": "vitamin_d_iu",
             "vitamin-c_100g": "vitamin_c_mg",
             "folates_100g": "folate_ug",
             "vitamin-b12_100g": "b12_ug",
-
             # B-vitamins
             "vitamin-b1_100g": "thiamin_mg",
             "vitamin-b2_100g": "riboflavin_mg",
@@ -144,7 +141,9 @@ class OFFClient:
             "vitamin-b6_100g": "b6_mg",
         }
 
-    async def search_products(self, query: str, page_size: int = 25) -> List[OFFFoodItem]:
+    async def search_products(
+        self, query: str, page_size: int = 25
+    ) -> List[OFFFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search products by name.
@@ -165,7 +164,7 @@ class OFFClient:
                 "fields": (
                     "code,product_name,nutriments,categories,ingredients_text,"
                     "brands,labels,countries,packaging,image_url,last_modified_t"
-                )
+                ),
             }
 
             response = await self.client.get(url, params=params)
@@ -225,7 +224,9 @@ class OFFClient:
             )
             return None
 
-    def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
+    def _parse_product_item(
+        self, product_data: Dict[str, Any]
+    ) -> Optional[OFFFoodItem]:
         """
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
@@ -250,27 +251,39 @@ class OFFClient:
 
             # Parse categories
             categories_raw = product_data.get("categories", "")
-            categories = [
-                cat.strip() for cat in categories_raw.split(",") if cat.strip()
-            ] if categories_raw else []
+            categories = (
+                [cat.strip() for cat in categories_raw.split(",") if cat.strip()]
+                if categories_raw
+                else []
+            )
 
             # Parse labels
             labels_raw = product_data.get("labels", "")
-            labels = [
-                label.strip() for label in labels_raw.split(",") if label.strip()
-            ] if labels_raw else []
+            labels = (
+                [label.strip() for label in labels_raw.split(",") if label.strip()]
+                if labels_raw
+                else []
+            )
 
             # Parse countries
             countries_raw = product_data.get("countries", "")
-            countries = [
-                country.strip() for country in countries_raw.split(",") if country.strip()
-            ] if countries_raw else ["World"]
+            countries = (
+                [
+                    country.strip()
+                    for country in countries_raw.split(",")
+                    if country.strip()
+                ]
+                if countries_raw
+                else ["World"]
+            )
 
             # Parse packaging
             packaging_raw = product_data.get("packaging", "")
-            packaging = [
-                pkg.strip() for pkg in packaging_raw.split(",") if pkg.strip()
-            ] if packaging_raw else []
+            packaging = (
+                [pkg.strip() for pkg in packaging_raw.split(",") if pkg.strip()]
+                if packaging_raw
+                else []
+            )
 
             return OFFFoodItem(
                 code=code,
@@ -283,7 +296,7 @@ class OFFClient:
                 countries=countries,
                 packaging=packaging,
                 image_url=product_data.get("image_url"),
-                last_modified_t=product_data.get("last_modified_t", 0)
+                last_modified_t=product_data.get("last_modified_t", 0),
             )
 
         except Exception as e:

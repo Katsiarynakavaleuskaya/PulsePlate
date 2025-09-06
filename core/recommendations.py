@@ -51,8 +51,7 @@ def build_nutrition_targets(profile: UserProfile) -> NutritionTargets:
     """
     # 1. Calculate energy requirements using validated BMR formulas
     bmr_results = calculate_all_bmr(
-        profile.weight_kg, profile.height_cm, profile.age,
-        profile.sex, profile.bodyfat
+        profile.weight_kg, profile.height_cm, profile.age, profile.sex, profile.bodyfat
     )
     tdee_results = calculate_all_tdee(bmr_results, profile.activity)
 
@@ -81,7 +80,7 @@ def build_nutrition_targets(profile: UserProfile) -> NutritionTargets:
         micros=micros,
         activity=activity,
         calculated_for=profile,
-        calculation_date=datetime.now().isoformat()[:10]
+        calculation_date=datetime.now().isoformat()[:10],
     )
 
 
@@ -133,10 +132,7 @@ def _calculate_macro_targets(target_kcal: int, profile: UserProfile) -> MacroTar
     fiber_g = get_fiber_target(target_kcal)
 
     return MacroTargets(
-        protein_g=protein_g,
-        fat_g=fat_g,
-        carbs_g=carbs_g,
-        fiber_g=fiber_g
+        protein_g=protein_g, fat_g=fat_g, carbs_g=carbs_g, fiber_g=fiber_g
     )
 
 
@@ -159,7 +155,7 @@ def _calculate_micro_targets(profile: UserProfile) -> MicroTargets:
         b12_ug=rda["b12_ug"],
         vitamin_d_iu=rda["vitamin_d_iu"],
         vitamin_a_ug=rda["vitamin_a_ug"],
-        vitamin_c_mg=rda["vitamin_c_mg"]
+        vitamin_c_mg=rda["vitamin_c_mg"],
     )
 
 
@@ -174,12 +170,13 @@ def _calculate_activity_targets(profile: UserProfile) -> ActivityTargets:
         moderate_aerobic_min=guidelines["moderate_aerobic_min"],
         vigorous_aerobic_min=guidelines["vigorous_aerobic_min"],
         strength_sessions=guidelines["strength_sessions"],
-        steps_daily=guidelines["steps_daily"]
+        steps_daily=guidelines["steps_daily"],
     )
 
 
-def score_nutrient_coverage(consumed_nutrients: Dict[str, float],
-                          targets: NutritionTargets) -> Dict[str, NutrientCoverage]:
+def score_nutrient_coverage(
+    consumed_nutrients: Dict[str, float], targets: NutritionTargets
+) -> Dict[str, NutrientCoverage]:
     """
     RU: Оценивает покрытие нутриентов в фактическом рационе.
     EN: Scores nutrient coverage in actual diet consumption.
@@ -198,7 +195,7 @@ def score_nutrient_coverage(consumed_nutrients: Dict[str, float],
         "protein_g": (targets.macros.protein_g, "g"),
         "fat_g": (targets.macros.fat_g, "g"),
         "carbs_g": (targets.macros.carbs_g, "g"),
-        "fiber_g": (targets.macros.fiber_g, "g")
+        "fiber_g": (targets.macros.fiber_g, "g"),
     }
 
     for nutrient, (target_val, unit) in macro_mapping.items():
@@ -207,7 +204,7 @@ def score_nutrient_coverage(consumed_nutrients: Dict[str, float],
             nutrient_name=nutrient,
             target_amount=target_val,
             consumed_amount=consumed,
-            unit=unit
+            unit=unit,
         )
 
     # Score micronutrients
@@ -223,7 +220,7 @@ def score_nutrient_coverage(consumed_nutrients: Dict[str, float],
         "b12_ug": (targets.micros.b12_ug, "μg"),
         "vitamin_d_iu": (targets.micros.vitamin_d_iu, "IU"),
         "vitamin_a_ug": (targets.micros.vitamin_a_ug, "μg"),
-        "vitamin_c_mg": (targets.micros.vitamin_c_mg, "mg")
+        "vitamin_c_mg": (targets.micros.vitamin_c_mg, "mg"),
     }
 
     for nutrient, (target_val, unit) in micro_mapping.items():
@@ -232,15 +229,15 @@ def score_nutrient_coverage(consumed_nutrients: Dict[str, float],
             nutrient_name=nutrient,
             target_amount=target_val,
             consumed_amount=consumed,
-            unit=unit
+            unit=unit,
         )
 
     return coverage
 
 
-def generate_deficiency_recommendations(coverage: Dict[str, NutrientCoverage],
-                                      profile: UserProfile,
-                                      lang: str = "en") -> List[str]:
+def generate_deficiency_recommendations(
+    coverage: Dict[str, NutrientCoverage], profile: UserProfile, lang: str = "en"
+) -> List[str]:
     """
     RU: Генерирует рекомендации по устранению дефицитов через продукты питания.
     EN: Generates food-based recommendations for addressing nutrient deficiencies.
@@ -258,8 +255,10 @@ def generate_deficiency_recommendations(coverage: Dict[str, NutrientCoverage],
     food_sources = _get_nutrient_food_sources(lang)
 
     for nutrient_name, nutrient_coverage in coverage.items():
-        if (nutrient_coverage.status == "deficient" and
-            nutrient_name in priority_nutrients):
+        if (
+            nutrient_coverage.status == "deficient"
+            and nutrient_name in priority_nutrients
+        ):
 
             if nutrient_name in food_sources:
                 sources = food_sources[nutrient_name]
@@ -285,25 +284,55 @@ def _get_nutrient_food_sources(lang: str = "en") -> Dict[str, List[str]]:
     """
     if lang == "ru":
         return {
-            "iron_mg": ["говядина", "чечевица", "шпинат", "гречка", "тыквенные семечки"],
+            "iron_mg": [
+                "говядина",
+                "чечевица",
+                "шпинат",
+                "гречка",
+                "тыквенные семечки",
+            ],
             "calcium_mg": ["творог", "кунжут", "брокколи", "сардины", "миндаль"],
             "folate_ug": ["бобовые", "листовая зелень", "авокадо", "спаржа"],
             "vitamin_d_iu": ["жирная рыба", "яичные желтки", "грибы"],
             "b12_ug": ["мясо", "рыба", "молочные продукты", "яйца"],
             "iodine_ug": ["морская капуста", "рыба", "йодированная соль"],
             "zinc_mg": ["мясо", "орехи", "семена", "бобовые"],
-            "magnesium_mg": ["орехи", "семена", "темная зелень", "цельные зерна"]
+            "magnesium_mg": ["орехи", "семена", "темная зелень", "цельные зерна"],
         }
     else:
         return {
-            "iron_mg": ["lean red meat", "lentils", "spinach", "pumpkin seeds", "fortified cereals"],
-            "calcium_mg": ["dairy products", "leafy greens", "sardines", "almonds", "fortified plant milk"],
-            "folate_ug": ["legumes", "leafy greens", "avocado", "asparagus", "fortified grains"],
+            "iron_mg": [
+                "lean red meat",
+                "lentils",
+                "spinach",
+                "pumpkin seeds",
+                "fortified cereals",
+            ],
+            "calcium_mg": [
+                "dairy products",
+                "leafy greens",
+                "sardines",
+                "almonds",
+                "fortified plant milk",
+            ],
+            "folate_ug": [
+                "legumes",
+                "leafy greens",
+                "avocado",
+                "asparagus",
+                "fortified grains",
+            ],
             "vitamin_d_iu": ["fatty fish", "egg yolks", "fortified milk", "mushrooms"],
             "b12_ug": ["meat", "fish", "dairy", "eggs", "nutritional yeast"],
             "iodine_ug": ["seaweed", "fish", "iodized salt", "dairy"],
             "zinc_mg": ["meat", "nuts", "seeds", "legumes", "whole grains"],
-            "magnesium_mg": ["nuts", "seeds", "dark leafy greens", "whole grains", "dark chocolate"]
+            "magnesium_mg": [
+                "nuts",
+                "seeds",
+                "dark leafy greens",
+                "whole grains",
+                "dark chocolate",
+            ],
         }
 
 
@@ -316,13 +345,13 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
         "en": {
             "iron_mg": "combine with vitamin C-rich foods for better absorption",
             "b12_ug": "consider fortified nutritional yeast or fortified plant milk",
-            "zinc_mg": "soak legumes and grains to improve absorption"
+            "zinc_mg": "soak legumes and grains to improve absorption",
         },
         "ru": {
             "iron_mg": "сочетайте с продуктами, богатыми витамином C, для лучшего усвоения",
             "b12_ug": "рассмотрите обогащённые дрожжи или растительное молоко",
-            "zinc_mg": "замачивайте бобовые и зерна для улучшения усвоения"
-        }
+            "zinc_mg": "замачивайте бобовые и зерна для улучшения усвоения",
+        },
     }
 
     if nutrient in vegetarian_swaps[lang]:
@@ -331,7 +360,9 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
     return recommendation
 
 
-def calculate_weekly_coverage(daily_coverages: List[Dict[str, NutrientCoverage]]) -> Dict[str, float]:
+def calculate_weekly_coverage(
+    daily_coverages: List[Dict[str, NutrientCoverage]],
+) -> Dict[str, float]:
     """
     RU: Рассчитывает среднее покрытие нутриентов за неделю.
     EN: Calculates average nutrient coverage over a week.

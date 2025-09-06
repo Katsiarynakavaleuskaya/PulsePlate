@@ -30,9 +30,7 @@ def test_us_navy_male_smoke():
 
 
 def test_us_navy_female_smoke():
-    val = bf_us_navy(
-        height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female"
-    )
+    val = bf_us_navy(height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female")
     assert_percent(val)
 
 

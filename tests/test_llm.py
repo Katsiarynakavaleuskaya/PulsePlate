@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Тесты для llm.py с полным покрытием."""
 
-import pytest
 
 try:
     from llm import get_provider
@@ -11,6 +10,7 @@ except ImportError:
 
 def test_get_provider_stub():
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = "stub"
     try:
@@ -27,6 +27,7 @@ def test_get_provider_stub():
 
 def test_get_provider_grok():
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = "grok"
     try:
@@ -43,6 +44,7 @@ def test_get_provider_grok():
 
 def test_get_provider_ollama():
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = "ollama"
     try:
@@ -59,6 +61,7 @@ def test_get_provider_ollama():
 
 def test_get_provider_invalid():
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = "invalid"
     try:
@@ -73,6 +76,7 @@ def test_get_provider_invalid():
 
 def test_get_provider_no_env():
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     if "LLM_PROVIDER" in os.environ:
         del os.environ["LLM_PROVIDER"]
@@ -87,28 +91,34 @@ def test_get_provider_no_env():
 # Тесты для провайдеров, если они импортируются
 try:
     from llm.providers.stub import StubProvider
+
     def test_stub_provider_generate():
         provider = StubProvider()
         result = provider.generate("test")
         assert isinstance(result, str)
         assert "stub" in result.lower()
+
 except ImportError:
     pass
 
 try:
     from llm.providers.grok import GrokProvider
+
     def test_grok_provider_generate():
         provider = GrokProvider()
         result = provider.generate("test")
         assert isinstance(result, str)
+
 except ImportError:
     pass
 
 try:
     from llm.providers.ollama import OllamaProvider
+
     def test_ollama_provider_generate():
         provider = OllamaProvider()
         result = provider.generate("test")
         assert isinstance(result, str)
+
 except ImportError:
     pass

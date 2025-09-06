@@ -3,7 +3,6 @@ Targeted tests to improve coverage for specific uncovered lines in app.py.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -113,7 +112,7 @@ class TestTargetedCoverageImprovement:
             "gender": "male",
             "pregnant": "yes",  # Male can't be pregnant
             "athlete": "no",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = self.client.post("/bmi", json=data)
@@ -128,12 +127,12 @@ class TestTargetedCoverageImprovement:
         """Test BMI endpoint with extreme but valid values."""
         data = {
             "weight_kg": 200.0,  # Very heavy
-            "height_m": 2.2,     # Very tall
+            "height_m": 2.2,  # Very tall
             "age": 80,
             "gender": "female",
             "pregnant": "no",
             "athlete": "no",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = self.client.post("/bmi", json=data)
@@ -173,7 +172,7 @@ class TestTargetedCoverageImprovement:
             "waist_cm": 85.0,
             "lang": "en",
             "premium": True,
-            "include_chart": False
+            "include_chart": False,
         }
 
         response = self.client.post("/bmi", json=data)

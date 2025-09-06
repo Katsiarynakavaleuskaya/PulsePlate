@@ -17,5 +17,5 @@ __all__ = [
     "build_nutrition_targets",
     "make_daily_menu",
     "make_weekly_menu",
-    "analyze_nutrient_gaps"
+    "analyze_nutrient_gaps",
 ]

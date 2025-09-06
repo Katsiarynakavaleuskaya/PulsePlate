@@ -12,11 +12,19 @@ def bf_deurenberg(bmi: float, age: int, gender: str) -> float:
 
 
 def bf_us_navy(
-    height_cm: float, neck_cm: float, waist_cm: float, gender: str, hip_cm: Optional[float] = None
+    height_cm: float,
+    neck_cm: float,
+    waist_cm: float,
+    gender: str,
+    hip_cm: Optional[float] = None,
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
-        return 86.010 * math.log10(waist_cm - neck_cm) - 70.041 * math.log10(height_cm) + 36.76
+        return (
+            86.010 * math.log10(waist_cm - neck_cm)
+            - 70.041 * math.log10(height_cm)
+            + 36.76
+        )
     else:
         if hip_cm is None:
             raise ValueError("hip_cm required for female")

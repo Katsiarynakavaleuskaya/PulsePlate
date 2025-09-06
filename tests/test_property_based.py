@@ -49,7 +49,7 @@ class _StubProvider:
 # Property-based tests for BMI core functions
 @given(
     weight=st.floats(min_value=30, max_value=300),
-    height=st.floats(min_value=0.5, max_value=2.5)
+    height=st.floats(min_value=0.5, max_value=2.5),
 )
 def test_bmi_value_property(weight, height):
     """Test that BMI is always positive and within reasonable range."""
@@ -62,15 +62,20 @@ def test_bmi_value_property(weight, height):
 
 
 @given(
-    bmi_val=st.floats(min_value=10, max_value=50),
-    lang=st.sampled_from(["en", "ru"])
+    bmi_val=st.floats(min_value=10, max_value=50), lang=st.sampled_from(["en", "ru"])
 )
 def test_bmi_category_property(bmi_val, lang):
     """Test that BMI categories are consistent."""
     category = bmi_category(bmi_val, lang)
     assert category in [
-        "Underweight", "Healthy weight", "Overweight", "Obesity",
-        "Недовес", "Нормальный вес", "Избыточный вес", "Ожирение"
+        "Underweight",
+        "Healthy weight",
+        "Overweight",
+        "Obesity",
+        "Недовес",
+        "Нормальный вес",
+        "Избыточный вес",
+        "Ожирение",
     ]
     if bmi_val < 18.5:
         assert category in ["Underweight", "Недовес"]
@@ -86,7 +91,7 @@ def test_bmi_category_property(bmi_val, lang):
 @given(
     bmi=st.floats(15, 40),
     age=st.integers(18, 80),
-    gender=st.sampled_from(["male", "female"])
+    gender=st.sampled_from(["male", "female"]),
 )
 def test_bf_deurenberg_property(bmi, age, gender):
     """Test Deurenberg formula with random inputs."""
@@ -103,7 +108,7 @@ def test_bf_deurenberg_property(bmi, age, gender):
     neck_cm=st.floats(30, 50),
     waist_cm=st.floats(60, 120),
     gender=st.sampled_from(["male", "female"]),
-    hip_cm=st.floats(80, 130)
+    hip_cm=st.floats(80, 130),
 )
 def test_bf_us_navy_property(height_cm, neck_cm, waist_cm, gender, hip_cm):
     """Test US Navy formula with random inputs."""
@@ -120,7 +125,7 @@ def test_bf_us_navy_property(height_cm, neck_cm, waist_cm, gender, hip_cm):
 @given(
     weight_kg=st.floats(40, 200),
     waist_cm=st.floats(60, 120),
-    gender=st.sampled_from(["male", "female"])
+    gender=st.sampled_from(["male", "female"]),
 )
 def test_bf_ymca_property(weight_kg, waist_cm, gender):
     """Test YMCA formula with random inputs."""
@@ -135,10 +140,7 @@ def test_bf_ymca_property(weight_kg, waist_cm, gender):
 
 
 # Property-based tests for API endpoints
-@given(
-    weight=st.floats(30, 300),
-    height=st.floats(0.5, 2.5)
-)
+@given(weight=st.floats(30, 300), height=st.floats(0.5, 2.5))
 def test_api_bmi_property(weight, height):
     """Test /api/v1/bmi endpoint with random inputs."""
     # Convert height to cm for API
@@ -146,7 +148,7 @@ def test_api_bmi_property(weight, height):
     response = client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height_cm, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -161,9 +163,7 @@ def test_api_insight_property(text):
     # Use a context manager instead of monkeypatch to avoid fixture scope issues
     with unittest.mock.patch.object(llm, "get_provider", lambda: _StubProvider()):
         response = client.post(
-            "/api/v1/insight",
-            json={"text": text},
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/insight", json={"text": text}, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -178,7 +178,7 @@ def test_api_insight_property(text):
     gender=st.sampled_from(["male", "female"]),
     waist=st.floats(60, 120),
     hip=st.floats(80, 130),
-    neck=st.floats(30, 50)
+    neck=st.floats(30, 50),
 )
 def test_api_bodyfat_property(weight, height, age, gender, waist, hip, neck):
     """Test /api/v1/bodyfat endpoint with random inputs."""
@@ -189,7 +189,7 @@ def test_api_bodyfat_property(weight, height, age, gender, waist, hip, neck):
         "gender": gender,
         "waist_cm": waist,
         "hip_cm": hip,
-        "neck_cm": neck
+        "neck_cm": neck,
     }
     response = client.post("/api/v1/bodyfat", json=request_data)
     assert response.status_code in [200, 422]  # 200 for valid, 422 for invalid

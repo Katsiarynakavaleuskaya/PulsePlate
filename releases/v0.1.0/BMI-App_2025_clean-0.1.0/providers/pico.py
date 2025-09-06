@@ -10,10 +10,19 @@ from . import ProviderBase
 class PicoProvider(ProviderBase):
     name = "pico"
 
-    def __init__(self, endpoint: str | None = None, model: str | None = None, api_key: str | None = None):
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        model: str | None = None,
+        api_key: str | None = None,
+    ):
         # Pico заявляет совместимость с Ollama REST; по умолчанию тот же порт
-        self.endpoint = endpoint or os.getenv("PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"))
-        self.model = model or os.getenv("PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b"))
+        self.endpoint = endpoint or os.getenv(
+            "PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+        )
+        self.model = model or os.getenv(
+            "PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        )
         self.client = httpx.Client(base_url=self.endpoint, timeout=30.0)
 
     def generate(self, text: str) -> str:

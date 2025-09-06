@@ -2,9 +2,7 @@
 Final tests to cover remaining lines in core/food_apis/scheduler.py.
 """
 
-import asyncio
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -20,6 +18,7 @@ class TestSchedulerFinalCoverage:
 
         # Mock signal.signal to raise an exception on the first call but not the second
         call_count = 0
+
         def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -27,8 +26,8 @@ class TestSchedulerFinalCoverage:
                 raise Exception("Test error")
             # Second call should succeed (we don't need to test it specifically)
 
-        with patch('core.food_apis.scheduler.signal.signal', side_effect=side_effect):
-            with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.signal.signal", side_effect=side_effect):
+            with patch("core.food_apis.scheduler.logger") as mock_logger:
                 scheduler._setup_signal_handlers()
                 # Should log warning when exception occurs
                 mock_logger.warning.assert_called_once()
@@ -39,9 +38,11 @@ class TestSchedulerFinalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_update_check()
             # Should log error when exception occurs
             mock_logger.error.assert_called_once()
@@ -55,9 +56,11 @@ class TestSchedulerFinalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.update_database = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
-        with patch('core.food_apis.scheduler.logger'):
+        with patch("core.food_apis.scheduler.logger"):
             await scheduler._run_source_update("test_source")
             # Should log warning when exception occurs in _handle_update_failure
             # We need to check that retry count was incremented

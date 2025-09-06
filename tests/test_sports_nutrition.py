@@ -27,7 +27,7 @@ class TestSportsNutritionCalculator:
             height_cm=175,
             weight_kg=70,
             activity="very_active",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Endurance sport during in-season phase
@@ -58,7 +58,7 @@ class TestSportsNutritionCalculator:
             height_cm=165,
             weight_kg=60,
             activity="active",
-            goal="gain"
+            goal="gain",
         )
 
         # Strength sport during peak phase
@@ -85,7 +85,7 @@ class TestSportsNutritionCalculator:
             height_cm=180,
             weight_kg=75,
             activity="very_active",
-            goal="maintain"
+            goal="maintain",
         )
 
         nutrition = SportsNutritionCalculator.calculate_sports_targets(
@@ -110,7 +110,7 @@ class TestSportsNutritionCalculator:
             height_cm=170,
             weight_kg=65,
             activity="very_active",
-            goal="maintain"
+            goal="maintain",
         )
 
         nutrition = SportsNutritionCalculator.calculate_sports_targets(
@@ -132,7 +132,7 @@ class TestSportsNutritionCalculator:
             height_cm=175,
             weight_kg=70,
             activity="very_active",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Test different phases for same sport
@@ -155,7 +155,7 @@ class TestSportsNutritionCalculator:
             height_cm=170,
             weight_kg=65,
             activity="very_active",
-            goal="loss"
+            goal="loss",
         )
 
         nutrition = SportsNutritionCalculator.calculate_sports_targets(
@@ -221,7 +221,7 @@ class TestSportsNutritionDataStructures:
             SportCategory.TEAM,
             SportCategory.AESTHETIC,
             SportCategory.COMBAT,
-            SportCategory.RECREATIONAL
+            SportCategory.RECREATIONAL,
         ]
 
         for category in categories:
@@ -235,7 +235,7 @@ class TestSportsNutritionDataStructures:
             TrainingPhase.PRE_SEASON,
             TrainingPhase.IN_SEASON,
             TrainingPhase.PEAK,
-            TrainingPhase.RECOVERY
+            TrainingPhase.RECOVERY,
         ]
 
         for phase in phases:
@@ -244,9 +244,9 @@ class TestSportsNutritionDataStructures:
 
     def test_calculator_requirements_data(self):
         """Test that calculator has required data structures."""
-        assert hasattr(SportsNutritionCalculator, 'SPORT_PROTEIN_REQUIREMENTS')
-        assert hasattr(SportsNutritionCalculator, 'SPORT_CARB_REQUIREMENTS')
-        assert hasattr(SportsNutritionCalculator, 'HYDRATION_GUIDELINES')
+        assert hasattr(SportsNutritionCalculator, "SPORT_PROTEIN_REQUIREMENTS")
+        assert hasattr(SportsNutritionCalculator, "SPORT_CARB_REQUIREMENTS")
+        assert hasattr(SportsNutritionCalculator, "HYDRATION_GUIDELINES")
 
         # Check that all sport categories are covered
         for category in SportCategory:

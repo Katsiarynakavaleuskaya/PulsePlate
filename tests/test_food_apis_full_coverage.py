@@ -11,13 +11,9 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 # ---------------- USDA Client -----------------
 
@@ -30,16 +26,18 @@ def _usda_food(min_nutrients: bool = True) -> Dict[str, Any]:
         "dataType": "SR Legacy",
         "publicationDate": "2020-01-01",
         "foodCategory": {"description": "Poultry"},
-        "foodNutrients": []
+        "foodNutrients": [],
     }
     # Add nutrients
     if min_nutrients:
-        foods["foodNutrients"].extend([
-            {"nutrientId": 1003, "value": 31.0},  # protein_g
-            {"nutrientId": 1004, "value": 3.6},   # fat_g
-            {"nutrientId": 1005, "value": 0.0},  # carbs_g
-            {"nutrient": {"id": 1008}, "amount": 165.0},  # kcal via nested
-        ])
+        foods["foodNutrients"].extend(
+            [
+                {"nutrientId": 1003, "value": 31.0},  # protein_g
+                {"nutrientId": 1004, "value": 3.6},  # fat_g
+                {"nutrientId": 1005, "value": 0.0},  # carbs_g
+                {"nutrient": {"id": 1008}, "amount": 165.0},  # kcal via nested
+            ]
+        )
     else:
         foods["foodNutrients"].append({"nutrientId": 1003, "value": 5.0})
     return foods
@@ -104,7 +102,7 @@ def test_usda_client_parse_and_requests():
 
 
 def test_unified_db_cache_search_get_by_id(tmp_path: Path):
-    from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
+    from core.food_apis.unified_db import UnifiedFoodDatabase
     from core.food_apis.usda_client import USDAFoodItem
 
     cache_dir = tmp_path / "food_cache"
@@ -152,27 +150,29 @@ def test_unified_db_cache_search_get_by_id(tmp_path: Path):
 
 def test_unified_db_common_foods_cache(tmp_path: Path):
     from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
-    from core.food_apis.usda_client import USDAFoodItem
 
     cache_dir = tmp_path / "food_common"
     db = UnifiedFoodDatabase(str(cache_dir))
 
     async def _search_food(q: str):
-        return [UnifiedFoodItem(
-            name=f"{q}-X",
-            nutrients_per_100g={"protein_g": 10.0, "fat_g": 5.0, "carbs_g": 20.0},
-            cost_per_100g=1.0,
-            tags=["VEG"],
-            availability_regions=["US"],
-            source="USDA FoodData Central",
-            source_id="1",
-            category=None,
-        )]
+        return [
+            UnifiedFoodItem(
+                name=f"{q}-X",
+                nutrients_per_100g={"protein_g": 10.0, "fat_g": 5.0, "carbs_g": 20.0},
+                cost_per_100g=1.0,
+                tags=["VEG"],
+                availability_regions=["US"],
+                source="USDA FoodData Central",
+                source_id="1",
+                category=None,
+            )
+        ]
 
     # Patch internal search to avoid API
     loop = asyncio.new_event_loop()
-    with patch.object(db, "search_food", _search_food), \
-         patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()):
+    with patch.object(db, "search_food", _search_food), patch(
+        "core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()
+    ):
         foods_db = loop.run_until_complete(db.get_common_foods_database())
         assert foods_db and isinstance(next(iter(foods_db.values())), UnifiedFoodItem)
 
@@ -229,7 +229,7 @@ def test_update_manager_update_paths(tmp_path: Path):
         last_updated=dv.last_updated,
         record_count=dv.record_count,
         checksum=dv.checksum,
-        metadata={}
+        metadata={},
     )
     r2 = loop.run_until_complete(m.update_database("usda"))
     assert r2.success and r2.new_version == r2.old_version
@@ -313,15 +313,27 @@ def test_scheduler_paths():
     # Replace update_manager with controllable mock
     s.update_manager = AsyncMock()
     s.update_manager.check_for_updates = AsyncMock(return_value={"usda": False})
-    s.update_manager.update_database = AsyncMock(return_value=UpdateResult(
-        success=True, source="usda", old_version=None, new_version="v2",
-        records_added=1, records_updated=0, records_removed=0, errors=[], duration_seconds=0.1,
-    ))
-    s.update_manager.get_database_status = MagicMock(return_value={"usda": {"ok": True}})
+    s.update_manager.update_database = AsyncMock(
+        return_value=UpdateResult(
+            success=True,
+            source="usda",
+            old_version=None,
+            new_version="v2",
+            records_added=1,
+            records_updated=0,
+            records_removed=0,
+            errors=[],
+            duration_seconds=0.1,
+        )
+    )
+    s.update_manager.get_database_status = MagicMock(
+        return_value={"usda": {"ok": True}}
+    )
     s.update_manager.close = AsyncMock()
 
     # _should_check_for_updates
     from datetime import datetime
+
     s.last_update_check = None
     assert s._should_check_for_updates(datetime.now()) is True
 
@@ -339,10 +351,19 @@ def test_scheduler_paths():
     assert s.retry_counts.get("usda", 0) == 0
 
     # Failure then retry count increments
-    s.update_manager.update_database = AsyncMock(return_value=UpdateResult(
-        success=False, source="usda", old_version=None, new_version=None,
-        records_added=0, records_updated=0, records_removed=0, errors=["e"], duration_seconds=0.1,
-    ))
+    s.update_manager.update_database = AsyncMock(
+        return_value=UpdateResult(
+            success=False,
+            source="usda",
+            old_version=None,
+            new_version=None,
+            records_added=0,
+            records_updated=0,
+            records_removed=0,
+            errors=["e"],
+            duration_seconds=0.1,
+        )
+    )
     loop.run_until_complete(s._run_source_update("usda"))
     assert s.retry_counts.get("usda", 0) == 1
 
@@ -352,14 +373,25 @@ def test_scheduler_paths():
     assert s.retry_counts.get("usda", 0) == 0
 
     # force_update source-specific and None
-    s.update_manager.update_database = AsyncMock(return_value=UpdateResult(
-        success=True, source="usda", old_version="v1", new_version="v2",
-        records_added=1, records_updated=0, records_removed=0, errors=[], duration_seconds=0.1,
-    ))
+    s.update_manager.update_database = AsyncMock(
+        return_value=UpdateResult(
+            success=True,
+            source="usda",
+            old_version="v1",
+            new_version="v2",
+            records_added=1,
+            records_updated=0,
+            records_removed=0,
+            errors=[],
+            duration_seconds=0.1,
+        )
+    )
     out1 = loop.run_until_complete(s.force_update("usda"))
     assert "usda" in out1
 
-    s.update_manager.check_for_updates = AsyncMock(return_value={"usda": True, "off": False})
+    s.update_manager.check_for_updates = AsyncMock(
+        return_value={"usda": True, "off": False}
+    )
     out2 = loop.run_until_complete(s.force_update(None))
     assert "usda" in out2
 

@@ -26,7 +26,7 @@ class TestUserProfile:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         assert profile.sex == "female"
@@ -45,7 +45,7 @@ class TestUserProfile:
                 height_cm=180,
                 weight_kg=75,
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
 
     def test_user_profile_age_validation_high(self):
@@ -57,7 +57,7 @@ class TestUserProfile:
                 height_cm=180,
                 weight_kg=75,
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
 
     def test_user_profile_height_validation(self):
@@ -69,7 +69,7 @@ class TestUserProfile:
                 height_cm=0,  # Invalid height
                 weight_kg=60,
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
 
     def test_user_profile_weight_validation(self):
@@ -81,12 +81,14 @@ class TestUserProfile:
                 height_cm=165,
                 weight_kg=0,  # Invalid weight
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
 
     def test_user_profile_deficit_pct_validation_low(self):
         """Test deficit percentage validation - too low."""
-        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
+        with pytest.raises(
+            ValueError, match="Deficit percentage must be between 5-25%"
+        ):
             UserProfile(
                 sex="female",
                 age=25,
@@ -94,12 +96,14 @@ class TestUserProfile:
                 weight_kg=60,
                 activity="moderate",
                 goal="loss",
-                deficit_pct=4  # Too low
+                deficit_pct=4,  # Too low
             )
 
     def test_user_profile_deficit_pct_validation_high(self):
         """Test deficit percentage validation - too high."""
-        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
+        with pytest.raises(
+            ValueError, match="Deficit percentage must be between 5-25%"
+        ):
             UserProfile(
                 sex="female",
                 age=25,
@@ -107,12 +111,14 @@ class TestUserProfile:
                 weight_kg=60,
                 activity="moderate",
                 goal="loss",
-                deficit_pct=26  # Too high
+                deficit_pct=26,  # Too high
             )
 
     def test_user_profile_surplus_pct_validation_low(self):
         """Test surplus percentage validation - too low."""
-        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
+        with pytest.raises(
+            ValueError, match="Surplus percentage must be between 5-20%"
+        ):
             UserProfile(
                 sex="male",
                 age=25,
@@ -120,12 +126,14 @@ class TestUserProfile:
                 weight_kg=75,
                 activity="moderate",
                 goal="gain",
-                surplus_pct=4  # Too low
+                surplus_pct=4,  # Too low
             )
 
     def test_user_profile_surplus_pct_validation_high(self):
         """Test surplus percentage validation - too high."""
-        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
+        with pytest.raises(
+            ValueError, match="Surplus percentage must be between 5-20%"
+        ):
             UserProfile(
                 sex="male",
                 age=25,
@@ -133,7 +141,7 @@ class TestUserProfile:
                 weight_kg=75,
                 activity="moderate",
                 goal="gain",
-                surplus_pct=21  # Too high
+                surplus_pct=21,  # Too high
             )
 
     def test_user_profile_with_optional_fields(self):
@@ -151,7 +159,7 @@ class TestUserProfile:
             region="US",
             diet_flags={"VEG", "GF"},
             life_stage="adult",
-            medical_conditions={"diabetes"}
+            medical_conditions={"diabetes"},
         )
 
         assert profile.deficit_pct == 15
@@ -168,12 +176,7 @@ class TestMacroTargets:
 
     def test_macro_targets_total_calories(self):
         """Test total calories calculation."""
-        macros = MacroTargets(
-            protein_g=120,
-            fat_g=70,
-            carbs_g=250,
-            fiber_g=30
-        )
+        macros = MacroTargets(protein_g=120, fat_g=70, carbs_g=250, fiber_g=30)
 
         # protein: 120*4 = 480, carbs: 250*4 = 1000, fat: 70*9 = 630
         # total: 480 + 1000 + 630 = 2110
@@ -181,12 +184,7 @@ class TestMacroTargets:
 
     def test_macro_targets_zero_values(self):
         """Test MacroTargets with zero values."""
-        macros = MacroTargets(
-            protein_g=0,
-            fat_g=0,
-            carbs_g=0,
-            fiber_g=0
-        )
+        macros = MacroTargets(protein_g=0, fat_g=0, carbs_g=0, fiber_g=0)
 
         assert macros.total_calories() == 0
 
@@ -208,7 +206,7 @@ class TestMicroTargets:
             b12_ug=2.4,
             vitamin_d_iu=600.0,
             vitamin_a_ug=700.0,
-            vitamin_c_mg=75.0
+            vitamin_c_mg=75.0,
         )
 
         priority = micros.get_priority_nutrients()
@@ -235,7 +233,7 @@ class TestActivityTargets:
             moderate_aerobic_min=150,
             vigorous_aerobic_min=75,
             strength_sessions=2,
-            steps_daily=8000
+            steps_daily=8000,
         )
 
         # 150 + (75 * 2) = 150 + 150 = 300
@@ -247,7 +245,7 @@ class TestActivityTargets:
             moderate_aerobic_min=200,
             vigorous_aerobic_min=0,
             strength_sessions=3,
-            steps_daily=10000
+            steps_daily=10000,
         )
 
         # 200 + (0 * 2) = 200
@@ -260,27 +258,43 @@ class TestNutritionTargets:
     def test_nutrition_targets_validate_consistency_valid(self):
         """Test consistency validation with valid targets."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         # Create consistent targets (macros match calories)
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),  # ~1867 kcal
+            macros=MacroTargets(
+                protein_g=120, fat_g=67, carbs_g=250, fiber_g=28
+            ),  # ~1867 kcal
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=profile,
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         # Should be valid (within 5% tolerance)
@@ -289,27 +303,43 @@ class TestNutritionTargets:
     def test_nutrition_targets_validate_consistency_invalid(self):
         """Test consistency validation with invalid targets."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         # Create inconsistent targets (macros don't match calories)
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(protein_g=200, fat_g=100, carbs_g=400, fiber_g=40),  # ~3100 kcal
+            macros=MacroTargets(
+                protein_g=200, fat_g=100, carbs_g=400, fiber_g=40
+            ),  # ~3100 kcal
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=profile,
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         # Should be invalid (too far from target)
@@ -318,8 +348,12 @@ class TestNutritionTargets:
     def test_nutrition_targets_get_summary(self):
         """Test getting nutrition targets summary."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         targets = NutritionTargets(
@@ -327,17 +361,27 @@ class TestNutritionTargets:
             macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=profile,
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         summary = targets.get_summary()
@@ -359,7 +403,7 @@ class TestNutrientCoverage:
             nutrient_name="protein_g",
             target_amount=100.0,
             consumed_amount=90.0,
-            unit="g"
+            unit="g",
         )
 
         assert coverage.coverage_percent == 90.0
@@ -368,10 +412,7 @@ class TestNutrientCoverage:
     def test_nutrient_coverage_deficient(self):
         """Test deficient coverage."""
         coverage = NutrientCoverage(
-            nutrient_name="iron_mg",
-            target_amount=15.0,
-            consumed_amount=8.0,
-            unit="mg"
+            nutrient_name="iron_mg", target_amount=15.0, consumed_amount=8.0, unit="mg"
         )
 
         # 8/15 = 53.33% < 67%
@@ -384,7 +425,7 @@ class TestNutrientCoverage:
             nutrient_name="vitamin_c_mg",
             target_amount=75.0,
             consumed_amount=150.0,
-            unit="mg"
+            unit="mg",
         )
 
         # 150/75 = 200% > 150%
@@ -397,7 +438,7 @@ class TestNutrientCoverage:
             nutrient_name="vitamin_a_ug",
             target_amount=700.0,
             consumed_amount=2100.0,  # 300%
-            unit="μg"
+            unit="μg",
         )
 
         # Should be capped at 200%
@@ -407,10 +448,7 @@ class TestNutrientCoverage:
     def test_nutrient_coverage_zero_target(self):
         """Test coverage with zero target."""
         coverage = NutrientCoverage(
-            nutrient_name="unknown",
-            target_amount=0.0,
-            consumed_amount=50.0,
-            unit="g"
+            nutrient_name="unknown", target_amount=0.0, consumed_amount=50.0, unit="g"
         )
 
         assert coverage.coverage_percent == 0.0
@@ -420,10 +458,7 @@ class TestNutrientCoverage:
         """Test recommendations in English."""
         # Deficient
         deficient = NutrientCoverage(
-            nutrient_name="iron_mg",
-            target_amount=15.0,
-            consumed_amount=8.0,
-            unit="mg"
+            nutrient_name="iron_mg", target_amount=15.0, consumed_amount=8.0, unit="mg"
         )
         assert "Increase iron_mg intake" in deficient.get_recommendation("en")
 
@@ -432,7 +467,7 @@ class TestNutrientCoverage:
             nutrient_name="protein_g",
             target_amount=100.0,
             consumed_amount=100.0,
-            unit="g"
+            unit="g",
         )
         assert "protein_g is adequate" in adequate.get_recommendation("en")
 
@@ -441,7 +476,7 @@ class TestNutrientCoverage:
             nutrient_name="vitamin_c_mg",
             target_amount=75.0,
             consumed_amount=150.0,
-            unit="mg"
+            unit="mg",
         )
         assert "Moderately reduce vitamin_c_mg" in excess.get_recommendation("en")
 
@@ -449,10 +484,7 @@ class TestNutrientCoverage:
         """Test recommendations in Russian."""
         # Deficient
         deficient = NutrientCoverage(
-            nutrient_name="iron_mg",
-            target_amount=15.0,
-            consumed_amount=8.0,
-            unit="mg"
+            nutrient_name="iron_mg", target_amount=15.0, consumed_amount=8.0, unit="mg"
         )
         assert "Увеличьте потребление iron_mg" in deficient.get_recommendation("ru")
 
@@ -461,7 +493,7 @@ class TestNutrientCoverage:
             nutrient_name="protein_g",
             target_amount=100.0,
             consumed_amount=100.0,
-            unit="g"
+            unit="g",
         )
         assert "protein_g в норме" in adequate.get_recommendation("ru")
 
@@ -470,6 +502,6 @@ class TestNutrientCoverage:
             nutrient_name="vitamin_c_mg",
             target_amount=75.0,
             consumed_amount=150.0,
-            unit="mg"
+            unit="mg",
         )
         assert "Умеренно сократите vitamin_c_mg" in excess.get_recommendation("ru")

@@ -2,18 +2,20 @@
 Final tests to improve coverage for update_manager.py to reach 97%+.
 """
 
-import asyncio
 import json
 import tempfile
-from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from core.food_apis.unified_db import UnifiedFoodItem
-from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion, UpdateResult
+from core.food_apis.update_manager import (
+    DatabaseUpdateManager,
+    DatabaseVersion,
+    UpdateResult,
+)
 
 
 class TestUpdateManagerFinalCoverage:
@@ -27,7 +29,7 @@ class TestUpdateManagerFinalCoverage:
             last_updated="2023-01-01T10:00:00",
             record_count=1000,
             checksum="abc123def456",
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
 
         assert version.source == "usda"
@@ -48,7 +50,7 @@ class TestUpdateManagerFinalCoverage:
             records_updated=30,
             records_removed=10,
             errors=[],
-            duration_seconds=2.5
+            duration_seconds=2.5,
         )
 
         assert result.success is True
@@ -68,14 +70,16 @@ class TestUpdateManagerFinalCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Add an old version
-            old_time = (datetime.now() - timedelta(hours=25)).isoformat()  # Past update interval
+            old_time = (
+                datetime.now() - timedelta(hours=25)
+            ).isoformat()  # Past update interval
             version = DatabaseVersion(
                 source="usda",
                 version="1.0",
                 last_updated=old_time,
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
@@ -99,9 +103,11 @@ class TestUpdateManagerFinalCoverage:
                 records_updated=0,
                 records_removed=0,
                 errors=[],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
-            with patch.object(manager, '_update_usda_database', return_value=mock_result):
+            with patch.object(
+                manager, "_update_usda_database", return_value=mock_result
+            ):
                 result = await manager.update_database("usda")
 
                 # Duration should be set (even if very small)
@@ -120,7 +126,7 @@ class TestUpdateManagerFinalCoverage:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="test_checksum",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
@@ -133,17 +139,21 @@ class TestUpdateManagerFinalCoverage:
                 availability_regions=["US"],
                 source="USDA",
                 source_id="12345",
-                category="Meat"
+                category="Meat",
             )
 
             # Mock unified_db.get_common_foods_database
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_get_foods.return_value = {"chicken": food_item}
 
                 # Mock _calculate_checksum to return same checksum
-                with patch.object(manager, '_calculate_checksum', return_value="test_checksum"):
+                with patch.object(
+                    manager, "_calculate_checksum", return_value="test_checksum"
+                ):
                     # Mock _create_backup to avoid file operations
-                    with patch.object(manager, '_create_backup'):
+                    with patch.object(manager, "_create_backup"):
                         result = await manager._update_usda_database()
 
                         assert result.success is True
@@ -167,17 +177,21 @@ class TestUpdateManagerFinalCoverage:
                 availability_regions=["US"],
                 source="USDA",
                 source_id="12345",
-                category="Meat"
+                category="Meat",
             )
 
             # Mock unified_db.get_common_foods_database
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_get_foods.return_value = {"chicken": food_item}
 
                 # Mock _validate_food_data to return errors
-                with patch.object(manager, '_validate_food_data', return_value=["Validation error"]):
+                with patch.object(
+                    manager, "_validate_food_data", return_value=["Validation error"]
+                ):
                     # Mock _create_backup to avoid file operations
-                    with patch.object(manager, '_create_backup'):
+                    with patch.object(manager, "_create_backup"):
                         result = await manager._update_usda_database()
 
                         assert result.success is False
@@ -215,7 +229,7 @@ class TestUpdateManagerFinalCoverage:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="old_checksum",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
@@ -229,12 +243,12 @@ class TestUpdateManagerFinalCoverage:
                     "availability_regions": ["US"],
                     "source": "USDA",
                     "source_id": "12345",
-                    "category": "Meat"
+                    "category": "Meat",
                 }
             }
 
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
-            with open(backup_file, 'w') as f:
+            with open(backup_file, "w") as f:
                 json.dump(backup_data, f)
 
             # Should successfully rollback
@@ -272,8 +286,12 @@ class TestUpdateManagerFinalCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock clients to raise exceptions
-            manager.usda_client.close = AsyncMock(side_effect=Exception("USDA close error"))
-            manager.unified_db.close = AsyncMock(side_effect=Exception("Unified DB close error"))
+            manager.usda_client.close = AsyncMock(
+                side_effect=Exception("USDA close error")
+            )
+            manager.unified_db.close = AsyncMock(
+                side_effect=Exception("Unified DB close error")
+            )
 
             # Should not crash despite exceptions
             try:

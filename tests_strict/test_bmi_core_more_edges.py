@@ -1,23 +1,29 @@
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
 # -*- coding: utf-8 -*-
-"""Дополнительные edge-тесты: _validate_age error и ветка 'general' в auto_group."""
-import pytest
+"""Маленькие edge-тесты, которые добивают покрытие до ~99–100% при нашей версии ядра."""
 
-from bmi_core import auto_group, bmi_value, build_premium_plan
+from bmi_core import (
+    bmi_value,
+    build_premium_plan,
+    estimate_level,
+    healthy_bmi_range,
+    interpret_group,
+)
 
+def test_estimate_level_beginner_en():
+    assert estimate_level(0, 0.0, "en") == "beginner"
 
-def test_validate_age_raises_in_build_plan():
-    # age=0 → _validate_age должен выбросить ValueError (строка 103)
-    with pytest.raises(ValueError):
-        # вес/рост валидные, чтобы дошло именно до проверки возраста
-        build_premium_plan(0, 70.0, 1.75, bmi_value(70.0, 1.75), "en", "general", False)
+def test_healthy_bmi_range_athlete_premium_raise():
+    bmin, bmax = healthy_bmi_range(30, "athlete", premium=True)
+    assert bmin == 18.5
+    assert bmax >= 27.0
 
-
-def test_auto_group_returns_general_branch():
-    # Взрослый, не беременна, не спортсмен → 'general' (строка 166)
-    grp = auto_group(30, "male", "no", "no", "en")
-    assert grp == "general"
+def test_premium_plan_maintain_has_none_weeks():
+    height = 1.75
+    bmin, bmax = healthy_bmi_range(30, "general", premium=False)
+    wmin = round(bmin * height * height, 1)
+    wmax = round(bmax * height * height, 1)
+    weight = (wmin + wmax) / 2
+    bmi = bmi_value(weight, height)
+    plan = build_premium_plan(30, weight, height, bmi, "en", "general", False)
+    assert plan["action"] == "maintain"
+    assert plan["est_weeks"] == (None, None)

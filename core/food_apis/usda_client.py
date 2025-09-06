@@ -29,6 +29,7 @@ class USDAFoodItem:
     RU: Элемент из базы данных USDA с полной питательной информацией.
     EN: USDA food item with complete nutritional information.
     """
+
     fdc_id: int
     description: str
     food_category: Optional[str]
@@ -48,7 +49,7 @@ class USDAFoodItem:
             "tags": self._generate_tags(),
             "availability_regions": ["US", "BY", "RU"],  # Assume global availability
             "source": "USDA FoodData Central",
-            "fdc_id": self.fdc_id
+            "fdc_id": self.fdc_id,
         }
 
     def _generate_tags(self) -> List[str]:
@@ -57,13 +58,24 @@ class USDAFoodItem:
         description_lower = self.description.lower()
 
         # Vegetarian/Vegan detection
-        animal_keywords = ["chicken", "beef", "pork", "fish", "salmon", "tuna", "meat", "egg"]
+        animal_keywords = [
+            "chicken",
+            "beef",
+            "pork",
+            "fish",
+            "salmon",
+            "tuna",
+            "meat",
+            "egg",
+        ]
         if not any(keyword in description_lower for keyword in animal_keywords):
             tags.append("VEG")
 
         # Check if likely vegan (no dairy either)
         dairy_keywords = ["milk", "cheese", "yogurt", "butter", "cream"]
-        if "VEG" in tags and not any(keyword in description_lower for keyword in dairy_keywords):
+        if "VEG" in tags and not any(
+            keyword in description_lower for keyword in dairy_keywords
+        ):
             tags.append("VEGAN")
 
         # Gluten-free approximation (this would need more sophisticated logic)
@@ -102,33 +114,28 @@ class USDAClient:
             1004: "fat_g",
             1005: "carbs_g",
             1079: "fiber_g",
-
             # Energy
             1008: "kcal",
-
             # Minerals (mg)
             1087: "calcium_mg",
             1089: "iron_mg",
             1090: "magnesium_mg",
             1095: "zinc_mg",
             1092: "potassium_mg",
-
             # Trace elements (μg)
             1140: "selenium_ug",
             1100: "iodine_ug",  # Less common in USDA data
-
             # Vitamins
             1106: "vitamin_a_ug",  # Vitamin A, RAE
             1114: "vitamin_d_iu",  # Vitamin D (D2 + D3)
             1162: "vitamin_c_mg",  # Vitamin C
-            1175: "folate_ug",     # Folate, total
-            1178: "b12_ug",        # Vitamin B-12
-
+            1175: "folate_ug",  # Folate, total
+            1178: "b12_ug",  # Vitamin B-12
             # B-vitamins
-            1165: "thiamin_mg",    # Thiamin (B1)
-            1166: "riboflavin_mg", # Riboflavin (B2)
-            1167: "niacin_mg",     # Folate, total
-            1179: "b6_mg",         # Vitamin B-6
+            1165: "thiamin_mg",  # Thiamin (B1)
+            1166: "riboflavin_mg",  # Riboflavin (B2)
+            1167: "niacin_mg",  # Folate, total
+            1179: "b6_mg",  # Vitamin B-6
         }
 
     async def search_foods(self, query: str, page_size: int = 25) -> List[USDAFoodItem]:
@@ -151,7 +158,7 @@ class USDAClient:
                 "api_key": self.api_key,
                 "dataType": ["Foundation", "SR Legacy"],  # Focus on most reliable data
                 "sortBy": "dataType.keyword",
-                "sortOrder": "asc"
+                "sortOrder": "asc",
             }
 
             response = await self.client.get(url, params=params)
@@ -212,13 +219,11 @@ class USDAClient:
             payload = {
                 "fdcIds": fdc_ids[:20],  # Limit to 20 IDs per request
                 "format": "abridged",
-                "nutrients": list(self.nutrient_mapping.keys())
+                "nutrients": list(self.nutrient_mapping.keys()),
             }
 
             response = await self.client.post(
-                url,
-                json=payload,
-                params={"api_key": self.api_key}
+                url, json=payload, params={"api_key": self.api_key}
             )
             response.raise_for_status()
             data = response.json()
@@ -250,7 +255,9 @@ class USDAClient:
             fdc_id = food_data.get("fdcId")
             description = food_data.get("description", "Unknown Food")
             data_type = food_data.get("dataType", "Unknown")
-            publication_date = food_data.get("publicationDate") or food_data.get("publishedDate")
+            publication_date = food_data.get("publicationDate") or food_data.get(
+                "publishedDate"
+            )
 
             # Extract food category
             food_category = None
@@ -267,7 +274,9 @@ class USDAClient:
                 # Handle different API response formats
                 if isinstance(nutrient_data, dict):
                     # Search API uses 'nutrientId', details API might use 'nutrient.id'
-                    nutrient_id = nutrient_data.get("nutrientId") or nutrient_data.get("nutrient", {}).get("id")
+                    nutrient_id = nutrient_data.get("nutrientId") or nutrient_data.get(
+                        "nutrient", {}
+                    ).get("id")
                     amount = nutrient_data.get("value") or nutrient_data.get("amount")
 
                     if nutrient_id in self.nutrient_mapping and amount is not None:
@@ -276,7 +285,9 @@ class USDAClient:
 
             # Only return foods with substantial nutrition data
             if len(nutrients_per_100g) < 3:
-                logger.warning(f"Food {description} has insufficient nutrition data ({len(nutrients_per_100g)} nutrients)")
+                logger.warning(
+                    f"Food {description} has insufficient nutrition data ({len(nutrients_per_100g)} nutrients)"
+                )
                 return None
 
             return USDAFoodItem(
@@ -285,7 +296,7 @@ class USDAClient:
                 food_category=food_category,
                 nutrients_per_100g=nutrients_per_100g,
                 data_type=data_type,
-                publication_date=publication_date
+                publication_date=publication_date,
             )
 
         except Exception as e:
@@ -324,7 +335,7 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
             "sweet_potato": "sweet potato raw unprepared",
             "avocado": "avocados raw all commercial varieties",
             "banana": "bananas raw",
-            "black_beans": "beans black mature seeds cooked boiled"
+            "black_beans": "beans black mature seeds cooked boiled",
         }
 
         foods_db = {}
@@ -336,7 +347,9 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
                     # Take the first result (usually most relevant)
                     best_match = search_results[0]
                     foods_db[standard_name] = best_match
-                    logger.info(f"Found USDA food for {standard_name}: {best_match.description}")
+                    logger.info(
+                        f"Found USDA food for {standard_name}: {best_match.description}"
+                    )
 
                 # Small delay to be respectful to the API
                 await asyncio.sleep(0.1)

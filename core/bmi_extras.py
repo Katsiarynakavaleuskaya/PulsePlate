@@ -59,9 +59,7 @@ def whr_ratio(waist_cm: float, hip_cm: float, sex: Literal["male", "female"]) ->
 
 
 def ffmi(
-    weight_kg: float,
-    height_cm: float,
-    bodyfat_pct: Optional[float] = None
+    weight_kg: float, height_cm: float, bodyfat_pct: Optional[float] = None
 ) -> Dict[str, float]:
     """Calculate Fat-Free Mass Index (FFMI).
 
@@ -96,12 +94,9 @@ def ffmi(
 
     # Calculate FFMI (normalize to height)
     height_m = height_cm / 100
-    ffmi_value = ffm / (height_m ** 2)
+    ffmi_value = ffm / (height_m**2)
 
-    return {
-        "ffm_kg": round(ffm, 1),
-        "ffmi": round(ffmi_value, 1)
-    }
+    return {"ffm_kg": round(ffm, 1), "ffmi": round(ffmi_value, 1)}
 
 
 def interpret_wht_ratio(wht_ratio_value: float) -> Dict[str, str]:
@@ -117,29 +112,27 @@ def interpret_wht_ratio(wht_ratio_value: float) -> Dict[str, str]:
         return {
             "category": "underweight",
             "risk": "low",
-            "description": "Low health risk"
+            "description": "Low health risk",
         }
     elif wht_ratio_value < 0.5:
         return {
             "category": "healthy",
             "risk": "low",
-            "description": "Healthy weight range"
+            "description": "Healthy weight range",
         }
     elif wht_ratio_value < 0.6:
         return {
             "category": "overweight",
             "risk": "moderate",
-            "description": "Moderate health risk"
+            "description": "Moderate health risk",
         }
     else:
-        return {
-            "category": "obese",
-            "risk": "high",
-            "description": "High health risk"
-        }
+        return {"category": "obese", "risk": "high", "description": "High health risk"}
 
 
-def interpret_whr_ratio(whr_ratio_value: float, sex: Literal["male", "female"]) -> Dict[str, str]:
+def interpret_whr_ratio(
+    whr_ratio_value: float, sex: Literal["male", "female"]
+) -> Dict[str, str]:
     """Interpret WHR value according to sex-specific health risk thresholds.
 
     Args:
@@ -165,17 +158,11 @@ def interpret_whr_ratio(whr_ratio_value: float, sex: Literal["male", "female"]) 
             risk_level = "high"
             description = "High health risk (android/apple shape)"
 
-    return {
-        "risk": risk_level,
-        "description": description
-    }
+    return {"risk": risk_level, "description": description}
 
 
 def stage_obesity(
-    bmi: float,
-    wht: float,
-    whr: float,
-    sex: Literal["male", "female"]
+    bmi: float, wht: float, whr: float, sex: Literal["male", "female"]
 ) -> Dict[str, str]:
     """Stage obesity based on multiple metrics.
 
@@ -200,14 +187,14 @@ def stage_obesity(
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
-    if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):  # High WHR risk
+    if (sex == "male" and whr >= 0.95) or (
+        sex == "female" and whr >= 0.80
+    ):  # High WHR risk
         risk_factors += 1
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = (
-            "Consider consulting with a healthcare professional for comprehensive assessment"
-        )
+        recommendation = "Consider consulting with a healthcare professional for comprehensive assessment"
     elif risk_factors == 1:
         stage = "moderate_risk"
         recommendation = "Monitor health metrics and consider lifestyle modifications"
@@ -216,10 +203,9 @@ def stage_obesity(
         recommendation = "Maintain current healthy habits"
 
     bmi_category = (
-        "obese" if bmi >= 30 else
-        "overweight" if bmi >= 25 else
-        "normal" if bmi >= 18.5 else
-        "underweight"
+        "obese"
+        if bmi >= 30
+        else "overweight" if bmi >= 25 else "normal" if bmi >= 18.5 else "underweight"
     )
 
     return {
@@ -228,5 +214,5 @@ def stage_obesity(
         "recommendation": recommendation,
         "bmi_category": bmi_category,
         "wht_risk": wht_interpretation["risk"],
-        "whr_risk": whr_interpretation["risk"]
+        "whr_risk": whr_interpretation["risk"],
     }

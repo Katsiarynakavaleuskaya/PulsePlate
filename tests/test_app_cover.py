@@ -18,11 +18,7 @@ client = TestClient(fastapi_app)
 @pytest.mark.parametrize("group", ["athlete", "pregnant", "elderly", "teen"])
 def test_bmi_groups_exercise_branches(group: str):
     payload = {"weight_kg": 70, "height_cm": 170, "group": group}
-    res = client.post(
-        "/api/v1/bmi",
-        json=payload,
-        headers={"X-API-Key": "test_key"}
-    )
+    res = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
     assert res.status_code == 200
     data = res.json()
     assert "bmi" in data and isinstance(data["bmi"], (int, float))
@@ -32,9 +28,7 @@ def test_bmi_groups_exercise_branches(group: str):
 def test_insight_route_or_skip():
     """Если /insight не поднят (404) — скипаем, иначе ждём 503."""
     res = client.post(
-        "/api/v1/insight",
-        json={"text": "hello"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"}
     )
     if res.status_code == 404:
         pytest.skip("No /insight route (skipping)")
@@ -61,7 +55,7 @@ def test_bmi_endpoint_lang_en_athlete():
         "pregnant": "no",
         "athlete": "yes",
         "waist_cm": 95,
-        "lang": "en"
+        "lang": "en",
     }
     res = client.post("/bmi", json=payload)
     assert res.status_code == 200

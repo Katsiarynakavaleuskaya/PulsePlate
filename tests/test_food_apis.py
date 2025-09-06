@@ -29,12 +29,12 @@ class TestUSDAClient:
                     "foodCategory": {"description": "Poultry Products"},
                     "foodNutrients": [
                         {"nutrientId": 1003, "value": 30.54},  # protein
-                        {"nutrientId": 1004, "value": 3.57},   # fat
-                        {"nutrientId": 1005, "value": 0.0},    # carbs
+                        {"nutrientId": 1004, "value": 3.57},  # fat
+                        {"nutrientId": 1005, "value": 0.0},  # carbs
                         {"nutrientId": 1008, "value": 165.0},  # calories
-                        {"nutrientId": 1087, "value": 15.0},   # calcium
-                        {"nutrientId": 1089, "value": 1.04},   # iron
-                    ]
+                        {"nutrientId": 1087, "value": 15.0},  # calcium
+                        {"nutrientId": 1089, "value": 1.04},  # iron
+                    ],
                 }
             ]
         }
@@ -89,9 +89,7 @@ class TestUSDAClient:
             "fdcId": 123,
             "description": "Test Food",
             "dataType": "Test",
-            "foodNutrients": [
-                {"nutrientId": 1003, "value": 10.0}  # Only protein
-            ]
+            "foodNutrients": [{"nutrientId": 1003, "value": 10.0}],  # Only protein
         }
 
         food_item = client._parse_food_item(food_data)
@@ -135,8 +133,8 @@ class TestUSDAClient:
                 {"nutrientId": 1003, "value": 2.82},
                 {"nutrientId": 1004, "value": 0.37},
                 {"nutrientId": 1005, "value": 6.64},
-                {"nutrientId": 1008, "value": 34.0}
-            ]
+                {"nutrientId": 1008, "value": 34.0},
+            ],
         }
 
         veg_food = client._parse_food_item(veg_food_data)
@@ -146,7 +144,7 @@ class TestUSDAClient:
 
         assert "VEG" in veg_tags
         assert "VEGAN" in veg_tags  # No dairy either
-        assert "GF" in veg_tags     # No gluten-containing ingredients
+        assert "GF" in veg_tags  # No gluten-containing ingredients
 
         await client.close()
 
@@ -156,7 +154,7 @@ class TestUSDAClient:
         client = USDAClient()
 
         # Mock HTTP error
-        with patch.object(client.client, 'get') as mock_get:
+        with patch.object(client.client, "get") as mock_get:
             mock_get.side_effect = Exception("HTTP Error")
 
             results = await client.search_foods("test")
@@ -177,11 +175,11 @@ class TestUSDAClient:
                 {"nutrientId": 1003, "value": 25.0},
                 {"nutrientId": 1004, "value": 5.0},
                 {"nutrientId": 1005, "value": 0.0},
-                {"nutrientId": 1008, "value": 150.0}
-            ]
+                {"nutrientId": 1008, "value": 150.0},
+            ],
         }
 
-        with patch.object(client.client, 'get') as mock_get:
+        with patch.object(client.client, "get") as mock_get:
             mock_response = MagicMock()
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
@@ -200,7 +198,7 @@ class TestUSDAClient:
         """Test get_food_details error handling."""
         client = USDAClient()
 
-        with patch.object(client.client, 'get') as mock_get:
+        with patch.object(client.client, "get") as mock_get:
             mock_get.side_effect = Exception("API Error")
 
             result = await client.get_food_details(123)
@@ -222,8 +220,8 @@ class TestUSDAClient:
                     {"nutrientId": 1003, "value": 20.0},
                     {"nutrientId": 1004, "value": 10.0},
                     {"nutrientId": 1005, "value": 5.0},
-                    {"nutrientId": 1008, "value": 180.0}
-                ]
+                    {"nutrientId": 1008, "value": 180.0},
+                ],
             },
             {
                 "fdcId": 124,
@@ -233,12 +231,12 @@ class TestUSDAClient:
                     {"nutrientId": 1003, "value": 15.0},
                     {"nutrientId": 1004, "value": 8.0},
                     {"nutrientId": 1005, "value": 12.0},
-                    {"nutrientId": 1008, "value": 160.0}
-                ]
-            }
+                    {"nutrientId": 1008, "value": 160.0},
+                ],
+            },
         ]
 
-        with patch.object(client.client, 'post') as mock_post:
+        with patch.object(client.client, "post") as mock_post:
             mock_response = MagicMock()
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
@@ -257,7 +255,7 @@ class TestUSDAClient:
         """Test get_multiple_foods error handling."""
         client = USDAClient()
 
-        with patch.object(client.client, 'post') as mock_post:
+        with patch.object(client.client, "post") as mock_post:
             mock_post.side_effect = Exception("API Error")
 
             results = await client.get_multiple_foods([123, 124])
@@ -293,23 +291,11 @@ class TestUSDAClient:
             "foodCategory": {"description": "Test Category"},
             "publicationDate": "2024-01-01",
             "foodNutrients": [
-                {
-                    "nutrient": {"id": 1003},
-                    "amount": 20.0
-                },
-                {
-                    "nutrient": {"id": 1004},
-                    "amount": 10.0
-                },
-                {
-                    "nutrient": {"id": 1005},
-                    "amount": 5.0
-                },
-                {
-                    "nutrient": {"id": 1008},
-                    "amount": 180.0
-                }
-            ]
+                {"nutrient": {"id": 1003}, "amount": 20.0},
+                {"nutrient": {"id": 1004}, "amount": 10.0},
+                {"nutrient": {"id": 1005}, "amount": 5.0},
+                {"nutrient": {"id": 1008}, "amount": 180.0},
+            ],
         }
 
         result = client._parse_food_item(food_data)
@@ -341,7 +327,7 @@ class TestUSDAClient:
         malformed_data = {
             "fdcId": "not_an_int",  # This should cause an error
             "description": "Test",
-            "foodNutrients": "not_a_list"
+            "foodNutrients": "not_a_list",
         }
 
         result = client._parse_food_item(malformed_data)
@@ -355,7 +341,7 @@ class TestUSDAClient:
         from core.food_apis.usda_client import get_common_foods_database
 
         # Mock the search results for common foods
-        with patch('core.food_apis.usda_client.USDAClient') as mock_client_class:
+        with patch("core.food_apis.usda_client.USDAClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
@@ -364,9 +350,14 @@ class TestUSDAClient:
                 fdc_id=123,
                 description="Test chicken breast",
                 food_category="Poultry",
-                nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
+                nutrients_per_100g={
+                    "protein_g": 25.0,
+                    "fat_g": 3.0,
+                    "carbs_g": 0.0,
+                    "kcal": 165.0,
+                },
                 data_type="Foundation",
-                publication_date="2024-01-01"
+                publication_date="2024-01-01",
             )
 
             mock_client.search_foods.return_value = [mock_food]
@@ -392,9 +383,14 @@ class TestUSDAClient:
             fdc_id=123,
             description="Milk, whole",
             food_category="Dairy",
-            nutrients_per_100g={"protein_g": 3.0, "fat_g": 3.0, "carbs_g": 5.0, "kcal": 60.0},
+            nutrients_per_100g={
+                "protein_g": 3.0,
+                "fat_g": 3.0,
+                "carbs_g": 5.0,
+                "kcal": 60.0,
+            },
             data_type="Foundation",
-            publication_date="2024-01-01"
+            publication_date="2024-01-01",
         )
 
         tags = dairy_food._generate_tags()
@@ -406,9 +402,14 @@ class TestUSDAClient:
             fdc_id=124,
             description="Chicken breast, meat only",
             food_category="Poultry",
-            nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
+            nutrients_per_100g={
+                "protein_g": 25.0,
+                "fat_g": 3.0,
+                "carbs_g": 0.0,
+                "kcal": 165.0,
+            },
             data_type="Foundation",
-            publication_date="2024-01-01"
+            publication_date="2024-01-01",
         )
 
         tags = meat_food._generate_tags()
@@ -424,9 +425,14 @@ class TestUSDAClient:
             fdc_id=125,
             description="Bread, whole wheat",
             food_category="Baked Products",
-            nutrients_per_100g={"protein_g": 10.0, "fat_g": 3.0, "carbs_g": 50.0, "kcal": 250.0},
+            nutrients_per_100g={
+                "protein_g": 10.0,
+                "fat_g": 3.0,
+                "carbs_g": 50.0,
+                "kcal": 250.0,
+            },
             data_type="Foundation",
-            publication_date="2024-01-01"
+            publication_date="2024-01-01",
         )
 
         tags = wheat_food._generate_tags()
@@ -448,13 +454,13 @@ class TestUSDAClient:
                         {"nutrientId": 1003, "value": 30.54},
                         {"nutrientId": 1004, "value": 3.57},
                         {"nutrientId": 1005, "value": 0.0},
-                        {"nutrientId": 1008, "value": 165.0}
-                    ]
+                        {"nutrientId": 1008, "value": 165.0},
+                    ],
                 }
             ]
         }
 
-        with patch.object(client.client, 'get') as mock_get:
+        with patch.object(client.client, "get") as mock_get:
             mock_response = MagicMock()
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
@@ -475,7 +481,7 @@ class TestUSDAClient:
 
         mock_response_data = {"foods": []}
 
-        with patch.object(client.client, 'get') as mock_get:
+        with patch.object(client.client, "get") as mock_get:
             mock_response = MagicMock()
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
@@ -492,21 +498,28 @@ class TestUSDAClient:
         """Test get_common_foods_database with some search errors."""
         from core.food_apis.usda_client import get_common_foods_database
 
-        with patch('core.food_apis.usda_client.USDAClient') as mock_client_class:
+        with patch("core.food_apis.usda_client.USDAClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
             # Mock some successful and some failed searches
             def mock_search_side_effect(query, page_size=25):
                 if "chicken" in query:
-                    return [USDAFoodItem(
-                        fdc_id=123,
-                        description="Test chicken",
-                        food_category="Poultry",
-                        nutrients_per_100g={"protein_g": 25.0, "fat_g": 3.0, "carbs_g": 0.0, "kcal": 165.0},
-                        data_type="Foundation",
-                        publication_date="2024-01-01"
-                    )]
+                    return [
+                        USDAFoodItem(
+                            fdc_id=123,
+                            description="Test chicken",
+                            food_category="Poultry",
+                            nutrients_per_100g={
+                                "protein_g": 25.0,
+                                "fat_g": 3.0,
+                                "carbs_g": 0.0,
+                                "kcal": 165.0,
+                            },
+                            data_type="Foundation",
+                            publication_date="2024-01-01",
+                        )
+                    ]
                 else:
                     raise Exception("Search failed")
 
@@ -514,7 +527,7 @@ class TestUSDAClient:
             mock_client.close.return_value = None
 
             # Test with asyncio.sleep mocked to speed up test
-            with patch('asyncio.sleep', return_value=None):
+            with patch("asyncio.sleep", return_value=None):
                 result = await get_common_foods_database()
 
             # Should handle errors gracefully and continue with other foods
@@ -533,13 +546,13 @@ class TestUnifiedFoodDatabase:
                 "protein_g": 20.0,
                 "fat_g": 10.0,
                 "carbs_g": 30.0,
-                "kcal": 280.0
+                "kcal": 280.0,
             },
             cost_per_100g=2.5,
             tags=["VEG", "GF"],
             availability_regions=["US", "BY"],
             source="TEST",
-            source_id="test_123"
+            source_id="test_123",
         )
 
         assert item.name == "Test Food"
@@ -561,7 +574,7 @@ class TestUnifiedFoodDatabase:
         await db.close()
 
     @pytest.mark.asyncio
-    @patch('core.food_apis.usda_client.get_common_foods_database')
+    @patch("core.food_apis.usda_client.get_common_foods_database")
     async def test_unified_database_get_foods(self, mock_get_foods):
         """Test getting foods from unified database."""
         # Mock USDA response
@@ -569,9 +582,14 @@ class TestUnifiedFoodDatabase:
             fdc_id=123,
             description="Test Chicken",
             food_category="Poultry",
-            nutrients_per_100g={"protein_g": 25.0, "fat_g": 5.0, "carbs_g": 0.0, "kcal": 150.0},
+            nutrients_per_100g={
+                "protein_g": 25.0,
+                "fat_g": 5.0,
+                "carbs_g": 0.0,
+                "kcal": 150.0,
+            },
             data_type="Foundation",
-            publication_date="2024-01-01"
+            publication_date="2024-01-01",
         )
 
         mock_get_foods.return_value = {"chicken_breast": mock_usda_food}
@@ -593,9 +611,7 @@ class TestDatabaseUpdateManager:
     async def test_update_manager_initialization(self):
         """Test update manager initialization."""
         manager = DatabaseUpdateManager(
-            cache_dir="test_cache",
-            update_interval_hours=12,
-            max_rollback_versions=3
+            cache_dir="test_cache", update_interval_hours=12, max_rollback_versions=3
         )
 
         assert manager.cache_dir.name == "test_cache"
@@ -672,7 +688,7 @@ class TestDatabaseUpdateManager:
             records_updated=10,
             records_removed=0,
             errors=[],
-            duration_seconds=2.5
+            duration_seconds=2.5,
         )
 
         # Trigger callbacks
@@ -692,9 +708,7 @@ class TestDatabaseUpdateScheduler:
     async def test_scheduler_initialization(self):
         """Test scheduler initialization."""
         scheduler = DatabaseUpdateScheduler(
-            update_interval_hours=6,
-            retry_interval_minutes=15,
-            max_retries=5
+            update_interval_hours=6, retry_interval_minutes=15, max_retries=5
         )
 
         assert scheduler.update_interval.total_seconds() == 6 * 3600
@@ -785,10 +799,10 @@ class TestFoodAPIIntegration:
                 "fat_g": 5.0,
                 "carbs_g": 10.0,
                 "kcal": 160.0,
-                "iron_mg": 2.5
+                "iron_mg": 2.5,
             },
             data_type="Foundation",
-            publication_date="2024-01-01"
+            publication_date="2024-01-01",
         )
 
         # Convert to menu engine format
@@ -802,7 +816,9 @@ class TestFoodAPIIntegration:
             tags=menu_format["tags"],
             availability_regions=menu_format["availability_regions"],
             source=menu_format["source"],
-            source_id=str(menu_format["fdc_id"])  # Use source_id instead of external_id
+            source_id=str(
+                menu_format["fdc_id"]
+            ),  # Use source_id instead of external_id
         )
 
         # Verify conversion

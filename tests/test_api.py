@@ -19,7 +19,7 @@ def test_v1_bmi_happy():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()
@@ -31,7 +31,7 @@ def test_v1_bmi_invalid_height():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 0, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     # Pydantic validation returns 422 for invalid field values
     assert r.status_code == 422
@@ -43,7 +43,7 @@ def test_v1_bmi_invalid_weight():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": -50, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     # Pydantic validation returns 422 for invalid field values
     assert r.status_code == 422
@@ -55,7 +55,7 @@ def test_v1_bmi_unrealistic_weight():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 10, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     # Validation in bmi_value raises ValueError for unrealistic weight
     assert r.status_code == 400
@@ -67,7 +67,7 @@ def test_v1_bmi_invalid_group():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "invalid"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     # Since we allow any string for group, this should work
     assert r.status_code == 200
@@ -79,7 +79,7 @@ def test_v1_bmi_underweight():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 45, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()
@@ -91,7 +91,7 @@ def test_v1_bmi_overweight():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 85, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()
@@ -103,7 +103,7 @@ def test_v1_bmi_obese():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 100, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()
@@ -122,8 +122,8 @@ def test_v1_bodyfat():
             "neck_cm": 34,
             "waist_cm": 74,
             "hip_cm": 94,
-            "language": "en"
-        }
+            "language": "en",
+        },
     )
     assert r.status_code == 200
     data = r.json()
@@ -142,8 +142,8 @@ def test_v1_bodyfat_missing_hip():
             "gender": "female",
             "neck_cm": 34,
             "waist_cm": 74,
-            "language": "en"
-        }
+            "language": "en",
+        },
     )
     assert r.status_code == 200
     data = r.json()
@@ -164,7 +164,7 @@ def test_bodyfat_import_failure():
     # Save original before patching
     original_import = builtins.__import__
 
-    with patch.object(builtins, '__import__') as mock_import:
+    with patch.object(builtins, "__import__") as mock_import:
         # Mock the import to fail
         def side_effect(name, *args, **kwargs):
             if name == "bodyfat":
@@ -178,6 +178,7 @@ def test_bodyfat_import_failure():
             del sys.modules["app"]
         try:
             import app
+
             # If import succeeds, check that get_bodyfat_router is None
             assert app.get_bodyfat_router is None
         except Exception:
@@ -202,7 +203,7 @@ def test_insight_import_failure():
     # Save original before patching
     original_import = builtins.__import__
 
-    with patch.object(builtins, '__import__') as mock_import:
+    with patch.object(builtins, "__import__") as mock_import:
         # Mock the import to fail for llm
         def side_effect(name, *args, **kwargs):
             if name == "llm":
@@ -216,12 +217,13 @@ def test_insight_import_failure():
             del sys.modules["app"]
         try:
             import app
+
             client = TestClient(app.app)
 
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
-                headers={"X-API-Key": "test_key"}
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 503
             data = response.json()
@@ -236,7 +238,7 @@ def test_insight_import_failure():
                 del sys.modules["app"]
 
 
-@patch('llm.get_provider')
+@patch("llm.get_provider")
 def test_api_insight_provider_generate_failure(mock_get_provider):
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
@@ -247,24 +249,20 @@ def test_api_insight_provider_generate_failure(mock_get_provider):
     mock_get_provider.return_value = mock_provider
 
     response = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
     data = response.json()
     assert "insight provider unavailable" in data["detail"]
 
 
-@patch('llm.get_provider')
+@patch("llm.get_provider")
 def test_api_insight_provider_none(mock_get_provider):
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
     response = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
     data = response.json()
@@ -282,6 +280,7 @@ def test_metrics():
 
 def test_category_by_bmi_ru():
     from bmi_core import bmi_category
+
     assert bmi_category(17, "ru") == "Недовес"
     assert bmi_category(22, "ru") == "Нормальный вес"
     assert bmi_category(27, "ru") == "Избыточный вес"
@@ -291,7 +290,7 @@ def test_category_by_bmi_ru():
 def test_compute_wht_ratio_round_exception():
     from bmi_core import compute_wht_ratio
 
-    with patch('builtins.round', side_effect=Exception("Round failed")):
+    with patch("builtins.round", side_effect=Exception("Round failed")):
         result = compute_wht_ratio(80, 1.7)
         assert result is None
 
@@ -300,7 +299,7 @@ def test_v1_bmi_invalid_api_key():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "wrong_key"}
+        headers={"X-API-Key": "wrong_key"},
     )
     assert r.status_code == 403
     data = r.json()
@@ -309,8 +308,7 @@ def test_v1_bmi_invalid_api_key():
 
 def test_v1_bmi_no_api_key():
     r = client.post(
-        "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": 170, "group": "general"}
+        "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"}
     )
     assert r.status_code == 403
     data = r.json()
@@ -319,9 +317,7 @@ def test_v1_bmi_no_api_key():
 
 def test_v1_insight_invalid_api_key():
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "wrong_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"}
     )
     assert r.status_code == 403
     data = r.json()
@@ -340,7 +336,7 @@ def test_slowapi_import_failure():
     # Save original before patching
     original_import = builtins.__import__
 
-    with patch.object(builtins, '__import__') as mock_import:
+    with patch.object(builtins, "__import__") as mock_import:
         # Mock the import to fail for slowapi
         def side_effect(name, *args, **kwargs):
             if name == "slowapi":
@@ -354,6 +350,7 @@ def test_slowapi_import_failure():
             del sys.modules["app"]
         try:
             import app
+
             # Check that limiter is None
             assert app.limiter is None
         except Exception:
@@ -378,7 +375,7 @@ def test_prometheus_import_failure():
     # Save original before patching
     original_import = builtins.__import__
 
-    with patch.object(builtins, '__import__') as mock_import:
+    with patch.object(builtins, "__import__") as mock_import:
         # Mock the import to fail for prometheus_client
         def side_effect(name, *args, **kwargs):
             if name == "prometheus_client":
@@ -392,6 +389,7 @@ def test_prometheus_import_failure():
             del sys.modules["app"]
         try:
             import app
+
             # Check that Counter is None
             assert app.Counter is None
             assert app.Histogram is None

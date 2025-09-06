@@ -1,15 +1,10 @@
-import asyncio
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 
 import pytest
 
 from core.food_apis.openfoodfacts_client import OFFClient, OFFFoodItem
 from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
-from core.food_apis.update_manager import (
-    DatabaseUpdateManager,
-    DatabaseVersion,
-)
+from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
 
 def make_off_item(name: str = "Vegetarian Snack") -> OFFFoodItem:
@@ -44,7 +39,11 @@ async def test_off_item_vegetarian_tag_and_gather_exception(monkeypatch):
         raise RuntimeError("boom")
 
     # Patch methods on the instance
-    monkeypatch.setattr(client, "get_product_details", lambda code: ok(code) if code == "1" else boom(code))
+    monkeypatch.setattr(
+        client,
+        "get_product_details",
+        lambda code: ok(code) if code == "1" else boom(code),
+    )
     results = await client.get_multiple_products(["1", "2"])  # one ok, one exception
     assert len(results) == 1 and results[0].product_name == "Ok Product"
     await client.close()
@@ -252,6 +251,7 @@ async def test_update_manager_off_nochange_branch(tmp_path, monkeypatch):
     class StubOFF:
         async def search_products(self, *_args, **_kwargs):
             return []  # empty leads to empty unified_foods
+
         async def close(self):
             return None
 
@@ -286,6 +286,7 @@ async def test_update_manager_off_validation_failure(tmp_path, monkeypatch):
     class StubOFF:
         async def search_products(self, *_args, **_kwargs):
             return [make_off_item("Needs Validation")]  # non-empty
+
         async def close(self):
             return None
 
@@ -293,9 +294,11 @@ async def test_update_manager_off_validation_failure(tmp_path, monkeypatch):
 
     # Different checksum to avoid no-change path
     monkeypatch.setattr(mgr, "_calculate_checksum", lambda data: "new")
+
     # Force validation errors
     async def with_errors(_foods):
         return ["error"]
+
     monkeypatch.setattr(mgr, "_validate_food_data", with_errors)
     monkeypatch.setattr(mgr, "_load_backup", lambda s, v: {})
     monkeypatch.setattr(mgr.unified_db, "get_common_foods_database", lambda: {})
@@ -321,6 +324,7 @@ async def test_update_manager_off_exception_final(tmp_path, monkeypatch):
     class StubOFF:
         async def search_products(self, *_args, **_kwargs):
             return [make_off_item("One Product")]
+
         async def close(self):
             return None
 
@@ -332,7 +336,9 @@ async def test_update_manager_off_exception_final(tmp_path, monkeypatch):
     monkeypatch.setattr(mgr, "_load_backup", lambda s, v: {})
     monkeypatch.setattr(mgr.unified_db, "get_common_foods_database", lambda: {})
     # Raise when saving versions to land in final except
-    monkeypatch.setattr(mgr, "_save_versions", lambda: (_ for _ in ()).throw(RuntimeError("save fail")))
+    monkeypatch.setattr(
+        mgr, "_save_versions", lambda: (_ for _ in ()).throw(RuntimeError("save fail"))
+    )
 
     result = await mgr._update_off_database(force=False)
     assert result.success is False and result.errors
@@ -357,6 +363,7 @@ async def test_update_manager_off_search_warning(tmp_path, monkeypatch):
             if term == "bread":
                 raise RuntimeError("search error")
             return []
+
         async def close(self):
             return None
 
@@ -365,10 +372,13 @@ async def test_update_manager_off_search_warning(tmp_path, monkeypatch):
     # Avoid network in backup creation and simplify processing (async stubs)
     async def _fake_common():
         return {}
+
     async def _no_errors(_foods):
         return []
+
     async def _empty_backup(_s, _v):
         return {}
+
     monkeypatch.setattr(mgr.unified_db, "get_common_foods_database", _fake_common)
     monkeypatch.setattr(mgr, "_validate_food_data", _no_errors)
     monkeypatch.setattr(mgr, "_load_backup", _empty_backup)

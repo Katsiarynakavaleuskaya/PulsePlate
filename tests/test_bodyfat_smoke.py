@@ -14,7 +14,9 @@ def test_us_navy_soft_male():
 
 
 def test_us_navy_soft_female():
-    assert_soft(bf_us_navy(height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female"))
+    assert_soft(
+        bf_us_navy(height_cm=170, neck_cm=34, waist_cm=74, hip_cm=94, gender="female")
+    )
 
 
 def test_ymca_soft_male():

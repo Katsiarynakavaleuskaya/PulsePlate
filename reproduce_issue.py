@@ -18,13 +18,19 @@ def test_reproduce_issue():
     client = TestClient(app)
 
     # First, simulate interference by patching generate_bmi_visualization to None
-    print("\n=== Simulating interference: patching generate_bmi_visualization to None ===")
-    with patch('app.generate_bmi_visualization', None):
-        print(f"During interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}")
+    print(
+        "\n=== Simulating interference: patching generate_bmi_visualization to None ==="
+    )
+    with patch("app.generate_bmi_visualization", None):
+        print(
+            f"During interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
+        )
         print(f"Type: {type(app_module.generate_bmi_visualization)}")
         print(f"Callable: {callable(app_module.generate_bmi_visualization)}")
 
-    print(f"After interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}")
+    print(
+        f"After interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
+    )
     print(f"Type: {type(app_module.generate_bmi_visualization)}")
     print(f"Callable: {callable(app_module.generate_bmi_visualization)}")
 
@@ -38,12 +44,12 @@ def test_reproduce_issue():
         "pregnant": "yes",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": True, "chart_base64": "test_chart"}
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")
             if response.status_code == 200:
@@ -67,12 +73,12 @@ def test_reproduce_issue():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": True, "chart_base64": "test_chart"}
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")
             if response.status_code == 200:
@@ -96,12 +102,12 @@ def test_reproduce_issue():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": False}
-        with patch('app.MATPLOTLIB_AVAILABLE', False):
+        with patch("app.MATPLOTLIB_AVAILABLE", False):
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")
             if response.status_code == 200:
@@ -116,7 +122,9 @@ def test_reproduce_issue():
                 print(f"Error response: {response.text}")
 
     # Test case 4: Non-pregnant with matplotlib not available (second test)
-    print("\n=== Test case 4: Non-pregnant with matplotlib not available (second test) ===")
+    print(
+        "\n=== Test case 4: Non-pregnant with matplotlib not available (second test) ==="
+    )
     data = {
         "weight_kg": 80.0,
         "height_m": 1.80,
@@ -125,12 +133,12 @@ def test_reproduce_issue():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": False}
-        with patch('app.MATPLOTLIB_AVAILABLE', False):
+        with patch("app.MATPLOTLIB_AVAILABLE", False):
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")
             if response.status_code == 200:

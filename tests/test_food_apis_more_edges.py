@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -85,7 +84,9 @@ def test_update_manager_backup_cleanup(tmp_path: Path):
         p = cache / f"usda_backup_v{i}.json"
         p.write_text("{}")
 
-    m = DatabaseUpdateManager(cache_dir=str(cache), update_interval_hours=0, max_rollback_versions=3)
+    m = DatabaseUpdateManager(
+        cache_dir=str(cache), update_interval_hours=0, max_rollback_versions=3
+    )
     loop = asyncio.new_event_loop()
     # Remove older backups beyond retention (should not raise)
     loop.run_until_complete(m._cleanup_old_backups("usda"))
@@ -140,8 +141,11 @@ def test_scheduler_signal_handlers_and_loop_errors():
             pass
         return MagicMock()
 
-    with patch.object(sched_mod.signal, "signal", side_effect=fake_signal), \
-         patch.object(sched_mod.asyncio, "create_task", side_effect=fake_create_task) as mk:
+    with patch.object(
+        sched_mod.signal, "signal", side_effect=fake_signal
+    ), patch.object(
+        sched_mod.asyncio, "create_task", side_effect=fake_create_task
+    ) as mk:
         s = DatabaseUpdateScheduler(update_interval_hours=0)
         # create_task should be called by handler; also use `s` to satisfy linter
         assert isinstance(s, DatabaseUpdateScheduler)

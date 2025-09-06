@@ -2,9 +2,7 @@
 Additional tests to improve coverage for unified_db.py to reach 97%+.
 """
 
-import asyncio
 import tempfile
-from dataclasses import asdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,7 +21,7 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_search_food_prefer_openfoodfacts(self):
         """Test search_food with prefer_source='openfoodfacts'."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[])
             mock_usda_class.return_value = mock_usda_instance
@@ -39,14 +37,17 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_search_food_with_results(self):
         """Test search_food with actual results."""
-        from core.food_apis.usda_client import USDAFoodItem
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             # Create mock USDA food item
             mock_usda_food = MagicMock()
             mock_usda_food.description = "Chicken Breast"
             mock_usda_food.food_category = "Meat"
-            mock_usda_food.nutrients_per_100g = {"protein_g": 31.0, "fat_g": 3.6, "carbs_g": 0.0}
+            mock_usda_food.nutrients_per_100g = {
+                "protein_g": 31.0,
+                "fat_g": 3.6,
+                "carbs_g": 0.0,
+            }
             mock_usda_food._generate_tags = MagicMock(return_value=["meat", "chicken"])
 
             mock_usda_instance = MagicMock()
@@ -65,7 +66,7 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_food_by_id_invalid_usda_id(self):
         """Test get_food_by_id with invalid USDA ID."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
 
@@ -79,9 +80,11 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_food_by_id_usda_exception(self):
         """Test get_food_by_id with USDA client exception."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.get_food_details = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.get_food_details = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -98,8 +101,9 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_food_by_id_non_usda_source(self):
         """Test get_food_by_id with non-USDA source."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class, \
-             patch('core.food_apis.unified_db.OFFClient') as mock_off_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class, patch(
+            "core.food_apis.unified_db.OFFClient"
+        ) as mock_off_class:
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
 
@@ -117,7 +121,7 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_common_foods_database_cache_load_exception(self):
         """Test get_common_foods_database with cache load exception."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[])
             mock_usda_class.return_value = mock_usda_instance
@@ -127,7 +131,7 @@ class TestUnifiedDBCoverage:
 
                 # Create an invalid cache file
                 cache_file = db.cache_dir / "common_foods.json"
-                with open(cache_file, 'w') as f:
+                with open(cache_file, "w") as f:
                     f.write("invalid json")
 
                 # Should handle the exception and build from USDA
@@ -137,7 +141,7 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_common_foods_database_cache_save_exception(self):
         """Test get_common_foods_database with cache save exception."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             # Mock USDA search to return results
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[MagicMock()])
@@ -149,7 +153,10 @@ class TestUnifiedDBCoverage:
                 # Make the cache directory read-only to cause save exception
                 _ = db.cache_dir / "common_foods.json"
                 # We can't easily make it read-only, so we'll mock json.dump instead
-                with patch('core.food_apis.unified_db.json.dump', side_effect=Exception("Test error")):
+                with patch(
+                    "core.food_apis.unified_db.json.dump",
+                    side_effect=Exception("Test error"),
+                ):
                     # Should handle the exception and still return results
                     foods_db = await db.get_common_foods_database()
                     assert isinstance(foods_db, dict)
@@ -157,9 +164,11 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_common_foods_database_search_exception(self):
         """Test get_common_foods_database with search exception."""
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.search_foods = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -172,7 +181,7 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_unified_db_global_functions(self):
         """Test global unified database functions."""
-        with patch('core.food_apis.unified_db.USDAClient'):
+        with patch("core.food_apis.unified_db.USDAClient"):
             # Test get_unified_food_db
             db1 = await get_unified_food_db()
             db2 = await get_unified_food_db()
@@ -181,7 +190,9 @@ class TestUnifiedDBCoverage:
             assert db1 is db2
 
             # Test search_foods_unified
-            with patch.object(db1, 'search_food', new_callable=AsyncMock) as mock_search:
+            with patch.object(
+                db1, "search_food", new_callable=AsyncMock
+            ) as mock_search:
                 mock_search.return_value = []
                 results = await search_foods_unified("chicken", 5)
                 assert isinstance(results, list)

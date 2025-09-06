@@ -34,10 +34,12 @@ class DatabaseUpdateScheduler:
     - Update notifications and logging
     """
 
-    def __init__(self,
-                 update_interval_hours: int = 24,
-                 retry_interval_minutes: int = 30,
-                 max_retries: int = 3):
+    def __init__(
+        self,
+        update_interval_hours: int = 24,
+        retry_interval_minutes: int = 30,
+        max_retries: int = 3,
+    ):
         self.update_interval = timedelta(hours=update_interval_hours)
         self.retry_interval = timedelta(minutes=retry_interval_minutes)
         self.max_retries = max_retries
@@ -62,6 +64,7 @@ class DatabaseUpdateScheduler:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self.stop())
@@ -176,9 +179,11 @@ class DatabaseUpdateScheduler:
             if result.success:
                 # Reset retry count on success
                 self.retry_counts[source] = 0
-                logger.info(f"Successfully updated {source}: "
-                           f"+{result.records_added} ~{result.records_updated} "
-                           f"-{result.records_removed} records")
+                logger.info(
+                    f"Successfully updated {source}: "
+                    f"+{result.records_added} ~{result.records_updated} "
+                    f"-{result.records_removed} records"
+                )
             else:
                 # Handle failure
                 self._handle_update_failure(source, result.errors)
@@ -192,23 +197,32 @@ class DatabaseUpdateScheduler:
         self.retry_counts[source] = self.retry_counts.get(source, 0) + 1
 
         if self.retry_counts[source] >= self.max_retries:
-            logger.error(f"Max retries exceeded for {source} updates. "
-                        f"Errors: {errors}")
+            logger.error(
+                f"Max retries exceeded for {source} updates. " f"Errors: {errors}"
+            )
             # Reset retry count to try again next cycle
             self.retry_counts[source] = 0
         else:
-            logger.warning(f"Update failed for {source} (attempt {self.retry_counts[source]}). "
-                          f"Will retry. Errors: {errors}")
+            logger.warning(
+                f"Update failed for {source} (attempt {self.retry_counts[source]}). "
+                f"Will retry. Errors: {errors}"
+            )
 
     def _on_update_complete(self, result: UpdateResult):
         """Callback for when an update completes."""
         if result.success:
-            logger.info(f"Update notification: {result.source} updated successfully "
-                       f"(v{result.old_version} → v{result.new_version})")
+            logger.info(
+                f"Update notification: {result.source} updated successfully "
+                f"(v{result.old_version} → v{result.new_version})"
+            )
         else:
-            logger.warning(f"Update notification: {result.source} update failed - {result.errors}")
+            logger.warning(
+                f"Update notification: {result.source} update failed - {result.errors}"
+            )
 
-    async def force_update(self, source: Optional[str] = None) -> Dict[str, UpdateResult]:
+    async def force_update(
+        self, source: Optional[str] = None
+    ) -> Dict[str, UpdateResult]:
         """
         RU: Принудительно запускает обновление.
         EN: Force an immediate update.
@@ -245,11 +259,15 @@ class DatabaseUpdateScheduler:
         status = {
             "scheduler": {
                 "is_running": self.is_running,
-                "last_update_check": self.last_update_check.isoformat() if self.last_update_check else None,
+                "last_update_check": (
+                    self.last_update_check.isoformat()
+                    if self.last_update_check
+                    else None
+                ),
                 "update_interval_hours": self.update_interval.total_seconds() / 3600,
-                "retry_counts": self.retry_counts.copy()
+                "retry_counts": self.retry_counts.copy(),
             },
-            "databases": self.update_manager.get_database_status()
+            "databases": self.update_manager.get_database_status(),
         }
 
         return status
@@ -278,7 +296,9 @@ async def start_background_updates(update_interval_hours: int = 24):
     scheduler = await get_update_scheduler()
     if not scheduler.is_running:
         await scheduler.start()
-        logger.info(f"Background database updates started (every {update_interval_hours}h)")
+        logger.info(
+            f"Background database updates started (every {update_interval_hours}h)"
+        )
 
 
 async def stop_background_updates():
@@ -295,7 +315,9 @@ async def stop_background_updates():
 if __name__ == "__main__":
     # Test the scheduler
     async def test_scheduler():
-        scheduler = DatabaseUpdateScheduler(update_interval_hours=1)  # 1 hour for testing (minimum int value)
+        scheduler = DatabaseUpdateScheduler(
+            update_interval_hours=1
+        )  # 1 hour for testing (minimum int value)
 
         try:
             print("Testing database update scheduler...")

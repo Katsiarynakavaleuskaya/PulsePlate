@@ -3,7 +3,7 @@ Final targeted tests to boost coverage to exactly 97%+.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,9 +28,15 @@ class TestFinalCoverageBoost:
         """Test line 133 in unified_db.py (search_food error handling)."""
         # Test search_food with exception in cache loading
         try:
-            with patch('core.food_apis.unified_db.UnifiedFoodDatabase._load_cache', side_effect=Exception("Cache error")):
+            with patch(
+                "core.food_apis.unified_db.UnifiedFoodDatabase._load_cache",
+                side_effect=Exception("Cache error"),
+            ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
-                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
+
+                _ = (
+                    UnifiedFoodDatabase()
+                )  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error and continue
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -39,11 +45,15 @@ class TestFinalCoverageBoost:
     def test_unified_db_py_line_165_fixed(self):
         """Test line 165 in unified_db.py (get_food_by_id ValueError)."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
+
         db = UnifiedFoodDatabase()
         # Test with invalid USDA FDC ID that causes ValueError
         import asyncio
+
         try:
-            _ = asyncio.run(db.get_food_by_id("usda", "invalid_id"))  # Use _ to indicate we're not using the variable
+            _ = asyncio.run(
+                db.get_food_by_id("usda", "invalid_id")
+            )  # Use _ to indicate we're not using the variable
             # Should handle gracefully
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -53,9 +63,15 @@ class TestFinalCoverageBoost:
         """Test lines 171-175 in unified_db.py (_get_cache_file exception)."""
         # Test _get_cache_file with exception in mkdir
         try:
-            with patch('core.food_apis.unified_db.Path.mkdir', side_effect=Exception("Mkdir error")):
+            with patch(
+                "core.food_apis.unified_db.Path.mkdir",
+                side_effect=Exception("Mkdir error"),
+            ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
-                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
+
+                _ = (
+                    UnifiedFoodDatabase()
+                )  # Use _ to indicate we're not using the variable
                 # Should handle gracefully
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -77,7 +93,7 @@ class TestFinalCoverageBoost:
                 nutrients_per_100g={"protein_g": -5.0},  # Negative value
                 cost_per_100g=0.0,
                 tags=[],
-                availability_regions=[]
+                availability_regions=[],
             ),
             "missing_nutrients": UnifiedFoodItem(
                 name="Test Food",
@@ -86,21 +102,24 @@ class TestFinalCoverageBoost:
                 nutrients_per_100g={},  # Missing required nutrients
                 cost_per_100g=0.0,
                 tags=[],
-                availability_regions=[]
+                availability_regions=[],
             ),
             "unrealistic_values": UnifiedFoodItem(
                 name="Test Food",
                 source="test",
                 source_id="123",
-                nutrients_per_100g={"protein_g": 150.0},  # Unrealistic value (>100g per 100g)
+                nutrients_per_100g={
+                    "protein_g": 150.0
+                },  # Unrealistic value (>100g per 100g)
                 cost_per_100g=0.0,
                 tags=[],
-                availability_regions=[]
-            )
+                availability_regions=[],
+            ),
         }
 
         # Add the synchronous wrapper method for testing
         import asyncio
+
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -115,11 +134,16 @@ class TestFinalCoverageBoost:
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
         # Test _cleanup_old_backups with exception in glob
         try:
-            with patch('core.food_apis.update_manager.Path.glob', side_effect=Exception("Glob error")):
+            with patch(
+                "core.food_apis.update_manager.Path.glob",
+                side_effect=Exception("Glob error"),
+            ):
                 from core.food_apis.update_manager import DatabaseUpdateManager
+
                 manager = DatabaseUpdateManager()
                 # Test with async function properly
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(manager._cleanup_old_backups("usda"))
@@ -139,22 +163,19 @@ class TestFinalCoverageBoost:
             preparation_time_min=30,
             difficulty="easy",
             tags=["test"],
-            instructions=[]
+            instructions=[],
         )
 
         # Test with food database that has the ingredient
         from core.menu_engine import FoodItem
+
         food_db = {
             "chicken_breast": FoodItem(
                 name="Chicken Breast",
-                nutrients_per_100g={
-                    "protein_g": 23.0,
-                    "fat_g": 3.6,
-                    "carbs_g": 0.0
-                },
+                nutrients_per_100g={"protein_g": 23.0, "fat_g": 3.6, "carbs_g": 0.0},
                 cost_per_100g=2.50,
                 tags=[],
-                availability_regions=[]
+                availability_regions=[],
             )
         }
 
@@ -164,8 +185,11 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_421_fixed(self):
         """Test line 421 in menu_engine.py (_get_default_food_db fallback detailed)."""
         # Test _get_default_food_db with exception in get_unified_food_db
-        with patch('core.menu_engine.get_unified_food_db', side_effect=Exception("API error")):
+        with patch(
+            "core.menu_engine.get_unified_food_db", side_effect=Exception("API error")
+        ):
             from core.menu_engine import _get_default_food_db
+
             result = _get_default_food_db()
             # Should return fallback data
             assert isinstance(result, dict)
@@ -174,6 +198,7 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_423_fixed(self):
         """Test line 423 in menu_engine.py (_get_default_recipe_db detailed)."""
         from core.menu_engine import _get_default_recipe_db
+
         result = _get_default_recipe_db()
         assert isinstance(result, dict)
         # Check that it contains some default recipes
@@ -182,6 +207,7 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_425_fixed(self):
         """Test line 425 in menu_engine.py (_enhance_meals_with_micros detailed)."""
         from core.menu_engine import _enhance_meals_with_micros
+
         meals = [{"title": "Chicken Salad"}]
         food_db = {}
         recipe_db = {}
@@ -192,24 +218,18 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_467_fixed(self):
         """Test line 467 in menu_engine.py (_calculate_total_nutrients detailed)."""
         from core.menu_engine import _calculate_total_nutrients
+
         # Test with meals that have ingredients
-        meals = [{
-            "ingredients": {
-                "chicken_breast": 100.0
-            }
-        }]
+        meals = [{"ingredients": {"chicken_breast": 100.0}}]
         from core.menu_engine import FoodItem
+
         food_db = {
             "chicken_breast": FoodItem(
                 name="Chicken Breast",
-                nutrients_per_100g={
-                    "protein_g": 23.0,
-                    "fat_g": 3.6,
-                    "carbs_g": 0.0
-                },
+                nutrients_per_100g={"protein_g": 23.0, "fat_g": 3.6, "carbs_g": 0.0},
                 cost_per_100g=2.50,
                 tags=[],
-                availability_regions=[]
+                availability_regions=[],
             )
         }
         result = _calculate_total_nutrients(meals, food_db)
@@ -218,25 +238,18 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_490_fixed(self):
         """Test line 490 in menu_engine.py (_estimate_daily_cost detailed)."""
         from core.menu_engine import _estimate_daily_cost
+
         # Test with meals that have ingredients and title
-        meals = [{
-            "title": "Chicken Salad",
-            "ingredients": {
-                "chicken_breast": 100.0
-            }
-        }]
+        meals = [{"title": "Chicken Salad", "ingredients": {"chicken_breast": 100.0}}]
         from core.menu_engine import FoodItem
+
         food_db = {
             "chicken_breast": FoodItem(
                 name="Chicken Breast",
-                nutrients_per_100g={
-                    "protein_g": 23.0,
-                    "fat_g": 3.6,
-                    "carbs_g": 0.0
-                },
+                nutrients_per_100g={"protein_g": 23.0, "fat_g": 3.6, "carbs_g": 0.0},
                 cost_per_100g=2.50,
                 tags=[],
-                availability_regions=[]
+                availability_regions=[],
             )
         }
         result = _estimate_daily_cost(meals, food_db)

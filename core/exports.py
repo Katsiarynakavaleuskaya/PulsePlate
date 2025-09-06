@@ -23,24 +23,27 @@ try:
     from reportlab.lib import colors  # type: ignore
     from reportlab.lib.pagesizes import letter  # type: ignore
     from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
-    from reportlab.platypus import (  # type: ignore
-        Paragraph,
+    from reportlab.platypus import (
+        Paragraph,  # type: ignore
         SimpleDocTemplate,
         Spacer,
         Table,
         TableStyle,
     )
+
     REPORTLAB_AVAILABLE = True
-    REPORTLAB_CLASSES.update({
-        'colors': colors,
-        'letter': letter,
-        'getSampleStyleSheet': getSampleStyleSheet,
-        'Paragraph': Paragraph,
-        'SimpleDocTemplate': SimpleDocTemplate,
-        'Spacer': Spacer,
-        'Table': Table,
-        'TableStyle': TableStyle
-    })
+    REPORTLAB_CLASSES.update(
+        {
+            "colors": colors,
+            "letter": letter,
+            "getSampleStyleSheet": getSampleStyleSheet,
+            "Paragraph": Paragraph,
+            "SimpleDocTemplate": SimpleDocTemplate,
+            "Spacer": Spacer,
+            "Table": Table,
+            "TableStyle": TableStyle,
+        }
+    )
 except ImportError:
     REPORTLAB_AVAILABLE = False
 
@@ -72,31 +75,40 @@ def to_csv_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(['Meal', 'Food Item', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
+    writer.writerow(
+        ["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]
+    )
 
     # Write meal data
-    for meal in meal_plan.get('meals', []):
-        writer.writerow([
-            meal.get('name', ''),
-            meal.get('food_item', ''),
-            meal.get('kcal', 0),
-            meal.get('protein_g', 0),
-            meal.get('carbs_g', 0),
-            meal.get('fat_g', 0)
-        ])
+    for meal in meal_plan.get("meals", []):
+        writer.writerow(
+            [
+                meal.get("name", ""),
+                meal.get("food_item", ""),
+                meal.get("kcal", 0),
+                meal.get("protein_g", 0),
+                meal.get("carbs_g", 0),
+                meal.get("fat_g", 0),
+            ]
+        )
 
     # Write summary
     writer.writerow([])
-    writer.writerow(['Total', '',
-                    meal_plan.get('total_kcal', 0),
-                    meal_plan.get('total_protein', 0),
-                    meal_plan.get('total_carbs', 0),
-                    meal_plan.get('total_fat', 0)])
+    writer.writerow(
+        [
+            "Total",
+            "",
+            meal_plan.get("total_kcal", 0),
+            meal_plan.get("total_protein", 0),
+            meal_plan.get("total_carbs", 0),
+            meal_plan.get("total_fat", 0),
+        ]
+    )
 
     csv_data = output.getvalue()
     output.close()
 
-    return csv_data.encode('utf-8')
+    return csv_data.encode("utf-8")
 
 
 def to_csv_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
@@ -115,44 +127,54 @@ def to_csv_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow([
-        'Day', 'Meal', 'Food Item', 'Calories', 'Protein (g)',
-        'Carbs (g)', 'Fat (g)', 'Cost'
-    ])
+    writer.writerow(
+        [
+            "Day",
+            "Meal",
+            "Food Item",
+            "Calories",
+            "Protein (g)",
+            "Carbs (g)",
+            "Fat (g)",
+            "Cost",
+        ]
+    )
 
     # Write daily meal data
-    for day_menu in weekly_plan.get('daily_menus', []):
-        day = day_menu.get('date', '')
-        for meal in day_menu.get('meals', []):
-            writer.writerow([
-                day,
-                meal.get('name', ''),
-                meal.get('food_item', ''),
-                meal.get('kcal', 0),
-                meal.get('protein_g', 0),
-                meal.get('carbs_g', 0),
-                meal.get('fat_g', 0),
-                meal.get('cost', 0)
-            ])
+    for day_menu in weekly_plan.get("daily_menus", []):
+        day = day_menu.get("date", "")
+        for meal in day_menu.get("meals", []):
+            writer.writerow(
+                [
+                    day,
+                    meal.get("name", ""),
+                    meal.get("food_item", ""),
+                    meal.get("kcal", 0),
+                    meal.get("protein_g", 0),
+                    meal.get("carbs_g", 0),
+                    meal.get("fat_g", 0),
+                    meal.get("cost", 0),
+                ]
+            )
 
     # Write shopping list
     writer.writerow([])
-    writer.writerow(['Shopping List'])
-    writer.writerow(['Item', 'Quantity', 'Estimated Cost'])
+    writer.writerow(["Shopping List"])
+    writer.writerow(["Item", "Quantity", "Estimated Cost"])
 
-    for item, quantity in weekly_plan.get('shopping_list', {}).items():
-        writer.writerow([item, quantity, ''])
+    for item, quantity in weekly_plan.get("shopping_list", {}).items():
+        writer.writerow([item, quantity, ""])
 
     # Write summary
     writer.writerow([])
-    writer.writerow(['Weekly Summary'])
-    writer.writerow(['Total Cost', weekly_plan.get('total_cost', 0)])
-    writer.writerow(['Adherence Score', weekly_plan.get('adherence_score', 0)])
+    writer.writerow(["Weekly Summary"])
+    writer.writerow(["Total Cost", weekly_plan.get("total_cost", 0)])
+    writer.writerow(["Adherence Score", weekly_plan.get("adherence_score", 0)])
 
     csv_data = output.getvalue()
     output.close()
 
-    return csv_data.encode('utf-8')
+    return csv_data.encode("utf-8")
 
 
 def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
@@ -175,14 +197,14 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
 
     # Lazy import reportlab modules
     reportlab_classes = _import_reportlab_modules()
-    colors = reportlab_classes['colors']
-    letter = reportlab_classes['letter']
-    getSampleStyleSheet = reportlab_classes['getSampleStyleSheet']
-    Paragraph = reportlab_classes['Paragraph']
-    SimpleDocTemplate = reportlab_classes['SimpleDocTemplate']
-    Spacer = reportlab_classes['Spacer']
-    Table = reportlab_classes['Table']
-    TableStyle = reportlab_classes['TableStyle']
+    colors = reportlab_classes["colors"]
+    letter = reportlab_classes["letter"]
+    getSampleStyleSheet = reportlab_classes["getSampleStyleSheet"]
+    Paragraph = reportlab_classes["Paragraph"]
+    SimpleDocTemplate = reportlab_classes["SimpleDocTemplate"]
+    Spacer = reportlab_classes["Spacer"]
+    Table = reportlab_classes["Table"]
+    TableStyle = reportlab_classes["TableStyle"]
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -192,43 +214,54 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     styles = getSampleStyleSheet()
 
     # Title
-    title = Paragraph("Daily Meal Plan", styles['Title'])
+    title = Paragraph("Daily Meal Plan", styles["Title"])
     elements.append(title)
     elements.append(Spacer(1, 12))
 
     # Meal table
-    meal_data = [['Meal', 'Food Item', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)']]
+    meal_data = [
+        ["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]
+    ]
 
-    for meal in meal_plan.get('meals', []):
-        meal_data.append([
-            meal.get('name', ''),
-            meal.get('food_item', ''),
-            str(meal.get('kcal', 0)),
-            str(meal.get('protein_g', 0)),
-            str(meal.get('carbs_g', 0)),
-            str(meal.get('fat_g', 0))
-        ])
+    for meal in meal_plan.get("meals", []):
+        meal_data.append(
+            [
+                meal.get("name", ""),
+                meal.get("food_item", ""),
+                str(meal.get("kcal", 0)),
+                str(meal.get("protein_g", 0)),
+                str(meal.get("carbs_g", 0)),
+                str(meal.get("fat_g", 0)),
+            ]
+        )
 
     # Add total row
-    meal_data.append([
-        'Total', '',
-        str(meal_plan.get('total_kcal', 0)),
-        str(meal_plan.get('total_protein', 0)),
-        str(meal_plan.get('total_carbs', 0)),
-        str(meal_plan.get('total_fat', 0))
-    ])
+    meal_data.append(
+        [
+            "Total",
+            "",
+            str(meal_plan.get("total_kcal", 0)),
+            str(meal_plan.get("total_protein", 0)),
+            str(meal_plan.get("total_carbs", 0)),
+            str(meal_plan.get("total_fat", 0)),
+        ]
+    )
 
     meal_table = Table(meal_data)
-    meal_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 14),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    meal_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 14),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(meal_table)
 
@@ -260,14 +293,14 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
 
     # Lazy import reportlab modules
     reportlab_classes = _import_reportlab_modules()
-    colors = reportlab_classes['colors']
-    letter = reportlab_classes['letter']
-    getSampleStyleSheet = reportlab_classes['getSampleStyleSheet']
-    Paragraph = reportlab_classes['Paragraph']
-    SimpleDocTemplate = reportlab_classes['SimpleDocTemplate']
-    Spacer = reportlab_classes['Spacer']
-    Table = reportlab_classes['Table']
-    TableStyle = reportlab_classes['TableStyle']
+    colors = reportlab_classes["colors"]
+    letter = reportlab_classes["letter"]
+    getSampleStyleSheet = reportlab_classes["getSampleStyleSheet"]
+    Paragraph = reportlab_classes["Paragraph"]
+    SimpleDocTemplate = reportlab_classes["SimpleDocTemplate"]
+    Spacer = reportlab_classes["Spacer"]
+    Table = reportlab_classes["Table"]
+    TableStyle = reportlab_classes["TableStyle"]
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -277,85 +310,107 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     styles = getSampleStyleSheet()
 
     # Title
-    title = Paragraph("Weekly Meal Plan", styles['Title'])
+    title = Paragraph("Weekly Meal Plan", styles["Title"])
     elements.append(title)
     elements.append(Spacer(1, 12))
 
     # Daily meals table
     meal_data = [
-        ['Day', 'Meal', 'Food Item', 'Calories', 'Protein (g)',
-         'Carbs (g)', 'Fat (g)', 'Cost']
+        [
+            "Day",
+            "Meal",
+            "Food Item",
+            "Calories",
+            "Protein (g)",
+            "Carbs (g)",
+            "Fat (g)",
+            "Cost",
+        ]
     ]
 
-    for day_menu in weekly_plan.get('daily_menus', []):
-        day = day_menu.get('date', '')
-        for meal in day_menu.get('meals', []):
-            meal_data.append([
-                day,
-                meal.get('name', ''),
-                meal.get('food_item', ''),
-                str(meal.get('kcal', 0)),
-                str(meal.get('protein_g', 0)),
-                str(meal.get('carbs_g', 0)),
-                str(meal.get('fat_g', 0)),
-                str(meal.get('cost', 0))
-            ])
+    for day_menu in weekly_plan.get("daily_menus", []):
+        day = day_menu.get("date", "")
+        for meal in day_menu.get("meals", []):
+            meal_data.append(
+                [
+                    day,
+                    meal.get("name", ""),
+                    meal.get("food_item", ""),
+                    str(meal.get("kcal", 0)),
+                    str(meal.get("protein_g", 0)),
+                    str(meal.get("carbs_g", 0)),
+                    str(meal.get("fat_g", 0)),
+                    str(meal.get("cost", 0)),
+                ]
+            )
 
     meal_table = Table(meal_data)
-    meal_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    meal_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(meal_table)
     elements.append(Spacer(1, 12))
 
     # Shopping list
-    shopping_title = Paragraph("Shopping List", styles['Heading2'])
+    shopping_title = Paragraph("Shopping List", styles["Heading2"])
     elements.append(shopping_title)
 
-    shopping_data = [['Item', 'Quantity']]
-    for item, quantity in weekly_plan.get('shopping_list', {}).items():
+    shopping_data = [["Item", "Quantity"]]
+    for item, quantity in weekly_plan.get("shopping_list", {}).items():
         shopping_data.append([item, str(quantity)])
 
     shopping_table = Table(shopping_data)
-    shopping_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    shopping_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(shopping_table)
     elements.append(Spacer(1, 12))
 
     # Summary
     summary_data = [
-        ['Total Cost', str(weekly_plan.get('total_cost', 0))],
-        ['Adherence Score', str(weekly_plan.get('adherence_score', 0))]
+        ["Total Cost", str(weekly_plan.get("total_cost", 0))],
+        ["Adherence Score", str(weekly_plan.get("adherence_score", 0))],
     ]
 
     summary_table = Table(summary_data)
-    summary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(summary_table)
 

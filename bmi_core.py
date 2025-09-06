@@ -50,21 +50,16 @@ LANG: Dict[str, Any] = {
             "obese": "Ожирение",
         },
         "notes": {
-            "athlete": (
-                "ИМТ может быть завышен из-за развитой мускулатуры."
-            ),
-            "pregnant": (
-                "Во время беременности ИМТ не диагностичен."
-            ),
-            "elderly": (
-                "У пожилых ИМТ может занижать долю жира (саркопения)."
-            ),
-            "child": (
-                "Для подростков используйте возрастные центильные таблицы."
-            ),
-            "teen": (
-                "Подростковый возраст: учитывайте этап полового созревания."
-            ),
+            "athlete": ("ИМТ может быть завышен из-за "
+                        "развитой мускулатуры."),
+            "pregnant": ("Во время беременности ИМТ "
+                         "не диагностичен."),
+            "elderly": ("У пожилых ИМТ может занижать "
+                        "долю жира (саркопения)."),
+            "child": ("Для подростков используйте возрастные "
+                      "центильные таблицы."),
+            "teen": ("Подростковый возраст: учитывайте этап "
+                     "полового созревания."),
         },
         "levels": {
             "advanced": "продвинутый",
@@ -74,9 +69,8 @@ LANG: Dict[str, Any] = {
         },
         "actions": {
             "maintain": "Поддерживайте текущий баланс.",
-            "lose": (
-                "Сократите ~300–500 ккал/день; белок и овощи в приоритете."
-            ),
+            "lose": ("Сократите ~300–500 ккал/день; "
+                     "белок и овощи в приоритете."),
             "gain": "Добавьте ~300–500 ккал/день; 1.6–2.2 г белка/кг.",
         },
         "activities": {
@@ -109,12 +103,8 @@ LANG: Dict[str, Any] = {
         },
         "actions": {
             "maintain": "Maintain current balance.",
-            "lose": (
-                "Reduce ~300–500 kcal/day; focus on protein & veggies."
-            ),
-            "gain": (
-                "Add ~300–500 kcal/day; 1.6–2.2 g protein/kg."
-            ),
+            "lose": ("Reduce ~300–500 kcal/day; focus on protein & veggies."),
+            "gain": ("Add ~300–500 kcal/day; 1.6–2.2 g protein/kg."),
         },
         "activities": {
             "maintain": "2–3 strength sessions/week.",
@@ -164,11 +154,17 @@ def normalize_lang(lang: str) -> str:
 def bmi_value(weight_kg: float, height_m: float) -> float:
     """Возвращает ИМТ с округлением до 1 знака. Валидирует вход."""
     validate_measurements(weight_kg, height_m)
-    return round(weight_kg / (height_m ** 2), 1)
+    return round(weight_kg / (height_m**2), 1)
 
 
-def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None) -> str:
-    """Enhanced BMI categorization with age and population-specific adjustments."""
+def bmi_category(
+    bmi: float,
+    lang: str,
+    age: Optional[int] = None,
+    group: Optional[str] = None
+) -> str:  # sourcery skip: switch
+    """Enhanced BMI categorization with age and population-specific
+    adjustments."""
     lang = normalize_lang(lang)
     c = LANG[lang]["cat"]
 
@@ -212,7 +208,8 @@ def auto_group(
     athlete: str,
     lang: str
 ) -> str:
-    """Enhanced user group detection with better teen/child distinction."""
+    """Enhanced user group detection with better teen/child
+    distinction."""
     lang = normalize_lang(lang)
     g = (gender or "").strip().lower()
     p = (pregnant or "").strip().lower()
@@ -221,14 +218,14 @@ def auto_group(
     yes_vals = {"yes", "y", "true", "1", "да", "д", "истина"}
 
     # Поддержка "спортсменка", "спортсмен", "атлетка", "атлет" + англ. athlete
-    athlete_yes = {
-        "спорт", "спортсмен", "спортсменка",
-        "атлет", "атлетка", "athlete"
-    }
+    athlete_yes = {"спорт", "спортсмен", "спортсменка",
+                   "атлет", "атлетка", "athlete"}
     is_athlete = (a_raw in yes_vals) or (a_raw in athlete_yes)
-    if not is_athlete and a_raw and (
-        re.search(r"спортсмен(ка)?", a_raw)
-        or re.search(r"атлет(ка)?", a_raw)
+    if (
+        not is_athlete
+        and a_raw
+        and (re.search(r"спортсмен(ка)?", a_raw) or
+             re.search(r"атлет(ка)?", a_raw))
     ):
         is_athlete = True
 
@@ -251,7 +248,9 @@ def auto_group(
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
+def interpret_group(
+    bmi: float, group: str, lang: str, age: Optional[int] = None
+) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
     lang = normalize_lang(lang)
     c = LANG[lang]
@@ -294,11 +293,10 @@ def group_display_name(group: str, lang: str) -> str:
 def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
     lang = normalize_lang(lang)
     if years >= 5 and freq_per_week >= 3:
-        return ("advanced" if lang == "en"
-                else LANG["ru"]["levels"]["advanced"])
+        return "advanced" if lang == "en" else LANG["ru"]["levels"]["advanced"]
     if years >= 2 and freq_per_week >= 2:
-        return ("intermediate" if lang == "en"
-                else LANG["ru"]["levels"]["intermediate"])
+        return "intermediate" if lang == "en" else \
+               LANG["ru"]["levels"]["intermediate"]
     if years >= 0.5 and freq_per_week >= 1:
         return "novice" if lang == "en" else LANG["ru"]["levels"]["novice"]
     return "beginner" if lang == "en" else LANG["ru"]["levels"]["beginner"]
@@ -358,7 +356,7 @@ def build_premium_plan(
     bmi: float,
     lang: str,
     group: str,
-    premium: bool
+    premium: bool,
 ) -> Dict[str, Any]:
     lang = normalize_lang(lang)
     _validate_age(age)
@@ -371,15 +369,29 @@ def build_premium_plan(
     actions = LANG[lang]["actions"]
     activities = LANG[lang]["activities"]
 
-    action = ("maintain" if wmin <= weight_kg <= wmax else
-              "lose" if weight_kg > wmax else "gain")
-    delta = (0.0 if action == "maintain" else
-             round(weight_kg - wmax, 1) if action == "lose" else
-             round(wmin - weight_kg, 1))
-    est_weeks = ((None, None) if action == "maintain" else
-                 (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
-                 if action == "lose" else
-                 (max(1, int(delta / 0.25)), max(1, int(delta / 0.5))))
+    action = (
+        "maintain"
+        if wmin <= weight_kg <= wmax
+        else "lose" if weight_kg > wmax else "gain"
+    )
+    delta = (
+        0.0
+        if action == "maintain"
+        else (
+            round(weight_kg - wmax, 1)
+            if action == "lose"
+            else round(wmin - weight_kg, 1)
+        )
+    )
+    est_weeks = (
+        (None, None)
+        if action == "maintain"
+        else (
+            (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+            if action == "lose"
+            else (max(1, int(delta / 0.25)), max(1, int(delta / 0.5)))
+        )
+    )
 
     return {
         "healthy_bmi": (bmin, bmax),

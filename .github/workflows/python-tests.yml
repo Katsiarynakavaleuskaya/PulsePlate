@@ -36,7 +36,7 @@ jobs:
         env:
           PYTHONPATH: .
           APP_ENV: ci
-        run: pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=96
+        run: python -m pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=96
 
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
@@ -45,9 +45,9 @@ jobs:
           path: coverage.xml
 
       - name: Upload coverage to Codecov (non-blocking)
-        if: ${{ always() }}
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4
+        if: always()
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN || '' }}
         continue-on-error: true

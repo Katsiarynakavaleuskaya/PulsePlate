@@ -22,13 +22,27 @@ def test_exports_coverage_improvement():
     # Test to_csv_day with various inputs
     meal_plan = {
         "meals": [
-            {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5},
-            {"name": "Lunch", "food_item": "Chicken Salad", "kcal": 450, "protein_g": 35, "carbs_g": 20, "fat_g": 25}
+            {
+                "name": "Breakfast",
+                "food_item": "Oatmeal",
+                "kcal": 300,
+                "protein_g": 10,
+                "carbs_g": 50,
+                "fat_g": 5,
+            },
+            {
+                "name": "Lunch",
+                "food_item": "Chicken Salad",
+                "kcal": 450,
+                "protein_g": 35,
+                "carbs_g": 20,
+                "fat_g": 25,
+            },
         ],
         "total_kcal": 750,
         "total_protein": 45,
         "total_carbs": 70,
-        "total_fat": 30
+        "total_fat": 30,
     }
 
     csv_data = to_csv_day(meal_plan)
@@ -40,15 +54,21 @@ def test_exports_coverage_improvement():
             {
                 "date": "2023-01-01",
                 "meals": [
-                    {"name": "Breakfast", "food_item": "Oatmeal", "kcal": 300, "protein_g": 10, "carbs_g": 50, "fat_g": 5, "cost": 1.5}
-                ]
+                    {
+                        "name": "Breakfast",
+                        "food_item": "Oatmeal",
+                        "kcal": 300,
+                        "protein_g": 10,
+                        "carbs_g": 50,
+                        "fat_g": 5,
+                        "cost": 1.5,
+                    }
+                ],
             }
         ],
-        "shopping_list": {
-            "oats": 500
-        },
+        "shopping_list": {"oats": 500},
         "total_cost": 150.0,
-        "adherence_score": 92.5
+        "adherence_score": 92.5,
     }
 
     csv_data = to_csv_week(weekly_plan)
@@ -68,9 +88,9 @@ def test_exports_coverage_improvement():
     if REPORTLAB_AVAILABLE:
         classes = _import_reportlab_modules()
         assert isinstance(classes, dict)
-        assert 'colors' in classes
-        assert 'letter' in classes
-        assert 'getSampleStyleSheet' in classes
+        assert "colors" in classes
+        assert "letter" in classes
+        assert "getSampleStyleSheet" in classes
     else:
         with pytest.raises(ImportError):
             _import_reportlab_modules()
@@ -79,7 +99,7 @@ def test_exports_coverage_improvement():
 def test_exports_import_error_cases():
     """Test export functions when ReportLab is not available."""
     # Mock REPORTLAB_AVAILABLE to False to simulate missing ReportLab
-    with patch('core.exports.REPORTLAB_AVAILABLE', False):
+    with patch("core.exports.REPORTLAB_AVAILABLE", False):
         from core.exports import _import_reportlab_modules, to_pdf_day, to_pdf_week
 
         # Test that PDF functions raise ImportError when ReportLab is not available

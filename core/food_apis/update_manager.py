@@ -32,6 +32,7 @@ class DatabaseVersion:
     RU: Информация о версии базы данных.
     EN: Database version information.
     """
+
     source: str  # "usda", "openfoodfacts", etc.
     version: str
     last_updated: str  # ISO datetime
@@ -46,6 +47,7 @@ class UpdateResult:
     RU: Результат обновления базы данных.
     EN: Database update result.
     """
+
     success: bool
     source: str
     old_version: Optional[str]
@@ -70,10 +72,12 @@ class DatabaseUpdateManager:
     - Notification system for update events
     """
 
-    def __init__(self,
-                 cache_dir: str = "cache/food_db",
-                 update_interval_hours: int = 24,
-                 max_rollback_versions: int = 5):
+    def __init__(
+        self,
+        cache_dir: str = "cache/food_db",
+        update_interval_hours: int = 24,
+        max_rollback_versions: int = 5,
+    ):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -98,7 +102,7 @@ class DatabaseUpdateManager:
             return {}
 
         try:
-            with open(self.versions_file, 'r') as f:
+            with open(self.versions_file, "r") as f:
                 data = json.load(f)
 
             versions = {}
@@ -115,11 +119,10 @@ class DatabaseUpdateManager:
         """Save database version information."""
         try:
             data = {
-                source: asdict(version)
-                for source, version in self.versions.items()
+                source: asdict(version) for source, version in self.versions.items()
             }
 
-            with open(self.versions_file, 'w') as f:
+            with open(self.versions_file, "w") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
@@ -222,7 +225,7 @@ class DatabaseUpdateManager:
                 records_updated=0,
                 records_removed=0,
                 errors=[f"Unknown source: {source}"],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
         # Calculate duration
@@ -254,9 +257,9 @@ class DatabaseUpdateManager:
 
             # Calculate new version info
             new_version = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checksum = self._calculate_checksum({
-                name: asdict(food) for name, food in updated_foods.items()
-            })
+            checksum = self._calculate_checksum(
+                {name: asdict(food) for name, food in updated_foods.items()}
+            )
 
             # Check if data actually changed (unless forced)
             if not force and current_version and current_version.checksum == checksum:
@@ -269,7 +272,7 @@ class DatabaseUpdateManager:
                     records_updated=0,
                     records_removed=0,
                     errors=[],
-                    duration_seconds=0.0
+                    duration_seconds=0.0,
                 )
 
             # Validate new data
@@ -284,7 +287,7 @@ class DatabaseUpdateManager:
                     records_updated=0,
                     records_removed=0,
                     errors=validation_errors,
-                    duration_seconds=0.0
+                    duration_seconds=0.0,
                 )
 
             # Calculate changes
@@ -308,8 +311,8 @@ class DatabaseUpdateManager:
                 checksum=checksum,
                 metadata={
                     "update_type": "scheduled" if not force else "forced",
-                    "api_source": "USDA FoodData Central"
-                }
+                    "api_source": "USDA FoodData Central",
+                },
             )
 
             self.versions[source] = new_db_version
@@ -318,7 +321,9 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(updated_foods)} foods")
+            logger.info(
+                f"Successfully updated {source} database: {len(updated_foods)} foods"
+            )
 
             return UpdateResult(
                 success=True,
@@ -329,7 +334,7 @@ class DatabaseUpdateManager:
                 records_updated=records_updated,
                 records_removed=max(0, records_removed),
                 errors=[],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
         except Exception as e:
@@ -343,7 +348,7 @@ class DatabaseUpdateManager:
                 records_updated=0,
                 records_removed=0,
                 errors=[str(e)],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
     async def _update_off_database(self, force: bool = False) -> UpdateResult:
@@ -366,10 +371,20 @@ class DatabaseUpdateManager:
             sample_products = []
             if self.off_client:
                 # Search for some common products to include in our database
-                common_searches = ["apple", "banana", "chicken", "bread", "milk", "cheese", "rice"]
+                common_searches = [
+                    "apple",
+                    "banana",
+                    "chicken",
+                    "bread",
+                    "milk",
+                    "cheese",
+                    "rice",
+                ]
                 for search_term in common_searches:
                     try:
-                        products = await self.off_client.search_products(search_term, page_size=5)
+                        products = await self.off_client.search_products(
+                            search_term, page_size=5
+                        )
                         sample_products.extend(products)
                         # Small delay to respect API limits
                         await asyncio.sleep(0.1)
@@ -389,9 +404,9 @@ class DatabaseUpdateManager:
 
             # Calculate new version info
             new_version = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checksum = self._calculate_checksum({
-                name: asdict(food) for name, food in unified_foods.items()
-            })
+            checksum = self._calculate_checksum(
+                {name: asdict(food) for name, food in unified_foods.items()}
+            )
 
             # Check if data actually changed (unless forced)
             if not force and current_version and current_version.checksum == checksum:
@@ -404,7 +419,7 @@ class DatabaseUpdateManager:
                     records_updated=0,
                     records_removed=0,
                     errors=[],
-                    duration_seconds=0.0
+                    duration_seconds=0.0,
                 )
 
             # Validate new data
@@ -419,7 +434,7 @@ class DatabaseUpdateManager:
                     records_updated=0,
                     records_removed=0,
                     errors=validation_errors,
-                    duration_seconds=0.0
+                    duration_seconds=0.0,
                 )
 
             # Calculate changes
@@ -444,8 +459,8 @@ class DatabaseUpdateManager:
                 metadata={
                     "update_type": "scheduled" if not force else "forced",
                     "api_source": "Open Food Facts",
-                    "sample_size": len(sample_products)
-                }
+                    "sample_size": len(sample_products),
+                },
             )
 
             self.versions[source] = new_db_version
@@ -454,7 +469,9 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(unified_foods)} foods")
+            logger.info(
+                f"Successfully updated {source} database: {len(unified_foods)} foods"
+            )
 
             return UpdateResult(
                 success=True,
@@ -465,7 +482,7 @@ class DatabaseUpdateManager:
                 records_updated=records_updated,
                 records_removed=max(0, records_removed),
                 errors=[],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
         except Exception as e:
@@ -479,7 +496,7 @@ class DatabaseUpdateManager:
                 records_updated=0,
                 records_removed=0,
                 errors=[str(e)],
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
     def _generate_food_key(self, name: str) -> str:
@@ -517,7 +534,9 @@ class DatabaseUpdateManager:
                 if value < 0:
                     errors.append(f"Food {name} has negative {nutrient}: {value}")
                 elif nutrient.endswith("_g") and value > 100:
-                    errors.append(f"Food {name} has unrealistic {nutrient}: {value}g per 100g")
+                    errors.append(
+                        f"Food {name} has unrealistic {nutrient}: {value}g per 100g"
+                    )
 
         return errors
 
@@ -527,21 +546,25 @@ class DatabaseUpdateManager:
             current_data = await self.unified_db.get_common_foods_database()
             backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-            with open(backup_file, 'w') as f:
-                json.dump({
-                    name: asdict(food) for name, food in current_data.items()
-                }, f, indent=2)
+            with open(backup_file, "w") as f:
+                json.dump(
+                    {name: asdict(food) for name, food in current_data.items()},
+                    f,
+                    indent=2,
+                )
 
             logger.info(f"Created backup for {source} version {version}")
 
         except Exception as e:
             logger.error(f"Error creating backup: {e}")
 
-    async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
+    async def _load_backup(
+        self, source: str, version: str
+    ) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, 'r') as f:
+        with open(backup_file, "r") as f:
             data = json.load(f)
 
         foods = {}
@@ -560,7 +583,7 @@ class DatabaseUpdateManager:
             backup_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
             # Remove old backups beyond the limit
-            for old_backup in backup_files[self.max_rollback_versions:]:
+            for old_backup in backup_files[self.max_rollback_versions :]:
                 old_backup.unlink()
                 logger.info(f"Removed old backup: {old_backup.name}")
 
@@ -594,20 +617,22 @@ class DatabaseUpdateManager:
                     version=f"{target_version}_rollback_{datetime.now().strftime('%H%M%S')}",
                     last_updated=datetime.now().isoformat(),
                     record_count=len(backup_data),
-                    checksum=self._calculate_checksum({
-                        name: asdict(food) for name, food in backup_data.items()
-                    }),
+                    checksum=self._calculate_checksum(
+                        {name: asdict(food) for name, food in backup_data.items()}
+                    ),
                     metadata={
                         "update_type": "rollback",
                         "rolled_back_from": old_version.version,
-                        "rolled_back_to": target_version
-                    }
+                        "rolled_back_to": target_version,
+                    },
                 )
 
                 self.versions[source] = rollback_version
                 self._save_versions()
 
-                logger.info(f"Successfully rolled back {source} to version {target_version}")
+                logger.info(
+                    f"Successfully rolled back {source} to version {target_version}"
+                )
                 return True
 
         except Exception as e:
@@ -639,7 +664,7 @@ class DatabaseUpdateManager:
                 "hours_since_update": time_since_update.total_seconds() / 3600,
                 "record_count": version.record_count,
                 "checksum": version.checksum[:8] + "...",  # Truncated for display
-                "metadata": version.metadata
+                "metadata": version.metadata,
             }
 
         return status
@@ -653,7 +678,9 @@ class DatabaseUpdateManager:
 
 
 # Convenience functions for scheduled updates
-async def run_scheduled_update(update_manager: DatabaseUpdateManager) -> Dict[str, UpdateResult]:
+async def run_scheduled_update(
+    update_manager: DatabaseUpdateManager,
+) -> Dict[str, UpdateResult]:
     """
     RU: Запускает плановое обновление всех баз данных.
     EN: Run scheduled update for all databases.
@@ -675,7 +702,9 @@ async def run_scheduled_update(update_manager: DatabaseUpdateManager) -> Dict[st
 if __name__ == "__main__":
     # Test the update manager
     async def test_update_manager():
-        manager = DatabaseUpdateManager(update_interval_hours=1)  # Short interval for testing
+        manager = DatabaseUpdateManager(
+            update_interval_hours=1
+        )  # Short interval for testing
 
         try:
             print("Testing database update manager...")

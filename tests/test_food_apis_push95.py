@@ -4,9 +4,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 def test_usda_fooditem_to_menu_format():
@@ -31,27 +30,38 @@ def test_usda_client_parse_exception_branch():
     c = USDAClient(api_key="X")
     # Break internal mapping to trigger exception path
     c.nutrient_mapping = None  # type: ignore[assignment]
-    bad = {"fdcId": 1, "description": "x", "foodNutrients": [{"nutrientId": 1003, "value": 1.0}]}
+    bad = {
+        "fdcId": 1,
+        "description": "x",
+        "foodNutrients": [{"nutrientId": 1003, "value": 1.0}],
+    }
     assert c._parse_food_item(bad) is None
 
 
 def test_usda_common_foods_database():
-    from core.food_apis.usda_client import USDAClient, USDAFoodItem, get_common_foods_database
+    from core.food_apis.usda_client import (
+        USDAClient,
+        USDAFoodItem,
+        get_common_foods_database,
+    )
 
     async def _search(self, q: str, page_size: int = 5):
-        return [USDAFoodItem(
-            fdc_id=1,
-            description=q,
-            food_category=None,
-            nutrients_per_100g={"protein_g": 1.0, "fat_g": 1.0, "carbs_g": 1.0},
-            data_type="SR Legacy",
-            publication_date=None,
-        )]
+        return [
+            USDAFoodItem(
+                fdc_id=1,
+                description=q,
+                food_category=None,
+                nutrients_per_100g={"protein_g": 1.0, "fat_g": 1.0, "carbs_g": 1.0},
+                data_type="SR Legacy",
+                publication_date=None,
+            )
+        ]
 
     loop = asyncio.new_event_loop()
     try:
-        with patch.object(USDAClient, "search_foods", _search), \
-             patch("core.food_apis.usda_client.asyncio.sleep", new=AsyncMock()):
+        with patch.object(USDAClient, "search_foods", _search), patch(
+            "core.food_apis.usda_client.asyncio.sleep", new=AsyncMock()
+        ):
             out = loop.run_until_complete(get_common_foods_database())
         assert out and isinstance(next(iter(out.values())), USDAFoodItem)
     finally:
@@ -67,15 +77,16 @@ def test_unified_db_common_cache_error_and_save_error(tmp_path: Path):
     (cache_dir / "common_foods.json").write_text("{ broken json")
 
     db = UnifiedFoodDatabase(str(cache_dir))
+
     async def _search_food(q):
         return []
 
     loop = asyncio.new_event_loop()
     try:
         # Patch search to avoid network and patch open to fail on save (252-253)
-        with patch.object(db, "search_food", _search_food), \
-             patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()), \
-             patch("builtins.open", side_effect=OSError("fail")):
+        with patch.object(db, "search_food", _search_food), patch(
+            "core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()
+        ), patch("builtins.open", side_effect=OSError("fail")):
             res = loop.run_until_complete(db.get_common_foods_database())
         assert isinstance(res, dict)
     finally:
@@ -84,22 +95,30 @@ def test_unified_db_common_cache_error_and_save_error(tmp_path: Path):
 
 
 def test_unified_search_foods_unified(tmp_path: Path):
-    from core.food_apis.unified_db import UnifiedFoodDatabase, search_foods_unified
+    from core.food_apis.unified_db import search_foods_unified
 
     async def _get_db():
         class _DB:
             async def search_food(self, q: str):
                 from core.food_apis.unified_db import UnifiedFoodItem
-                return [UnifiedFoodItem(
-                    name="X",
-                    nutrients_per_100g={"protein_g": 1.0, "fat_g": 1.0, "carbs_g": 1.0},
-                    cost_per_100g=1.0,
-                    tags=["VEG"],
-                    availability_regions=["US"],
-                    source="USDA FoodData Central",
-                    source_id="1",
-                    category=None,
-                )]
+
+                return [
+                    UnifiedFoodItem(
+                        name="X",
+                        nutrients_per_100g={
+                            "protein_g": 1.0,
+                            "fat_g": 1.0,
+                            "carbs_g": 1.0,
+                        },
+                        cost_per_100g=1.0,
+                        tags=["VEG"],
+                        availability_regions=["US"],
+                        source="USDA FoodData Central",
+                        source_id="1",
+                        category=None,
+                    )
+                ]
+
         return _DB()
 
     loop = asyncio.new_event_loop()
@@ -138,14 +157,24 @@ def test_update_manager_more_edges(tmp_path: Path):
 
     # Update callbacks exception path (208-209)
     m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[assignment]
+
     def _bad_cb(res):
         raise RuntimeError("cb")
+
     m.update_callbacks = [_bad_cb]
     _ = loop.run_until_complete(m.update_database("usda"))
 
     # _load_backup warning path (266-269)
     from core.food_apis.update_manager import DatabaseVersion as DV
-    m.versions["usda"] = DV(source="usda", version="v1", last_updated="2020-01-01T00:00:00", record_count=0, checksum="x", metadata={})
+
+    m.versions["usda"] = DV(
+        source="usda",
+        version="v1",
+        last_updated="2020-01-01T00:00:00",
+        record_count=0,
+        checksum="x",
+        metadata={},
+    )
     m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[assignment]
     m._load_backup = AsyncMock(side_effect=RuntimeError("x"))  # type: ignore[attr-defined]
     _ = loop.run_until_complete(m.update_database("usda", force=True))
@@ -193,16 +222,20 @@ def test_scheduler_remaining_edges():
     class _Sched:
         def __init__(self):
             self.is_running = False
+
         async def start(self):
             self.is_running = True
 
-    with patch.object(sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())):
+    with patch.object(
+        sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())
+    ):
         loop.run_until_complete(start_background_updates(update_interval_hours=2))
 
     # 290-292: stop_background_updates path
     class _Sched2:
         def __init__(self):
             self.is_running = True
+
         async def stop(self):
             self.is_running = False
 

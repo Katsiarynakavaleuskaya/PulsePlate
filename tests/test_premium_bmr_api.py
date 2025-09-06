@@ -10,7 +10,7 @@ Tests cover:
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,13 +31,11 @@ class TestPremiumBMRAPI:
             "age": 30,
             "sex": "male",
             "activity": "moderate",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -80,13 +78,11 @@ class TestPremiumBMRAPI:
             "sex": "male",
             "activity": "active",
             "bodyfat": 15,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -108,20 +104,21 @@ class TestPremiumBMRAPI:
             "age": 25,
             "sex": "female",
             "activity": "light",
-            "lang": "ru"
+            "lang": "ru",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
         data = response.json()
 
         # Check Russian language in response
-        assert "Рекомендуемое потребление калорий" in data["recommended_intake"]["description"]
+        assert (
+            "Рекомендуемое потребление калорий"
+            in data["recommended_intake"]["description"]
+        )
         assert "Наиболее точная формула" in data["notes"]["mifflin"]
         assert "Традиционная формула" in data["notes"]["harris"]
 
@@ -132,7 +129,7 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "lang": "en"
+            "lang": "en",
         }
 
         activity_levels = ["sedentary", "light", "moderate", "active", "very_active"]
@@ -141,9 +138,7 @@ class TestPremiumBMRAPI:
         for activity in activity_levels:
             payload = {**base_payload, "activity": activity}
             response = client.post(
-                "/api/v1/premium/bmr",
-                json=payload,
-                headers={"X-API-Key": "test_key"}
+                "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
             )
 
             assert response.status_code == 200
@@ -162,13 +157,11 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -177,9 +170,7 @@ class TestPremiumBMRAPI:
         payload["height_cm"] = 0
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -188,9 +179,7 @@ class TestPremiumBMRAPI:
         payload["age"] = 150
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -199,9 +188,7 @@ class TestPremiumBMRAPI:
         payload["sex"] = "other"
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -210,9 +197,7 @@ class TestPremiumBMRAPI:
         payload["activity"] = "invalid"
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -221,9 +206,7 @@ class TestPremiumBMRAPI:
         payload["bodyfat"] = 60
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -234,7 +217,7 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         # Test without API key header
@@ -252,14 +235,14 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
             response = client.post(
                 "/api/v1/premium/bmr",
                 json=payload,
-                headers={"X-API-Key": "invalid_key"}
+                headers={"X-API-Key": "invalid_key"},
             )
             assert response.status_code == 403
 
@@ -272,14 +255,12 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         # Test that the endpoint works with normal conditions
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         # Should work normally since nutrition_core is available
         assert response.status_code == 200
@@ -292,14 +273,12 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         # Test normal case - error handling is complex to mock properly
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         # Should work normally with valid data
         assert response.status_code == 200
@@ -313,14 +292,12 @@ class TestPremiumBMRAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         # Test normal case - complex mocking causes issues in this test environment
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
         # Should work normally with valid data
         assert response.status_code == 200
@@ -337,13 +314,11 @@ class TestPremiumBMRAPI:
             "sex": "female",
             "activity": "moderate",
             "bodyfat": 25,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -355,9 +330,7 @@ class TestPremiumBMRAPI:
         # Test equivalent male
         male_payload = {**payload, "sex": "male"}
         male_response = client.post(
-            "/api/v1/premium/bmr",
-            json=male_payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=male_payload, headers={"X-API-Key": "test_key"}
         )
 
         male_data = male_response.json()
@@ -373,13 +346,11 @@ class TestPremiumBMRAPI:
             "age": 30,
             "sex": "male",
             "activity": "moderate",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -400,13 +371,11 @@ class TestPremiumBMRAPI:
             "sex": "female",
             "activity": "sedentary",
             "bodyfat": 5,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -421,19 +390,19 @@ class TestPremiumBMRAPI:
             "sex": "male",
             "activity": "very_active",
             "bodyfat": 50,
-            "lang": "ru"
+            "lang": "ru",
         }
 
         response = client.post(
-            "/api/v1/premium/bmr",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
         data = response.json()
         assert all(bmr > 0 for bmr in data["bmr"].values())
-        assert all(tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values()))
+        assert all(
+            tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values())
+        )
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock signal.signal to succeed
-        with patch('core.food_apis.scheduler.signal.signal') as mock_signal:
+        with patch("core.food_apis.scheduler.signal.signal") as mock_signal:
             scheduler._setup_signal_handlers()
             # Should call signal.signal twice (for SIGTERM and SIGINT)
             assert mock_signal.call_count == 2
@@ -34,7 +34,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
         scheduler.is_running = True
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler.start()
             # Should log warning that scheduler is already running
             mock_logger.warning.assert_called_once()
@@ -44,7 +44,7 @@ class TestSchedulerMissingCoverage:
         """Test start success case."""
         scheduler = DatabaseUpdateScheduler()
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler.start()
             # Should set is_running to True
             assert scheduler.is_running is True
@@ -78,7 +78,7 @@ class TestSchedulerMissingCoverage:
         # Mock update_manager.close
         scheduler.update_manager.close = AsyncMock()
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler.stop()
             # Should close update manager
             scheduler.update_manager.close.assert_called_once()
@@ -92,7 +92,7 @@ class TestSchedulerMissingCoverage:
         scheduler.is_running = True
 
         # Mock datetime.now
-        with patch('core.food_apis.scheduler.datetime') as mock_datetime:
+        with patch("core.food_apis.scheduler.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
 
             # Mock _should_check_for_updates to return False
@@ -100,7 +100,9 @@ class TestSchedulerMissingCoverage:
             scheduler.last_update_check = datetime(2023, 1, 1, 11, 0, 0)
 
             # Mock asyncio.sleep to break the loop after one iteration
-            with patch('core.food_apis.scheduler.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ) as mock_sleep:
                 mock_sleep.side_effect = asyncio.CancelledError()  # Break the loop
 
                 try:
@@ -147,9 +149,11 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to return no updates
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": False})
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            return_value={"usda": False}
+        )
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_update_check()
             # Should log that no updates are available
             mock_logger.info.assert_called_with("No database updates available")
@@ -161,6 +165,7 @@ class TestSchedulerMissingCoverage:
 
         # Mock update_manager.update_database to return success
         from core.food_apis.update_manager import UpdateResult
+
         mock_result = UpdateResult(
             success=True,
             source="usda",
@@ -170,11 +175,11 @@ class TestSchedulerMissingCoverage:
             records_updated=5,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_source_update("usda")
             # Should reset retry count on success
             assert scheduler.retry_counts.get("usda", 0) == 0
@@ -188,6 +193,7 @@ class TestSchedulerMissingCoverage:
 
         # Mock update_manager.update_database to return failure
         from core.food_apis.update_manager import UpdateResult
+
         mock_result = UpdateResult(
             success=False,
             source="usda",
@@ -197,7 +203,7 @@ class TestSchedulerMissingCoverage:
             records_updated=0,
             records_removed=0,
             errors=["Test error"],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -210,6 +216,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         from core.food_apis.update_manager import UpdateResult
+
         success_result = UpdateResult(
             success=True,
             source="usda",
@@ -219,10 +226,10 @@ class TestSchedulerMissingCoverage:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             scheduler._on_update_complete(success_result)
             # Should log success message
             mock_logger.info.assert_called()
@@ -232,6 +239,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         from core.food_apis.update_manager import UpdateResult
+
         failure_result = UpdateResult(
             success=False,
             source="usda",
@@ -241,10 +249,10 @@ class TestSchedulerMissingCoverage:
             records_updated=0,
             records_removed=0,
             errors=["Test error"],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             scheduler._on_update_complete(failure_result)
             # Should log warning message
             mock_logger.warning.assert_called()
@@ -255,10 +263,13 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": True})
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            return_value={"usda": True}
+        )
 
         # Mock update_manager.update_database
         from core.food_apis.update_manager import UpdateResult
+
         mock_result = UpdateResult(
             success=True,
             source="usda",
@@ -268,7 +279,7 @@ class TestSchedulerMissingCoverage:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -290,11 +301,12 @@ class TestSchedulerMissingCoverage:
     async def test_start_background_updates_already_running(self):
         """Test start_background_updates when already running."""
         # First call to get the global instance
-        from core.food_apis.scheduler import _scheduler_instance, get_update_scheduler
+        from core.food_apis.scheduler import get_update_scheduler
+
         scheduler = await get_update_scheduler()
         scheduler.is_running = True  # Mark as running
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await start_background_updates(1)
             # Should not start if already running
             mock_logger.info.assert_not_called()
@@ -303,11 +315,12 @@ class TestSchedulerMissingCoverage:
     async def test_stop_background_updates_not_running(self):
         """Test stop_background_updates when not running."""
         # First call to get the global instance
-        from core.food_apis.scheduler import _scheduler_instance, get_update_scheduler
+        from core.food_apis.scheduler import get_update_scheduler
+
         scheduler = await get_update_scheduler()
         scheduler.is_running = False  # Mark as not running
 
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
             # Should not log stop message if not running
             mock_logger.info.assert_not_called()

@@ -3,7 +3,7 @@ Targeted tests to improve coverage for specific missing lines in app.py.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -37,15 +37,12 @@ class TestTargetedCoverage:
             "athlete": "no",
             "waist_cm": 85.0,
             "include_chart": True,
-            "lang": "en"
+            "lang": "en",
         }
 
         # Mock generate_bmi_visualization to return unavailable visualization
-        with patch('app.generate_bmi_visualization') as mock_viz:
-            mock_viz.return_value = {
-                "available": False,
-                "error": "Test error"
-            }
+        with patch("app.generate_bmi_visualization") as mock_viz:
+            mock_viz.return_value = {"available": False, "error": "Test error"}
             response = self.client.post("/bmi", json=data)
             assert response.status_code == 200
 
@@ -59,7 +56,7 @@ class TestTargetedCoverage:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 100.0,  # High waist circumference
-            "lang": "en"
+            "lang": "en",
         }
 
         response = self.client.post("/bmi", json=data)
@@ -71,13 +68,11 @@ class TestTargetedCoverage:
 
     def test_api_v1_bmi_endpoint(self):
         """Test API v1 BMI endpoint - covers lines 541."""
-        data = {
-            "weight_kg": 70.0,
-            "height_cm": 175.0,
-            "group": "general"
-        }
+        data = {"weight_kg": 70.0, "height_cm": 175.0, "group": "general"}
 
-        response = self.client.post("/api/v1/bmi", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/bmi", json=data, headers={"X-API-Key": "test-key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -93,10 +88,12 @@ class TestTargetedCoverage:
             "sex": "male",
             "activity": "moderate",
             "bodyfat": 15.0,  # This should trigger the katch note
-            "lang": "en"
+            "lang": "en",
         }
 
-        response = self.client.post("/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test-key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -122,11 +119,7 @@ class TestTargetedCoverage:
     def test_nutrient_gaps_endpoint(self):
         """Test nutrient gaps endpoint - covers lines 1018-1027, 1055, 1100-1109."""
         data = {
-            "consumed_nutrients": {
-                "protein_g": 50,
-                "fat_g": 70,
-                "carbs_g": 250
-            },
+            "consumed_nutrients": {"protein_g": 50, "fat_g": 70, "carbs_g": 250},
             "user_profile": {
                 "sex": "male",
                 "age": 30,
@@ -138,11 +131,13 @@ class TestTargetedCoverage:
                 "surplus_pct": None,
                 "bodyfat": None,
                 "diet_flags": [],
-                "life_stage": "adult"
-            }
+                "life_stage": "adult",
+            },
         }
 
-        response = self.client.post("/api/v1/premium/gaps", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/premium/gaps", json=data, headers={"X-API-Key": "test-key"}
+        )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 503]
 
@@ -159,10 +154,12 @@ class TestTargetedCoverage:
             "surplus_pct": None,
             "bodyfat": None,
             "diet_flags": [],
-            "life_stage": "adult"
+            "life_stage": "adult",
         }
 
-        response = self.client.post("/api/v1/premium/plan/week", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/premium/plan/week", json=data, headers={"X-API-Key": "test-key"}
+        )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 503]
 
@@ -179,10 +176,12 @@ class TestTargetedCoverage:
             "surplus_pct": None,
             "bodyfat": None,
             "diet_flags": [],
-            "life_stage": "adult"
+            "life_stage": "adult",
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test-key"}
+        )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 503]
 
@@ -198,10 +197,12 @@ class TestTargetedCoverage:
             "deficit_pct": None,
             "surplus_pct": None,
             "bodyfat": None,
-            "diet_flags": []
+            "diet_flags": [],
         }
 
-        response = self.client.post("/api/v1/premium/plate", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/premium/plate", json=data, headers={"X-API-Key": "test-key"}
+        )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 503]
 

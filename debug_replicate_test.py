@@ -29,12 +29,15 @@ class TestReplication:
             "pregnant": "yes",
             "athlete": "no",
             "lang": "en",
-            "include_chart": True
+            "include_chart": True,
         }
 
-        with patch('app.generate_bmi_visualization') as mock_generate:
-            mock_generate.return_value = {"available": True, "chart_base64": "test_chart"}
-            with patch('app.MATPLOTLIB_AVAILABLE', True):
+        with patch("app.generate_bmi_visualization") as mock_generate:
+            mock_generate.return_value = {
+                "available": True,
+                "chart_base64": "test_chart",
+            }
+            with patch("app.MATPLOTLIB_AVAILABLE", True):
                 response = self.client.post("/bmi", json=data)
                 print(f"Response status: {response.status_code}")
                 print(f"Response JSON: {response.json()}")

@@ -6,4 +6,3 @@ def test_who_activity_and_micro_rda_present():
     assert rules.WHO_ACTIVITY["adult"]["moderate_min_week"] == 150
     assert ("female", "19-50") in rules.WHO_MICRO_RDA
     assert rules.WHO_MICRO_RDA[("male", "19-50")]["Fe_mg"] == 8
-

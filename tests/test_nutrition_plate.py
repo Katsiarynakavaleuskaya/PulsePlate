@@ -29,9 +29,7 @@ class TestMacroDistribution:
     def test_valid_macro_distribution(self):
         """Test valid macro distribution creation."""
         macro = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
         assert macro.protein_percent == 25.0
         assert macro.carbs_percent == 45.0
@@ -43,7 +41,7 @@ class TestMacroDistribution:
             MacroDistribution(
                 protein_percent=25.0,
                 carbs_percent=45.0,
-                fat_percent=25.0  # Sum is 95%, should fail
+                fat_percent=25.0,  # Sum is 95%, should fail
             )
         assert "must sum to 100%" in str(exc_info.value)
 
@@ -55,41 +53,53 @@ class TestMacroDistribution:
 
         # Test protein too high
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=60.0, carbs_percent=25.0, fat_percent=15.0)
+            MacroDistribution(
+                protein_percent=60.0, carbs_percent=25.0, fat_percent=15.0
+            )
 
         # Test carbs too low
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=25.0, carbs_percent=15.0, fat_percent=60.0)
+            MacroDistribution(
+                protein_percent=25.0, carbs_percent=15.0, fat_percent=60.0
+            )
 
         # Test carbs too high
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=15.0, carbs_percent=75.0, fat_percent=10.0)
+            MacroDistribution(
+                protein_percent=15.0, carbs_percent=75.0, fat_percent=10.0
+            )
 
         # Test fat too low
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=50.0, carbs_percent=40.0, fat_percent=10.0)
+            MacroDistribution(
+                protein_percent=50.0, carbs_percent=40.0, fat_percent=10.0
+            )
 
         # Test fat too high
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=15.0, carbs_percent=35.0, fat_percent=50.0)
+            MacroDistribution(
+                protein_percent=15.0, carbs_percent=35.0, fat_percent=50.0
+            )
 
     def test_macro_percentage_negative_validation(self):
         """Test that negative percentages are rejected."""
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=-5.0, carbs_percent=55.0, fat_percent=50.0)
+            MacroDistribution(
+                protein_percent=-5.0, carbs_percent=55.0, fat_percent=50.0
+            )
 
     def test_macro_percentage_over_100_validation(self):
         """Test that percentages over 100 are rejected."""
         with pytest.raises(ValidationError):
-            MacroDistribution(protein_percent=110.0, carbs_percent=45.0, fat_percent=30.0)
+            MacroDistribution(
+                protein_percent=110.0, carbs_percent=45.0, fat_percent=30.0
+            )
 
     def test_floating_point_tolerance(self):
         """Test that small floating point differences are tolerated."""
         # Should pass with 99.9% (within tolerance)
         macro = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=44.9,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=44.9, fat_percent=30.0
         )
         assert macro is not None
 
@@ -97,9 +107,7 @@ class TestMacroDistribution:
         """Test that valid percentages are properly returned by validator."""
         # This specifically tests the return v path in the validator
         macro = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
         # Verify the values were properly set (testing the return path)
         assert macro.protein_percent == 25.0
@@ -149,19 +157,19 @@ class TestGetMacroDistribution:
         """Test adjustments for active activity level."""
         macro = get_macro_distribution("maintenance", "active")
         assert macro.carbs_percent == 50  # Increased from 45
-        assert macro.fat_percent == 25    # Decreased from 30
+        assert macro.fat_percent == 25  # Decreased from 30
 
     def test_very_active_activity_level(self):
         """Test adjustments for very active activity level."""
         macro = get_macro_distribution("maintenance", "very_active")
         assert macro.carbs_percent == 50  # Increased from 45
-        assert macro.fat_percent == 25    # Decreased from 30
+        assert macro.fat_percent == 25  # Decreased from 30
 
     def test_sedentary_activity_level(self):
         """Test adjustments for sedentary activity level."""
         macro = get_macro_distribution("maintenance", "sedentary")
         assert macro.carbs_percent == 40  # Decreased from 45
-        assert macro.fat_percent == 35    # Increased from 30
+        assert macro.fat_percent == 35  # Increased from 30
 
     def test_carb_limits_with_activity(self):
         """Test that carb adjustments respect limits."""
@@ -180,9 +188,7 @@ class TestCalculateMacrosInGrams:
     def test_basic_macro_calculation(self):
         """Test basic macro calculation."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         macros = calculate_macros_in_grams(2000, macro_dist)
@@ -197,12 +203,12 @@ class TestCalculateMacrosInGrams:
     def test_macro_calculation_rounding(self):
         """Test that macro calculations are properly rounded."""
         macro_dist = MacroDistribution(
-            protein_percent=30.0,
-            carbs_percent=40.0,
-            fat_percent=30.0
+            protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0
         )
 
-        macros = calculate_macros_in_grams(1837, macro_dist)  # Odd number to test rounding
+        macros = calculate_macros_in_grams(
+            1837, macro_dist
+        )  # Odd number to test rounding
 
         # All values should be rounded to 1 decimal place
         assert isinstance(macros["protein"], float)
@@ -212,9 +218,7 @@ class TestCalculateMacrosInGrams:
     def test_low_calorie_calculation(self):
         """Test macro calculation with low calories."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         macros = calculate_macros_in_grams(1200, macro_dist)
@@ -227,9 +231,7 @@ class TestCalculateMacrosInGrams:
     def test_high_calorie_calculation(self):
         """Test macro calculation with high calories."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         macros = calculate_macros_in_grams(3500, macro_dist)
@@ -246,9 +248,7 @@ class TestGetMealSuggestions:
     def test_basic_meal_suggestions_english(self):
         """Test basic meal suggestions in English."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         suggestions = get_meal_suggestions(macro_dist, "en")
@@ -262,9 +262,7 @@ class TestGetMealSuggestions:
     def test_basic_meal_suggestions_russian(self):
         """Test basic meal suggestions in Russian."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         suggestions = get_meal_suggestions(macro_dist, "ru")
@@ -278,9 +276,7 @@ class TestGetMealSuggestions:
     def test_high_protein_additional_suggestions(self):
         """Test additional suggestions for high protein diets."""
         macro_dist = MacroDistribution(
-            protein_percent=35.0,
-            carbs_percent=35.0,
-            fat_percent=30.0
+            protein_percent=35.0, carbs_percent=35.0, fat_percent=30.0
         )
 
         suggestions_en = get_meal_suggestions(macro_dist, "en")
@@ -293,9 +289,7 @@ class TestGetMealSuggestions:
     def test_high_carb_additional_suggestions(self):
         """Test additional suggestions for high carb diets."""
         macro_dist = MacroDistribution(
-            protein_percent=20.0,
-            carbs_percent=55.0,
-            fat_percent=25.0
+            protein_percent=20.0, carbs_percent=55.0, fat_percent=25.0
         )
 
         suggestions_en = get_meal_suggestions(macro_dist, "en")
@@ -308,9 +302,7 @@ class TestGetMealSuggestions:
     def test_default_language_english(self):
         """Test default language is English."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         suggestions = get_meal_suggestions(macro_dist)  # No lang specified
@@ -325,9 +317,7 @@ class TestGetNutritionNotes:
     def test_basic_nutrition_notes_english(self):
         """Test basic nutrition notes in English."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         notes = get_nutrition_notes(macro_dist, "maintenance", "en")
@@ -340,9 +330,7 @@ class TestGetNutritionNotes:
     def test_basic_nutrition_notes_russian(self):
         """Test basic nutrition notes in Russian."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         notes = get_nutrition_notes(macro_dist, "maintenance", "ru")
@@ -355,9 +343,7 @@ class TestGetNutritionNotes:
     def test_weight_loss_specific_notes(self):
         """Test weight loss specific notes."""
         macro_dist = MacroDistribution(
-            protein_percent=30.0,
-            carbs_percent=35.0,
-            fat_percent=35.0
+            protein_percent=30.0, carbs_percent=35.0, fat_percent=35.0
         )
 
         notes_en = get_nutrition_notes(macro_dist, "weight_loss", "en")
@@ -370,9 +356,7 @@ class TestGetNutritionNotes:
     def test_muscle_gain_specific_notes(self):
         """Test muscle gain specific notes."""
         macro_dist = MacroDistribution(
-            protein_percent=30.0,
-            carbs_percent=40.0,
-            fat_percent=30.0
+            protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0
         )
 
         notes_en = get_nutrition_notes(macro_dist, "muscle_gain", "en")
@@ -385,9 +369,7 @@ class TestGetNutritionNotes:
     def test_default_language_english(self):
         """Test default language is English."""
         macro_dist = MacroDistribution(
-            protein_percent=25.0,
-            carbs_percent=45.0,
-            fat_percent=30.0
+            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
         )
 
         notes = get_nutrition_notes(macro_dist, "maintenance")  # No lang specified
@@ -402,11 +384,7 @@ class TestMakePlate:
     def test_basic_plate_creation(self):
         """Test basic plate creation."""
         plate = make_plate(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate"
+            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="moderate"
         )
 
         assert isinstance(plate, PlateRecommendation)
@@ -426,7 +404,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="maintenance"
+            goal="maintenance",
         )
 
         weight_loss_plate = make_plate(
@@ -435,14 +413,17 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="weight_loss"
+            goal="weight_loss",
         )
 
         # Weight loss should have fewer calories
         assert weight_loss_plate.target_calories < maintenance_plate.target_calories
 
         # Should have higher protein percentage
-        assert weight_loss_plate.macro_distribution.protein_percent > maintenance_plate.macro_distribution.protein_percent
+        assert (
+            weight_loss_plate.macro_distribution.protein_percent
+            > maintenance_plate.macro_distribution.protein_percent
+        )
 
     def test_weight_gain_plate(self):
         """Test plate creation for weight gain."""
@@ -452,7 +433,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="maintenance"
+            goal="maintenance",
         )
 
         weight_gain_plate = make_plate(
@@ -461,14 +442,17 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="weight_gain"
+            goal="weight_gain",
         )
 
         # Weight gain should have more calories
         assert weight_gain_plate.target_calories > maintenance_plate.target_calories
 
         # Should have higher carb percentage
-        assert weight_gain_plate.macro_distribution.carbs_percent > maintenance_plate.macro_distribution.carbs_percent
+        assert (
+            weight_gain_plate.macro_distribution.carbs_percent
+            > maintenance_plate.macro_distribution.carbs_percent
+        )
 
     def test_muscle_gain_plate(self):
         """Test plate creation for muscle gain."""
@@ -478,7 +462,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="maintenance"
+            goal="maintenance",
         )
 
         muscle_gain_plate = make_plate(
@@ -487,7 +471,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            goal="muscle_gain"
+            goal="muscle_gain",
         )
 
         # Muscle gain should have more calories than maintenance but less than weight gain
@@ -499,11 +483,7 @@ class TestMakePlate:
     def test_female_plate(self):
         """Test plate creation for female."""
         plate = make_plate(
-            weight_kg=60.0,
-            height_cm=165.0,
-            age=25,
-            sex="female",
-            activity="moderate"
+            weight_kg=60.0, height_cm=165.0, age=25, sex="female", activity="moderate"
         )
 
         assert isinstance(plate, PlateRecommendation)
@@ -514,50 +494,40 @@ class TestMakePlate:
     def test_active_plate(self):
         """Test plate creation for active person."""
         moderate_plate = make_plate(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate"
+            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="moderate"
         )
 
         active_plate = make_plate(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="active"
+            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="active"
         )
 
         # Active should have more calories
         assert active_plate.target_calories > moderate_plate.target_calories
 
         # Should have higher carb percentage
-        assert active_plate.macro_distribution.carbs_percent > moderate_plate.macro_distribution.carbs_percent
+        assert (
+            active_plate.macro_distribution.carbs_percent
+            > moderate_plate.macro_distribution.carbs_percent
+        )
 
     def test_sedentary_plate(self):
         """Test plate creation for sedentary person."""
         moderate_plate = make_plate(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate"
+            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="moderate"
         )
 
         sedentary_plate = make_plate(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="sedentary"
+            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="sedentary"
         )
 
         # Sedentary should have fewer calories
         assert sedentary_plate.target_calories < moderate_plate.target_calories
 
         # Should have lower carb percentage
-        assert sedentary_plate.macro_distribution.carbs_percent < moderate_plate.macro_distribution.carbs_percent
+        assert (
+            sedentary_plate.macro_distribution.carbs_percent
+            < moderate_plate.macro_distribution.carbs_percent
+        )
 
     def test_bodyfat_parameter(self):
         """Test plate creation with body fat percentage."""
@@ -567,7 +537,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            bodyfat=15.0
+            bodyfat=15.0,
         )
 
         assert isinstance(plate, PlateRecommendation)
@@ -581,7 +551,7 @@ class TestMakePlate:
             age=30,
             sex="male",
             activity="moderate",
-            lang="ru"
+            lang="ru",
         )
 
         # Should have Russian meal suggestions and notes
@@ -595,7 +565,7 @@ class TestMakePlate:
             "height_cm": 175.0,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         maintenance_plate = make_plate(**base_params, goal="maintenance")
@@ -604,41 +574,35 @@ class TestMakePlate:
         muscle_gain_plate = make_plate(**base_params, goal="muscle_gain")
 
         # Check specific calorie differences
-        assert weight_loss_plate.target_calories == maintenance_plate.target_calories - 500
-        assert weight_gain_plate.target_calories == maintenance_plate.target_calories + 500
-        assert muscle_gain_plate.target_calories == maintenance_plate.target_calories + 300
+        assert (
+            weight_loss_plate.target_calories == maintenance_plate.target_calories - 500
+        )
+        assert (
+            weight_gain_plate.target_calories == maintenance_plate.target_calories + 500
+        )
+        assert (
+            muscle_gain_plate.target_calories == maintenance_plate.target_calories + 300
+        )
 
     def test_edge_case_values(self):
         """Test edge case input values."""
         # Very light person
         light_plate = make_plate(
-            weight_kg=45.0,
-            height_cm=150.0,
-            age=18,
-            sex="female",
-            activity="sedentary"
+            weight_kg=45.0, height_cm=150.0, age=18, sex="female", activity="sedentary"
         )
         assert isinstance(light_plate, PlateRecommendation)
         assert light_plate.target_calories > 0
 
         # Heavy person
         heavy_plate = make_plate(
-            weight_kg=120.0,
-            height_cm=190.0,
-            age=45,
-            sex="male",
-            activity="very_active"
+            weight_kg=120.0, height_cm=190.0, age=45, sex="male", activity="very_active"
         )
         assert isinstance(heavy_plate, PlateRecommendation)
         assert heavy_plate.target_calories > 0
 
         # Elderly person
         elderly_plate = make_plate(
-            weight_kg=65.0,
-            height_cm=165.0,
-            age=75,
-            sex="female",
-            activity="light"
+            weight_kg=65.0, height_cm=165.0, age=75, sex="female", activity="light"
         )
         assert isinstance(elderly_plate, PlateRecommendation)
         assert elderly_plate.target_calories > 0
