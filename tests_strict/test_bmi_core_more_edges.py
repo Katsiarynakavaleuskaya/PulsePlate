@@ -6,16 +6,18 @@ from bmi_core import (
     build_premium_plan,
     estimate_level,
     healthy_bmi_range,
-    interpret_group,
 )
+
 
 def test_estimate_level_beginner_en():
     assert estimate_level(0, 0.0, "en") == "beginner"
+
 
 def test_healthy_bmi_range_athlete_premium_raise():
     bmin, bmax = healthy_bmi_range(30, "athlete", premium=True)
     assert bmin == 18.5
     assert bmax >= 27.0
+
 
 def test_premium_plan_maintain_has_none_weeks():
     height = 1.75

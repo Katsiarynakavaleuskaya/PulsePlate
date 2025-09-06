@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Дополнительные edge-тесты: _validate_age error и ветка 'general' в auto_group."""
+
 import pytest
 
 from bmi_core import auto_group, bmi_value, build_premium_plan

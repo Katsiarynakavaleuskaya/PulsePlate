@@ -15,12 +15,8 @@ from nutrition_core import calculate_all_bmr, calculate_all_tdee
 class MacroDistribution(BaseModel):
     """Macro distribution model with validation."""
 
-    protein_percent: float = Field(
-        ..., ge=10, le=50, description="Protein percentage (10-50%)"
-    )
-    carbs_percent: float = Field(
-        ..., ge=20, le=65, description="Carbohydrates percentage (20-65%)"
-    )
+    protein_percent: float = Field(..., ge=10, le=50, description="Protein percentage (10-50%)")
+    carbs_percent: float = Field(..., ge=20, le=65, description="Carbohydrates percentage (20-65%)")
     fat_percent: float = Field(..., ge=15, le=45, description="Fat percentage (15-45%)")
 
     @field_validator("protein_percent", "carbs_percent", "fat_percent")
@@ -89,9 +85,7 @@ def get_macro_distribution(
     )
 
 
-def calculate_macros_in_grams(
-    calories: float, macro_dist: MacroDistribution
-) -> Dict[str, float]:
+def calculate_macros_in_grams(calories: float, macro_dist: MacroDistribution) -> Dict[str, float]:
     """
     Calculate macro amounts in grams based on calories and percentages.
 
@@ -134,9 +128,7 @@ def get_meal_suggestions(macro_dist: MacroDistribution, lang: str = "en") -> Lis
         ]
 
         if macro_dist.protein_percent >= 30:
-            base_suggestions.append(
-                "Дополнительно: Протеиновый коктейль после тренировки"
-            )
+            base_suggestions.append("Дополнительно: Протеиновый коктейль после тренировки")
 
         if macro_dist.carbs_percent >= 50:
             base_suggestions.append("Дополнительно: Фрукты или цельнозерновые продукты")
@@ -158,9 +150,7 @@ def get_meal_suggestions(macro_dist: MacroDistribution, lang: str = "en") -> Lis
     return base_suggestions
 
 
-def get_nutrition_notes(
-    macro_dist: MacroDistribution, goal: str, lang: str = "en"
-) -> List[str]:
+def get_nutrition_notes(macro_dist: MacroDistribution, goal: str, lang: str = "en") -> List[str]:
     """
     Generate nutrition notes and tips.
 

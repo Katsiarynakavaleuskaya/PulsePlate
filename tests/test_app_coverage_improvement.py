@@ -45,9 +45,7 @@ class TestAppCoverageImprovement:
     def test_database_status_endpoint_success(self):
         """Test database status endpoint success case."""
         # Mock the scheduler and its methods
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.get_status = MagicMock(
                 return_value={
@@ -62,31 +60,23 @@ class TestAppCoverageImprovement:
             )
             mock_get_scheduler.return_value = mock_scheduler
 
-            response = self.client.get(
-                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-            )
+            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code == 200
 
     def test_database_status_endpoint_exception(self):
         """Test database status endpoint exception handling."""
         # Mock the scheduler to raise an exception
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
-            response = self.client.get(
-                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-            )
+            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             # The app catches the exception and raises HTTPException with status code 500
             assert response.status_code == 500
 
     def test_force_update_endpoint_success(self):
         """Test force update endpoint success case."""
         # Mock the scheduler and its methods
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_result = MagicMock()
             mock_result.success = True
@@ -108,9 +98,7 @@ class TestAppCoverageImprovement:
     def test_force_update_endpoint_exception(self):
         """Test force update endpoint exception handling."""
         # Mock the scheduler to raise an exception
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(
@@ -122,9 +110,7 @@ class TestAppCoverageImprovement:
     def test_check_updates_endpoint_success(self):
         """Test check updates endpoint success case."""
         # Mock the scheduler and its methods
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.check_for_updates = AsyncMock(
                 return_value={"usda": True, "openfoodfacts": False}
@@ -139,9 +125,7 @@ class TestAppCoverageImprovement:
     def test_check_updates_endpoint_exception(self):
         """Test check updates endpoint exception handling."""
         # Mock the scheduler to raise an exception
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(
@@ -153,13 +137,9 @@ class TestAppCoverageImprovement:
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
         # Mock the scheduler and its methods to simulate a successful rollback
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(
-                return_value=True
-            )
+            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
             mock_get_scheduler.return_value = mock_scheduler
 
             response = self.client.post(
@@ -204,9 +184,7 @@ class TestAppCoverageImprovement:
         def mock_analyze_nutrient_gaps_func(*args, **kwargs):
             raise Exception("Test error")
 
-        with patch(
-            "app.analyze_nutrient_gaps", side_effect=mock_analyze_nutrient_gaps_func
-        ):
+        with patch("app.analyze_nutrient_gaps", side_effect=mock_analyze_nutrient_gaps_func):
             payload = {
                 "consumed_nutrients": {"protein_g": 50, "fat_g": 70, "carbs_g": 250},
                 "user_profile": {

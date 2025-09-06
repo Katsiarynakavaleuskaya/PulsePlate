@@ -170,8 +170,9 @@ def test_unified_db_common_foods_cache(tmp_path: Path):
 
     # Patch internal search to avoid API
     loop = asyncio.new_event_loop()
-    with patch.object(db, "search_food", _search_food), patch(
-        "core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()
+    with (
+        patch.object(db, "search_food", _search_food),
+        patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()),
     ):
         foods_db = loop.run_until_complete(db.get_common_foods_database())
         assert foods_db and isinstance(next(iter(foods_db.values())), UnifiedFoodItem)
@@ -326,9 +327,7 @@ def test_scheduler_paths():
             duration_seconds=0.1,
         )
     )
-    s.update_manager.get_database_status = MagicMock(
-        return_value={"usda": {"ok": True}}
-    )
+    s.update_manager.get_database_status = MagicMock(return_value={"usda": {"ok": True}})
     s.update_manager.close = AsyncMock()
 
     # _should_check_for_updates
@@ -389,9 +388,7 @@ def test_scheduler_paths():
     out1 = loop.run_until_complete(s.force_update("usda"))
     assert "usda" in out1
 
-    s.update_manager.check_for_updates = AsyncMock(
-        return_value={"usda": True, "off": False}
-    )
+    s.update_manager.check_for_updates = AsyncMock(return_value={"usda": True, "off": False})
     out2 = loop.run_until_complete(s.force_update(None))
     assert "usda" in out2
 

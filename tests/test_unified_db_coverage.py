@@ -82,9 +82,7 @@ class TestUnifiedDBCoverage:
         """Test get_food_by_id with USDA client exception."""
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.get_food_details = AsyncMock(
-                side_effect=Exception("Test error")
-            )
+            mock_usda_instance.get_food_details = AsyncMock(side_effect=Exception("Test error"))
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -101,9 +99,10 @@ class TestUnifiedDBCoverage:
     @pytest.mark.asyncio
     async def test_get_food_by_id_non_usda_source(self):
         """Test get_food_by_id with non-USDA source."""
-        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class, patch(
-            "core.food_apis.unified_db.OFFClient"
-        ) as mock_off_class:
+        with (
+            patch("core.food_apis.unified_db.USDAClient") as mock_usda_class,
+            patch("core.food_apis.unified_db.OFFClient") as mock_off_class,
+        ):
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
 
@@ -166,9 +165,7 @@ class TestUnifiedDBCoverage:
         """Test get_common_foods_database with search exception."""
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(
-                side_effect=Exception("Test error")
-            )
+            mock_usda_instance.search_foods = AsyncMock(side_effect=Exception("Test error"))
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -190,9 +187,7 @@ class TestUnifiedDBCoverage:
             assert db1 is db2
 
             # Test search_foods_unified
-            with patch.object(
-                db1, "search_food", new_callable=AsyncMock
-            ) as mock_search:
+            with patch.object(db1, "search_food", new_callable=AsyncMock) as mock_search:
                 mock_search.return_value = []
                 results = await search_foods_unified("chicken", 5)
                 assert isinstance(results, list)

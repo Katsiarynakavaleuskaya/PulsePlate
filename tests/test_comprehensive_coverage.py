@@ -38,9 +38,7 @@ class TestComprehensiveCoverage:
     def test_database_status_endpoint_success(self):
         """Test database status endpoint success case."""
         # Mock the update manager to return valid status
-        with patch(
-            "core.food_apis.scheduler.get_update_scheduler"
-        ) as mock_get_scheduler:
+        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.get_status = MagicMock(
                 return_value={
@@ -55,9 +53,7 @@ class TestComprehensiveCoverage:
             )
             mock_get_scheduler.return_value = mock_scheduler
 
-            response = self.client.get(
-                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-            )
+            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code == 200
             data = response.json()
             assert "scheduler" in data
@@ -65,23 +61,17 @@ class TestComprehensiveCoverage:
 
     def test_database_status_endpoint_exception(self):
         """Test database status endpoint exception handling."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
-            response = self.client.get(
-                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-            )
+            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code == 500
             data = response.json()
             assert "Failed to get database status" in data["detail"]
 
     def test_force_update_endpoint_success(self):
         """Test force update endpoint success case."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_result = MagicMock()
             mock_result.success = True
@@ -105,9 +95,7 @@ class TestComprehensiveCoverage:
 
     def test_force_update_endpoint_with_source(self):
         """Test force update endpoint with specific source."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_result = MagicMock()
             mock_result.success = True
@@ -132,9 +120,7 @@ class TestComprehensiveCoverage:
 
     def test_force_update_endpoint_exception(self):
         """Test force update endpoint exception handling."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(
@@ -146,9 +132,7 @@ class TestComprehensiveCoverage:
 
     def test_check_updates_endpoint_success(self):
         """Test check updates endpoint success case."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.check_for_updates = AsyncMock(
                 return_value={"usda": True, "openfoodfacts": False}
@@ -165,9 +149,7 @@ class TestComprehensiveCoverage:
 
     def test_check_updates_endpoint_exception(self):
         """Test check updates endpoint exception handling."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(
@@ -179,13 +161,9 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(
-                return_value=True
-            )
+            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
             mock_get_scheduler.return_value = mock_scheduler
 
             response = self.client.post(
@@ -200,13 +178,9 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(
-                return_value=False
-            )
+            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
             mock_get_scheduler.return_value = mock_scheduler
 
             response = self.client.post(
@@ -219,9 +193,7 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(
@@ -235,10 +207,11 @@ class TestComprehensiveCoverage:
 
     def test_premium_plate_endpoint_success(self):
         """Test premium plate endpoint success case."""
-        with patch("app.make_plate") as mock_make_plate, patch(
-            "app.calculate_all_bmr"
-        ) as mock_calc_bmr, patch("app.calculate_all_tdee") as mock_calc_tdee:
-
+        with (
+            patch("app.make_plate") as mock_make_plate,
+            patch("app.calculate_all_bmr") as mock_calc_bmr,
+            patch("app.calculate_all_tdee") as mock_calc_tdee,
+        ):
             mock_calc_bmr.return_value = {"mifflin": 1500}
             mock_calc_tdee.return_value = {"mifflin": 2000}
 
@@ -528,10 +501,10 @@ class TestComprehensiveCoverage:
 
     def test_nutrient_gaps_endpoint_success(self):
         """Test nutrient gaps endpoint success case."""
-        with patch("app.analyze_nutrient_gaps") as mock_analyze, patch(
-            "app.build_nutrition_targets"
-        ) as mock_build_targets:
-
+        with (
+            patch("app.analyze_nutrient_gaps") as mock_analyze,
+            patch("app.build_nutrition_targets") as mock_build_targets,
+        ):
             mock_targets = MagicMock()
             mock_targets.kcal_daily = 2000
             mock_targets.macros.protein_g = 100
@@ -549,17 +522,13 @@ class TestComprehensiveCoverage:
             mock_targets.calculation_date = "2023-01-01"
 
             mock_build_targets.return_value = mock_targets
-            mock_analyze.return_value = {
-                "iron_mg": {"deficit": 5.0, "priority": "high"}
-            }
+            mock_analyze.return_value = {"iron_mg": {"deficit": 5.0, "priority": "high"}}
 
             # Mock the functions from core.recommendations
-            with patch(
-                "core.recommendations.generate_deficiency_recommendations"
-            ) as mock_recommend, patch(
-                "core.recommendations.score_nutrient_coverage"
-            ) as mock_score:
-
+            with (
+                patch("core.recommendations.generate_deficiency_recommendations") as mock_recommend,
+                patch("core.recommendations.score_nutrient_coverage") as mock_score,
+            ):
                 mock_recommend.return_value = ["Eat more red meat for iron"]
                 mock_score.return_value = {"iron_mg": MagicMock(coverage_percent=75.0)}
 

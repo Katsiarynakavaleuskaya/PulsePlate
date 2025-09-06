@@ -498,9 +498,7 @@ def get_lifestage_recommendations(
             profile.age, profile.sex, is_pregnant, is_lactating, trimester
         )
 
-        return LifeStageNutritionCalculator.calculate_lifestage_targets(
-            profile, life_stage
-        )
+        return LifeStageNutritionCalculator.calculate_lifestage_targets(profile, life_stage)
 
     except ValueError as e:
         return {

@@ -59,8 +59,9 @@ def test_usda_common_foods_database():
 
     loop = asyncio.new_event_loop()
     try:
-        with patch.object(USDAClient, "search_foods", _search), patch(
-            "core.food_apis.usda_client.asyncio.sleep", new=AsyncMock()
+        with (
+            patch.object(USDAClient, "search_foods", _search),
+            patch("core.food_apis.usda_client.asyncio.sleep", new=AsyncMock()),
         ):
             out = loop.run_until_complete(get_common_foods_database())
         assert out and isinstance(next(iter(out.values())), USDAFoodItem)
@@ -84,9 +85,11 @@ def test_unified_db_common_cache_error_and_save_error(tmp_path: Path):
     loop = asyncio.new_event_loop()
     try:
         # Patch search to avoid network and patch open to fail on save (252-253)
-        with patch.object(db, "search_food", _search_food), patch(
-            "core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()
-        ), patch("builtins.open", side_effect=OSError("fail")):
+        with (
+            patch.object(db, "search_food", _search_food),
+            patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()),
+            patch("builtins.open", side_effect=OSError("fail")),
+        ):
             res = loop.run_until_complete(db.get_common_foods_database())
         assert isinstance(res, dict)
     finally:
@@ -226,9 +229,7 @@ def test_scheduler_remaining_edges():
         async def start(self):
             self.is_running = True
 
-    with patch.object(
-        sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())
-    ):
+    with patch.object(sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())):
         loop.run_until_complete(start_background_updates(update_interval_hours=2))
 
     # 290-292: stop_background_updates path

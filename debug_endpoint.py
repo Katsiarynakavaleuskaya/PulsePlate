@@ -23,14 +23,10 @@ def test_database_status_exception():
 
     print(f"Scheduler instance before test: {_scheduler_instance}")
 
-    with patch(
-        "app.get_update_scheduler", new_callable=AsyncMock
-    ) as mock_get_scheduler:
+    with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
         mock_get_scheduler.side_effect = Exception("Test error")
 
-        response = client.get(
-            "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-        )
+        response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         print(f"Status code: {response.status_code}")
         print(f"Response: {response.json()}")
         return response.status_code

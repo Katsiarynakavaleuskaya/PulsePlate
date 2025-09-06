@@ -307,18 +307,14 @@ def test_v1_bmi_invalid_api_key():
 
 
 def test_v1_bmi_no_api_key():
-    r = client.post(
-        "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"}
-    )
+    r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
     assert r.status_code == 403
     data = r.json()
     assert "Invalid API Key" in data["detail"]
 
 
 def test_v1_insight_invalid_api_key():
-    r = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"})
     assert r.status_code == 403
     data = r.json()
     assert "Invalid API Key" in data["detail"]

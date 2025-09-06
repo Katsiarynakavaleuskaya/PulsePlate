@@ -38,9 +38,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
 
         result = response.json()
@@ -67,9 +65,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
 
         result = response.json()
@@ -92,9 +88,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422  # Validation error
 
     def test_bmi_pro_endpoint_missing_api_key(self):

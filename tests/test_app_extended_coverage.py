@@ -51,9 +51,10 @@ class TestLifespanEvents:
 
         mock_app = MagicMock()
 
-        with patch("app.start_background_updates") as mock_start, patch(
-            "app.stop_background_updates"
-        ) as mock_stop:
+        with (
+            patch("app.start_background_updates") as mock_start,
+            patch("app.stop_background_updates") as mock_stop,
+        ):
             mock_start.return_value = AsyncMock()
             mock_stop.return_value = AsyncMock()
 
@@ -70,9 +71,10 @@ class TestLifespanEvents:
 
         mock_app = MagicMock()
 
-        with patch("app.start_background_updates") as mock_start, patch(
-            "app.stop_background_updates"
-        ) as mock_stop:
+        with (
+            patch("app.start_background_updates") as mock_start,
+            patch("app.stop_background_updates") as mock_stop,
+        ):
             mock_start.return_value = AsyncMock()
             mock_stop.side_effect = Exception("Shutdown failed")
 
@@ -270,8 +272,9 @@ class TestInsightEndpoints:
 
     def test_insight_endpoint_no_provider(self):
         """Test insight endpoint with no provider configured."""
-        with patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}), patch(
-            "llm.get_provider", return_value=None
+        with (
+            patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
+            patch("llm.get_provider", return_value=None),
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
@@ -282,8 +285,9 @@ class TestInsightEndpoints:
         mock_provider = Mock()
         mock_provider.generate.side_effect = Exception("Provider error")
 
-        with patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}), patch(
-            "llm.get_provider", return_value=mock_provider
+        with (
+            patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
+            patch("llm.get_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
@@ -295,8 +299,9 @@ class TestInsightEndpoints:
         mock_provider.generate.return_value = "Generated insight"
         mock_provider.name = "test_provider"
 
-        with patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}), patch(
-            "llm.get_provider", return_value=mock_provider
+        with (
+            patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
+            patch("llm.get_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test query"})
             assert response.status_code == 200
@@ -310,8 +315,9 @@ class TestInsightEndpoints:
         mock_provider.generate.return_value = "Generated insight"
         mock_provider.name = "test_provider"
 
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "llm.get_provider", return_value=mock_provider
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("llm.get_provider", return_value=mock_provider),
         ):
             headers = {"X-API-Key": "test_key"}
             response = self.client.post(
@@ -323,8 +329,9 @@ class TestInsightEndpoints:
 
     def test_api_v1_insight_no_llm_module(self):
         """Test API v1 insight when LLM module not available."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch.dict(
-            "sys.modules", {"llm": None}
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch.dict("sys.modules", {"llm": None}),
         ):
             headers = {"X-API-Key": "test_key"}
             response = self.client.post(
@@ -368,9 +375,11 @@ class TestPremiumEndpoints:
 
     def test_premium_bmr_unavailable(self):
         """Test premium BMR endpoint when nutrition module unavailable."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.calculate_all_bmr", None
-        ), patch("app.calculate_all_tdee", None):
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.calculate_all_bmr", None),
+            patch("app.calculate_all_tdee", None),
+        ):
             headers = {"X-API-Key": "test_key"}
             data = {
                 "weight_kg": 70.0,
@@ -380,18 +389,14 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/bmr", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
             # The app raises HTTPException with status code 503 when modules are not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
     def test_premium_plate_unavailable(self):
         """Test premium plate endpoint when make_plate unavailable."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.make_plate", None
-        ):
+        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch("app.make_plate", None):
             headers = {"X-API-Key": "test_key"}
             data = {
                 "sex": "male",
@@ -402,17 +407,16 @@ class TestPremiumEndpoints:
                 "goal": "maintain",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/plate", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/plate", json=data, headers=headers)
             # The app raises HTTPException with status code 503 when make_plate is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
     def test_who_targets_unavailable(self):
         """Test WHO targets endpoint when build_nutrition_targets unavailable."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.build_nutrition_targets", None
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.build_nutrition_targets", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -423,18 +427,14 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/targets", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/targets", json=data, headers=headers)
             # The app raises HTTPException with status code 503 when build_nutrition_targets is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
     def test_weekly_menu_unavailable(self):
         """Test weekly menu endpoint when make_weekly_menu unavailable."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.make_weekly_menu", None
-        ):
+        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch("app.make_weekly_menu", None):
             headers = {"X-API-Key": "test_key"}
             data = {
                 "sex": "male",
@@ -444,17 +444,16 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/plan/week", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/plan/week", json=data, headers=headers)
             # The app raises HTTPException with status code 503 when make_weekly_menu is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
     def test_nutrient_gaps_unavailable(self):
         """Test nutrient gaps endpoint when analyze_nutrient_gaps unavailable."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.analyze_nutrient_gaps", None
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.analyze_nutrient_gaps", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -468,9 +467,7 @@ class TestPremiumEndpoints:
                 },
             }
 
-            response = self.client.post(
-                "/api/v1/premium/gaps", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/gaps", json=data, headers=headers)
             # The app raises HTTPException with status code 503 when analyze_nutrient_gaps is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
@@ -485,9 +482,10 @@ class TestDatabaseAdminEndpoints:
 
     def test_database_status_error(self):
         """Test database status endpoint with error."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_scheduler:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+        ):
             mock_scheduler.side_effect = Exception("Scheduler error")
 
             headers = {"X-API-Key": "test_key"}
@@ -497,9 +495,10 @@ class TestDatabaseAdminEndpoints:
 
     def test_force_update_error(self):
         """Test force update endpoint with error."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_scheduler:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+        ):
             mock_scheduler.side_effect = Exception("Update error")
 
             headers = {"X-API-Key": "test_key"}
@@ -509,9 +508,10 @@ class TestDatabaseAdminEndpoints:
 
     def test_check_updates_error(self):
         """Test check updates endpoint with error."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_scheduler:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+        ):
             mock_scheduler.side_effect = Exception("Check error")
 
             headers = {"X-API-Key": "test_key"}
@@ -521,9 +521,10 @@ class TestDatabaseAdminEndpoints:
 
     def test_rollback_error(self):
         """Test rollback endpoint with error."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_scheduler:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+        ):
             mock_scheduler.side_effect = Exception("Rollback error")
 
             headers = {"X-API-Key": "test_key"}
@@ -569,8 +570,9 @@ class TestVisualizationEndpoint:
 
     def test_bmi_visualize_unavailable_module(self):
         """Test BMI visualization when module not available."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.generate_bmi_visualization", None
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.generate_bmi_visualization", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -582,17 +584,17 @@ class TestVisualizationEndpoint:
                 "athlete": "no",
             }
 
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
             assert response.status_code == 503
             assert "not available - module not found" in response.json()["detail"]
 
     def test_bmi_visualize_matplotlib_unavailable(self):
         """Test BMI visualization when matplotlib not available."""
-        with patch.dict(os.environ, {"API_KEY": "test_key"}), patch(
-            "app.generate_bmi_visualization", lambda: None
-        ), patch("app.MATPLOTLIB_AVAILABLE", False):
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.generate_bmi_visualization", lambda: None),
+            patch("app.MATPLOTLIB_AVAILABLE", False),
+        ):
             headers = {"X-API-Key": "test_key"}
             data = {
                 "weight_kg": 70.0,
@@ -603,9 +605,7 @@ class TestVisualizationEndpoint:
                 "athlete": "no",
             }
 
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
             assert response.status_code == 503
             assert "matplotlib not installed" in response.json()["detail"]
 

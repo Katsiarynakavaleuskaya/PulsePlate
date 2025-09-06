@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Тесты для llm.py с полным покрытием."""
 
-
 try:
     from llm import get_provider
 except ImportError:

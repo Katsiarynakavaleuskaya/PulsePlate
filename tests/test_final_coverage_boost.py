@@ -34,9 +34,7 @@ class TestFinalCoverageBoost:
             ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
 
-                _ = (
-                    UnifiedFoodDatabase()
-                )  # Use _ to indicate we're not using the variable
+                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error and continue
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -69,9 +67,7 @@ class TestFinalCoverageBoost:
             ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
 
-                _ = (
-                    UnifiedFoodDatabase()
-                )  # Use _ to indicate we're not using the variable
+                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should handle gracefully
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -108,9 +104,7 @@ class TestFinalCoverageBoost:
                 name="Test Food",
                 source="test",
                 source_id="123",
-                nutrients_per_100g={
-                    "protein_g": 150.0
-                },  # Unrealistic value (>100g per 100g)
+                nutrients_per_100g={"protein_g": 150.0},  # Unrealistic value (>100g per 100g)
                 cost_per_100g=0.0,
                 tags=[],
                 availability_regions=[],
@@ -185,9 +179,7 @@ class TestFinalCoverageBoost:
     def test_menu_engine_py_line_421_fixed(self):
         """Test line 421 in menu_engine.py (_get_default_food_db fallback detailed)."""
         # Test _get_default_food_db with exception in get_unified_food_db
-        with patch(
-            "core.menu_engine.get_unified_food_db", side_effect=Exception("API error")
-        ):
+        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("API error")):
             from core.menu_engine import _get_default_food_db
 
             result = _get_default_food_db()

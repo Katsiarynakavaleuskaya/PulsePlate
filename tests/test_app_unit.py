@@ -8,7 +8,6 @@ RU: Точечные юнит-тесты внутренних функций app
 EN: Unit tests for internal helpers in app.py.
 """
 
-
 import pytest
 from fastapi.testclient import TestClient
 

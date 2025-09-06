@@ -3,7 +3,6 @@ Targeted coverage tests for core.recommendations module.
 These tests specifically target the uncovered lines to improve overall coverage.
 """
 
-
 from core.recommendations import (
     _adapt_for_vegetarian,
     _calculate_activity_targets,
@@ -95,8 +94,7 @@ class TestDeficiencyRecommendations:
         # Should have vegetarian-adapted recommendations
         assert len(recommendations) > 0
         assert any(
-            "vitamin C" in rec.lower() or "absorption" in rec.lower()
-            for rec in recommendations
+            "vitamin C" in rec.lower() or "absorption" in rec.lower() for rec in recommendations
         )
 
     def test_recommendations_russian_language(self):
@@ -123,10 +121,7 @@ class TestDeficiencyRecommendations:
 
         # Should have Russian recommendations
         assert len(recommendations) > 0
-        assert any(
-            "железо" in rec.lower() or "говядина" in rec.lower()
-            for rec in recommendations
-        )
+        assert any("железо" in rec.lower() or "говядина" in rec.lower() for rec in recommendations)
 
     def test_no_deficiencies(self):
         """Test when there are no deficiencies."""
@@ -401,9 +396,7 @@ class TestTargetsSafety:
         """Test warning for very high protein."""
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(
-                protein_g=200, fat_g=50, carbs_g=150, fiber_g=28
-            ),  # 40% protein
+            macros=MacroTargets(protein_g=200, fat_g=50, carbs_g=150, fiber_g=28),  # 40% protein
             water_ml_daily=2500,
             micros=MicroTargets(
                 iron_mg=15.0,
@@ -484,8 +477,7 @@ class TestTargetsSafety:
         # Should warn about low hydration
         assert len(warnings) > 0
         assert any(
-            "hydration" in warning.lower() or "minimum" in warning.lower()
-            for warning in warnings
+            "hydration" in warning.lower() or "minimum" in warning.lower() for warning in warnings
         )
 
     def test_high_hydration_warning(self):
@@ -530,8 +522,7 @@ class TestTargetsSafety:
         # Should warn about high hydration
         assert len(warnings) > 0
         assert any(
-            "hydration" in warning.lower() or "maximum" in warning.lower()
-            for warning in warnings
+            "hydration" in warning.lower() or "maximum" in warning.lower() for warning in warnings
         )
 
 
@@ -859,9 +850,7 @@ class TestMacroCalculation:
         assert macros.fiber_g > 0
 
         # Check that macro calories approximately match target
-        total_macro_kcal = (
-            (macros.protein_g * 4) + (macros.carbs_g * 4) + (macros.fat_g * 9)
-        )
+        total_macro_kcal = (macros.protein_g * 4) + (macros.carbs_g * 4) + (macros.fat_g * 9)
         assert abs(total_macro_kcal - 2000) <= 100  # Allow 100 kcal tolerance
 
     def test_calculate_macro_targets_weight_loss(self):

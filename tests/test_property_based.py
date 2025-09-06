@@ -61,9 +61,7 @@ def test_bmi_value_property(weight, height):
         assert bmi < 2000  # Upper bound for extreme but possible cases
 
 
-@given(
-    bmi_val=st.floats(min_value=10, max_value=50), lang=st.sampled_from(["en", "ru"])
-)
+@given(bmi_val=st.floats(min_value=10, max_value=50), lang=st.sampled_from(["en", "ru"]))
 def test_bmi_category_property(bmi_val, lang):
     """Test that BMI categories are consistent."""
     category = bmi_category(bmi_val, lang)

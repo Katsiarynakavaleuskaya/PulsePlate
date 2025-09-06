@@ -90,11 +90,7 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str = "ru") -
     if waist_cm >= high:
         return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
     if waist_cm >= warn:
-        return (
-            "Повышенный риск по талии"
-            if lang == "ru"
-            else "Increased waist-related risk"
-        )
+        return "Повышенный риск по талии" if lang == "ru" else "Increased waist-related risk"
     return ""
 
 
@@ -241,8 +237,7 @@ def debug_env():
         "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
     }
     data["insight_enabled"] = str(
-        str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-        in {"1", "true", "yes", "on"}
+        str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() in {"1", "true", "yes", "on"}
     )
     return JSONResponse(content=data)
 

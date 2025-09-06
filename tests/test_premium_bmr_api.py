@@ -115,10 +115,7 @@ class TestPremiumBMRAPI:
         data = response.json()
 
         # Check Russian language in response
-        assert (
-            "Рекомендуемое потребление калорий"
-            in data["recommended_intake"]["description"]
-        )
+        assert "Рекомендуемое потребление калорий" in data["recommended_intake"]["description"]
         assert "Наиболее точная формула" in data["notes"]["mifflin"]
         assert "Традиционная формула" in data["notes"]["harris"]
 
@@ -400,9 +397,7 @@ class TestPremiumBMRAPI:
         assert response.status_code == 200
         data = response.json()
         assert all(bmr > 0 for bmr in data["bmr"].values())
-        assert all(
-            tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values())
-        )
+        assert all(tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values()))
 
 
 if __name__ == "__main__":

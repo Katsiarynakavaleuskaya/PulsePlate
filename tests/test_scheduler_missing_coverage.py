@@ -149,9 +149,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to return no updates
-        scheduler.update_manager.check_for_updates = AsyncMock(
-            return_value={"usda": False}
-        )
+        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": False})
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_update_check()
@@ -263,9 +261,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(
-            return_value={"usda": True}
-        )
+        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": True})
 
         # Mock update_manager.update_database
         from core.food_apis.update_manager import UpdateResult

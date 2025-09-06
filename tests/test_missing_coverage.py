@@ -41,9 +41,10 @@ class TestMissingCoverage:
         }
 
         # Mock matplotlib to be unavailable and generate_bmi_visualization to return unavailable
-        with patch("app.MATPLOTLIB_AVAILABLE", False), patch(
-            "app.generate_bmi_visualization"
-        ) as mock_viz:
+        with (
+            patch("app.MATPLOTLIB_AVAILABLE", False),
+            patch("app.generate_bmi_visualization") as mock_viz,
+        ):
             mock_viz.return_value = {
                 "available": False,
                 "error": "Visualization not available - matplotlib not installed",
@@ -99,9 +100,7 @@ class TestMissingCoverage:
             )
             # The app raises HTTPException with status code 503 when matplotlib is not available
             assert response.status_code == 503
-            assert (
-                "not available - matplotlib not installed" in response.json()["detail"]
-            )
+            assert "not available - matplotlib not installed" in response.json()["detail"]
 
     def test_premium_bmr_modules_unavailable(self):
         """Test premium BMR endpoint when modules are not available."""
@@ -115,9 +114,7 @@ class TestMissingCoverage:
         }
 
         # Mock calculate_all_bmr and calculate_all_tdee to be None at app module level
-        with patch("app.calculate_all_bmr", None), patch(
-            "app.calculate_all_tdee", None
-        ):
+        with patch("app.calculate_all_bmr", None), patch("app.calculate_all_tdee", None):
             response = self.client.post(
                 "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
             )

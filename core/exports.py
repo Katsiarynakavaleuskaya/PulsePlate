@@ -53,8 +53,7 @@ def _import_reportlab_modules():
     global REPORTLAB_CLASSES
     if not REPORTLAB_AVAILABLE:
         raise ImportError(
-            "ReportLab is required for PDF export. "
-            "Install with 'pip install reportlab'"
+            "ReportLab is required for PDF export. Install with 'pip install reportlab'"
         )
     return REPORTLAB_CLASSES
 
@@ -75,9 +74,7 @@ def to_csv_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(
-        ["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]
-    )
+    writer.writerow(["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"])
 
     # Write meal data
     for meal in meal_plan.get("meals", []):
@@ -191,8 +188,7 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     """
     if not REPORTLAB_AVAILABLE:
         raise ImportError(
-            "ReportLab is required for PDF export. "
-            "Install with 'pip install reportlab'"
+            "ReportLab is required for PDF export. Install with 'pip install reportlab'"
         )
 
     # Lazy import reportlab modules
@@ -219,9 +215,7 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     elements.append(Spacer(1, 12))
 
     # Meal table
-    meal_data = [
-        ["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]
-    ]
+    meal_data = [["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]]
 
     for meal in meal_plan.get("meals", []):
         meal_data.append(
@@ -287,8 +281,7 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     """
     if not REPORTLAB_AVAILABLE:
         raise ImportError(
-            "ReportLab is required for PDF export. "
-            "Install with 'pip install reportlab'"
+            "ReportLab is required for PDF export. Install with 'pip install reportlab'"
         )
 
     # Lazy import reportlab modules

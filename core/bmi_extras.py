@@ -130,9 +130,7 @@ def interpret_wht_ratio(wht_ratio_value: float) -> Dict[str, str]:
         return {"category": "obese", "risk": "high", "description": "High health risk"}
 
 
-def interpret_whr_ratio(
-    whr_ratio_value: float, sex: Literal["male", "female"]
-) -> Dict[str, str]:
+def interpret_whr_ratio(whr_ratio_value: float, sex: Literal["male", "female"]) -> Dict[str, str]:
     """Interpret WHR value according to sex-specific health risk thresholds.
 
     Args:
@@ -187,14 +185,14 @@ def stage_obesity(
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
-    if (sex == "male" and whr >= 0.95) or (
-        sex == "female" and whr >= 0.80
-    ):  # High WHR risk
+    if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):  # High WHR risk
         risk_factors += 1
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = "Consider consulting with a healthcare professional for comprehensive assessment"
+        recommendation = (
+            "Consider consulting with a healthcare professional for comprehensive assessment"
+        )
     elif risk_factors == 1:
         stage = "moderate_risk"
         recommendation = "Monitor health metrics and consider lifestyle modifications"
@@ -205,7 +203,11 @@ def stage_obesity(
     bmi_category = (
         "obese"
         if bmi >= 30
-        else "overweight" if bmi >= 25 else "normal" if bmi >= 18.5 else "underweight"
+        else "overweight"
+        if bmi >= 25
+        else "normal"
+        if bmi >= 18.5
+        else "underweight"
     )
 
     return {

@@ -41,11 +41,7 @@ def bmi_pro(req: BMIProRequest):
         # Convert height to meters for calc_bmi(weight, height_m)
         bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
         v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-        v_whr = (
-            whr_ratio(req.waist_cm, float(req.hip_cm))
-            if req.hip_cm is not None
-            else None
-        )
+        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
         v_ffmi = (
             ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)
             if req.bodyfat_percent is not None

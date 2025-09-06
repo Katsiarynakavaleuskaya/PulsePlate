@@ -131,9 +131,7 @@ def _calculate_macro_targets(target_kcal: int, profile: UserProfile) -> MacroTar
     # Fiber based on total calories (WHO: 14g per 1000 kcal)
     fiber_g = get_fiber_target(target_kcal)
 
-    return MacroTargets(
-        protein_g=protein_g, fat_g=fat_g, carbs_g=carbs_g, fiber_g=fiber_g
-    )
+    return MacroTargets(protein_g=protein_g, fat_g=fat_g, carbs_g=carbs_g, fiber_g=fiber_g)
 
 
 def _calculate_micro_targets(profile: UserProfile) -> MicroTargets:
@@ -255,11 +253,7 @@ def generate_deficiency_recommendations(
     food_sources = _get_nutrient_food_sources(lang)
 
     for nutrient_name, nutrient_coverage in coverage.items():
-        if (
-            nutrient_coverage.status == "deficient"
-            and nutrient_name in priority_nutrients
-        ):
-
+        if nutrient_coverage.status == "deficient" and nutrient_name in priority_nutrients:
             if nutrient_name in food_sources:
                 sources = food_sources[nutrient_name]
 
