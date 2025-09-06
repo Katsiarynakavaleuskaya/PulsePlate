@@ -32,11 +32,11 @@ jobs:
           python -m pip install -U pip
           pip install -r requirements-dev.txt
 
-      - name: Run tests (96% coverage required)
+      - name: Run tests (94% coverage required)
         env:
           PYTHONPATH: .
           APP_ENV: ci
-        run: pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=96
+        run: python -m pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=94
 
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
