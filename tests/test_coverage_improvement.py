@@ -61,7 +61,9 @@ class TestCoverageImprovement:
 
         # Test when MATPLOTLIB_AVAILABLE is False
         with (
-            patch("app.generate_bmi_visualization", lambda **kwargs: {"available": False}),
+            patch(
+                "app.generate_bmi_visualization", lambda **kwargs: {"available": False}
+            ),
             patch("app.MATPLOTLIB_AVAILABLE", False),
         ):
             data = {
@@ -103,16 +105,22 @@ class TestCoverageImprovement:
         ):
             from core.food_apis.scheduler import DatabaseUpdateScheduler
 
-            _ = DatabaseUpdateScheduler()  # Use _ to indicate we're not using the variable
+            _ = (
+                DatabaseUpdateScheduler()
+            )  # Use _ to indicate we're not using the variable
             # Should not crash, just log warning
 
         # Test scheduler start when already running
-        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
+        with patch(
+            "core.food_apis.scheduler.get_update_scheduler"
+        ) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.is_running = True
             mock_get_scheduler.return_value = mock_scheduler
 
-            _ = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
+            _ = self.client.get(
+                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
+            )
             # Should not crash
 
     def test_unified_db_uncovered_lines(self):
@@ -125,7 +133,9 @@ class TestCoverageImprovement:
             ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
 
-                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
+                _ = (
+                    UnifiedFoodDatabase()
+                )  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -157,7 +167,9 @@ class TestCoverageImprovement:
             ):
                 with patch("app.get_update_scheduler") as mock_get_scheduler:
                     mock_scheduler = AsyncMock()
-                    mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
+                    mock_scheduler.update_manager.rollback_database = AsyncMock(
+                        return_value=False
+                    )
                     mock_get_scheduler.return_value = mock_scheduler
 
                     _ = self.client.post(
@@ -173,7 +185,9 @@ class TestCoverageImprovement:
     def test_menu_engine_uncovered_lines(self):
         """Test uncovered lines in menu_engine.py."""
         # Test get_default_food_db with API failure
-        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):
+        with patch(
+            "core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")
+        ):
             from core.menu_engine import _get_default_food_db
 
             result = _get_default_food_db()

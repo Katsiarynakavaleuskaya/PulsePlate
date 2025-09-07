@@ -70,7 +70,9 @@ class TestUpdateManagerFinalCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Add an old version
-            old_time = (datetime.now() - timedelta(hours=25)).isoformat()  # Past update interval
+            old_time = (
+                datetime.now() - timedelta(hours=25)
+            ).isoformat()  # Past update interval
             version = DatabaseVersion(
                 source="usda",
                 version="1.0",
@@ -103,7 +105,9 @@ class TestUpdateManagerFinalCoverage:
                 errors=[],
                 duration_seconds=0.0,
             )
-            with patch.object(manager, "_update_usda_database", return_value=mock_result):
+            with patch.object(
+                manager, "_update_usda_database", return_value=mock_result
+            ):
                 result = await manager.update_database("usda")
 
                 # Duration should be set (even if very small)
@@ -145,7 +149,9 @@ class TestUpdateManagerFinalCoverage:
                 mock_get_foods.return_value = {"chicken": food_item}
 
                 # Mock _calculate_checksum to return same checksum
-                with patch.object(manager, "_calculate_checksum", return_value="test_checksum"):
+                with patch.object(
+                    manager, "_calculate_checksum", return_value="test_checksum"
+                ):
                     # Mock _create_backup to avoid file operations
                     with patch.object(manager, "_create_backup"):
                         result = await manager._update_usda_database()
@@ -280,8 +286,12 @@ class TestUpdateManagerFinalCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock clients to raise exceptions
-            manager.usda_client.close = AsyncMock(side_effect=Exception("USDA close error"))
-            manager.unified_db.close = AsyncMock(side_effect=Exception("Unified DB close error"))
+            manager.usda_client.close = AsyncMock(
+                side_effect=Exception("USDA close error")
+            )
+            manager.unified_db.close = AsyncMock(
+                side_effect=Exception("Unified DB close error")
+            )
 
             # Should not crash despite exceptions
             try:

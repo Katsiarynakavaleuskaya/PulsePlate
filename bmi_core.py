@@ -83,7 +83,9 @@ LANG: Dict[str, Any] = {
         "notes": {
             "athlete": "BMI may be overestimated due to muscle mass.",
             "pregnant": "BMI is not diagnostic during pregnancy.",
-            "elderly": ("In older adults, BMI can underestimate body fat (sarcopenia)."),
+            "elderly": (
+                "In older adults, BMI can underestimate body fat (sarcopenia)."
+            ),
             "child": "Use BMI-for-age percentiles for youth.",
             "teen": "Teenage years: consider pubertal development stage.",
         },
@@ -190,7 +192,9 @@ def bmi_category(
 # -------------------------
 
 
-def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) -> str:
+def auto_group(
+    age: int, gender: str, pregnant: str, athlete: str, lang: str
+) -> str:
     """Enhanced user group detection with better teen/child
     distinction."""
     lang = normalize_lang(lang)
@@ -203,11 +207,11 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
     # Поддержка "спортсменка", "спортсмен", "атлетка", "атлет" + англ. athlete
     athlete_yes = {"спорт", "спортсмен", "спортсменка", "атлет", "атлетка", "athlete"}
     is_athlete = (a_raw in yes_vals) or (a_raw in athlete_yes)
-    if (
-        not is_athlete
-        and a_raw
-        and (re.search(r"спортсмен(ка)?", a_raw) or re.search(r"атлет(ка)?", a_raw))
-    ):
+    # Check if athlete description matches sportsperson/athlete patterns
+    athlete_pattern_match = (
+        re.search(r"спортсмен(ка)?", a_raw) or re.search(r"атлет(ка)?", a_raw)
+    )
+    if not is_athlete and a_raw and athlete_pattern_match:
         is_athlete = True
 
     # Enhanced age-based grouping
@@ -229,7 +233,9 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
+def interpret_group(
+    bmi: float, group: str, lang: str, age: Optional[int] = None
+) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
     lang = normalize_lang(lang)
     c = LANG[lang]
@@ -285,7 +291,9 @@ def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
 # -------------------------
 
 
-def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[float]:
+def compute_wht_ratio(
+    waist_cm: Optional[float], height_m: float
+) -> Optional[float]:
     """WHtR с мягкой обработкой отсутствующих/некорректных значений.
     Правило: waist_cm == 0 → None (как «нет данных»)."""
     if waist_cm is None:
@@ -312,9 +320,12 @@ def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[fl
 # -------------------------
 
 
-def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float]:
+def healthy_bmi_range(
+    age: int, group: str, premium: bool
+) -> Tuple[float, float]:
     bmin = 18.5
-    bmax = 27.5 if age >= Config.ELDERLY_AGE else 25.0
+    bmax = (27.5 if age >= Config.ELDERLY_AGE
+            else 25.0)
     if group == "athlete" and premium:
         bmax = max(bmax, Config.ATHLETE_BMI_MAX)
     return (bmin, bmax)
@@ -340,11 +351,19 @@ def build_premium_plan(
     actions = LANG[lang]["actions"]
     activities = LANG[lang]["activities"]
 
-    action = "maintain" if wmin <= weight_kg <= wmax else "lose" if weight_kg > wmax else "gain"
+    action = (
+        "maintain"
+        if wmin <= weight_kg <= wmax
+        else "lose" if weight_kg > wmax else "gain"
+    )
     delta = (
         0.0
         if action == "maintain"
-        else (round(weight_kg - wmax, 1) if action == "lose" else round(wmin - weight_kg, 1))
+        else (
+            round(weight_kg - wmax, 1)
+            if action == "lose"
+            else round(wmin - weight_kg, 1)
+        )
     )
     est_weeks = (
         (None, None)

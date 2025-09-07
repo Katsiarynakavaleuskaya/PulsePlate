@@ -44,7 +44,9 @@ class DatabaseUpdateScheduler:
         self.retry_interval = timedelta(minutes=retry_interval_minutes)
         self.max_retries = max_retries
 
-        self.update_manager = DatabaseUpdateManager(update_interval_hours=update_interval_hours)
+        self.update_manager = DatabaseUpdateManager(
+            update_interval_hours=update_interval_hours
+        )
 
         # State tracking
         self.is_running = False
@@ -212,9 +214,13 @@ class DatabaseUpdateScheduler:
                 f"(v{result.old_version} → v{result.new_version})"
             )
         else:
-            logger.warning(f"Update notification: {result.source} update failed - {result.errors}")
+            logger.warning(
+                f"Update notification: {result.source} update failed - {result.errors}"
+            )
 
-    async def force_update(self, source: Optional[str] = None) -> Dict[str, UpdateResult]:
+    async def force_update(
+        self, source: Optional[str] = None
+    ) -> Dict[str, UpdateResult]:
         """
         RU: Принудительно запускает обновление.
         EN: Force an immediate update.
@@ -252,7 +258,9 @@ class DatabaseUpdateScheduler:
             "scheduler": {
                 "is_running": self.is_running,
                 "last_update_check": (
-                    self.last_update_check.isoformat() if self.last_update_check else None
+                    self.last_update_check.isoformat()
+                    if self.last_update_check
+                    else None
                 ),
                 "update_interval_hours": self.update_interval.total_seconds() / 3600,
                 "retry_counts": self.retry_counts.copy(),
@@ -286,7 +294,9 @@ async def start_background_updates(update_interval_hours: int = 24):
     scheduler = await get_update_scheduler()
     if not scheduler.is_running:
         await scheduler.start()
-        logger.info(f"Background database updates started (every {update_interval_hours}h)")
+        logger.info(
+            f"Background database updates started (every {update_interval_hours}h)"
+        )
 
 
 async def stop_background_updates():

@@ -98,6 +98,7 @@ def test_grok_lite_provider():
 
 
 def test_build_premium_plan_edge_cases():
+    # sourcery skip: use-contextlib-suppress
     """Test build_premium_plan to cover missing bmi_core lines"""
     from bmi_core import build_premium_plan, healthy_bmi_range
 
@@ -127,6 +128,7 @@ def test_build_premium_plan_edge_cases():
             premium=True,
         )
         # Function might return something or raise NotImplementedError
+# sourcery skip: no-conditionals-in-tests
         if plan is not None:
             assert isinstance(plan, dict)
     except (NotImplementedError, TypeError):

@@ -31,7 +31,9 @@ class TestAppMissingLinesExtra:
         import core.food_apis.scheduler as sched
 
         with patch.object(sched, "get_update_scheduler", _fake_getter):
-            obj = asyncio.get_event_loop().run_until_complete(app_mod.get_update_scheduler())
+            obj = asyncio.get_event_loop().run_until_complete(
+                app_mod.get_update_scheduler()
+            )
             assert obj is not None
 
     def test_lifespan_error_branches(self):
@@ -156,7 +158,9 @@ class TestAppMissingLinesExtra:
         # Hit 1275 by raising ValueError from build_nutrition_targets
         with (
             patch.object(app_mod, "analyze_nutrient_gaps", lambda *a, **k: {}),
-            patch.object(app_mod, "build_nutrition_targets", side_effect=ValueError("bad")),
+            patch.object(
+                app_mod, "build_nutrition_targets", side_effect=ValueError("bad")
+            ),
         ):
             payload = {
                 "consumed_nutrients": {"protein_g": 80},
@@ -189,7 +193,9 @@ class TestAppMissingLinesExtra:
                 "hip_cm": 95.0,
                 "lang": "en",
             }
-            r = self.client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"})
+            r = self.client.post(
+                "/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"}
+            )
             assert r.status_code == 400
 
         # Trigger generic Exception branch (1524-1525)
@@ -205,7 +211,9 @@ class TestAppMissingLinesExtra:
                 "hip_cm": 95.0,
                 "lang": "en",
             }
-            r = self.client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"})
+            r = self.client.post(
+                "/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"}
+            )
             assert r.status_code == 500
 
     def test_export_pdf_generic_errors(self):

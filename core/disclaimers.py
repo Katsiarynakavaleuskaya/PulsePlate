@@ -197,7 +197,9 @@ def get_disclaimer_text(
         disclaimers.append(MEDICAL_DISCLAIMER[language])
 
         if special_population and special_population in SPECIAL_POPULATION_DISCLAIMERS:
-            disclaimers.append(SPECIAL_POPULATION_DISCLAIMERS[special_population][language])
+            disclaimers.append(
+                SPECIAL_POPULATION_DISCLAIMERS[special_population][language]
+            )
 
     elif disclaimer_type == "legal":
         disclaimers.append(LEGAL_DISCLAIMER[language])
@@ -258,6 +260,10 @@ PROFESSIONAL_REFERRALS = {
 }
 
 
-def get_professional_referral(category: str, language: Literal["en", "ru"] = "en") -> str:
+def get_professional_referral(
+    category: str, language: Literal["en", "ru"] = "en"
+) -> str:
     """Get professional referral recommendation."""
-    return PROFESSIONAL_REFERRALS.get(category, PROFESSIONAL_REFERRALS["general"])[language]
+    return PROFESSIONAL_REFERRALS.get(category, PROFESSIONAL_REFERRALS["general"])[
+        language
+    ]

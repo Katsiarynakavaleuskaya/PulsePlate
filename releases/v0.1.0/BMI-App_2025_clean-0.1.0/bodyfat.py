@@ -20,7 +20,11 @@ def bf_us_navy(
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
-        return 86.010 * math.log10(waist_cm - neck_cm) - 70.041 * math.log10(height_cm) + 36.76
+        return (
+            86.010 * math.log10(waist_cm - neck_cm)
+            - 70.041 * math.log10(height_cm)
+            + 36.76
+        )
     else:
         if hip_cm is None:
             raise ValueError("hip_cm required for female")

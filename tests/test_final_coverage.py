@@ -109,7 +109,9 @@ class TestFinalCoverage:
 
         # Test when GrokProvider is None, should use GrokLiteProvider
         with patch("llm.GrokProvider", None):
-            with patch.dict(os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test_key"}):
+            with patch.dict(
+                os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test_key"}
+            ):
                 provider = get_provider()
                 # This should return GrokLiteProvider and cover line 69
                 assert provider is not None
@@ -338,6 +340,7 @@ class TestFinalCoverage:
                 data = response.json()
 
                 # Should include visualization error
+# sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
                     assert "error" in data["visualization"]
@@ -449,6 +452,7 @@ class TestFinalCoverage:
         original_modules = sys.modules.copy()
 
         # Mock slowapi import failure to test lines 21-26
+# sourcery skip: no-conditionals-in-tests
         if "slowapi" in sys.modules:
             del sys.modules["slowapi"]
         if "slowapi.errors" in sys.modules:
@@ -561,6 +565,7 @@ class TestFinalCoverage:
                 data = response.json()
                 # This should cover lines 303-308 for visualization error handling
                 # Verify the visualization was attempted
+# sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
 
@@ -580,7 +585,9 @@ class TestFinalCoverage:
                 mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post("/api/v1/insight", json={"text": "test"}, headers=headers)
+                response = client.post(
+                    "/api/v1/insight", json={"text": "test"}, headers=headers
+                )
                 # This should cover line 339 and related API endpoint lines
 
         # Test visualization endpoint lines (341, 353, 359, 379)
@@ -598,7 +605,9 @@ class TestFinalCoverage:
 
             # Test when visualization is not available (line 341)
             with patch("app.generate_bmi_visualization", None):
-                response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
+                response = client.post(
+                    "/api/v1/bmi/visualize", json=payload, headers=headers
+                )
                 # Expected to be 503 or 500, just need to cover the line
                 assert response.status_code in [500, 503]
                 # This covers line 341
@@ -697,6 +706,7 @@ class TestFinalCoverage:
                 assert response.status_code == 200
                 data = response.json()
                 # This should hit lines 303-308: the elif not MATPLOTLIB_AVAILABLE block
+# sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert "error" in data["visualization"]
                     assert "matplotlib not installed" in data["visualization"]["error"]
@@ -716,12 +726,16 @@ class TestFinalCoverage:
                 mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post("/api/v1/insight", json={"text": "test"}, headers=headers)
+                response = client.post(
+                    "/api/v1/insight", json={"text": "test"}, headers=headers
+                )
                 # This covers line 339
 
             # Test visualization endpoint when module not found (line 341)
             with patch("app.generate_bmi_visualization", None):
-                response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
+                response = client.post(
+                    "/api/v1/bmi/visualize", json=payload, headers=headers
+                )
                 # Expected to be 503 or 500, just need to cover the line
                 assert response.status_code in [500, 503]
                 # This covers line 341
@@ -743,7 +757,9 @@ class TestFinalCoverage:
 
             with patch("app.generate_bmi_visualization", mock_viz):
                 with patch("app.MATPLOTLIB_AVAILABLE", True):
-                    response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
+                    response = client.post(
+                        "/api/v1/bmi/visualize", json=payload, headers=headers
+                    )
                     # This covers lines 359, 379
 
             # Test visualization failure (line 498)
@@ -751,7 +767,9 @@ class TestFinalCoverage:
 
             with patch("app.generate_bmi_visualization", mock_viz):
                 with patch("app.MATPLOTLIB_AVAILABLE", True):
-                    response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
+                    response = client.post(
+                        "/api/v1/bmi/visualize", json=payload, headers=headers
+                    )
                     assert response.status_code == 500
                     # This covers line 498
 

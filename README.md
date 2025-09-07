@@ -1,4 +1,5 @@
 # BMI-App 2025 (FastAPI)
+
 [![python-tests](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml)
 [![CI](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml)
 
@@ -73,6 +74,7 @@ make docker-run
 - `POST /api/v1/premium/plate` - Generate personalized visual plate with hand/cup portions (requires X-API-Key header)
 
 **Request Example:**
+
 ```json
 {
   "sex": "female",
@@ -87,6 +89,7 @@ make docker-run
 ```
 
 **Response Example:**
+
 ```json
 {
   "kcal": 1846,
@@ -168,6 +171,7 @@ make docker-run
 ```
 
 **Enhanced Parameters:**
+
 - `sex` (required): Biological sex ("male" or "female")
 - `age` (required): Age in years (10-100)
 - `height_cm` (required): Height in centimeters (> 0)
@@ -180,6 +184,7 @@ make docker-run
 - `diet_flags` (optional): Diet preferences (["VEG", "GF", "DAIRY_FREE", "LOW_COST"])
 
 **Visual Plate Features:**
+
 - **4 Plate Sectors**: Vegetables (30%), Protein, Carbs, Healthy Fats (proportional to macros)
 - **2 Serving Bowls**: Grain cup and vegetable cup visualization
 - **Hand/Cup Portions**: Real-world measurements (palms, thumbs, cups)
@@ -267,7 +272,7 @@ make lint
 - **Free Tier**:
   - BMI calculation with categories and special population support
   - Body fat estimation using multiple formulas
-  - BMI visualization charts (when matplotlib available)
+  - BMI visualization charts (when **matplotlib** available)
   - AI insights via configurable LLM providers (Stub, Grok, Ollama)
 - **Premium Tier**:
   - Advanced BMR calculations (Harris-Benedict, Mifflin-St Jeor, Katch-McArdle)

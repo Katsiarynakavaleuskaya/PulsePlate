@@ -105,9 +105,13 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_line_1215(self):
         """Test line 1215 in app.py (get_database_status with missing scheduler)."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch(
+            "app.get_update_scheduler", new_callable=AsyncMock
+        ) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
-            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
+            response = self.client.get(
+                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
+            )
             assert response.status_code == 500
 
     def test_scheduler_py_lines_66_67(self):
@@ -116,23 +120,31 @@ class TestTargetedCoverageBoost:
         with patch("signal.signal", side_effect=Exception("Test error")):
             from core.food_apis.scheduler import DatabaseUpdateScheduler
 
-            _ = DatabaseUpdateScheduler()  # Use _ to indicate we're not using the variable
+            _ = (
+                DatabaseUpdateScheduler()
+            )  # Use _ to indicate we're not using the variable
             # Should not crash, just log warning
 
     def test_scheduler_py_lines_135_137(self):
         """Test lines 135-137 in scheduler.py (stop method when not running)."""
-        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
+        with patch(
+            "core.food_apis.scheduler.get_update_scheduler"
+        ) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.is_running = False  # Not running
             mock_get_scheduler.return_value = mock_scheduler
 
-            _ = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
+            _ = self.client.get(
+                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
+            )
             # Should not crash
 
     def test_unified_db_py_lines_101_102(self):
         """Test lines 101-102 in unified_db.py (_save_cache exception)."""
         # Test _save_cache with exception
-        with patch("core.food_apis.unified_db.open", side_effect=Exception("Test error")):
+        with patch(
+            "core.food_apis.unified_db.open", side_effect=Exception("Test error")
+        ):
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
@@ -147,7 +159,9 @@ class TestTargetedCoverageBoost:
             ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
 
-                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
+                _ = (
+                    UnifiedFoodDatabase()
+                )  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -179,7 +193,9 @@ class TestTargetedCoverageBoost:
             ):
                 from core.food_apis.unified_db import UnifiedFoodDatabase
 
-                _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
+                _ = (
+                    UnifiedFoodDatabase()
+                )  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
             # Exception is expected, but the code should handle it gracefully
@@ -267,7 +283,9 @@ class TestTargetedCoverageBoost:
 
     def test_menu_engine_py_line_421(self):
         """Test line 421 in menu_engine.py (_get_default_food_db fallback)."""
-        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):
+        with patch(
+            "core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")
+        ):
             from core.menu_engine import _get_default_food_db
 
             result = _get_default_food_db()

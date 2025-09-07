@@ -163,11 +163,15 @@ class TestCoverageGaps:
 
         # These may be None or actual functions - just check they exist
         assert get_bodyfat_router is not None or get_bodyfat_router is None
-        assert generate_bmi_visualization is not None or generate_bmi_visualization is None
+        assert (
+            generate_bmi_visualization is not None or generate_bmi_visualization is None
+        )
         assert isinstance(MATPLOTLIB_AVAILABLE, bool)
         assert calculate_all_bmr is not None or calculate_all_bmr is None
         assert calculate_all_tdee is not None or calculate_all_tdee is None
-        assert get_activity_descriptions is not None or get_activity_descriptions is None
+        assert (
+            get_activity_descriptions is not None or get_activity_descriptions is None
+        )
         assert isinstance(TYPE_CHECKING, bool)
         assert isinstance(slowapi_available, bool)
 

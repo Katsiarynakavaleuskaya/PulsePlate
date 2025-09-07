@@ -35,7 +35,9 @@ class TestFailingEndpointTests:
                 "activity": "moderate",
             }
 
-            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
+            response = self.client.post(
+                "/api/v1/premium/bmr", json=data, headers=headers
+            )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -52,7 +54,9 @@ class TestFailingEndpointTests:
                 "goal": "maintain",
             }
 
-            response = self.client.post("/api/v1/premium/plate", json=payload, headers=headers)
+            response = self.client.post(
+                "/api/v1/premium/plate", json=payload, headers=headers
+            )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -69,7 +73,9 @@ class TestFailingEndpointTests:
                 "goal": "maintain",
             }
 
-            response = self.client.post("/api/v1/premium/targets", json=payload, headers=headers)
+            response = self.client.post(
+                "/api/v1/premium/targets", json=payload, headers=headers
+            )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -86,7 +92,9 @@ class TestFailingEndpointTests:
                 "goal": "maintain",
             }
 
-            response = self.client.post("/api/v1/premium/plan/week", json=payload, headers=headers)
+            response = self.client.post(
+                "/api/v1/premium/plan/week", json=payload, headers=headers
+            )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -111,7 +119,9 @@ class TestFailingEndpointTests:
                 },
             }
 
-            response = self.client.post("/api/v1/premium/gaps", json=payload, headers=headers)
+            response = self.client.post(
+                "/api/v1/premium/gaps", json=payload, headers=headers
+            )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -251,7 +261,9 @@ class TestDatabaseEndpointsCoverage:
             )
             mock_get_scheduler.return_value = mock_scheduler
 
-            response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
+            response = self.client.get(
+                "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
+            )
             assert response.status_code == 200
 
             result = response.json()
@@ -261,7 +273,9 @@ class TestDatabaseEndpointsCoverage:
         """Test check updates endpoint success case."""
         with patch("app.get_update_scheduler") as mock_get_scheduler:
             mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": True})
+            mock_scheduler.update_manager.check_for_updates = AsyncMock(
+                return_value={"usda": True}
+            )
             mock_get_scheduler.return_value = mock_scheduler
 
             response = self.client.post(

@@ -54,7 +54,9 @@ class Recipe:
     tags: List[str]  # VEG, GF, DAIRY_FREE, LOW_COST
     instructions: List[str]
 
-    def calculate_nutrients_per_serving(self, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+    def calculate_nutrients_per_serving(
+        self, food_db: Dict[str, FoodItem]
+    ) -> Dict[str, float]:
         """Calculate nutrients per serving from ingredients."""
         total_nutrients = {}
 
@@ -63,7 +65,9 @@ class Recipe:
                 food_item = food_db[ingredient_name]
                 for nutrient, value_per_100g in food_item.nutrients_per_100g.items():
                     nutrient_amount = (value_per_100g * amount_g) / 100
-                    total_nutrients[nutrient] = total_nutrients.get(nutrient, 0) + nutrient_amount
+                    total_nutrients[nutrient] = (
+                        total_nutrients.get(nutrient, 0) + nutrient_amount
+                    )
 
         # Divide by servings
         return {k: v / self.servings for k, v in total_nutrients.items()}
@@ -183,7 +187,9 @@ def make_weekly_menu(
     for day in range(7):
         # Add slight variation to prevent monotony
         varied_profile = _add_daily_variation(profile, day)
-        daily_menu = make_daily_menu(varied_profile, food_db, recipe_db, f"day_{day + 1}")
+        daily_menu = make_daily_menu(
+            varied_profile, food_db, recipe_db, f"day_{day + 1}"
+        )
         daily_menus.append(daily_menu)
 
     # Calculate weekly averages
@@ -325,7 +331,9 @@ def _enhance_meals_with_micros(
         enhanced_meal["detailed_nutrients"] = _estimate_meal_nutrients(
             meal["title"], food_db, diet_flags
         )
-        enhanced_meal["ingredients"] = _estimate_meal_ingredients(meal["title"], diet_flags)
+        enhanced_meal["ingredients"] = _estimate_meal_ingredients(
+            meal["title"], diet_flags
+        )
 
         enhanced.append(enhanced_meal)
 
@@ -366,16 +374,22 @@ def _estimate_meal_nutrients(
 
     if "курица" in title_lower or "chicken" in title_lower:
         if "VEG" not in diet_flags:
-            base_nutrients.update({"protein_g": 25, "b12_ug": 0.3, "selenium_ug": 14, "zinc_mg": 1})
+            base_nutrients.update(
+                {"protein_g": 25, "b12_ug": 0.3, "selenium_ug": 14, "zinc_mg": 1}
+            )
 
     if "тофу" in title_lower or "tofu" in title_lower:
         base_nutrients.update({"protein_g": 15, "calcium_mg": 200, "magnesium_mg": 30})
 
     if "гречка" in title_lower or "buckwheat" in title_lower:
-        base_nutrients.update({"carbs_g": 30, "fiber_g": 5, "magnesium_mg": 80, "iron_mg": 2})
+        base_nutrients.update(
+            {"carbs_g": 30, "fiber_g": 5, "magnesium_mg": 80, "iron_mg": 2}
+        )
 
     if "овсянка" in title_lower or "oatmeal" in title_lower:
-        base_nutrients.update({"carbs_g": 25, "fiber_g": 4, "iron_mg": 2, "magnesium_mg": 60})
+        base_nutrients.update(
+            {"carbs_g": 25, "fiber_g": 4, "iron_mg": 2, "magnesium_mg": 60}
+        )
 
     if "салат" in title_lower or "салad" in title_lower:
         base_nutrients.update({"vitamin_c_mg": 15, "folate_ug": 50, "calcium_mg": 50})
@@ -405,7 +419,9 @@ def _estimate_meal_ingredients(meal_title: str, diet_flags: set) -> List[str]:
     return ingredients
 
 
-def _calculate_total_nutrients(meals: List[Dict], food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+def _calculate_total_nutrients(
+    meals: List[Dict], food_db: Dict[str, FoodItem]
+) -> Dict[str, float]:
     """
     RU: Рассчитывает общее содержание нутриентов за день.
     EN: Calculates total daily nutrient content.
@@ -487,7 +503,9 @@ def _generate_shopping_list(
                 for ingredient in meal["ingredients"]:
                     # Estimate amounts needed (simplified)
                     estimated_amount = 100  # grams as default
-                    shopping_list[ingredient] = shopping_list.get(ingredient, 0) + estimated_amount
+                    shopping_list[ingredient] = (
+                        shopping_list.get(ingredient, 0) + estimated_amount
+                    )
 
     return shopping_list
 
@@ -526,10 +544,16 @@ def _calculate_adherence_score(weekly_coverage: Dict[str, float]) -> float:
         return 0.0
 
     # Count nutrients meeting 80%+ of targets
-    adequate_nutrients = sum(1 for coverage in weekly_coverage.values() if coverage >= 80)
+    adequate_nutrients = sum(
+        1 for coverage in weekly_coverage.values() if coverage >= 80
+    )
     total_nutrients = len(weekly_coverage)
 
-    return round((adequate_nutrients / total_nutrients) * 100, 1) if total_nutrients > 0 else 0.0
+    return (
+        round((adequate_nutrients / total_nutrients) * 100, 1)
+        if total_nutrients > 0
+        else 0.0
+    )
 
 
 def analyze_nutrient_gaps(
@@ -551,9 +575,12 @@ def analyze_nutrient_gaps(
                 "current_intake": nutrient_coverage.consumed_amount,
                 "target_intake": nutrient_coverage.target_amount,
                 "coverage_percent": nutrient_coverage.coverage_percent,
-                "shortfall": nutrient_coverage.target_amount - nutrient_coverage.consumed_amount,
+                "shortfall": nutrient_coverage.target_amount
+                - nutrient_coverage.consumed_amount,
                 "unit": nutrient_coverage.unit,
-                "priority": ("high" if nutrient_coverage.coverage_percent < 50 else "medium"),
+                "priority": (
+                    "high" if nutrient_coverage.coverage_percent < 50 else "medium"
+                ),
             }
 
     return gaps

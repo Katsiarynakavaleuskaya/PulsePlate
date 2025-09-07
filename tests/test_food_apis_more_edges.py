@@ -143,7 +143,9 @@ def test_scheduler_signal_handlers_and_loop_errors():
 
     with (
         patch.object(sched_mod.signal, "signal", side_effect=fake_signal),
-        patch.object(sched_mod.asyncio, "create_task", side_effect=fake_create_task) as mk,
+        patch.object(
+            sched_mod.asyncio, "create_task", side_effect=fake_create_task
+        ) as mk,
     ):
         s = DatabaseUpdateScheduler(update_interval_hours=0)
         # create_task should be called by handler; also use `s` to satisfy linter

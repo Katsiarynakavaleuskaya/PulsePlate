@@ -73,7 +73,9 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     }
 
 
-def _portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def _portions_from_macros(
+    macros: Dict[str, int], meals_per_day: int = 3
+) -> Dict[str, Any]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
     """
@@ -195,10 +197,14 @@ def make_plate(
     if diet_flags:
         if "VEG" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
+                m["title"] = (
+                    m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
+                )
         if "GF" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
+                m["title"] = (
+                    m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
+                )
         if "DAIRY_FREE" in diet_flags:
             # просто не добавляем молочку в названиях/рецептах
             pass

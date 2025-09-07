@@ -118,7 +118,9 @@ class DatabaseUpdateManager:
     def _save_versions(self):
         """Save database version information."""
         try:
-            data = {source: asdict(version) for source, version in self.versions.items()}
+            data = {
+                source: asdict(version) for source, version in self.versions.items()
+            }
 
             with open(self.versions_file, "w") as f:
                 json.dump(data, f, indent=2)
@@ -319,7 +321,9 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(updated_foods)} foods")
+            logger.info(
+                f"Successfully updated {source} database: {len(updated_foods)} foods"
+            )
 
             return UpdateResult(
                 success=True,
@@ -378,7 +382,9 @@ class DatabaseUpdateManager:
                 ]
                 for search_term in common_searches:
                     try:
-                        products = await self.off_client.search_products(search_term, page_size=5)
+                        products = await self.off_client.search_products(
+                            search_term, page_size=5
+                        )
                         sample_products.extend(products)
                         # Small delay to respect API limits
                         await asyncio.sleep(0.1)
@@ -463,7 +469,9 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(unified_foods)} foods")
+            logger.info(
+                f"Successfully updated {source} database: {len(unified_foods)} foods"
+            )
 
             return UpdateResult(
                 success=True,
@@ -526,7 +534,9 @@ class DatabaseUpdateManager:
                 if value < 0:
                     errors.append(f"Food {name} has negative {nutrient}: {value}")
                 elif nutrient.endswith("_g") and value > 100:
-                    errors.append(f"Food {name} has unrealistic {nutrient}: {value}g per 100g")
+                    errors.append(
+                        f"Food {name} has unrealistic {nutrient}: {value}g per 100g"
+                    )
 
         return errors
 
@@ -548,7 +558,9 @@ class DatabaseUpdateManager:
         except Exception as e:
             logger.error(f"Error creating backup: {e}")
 
-    async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
+    async def _load_backup(
+        self, source: str, version: str
+    ) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
@@ -618,7 +630,9 @@ class DatabaseUpdateManager:
                 self.versions[source] = rollback_version
                 self._save_versions()
 
-                logger.info(f"Successfully rolled back {source} to version {target_version}")
+                logger.info(
+                    f"Successfully rolled back {source} to version {target_version}"
+                )
                 return True
 
         except Exception as e:
@@ -688,7 +702,9 @@ async def run_scheduled_update(
 if __name__ == "__main__":
     # Test the update manager
     async def test_update_manager():
-        manager = DatabaseUpdateManager(update_interval_hours=1)  # Short interval for testing
+        manager = DatabaseUpdateManager(
+            update_interval_hours=1
+        )  # Short interval for testing
 
         try:
             print("Testing database update manager...")

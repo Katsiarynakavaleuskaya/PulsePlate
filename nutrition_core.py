@@ -173,7 +173,9 @@ def calculate_all_bmr(
     return results
 
 
-def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -> Dict[str, float]:
+def calculate_all_tdee(
+    bmr_results: Dict[str, float], activity: ActivityLevel
+) -> Dict[str, float]:
     """
     Calculate TDEE for all BMR formulas.
 
@@ -184,7 +186,9 @@ def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -
     Returns:
         Dictionary with TDEE values for each formula
     """
-    return {formula: tdee(bmr_value, activity) for formula, bmr_value in bmr_results.items()}
+    return {
+        formula: tdee(bmr_value, activity) for formula, bmr_value in bmr_results.items()
+    }
 
 
 def get_activity_descriptions() -> Dict[str, str]:

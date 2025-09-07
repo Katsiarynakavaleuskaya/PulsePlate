@@ -1,2 +1,21 @@
 [tool.ruff]
 line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Базовые наборы правил (pycodestyle/pyflakes/isort)
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# В тестах часто встречается импорт внутри тест-функций: игнорируем E402.
+"tests/**.py" = ["E402"]
+# В app.py допускаем «поздние» импорты (если они действительно нужны):
+"app.py" = ["E402"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"tests_strict/*.py" = ["E402"]

@@ -327,7 +327,9 @@ def test_scheduler_paths():
             duration_seconds=0.1,
         )
     )
-    s.update_manager.get_database_status = MagicMock(return_value={"usda": {"ok": True}})
+    s.update_manager.get_database_status = MagicMock(
+        return_value={"usda": {"ok": True}}
+    )
     s.update_manager.close = AsyncMock()
 
     # _should_check_for_updates
@@ -388,7 +390,9 @@ def test_scheduler_paths():
     out1 = loop.run_until_complete(s.force_update("usda"))
     assert "usda" in out1
 
-    s.update_manager.check_for_updates = AsyncMock(return_value={"usda": True, "off": False})
+    s.update_manager.check_for_updates = AsyncMock(
+        return_value={"usda": True, "off": False}
+    )
     out2 = loop.run_until_complete(s.force_update(None))
     assert "usda" in out2
 

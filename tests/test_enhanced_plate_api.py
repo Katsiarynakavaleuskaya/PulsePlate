@@ -46,7 +46,9 @@ class TestEnhancedPlateAPI:
         # Check required response structure
         assert set(data.keys()) == {"kcal", "macros", "portions", "layout", "meals"}
         assert data["kcal"] > 1000
-        assert all(k in data["macros"] for k in ("protein_g", "fat_g", "carbs_g", "fiber_g"))
+        assert all(
+            k in data["macros"] for k in ("protein_g", "fat_g", "carbs_g", "fiber_g")
+        )
         assert isinstance(data["layout"], list) and len(data["layout"]) >= 4
         assert data["layout"][0]["kind"] in ("plate_sector", "bowl", "marker")
 
@@ -176,7 +178,9 @@ class TestEnhancedPlateAPI:
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
-        assert "тофу" in meals_text or "нут" in meals_text  # Should suggest plant proteins
+        assert (
+            "тофу" in meals_text or "нут" in meals_text
+        )  # Should suggest plant proteins
 
         # Test GF flag
         payload = {**base_payload, "diet_flags": ["GF"]}
@@ -225,7 +229,9 @@ class TestEnhancedPlateAPI:
         # Check macro ranges are reasonable
         assert 50 <= macros["protein_g"] <= 200
         assert 40 <= macros["fat_g"] <= 150
-        assert 100 <= macros["carbs_g"] <= 600  # Allow higher carbs for very active individuals
+        assert (
+            100 <= macros["carbs_g"] <= 600
+        )  # Allow higher carbs for very active individuals
         assert 25 <= macros["fiber_g"] <= 35
 
         # Verify calorie calculation consistency (4/4/9 rule)
@@ -268,7 +274,9 @@ class TestEnhancedPlateAPI:
         assert results["gain"]["kcal"] > results["maintain"]["kcal"]
 
         # Loss should emphasize protein relatively more
-        loss_protein_ratio = results["loss"]["macros"]["protein_g"] / results["loss"]["kcal"]
+        loss_protein_ratio = (
+            results["loss"]["macros"]["protein_g"] / results["loss"]["kcal"]
+        )
         maintain_protein_ratio = (
             results["maintain"]["macros"]["protein_g"] / results["maintain"]["kcal"]
         )

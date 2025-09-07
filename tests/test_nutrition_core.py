@@ -43,13 +43,19 @@ class TestBMRMifflin:
 
     def test_validation_errors(self):
         """Test input validation."""
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(0, 170, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(70, 0, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(70, 170, 0, "male")
 
         with pytest.raises(ValueError, match="Age must be realistic"):
@@ -107,13 +113,19 @@ class TestBMRHarris:
 
     def test_harris_validation_errors(self):
         """Test Harris-Benedict input validation."""
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(0, 175, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(70, 0, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(70, 175, 0, "male")
 
 
@@ -133,10 +145,14 @@ class TestBMRKatch:
         with pytest.raises(ValueError, match="Weight must be a positive value"):
             bmr_katch(0, 15)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
+        with pytest.raises(
+            ValueError, match="Body fat percentage must be between 0 and 50"
+        ):
             bmr_katch(70, -5)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
+        with pytest.raises(
+            ValueError, match="Body fat percentage must be between 0 and 50"
+        ):
             bmr_katch(70, 60)
 
     @given(

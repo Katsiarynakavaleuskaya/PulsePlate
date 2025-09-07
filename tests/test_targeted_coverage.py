@@ -70,7 +70,9 @@ class TestTargetedCoverage:
         """Test API v1 BMI endpoint - covers lines 541."""
         data = {"weight_kg": 70.0, "height_cm": 175.0, "group": "general"}
 
-        response = self.client.post("/api/v1/bmi", json=data, headers={"X-API-Key": "test-key"})
+        response = self.client.post(
+            "/api/v1/bmi", json=data, headers={"X-API-Key": "test-key"}
+        )
         assert response.status_code == 200
 
         result = response.json()

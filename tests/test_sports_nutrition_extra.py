@@ -9,11 +9,17 @@ from core.targets import UserProfile
 
 def test_meal_frequency_thresholds():
     # > 10 hours -> 6 meals (254)
-    assert SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 11) == 6
+    assert (
+        SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 11) == 6
+    )
     # > 6 hours -> 5 meals (256)
-    assert SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 7) == 5
+    assert (
+        SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 7) == 5
+    )
     # else -> 4 meals
-    assert SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 3) == 4
+    assert (
+        SportsNutritionCalculator._get_meal_frequency(SportCategory.ENDURANCE, 3) == 4
+    )
 
 
 def test_get_sport_recommendations_structure():

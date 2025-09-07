@@ -50,10 +50,14 @@ class TestDatabaseUpdateSchedulerComprehensive:
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 
             # Mock _run_update_check to raise CancelledError
-            scheduler._run_update_check = AsyncMock(side_effect=asyncio.CancelledError())
+            scheduler._run_update_check = AsyncMock(
+                side_effect=asyncio.CancelledError()
+            )
 
             # Mock asyncio.sleep to avoid waiting
-            with patch("core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Should not crash
                 await scheduler._update_loop()
 
@@ -77,7 +81,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
             scheduler._run_update_check = AsyncMock(side_effect=Exception("Test error"))
 
             # Mock asyncio.sleep to control execution
-            with patch("core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Create a task to run the loop
                 loop_task = asyncio.create_task(scheduler._update_loop())
 
@@ -99,7 +105,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should not crash
         await scheduler._run_update_check()
@@ -112,7 +120,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.update_database = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should handle the exception gracefully
         await scheduler._run_source_update("test_source")
@@ -218,7 +228,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"test_source": True})
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            return_value={"test_source": True}
+        )
 
         # Mock update_manager.update_database
         mock_result = UpdateResult(
@@ -387,7 +399,9 @@ class TestUnifiedFoodDatabaseComprehensive:
 
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.get_food_details = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.get_food_details = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -478,7 +492,9 @@ class TestUnifiedFoodDatabaseComprehensive:
 
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.search_foods = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -502,7 +518,9 @@ class TestUnifiedFoodDatabaseComprehensive:
             assert db1 is db2
 
             # Test search_foods_unified
-            with patch.object(db1, "search_food", new_callable=AsyncMock) as mock_search:
+            with patch.object(
+                db1, "search_food", new_callable=AsyncMock
+            ) as mock_search:
                 mock_search.return_value = []
                 results = await search_foods_unified("chicken", 5)
                 assert isinstance(results, list)
@@ -518,7 +536,9 @@ class TestDatabaseUpdateManagerComprehensive:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Use a subdirectory that doesn't exist yet
-            manager = DatabaseUpdateManager(cache_dir=os.path.join(temp_dir, "nonexistent"))
+            manager = DatabaseUpdateManager(
+                cache_dir=os.path.join(temp_dir, "nonexistent")
+            )
             # Should handle gracefully
             assert isinstance(manager.versions, dict)
 
@@ -562,7 +582,9 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock _check_usda_updates to raise an exception
-            with patch.object(manager, "_check_usda_updates", side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_check_usda_updates", side_effect=Exception("Test error")
+            ):
                 updates = await manager.check_for_updates()
                 # Should still return dict with USDA set to False
                 assert isinstance(updates, dict)
@@ -647,7 +669,9 @@ class TestDatabaseUpdateManagerComprehensive:
                 errors=[],
                 duration_seconds=1.0,
             )
-            with patch.object(manager, "_update_usda_database", return_value=mock_result):
+            with patch.object(
+                manager, "_update_usda_database", return_value=mock_result
+            ):
                 # Should not crash despite callback exception
                 result = await manager.update_database("usda")
                 assert result.success is True
@@ -676,7 +700,9 @@ class TestDatabaseUpdateManagerComprehensive:
             manager.versions["usda"] = version
 
             # Mock _create_backup to raise an exception
-            with patch.object(manager, "_create_backup", side_effect=Exception("Backup error")):
+            with patch.object(
+                manager, "_create_backup", side_effect=Exception("Backup error")
+            ):
                 # Mock unified_db.get_common_foods_database
                 with patch.object(
                     manager.unified_db,
@@ -791,7 +817,9 @@ class TestDatabaseUpdateManagerComprehensive:
                 mock_get_foods.return_value = {"chicken": MagicMock()}
 
                 # Mock _load_backup to raise an exception
-                with patch.object(manager, "_load_backup", side_effect=Exception("Load error")):
+                with patch.object(
+                    manager, "_load_backup", side_effect=Exception("Load error")
+                ):
                     # Should handle the exception and still complete the update
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
@@ -1025,7 +1053,9 @@ class TestDatabaseUpdateManagerComprehensive:
             manager.versions["usda"] = version
 
             # Mock _load_backup to raise an exception
-            with patch.object(manager, "_load_backup", side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_load_backup", side_effect=Exception("Test error")
+            ):
                 # Should handle the exception
                 success = await manager.rollback_database("usda", "1.0")
                 assert success is False

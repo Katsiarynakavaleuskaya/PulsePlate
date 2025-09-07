@@ -54,7 +54,9 @@ def test_ffmi_basic_and_bounds():
         (24.0, 0.55, 0.86, "female", "high", ["WHR ≥ 0.85"]),
     ],
 )
-def test_stage_obesity_scenarios(bmi, whtr, whr, sex, expected_risk, expected_note_contains):
+def test_stage_obesity_scenarios(
+    bmi, whtr, whr, sex, expected_risk, expected_note_contains
+):
     risk, notes = bx.stage_obesity(bmi=bmi, whtr=whtr, whr=whr, sex=sex)  # type: ignore[arg-type]
     assert risk == expected_risk
     for fragment in expected_note_contains:

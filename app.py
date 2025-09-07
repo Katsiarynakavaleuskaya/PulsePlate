@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 try:
@@ -47,7 +47,9 @@ with suppress(ImportError):
     import dotenv
 
     # Avoid auto-loading .env during tests/CI to keep predictable defaults
-    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv("APP_ENV", "").lower() not in {
+    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv(
+        "APP_ENV", ""
+    ).lower() not in {
         "test",
         "ci",
     }:
@@ -59,7 +61,10 @@ except ImportError:
     get_bodyfat_router = None
 
 try:
-    from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
+    from bmi_visualization import (
+        MATPLOTLIB_AVAILABLE,
+        generate_bmi_visualization,
+    )
 except ImportError:
     generate_bmi_visualization = None
     MATPLOTLIB_AVAILABLE = False
@@ -86,7 +91,12 @@ from core.bmi_extras import (
     whr_ratio,
     wht_ratio,
 )
-from core.food_apis.scheduler import start_background_updates, stop_background_updates
+from core.food_apis.scheduler import (
+    start_background_updates,
+    stop_background_updates,
+)
+# Add import for export functions
+from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
 
 # Ensure a patchable getter is always available on this module
 try:
@@ -107,15 +117,9 @@ async def get_update_scheduler():  # type: ignore[no-redef]
         return await _late_getter()
     return await _scheduler_getter()  # type: ignore[misc]
 
-
-# Add import for export functions
-from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
-
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from contextlib import asynccontextmanager
 
 
 # Lifespan event handler
@@ -170,10 +174,11 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Rate limiting setup (only if slowapi is available)
-if slowapi_available and Limiter is not None:
+if slowapi_available and Limiter is not None and RateLimitExceeded is not None and _rate_limit_exceeded_handler is not None:
     limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
+    app.add_exception_handler(RateLimitExceeded,
+                              _rate_limit_exceeded_handler)  # type: ignore
     app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
     limiter = None
@@ -251,7 +256,9 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(weight_kg / (height_m**2), 1)
 
 
-def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
+def normalize_flags(
+    gender: str, pregnant: str, athlete: str
+) -> Dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",
@@ -279,9 +286,16 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str) -> str:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
     if waist_cm >= high:
-        return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
+        return (
+            "Высокий риск по талии" if lang == "ru"
+            else "High waist-related risk"
+        )
     if waist_cm >= warn:
-        return "Повышенный риск по талии" if lang == "ru" else "Increased waist-related risk"
+        return (
+            "Повышенный риск по талии"
+            if lang == "ru"
+            else "Increased waist-related risk"
+        )
     return ""
 
 
@@ -428,7 +442,9 @@ async def bmi_endpoint(req: BMIRequest):
 
         return result
 
-    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
+    category = bmi_category(
+        bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
+    )
     notes = []
     if flags["is_athlete"]:
         notes.append(
@@ -570,10 +586,14 @@ async def plan_endpoint(req: BMIRequest):
 
 @app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
 async def api_v1_insight(req: InsightRequest):
+    # sourcery skip: raise-from-previous-error
+    # sourcery skip: raise-from-previous-error
     try:
         import llm
     except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
+        raise HTTPException(
+            status_code=503, detail="LLM module is not available"
+        ) from e
 
     provider = llm.get_provider()
     if provider is None:
@@ -588,6 +608,8 @@ async def api_v1_insight(req: InsightRequest):
 
 
 @app.post("/insight")
+# sourcery skip: raise-from-previou, raise-from-previous-error, raise-from-previous-errors-error
+# sourcery skip: raise-from-previous-errors-error
 async def insight(req: InsightRequest):
     # 0) If explicitly disabled via env, short-circuit
     flag_raw = os.getenv("FEATURE_INSIGHT")
@@ -600,7 +622,9 @@ async def insight(req: InsightRequest):
     try:
         import llm
     except Exception as e:
-        raise HTTPException(status_code=503, detail="LLM module is not available") from e
+        raise HTTPException(
+            status_code=503, detail="LLM module is not available"
+        ) from e
 
     provider = llm.get_provider()
     if provider is None:
@@ -666,8 +690,8 @@ class BMRRequest(BaseModel):
     height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
     age: int = Field(..., ge=0, le=120, description="Age in years")
     sex: Literal["male", "female"] = Field(..., description="Biological sex")
-    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = Field(
-        ..., description="Physical activity level"
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = (
+        Field(..., description="Physical activity level")
     )
     bodyfat: Optional[float] = Field(
         None,
@@ -718,7 +742,11 @@ def _interpretation(b: float, g: str) -> str:
         return base
 
 
-@app.post("/api/v1/bmi", response_model=BMIResponse, dependencies=[Depends(get_api_key)])
+@app.post(
+    "/api/v1/bmi",
+    response_model=BMIResponse,
+    dependencies=[Depends(get_api_key)]
+)
 async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
         v = bmi_value(payload.weight_kg, payload.height_cm / 100.0)
@@ -734,6 +762,7 @@ async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
 
 @app.post("/api/v1/premium/bmr", dependencies=[Depends(get_api_key)])
 async def api_premium_bmr(data: BMRRequest):
+    # sourcery skip: assign-if-exp, inline-immediately-returned-variable, lift-return-into-if
     """Premium BMR/TDEE calculation endpoint with multiple formulas.
 
     Returns BMR calculated using multiple validated formulas:
@@ -741,7 +770,8 @@ async def api_premium_bmr(data: BMRRequest):
     - Harris-Benedict (traditional formula)
     - Katch-McArdle (optional, requires body fat percentage)
 
-    Also calculates TDEE (Total Daily Energy Expenditure) based on activity level.
+    Also calculates TDEE (Total Daily Energy Expenditure) based on
+    activity level.
     """
     import sys as _sys
 
@@ -749,7 +779,10 @@ async def api_premium_bmr(data: BMRRequest):
     _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
     _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
     if not _calc_all_bmr or not _calc_all_tdee:
-        raise HTTPException(status_code=503, detail="Nutrition module not available")
+        raise HTTPException(
+            status_code=503,
+            detail="Nutrition module not available"
+        )
 
     try:
         # Calculate BMR using all available formulas
@@ -778,15 +811,21 @@ async def api_premium_bmr(data: BMRRequest):
                 "recommended_intake": {
                     "description": "Рекомендуемое потребление калорий на основе TDEE",
                     "maintenance": tdee_results.get("mifflin", 0),
-                    "weight_loss": round(tdee_results.get("mifflin", 0) * 0.8),  # 20% deficit
-                    "weight_gain": round(tdee_results.get("mifflin", 0) * 1.1),  # 10% surplus
+                    "weight_loss": round(
+                        tdee_results.get("mifflin", 0) * 0.8
+                    ),  # 20% deficit
+                    "weight_gain": round(
+                        tdee_results.get("mifflin", 0) * 1.1
+                    ),  # 10% surplus
                 },
                 "formulas_used": list(bmr_results.keys()),
                 "notes": {
                     "mifflin": "Наиболее точная формула для общей популяции",
                     "harris": "Традиционная формула, менее точная",
                     "katch": (
-                        "Для спортсменов с известным % жира" if "katch" in bmr_results else None
+                        "Для спортсменов с известным % жира"
+                        if "katch" in bmr_results
+                        else None
                     ),
                 },
             }
@@ -799,15 +838,21 @@ async def api_premium_bmr(data: BMRRequest):
                 "recommended_intake": {
                     "description": "Recommended calorie intake based on TDEE",
                     "maintenance": tdee_results.get("mifflin", 0),
-                    "weight_loss": round(tdee_results.get("mifflin", 0) * 0.8),  # 20% deficit
-                    "weight_gain": round(tdee_results.get("mifflin", 0) * 1.1),  # 10% surplus
+                    "weight_loss": round(
+                        tdee_results.get("mifflin", 0) * 0.8
+                    ),  # 20% deficit
+                    "weight_gain": round(
+                        tdee_results.get("mifflin", 0) * 1.1
+                    ),  # 10% surplus
                 },
                 "formulas_used": list(bmr_results.keys()),
                 "notes": {
                     "mifflin": "Most accurate formula for general population",
                     "harris": "Traditional formula, less accurate",
                     "katch": (
-                        "For athletes with known body fat %" if "katch" in bmr_results else None
+                        "For athletes with known body fat %"
+                        if "katch" in bmr_results
+                        else None
                     ),
                 },
             }
@@ -820,7 +865,9 @@ async def api_premium_bmr(data: BMRRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"BMR calculation failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"BMR calculation failed: {str(e)}"
+        ) from e
 
 
 try:
@@ -879,7 +926,9 @@ class VisualShape(BaseModel):
 
 class PlateResponse(BaseModel):
     kcal: int
-    macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
+    macros: Dict[
+        str, int
+    ]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
     portions: Dict[
         str, Any
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
@@ -975,20 +1024,28 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         _module = _sys.modules[__name__]
         _make_plate = getattr(_module, "make_plate", None)
         if _make_plate is None:
-            raise HTTPException(status_code=503, detail="Enhanced plate feature not available")
+            raise HTTPException(
+                status_code=503, detail="Enhanced plate feature not available"
+            )
 
         _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
         _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
         if _calc_all_bmr is None or _calc_all_tdee is None:
-            raise HTTPException(status_code=503, detail="BMR/TDEE calculation not available")
+            raise HTTPException(
+                status_code=503, detail="BMR/TDEE calculation not available"
+            )
 
         # 1) Calculate BMR/TDEE (using Mifflin-St Jeor as default, can add formula choice later)
-        bmr_results = _calc_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
+        bmr_results = _calc_all_bmr(
+            req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat
+        )
         tdee_results = _calc_all_tdee(bmr_results, req.activity)
         tdee_val = tdee_results["mifflin"]  # Use Mifflin-St Jeor as primary
 
         # 2) Generate plate with enhanced logic
-        diet_flags_str = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
+        diet_flags_str = (
+            {str(flag) for flag in req.diet_flags} if req.diet_flags else None
+        )
         plate_data = _make_plate(
             weight_kg=req.weight_kg,
             tdee_val=tdee_val,
@@ -1259,8 +1316,13 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
         # Calculate adherence score
         total_nutrients = len(coverage)
-        adequate_nutrients = sum(1 for cov in coverage.values() if cov.coverage_percent >= 80)
-        adherence_score = (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
+# sourcery skip: simplify-constant-sum
+        adequate_nutrients = sum(
+            1 for cov in coverage.values() if cov.coverage_percent >= 80
+        )
+        adherence_score = (
+            (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
+        )
 
         return NutrientGapsResponse(
             gaps=gaps,
@@ -1366,7 +1428,9 @@ async def force_database_update(source: Optional[str] = None):
         return JSONResponse(content=response)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Force update failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Force update failed: {str(e)}"
+        ) from e
 
 
 @app.post("/api/v1/admin/check-updates", dependencies=[Depends(get_api_key)])
@@ -1395,7 +1459,9 @@ async def check_for_updates():
         return JSONResponse(content=response)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Update check failed: {str(e)}"
+        ) from e
 
 
 @app.post("/api/v1/admin/rollback", dependencies=[Depends(get_api_key)])
@@ -1417,7 +1483,9 @@ async def rollback_database(source: str, target_version: str):
         _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
         logger.debug(f"rollback_database using getter: {_getter!r}")
         scheduler = await _getter()
-        success = await scheduler.update_manager.rollback_database(source, target_version)
+        success = await scheduler.update_manager.rollback_database(
+            source, target_version
+        )
 
         if success:
             return JSONResponse(
@@ -1433,7 +1501,9 @@ async def rollback_database(source: str, target_version: str):
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Rollback operation failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Rollback operation failed: {str(e)}"
+        ) from e
 
 
 @app.post(
@@ -1463,7 +1533,9 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
         wht_interpretation = interpret_wht_ratio(wht)
 
         # Normalize gender for functions that expect Literal["male", "female"]
-        normalized_gender = "male" if payload.gender.lower() in {"male", "муж", "м"} else "female"
+        normalized_gender = (
+            "male" if payload.gender.lower() in {"male", "муж", "м"} else "female"
+        )
 
         # Calculate WHR if hip measurement provided
         whr = None
@@ -1510,13 +1582,17 @@ async def api_v1_bmi_pro(payload: BMIProRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"BMI Pro analysis failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"BMI Pro analysis failed: {str(e)}"
+        ) from e
 
 
 # Export Endpoints
 
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+@app.get(
+    "/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)]
+)
 async def export_daily_plan_csv(plan_id: str):
     """
     RU: Экспортировать дневной план в CSV.
@@ -1572,14 +1648,20 @@ async def export_daily_plan_csv(plan_id: str):
         return Response(
             content=csv_data,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"
+            },
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"CSV export failed: {str(e)}"
+        ) from e
 
 
-@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+@app.get(
+    "/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)]
+)
 async def export_weekly_plan_csv(plan_id: str):
     """
     RU: Экспортировать недельный план в CSV.
@@ -1659,15 +1741,22 @@ async def export_weekly_plan_csv(plan_id: str):
         return Response(
             content=csv_data,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"
+            },
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"CSV export failed: {str(e)}"
+        ) from e
 
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+@app.get(
+    "/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)]
+)
 async def export_daily_plan_pdf(plan_id: str):
+    # sourcery skip: raise-from-previous-error
     """
     RU: Экспортировать дневной план в PDF.
     EN: Export daily meal plan to PDF.
@@ -1720,7 +1809,9 @@ async def export_daily_plan_pdf(plan_id: str):
         return Response(
             content=pdf_data,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
+            headers={
+                "Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"
+            },
         )
 
     except ImportError:
@@ -1728,11 +1819,16 @@ async def export_daily_plan_pdf(plan_id: str):
             status_code=503, detail="PDF export not available - ReportLab not installed"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"PDF export failed: {str(e)}"
+        ) from e
 
 
-@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+@app.get(
+    "/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)]
+)
 async def export_weekly_plan_pdf(plan_id: str):
+    # sourcery skip: raise-from-previous-error
     """
     RU: Экспортировать недельный план в PDF.
     EN: Export weekly meal plan to PDF.
@@ -1811,7 +1907,9 @@ async def export_weekly_plan_pdf(plan_id: str):
         return Response(
             content=pdf_data,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
+            headers={
+                "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"
+            },
         )
 
     except ImportError:
@@ -1819,4 +1917,6 @@ async def export_weekly_plan_pdf(plan_id: str):
             status_code=503, detail="PDF export not available - ReportLab not installed"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"PDF export failed: {str(e)}"
+        ) from e

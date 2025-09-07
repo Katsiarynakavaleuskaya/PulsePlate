@@ -90,7 +90,9 @@ class TestPremiumPlateAPI:
 
         # Weight loss should have reasonable protein
         macros = data["macros"]
-        protein_ratio = macros["protein_g"] / data["kcal"] * 4 * 100  # protein % of calories
+        protein_ratio = (
+            macros["protein_g"] / data["kcal"] * 4 * 100
+        )  # protein % of calories
         assert protein_ratio >= 15  # At least 15% protein
 
         # Check that we have some meals
@@ -120,7 +122,9 @@ class TestPremiumPlateAPI:
 
         # Muscle gain should have reasonable protein
         macros = data["macros"]
-        protein_ratio = macros["protein_g"] / data["kcal"] * 4 * 100  # protein % of calories
+        protein_ratio = (
+            macros["protein_g"] / data["kcal"] * 4 * 100
+        )  # protein % of calories
         assert protein_ratio >= 12  # Relaxed from 15 to 12
 
         # Check protein content

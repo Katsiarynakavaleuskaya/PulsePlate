@@ -41,7 +41,9 @@ def test_insight_with_monkeypatched_provider(monkeypatch):
     # Подменяем фабрику провайдера на нашу заглушку
     monkeypatch.setattr(llm, "get_provider", lambda: _StubProvider())
 
-    r = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"})
+    r = client.post(
+        "/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 200
     data = r.json()
     assert data.get("insight", "").startswith("insight::")
@@ -52,7 +54,9 @@ def test_insight_with_provider_exception(monkeypatch):
     # Подменяем фабрику провайдера на заглушку, которая вызывает исключение
     monkeypatch.setattr(llm, "get_provider", lambda: _StubProviderException())
 
-    r = client.post("/api/v1/insight", json={"text": "error"}, headers={"X-API-Key": "test_key"})
+    r = client.post(
+        "/api/v1/insight", json={"text": "error"}, headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 503
     data = r.json()
     assert "unavailable" in data.get("detail", "")
@@ -62,7 +66,9 @@ def test_insight_no_provider(monkeypatch):
     # Подменяем фабрику провайдера на None
     monkeypatch.setattr(llm, "get_provider", lambda: None)
 
-    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
+    r = client.post(
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 503
     data = r.json()
     assert "not configured" in data.get("detail", "")
@@ -80,7 +86,9 @@ def test_api_v1_insight_provider_none(monkeypatch):
     # Подменяем get_provider на None
     monkeypatch.setattr("llm.get_provider", lambda: None)
 
-    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
+    r = client.post(
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 503
     data = r.json()
     assert "insight provider not configured" in data.get("detail", "")
@@ -96,7 +104,9 @@ def test_api_v1_insight_generate_exception(monkeypatch):
 
     monkeypatch.setattr("llm.get_provider", lambda: StubProvider())
 
-    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
+    r = client.post(
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
+    )
     assert r.status_code == 503
     data = r.json()
     assert "insight provider unavailable" in data.get("detail", "")

@@ -229,7 +229,9 @@ def test_scheduler_remaining_edges():
         async def start(self):
             self.is_running = True
 
-    with patch.object(sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())):
+    with patch.object(
+        sched_mod, "get_update_scheduler", new=AsyncMock(return_value=_Sched())
+    ):
         loop.run_until_complete(start_background_updates(update_interval_hours=2))
 
     # 290-292: stop_background_updates path

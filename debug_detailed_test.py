@@ -35,7 +35,9 @@ def test_detailed_debug():
         print(f"category: {result.get('category')}")
         print(f"note: {result.get('note')}")
         if "visualization" in result:
-            print(f"Visualization available: {result['visualization'].get('available')}")
+            print(
+                f"Visualization available: {result['visualization'].get('available')}"
+            )
             print(f"Visualization keys: {list(result['visualization'].keys())}")
         else:
             print("No visualization key in result")
@@ -55,7 +57,9 @@ def test_detailed_debug():
                 print(f"category: {result.get('category')}")
                 print(f"note: {result.get('note')}")
                 if "visualization" in result:
-                    print(f"Visualization available: {result['visualization'].get('available')}")
+                    print(
+                        f"Visualization available: {result['visualization'].get('available')}"
+                    )
                     print(f"Visualization keys: {list(result['visualization'].keys())}")
                 else:
                     print("No visualization key in result")

@@ -65,7 +65,9 @@ class UnifiedFoodItem:
         )
 
     @classmethod
-    def from_off_item(cls, off_item: OFFFoodItem, estimated_cost: float = 1.5) -> "UnifiedFoodItem":
+    def from_off_item(
+        cls, off_item: OFFFoodItem, estimated_cost: float = 1.5
+    ) -> "UnifiedFoodItem":
         """Convert Open Food Facts item to unified format."""
         return cls(
             name=off_item.product_name,
@@ -141,7 +143,9 @@ class UnifiedFoodDatabase:
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
-    async def search_food(self, query: str, prefer_source: str = "usda") -> List[UnifiedFoodItem]:
+    async def search_food(
+        self, query: str, prefer_source: str = "usda"
+    ) -> List[UnifiedFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search for foods by name.
@@ -190,7 +194,9 @@ class UnifiedFoodDatabase:
 
         return results
 
-    async def get_food_by_id(self, source: str, food_id: str) -> Optional[UnifiedFoodItem]:
+    async def get_food_by_id(
+        self, source: str, food_id: str
+    ) -> Optional[UnifiedFoodItem]:
         """
         RU: Получить продукт по ID источника.
         EN: Get food by source ID.
@@ -322,7 +328,9 @@ async def get_unified_food_db() -> UnifiedFoodDatabase:
     return _unified_db_instance
 
 
-async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+async def search_foods_unified(
+    query: str, max_results: int = 5
+) -> List[Dict[str, Any]]:
     """
     RU: Упрощенная функция поиска продуктов для использования в menu_engine.
     EN: Simplified food search function for use in menu_engine.

@@ -816,7 +816,9 @@ class TestFoodAPIIntegration:
             tags=menu_format["tags"],
             availability_regions=menu_format["availability_regions"],
             source=menu_format["source"],
-            source_id=str(menu_format["fdc_id"]),  # Use source_id instead of external_id
+            source_id=str(
+                menu_format["fdc_id"]
+            ),  # Use source_id instead of external_id
         )
 
         # Verify conversion

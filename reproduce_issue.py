@@ -18,7 +18,9 @@ def test_reproduce_issue():
     client = TestClient(app)
 
     # First, simulate interference by patching generate_bmi_visualization to None
-    print("\n=== Simulating interference: patching generate_bmi_visualization to None ===")
+    print(
+        "\n=== Simulating interference: patching generate_bmi_visualization to None ==="
+    )
     with patch("app.generate_bmi_visualization", None):
         print(
             f"During interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
@@ -120,7 +122,9 @@ def test_reproduce_issue():
                 print(f"Error response: {response.text}")
 
     # Test case 4: Non-pregnant with matplotlib not available (second test)
-    print("\n=== Test case 4: Non-pregnant with matplotlib not available (second test) ===")
+    print(
+        "\n=== Test case 4: Non-pregnant with matplotlib not available (second test) ==="
+    )
     data = {
         "weight_kg": 80.0,
         "height_m": 1.80,

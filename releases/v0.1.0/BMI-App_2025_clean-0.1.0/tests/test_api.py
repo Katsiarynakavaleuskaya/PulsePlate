@@ -14,7 +14,9 @@ def test_v1_health():
 
 
 def test_v1_bmi_happy():
-    r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
+    r = client.post(
+        "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"}
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] == 24.22

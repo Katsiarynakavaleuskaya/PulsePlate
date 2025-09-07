@@ -18,7 +18,9 @@ def test_bmi_weight_as_string_invalid():
 
 
 def test_bmi_group_unknown_still_ok():
-    r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "ALIEN"})
+    r = client.post(
+        "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "ALIEN"}
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["bmi"] == 24.22

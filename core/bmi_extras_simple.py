@@ -55,7 +55,9 @@ def ffmi(value_weight_kg: float, height_cm: float, bodyfat_percent: float) -> fl
     return round(ffm / (h_m * h_m), 1)
 
 
-def stage_obesity(*, bmi: float, whtr: float, whr: float | None, sex: Sex) -> tuple[str, list[str]]:
+def stage_obesity(
+    *, bmi: float, whtr: float, whr: float | None, sex: Sex
+) -> tuple[str, list[str]]:
     """RU: Мягкое стадирование риска по BMI+WHtR(+WHR).
     EN: Light risk staging using BMI+WHtR(+WHR).
     """

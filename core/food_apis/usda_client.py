@@ -73,7 +73,9 @@ class USDAFoodItem:
 
         # Check if likely vegan (no dairy either)
         dairy_keywords = ["milk", "cheese", "yogurt", "butter", "cream"]
-        if "VEG" in tags and not any(keyword in description_lower for keyword in dairy_keywords):
+        if "VEG" in tags and not any(
+            keyword in description_lower for keyword in dairy_keywords
+        ):
             tags.append("VEGAN")
 
         # Gluten-free approximation (this would need more sophisticated logic)
@@ -220,7 +222,9 @@ class USDAClient:
                 "nutrients": list(self.nutrient_mapping.keys()),
             }
 
-            response = await self.client.post(url, json=payload, params={"api_key": self.api_key})
+            response = await self.client.post(
+                url, json=payload, params={"api_key": self.api_key}
+            )
             response.raise_for_status()
             data = response.json()
 
@@ -251,7 +255,9 @@ class USDAClient:
             fdc_id = food_data.get("fdcId")
             description = food_data.get("description", "Unknown Food")
             data_type = food_data.get("dataType", "Unknown")
-            publication_date = food_data.get("publicationDate") or food_data.get("publishedDate")
+            publication_date = food_data.get("publicationDate") or food_data.get(
+                "publishedDate"
+            )
 
             # Extract food category
             food_category = None
@@ -341,7 +347,9 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
                     # Take the first result (usually most relevant)
                     best_match = search_results[0]
                     foods_db[standard_name] = best_match
-                    logger.info(f"Found USDA food for {standard_name}: {best_match.description}")
+                    logger.info(
+                        f"Found USDA food for {standard_name}: {best_match.description}"
+                    )
 
                 # Small delay to be respectful to the API
                 await asyncio.sleep(0.1)
