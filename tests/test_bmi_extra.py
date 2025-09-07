@@ -13,7 +13,7 @@ def _post_bmi(weight, height, group="general"):
     return client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height, "group": group},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
 
 
@@ -63,8 +63,6 @@ def test_bmi_invalid_inputs(w, h):
 def test_bmi_missing_field_validation():
     # Нет height_cm → 422 от pydantic
     r = client.post(
-        "/api/v1/bmi",
-        json={"weight_kg": 70},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/bmi", json={"weight_kg": 70}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 422

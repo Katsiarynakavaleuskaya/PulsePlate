@@ -21,31 +21,34 @@ class TestFinalCoverage:
     def test_slowapi_imports_error_handling(self):
         """Test slowapi import error handling (lines 22-25, 86-89)"""
         # Test the ImportError handling for slowapi
-        with patch.dict('sys.modules', {'slowapi': None}):
+        with patch.dict("sys.modules", {"slowapi": None}):
             # This should test the ImportError block where slowapi_available = False
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # After reload, slowapi_available should be False
 
     def test_prometheus_imports_error_handling(self):
         """Test prometheus client import error handling (lines 49-51)"""
         # Test ImportError for prometheus_client
-        with patch.dict('sys.modules', {'prometheus_client': None}):
+        with patch.dict("sys.modules", {"prometheus_client": None}):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # Should handle ImportError gracefully
 
     def test_dotenv_conditional_loading(self):
         """Test dotenv conditional loading"""
         # Test the condition where dotenv.load_dotenv() is NOT called
-        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': 'test_something'}):
+        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test_something"}):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should skip the dotenv.load_dotenv() call
 
@@ -55,13 +58,16 @@ class TestFinalCoverage:
 
         # Test the lines in grok provider initialization
         mock_grok_provider = MagicMock()
-        with patch('llm.GrokProvider', mock_grok_provider):
-            with patch.dict(os.environ, {
-                'LLM_PROVIDER': 'grok',
-                'GROK_API_KEY': 'test_key',
-                'GROK_MODEL': 'test-model',
-                'GROK_ENDPOINT': 'https://test.api.com'
-            }):
+        with patch("llm.GrokProvider", mock_grok_provider):
+            with patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "grok",
+                    "GROK_API_KEY": "test_key",
+                    "GROK_MODEL": "test-model",
+                    "GROK_ENDPOINT": "https://test.api.com",
+                },
+            ):
                 get_provider()
                 # This should cover lines 64-67 in the grok provider initialization
                 mock_grok_provider.assert_called_once()
@@ -69,28 +75,31 @@ class TestFinalCoverage:
     def test_llm_comprehensive_import_errors(self):
         """Test comprehensive import error handling in llm.py (lines 15-25, 29-30, 34-35)"""
         # Test GrokProvider import error (lines 15-25)
-        with patch.dict('sys.modules', {'providers.grok': None}):
-            with patch('llm.GrokProvider', None):
+        with patch.dict("sys.modules", {"providers.grok": None}):
+            with patch("llm.GrokProvider", None):
                 import importlib
 
                 import llm
+
                 importlib.reload(llm)
                 # This should cover the except block setting GrokProvider to None
                 # and the GrokLiteProvider class definition
 
         # Test OllamaProvider import error (lines 29-30)
-        with patch.dict('sys.modules', {'providers.ollama': None}):
+        with patch.dict("sys.modules", {"providers.ollama": None}):
             import importlib
 
             import llm
+
             importlib.reload(llm)
             # This should cover the except block setting OllamaProvider to None
 
         # Test PicoProvider import error (lines 34-35)
-        with patch.dict('sys.modules', {'providers.pico': None}):
+        with patch.dict("sys.modules", {"providers.pico": None}):
             import importlib
 
             import llm
+
             importlib.reload(llm)
             # This should cover the except block setting PicoProvider to None
 
@@ -99,16 +108,15 @@ class TestFinalCoverage:
         from llm import get_provider
 
         # Test when GrokProvider is None, should use GrokLiteProvider
-        with patch('llm.GrokProvider', None):
-            with patch.dict(os.environ, {
-                'LLM_PROVIDER': 'grok',
-                'GROK_API_KEY': 'test_key'
-            }):
+        with patch("llm.GrokProvider", None):
+            with patch.dict(
+                os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test_key"}
+            ):
                 provider = get_provider()
                 # This should return GrokLiteProvider and cover line 69
                 assert provider is not None
-                assert hasattr(provider, 'name')
-                assert provider.name == 'grok'
+                assert hasattr(provider, "name")
+                assert provider.name == "grok"
 
     def test_bmi_core_missing_lines(self):
         """Test missing lines in bmi_core.py (lines 183-184, 187-188)"""
@@ -128,8 +136,13 @@ class TestFinalCoverage:
         try:
             bmi = 70 / (1.75 * 1.75)  # Calculate BMI
             plan = build_premium_plan(
-                age=30, weight_kg=70, height_m=1.75,
-                bmi=bmi, group="general", lang="en", premium=True
+                age=30,
+                weight_kg=70,
+                height_m=1.75,
+                bmi=bmi,
+                group="general",
+                lang="en",
+                premium=True,
             )
             # This should cover the missing lines in build_premium_plan
             assert plan is not None
@@ -160,7 +173,7 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "en",
-            "premium": True
+            "premium": True,
         }
 
         response = client.post("/plan", json=payload)
@@ -182,7 +195,7 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "ru",
-            "premium": True
+            "premium": True,
         }
 
         response = client.post("/plan", json=payload)
@@ -203,7 +216,7 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 105,  # High risk for male (>102)
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post("/bmi", json=payload)
@@ -224,7 +237,7 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 85,  # Increased risk for female (80-88)
-            "lang": "ru"
+            "lang": "ru",
         }
 
         response = client.post("/bmi", json=payload)
@@ -271,19 +284,20 @@ class TestFinalCoverage:
 
         # Mock OllamaProvider to test the initialization lines
         mock_ollama_provider = MagicMock()
-        with patch('llm.OllamaProvider', mock_ollama_provider):
-            with patch.dict(os.environ, {
-                'LLM_PROVIDER': 'ollama',
-                'OLLAMA_ENDPOINT': 'http://test:11434',
-                'OLLAMA_MODEL': 'test-model',
-                'OLLAMA_TIMEOUT': '10'
-            }):
+        with patch("llm.OllamaProvider", mock_ollama_provider):
+            with patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "ollama",
+                    "OLLAMA_ENDPOINT": "http://test:11434",
+                    "OLLAMA_MODEL": "test-model",
+                    "OLLAMA_TIMEOUT": "10",
+                },
+            ):
                 get_provider()
                 # This should cover lines 72-76 in ollama provider initialization
                 mock_ollama_provider.assert_called_with(
-                    endpoint="http://test:11434",
-                    model="test-model",
-                    timeout_s=10.0
+                    endpoint="http://test:11434", model="test-model", timeout_s=10.0
                 )
 
     def test_app_metrics_and_privacy_endpoints(self):
@@ -313,12 +327,12 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "en",
-            "include_chart": True
+            "include_chart": True,
         }
 
         # Mock MATPLOTLIB_AVAILABLE as False to test error path
-        with patch('app.MATPLOTLIB_AVAILABLE', False):
-            with patch('app.generate_bmi_visualization') as mock_viz:
+        with patch("app.MATPLOTLIB_AVAILABLE", False):
+            with patch("app.generate_bmi_visualization") as mock_viz:
                 mock_viz.return_value = {"available": False}
 
                 response = client.post("/bmi", json=payload)
@@ -326,6 +340,7 @@ class TestFinalCoverage:
                 data = response.json()
 
                 # Should include visualization error
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
                     assert "error" in data["visualization"]
@@ -333,17 +348,19 @@ class TestFinalCoverage:
     def test_app_specific_missing_lines(self):
         """Test specific missing lines in app.py"""
         # Test lines 49-51: dotenv conditional loading with different conditions
-        with patch.dict(os.environ, {'APP_ENV': 'test'}):
+        with patch.dict(os.environ, {"APP_ENV": "test"}):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should skip dotenv.load_dotenv() call
 
-        with patch.dict(os.environ, {'APP_ENV': 'ci'}):
+        with patch.dict(os.environ, {"APP_ENV": "ci"}):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should also skip dotenv.load_dotenv() call
 
@@ -358,7 +375,7 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "ru",
-            "premium": True
+            "premium": True,
         }
 
         response = client.post("/plan", json=payload)
@@ -385,11 +402,11 @@ class TestFinalCoverage:
         mock_provider.name = "test_provider"
 
         # Mock the llm module import and provider
-        with patch.dict('sys.modules', {'llm': MagicMock()}) as mock_modules:
-            mock_llm = mock_modules['llm']
+        with patch.dict("sys.modules", {"llm": MagicMock()}) as mock_modules:
+            mock_llm = mock_modules["llm"]
             mock_llm.get_provider.return_value = mock_provider
 
-            with patch.dict(os.environ, {'FEATURE_INSIGHT': '1'}):
+            with patch.dict(os.environ, {"FEATURE_INSIGHT": "1"}):
                 response = client.post("/insight", json={"text": "test"})
                 assert response.status_code == 200
                 data = response.json()
@@ -397,12 +414,12 @@ class TestFinalCoverage:
                 assert "provider" in data
 
         # Test with FEATURE_INSIGHT set to true/yes/on
-        for value in ['true', 'yes', 'on']:
-            with patch.dict('sys.modules', {'llm': MagicMock()}) as mock_modules:
-                mock_llm = mock_modules['llm']
+        for value in ["true", "yes", "on"]:
+            with patch.dict("sys.modules", {"llm": MagicMock()}) as mock_modules:
+                mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                with patch.dict(os.environ, {'FEATURE_INSIGHT': value}):
+                with patch.dict(os.environ, {"FEATURE_INSIGHT": value}):
                     response = client.post("/insight", json={"text": "test"})
                     assert response.status_code == 200
 
@@ -414,8 +431,8 @@ class TestFinalCoverage:
 
         # Test API v1 BMI endpoint with proper setup (line 351)
         api_key = "test-api-key"
-        with patch.dict(os.environ, {'API_KEY': api_key}):
-            headers = {'X-API-Key': api_key}
+        with patch.dict(os.environ, {"API_KEY": api_key}):
+            headers = {"X-API-Key": api_key}
             bmi_payload = {
                 "weight_kg": 70,
                 "height_m": 1.75,
@@ -423,7 +440,7 @@ class TestFinalCoverage:
                 "gender": "male",
                 "pregnant": "no",
                 "athlete": "no",
-                "lang": "en"
+                "lang": "en",
             }
             # This should test the v1 BMI endpoint if it exists (line 366)
             client.post("/api/v1/bmi", json=bmi_payload, headers=headers)
@@ -435,27 +452,32 @@ class TestFinalCoverage:
         original_modules = sys.modules.copy()
 
         # Mock slowapi import failure to test lines 21-26
-        if 'slowapi' in sys.modules:
-            del sys.modules['slowapi']
-        if 'slowapi.errors' in sys.modules:
-            del sys.modules['slowapi.errors']
-        if 'slowapi.middleware' in sys.modules:
-            del sys.modules['slowapi.middleware']
-        if 'slowapi.util' in sys.modules:
-            del sys.modules['slowapi.util']
+        # sourcery skip: no-conditionals-in-tests
+        if "slowapi" in sys.modules:
+            del sys.modules["slowapi"]
+        if "slowapi.errors" in sys.modules:
+            del sys.modules["slowapi.errors"]
+        if "slowapi.middleware" in sys.modules:
+            del sys.modules["slowapi.middleware"]
+        if "slowapi.util" in sys.modules:
+            del sys.modules["slowapi.util"]
 
-        with patch.dict('sys.modules', {
-            'slowapi': None,
-            'slowapi.errors': None,
-            'slowapi.middleware': None,
-            'slowapi.util': None
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "slowapi": None,
+                "slowapi.errors": None,
+                "slowapi.middleware": None,
+                "slowapi.util": None,
+            },
+        ):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should cover the slowapi import failure lines 21-26
-            assert hasattr(app_module, 'slowapi_available')
+            assert hasattr(app_module, "slowapi_available")
 
         # Restore modules
         sys.modules.update(original_modules)
@@ -468,29 +490,32 @@ class TestFinalCoverage:
         mock_slowapi.middleware.SlowAPIMiddleware = MagicMock()
         mock_slowapi.util.get_remote_address = MagicMock()
 
-        with patch.dict('sys.modules', {
-            'slowapi': mock_slowapi,
-            'slowapi.errors': mock_slowapi.errors,
-            'slowapi.middleware': mock_slowapi.middleware,
-            'slowapi.util': mock_slowapi.util
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "slowapi": mock_slowapi,
+                "slowapi.errors": mock_slowapi.errors,
+                "slowapi.middleware": mock_slowapi.middleware,
+                "slowapi.util": mock_slowapi.util,
+            },
+        ):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should cover lines 30-33 for successful slowapi import
 
         # Test bmi_visualization import failure (lines 57-59)
-        with patch.dict('sys.modules', {
-            'bmi_visualization': None
-        }):
+        with patch.dict("sys.modules", {"bmi_visualization": None}):
             import importlib
 
             import app as app_module
+
             importlib.reload(app_module)
             # This should cover lines 57-59 for visualization import failure
-            assert hasattr(app_module, 'generate_bmi_visualization')
-            assert hasattr(app_module, 'MATPLOTLIB_AVAILABLE')
+            assert hasattr(app_module, "generate_bmi_visualization")
+            assert hasattr(app_module, "MATPLOTLIB_AVAILABLE")
 
         # Restore original modules
         sys.modules.update(original_modules)
@@ -503,14 +528,15 @@ class TestFinalCoverage:
         mock_middleware = MagicMock()
         mock_get_address = MagicMock()
 
-        with patch('app.slowapi_available', True):
-            with patch('app.Limiter', mock_limiter):
-                with patch('app._rate_limit_exceeded_handler', mock_rate_handler):
-                    with patch('app.SlowAPIMiddleware', mock_middleware):
-                        with patch('app.get_remote_address', mock_get_address):
+        with patch("app.slowapi_available", True):
+            with patch("app.Limiter", mock_limiter):
+                with patch("app._rate_limit_exceeded_handler", mock_rate_handler):
+                    with patch("app.SlowAPIMiddleware", mock_middleware):
+                        with patch("app.get_remote_address", mock_get_address):
                             import importlib
 
                             import app as app_module
+
                             importlib.reload(app_module)
                             # This should cover lines 94-97 for slowapi setup
 
@@ -525,20 +551,21 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "en",
-            "include_chart": True
+            "include_chart": True,
         }
 
         # Mock visualization function to return unavailable
         mock_viz_func = MagicMock()
         mock_viz_func.return_value = {"available": False, "error": "test error"}
 
-        with patch('app.generate_bmi_visualization', mock_viz_func):
-            with patch('app.MATPLOTLIB_AVAILABLE', False):
+        with patch("app.generate_bmi_visualization", mock_viz_func):
+            with patch("app.MATPLOTLIB_AVAILABLE", False):
                 response = client.post("/bmi", json=payload)
                 assert response.status_code == 200
                 data = response.json()
                 # This should cover lines 303-308 for visualization error handling
                 # Verify the visualization was attempted
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
 
@@ -546,26 +573,26 @@ class TestFinalCoverage:
         """Test specific API endpoint lines"""
         # Test API v1 insight endpoint with API key (line 339)
         api_key = "test-api-key"
-        with patch.dict(os.environ, {'API_KEY': api_key}):
-            headers = {'X-API-Key': api_key}
+        with patch.dict(os.environ, {"API_KEY": api_key}):
+            headers = {"X-API-Key": api_key}
 
             # Mock llm module for api v1 insight
             mock_provider = MagicMock()
             mock_provider.generate.return_value = "insight result"
             mock_provider.name = "test_provider"
 
-            with patch.dict('sys.modules', {'llm': MagicMock()}) as mock_modules:
-                mock_llm = mock_modules['llm']
+            with patch.dict("sys.modules", {"llm": MagicMock()}) as mock_modules:
+                mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post("/api/v1/insight",
-                                     json={"text": "test"},
-                                     headers=headers)
+                response = client.post(
+                    "/api/v1/insight", json={"text": "test"}, headers=headers
+                )
                 # This should cover line 339 and related API endpoint lines
 
         # Test visualization endpoint lines (341, 353, 359, 379)
-        with patch.dict(os.environ, {'API_KEY': api_key}):
-            headers = {'X-API-Key': api_key}
+        with patch.dict(os.environ, {"API_KEY": api_key}):
+            headers = {"X-API-Key": api_key}
             payload = {
                 "weight_kg": 70,
                 "height_m": 1.75,
@@ -573,24 +600,22 @@ class TestFinalCoverage:
                 "gender": "male",
                 "pregnant": "no",
                 "athlete": "no",
-                "lang": "en"
+                "lang": "en",
             }
 
             # Test when visualization is not available (line 341)
-            with patch('app.generate_bmi_visualization', None):
-                response = client.post("/api/v1/bmi/visualize",
-                                     json=payload,
-                                     headers=headers)
+            with patch("app.generate_bmi_visualization", None):
+                response = client.post(
+                    "/api/v1/bmi/visualize", json=payload, headers=headers
+                )
                 # Expected to be 503 or 500, just need to cover the line
                 assert response.status_code in [500, 503]
                 # This covers line 341
 
             # Test when matplotlib not available (line 353)
-            with patch('app.generate_bmi_visualization', MagicMock()):
-                with patch('app.MATPLOTLIB_AVAILABLE', False):
-                    client.post("/api/v1/bmi/visualize",
-                               json=payload,
-                               headers=headers)
+            with patch("app.generate_bmi_visualization", MagicMock()):
+                with patch("app.MATPLOTLIB_AVAILABLE", False):
+                    client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     # Should return 503 - covers line 353
 
             # Test successful visualization generation (lines 359, 379)
@@ -598,27 +623,23 @@ class TestFinalCoverage:
             mock_viz_func.return_value = {
                 "available": True,
                 "data": "fake_chart_data",
-                "format": "png"
+                "format": "png",
             }
 
-            with patch('app.generate_bmi_visualization', mock_viz_func):
-                with patch('app.MATPLOTLIB_AVAILABLE', True):
-                    client.post("/api/v1/bmi/visualize",
-                               json=payload,
-                               headers=headers)
+            with patch("app.generate_bmi_visualization", mock_viz_func):
+                with patch("app.MATPLOTLIB_AVAILABLE", True):
+                    client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     # This should cover lines 359, 379 for successful visualization
 
             # Test visualization generation failure (line 498)
             mock_viz_func.return_value = {
                 "available": False,
-                "error": "Generation failed"
+                "error": "Generation failed",
             }
 
-            with patch('app.generate_bmi_visualization', mock_viz_func):
-                with patch('app.MATPLOTLIB_AVAILABLE', True):
-                    client.post("/api/v1/bmi/visualize",
-                               json=payload,
-                               headers=headers)
+            with patch("app.generate_bmi_visualization", mock_viz_func):
+                with patch("app.MATPLOTLIB_AVAILABLE", True):
+                    client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     # This should cover line 498 for visualization failure
 
     def test_final_bmi_core_missing_lines(self):
@@ -635,14 +656,19 @@ class TestFinalCoverage:
             (30, 70, 1.75, bmi1, "en", "general", True),
             (25, 90, 1.70, bmi2, "ru", "athlete", False),
             (65, 50, 1.80, bmi3, "en", "elderly", True),
-            (40, 80, 1.75, 80/(1.75*1.75), "ru", "general", False),
+            (40, 80, 1.75, 80 / (1.75 * 1.75), "ru", "general", False),
         ]
 
         for age, weight, height, bmi, lang, group, premium in test_cases:
             try:
                 result = build_premium_plan(
-                    age=age, weight_kg=weight, height_m=height,
-                    bmi=bmi, lang=lang, group=group, premium=premium
+                    age=age,
+                    weight_kg=weight,
+                    height_m=height,
+                    bmi=bmi,
+                    lang=lang,
+                    group=group,
+                    premium=premium,
                 )
                 # Verify result structure
                 assert "healthy_bmi" in result
@@ -667,19 +693,20 @@ class TestFinalCoverage:
             "pregnant": "no",
             "athlete": "no",
             "lang": "en",
-            "include_chart": True
+            "include_chart": True,
         }
 
         # Mock visualization to return unavailable with matplotlib unavailable
         mock_viz_func = MagicMock()
         mock_viz_func.return_value = {"available": False}
 
-        with patch('app.generate_bmi_visualization', mock_viz_func):
-            with patch('app.MATPLOTLIB_AVAILABLE', False):
+        with patch("app.generate_bmi_visualization", mock_viz_func):
+            with patch("app.MATPLOTLIB_AVAILABLE", False):
                 response = client.post("/bmi", json=payload)
                 assert response.status_code == 200
                 data = response.json()
                 # This should hit lines 303-308: the elif not MATPLOTLIB_AVAILABLE block
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert "error" in data["visualization"]
                     assert "matplotlib not installed" in data["visualization"]["error"]
@@ -687,38 +714,36 @@ class TestFinalCoverage:
 
         # Test API endpoints with missing coverage (lines 339, 341, 353, 359, 379, 498)
         api_key = "test-key"
-        with patch.dict(os.environ, {'API_KEY': api_key}):
-            headers = {'X-API-Key': api_key}
+        with patch.dict(os.environ, {"API_KEY": api_key}):
+            headers = {"X-API-Key": api_key}
 
             # Test insight endpoint (line 339)
             mock_provider = MagicMock()
             mock_provider.generate.return_value = "test insight"
             mock_provider.name = "test"
 
-            with patch.dict('sys.modules', {'llm': MagicMock()}) as mock_modules:
-                mock_llm = mock_modules['llm']
+            with patch.dict("sys.modules", {"llm": MagicMock()}) as mock_modules:
+                mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post("/api/v1/insight",
-                                      json={"text": "test"},
-                                      headers=headers)
+                response = client.post(
+                    "/api/v1/insight", json={"text": "test"}, headers=headers
+                )
                 # This covers line 339
 
             # Test visualization endpoint when module not found (line 341)
-            with patch('app.generate_bmi_visualization', None):
-                response = client.post("/api/v1/bmi/visualize",
-                                      json=payload,
-                                      headers=headers)
+            with patch("app.generate_bmi_visualization", None):
+                response = client.post(
+                    "/api/v1/bmi/visualize", json=payload, headers=headers
+                )
                 # Expected to be 503 or 500, just need to cover the line
                 assert response.status_code in [500, 503]
                 # This covers line 341
 
             # Test visualization endpoint when matplotlib not available (line 353)
-            with patch('app.generate_bmi_visualization', MagicMock()):
-                with patch('app.MATPLOTLIB_AVAILABLE', False):
-                    client.post("/api/v1/bmi/visualize",
-                               json=payload,
-                               headers=headers)
+            with patch("app.generate_bmi_visualization", MagicMock()):
+                with patch("app.MATPLOTLIB_AVAILABLE", False):
+                    client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     # Could be 503 or 500 depending on which check fails first
                     # This covers line 353
 
@@ -727,37 +752,35 @@ class TestFinalCoverage:
             mock_viz.return_value = {
                 "available": True,
                 "data": "chart_data",
-                "format": "png"
+                "format": "png",
             }
 
-            with patch('app.generate_bmi_visualization', mock_viz):
-                with patch('app.MATPLOTLIB_AVAILABLE', True):
-                    response = client.post("/api/v1/bmi/visualize",
-                                          json=payload,
-                                          headers=headers)
+            with patch("app.generate_bmi_visualization", mock_viz):
+                with patch("app.MATPLOTLIB_AVAILABLE", True):
+                    response = client.post(
+                        "/api/v1/bmi/visualize", json=payload, headers=headers
+                    )
                     # This covers lines 359, 379
 
             # Test visualization failure (line 498)
-            mock_viz.return_value = {
-                "available": False,
-                "error": "Generation failed"
-            }
+            mock_viz.return_value = {"available": False, "error": "Generation failed"}
 
-            with patch('app.generate_bmi_visualization', mock_viz):
-                with patch('app.MATPLOTLIB_AVAILABLE', True):
-                    response = client.post("/api/v1/bmi/visualize",
-                                          json=payload,
-                                          headers=headers)
+            with patch("app.generate_bmi_visualization", mock_viz):
+                with patch("app.MATPLOTLIB_AVAILABLE", True):
+                    response = client.post(
+                        "/api/v1/bmi/visualize", json=payload, headers=headers
+                    )
                     assert response.status_code == 500
                     # This covers line 498
 
         # Test more slowapi import scenarios (lines 21-26)
         # Force import error in slowapi conditional import
-        with patch('builtins.__import__', side_effect=ImportError("Mocked error")):
+        with patch("builtins.__import__", side_effect=ImportError("Mocked error")):
             try:
                 import importlib
 
                 import app as app_module
+
                 importlib.reload(app_module)
                 # This should trigger the import error paths
             except Exception:

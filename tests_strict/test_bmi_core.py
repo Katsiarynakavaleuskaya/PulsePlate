@@ -17,11 +17,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 """Комплексные тесты для bmi_core с покрытием граничных случаев."""
 import pytest
 
-from bmi_core import (
+from bmi_core import (  # build_premium_plan присутствует в твоём исправленном коде
     auto_group,
     bmi_category,
     bmi_value,
-    # build_premium_plan присутствует в твоём исправленном коде
     build_premium_plan,
     compute_wht_ratio,
     estimate_level,

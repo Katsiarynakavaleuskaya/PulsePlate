@@ -1,6 +1,5 @@
 import os
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app import app  # where you include_router
@@ -22,7 +21,7 @@ def test_bmi_pro_ok():
         "waist_cm": 85,
         "hip_cm": 95,
         "bodyfat_pct": 18,
-        "lang": "en"
+        "lang": "en",
     }
     r = client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -34,7 +33,7 @@ def test_bmi_pro_ok():
         assert field in data
 
     # Check specific values
-    assert abs(data["wht_ratio"] - 85/170) < 0.01
+    assert abs(data["wht_ratio"] - 85 / 170) < 0.01
 
     # Clean up
     if "API_KEY" in os.environ:
@@ -54,7 +53,7 @@ def test_bmi_pro_validation():
         "pregnant": "no",
         "athlete": "no",
         "waist_cm": 80,
-        "lang": "en"
+        "lang": "en",
     }
     r = client.post("/api/v1/bmi/pro", json=bad, headers={"X-API-Key": "test_key"})
     assert r.status_code in (400, 422)

@@ -17,15 +17,19 @@ Goal = Literal["loss", "maintain", "gain"]
 # RU: Базовые нормы порционирования (на 1 приём пищи) по методу ладони/чашки.
 # EN: Base serving heuristics per meal (hand/cup method).
 SERVE = {
-    "protein_palm_g": 30,   # 1 ладонь белка ≈ 25–35 г белка
-    "fat_thumb_g": 12,      # 1 «большой палец» жира ≈ 10–15 г жира
-    "carb_cup_g": 40,       # 1 чашка крахмалов ≈ 35–45 г углеводов (сухой вес в пересчёте)
-    "veg_cup_g": 80,        # 1 чашка овощей ≈ 70–100 г (низкокалор.)
+    "protein_palm_g": 30,  # 1 ладонь белка ≈ 25–35 г белка
+    "fat_thumb_g": 12,  # 1 «большой палец» жира ≈ 10–15 г жира
+    "carb_cup_g": 40,  # 1 чашка крахмалов ≈ 35–45 г углеводов (сухой вес в пересчёте)
+    "veg_cup_g": 80,  # 1 чашка овощей ≈ 70–100 г (низкокалор.)
 }
 
 
-def _target_kcal(tdee_val: float, goal: Goal, deficit_pct: Optional[float],
-                 surplus_pct: Optional[float]) -> int:
+def _target_kcal(
+    tdee_val: float,
+    goal: Goal,
+    deficit_pct: Optional[float],
+    surplus_pct: Optional[float],
+) -> int:
     """RU: Выставляем целевую калорийность под цель.
     EN: Set target kcal per goal.
     """
@@ -69,7 +73,9 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     }
 
 
-def _portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def _portions_from_macros(
+    macros: Dict[str, int], meals_per_day: int = 3
+) -> Dict[str, Any]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
     """
@@ -105,23 +111,55 @@ def _visual_layout(macros: Dict[str, int]) -> List[Dict[str, Any]]:
     k = (energy_part / energy_sum) if energy_sum else 1.0
 
     layout = [
-        {"kind": "plate_sector", "fraction": round(frac["veg"], 2), "label": "Овощи/Зелень",
-         "tooltip": "Низкая калорийность, клетчатка 25–35 г/сут"},
-        {"kind": "plate_sector", "fraction": round(frac["protein"] * k, 2), "label": "Белок",
-         "tooltip": f"{macros['protein_g']} г/сут"},
-        {"kind": "plate_sector", "fraction": round(frac["carbs"] * k, 2), "label": "Крахмалы/Зерно",
-         "tooltip": f"{macros['carbs_g']} г/сут"},
-        {"kind": "plate_sector", "fraction": round(frac["fat"] * k, 2), "label": "Полезные жиры",
-         "tooltip": f"{macros['fat_g']} г/сут"},
-        {"kind": "bowl", "fraction": 1.0, "label": "Чашка крупы", "tooltip": "≈1 cup/приём"},
-        {"kind": "bowl", "fraction": 1.0, "label": "Чашка овощей", "tooltip": "≈1–2 cup/приём"},
+        {
+            "kind": "plate_sector",
+            "fraction": round(frac["veg"], 2),
+            "label": "Овощи/Зелень",
+            "tooltip": "Низкая калорийность, клетчатка 25–35 г/сут",
+        },
+        {
+            "kind": "plate_sector",
+            "fraction": round(frac["protein"] * k, 2),
+            "label": "Белок",
+            "tooltip": f"{macros['protein_g']} г/сут",
+        },
+        {
+            "kind": "plate_sector",
+            "fraction": round(frac["carbs"] * k, 2),
+            "label": "Крахмалы/Зерно",
+            "tooltip": f"{macros['carbs_g']} г/сут",
+        },
+        {
+            "kind": "plate_sector",
+            "fraction": round(frac["fat"] * k, 2),
+            "label": "Полезные жиры",
+            "tooltip": f"{macros['fat_g']} г/сут",
+        },
+        {
+            "kind": "bowl",
+            "fraction": 1.0,
+            "label": "Чашка крупы",
+            "tooltip": "≈1 cup/приём",
+        },
+        {
+            "kind": "bowl",
+            "fraction": 1.0,
+            "label": "Чашка овощей",
+            "tooltip": "≈1–2 cup/приём",
+        },
     ]
     return layout
 
 
-def make_plate(*, weight_kg: float, tdee_val: float, goal: Goal,
-               deficit_pct: Optional[float], surplus_pct: Optional[float],
-               diet_flags: Optional[Set[str]] = None) -> Dict[str, Any]:
+def make_plate(
+    *,
+    weight_kg: float,
+    tdee_val: float,
+    goal: Goal,
+    deficit_pct: Optional[float],
+    surplus_pct: Optional[float],
+    diet_flags: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
     """RU: Главная функция: целевые калории → макросы → порции → визуалка.
     EN: Main: target kcal → macros → portions → visual.
     """
@@ -132,25 +170,41 @@ def make_plate(*, weight_kg: float, tdee_val: float, goal: Goal,
 
     # Пример простых блюд под флаги; фронт может показывать карточки
     meals = [
-        {"title": "Овсянка + орехи + ягоды", "kcal": int(target*0.25),
-         "protein_g": int(macros["protein_g"]*0.25), "fat_g": int(macros["fat_g"]*0.25),
-         "carbs_g": int(macros["carbs_g"]*0.25)},
-        {"title": "Гречка + курица/тофу + салат", "kcal": int(target*0.35),
-         "protein_g": int(macros["protein_g"]*0.35), "fat_g": int(macros["fat_g"]*0.35),
-         "carbs_g": int(macros["carbs_g"]*0.35)},
-        {"title": "Рис + рыба/нут + овощи", "kcal": int(target*0.40),
-         "protein_g": int(macros["protein_g"]*0.40), "fat_g": int(macros["fat_g"]*0.40),
-         "carbs_g": int(macros["carbs_g"]*0.40)},
+        {
+            "title": "Овсянка + орехи + ягоды",
+            "kcal": int(target * 0.25),
+            "protein_g": int(macros["protein_g"] * 0.25),
+            "fat_g": int(macros["fat_g"] * 0.25),
+            "carbs_g": int(macros["carbs_g"] * 0.25),
+        },
+        {
+            "title": "Гречка + курица/тофу + салат",
+            "kcal": int(target * 0.35),
+            "protein_g": int(macros["protein_g"] * 0.35),
+            "fat_g": int(macros["fat_g"] * 0.35),
+            "carbs_g": int(macros["carbs_g"] * 0.35),
+        },
+        {
+            "title": "Рис + рыба/нут + овощи",
+            "kcal": int(target * 0.40),
+            "protein_g": int(macros["protein_g"] * 0.40),
+            "fat_g": int(macros["fat_g"] * 0.40),
+            "carbs_g": int(macros["carbs_g"] * 0.40),
+        },
     ]
 
     # Упрощённые замены под флаги
     if diet_flags:
         if "VEG" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
+                m["title"] = (
+                    m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
+                )
         if "GF" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
+                m["title"] = (
+                    m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
+                )
         if "DAIRY_FREE" in diet_flags:
             # просто не добавляем молочку в названиях/рецептах
             pass

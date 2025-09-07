@@ -14,9 +14,9 @@ def test_patch_verification():
     os.environ["API_KEY"] = "test_key"
     client = TestClient(app)
 
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": True, "chart_base64": "test_chart"}
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             # Test that the patching works by making a request
             data = {
                 "weight_kg": 65.0,
@@ -26,7 +26,7 @@ def test_patch_verification():
                 "pregnant": "yes",
                 "athlete": "no",
                 "lang": "en",
-                "include_chart": True
+                "include_chart": True,
             }
 
             response = client.post("/bmi", json=data)

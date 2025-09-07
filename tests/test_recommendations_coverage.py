@@ -3,8 +3,6 @@ Targeted coverage tests for core.recommendations module.
 These tests specifically target the uncovered lines to improve overall coverage.
 """
 
-import pytest
-
 from core.recommendations import (
     _adapt_for_vegetarian,
     _calculate_activity_targets,
@@ -38,25 +36,29 @@ class TestDeficiencyRecommendations:
                 nutrient_name="iron_mg",
                 target_amount=15.0,
                 consumed_amount=8.0,
-                unit="mg"
+                unit="mg",
             ),
             "calcium_mg": NutrientCoverage(
                 nutrient_name="calcium_mg",
                 target_amount=1000.0,
                 consumed_amount=600.0,
-                unit="mg"
+                unit="mg",
             ),
             "protein_g": NutrientCoverage(
                 nutrient_name="protein_g",
                 target_amount=120.0,
                 consumed_amount=110.0,
-                unit="g"
-            )
+                unit="g",
+            ),
         }
 
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         recommendations = generate_deficiency_recommendations(coverage, profile, "en")
@@ -73,21 +75,28 @@ class TestDeficiencyRecommendations:
                 nutrient_name="iron_mg",
                 target_amount=15.0,
                 consumed_amount=8.0,
-                unit="mg"
+                unit="mg",
             )
         }
 
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain",
-            diet_flags={"VEG"}
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
+            diet_flags={"VEG"},
         )
 
         recommendations = generate_deficiency_recommendations(coverage, profile, "en")
 
         # Should have vegetarian-adapted recommendations
         assert len(recommendations) > 0
-        assert any("vitamin C" in rec.lower() or "absorption" in rec.lower() for rec in recommendations)
+        assert any(
+            "vitamin C" in rec.lower() or "absorption" in rec.lower()
+            for rec in recommendations
+        )
 
     def test_recommendations_russian_language(self):
         """Test recommendations in Russian language."""
@@ -96,20 +105,27 @@ class TestDeficiencyRecommendations:
                 nutrient_name="iron_mg",
                 target_amount=15.0,
                 consumed_amount=8.0,
-                unit="mg"
+                unit="mg",
             )
         }
 
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         recommendations = generate_deficiency_recommendations(coverage, profile, "ru")
 
         # Should have Russian recommendations
         assert len(recommendations) > 0
-        assert any("железо" in rec.lower() or "говядина" in rec.lower() for rec in recommendations)
+        assert any(
+            "железо" in rec.lower() or "говядина" in rec.lower()
+            for rec in recommendations
+        )
 
     def test_no_deficiencies(self):
         """Test when there are no deficiencies."""
@@ -118,13 +134,17 @@ class TestDeficiencyRecommendations:
                 nutrient_name="protein_g",
                 target_amount=120.0,
                 consumed_amount=120.0,
-                unit="g"
+                unit="g",
             )
         }
 
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         recommendations = generate_deficiency_recommendations(coverage, profile, "en")
@@ -139,13 +159,17 @@ class TestDeficiencyRecommendations:
                 nutrient_name="magnesium_mg",
                 target_amount=320.0,
                 consumed_amount=160.0,
-                unit="mg"
+                unit="mg",
             )
         }
 
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         recommendations = generate_deficiency_recommendations(coverage, profile, "en")
@@ -165,7 +189,7 @@ class TestWeeklyCoverage:
                     nutrient_name="protein_g",
                     target_amount=120.0,
                     consumed_amount=100.0,
-                    unit="g"
+                    unit="g",
                 )
             },
             {
@@ -173,9 +197,9 @@ class TestWeeklyCoverage:
                     nutrient_name="protein_g",
                     target_amount=120.0,
                     consumed_amount=140.0,
-                    unit="g"
+                    unit="g",
                 )
-            }
+            },
         ]
 
         weekly_averages = calculate_weekly_coverage(daily_coverages)
@@ -192,7 +216,7 @@ class TestWeeklyCoverage:
                     nutrient_name="protein_g",
                     target_amount=120.0,
                     consumed_amount=120.0,
-                    unit="g"
+                    unit="g",
                 )
             }
         ]
@@ -210,24 +234,24 @@ class TestWeeklyCoverage:
                     nutrient_name="protein_g",
                     target_amount=120.0,
                     consumed_amount=120.0,
-                    unit="g"
+                    unit="g",
                 ),
                 "iron_mg": NutrientCoverage(
                     nutrient_name="iron_mg",
                     target_amount=15.0,
                     consumed_amount=15.0,
-                    unit="mg"
-                )
+                    unit="mg",
+                ),
             },
             {
                 "protein_g": NutrientCoverage(
                     nutrient_name="protein_g",
                     target_amount=120.0,
                     consumed_amount=100.0,
-                    unit="g"
+                    unit="g",
                 )
                 # Missing iron_mg for this day
-            }
+            },
         ]
 
         weekly_averages = calculate_weekly_coverage(daily_coverages)
@@ -246,23 +270,39 @@ class TestTargetsSafety:
         """Test validation of safe targets."""
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),  # 1867 kcal total
+            macros=MacroTargets(
+                protein_g=120, fat_g=67, carbs_g=250, fiber_g=28
+            ),  # 1867 kcal total
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
@@ -277,20 +317,34 @@ class TestTargetsSafety:
             macros=MacroTargets(protein_g=120, fat_g=50, carbs_g=100, fiber_g=20),
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
@@ -306,20 +360,34 @@ class TestTargetsSafety:
             macros=MacroTargets(protein_g=200, fat_g=200, carbs_g=600, fiber_g=50),
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
@@ -332,23 +400,39 @@ class TestTargetsSafety:
         """Test warning for very high protein."""
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(protein_g=200, fat_g=50, carbs_g=150, fiber_g=28),  # 40% protein
+            macros=MacroTargets(
+                protein_g=200, fat_g=50, carbs_g=150, fiber_g=28
+            ),  # 40% protein
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
@@ -364,27 +448,44 @@ class TestTargetsSafety:
             macros=MacroTargets(protein_g=120, fat_g=70, carbs_g=250, fiber_g=28),
             water_ml_daily=1000,  # Too low
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
 
         # Should warn about low hydration
         assert len(warnings) > 0
-        assert any("hydration" in warning.lower() or "minimum" in warning.lower() for warning in warnings)
+        assert any(
+            "hydration" in warning.lower() or "minimum" in warning.lower()
+            for warning in warnings
+        )
 
     def test_high_hydration_warning(self):
         """Test warning for very high hydration."""
@@ -393,27 +494,44 @@ class TestTargetsSafety:
             macros=MacroTargets(protein_g=120, fat_g=70, carbs_g=250, fiber_g=28),
             water_ml_daily=5000,  # Too high
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         warnings = validate_targets_safety(targets)
 
         # Should warn about high hydration
         assert len(warnings) > 0
-        assert any("hydration" in warning.lower() or "maximum" in warning.lower() for warning in warnings)
+        assert any(
+            "hydration" in warning.lower() or "maximum" in warning.lower()
+            for warning in warnings
+        )
 
 
 class TestFoodSources:
@@ -473,8 +591,12 @@ class TestBuildNutritionTargets:
     def test_build_nutrition_targets_basic(self):
         """Test basic nutrition targets building."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -488,8 +610,13 @@ class TestBuildNutritionTargets:
     def test_build_nutrition_targets_weight_loss(self):
         """Test nutrition targets for weight loss."""
         profile = UserProfile(
-            sex="male", age=25, height_cm=180, weight_kg=80,
-            activity="active", goal="loss", deficit_pct=20
+            sex="male",
+            age=25,
+            height_cm=180,
+            weight_kg=80,
+            activity="active",
+            goal="loss",
+            deficit_pct=20,
         )
 
         targets = build_nutrition_targets(profile)
@@ -501,8 +628,13 @@ class TestBuildNutritionTargets:
     def test_build_nutrition_targets_weight_gain(self):
         """Test nutrition targets for weight gain."""
         profile = UserProfile(
-            sex="female", age=22, height_cm=160, weight_kg=50,
-            activity="light", goal="gain", surplus_pct=15
+            sex="female",
+            age=22,
+            height_cm=160,
+            weight_kg=50,
+            activity="light",
+            goal="gain",
+            surplus_pct=15,
         )
 
         targets = build_nutrition_targets(profile)
@@ -517,31 +649,41 @@ class TestScoreNutrientCoverage:
 
     def test_score_nutrient_coverage_basic(self):
         """Test basic nutrient coverage scoring."""
-        consumed_nutrients = {
-            "protein_g": 100.0,
-            "iron_mg": 10.0,
-            "calcium_mg": 800.0
-        }
+        consumed_nutrients = {"protein_g": 100.0, "iron_mg": 10.0, "calcium_mg": 800.0}
 
         targets = NutritionTargets(
             kcal_daily=2000,
             macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         coverage = score_nutrient_coverage(consumed_nutrients, targets)
@@ -562,20 +704,34 @@ class TestScoreNutrientCoverage:
             macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),
             water_ml_daily=2500,
             micros=MicroTargets(
-                iron_mg=15.0, calcium_mg=1000.0, magnesium_mg=320.0, zinc_mg=8.0,
-                potassium_mg=3500.0, iodine_ug=150.0, selenium_ug=55.0,
-                folate_ug=400.0, b12_ug=2.4, vitamin_d_iu=600.0,
-                vitamin_a_ug=700.0, vitamin_c_mg=75.0
+                iron_mg=15.0,
+                calcium_mg=1000.0,
+                magnesium_mg=320.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
             ),
             activity=ActivityTargets(
-                moderate_aerobic_min=150, vigorous_aerobic_min=75,
-                strength_sessions=2, steps_daily=8000
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_sessions=2,
+                steps_daily=8000,
             ),
             calculated_for=UserProfile(
-                sex="female", age=30, height_cm=165, weight_kg=60,
-                activity="moderate", goal="maintain"
+                sex="female",
+                age=30,
+                height_cm=165,
+                weight_kg=60,
+                activity="moderate",
+                goal="maintain",
             ),
-            calculation_date="2024-01-01"
+            calculation_date="2024-01-01",
         )
 
         coverage = score_nutrient_coverage(consumed_nutrients, targets)
@@ -592,8 +748,12 @@ class TestCalorieCalculation:
     def test_calculate_target_calories_maintain(self):
         """Test calorie calculation for maintenance."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         base_tdee = 2000.0
@@ -604,8 +764,13 @@ class TestCalorieCalculation:
     def test_calculate_target_calories_loss(self):
         """Test calorie calculation for weight loss."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="loss", deficit_pct=20
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="loss",
+            deficit_pct=20,
         )
 
         base_tdee = 2000.0
@@ -618,8 +783,13 @@ class TestCalorieCalculation:
     def test_calculate_target_calories_gain(self):
         """Test calorie calculation for weight gain."""
         profile = UserProfile(
-            sex="male", age=25, height_cm=180, weight_kg=70,
-            activity="active", goal="gain", surplus_pct=15
+            sex="male",
+            age=25,
+            height_cm=180,
+            weight_kg=70,
+            activity="active",
+            goal="gain",
+            surplus_pct=15,
         )
 
         base_tdee = 2500.0
@@ -632,8 +802,13 @@ class TestCalorieCalculation:
     def test_calculate_target_calories_safety_minimum_female(self):
         """Test safety minimum for females."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=150, weight_kg=45,
-            activity="sedentary", goal="loss", deficit_pct=25
+            sex="female",
+            age=30,
+            height_cm=150,
+            weight_kg=45,
+            activity="sedentary",
+            goal="loss",
+            deficit_pct=25,
         )
 
         base_tdee = 1400.0  # Low TDEE
@@ -645,8 +820,13 @@ class TestCalorieCalculation:
     def test_calculate_target_calories_safety_minimum_male(self):
         """Test safety minimum for males."""
         profile = UserProfile(
-            sex="male", age=30, height_cm=160, weight_kg=55,
-            activity="sedentary", goal="loss", deficit_pct=25
+            sex="male",
+            age=30,
+            height_cm=160,
+            weight_kg=55,
+            activity="sedentary",
+            goal="loss",
+            deficit_pct=25,
         )
 
         base_tdee = 1600.0  # Low TDEE
@@ -662,8 +842,12 @@ class TestMacroCalculation:
     def test_calculate_macro_targets_basic(self):
         """Test basic macro calculation."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         macros = _calculate_macro_targets(2000, profile)
@@ -674,14 +858,20 @@ class TestMacroCalculation:
         assert macros.fiber_g > 0
 
         # Check that macro calories approximately match target
-        total_macro_kcal = (macros.protein_g * 4) + (macros.carbs_g * 4) + (macros.fat_g * 9)
+        total_macro_kcal = (
+            (macros.protein_g * 4) + (macros.carbs_g * 4) + (macros.fat_g * 9)
+        )
         assert abs(total_macro_kcal - 2000) <= 100  # Allow 100 kcal tolerance
 
     def test_calculate_macro_targets_weight_loss(self):
         """Test macro calculation for weight loss."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="loss"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="loss",
         )
 
         macros = _calculate_macro_targets(1600, profile)
@@ -697,8 +887,12 @@ class TestMicroAndActivityCalculation:
     def test_calculate_micro_targets_basic(self):
         """Test micronutrient calculation."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         micros = _calculate_micro_targets(profile)
@@ -711,8 +905,12 @@ class TestMicroAndActivityCalculation:
     def test_calculate_activity_targets_basic(self):
         """Test activity targets calculation."""
         profile = UserProfile(
-            sex="female", age=30, height_cm=165, weight_kg=60,
-            activity="moderate", goal="maintain"
+            sex="female",
+            age=30,
+            height_cm=165,
+            weight_kg=60,
+            activity="moderate",
+            goal="maintain",
         )
 
         activity = _calculate_activity_targets(profile)

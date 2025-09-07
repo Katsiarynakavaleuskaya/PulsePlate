@@ -22,16 +22,18 @@ def test_debug_with_coverage():
         "pregnant": "yes",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
     # Test with patching
     print("\n=== With patching ===")
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         print(f"Mock object: {mock_generate}")
-        print("Mock return value set to: {'available': True, 'chart_base64': 'test_chart'}")
+        print(
+            "Mock return value set to: {'available': True, 'chart_base64': 'test_chart'}"
+        )
         mock_generate.return_value = {"available": True, "chart_base64": "test_chart"}
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             print("Making request...")
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")

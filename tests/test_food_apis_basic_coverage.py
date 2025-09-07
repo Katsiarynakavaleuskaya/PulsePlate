@@ -3,8 +3,6 @@ Basic tests to improve coverage for food_apis modules.
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
-import json
-import os
 import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -16,7 +14,7 @@ import pytest
 class TestUnifiedFoodDatabase:
     """Basic tests for UnifiedFoodDatabase to improve coverage."""
 
-    @patch('core.food_apis.unified_db.USDAClient')
+    @patch("core.food_apis.unified_db.USDAClient")
     def test_unified_food_database_init(self, mock_usda_class):
         """Test basic initialization."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -29,7 +27,7 @@ class TestUnifiedFoodDatabase:
             assert db.cache_dir.exists()
             assert isinstance(db._memory_cache, dict)
 
-    @patch('core.food_apis.unified_db.USDAClient')
+    @patch("core.food_apis.unified_db.USDAClient")
     def test_unified_food_database_cache_operations(self, mock_usda_class):
         """Test cache loading and saving."""
         from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -48,7 +46,7 @@ class TestUnifiedFoodDatabase:
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
             db._memory_cache["test"] = test_item
             db._save_cache()
@@ -58,7 +56,7 @@ class TestUnifiedFoodDatabase:
             assert "test" in db2._memory_cache
 
     @pytest.mark.asyncio
-    @patch('core.food_apis.unified_db.USDAClient')
+    @patch("core.food_apis.unified_db.USDAClient")
     async def test_search_food_fallback(self, mock_usda_class):
         """Test food search with fallback."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -103,7 +101,7 @@ class TestDatabaseUpdateManager:
                 last_updated=datetime.now().isoformat(),
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
 
             manager.versions["test"] = version
@@ -122,7 +120,7 @@ class TestDatabaseUpdateManager:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock the USDA check to avoid real API calls
-            with patch.object(manager, '_check_usda_updates', return_value=True):
+            with patch.object(manager, "_check_usda_updates", return_value=True):
                 updates = await manager.check_for_updates()
                 assert isinstance(updates, dict)
                 assert "usda" in updates
@@ -165,7 +163,7 @@ class TestDatabaseUpdateScheduler:
         scheduler.update_manager = AsyncMock()
 
         # Test starting
-        with patch('asyncio.create_task') as mock_create_task:
+        with patch("asyncio.create_task") as mock_create_task:
             mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
@@ -204,7 +202,7 @@ class TestModuleFunctions:
     @pytest.mark.asyncio
     async def test_get_unified_food_db(self):
         """Test the get_unified_food_db function."""
-        with patch('core.food_apis.unified_db.USDAClient'):
+        with patch("core.food_apis.unified_db.USDAClient"):
             from core.food_apis.unified_db import get_unified_food_db
 
             db = await get_unified_food_db()
@@ -222,7 +220,7 @@ class TestModuleFunctions:
             availability_regions=["US", "CA"],
             source="test_source",
             source_id="test_123",
-            category="Test Category"
+            category="Test Category",
         )
 
         # Test conversion to menu engine format
@@ -250,7 +248,7 @@ class TestModuleFunctions:
             records_updated=25,
             records_removed=5,
             errors=[],
-            duration_seconds=45.5
+            duration_seconds=45.5,
         )
 
         assert result.success is True
@@ -268,9 +266,15 @@ class TestModuleFunctions:
 
         # Mock successful update
         mock_result = UpdateResult(
-            success=True, source="test", old_version=None, new_version="1.0",
-            records_added=10, records_updated=0, records_removed=0,
-            errors=[], duration_seconds=1.0
+            success=True,
+            source="test",
+            old_version=None,
+            new_version="1.0",
+            records_added=10,
+            records_updated=0,
+            records_removed=0,
+            errors=[],
+            duration_seconds=1.0,
         )
 
         scheduler.update_manager = AsyncMock()
@@ -291,9 +295,15 @@ class TestModuleFunctions:
 
         # Mock failed update
         mock_result = UpdateResult(
-            success=False, source="test", old_version=None, new_version=None,
-            records_added=0, records_updated=0, records_removed=0,
-            errors=["Test error"], duration_seconds=1.0
+            success=False,
+            source="test",
+            old_version=None,
+            new_version=None,
+            records_added=0,
+            records_updated=0,
+            records_removed=0,
+            errors=["Test error"],
+            duration_seconds=1.0,
         )
 
         scheduler.update_manager = AsyncMock()

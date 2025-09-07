@@ -9,7 +9,7 @@ Tests cover BMR/TDEE calculations using:
 """
 
 import pytest
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 
 from nutrition_core import (
@@ -43,13 +43,19 @@ class TestBMRMifflin:
 
     def test_validation_errors(self):
         """Test input validation."""
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(0, 170, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(70, 0, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive"
+        ):
             bmr_mifflin(70, 170, 0, "male")
 
         with pytest.raises(ValueError, match="Age must be realistic"):
@@ -59,7 +65,7 @@ class TestBMRMifflin:
         weight=st.floats(min_value=30, max_value=200),
         height=st.floats(min_value=120, max_value=250),
         age=st.integers(min_value=1, max_value=120),
-        sex=st.sampled_from(["male", "female"])
+        sex=st.sampled_from(["male", "female"]),
     )
     def test_mifflin_property_based(self, weight, height, age, sex):
         """Property-based test for Mifflin formula."""
@@ -77,21 +83,21 @@ class TestBMRHarris:
         # Test case: 30-year-old male, 70kg, 175cm
         # Expected: 66.5 + 13.75*70 + 5.003*175 - 6.755*30
         result = bmr_harris(70, 175, 30, "male")
-        expected = 66.5 + 13.75*70 + 5.003*175 - 6.755*30
+        expected = 66.5 + 13.75 * 70 + 5.003 * 175 - 6.755 * 30
         assert abs(result - round(expected, 1)) < 0.1
 
     def test_female_calculation(self):
         """Test BMR calculation for females using Harris-Benedict."""
         # Test case: 25-year-old female, 60kg, 165cm
         result = bmr_harris(60, 165, 25, "female")
-        expected = 655.1 + 9.563*60 + 1.850*165 - 4.676*25
+        expected = 655.1 + 9.563 * 60 + 1.850 * 165 - 4.676 * 25
         assert abs(result - round(expected, 1)) < 0.1
 
     @given(
         weight=st.floats(min_value=30, max_value=200),
         height=st.floats(min_value=120, max_value=250),
         age=st.integers(min_value=1, max_value=120),
-        sex=st.sampled_from(["male", "female"])
+        sex=st.sampled_from(["male", "female"]),
     )
     def test_harris_property_based(self, weight, height, age, sex):
         """Property-based test for Harris-Benedict formula."""
@@ -107,13 +113,19 @@ class TestBMRHarris:
 
     def test_harris_validation_errors(self):
         """Test Harris-Benedict input validation."""
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(0, 175, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(70, 0, 30, "male")
 
-        with pytest.raises(ValueError, match="Weight, height, and age must be positive values"):
+        with pytest.raises(
+            ValueError, match="Weight, height, and age must be positive values"
+        ):
             bmr_harris(70, 175, 0, "male")
 
 
@@ -133,15 +145,19 @@ class TestBMRKatch:
         with pytest.raises(ValueError, match="Weight must be a positive value"):
             bmr_katch(0, 15)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
+        with pytest.raises(
+            ValueError, match="Body fat percentage must be between 0 and 50"
+        ):
             bmr_katch(70, -5)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
+        with pytest.raises(
+            ValueError, match="Body fat percentage must be between 0 and 50"
+        ):
             bmr_katch(70, 60)
 
     @given(
         weight=st.floats(min_value=30, max_value=200),
-        bodyfat=st.floats(min_value=5, max_value=50)
+        bodyfat=st.floats(min_value=5, max_value=50),
     )
     def test_katch_property_based(self, weight, bodyfat):
         """Property-based test for Katch-McArdle formula."""
@@ -160,10 +176,10 @@ class TestTDEE:
 
         # Test all activity levels
         assert tdee(bmr, "sedentary") == 1800.0  # 1500 * 1.2
-        assert tdee(bmr, "light") == 2062.0      # 1500 * 1.375
-        assert tdee(bmr, "moderate") == 2325.0   # 1500 * 1.55
-        assert tdee(bmr, "active") == 2588.0     # 1500 * 1.725
-        assert tdee(bmr, "very_active") == 2850.0 # 1500 * 1.9
+        assert tdee(bmr, "light") == 2062.0  # 1500 * 1.375
+        assert tdee(bmr, "moderate") == 2325.0  # 1500 * 1.55
+        assert tdee(bmr, "active") == 2588.0  # 1500 * 1.725
+        assert tdee(bmr, "very_active") == 2850.0  # 1500 * 1.9
 
     def test_tdee_validation(self):
         """Test TDEE validation."""
@@ -175,7 +191,7 @@ class TestTDEE:
 
     @given(
         bmr=st.floats(min_value=800, max_value=4000),
-        activity=st.sampled_from(list(PAL.keys()))
+        activity=st.sampled_from(list(PAL.keys())),
     )
     def test_tdee_property_based(self, bmr, activity):
         """Property-based test for TDEE calculation."""
@@ -217,7 +233,7 @@ class TestCalculateAllBMR:
         height=st.floats(min_value=140, max_value=220),
         age=st.integers(min_value=18, max_value=80),
         sex=st.sampled_from(["male", "female"]),
-        bodyfat=st.one_of(st.none(), st.floats(min_value=5, max_value=40))
+        bodyfat=st.one_of(st.none(), st.floats(min_value=5, max_value=40)),
     )
     def test_calculate_all_bmr_property_based(self, weight, height, age, sex, bodyfat):
         """Property-based test for combined BMR calculation."""
@@ -249,8 +265,8 @@ class TestCalculateAllTDEE:
 
         # Check calculations
         assert tdee_results["mifflin"] == 2558.0  # 1650 * 1.55
-        assert tdee_results["harris"] == 2635.0   # 1700 * 1.55
-        assert tdee_results["katch"] == 2519.0    # 1625 * 1.55
+        assert tdee_results["harris"] == 2635.0  # 1700 * 1.55
+        assert tdee_results["katch"] == 2519.0  # 1625 * 1.55
 
 
 class TestActivityDescriptions:
@@ -375,7 +391,13 @@ class TestIntegration:
         very_active_tdee = tdee(bmr, "very_active")
 
         # Should be in ascending order
-        activity_levels = [sedentary_tdee, light_tdee, moderate_tdee, active_tdee, very_active_tdee]
+        activity_levels = [
+            sedentary_tdee,
+            light_tdee,
+            moderate_tdee,
+            active_tdee,
+            very_active_tdee,
+        ]
         assert activity_levels == sorted(activity_levels)
 
 

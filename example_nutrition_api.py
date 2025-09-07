@@ -20,7 +20,7 @@ def call_premium_bmr_api(
     bodyfat: Optional[float] = None,
     lang: str = "en",
     api_key: str = "test_key",
-    base_url: str = "http://localhost:8000"
+    base_url: str = "http://localhost:8000",
 ) -> Dict[str, Any]:
     """
     Call the Premium BMR API endpoint.
@@ -47,16 +47,13 @@ def call_premium_bmr_api(
         "age": age,
         "sex": sex,
         "activity": activity,
-        "lang": lang
+        "lang": lang,
     }
 
     if bodyfat is not None:
         payload["bodyfat"] = bodyfat
 
-    headers = {
-        "X-API-Key": api_key,
-        "Content-Type": "application/json"
-    }
+    headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
     response = requests.post(url, json=payload, headers=headers)
     response.raise_for_status()
@@ -81,15 +78,19 @@ def main():
             age=30,
             sex="male",
             activity="active",
-            lang="en"
+            lang="en",
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
         print(f"BMR (Harris): {result['bmr']['harris']} kcal/day")
         print(f"TDEE (Mifflin): {result['tdee']['mifflin']} kcal/day")
         print(f"Activity: {result['activity_description']}")
-        print(f"Maintenance calories: {result['recommended_intake']['maintenance']} kcal/day")
-        print(f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day")
+        print(
+            f"Maintenance calories: {result['recommended_intake']['maintenance']} kcal/day"
+        )
+        print(
+            f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day"
+        )
         print()
 
     except Exception as e:
@@ -108,7 +109,7 @@ def main():
             sex="female",
             activity="very_active",
             bodyfat=18,  # Athletic female body fat
-            lang="en"
+            lang="en",
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
@@ -132,12 +133,14 @@ def main():
             age=35,
             sex="male",
             activity="moderate",
-            lang="ru"
+            lang="ru",
         )
 
         print(f"Описание активности: {result['activity_description']}")
         print(f"Рекомендации: {result['recommended_intake']['description']}")
-        print(f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день")
+        print(
+            f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день"
+        )
         print()
 
     except Exception as e:
@@ -153,7 +156,7 @@ def main():
         "height_cm": 175,
         "age": 30,
         "sex": "male",
-        "lang": "en"
+        "lang": "en",
     }
 
     print("Activity Level    | TDEE (Mifflin)")
@@ -162,7 +165,7 @@ def main():
     for activity in activities:
         try:
             result = call_premium_bmr_api(activity=activity, **base_params)
-            tdee = result['tdee']['mifflin']
+            tdee = result["tdee"]["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
         except Exception as e:
             print(f"{activity:<15} | Error: {e}")

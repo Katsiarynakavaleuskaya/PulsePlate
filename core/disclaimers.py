@@ -50,7 +50,7 @@ MEDICAL_DISCLAIMER = {
         "Не вносите изменения в свой рацион, добавки или медицинское лечение "
         "основываясь только на этом приложении. Обратитесь за профессиональной "
         "медицинской консультацией перед принятием любых решений, связанных со здоровьем."
-    )
+    ),
 }
 
 # Special population disclaimers
@@ -72,7 +72,7 @@ SPECIAL_POPULATION_DISCLAIMERS = {
             "акушеркой или диетологом для персонализированных советов по питанию во "
             "время беременности. Некоторые питательные вещества и продукты могут быть "
             "вредными во время беременности - всегда проверяйте безопасность у своего врача."
-        )
+        ),
     },
     "children": {
         "en": (
@@ -90,7 +90,7 @@ SPECIAL_POPULATION_DISCLAIMERS = {
             "консультируйтесь с педиатрами, детскими диетологами или специалистами "
             "по детскому питанию. Модели роста, пищевые аллергии и потребности "
             "развития требуют профессиональной оценки."
-        )
+        ),
     },
     "elderly": {
         "en": (
@@ -108,7 +108,7 @@ SPECIAL_POPULATION_DISCLAIMERS = {
             "Консультируйтесь с гериатрами, диетологами или медицинскими работниками, "
             "знакомыми с питанием пожилых. Взаимодействие лекарств с пищей и "
             "медицинские состояния требуют профессиональной оценки."
-        )
+        ),
     },
     "athletes": {
         "en": (
@@ -127,8 +127,8 @@ SPECIAL_POPULATION_DISCLAIMERS = {
             "Консультируйтесь с сертифицированными спортивными нутрициологами, врачами "
             "спортивной медицины или диетологами со специализацией в спорте для "
             "персонализированных планов спортивного питания."
-        )
-    }
+        ),
+    },
 }
 
 # Legal disclaimer
@@ -148,10 +148,10 @@ LEGAL_DISCLAIMER = {
         "гарантий. Разработчики, участники и распространители этого приложения не "
         "несут ответственности за любые последствия для здоровья, ущерб или травмы, "
         "которые могут возникнуть в результате использования этого приложения или "
-        "следования его рекомендациям. Пользователи берут на себя полную ответственность "
-        "за свои решения о здоровье и должны обращаться за профессиональной медицинской "
-        "консультацией."
-    )
+        "следования его рекомендациям. Пользователи берут на себя полную "
+        "ответственность за свои решения о здоровье и должны обращаться за "
+        "профессиональной медицинской консультацией."
+    ),
 }
 
 # Data privacy disclaimer
@@ -171,12 +171,15 @@ PRIVACY_DISCLAIMER = {
         "и временно. Однако пользователи должны знать, что ввод личной медицинской "
         "информация несет неотъемлемые риски конфиденциальности. Вводите только "
         "информацию, которой вы готовы поделиться."
-    )
+    ),
 }
 
-def get_disclaimer_text(disclaimer_type: Literal["medical", "legal", "privacy"],
-                       special_population: str = None,
-                       language: Literal["en", "ru"] = "en") -> str:
+
+def get_disclaimer_text(
+    disclaimer_type: Literal["medical", "legal", "privacy"],
+    special_population: str = None,
+    language: Literal["en", "ru"] = "en",
+) -> str:
     """
     RU: Получить текст отказа от ответственности.
     EN: Get disclaimer text.
@@ -195,7 +198,9 @@ def get_disclaimer_text(disclaimer_type: Literal["medical", "legal", "privacy"],
         disclaimers.append(MEDICAL_DISCLAIMER[language])
 
         if special_population and special_population in SPECIAL_POPULATION_DISCLAIMERS:
-            disclaimers.append(SPECIAL_POPULATION_DISCLAIMERS[special_population][language])
+            disclaimers.append(
+                SPECIAL_POPULATION_DISCLAIMERS[special_population][language]
+            )
 
     elif disclaimer_type == "legal":
         disclaimers.append(LEGAL_DISCLAIMER[language])
@@ -205,8 +210,10 @@ def get_disclaimer_text(disclaimer_type: Literal["medical", "legal", "privacy"],
 
     return "\n\n".join(disclaimers)
 
-def get_comprehensive_disclaimer(special_populations: list = None,
-                               language: Literal["en", "ru"] = "en") -> str:
+
+def get_comprehensive_disclaimer(
+    special_populations: list = None, language: Literal["en", "ru"] = "en"
+) -> str:
     """
     RU: Получить полный отказ от ответственности.
     EN: Get comprehensive disclaimer.
@@ -214,7 +221,7 @@ def get_comprehensive_disclaimer(special_populations: list = None,
     disclaimers = [
         MEDICAL_DISCLAIMER[language],
         LEGAL_DISCLAIMER[language],
-        PRIVACY_DISCLAIMER[language]
+        PRIVACY_DISCLAIMER[language],
     ]
 
     if special_populations:
@@ -222,42 +229,57 @@ def get_comprehensive_disclaimer(special_populations: list = None,
             if population in SPECIAL_POPULATION_DISCLAIMERS:
                 disclaimers.append(SPECIAL_POPULATION_DISCLAIMERS[population][language])
 
-    return "\n\n" + "="*50 + "\n\n".join(disclaimers) + "\n" + "="*50
+    return "\n\n" + "=" * 50 + "\n\n".join(disclaimers) + "\n" + "=" * 50
+
 
 # Professional referral recommendations
 PROFESSIONAL_REFERRALS = {
     "general": {
         "en": "Consider consulting: Registered Dietitian, Primary Care Physician",
-        "ru": "Рассмотрите консультацию: Диетолог, Врач первичной медицинской помощи"
+        "ru": "Рассмотрите консультацию: Диетолог, Врач первичной медицинской помощи",
     },
     "weight_management": {
         "en": "Consider consulting: Registered Dietitian, Endocrinologist, Bariatric Specialist",
-        "ru": "Рассмотрите консультацию: Диетолог, Эндокринолог, Бариатрический специалист"
+        "ru": "Рассмотрите консультацию: Диетолог, Эндокринолог, Бариатрический специалист",
     },
     "sports": {
-        "en": "Consider consulting: Sports Nutritionist, Sports Medicine Physician, "
-              "Registered Dietitian",
-        "ru": "Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной "
-              "медицины, Диетолог"
+        "en": (
+            "Consider consulting: Sports Nutritionist, Sports Medicine Physician, "
+            "Registered Dietitian"
+        ),
+        "ru": (
+            "Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной "
+            "медицины, Диетолог"
+        ),
     },
     "pediatric": {
-        "en": "Consider consulting: Pediatrician, Pediatric Dietitian, "
-              "Child Development Specialist",
-        "ru": "Рассмотрите консультацию: Педиатр, Детский диетолог, "
-              "Специалист по развитию детей"
+        "en": (
+            "Consider consulting: Pediatrician, Pediatric Dietitian, "
+            "Child Development Specialist"
+        ),
+        "ru": "Рассмотрите консультацию: Педиатр, Детский диетолог, Специалист по развитию детей",
     },
     "pregnancy": {
-        "en": "Consider consulting: Obstetrician, Midwife, Prenatal Nutritionist, "
-              "Registered Dietitian",
-        "ru": "Рассмотрите консультацию: Акушер-гинеколог, Акушерка, "
-              "Пренатальный нутрициолог, Диетолог"
+        "en": (
+            "Consider consulting: Obstetrician, Midwife, Prenatal Nutritionist, "
+            "Registered Dietitian"
+        ),
+        "ru": (
+            "Рассмотрите консультацию: Акушер-гинеколог, Акушерка, Пренатальный "
+            "нутрициолог, Диетолог"
+        ),
     },
     "elderly": {
         "en": "Consider consulting: Geriatrician, Registered Dietitian, Primary Care Physician",
-        "ru": "Рассмотрите консультацию: Гериатр, Диетолог, Врач первичной медицинской помощи"
-    }
+        "ru": "Рассмотрите консультацию: Гериатр, Диетолог, Врач первичной медицинской помощи",
+    },
 }
 
-def get_professional_referral(category: str, language: Literal["en", "ru"] = "en") -> str:
+
+def get_professional_referral(
+    category: str, language: Literal["en", "ru"] = "en"
+) -> str:
     """Get professional referral recommendation."""
-    return PROFESSIONAL_REFERRALS.get(category, PROFESSIONAL_REFERRALS["general"])[language]
+    return PROFESSIONAL_REFERRALS.get(category, PROFESSIONAL_REFERRALS["general"])[
+        language
+    ]

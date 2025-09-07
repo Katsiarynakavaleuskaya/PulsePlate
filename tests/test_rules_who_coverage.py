@@ -52,26 +52,36 @@ class TestRulesWhoCoverage:
     def test_calculate_hydration_target_boundaries(self):
         """Test calculate_hydration_target with boundary values."""
         # Test minimum boundary
-        result = calculate_hydration_target(10, "sedentary")  # 300ml, should be capped at 1500
+        result = calculate_hydration_target(
+            10, "sedentary"
+        )  # 300ml, should be capped at 1500
         assert result == 1500
 
         # Test maximum boundary
-        result = calculate_hydration_target(200, "very_active", "hot")  # Should be capped at 4000
+        result = calculate_hydration_target(
+            200, "very_active", "hot"
+        )  # Should be capped at 4000
         assert result == 4000
 
     def test_validate_macro_distribution_edge_cases(self):
         """Test validate_macro_distribution with edge cases."""
         # Test valid combinations
-        assert validate_macro_distribution(20, 30, 50) is True   # Valid combination
-        assert validate_macro_distribution(15, 25, 60) is True   # Valid combination
+        assert validate_macro_distribution(20, 30, 50) is True  # Valid combination
+        assert validate_macro_distribution(15, 25, 60) is True  # Valid combination
 
         # Test exact boundaries (must sum to 100)
-        assert validate_macro_distribution(10, 25, 65) is True   # Exact minimums (10+25+65=100)
-        assert validate_macro_distribution(35, 35, 30) is False  # Carbs too low (30 < 45)
-        assert validate_macro_distribution(35, 35, 35) is False  # Sum not 100 (35+35+35=105)
+        assert (
+            validate_macro_distribution(10, 25, 65) is True
+        )  # Exact minimums (10+25+65=100)
+        assert (
+            validate_macro_distribution(35, 35, 30) is False
+        )  # Carbs too low (30 < 45)
+        assert (
+            validate_macro_distribution(35, 35, 35) is False
+        )  # Sum not 100 (35+35+35=105)
 
         # Test out of range values
-        assert validate_macro_distribution(9, 30, 61) is False   # Protein too low
+        assert validate_macro_distribution(9, 30, 61) is False  # Protein too low
         assert validate_macro_distribution(36, 30, 34) is False  # Protein too high
         assert validate_macro_distribution(20, 19, 61) is False  # Fat too low
         assert validate_macro_distribution(20, 36, 44) is False  # Fat too high
@@ -79,8 +89,10 @@ class TestRulesWhoCoverage:
         assert validate_macro_distribution(20, 20, 66) is False  # Carbs too high
 
         # Test sum not equal to 100 (within 2% tolerance)
-        assert validate_macro_distribution(20, 30, 50) is True   # Sum 100
-        assert validate_macro_distribution(35, 35, 35) is False  # Sum 105, outside tolerance
+        assert validate_macro_distribution(20, 30, 50) is True  # Sum 100
+        assert (
+            validate_macro_distribution(35, 35, 35) is False
+        )  # Sum 105, outside tolerance
 
     def test_get_fiber_target_various_calories(self):
         """Test get_fiber_target with various calorie values."""

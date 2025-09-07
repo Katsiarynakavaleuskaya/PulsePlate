@@ -14,6 +14,7 @@ try:
     from providers.grok import GrokProvider  # xAI
 except Exception:
     GrokProvider = None  # type: ignore
+
     # Lightweight fallback so tests can run without external deps
     class GrokLiteProvider:  # type: ignore
         name = "grok"
@@ -23,6 +24,7 @@ except Exception:
 
         async def generate(self, text: str) -> str:
             return f"[grok-lite] {text}"
+
 
 try:
     from providers.ollama import OllamaProvider  # локальные/совместимые
@@ -73,12 +75,7 @@ def get_provider():
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
         timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
-        return OllamaProvider(
-            endpoint=endpoint,
-            model=model,
-            timeout_s=timeout_s
-        )
+        return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
 
     # неизвестное значение — считаем, что провайдера нет
     return None
-

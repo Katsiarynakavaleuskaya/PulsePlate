@@ -61,41 +61,38 @@ class TestCorePlateLogic:
         # Test weight loss macros (higher protein)
         macros = _macros_by_rules(weight, kcal, "loss")
         assert macros["protein_g"] >= 126  # At least 1.8g/kg
-        assert macros["fat_g"] == 56      # 0.8g/kg
+        assert macros["fat_g"] == 56  # 0.8g/kg
         assert macros["carbs_g"] >= 0
         assert macros["fiber_g"] in [25, 30]
 
         # Test maintenance macros
         macros = _macros_by_rules(weight, kcal, "maintain")
         assert macros["protein_g"] == 119  # 1.7g/kg
-        assert macros["fat_g"] == 63       # 0.9g/kg
+        assert macros["fat_g"] == 63  # 0.9g/kg
         assert macros["carbs_g"] >= 0
 
         # Test weight gain macros
         macros = _macros_by_rules(weight, kcal, "gain")
         assert macros["protein_g"] == 112  # 1.6g/kg
-        assert macros["fat_g"] == 70       # 1.0g/kg
+        assert macros["fat_g"] == 70  # 1.0g/kg
         assert macros["carbs_g"] >= 0
 
         # Verify calorie consistency (approximately)
-        total_kcal = (macros["protein_g"] * 4) + (macros["fat_g"] * 9) + (macros["carbs_g"] * 4)
+        total_kcal = (
+            (macros["protein_g"] * 4) + (macros["fat_g"] * 9) + (macros["carbs_g"] * 4)
+        )
         assert abs(total_kcal - kcal) <= 20  # Allow small rounding differences
 
     def test_portions_from_macros(self):
         """Test conversion of macros to hand/cup portions."""
-        macros = {
-            "protein_g": 120,
-            "fat_g": 60,
-            "carbs_g": 200,
-            "fiber_g": 30
-        }
+        macros = {"protein_g": 120, "fat_g": 60, "carbs_g": 200, "fiber_g": 30}
 
         portions = _portions_from_macros(macros, meals_per_day=3)
 
         # Check portion calculations
         expected_protein_palm = 120 / (30 * 3)  # protein_g / (protein_palm_g * meals)
-        expected_fat_thumbs = 60 / (12 * 3)     # fat_g / (fat_thumb_g * meals)
-        expected_carb_cups = 200 / (40 * 3)     # carbs_g / (carb_cup_g * meals)
+        expected_fat_thumbs = 60 / (12 * 3)  # fat_g / (fat_thumb_g * meals)
+        expected_carb_cups = 200 / (40 * 3)  # carbs_g / (carb_cup_g * meals)
         expected_veg_cups = (30 * 10) / (80 * 3)  # (fiber_g * 10) / (veg_cup_g * meals)
 
         assert portions["protein_palm"] == round(expected_protein_palm, 1)
@@ -106,12 +103,7 @@ class TestCorePlateLogic:
 
     def test_visual_layout_structure(self):
         """Test visual layout generation."""
-        macros = {
-            "protein_g": 120,
-            "fat_g": 60,
-            "carbs_g": 200,
-            "fiber_g": 30
-        }
+        macros = {"protein_g": 120, "fat_g": 60, "carbs_g": 200, "fiber_g": 30}
 
         layout = _visual_layout(macros)
 
@@ -148,7 +140,7 @@ class TestCorePlateLogic:
             goal="maintain",
             deficit_pct=None,
             surplus_pct=None,
-            diet_flags=None
+            diet_flags=None,
         )
 
         # Check response structure
@@ -166,7 +158,13 @@ class TestCorePlateLogic:
 
         # Check portions
         portions = plate["portions"]
-        portion_keys = {"protein_palm", "fat_thumbs", "carb_cups", "veg_cups", "meals_per_day"}
+        portion_keys = {
+            "protein_palm",
+            "fat_thumbs",
+            "carb_cups",
+            "veg_cups",
+            "meals_per_day",
+        }
         assert portion_keys.issubset(set(portions.keys()))
 
         # Check layout
@@ -188,7 +186,7 @@ class TestCorePlateLogic:
             goal="maintain",
             deficit_pct=None,
             surplus_pct=None,
-            diet_flags={"VEG"}
+            diet_flags={"VEG"},
         )
 
         meals_text = " ".join([meal["title"] for meal in plate_veg["meals"]])
@@ -201,7 +199,7 @@ class TestCorePlateLogic:
             goal="maintain",
             deficit_pct=None,
             surplus_pct=None,
-            diet_flags={"GF"}
+            diet_flags={"GF"},
         )
 
         meals_text = " ".join([meal["title"] for meal in plate_gf["meals"]])
@@ -214,7 +212,7 @@ class TestCorePlateLogic:
             goal="maintain",
             deficit_pct=None,
             surplus_pct=None,
-            diet_flags={"LOW_COST"}
+            diet_flags={"LOW_COST"},
         )
 
         meals_text = " ".join([meal["title"] for meal in plate_budget["meals"]])
@@ -222,27 +220,31 @@ class TestCorePlateLogic:
 
     def test_plate_goal_consistency(self):
         """Test different goals produce consistent results."""
-        base_params = {
-            "weight_kg": 70,
-            "tdee_val": 2000,
-            "diet_flags": None
-        }
+        base_params = {"weight_kg": 70, "tdee_val": 2000, "diet_flags": None}
 
         # Test loss goal
-        plate_loss = make_plate(goal="loss", deficit_pct=15, surplus_pct=None, **base_params)
+        plate_loss = make_plate(
+            goal="loss", deficit_pct=15, surplus_pct=None, **base_params
+        )
         assert plate_loss["kcal"] < 2000  # Should be below TDEE
 
         # Test maintain goal
-        plate_maintain = make_plate(goal="maintain", deficit_pct=None, surplus_pct=None, **base_params)
+        plate_maintain = make_plate(
+            goal="maintain", deficit_pct=None, surplus_pct=None, **base_params
+        )
         assert plate_maintain["kcal"] == 2000  # Should equal TDEE
 
         # Test gain goal
-        plate_gain = make_plate(goal="gain", deficit_pct=None, surplus_pct=12, **base_params)
+        plate_gain = make_plate(
+            goal="gain", deficit_pct=None, surplus_pct=12, **base_params
+        )
         assert plate_gain["kcal"] > 2000  # Should be above TDEE
 
         # Loss should have relatively more protein
         loss_protein_ratio = plate_loss["macros"]["protein_g"] / plate_loss["kcal"]
-        maintain_protein_ratio = plate_maintain["macros"]["protein_g"] / plate_maintain["kcal"]
+        maintain_protein_ratio = (
+            plate_maintain["macros"]["protein_g"] / plate_maintain["kcal"]
+        )
         assert loss_protein_ratio >= maintain_protein_ratio
 
     def test_edge_cases(self):
@@ -254,7 +256,7 @@ class TestCorePlateLogic:
             goal="loss",
             deficit_pct=20,
             surplus_pct=None,
-            diet_flags=None
+            diet_flags=None,
         )
         assert plate_low["kcal"] >= 1200  # Should enforce minimum
 
@@ -265,13 +267,15 @@ class TestCorePlateLogic:
             goal="gain",
             deficit_pct=None,
             surplus_pct=15,
-            diet_flags=None
+            diet_flags=None,
         )
         assert plate_high["kcal"] > 4000
 
         # Test zero macros scenario (should not crash)
         try:
-            layout = _visual_layout({"protein_g": 0, "fat_g": 0, "carbs_g": 0, "fiber_g": 0})
+            layout = _visual_layout(
+                {"protein_g": 0, "fat_g": 0, "carbs_g": 0, "fiber_g": 0}
+            )
             assert len(layout) == 6  # Should still return proper layout
         except ZeroDivisionError:
             pytest.fail("Visual layout should handle zero macros gracefully")
@@ -284,7 +288,7 @@ class TestCorePlateLogic:
             goal="maintain",
             deficit_pct=None,
             surplus_pct=None,
-            diet_flags={"VEG", "GF", "LOW_COST"}
+            diet_flags={"VEG", "GF", "LOW_COST"},
         )
 
         meals_text = " ".join([meal["title"] for meal in plate["meals"]])

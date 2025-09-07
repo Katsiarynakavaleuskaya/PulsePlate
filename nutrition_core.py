@@ -20,11 +20,11 @@ ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active
 
 # Physical Activity Level (PAL) factors
 PAL: Dict[str, float] = {
-    "sedentary": 1.2,      # Little to no exercise
-    "light": 1.375,        # Light exercise 1-3 days/week
-    "moderate": 1.55,      # Moderate exercise 3-5 days/week
-    "active": 1.725,       # Heavy exercise 6-7 days/week
-    "very_active": 1.9,    # Very heavy exercise, physical job, or training twice a day
+    "sedentary": 1.2,  # Little to no exercise
+    "light": 1.375,  # Light exercise 1-3 days/week
+    "moderate": 1.55,  # Moderate exercise 3-5 days/week
+    "active": 1.725,  # Heavy exercise 6-7 days/week
+    "very_active": 1.9,  # Very heavy exercise, physical job, or training twice a day
 }
 
 
@@ -142,8 +142,13 @@ def tdee(bmr: float, activity: ActivityLevel) -> float:
     return round(tdee_value, 0)
 
 
-def calculate_all_bmr(weight: float, height: float, age: int, sex: Sex,
-                     bodyfat_percent: Union[float, None] = None) -> Dict[str, float]:
+def calculate_all_bmr(
+    weight: float,
+    height: float,
+    age: int,
+    sex: Sex,
+    bodyfat_percent: Union[float, None] = None,
+) -> Dict[str, float]:
     """
     Calculate BMR using all available formulas.
 
@@ -168,7 +173,9 @@ def calculate_all_bmr(weight: float, height: float, age: int, sex: Sex,
     return results
 
 
-def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -> Dict[str, float]:
+def calculate_all_tdee(
+    bmr_results: Dict[str, float], activity: ActivityLevel
+) -> Dict[str, float]:
     """
     Calculate TDEE for all BMR formulas.
 
@@ -179,7 +186,9 @@ def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -
     Returns:
         Dictionary with TDEE values for each formula
     """
-    return {formula: tdee(bmr_value, activity) for formula, bmr_value in bmr_results.items()}
+    return {
+        formula: tdee(bmr_value, activity) for formula, bmr_value in bmr_results.items()
+    }
 
 
 def get_activity_descriptions() -> Dict[str, str]:
@@ -194,5 +203,5 @@ def get_activity_descriptions() -> Dict[str, str]:
         "light": "Light exercise 1-3 days/week",
         "moderate": "Moderate exercise 3-5 days/week",
         "active": "Heavy exercise 6-7 days/week",
-        "very_active": "Very heavy exercise, physical job, or training twice a day"
+        "very_active": "Very heavy exercise, physical job, or training twice a day",
     }

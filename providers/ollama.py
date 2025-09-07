@@ -82,7 +82,7 @@ class OllamaProvider(ProviderBase):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type(RuntimeError),
-        reraise=True
+        reraise=True,
     )
     async def generate(self, text: str) -> str:
         try:
@@ -95,14 +95,9 @@ class OllamaProvider(ProviderBase):
                 msg = await self._generate(c, text)
                 if msg:
                     return msg
-        except (
-            httpx.RequestError,
-            httpx.HTTPStatusError,
-            httpx.TimeoutException
-        ) as e:
+        except (httpx.RequestError, httpx.HTTPStatusError, httpx.TimeoutException) as e:
             # конвертируем сетевую ошибку в контролируемую
             raise RuntimeError("ollama_unavailable") from e
 
         # если сервер ответил нестандартно или пусто — считаем, что недоступен
         raise RuntimeError("ollama_unavailable")
-

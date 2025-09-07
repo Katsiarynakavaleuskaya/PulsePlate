@@ -3,7 +3,7 @@ Ultimate targeted tests to boost coverage to exactly 97%+.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,13 +27,17 @@ class TestUltimateCoverageBoost:
     def test_unified_db_py_remaining_lines(self):
         """Test remaining uncovered lines in unified_db.py."""
         # Test get_common_foods_database with cache file error
-        with patch('core.food_apis.unified_db.open', side_effect=Exception("File error")):
+        with patch(
+            "core.food_apis.unified_db.open", side_effect=Exception("File error")
+        ):
             from core.food_apis.unified_db import UnifiedFoodDatabase
+
             db = UnifiedFoodDatabase()
             # Should not crash, just log error and continue
 
         # Test search_food with prefer_source other than usda
         from core.food_apis.unified_db import UnifiedFoodDatabase
+
         db = UnifiedFoodDatabase()
         # Access the _memory_cache attribute properly
         _ = db._memory_cache
@@ -42,11 +46,15 @@ class TestUltimateCoverageBoost:
     def test_update_manager_py_remaining_lines(self):
         """Test remaining uncovered lines in update_manager.py."""
         # Test _create_backup with file error
-        with patch('core.food_apis.update_manager.open', side_effect=Exception("File error")):
+        with patch(
+            "core.food_apis.update_manager.open", side_effect=Exception("File error")
+        ):
             from core.food_apis.update_manager import DatabaseUpdateManager
+
             manager = DatabaseUpdateManager()
             # Test with async function properly
             import asyncio
+
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -57,11 +65,15 @@ class TestUltimateCoverageBoost:
                 pass
 
         # Test _load_backup with file error
-        with patch('core.food_apis.update_manager.open', side_effect=Exception("File error")):
+        with patch(
+            "core.food_apis.update_manager.open", side_effect=Exception("File error")
+        ):
             from core.food_apis.update_manager import DatabaseUpdateManager
+
             manager = DatabaseUpdateManager()
             # Test with async function properly
             import asyncio
+
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -75,9 +87,10 @@ class TestUltimateCoverageBoost:
         """Test remaining uncovered lines in menu_engine.py."""
         # Test _calculate_weekly_coverage_simple
         from core.menu_engine import _calculate_weekly_coverage_simple
+
         daily_coverages = [
             {"protein_g": {"coverage_percent": 80.0}},
-            {"protein_g": {"coverage_percent": 90.0}}
+            {"protein_g": {"coverage_percent": 90.0}},
         ]
         result = _calculate_weekly_coverage_simple(daily_coverages)
         assert isinstance(result, dict)
@@ -87,8 +100,11 @@ class TestUltimateCoverageBoost:
         # Test sports nutrition functions - check what's actually available
         try:
             import core.sports_nutrition
+
             # Try to access functions that are actually in the module
-            attrs = [attr for attr in dir(core.sports_nutrition) if not attr.startswith('_')]
+            attrs = [
+                attr for attr in dir(core.sports_nutrition) if not attr.startswith("_")
+            ]
             # Just access the module to increase coverage
             assert len(attrs) >= 0
         except Exception:
@@ -108,7 +124,7 @@ class TestUltimateCoverageBoost:
             height_cm=180.0,
             weight_kg=80.0,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Create targets with normal values - fix the constructor
@@ -120,7 +136,7 @@ class TestUltimateCoverageBoost:
             water_ml_daily=2500,
             activity=MagicMock(),
             calculation_date="2023-01-01",
-            calculated_for=user_profile  # Pass the UserProfile object
+            calculated_for=user_profile,  # Pass the UserProfile object
         )
 
         result = validate_targets_safety(targets)

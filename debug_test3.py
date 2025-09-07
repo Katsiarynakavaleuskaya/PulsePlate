@@ -19,12 +19,15 @@ def test_debug_visualization():
         "pregnant": "yes",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
     # Mock both generate_bmi_visualization and MATPLOTLIB_AVAILABLE
-    with patch('app.generate_bmi_visualization', return_value={"available": True, "chart": "test_chart"}):
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+    with patch(
+        "app.generate_bmi_visualization",
+        return_value={"available": True, "chart": "test_chart"},
+    ):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             response = client.post("/bmi", json=data)
             print("Status code:", response.status_code)
             print("Response JSON:", response.json())
@@ -35,6 +38,7 @@ def test_debug_visualization():
                 print("Visualization value:", result["visualization"])
             else:
                 print("Visualization key not found!")
+
 
 if __name__ == "__main__":
     test_debug_visualization()

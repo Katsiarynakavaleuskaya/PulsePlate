@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Edge-тесты для доведения покрытия до ~100%."""
 
-import pytest
-
 from bmi_core import (
     auto_group,
     bmi_category,
@@ -58,17 +56,26 @@ def test_estimate_level_beginner_en():
 def test_healthy_bmi_range_athlete_premium_raise():
     bmin, bmax = healthy_bmi_range(30, "athlete", premium=True)
     assert bmin == 18.5
-    assert bmax >= 27.0  # спорт-мод повышает верхнюю границу
+    assert bmax >= 27.0  # спорт-мод повышает верхнюю граница
 
 
 def test_premium_plan_maintain_has_none_weeks():
     height = 1.75
-    # Подберём вес в «здоровом» диапазоне, чтобы action=maintain и est_weeks=(None, None)
+    # Подберём вес в «здорового» диапазоне, чтобы action=maintain и
+    # est_weeks=(None, None)
     bmin, bmax = healthy_bmi_range(30, "general", premium=False)
     wmin = round(bmin * height * height, 1)
     wmax = round(bmax * height * height, 1)
     weight = (wmin + wmax) / 2
     bmi = bmi_value(weight, height)
-    plan = build_premium_plan(30, weight, height, bmi, "en", "general", False)
+    plan = build_premium_plan(
+        30,
+        weight,
+        height,
+        bmi,
+        "en",
+        "general",
+        False,
+    )
     assert plan["action"] == "maintain"
     assert plan["est_weeks"] == (None, None)

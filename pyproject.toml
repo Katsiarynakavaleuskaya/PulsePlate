@@ -1,26 +1,20 @@
-[tool.pytest.ini_options]
-pythonpath = "."
-addopts = "-q"
-asyncio_mode = "auto"
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
+# Базовые наборы правил (pycodestyle/pyflakes/isort)
 select = ["E", "F", "W", "I"]
 
-[tool.ruff.lint.isort]
-known-first-party = ["app", "bmi_core", "providers"]
-known-third-party = ["hypothesis"]
-
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["E402", "F401", "F811", "E501"]
-"tests_strict/**/*.py" = ["E402", "F401", "F811", "E501"]
-"app.py" = ["E501", "E701", "E402"]
-"bmi_core.py" = ["E501", "E701"]
-"bodyfat.py" = ["E501"]
-"providers/ollama.py" = ["E501"]
-"providers/pico.py" = ["E501"]
-"debug_*.py" = ["E402", "E501"]
-"reproduce_issue.py" = ["E402", "E501"]
+# В тестах часто встречается импорт внутри тест-функций: игнорируем E402.
+"tests/**.py" = ["E402"]
+# В app.py допускаем «поздние» импорты (если они действительно нужны):
+"app.py" = ["E402"]
+# В строгих тестах тоже допускаем поздние импорты:
+"tests_strict/*.py" = ["E402"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = "-q"
+asyncio_mode = "auto"

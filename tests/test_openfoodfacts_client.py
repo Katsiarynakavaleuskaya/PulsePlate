@@ -37,7 +37,7 @@ class TestOFFClient:
             countries=["France", "World"],
             packaging=["Plastic"],
             image_url="https://example.com/image.jpg",
-            last_modified_t=1640995200
+            last_modified_t=1640995200,
         )
 
         # Test tag generation
@@ -65,7 +65,7 @@ class TestOFFClient:
             countries=["USA", "World"],
             packaging=["Tub"],
             image_url="https://example.com/image2.jpg",
-            last_modified_t=1640995200
+            last_modified_t=1640995200,
         )
 
         # Test tag generation
@@ -80,14 +80,19 @@ class TestOFFClient:
             code="987654321",
             product_name="Gluten Free Bread",
             categories=["Bakery"],
-            nutrients_per_100g={"protein_g": 8.0, "fat_g": 3.0, "carbs_g": 45.0, "fiber_g": 6.0},
+            nutrients_per_100g={
+                "protein_g": 8.0,
+                "fat_g": 3.0,
+                "carbs_g": 45.0,
+                "fiber_g": 6.0,
+            },
             ingredients_text="Rice flour, water, yeast",
             brands="GlutenFree Co",
             labels=["Gluten Free"],
             countries=["USA", "Canada"],
             packaging=["Bag"],
             image_url="https://example.com/image3.jpg",
-            last_modified_t=1640995200
+            last_modified_t=1640995200,
         )
 
         # Test tag generation
@@ -118,11 +123,11 @@ class TestOFFClient:
                 "proteins_100g": 10.0,
                 "fat_100g": 5.0,
                 "carbohydrates_100g": 20.0,
-                "energy-kcal_100g": 150.0
+                "energy-kcal_100g": 150.0,
             },
             "categories": "Snacks, Sweets",
             "labels": "Organic, Vegan",
-            "countries": "France, World"
+            "countries": "France, World",
         }
 
         # Test parsing
@@ -162,9 +167,7 @@ class TestOFFClient:
         sample_data = {
             "code": "123456789",
             "product_name": "",  # Empty name
-            "nutriments": {
-                "proteins_100g": 10.0
-            }
+            "nutriments": {"proteins_100g": 10.0},
         }
 
         # Should return None for invalid data
@@ -185,7 +188,7 @@ class TestOFFClient:
                 "calcium_100g": 120.0,
                 "iron_100g": 2.5,
                 "vitamin-c_100g": 45.0,
-                "fiber_100g": 8.5
+                "fiber_100g": 8.5,
             },
             "categories": "Health Foods, Supplements",
             "labels": "Organic, Non-GMO",
@@ -194,7 +197,7 @@ class TestOFFClient:
             "brands": "HealthFirst",
             "packaging": "Bottle, Recyclable",
             "image_url": "https://example.com/complex.jpg",
-            "last_modified_t": 1640995200
+            "last_modified_t": 1640995200,
         }
 
         # Test parsing
@@ -234,7 +237,7 @@ class TestOFFClient:
             countries=["World"],
             packaging=[],
             image_url=None,
-            last_modified_t=0
+            last_modified_t=0,
         )
 
         tags = item._generate_tags()
@@ -249,19 +252,21 @@ class TestOFFClient:
     async def test_search_products_success(self):
         """Test search products functionality with successful response."""
         # Mock the HTTP client
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             # Mock response
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(return_value={
-                "products": [
-                    {
-                        "code": "12345",
-                        "product_name": "Test Product",
-                        "nutriments": {"proteins_100g": 10.0}
-                    }
-                ]
-            })
+            mock_response.json = AsyncMock(
+                return_value={
+                    "products": [
+                        {
+                            "code": "12345",
+                            "product_name": "Test Product",
+                            "nutriments": {"proteins_100g": 10.0},
+                        }
+                    ]
+                }
+            )
             mock_get.return_value = mock_response
 
             # Test search
@@ -274,7 +279,7 @@ class TestOFFClient:
     async def test_search_products_error(self):
         """Test search products functionality with error response."""
         # Mock the HTTP client to raise an exception
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = Exception("Network error")
 
             # Test search
@@ -285,18 +290,20 @@ class TestOFFClient:
     async def test_get_product_details_success(self):
         """Test get product details functionality with successful response."""
         # Mock the HTTP client
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             # Mock response
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(return_value={
-                "status": 1,
-                "product": {
-                    "code": "12345",
-                    "product_name": "Test Product",
-                    "nutriments": {"proteins_100g": 10.0}
+            mock_response.json = AsyncMock(
+                return_value={
+                    "status": 1,
+                    "product": {
+                        "code": "12345",
+                        "product_name": "Test Product",
+                        "nutriments": {"proteins_100g": 10.0},
+                    },
                 }
-            })
+            )
             mock_get.return_value = mock_response
 
             # Test get product details
@@ -309,13 +316,13 @@ class TestOFFClient:
     async def test_get_product_details_not_found(self):
         """Test get product details when product not found."""
         # Mock the HTTP client
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             # Mock response for not found
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(return_value={
-                "status": 0  # Product not found
-            })
+            mock_response.json = AsyncMock(
+                return_value={"status": 0}  # Product not found
+            )
             mock_get.return_value = mock_response
 
             # Test get product details
@@ -326,7 +333,7 @@ class TestOFFClient:
     async def test_get_product_details_error(self):
         """Test get product details functionality with error response."""
         # Mock the HTTP client to raise an exception
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = Exception("Network error")
 
             # Test get product details
@@ -337,7 +344,7 @@ class TestOFFClient:
     async def test_get_multiple_products(self):
         """Test get multiple products functionality."""
         # Mock the get_product_details method
-        with patch.object(self.client, 'get_product_details') as mock_get_details:
+        with patch.object(self.client, "get_product_details") as mock_get_details:
             # Mock responses
             mock_get_details.side_effect = [
                 OFFFoodItem(
@@ -351,7 +358,7 @@ class TestOFFClient:
                     countries=["World"],
                     packaging=[],
                     image_url=None,
-                    last_modified_t=0
+                    last_modified_t=0,
                 ),
                 OFFFoodItem(
                     code="2",
@@ -364,8 +371,8 @@ class TestOFFClient:
                     countries=["World"],
                     packaging=[],
                     image_url=None,
-                    last_modified_t=0
-                )
+                    last_modified_t=0,
+                ),
             ]
 
             # Test get multiple products
@@ -378,7 +385,7 @@ class TestOFFClient:
     async def test_close_client(self):
         """Test closing the HTTP client."""
         # Mock the HTTP client
-        with patch.object(self.client.client, 'aclose') as mock_aclose:
+        with patch.object(self.client.client, "aclose") as mock_aclose:
             # Test close
             await self.client.close()
             mock_aclose.assert_called_once()
@@ -389,7 +396,7 @@ class TestOFFClient:
         invalid_data = {
             "code": "12345",
             "product_name": "Test Product",
-            "nutriments": "invalid_data"  # This should cause an exception
+            "nutriments": "invalid_data",  # This should cause an exception
         }
 
         # Should return None when an exception occurs

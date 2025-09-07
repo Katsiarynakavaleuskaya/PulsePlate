@@ -22,6 +22,7 @@ from .usda_client import USDAClient, USDAFoodItem
 # Try to import Open Food Facts client
 try:
     from .openfoodfacts_client import OFFClient, OFFFoodItem
+
     OFF_AVAILABLE = True
 except ImportError:
     OFFClient = None
@@ -37,6 +38,7 @@ class UnifiedFoodItem:
     RU: Унифицированный элемент продукта из различных источников.
     EN: Unified food item from different sources.
     """
+
     name: str
     nutrients_per_100g: Dict[str, float]
     cost_per_100g: float
@@ -48,10 +50,8 @@ class UnifiedFoodItem:
 
     @classmethod
     def from_usda_item(
-        cls,
-        usda_item: USDAFoodItem,
-        estimated_cost: float = 1.0
-    ) -> 'UnifiedFoodItem':
+        cls, usda_item: USDAFoodItem, estimated_cost: float = 1.0
+    ) -> "UnifiedFoodItem":
         """Convert USDA item to unified format."""
         return cls(
             name=usda_item.description,
@@ -61,15 +61,13 @@ class UnifiedFoodItem:
             availability_regions=["US", "BY", "RU"],  # Assume global availability
             source="USDA FoodData Central",
             source_id=str(usda_item.fdc_id),
-            category=usda_item.food_category
+            category=usda_item.food_category,
         )
 
     @classmethod
     def from_off_item(
-        cls,
-        off_item: OFFFoodItem,
-        estimated_cost: float = 1.5
-    ) -> 'UnifiedFoodItem':
+        cls, off_item: OFFFoodItem, estimated_cost: float = 1.5
+    ) -> "UnifiedFoodItem":
         """Convert Open Food Facts item to unified format."""
         return cls(
             name=off_item.product_name,
@@ -79,7 +77,7 @@ class UnifiedFoodItem:
             availability_regions=off_item.countries,
             source="Open Food Facts",
             source_id=off_item.code,
-            category=off_item.categories[0] if off_item.categories else None
+            category=off_item.categories[0] if off_item.categories else None,
         )
 
     def to_menu_engine_format(self) -> Dict[str, Any]:
@@ -92,7 +90,7 @@ class UnifiedFoodItem:
             "availability_regions": self.availability_regions,
             "source": self.source,
             "source_id": self.source_id,
-            "category": self.category
+            "category": self.category,
         }
 
 
@@ -123,7 +121,7 @@ class UnifiedFoodDatabase:
         cache_file = self._get_cache_file()
         if cache_file.exists():
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
 
                 for key, item_data in cache_data.items():
@@ -136,18 +134,18 @@ class UnifiedFoodDatabase:
     def _save_cache(self):
         """Save cached food items to disk."""
         try:
-            cache_data = {
-                key: asdict(item) for key, item in self._memory_cache.items()
-            }
+            cache_data = {key: asdict(item) for key, item in self._memory_cache.items()}
 
-            with open(self._get_cache_file(), 'w', encoding='utf-8') as f:
+            with open(self._get_cache_file(), "w", encoding="utf-8") as f:
                 json.dump(cache_data, f, indent=2, ensure_ascii=False)
 
             logger.info(f"Saved {len(cache_data)} items to cache")
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
-    async def search_food(self, query: str, prefer_source: str = "usda") -> List[UnifiedFoodItem]:
+    async def search_food(
+        self, query: str, prefer_source: str = "usda"
+    ) -> List[UnifiedFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search for foods by name.
@@ -196,7 +194,9 @@ class UnifiedFoodDatabase:
 
         return results
 
-    async def get_food_by_id(self, source: str, food_id: str) -> Optional[UnifiedFoodItem]:
+    async def get_food_by_id(
+        self, source: str, food_id: str
+    ) -> Optional[UnifiedFoodItem]:
         """
         RU: Получить продукт по ID источника.
         EN: Get food by source ID.
@@ -242,7 +242,7 @@ class UnifiedFoodDatabase:
 
         if cache_file.exists():
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
 
                 foods_db = {}
@@ -275,7 +275,7 @@ class UnifiedFoodDatabase:
             "olive_oil": "oil olive salad or cooking",
             "milk": "milk reduced fat fluid 2% milkfat",
             "carrots": "carrots raw",
-            "tomatoes": "tomatoes red ripe raw year round average"
+            "tomatoes": "tomatoes red ripe raw year round average",
         }
 
         foods_db = {}
@@ -298,7 +298,7 @@ class UnifiedFoodDatabase:
         # Save common foods cache
         try:
             cache_data = {key: asdict(item) for key, item in foods_db.items()}
-            with open(cache_file, 'w', encoding='utf-8') as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache_data, f, indent=2, ensure_ascii=False)
             logger.info(f"Saved {len(foods_db)} common foods to cache")
         except Exception as e:
@@ -328,7 +328,9 @@ async def get_unified_food_db() -> UnifiedFoodDatabase:
     return _unified_db_instance
 
 
-async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+async def search_foods_unified(
+    query: str, max_results: int = 5
+) -> List[Dict[str, Any]]:
     """
     RU: Упрощенная функция поиска продуктов для использования в menu_engine.
     EN: Simplified food search function for use in menu_engine.

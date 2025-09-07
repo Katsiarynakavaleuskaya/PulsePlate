@@ -21,11 +21,14 @@ def test_visualization_debug():
         "pregnant": "yes",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization', return_value={"available": True, "chart": "test_chart"}):
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+    with patch(
+        "app.generate_bmi_visualization",
+        return_value={"available": True, "chart": "test_chart"},
+    ):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             response = client.post("/bmi", json=data)
             print("Status code:", response.status_code)
             result = response.json()
@@ -46,11 +49,14 @@ def test_visualization_debug():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
-    with patch('app.generate_bmi_visualization', return_value={"available": True, "chart": "test_chart"}):
-        with patch('app.MATPLOTLIB_AVAILABLE', True):
+    with patch(
+        "app.generate_bmi_visualization",
+        return_value={"available": True, "chart": "test_chart"},
+    ):
+        with patch("app.MATPLOTLIB_AVAILABLE", True):
             response = client.post("/bmi", json=data)
             print("Status code:", response.status_code)
             result = response.json()
@@ -60,6 +66,7 @@ def test_visualization_debug():
                 print("Visualization value:", result["visualization"])
             else:
                 print("Missing visualization key!")
+
 
 if __name__ == "__main__":
     test_visualization_debug()

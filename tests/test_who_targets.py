@@ -32,7 +32,7 @@ class TestWHOTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -64,7 +64,7 @@ class TestWHOTargets:
             height_cm=180,
             weight_kg=80,
             activity="active",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -86,7 +86,7 @@ class TestWHOTargets:
             weight_kg=70,
             activity="moderate",
             goal="loss",
-            deficit_pct=20
+            deficit_pct=20,
         )
 
         targets = build_nutrition_targets(profile)
@@ -107,7 +107,7 @@ class TestWHOTargets:
             weight_kg=60,  # Underweight
             activity="moderate",
             goal="gain",
-            surplus_pct=15
+            surplus_pct=15,
         )
 
         targets = build_nutrition_targets(profile)
@@ -127,7 +127,7 @@ class TestWHOTargets:
             weight_kg=65,
             activity="light",
             goal="maintain",
-            life_stage="pregnant"
+            life_stage="pregnant",
         )
 
         targets = build_nutrition_targets(profile)
@@ -145,7 +145,7 @@ class TestWHOTargets:
             height_cm=160,
             weight_kg=55,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -166,7 +166,7 @@ class TestWHOTargets:
             weight_kg=70,
             activity="moderate",
             goal="maintain",
-            diet_flags={"VEG"}
+            diet_flags={"VEG"},
         )
 
         targets = build_nutrition_targets(profile)
@@ -184,7 +184,7 @@ class TestWHOTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -201,7 +201,7 @@ class TestWHOTargets:
             weight_kg=50,
             activity="sedentary",
             goal="loss",
-            deficit_pct=25
+            deficit_pct=25,
         )
 
         extreme_targets = build_nutrition_targets(extreme_profile)
@@ -278,7 +278,7 @@ class TestWHOTargets:
             height_cm=155,
             weight_kg=45,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(young_profile)
@@ -291,7 +291,7 @@ class TestWHOTargets:
             height_cm=170,
             weight_kg=65,
             activity="sedentary",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(old_profile)
@@ -305,7 +305,7 @@ class TestWHOTargets:
             height_cm=175,
             weight_kg=75,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Test all goals
@@ -314,7 +314,7 @@ class TestWHOTargets:
             "age": 30,
             "height_cm": 175,
             "weight_kg": 75,
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         maintain_profile = UserProfile(**base_data, goal="maintain")

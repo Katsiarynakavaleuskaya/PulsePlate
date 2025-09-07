@@ -11,7 +11,7 @@ def test_bmi_height_as_string_invalid():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": "170"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 422
 
@@ -20,7 +20,7 @@ def test_bmi_weight_as_string_invalid():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": "70", "height_cm": 170},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 422
 
@@ -29,7 +29,7 @@ def test_bmi_group_unknown_still_ok():
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "ALIEN"},
-        headers={"X-API-Key": "test_key"}
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()

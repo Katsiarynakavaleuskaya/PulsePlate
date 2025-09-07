@@ -18,17 +18,17 @@ def test_llm_import_error_handling():
     assert llm.PicoProvider is not None or llm.PicoProvider is None
 
     # Test get_provider with various values
-    with patch.dict(os.environ, {'LLM_PROVIDER': 'none'}):
+    with patch.dict(os.environ, {"LLM_PROVIDER": "none"}):
         provider = llm.get_provider()
         assert provider is None
 
-    with patch.dict(os.environ, {'LLM_PROVIDER': 'stub'}):
+    with patch.dict(os.environ, {"LLM_PROVIDER": "stub"}):
         provider = llm.get_provider()
         assert provider is not None
         assert provider.name == "stub"
 
     # Test unknown provider
-    with patch.dict(os.environ, {'LLM_PROVIDER': 'unknown_provider'}):
+    with patch.dict(os.environ, {"LLM_PROVIDER": "unknown_provider"}):
         provider = llm.get_provider()
         assert provider is None
 

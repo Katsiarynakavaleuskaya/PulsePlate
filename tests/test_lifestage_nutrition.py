@@ -26,7 +26,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=95,
             weight_kg=14,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -66,7 +66,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=125,
             weight_kg=25,
             activity="active",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -93,7 +93,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=160,
             weight_kg=50,
             activity="active",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -122,7 +122,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -154,7 +154,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=168,
             weight_kg=65,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -177,7 +177,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=170,
             weight_kg=70,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -202,7 +202,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=165,
             weight_kg=62,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -235,7 +235,7 @@ class TestLifeStageNutritionCalculator:
             height_cm=175,
             weight_kg=75,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = LifeStageNutritionCalculator.calculate_lifestage_targets(
@@ -269,15 +269,30 @@ class TestLifeStageDetection:
     def test_get_appropriate_lifestage(self):
         """Test automatic life stage detection based on age."""
         # Test child stages
-        assert LifeStageNutritionCalculator.get_appropriate_lifestage(3, "male") == LifeStage.CHILD_2_5
-        assert LifeStageNutritionCalculator.get_appropriate_lifestage(8, "female") == LifeStage.CHILD_6_11
-        assert LifeStageNutritionCalculator.get_appropriate_lifestage(15, "female") == LifeStage.ADOLESCENT_12_18
+        assert (
+            LifeStageNutritionCalculator.get_appropriate_lifestage(3, "male")
+            == LifeStage.CHILD_2_5
+        )
+        assert (
+            LifeStageNutritionCalculator.get_appropriate_lifestage(8, "female")
+            == LifeStage.CHILD_6_11
+        )
+        assert (
+            LifeStageNutritionCalculator.get_appropriate_lifestage(15, "female")
+            == LifeStage.ADOLESCENT_12_18
+        )
 
         # Test adult
-        assert LifeStageNutritionCalculator.get_appropriate_lifestage(30, "male") == LifeStage.ADULT
+        assert (
+            LifeStageNutritionCalculator.get_appropriate_lifestage(30, "male")
+            == LifeStage.ADULT
+        )
 
         # Test elderly
-        assert LifeStageNutritionCalculator.get_appropriate_lifestage(70, "female") == LifeStage.ELDERLY
+        assert (
+            LifeStageNutritionCalculator.get_appropriate_lifestage(70, "female")
+            == LifeStage.ELDERLY
+        )
 
     def test_pregnancy_detection(self):
         """Test pregnancy stage detection."""
@@ -326,7 +341,7 @@ class TestLifeStageIntegration:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Test pregnancy recommendations
@@ -350,13 +365,16 @@ class TestLifeStageIntegration:
             height_cm=80,
             weight_kg=10,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(profile)
 
         assert "error" in recommendations
-        assert "pediatrician" in recommendations["recommendation"] or "healthcare professional" in recommendations["recommendation"]
+        assert (
+            "pediatrician" in recommendations["recommendation"]
+            or "healthcare professional" in recommendations["recommendation"]
+        )
         assert recommendations["life_stage"] == "not_applicable"
 
     def test_elderly_recommendations(self):
@@ -367,7 +385,7 @@ class TestLifeStageIntegration:
             height_cm=160,
             weight_kg=65,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(profile)
@@ -394,7 +412,7 @@ class TestMedicalDisclaimers:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(
@@ -420,7 +438,7 @@ class TestMedicalDisclaimers:
             height_cm=110,
             weight_kg=18,
             activity="active",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(profile)
@@ -440,7 +458,7 @@ class TestMedicalDisclaimers:
             height_cm=170,
             weight_kg=70,
             activity="sedentary",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(profile)

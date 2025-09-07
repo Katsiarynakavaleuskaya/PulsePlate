@@ -8,7 +8,6 @@ EN: Tests for targets API endpoint.
 import os
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app import app
@@ -35,10 +34,12 @@ class TestTargetsAPI:
             "height_cm": 175,
             "weight_kg": 70,
             "activity": "moderate",
-            "goal": "maintain"
+            "goal": "maintain",
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -58,10 +59,12 @@ class TestTargetsAPI:
             "weight_kg": 60,
             "activity": "light",
             "goal": "loss",
-            "deficit_pct": 15
+            "deficit_pct": 15,
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -77,10 +80,12 @@ class TestTargetsAPI:
             "weight_kg": 75,
             "activity": "active",
             "goal": "gain",
-            "surplus_pct": 10
+            "surplus_pct": 10,
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -96,10 +101,12 @@ class TestTargetsAPI:
             "weight_kg": 65,
             "activity": "moderate",
             "goal": "maintain",
-            "diet_flags": ["VEG", "GF"]
+            "diet_flags": ["VEG", "GF"],
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -115,10 +122,12 @@ class TestTargetsAPI:
             "weight_kg": 65,
             "activity": "light",
             "goal": "maintain",
-            "life_stage": "pregnant"
+            "life_stage": "pregnant",
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -132,10 +141,12 @@ class TestTargetsAPI:
             "age": -5,  # Invalid age
             "height_cm": 175,
             "weight_kg": 70,
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
-        response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+        )
         # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
         assert response.status_code in [400, 422]
 
@@ -146,7 +157,7 @@ class TestTargetsAPI:
             "age": 30,
             "height_cm": 175,
             "weight_kg": 70,
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         response = self.client.post("/api/v1/premium/targets", json=data)
@@ -154,7 +165,7 @@ class TestTargetsAPI:
 
     def test_targets_endpoint_internal_error(self):
         """Test targets endpoint with internal error."""
-        with patch('app.build_nutrition_targets') as mock_build_targets:
+        with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = Exception("Test error")
 
             data = {
@@ -162,17 +173,19 @@ class TestTargetsAPI:
                 "age": 30,
                 "height_cm": 175,
                 "weight_kg": 70,
-                "activity": "moderate"
+                "activity": "moderate",
             }
 
-            response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+            response = self.client.post(
+                "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+            )
             assert response.status_code == 500
             data = response.json()
             assert "WHO targets calculation failed" in data["detail"]
 
     def test_targets_endpoint_value_error(self):
         """Test targets endpoint with value error."""
-        with patch('app.build_nutrition_targets') as mock_build_targets:
+        with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = ValueError("Invalid input")
 
             data = {
@@ -180,9 +193,11 @@ class TestTargetsAPI:
                 "age": 30,
                 "height_cm": 175,
                 "weight_kg": 70,
-                "activity": "moderate"
+                "activity": "moderate",
             }
 
-            response = self.client.post("/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"})
+            response = self.client.post(
+                "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
+            )
             # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
             assert response.status_code in [400, 422]

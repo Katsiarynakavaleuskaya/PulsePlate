@@ -100,7 +100,7 @@ class TestCoverageGaps:
         from app import calc_bmi
 
         result = calc_bmi(80.0, 1.80)
-        expected = round(80.0 / (1.80 ** 2), 1)
+        expected = round(80.0 / (1.80**2), 1)
         assert result == expected
 
     def test_model_normalization(self):
@@ -115,7 +115,7 @@ class TestCoverageGaps:
             "gender": "  FEMALE  ",
             "pregnant": "  YES  ",
             "athlete": "  NO  ",
-            "lang": "  EN  "
+            "lang": "  EN  ",
         }
 
         request = BMIRequest(**data)
@@ -127,6 +127,7 @@ class TestCoverageGaps:
     def test_middleware_coverage(self):
         """Test middleware to cover logging paths."""
         from app import app
+
         client = TestClient(app)
 
         # Make requests to trigger middleware
@@ -162,11 +163,15 @@ class TestCoverageGaps:
 
         # These may be None or actual functions - just check they exist
         assert get_bodyfat_router is not None or get_bodyfat_router is None
-        assert generate_bmi_visualization is not None or generate_bmi_visualization is None
+        assert (
+            generate_bmi_visualization is not None or generate_bmi_visualization is None
+        )
         assert isinstance(MATPLOTLIB_AVAILABLE, bool)
         assert calculate_all_bmr is not None or calculate_all_bmr is None
         assert calculate_all_tdee is not None or calculate_all_tdee is None
-        assert get_activity_descriptions is not None or get_activity_descriptions is None
+        assert (
+            get_activity_descriptions is not None or get_activity_descriptions is None
+        )
         assert isinstance(TYPE_CHECKING, bool)
         assert isinstance(slowapi_available, bool)
 
@@ -174,6 +179,7 @@ class TestCoverageGaps:
         import importlib
 
         import app
+
         importlib.reload(app)
 
 

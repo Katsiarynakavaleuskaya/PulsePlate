@@ -4,7 +4,7 @@ Quick Coverage Booster Tests
 Simple tests to improve coverage for main modules.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -25,7 +25,7 @@ class TestMenuEngineCoverage:
             height_cm=175,
             weight_kg=70,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Test with basic profile
@@ -33,7 +33,7 @@ class TestMenuEngineCoverage:
 
         # Should return a menu structure
         assert menu is not None
-        assert hasattr(menu, 'meals') or hasattr(menu, 'kcal') or isinstance(menu, dict)
+        assert hasattr(menu, "meals") or hasattr(menu, "kcal") or isinstance(menu, dict)
 
     def test_make_weekly_menu_basic(self):
         """Test basic weekly menu generation."""
@@ -44,7 +44,7 @@ class TestMenuEngineCoverage:
             weight_kg=60,
             activity="light",
             goal="loss",
-            deficit_pct=15
+            deficit_pct=15,
         )
 
         # Test basic weekly menu
@@ -52,7 +52,7 @@ class TestMenuEngineCoverage:
 
         # Should return weekly structure (WeekMenu object)
         assert weekly_menu is not None
-        assert hasattr(weekly_menu, 'daily_menus') or hasattr(weekly_menu, 'week_start')
+        assert hasattr(weekly_menu, "daily_menus") or hasattr(weekly_menu, "week_start")
 
     def test_analyze_nutrient_gaps_basic(self):
         """Test nutrient gap analysis."""
@@ -63,18 +63,15 @@ class TestMenuEngineCoverage:
             weight_kg=75,
             activity="active",
             goal="gain",
-            surplus_pct=10
+            surplus_pct=10,
         )
 
         # Mock food intake
-        food_intake = {
-            "chicken_breast": 100,
-            "brown_rice": 150,
-            "broccoli": 200
-        }
+        food_intake = {"chicken_breast": 100, "brown_rice": 150, "broccoli": 200}
 
         # Build targets first
         from core.recommendations import build_nutrition_targets
+
         targets = build_nutrition_targets(profile)
 
         gaps = analyze_nutrient_gaps(targets, food_intake)
@@ -95,7 +92,7 @@ class TestRecommendationsCoverage:
             height_cm=160,
             weight_kg=65,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(elderly_profile)
@@ -110,7 +107,7 @@ class TestRecommendationsCoverage:
             weight_kg=80,
             activity="very_active",
             goal="gain",
-            surplus_pct=15
+            surplus_pct=15,
         )
 
         athlete_targets = build_nutrition_targets(athlete_profile)
@@ -126,11 +123,7 @@ class TestRecommendationsCoverage:
         targets.micros.vitamin_c_mg = 90
 
         # Mock actual intake
-        actual = {
-            "iron_mg": 15,
-            "calcium_mg": 800,
-            "vitamin_c_mg": 100
-        }
+        actual = {"iron_mg": 15, "calcium_mg": 800, "vitamin_c_mg": 100}
 
         coverage_dict = score_nutrient_coverage(actual, targets)
 
@@ -138,7 +131,7 @@ class TestRecommendationsCoverage:
         assert isinstance(coverage_dict, dict)
         # Check some key nutrients are covered
         if "iron_mg" in coverage_dict:
-            assert hasattr(coverage_dict["iron_mg"], 'consumed_amount')
+            assert hasattr(coverage_dict["iron_mg"], "consumed_amount")
 
 
 class TestWHORulesBasics:
@@ -182,7 +175,7 @@ class TestTargetsBasics:
             height_cm=175,
             weight_kg=70,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         assert profile.sex == "male"
@@ -197,7 +190,7 @@ class TestTargetsBasics:
             weight_kg=55,
             activity="active",
             goal="loss",
-            deficit_pct=20
+            deficit_pct=20,
         )
 
         assert detailed_profile.deficit_pct == 20
@@ -212,7 +205,7 @@ class TestTargetsBasics:
             height_cm=155,
             weight_kg=55,
             activity="sedentary",
-            goal="maintain"
+            goal="maintain",
         )
 
         assert elderly.age == 80
@@ -225,7 +218,7 @@ class TestTargetsBasics:
             weight_kg=85,
             activity="very_active",
             goal="gain",
-            surplus_pct=12
+            surplus_pct=12,
         )
 
         assert young.activity == "very_active"
@@ -244,7 +237,7 @@ class TestErrorHandling:
                 height_cm=175,
                 weight_kg=70,
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
             # If no validation, at least profile should be created
             assert profile.age == -5
@@ -263,7 +256,7 @@ class TestErrorHandling:
                 height_cm=175,
                 weight_kg=70,
                 activity="moderate",
-                goal="maintain"
+                goal="maintain",
             )
 
             # Try to generate menu
@@ -288,7 +281,7 @@ class TestLifeStageIntegrationQuick:
             height_cm=175,
             weight_kg=70,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Adult should not have specific life stage recommendations
@@ -299,7 +292,7 @@ class TestLifeStageIntegrationQuick:
             height_cm=130,
             weight_kg=25,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         recommendations = get_lifestage_recommendations(child_profile)
@@ -315,7 +308,7 @@ class TestLifeStageIntegrationQuick:
             height_cm=75,
             weight_kg=10,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
 
         result = get_lifestage_recommendations(infant_profile)

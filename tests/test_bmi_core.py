@@ -2,18 +2,17 @@
 --sql
 
 ;
-"""# -*- coding: utf-8 -*-
+"""  # -*- coding: utf-8 -*-
+
 """Комплексные тесты для bmi_core с покрытием граничных случаев."""
 
-import math
 
 import pytest
 
-from bmi_core import (
+from bmi_core import (  # build_premium_plan присутствует в твоём исправленном коде
     auto_group,
     bmi_category,
     bmi_value,
-    # build_premium_plan присутствует в твоём исправленном коде
     build_premium_plan,
     compute_wht_ratio,
     estimate_level,
@@ -68,7 +67,7 @@ def test_bmi_category_edges_en():
 def test_auto_group_variants():
     assert auto_group(10, "муж", "нет", "нет", "ru") == "too_young"
     assert auto_group(12, "муж", "нет", "нет", "ru") == "child"  # Pre-teen
-    assert auto_group(16, "муж", "нет", "нет", "ru") == "teen"   # Teenager
+    assert auto_group(16, "муж", "нет", "нет", "ru") == "teen"  # Teenager
     assert auto_group(61, "муж", "нет", "нет", "ru") == "elderly"
     assert auto_group(30, "жен", "да", "нет", "ru") == "pregnant"
     assert auto_group(30, "жен", "нет", "спортсменка", "ru") == "athlete"

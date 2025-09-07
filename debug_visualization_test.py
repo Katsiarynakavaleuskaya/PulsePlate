@@ -22,14 +22,14 @@ def test_debug_visualization():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
     # Test 1: Normal case (should work)
     print("\n=== Test 1: Normal case ===")
-    with patch('app.generate_bmi_visualization') as mock_generate:
+    with patch("app.generate_bmi_visualization") as mock_generate:
         mock_generate.return_value = {"available": False}
-        with patch('app.MATPLOTLIB_AVAILABLE', False):
+        with patch("app.MATPLOTLIB_AVAILABLE", False):
             response = client.post("/bmi", json=data)
             print(f"Response status: {response.status_code}")
             result = response.json()
@@ -42,11 +42,11 @@ def test_debug_visualization():
     # Test 2: Simulate the interference case
     print("\n=== Test 2: Interference case ===")
     # First, patch generate_bmi_visualization to None (simulating interference)
-    with patch('app.generate_bmi_visualization', None):
+    with patch("app.generate_bmi_visualization", None):
         # Now try to patch it back to a mock (our test)
-        with patch('app.generate_bmi_visualization') as mock_generate:
+        with patch("app.generate_bmi_visualization") as mock_generate:
             mock_generate.return_value = {"available": False}
-            with patch('app.MATPLOTLIB_AVAILABLE', False):
+            with patch("app.MATPLOTLIB_AVAILABLE", False):
                 response = client.post("/bmi", json=data)
                 print(f"Response status: {response.status_code}")
                 result = response.json()

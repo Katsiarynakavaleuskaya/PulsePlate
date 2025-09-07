@@ -9,7 +9,6 @@ import os
 import tempfile
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,7 +25,10 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock signal.signal to raise an exception
-        with patch('core.food_apis.scheduler.signal.signal', side_effect=Exception("Test error")):
+        with patch(
+            "core.food_apis.scheduler.signal.signal",
+            side_effect=Exception("Test error"),
+        ):
             # Should not crash
             scheduler._setup_signal_handlers()
             # Should log warning (we can't easily test logging, but at least it shouldn't crash)
@@ -40,7 +42,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler.is_running = True
 
         # Mock datetime.now to return consistent values
-        with patch('core.food_apis.scheduler.datetime') as mock_datetime:
+        with patch("core.food_apis.scheduler.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
@@ -48,10 +50,14 @@ class TestDatabaseUpdateSchedulerComprehensive:
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 
             # Mock _run_update_check to raise CancelledError
-            scheduler._run_update_check = AsyncMock(side_effect=asyncio.CancelledError())
+            scheduler._run_update_check = AsyncMock(
+                side_effect=asyncio.CancelledError()
+            )
 
             # Mock asyncio.sleep to avoid waiting
-            with patch('core.food_apis.scheduler.asyncio.sleep', new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Should not crash
                 await scheduler._update_loop()
 
@@ -64,7 +70,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler.is_running = True
 
         # Mock datetime.now to return consistent values
-        with patch('core.food_apis.scheduler.datetime') as mock_datetime:
+        with patch("core.food_apis.scheduler.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
@@ -75,7 +81,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
             scheduler._run_update_check = AsyncMock(side_effect=Exception("Test error"))
 
             # Mock asyncio.sleep to control execution
-            with patch('core.food_apis.scheduler.asyncio.sleep', new_callable=AsyncMock):
+            with patch(
+                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
+            ):
                 # Create a task to run the loop
                 loop_task = asyncio.create_task(scheduler._update_loop())
 
@@ -97,7 +105,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should not crash
         await scheduler._run_update_check()
@@ -110,7 +120,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
+        scheduler.update_manager.update_database = AsyncMock(
+            side_effect=Exception("Test error")
+        )
 
         # Should handle the exception gracefully
         await scheduler._run_source_update("test_source")
@@ -157,7 +169,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
             records_updated=5,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
         # Should not crash
@@ -173,7 +185,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
             records_updated=0,
             records_removed=0,
             errors=["Test error"],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
 
         # Should not crash
@@ -197,7 +209,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -216,7 +228,9 @@ class TestDatabaseUpdateSchedulerComprehensive:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"test_source": True})
+        scheduler.update_manager.check_for_updates = AsyncMock(
+            return_value={"test_source": True}
+        )
 
         # Mock update_manager.update_database
         mock_result = UpdateResult(
@@ -228,7 +242,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
             records_updated=0,
             records_removed=0,
             errors=[],
-            duration_seconds=1.0
+            duration_seconds=1.0,
         )
         scheduler.update_manager.update_database = AsyncMock(return_value=mock_result)
 
@@ -256,21 +270,23 @@ class TestDatabaseUpdateSchedulerComprehensive:
             last_updated="2023-01-01T10:00:00",
             record_count=100,
             checksum="abc123",
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
         scheduler.update_manager.versions["test_source"] = test_version
 
         # Mock update_manager.get_database_status
-        scheduler.update_manager.get_database_status = MagicMock(return_value={
-            "test_source": {
-                "version": "1.0",
-                "last_updated": "2023-01-01T10:00:00",
-                "hours_since_update": 2.0,
-                "record_count": 100,
-                "checksum": "abc123...",
-                "metadata": {"test": "data"}
+        scheduler.update_manager.get_database_status = MagicMock(
+            return_value={
+                "test_source": {
+                    "version": "1.0",
+                    "last_updated": "2023-01-01T10:00:00",
+                    "hours_since_update": 2.0,
+                    "record_count": 100,
+                    "checksum": "abc123...",
+                    "metadata": {"test": "data"},
+                }
             }
-        })
+        )
 
         status = scheduler.get_status()
 
@@ -296,13 +312,13 @@ class TestDatabaseUpdateSchedulerComprehensive:
         assert scheduler1 is scheduler2
 
         # Test start_background_updates
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await start_background_updates(1)  # 1 hour interval
             # Should log that updates started
             mock_logger.info.assert_called()
 
         # Test stop_background_updates
-        with patch('core.food_apis.scheduler.logger') as mock_logger:
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
             # Should log that updates stopped
             mock_logger.info.assert_called()
@@ -317,7 +333,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test search_food with prefer_source='openfoodfacts'."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[])
             mock_usda_class.return_value = mock_usda_instance
@@ -334,14 +350,17 @@ class TestUnifiedFoodDatabaseComprehensive:
     async def test_search_food_with_results(self):
         """Test search_food with actual results."""
         from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
-        from core.food_apis.usda_client import USDAFoodItem
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             # Create mock USDA food item
             mock_usda_food = MagicMock()
             mock_usda_food.description = "Chicken Breast"
             mock_usda_food.food_category = "Meat"
-            mock_usda_food.nutrients_per_100g = {"protein_g": 31.0, "fat_g": 3.6, "carbs_g": 0.0}
+            mock_usda_food.nutrients_per_100g = {
+                "protein_g": 31.0,
+                "fat_g": 3.6,
+                "carbs_g": 0.0,
+            }
             mock_usda_food._generate_tags = MagicMock(return_value=["meat", "chicken"])
 
             mock_usda_instance = MagicMock()
@@ -362,7 +381,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test get_food_by_id with invalid USDA ID."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
 
@@ -378,9 +397,11 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test get_food_by_id with USDA client exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.get_food_details = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.get_food_details = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -399,8 +420,10 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test get_food_by_id with non-USDA source."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class, \
-             patch('core.food_apis.unified_db.OFFClient') as mock_off_class:
+        with (
+            patch("core.food_apis.unified_db.USDAClient") as mock_usda_class,
+            patch("core.food_apis.unified_db.OFFClient") as mock_off_class,
+        ):
             mock_usda_instance = MagicMock()
             mock_usda_class.return_value = mock_usda_instance
 
@@ -420,7 +443,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test get_common_foods_database with cache load exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[])
             mock_usda_class.return_value = mock_usda_instance
@@ -430,7 +453,7 @@ class TestUnifiedFoodDatabaseComprehensive:
 
                 # Create an invalid cache file
                 cache_file = db.cache_dir / "common_foods.json"
-                with open(cache_file, 'w') as f:
+                with open(cache_file, "w") as f:
                     f.write("invalid json")
 
                 # Should handle the exception and build from USDA
@@ -440,9 +463,9 @@ class TestUnifiedFoodDatabaseComprehensive:
     @pytest.mark.asyncio
     async def test_get_common_foods_database_cache_save_exception(self):
         """Test get_common_foods_database with cache save exception."""
-        from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
+        from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             # Mock USDA search to return results
             mock_usda_instance = MagicMock()
             mock_usda_instance.search_foods = AsyncMock(return_value=[MagicMock()])
@@ -454,7 +477,10 @@ class TestUnifiedFoodDatabaseComprehensive:
                 # Make the cache directory read-only to cause save exception
                 _ = db.cache_dir / "common_foods.json"
                 # We can't easily make it read-only, so we'll mock json.dump instead
-                with patch('core.food_apis.unified_db.json.dump', side_effect=Exception("Test error")):
+                with patch(
+                    "core.food_apis.unified_db.json.dump",
+                    side_effect=Exception("Test error"),
+                ):
                     # Should handle the exception and still return results
                     foods_db = await db.get_common_foods_database()
                     assert isinstance(foods_db, dict)
@@ -464,9 +490,11 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test get_common_foods_database with search exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        with patch('core.food_apis.unified_db.USDAClient') as mock_usda_class:
+        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
             mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(side_effect=Exception("Test error"))
+            mock_usda_instance.search_foods = AsyncMock(
+                side_effect=Exception("Test error")
+            )
             mock_usda_class.return_value = mock_usda_instance
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -481,7 +509,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         """Test global unified database functions."""
         from core.food_apis.unified_db import get_unified_food_db, search_foods_unified
 
-        with patch('core.food_apis.unified_db.USDAClient'):
+        with patch("core.food_apis.unified_db.USDAClient"):
             # Test get_unified_food_db
             db1 = await get_unified_food_db()
             db2 = await get_unified_food_db()
@@ -490,7 +518,9 @@ class TestUnifiedFoodDatabaseComprehensive:
             assert db1 is db2
 
             # Test search_foods_unified
-            with patch.object(db1, 'search_food', new_callable=AsyncMock) as mock_search:
+            with patch.object(
+                db1, "search_food", new_callable=AsyncMock
+            ) as mock_search:
                 mock_search.return_value = []
                 results = await search_foods_unified("chicken", 5)
                 assert isinstance(results, list)
@@ -506,7 +536,9 @@ class TestDatabaseUpdateManagerComprehensive:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Use a subdirectory that doesn't exist yet
-            manager = DatabaseUpdateManager(cache_dir=os.path.join(temp_dir, "nonexistent"))
+            manager = DatabaseUpdateManager(
+                cache_dir=os.path.join(temp_dir, "nonexistent")
+            )
             # Should handle gracefully
             assert isinstance(manager.versions, dict)
 
@@ -519,7 +551,7 @@ class TestDatabaseUpdateManagerComprehensive:
 
             # Create an invalid versions file
             versions_file = manager.cache_dir / "database_versions.json"
-            with open(versions_file, 'w') as f:
+            with open(versions_file, "w") as f:
                 f.write("invalid json")
 
             # Should handle gracefully
@@ -534,7 +566,10 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock json.dump to raise an exception
-            with patch('core.food_apis.update_manager.json.dump', side_effect=Exception("Test error")):
+            with patch(
+                "core.food_apis.update_manager.json.dump",
+                side_effect=Exception("Test error"),
+            ):
                 # Should not crash
                 manager._save_versions()
 
@@ -547,7 +582,9 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock _check_usda_updates to raise an exception
-            with patch.object(manager, '_check_usda_updates', side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_check_usda_updates", side_effect=Exception("Test error")
+            ):
                 updates = await manager.check_for_updates()
                 # Should still return dict with USDA set to False
                 assert isinstance(updates, dict)
@@ -584,7 +621,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated=recent_time,
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
@@ -630,9 +667,11 @@ class TestDatabaseUpdateManagerComprehensive:
                 records_updated=0,
                 records_removed=0,
                 errors=[],
-                duration_seconds=1.0
+                duration_seconds=1.0,
             )
-            with patch.object(manager, '_update_usda_database', return_value=mock_result):
+            with patch.object(
+                manager, "_update_usda_database", return_value=mock_result
+            ):
                 # Should not crash despite callback exception
                 result = await manager.update_database("usda")
                 assert result.success is True
@@ -656,14 +695,20 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock _create_backup to raise an exception
-            with patch.object(manager, '_create_backup', side_effect=Exception("Backup error")):
+            with patch.object(
+                manager, "_create_backup", side_effect=Exception("Backup error")
+            ):
                 # Mock unified_db.get_common_foods_database
-                with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+                with patch.object(
+                    manager.unified_db,
+                    "get_common_foods_database",
+                    new_callable=AsyncMock,
+                ) as mock_get_foods:
                     mock_get_foods.return_value = {"chicken": MagicMock()}
 
                     # Should handle the exception and still complete the update
@@ -682,6 +727,7 @@ class TestDatabaseUpdateManagerComprehensive:
 
             # Create a proper food item for testing
             from core.food_apis.unified_db import UnifiedFoodItem
+
             test_food = UnifiedFoodItem(
                 name="Chicken",
                 nutrients_per_100g={"protein_g": 31.0},
@@ -689,7 +735,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 tags=["meat", "chicken"],
                 availability_regions=["US"],
                 source="USDA",
-                source_id="12345"
+                source_id="12345",
             )
 
             test_data = {"chicken": test_food}
@@ -703,12 +749,14 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated="2023-01-01T10:00:00",
                 record_count=1,
                 checksum=checksum,
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock unified_db.get_common_foods_database to return same data
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_get_foods.return_value = test_data
 
                 # Should detect no change and return early
@@ -726,7 +774,9 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock unified_db.get_common_foods_database to return invalid data
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_food = MagicMock()
                 mock_food.name = ""  # Missing required field
                 mock_food.source = ""  # Missing required field
@@ -756,16 +806,20 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="old_checksum",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock unified_db.get_common_foods_database
-            with patch.object(manager.unified_db, 'get_common_foods_database', new_callable=AsyncMock) as mock_get_foods:
+            with patch.object(
+                manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
+            ) as mock_get_foods:
                 mock_get_foods.return_value = {"chicken": MagicMock()}
 
                 # Mock _load_backup to raise an exception
-                with patch.object(manager, '_load_backup', side_effect=Exception("Load error")):
+                with patch.object(
+                    manager, "_load_backup", side_effect=Exception("Load error")
+                ):
                     # Should handle the exception and still complete the update
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
@@ -779,7 +833,11 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(manager.unified_db, 'get_common_foods_database', side_effect=Exception("Test error")):
+            with patch.object(
+                manager.unified_db,
+                "get_common_foods_database",
+                side_effect=Exception("Test error"),
+            ):
                 # Should handle the exception
                 result = await manager._update_usda_database()
                 assert result.success is False
@@ -801,7 +859,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -826,7 +884,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -846,12 +904,16 @@ class TestDatabaseUpdateManagerComprehensive:
             # Create food item with negative nutrient values
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
-                nutrients_per_100g={"protein_g": -5.0, "fat_g": 2.0, "carbs_g": 3.0},  # Negative value
+                nutrients_per_100g={
+                    "protein_g": -5.0,
+                    "fat_g": 2.0,
+                    "carbs_g": 3.0,
+                },  # Negative value
                 cost_per_100g=1.0,
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -871,12 +933,16 @@ class TestDatabaseUpdateManagerComprehensive:
             # Create food item with unrealistic nutrient values
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
-                nutrients_per_100g={"protein_g": 150.0, "fat_g": 2.0, "carbs_g": 3.0},  # Unrealistic value (>100g per 100g)
+                nutrients_per_100g={
+                    "protein_g": 150.0,
+                    "fat_g": 2.0,
+                    "carbs_g": 3.0,
+                },  # Unrealistic value (>100g per 100g)
                 cost_per_100g=1.0,
                 tags=["test"],
                 availability_regions=["US"],
                 source="test",
-                source_id="123"
+                source_id="123",
             )
 
             foods = {"invalid": invalid_food}
@@ -894,7 +960,11 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(manager.unified_db, 'get_common_foods_database', side_effect=Exception("Test error")):
+            with patch.object(
+                manager.unified_db,
+                "get_common_foods_database",
+                side_effect=Exception("Test error"),
+            ):
                 # Should handle the exception
                 await manager._create_backup("usda", "1.0")
 
@@ -917,12 +987,12 @@ class TestDatabaseUpdateManagerComprehensive:
                     "availability_regions": ["US"],
                     "source": "USDA",
                     "source_id": "12345",
-                    "category": "Meat"
+                    "category": "Meat",
                 }
             }
 
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
-            with open(backup_file, 'w') as f:
+            with open(backup_file, "w") as f:
                 json.dump(backup_data, f)
 
             # Should load the backup successfully
@@ -943,15 +1013,16 @@ class TestDatabaseUpdateManagerComprehensive:
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
             backup_file.touch()
 
-            # Instead of patching glob directly (which causes issues), let's test by creating many backup files
-            # and mocking the unlink method to raise an exception
+            # Instead of patching glob directly (which causes issues), let's test by
+            # creating many backup files and mocking the unlink method to raise an exception
             backup_files = []
             for i in range(10):
                 bf = manager.cache_dir / f"usda_backup_{i}.json"
                 bf.touch()
                 backup_files.append(bf)
 
-            # Mock the first few files to have an old timestamp and the unlink method to raise an exception
+            # Mock the first few files to have an old timestamp and the unlink method
+            # to raise an exception
             for i, bf in enumerate(backup_files[:3]):
                 # Mock stat to return an old timestamp
                 _ = datetime.now() - timedelta(days=365)  # Old timestamp
@@ -959,7 +1030,7 @@ class TestDatabaseUpdateManagerComprehensive:
 
             # Just test that the function doesn't crash when there are files to clean up
             # We'll mock the unlink method on one of the files to raise an exception
-            with patch('pathlib.Path.unlink', side_effect=Exception("Test error")):
+            with patch("pathlib.Path.unlink", side_effect=Exception("Test error")):
                 # Should handle the exception gracefully
                 await manager._cleanup_old_backups("usda")
 
@@ -978,12 +1049,14 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated="2023-01-01T10:00:00",
                 record_count=100,
                 checksum="abc123",
-                metadata={}
+                metadata={},
             )
             manager.versions["usda"] = version
 
             # Mock _load_backup to raise an exception
-            with patch.object(manager, '_load_backup', side_effect=Exception("Test error")):
+            with patch.object(
+                manager, "_load_backup", side_effect=Exception("Test error")
+            ):
                 # Should handle the exception
                 success = await manager.rollback_database("usda", "1.0")
                 assert success is False
@@ -1019,7 +1092,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 last_updated=test_time,
                 record_count=100,
                 checksum="abc123def456",
-                metadata={"test": "data"}
+                metadata={"test": "data"},
             )
             manager.versions["usda"] = version
 
@@ -1052,7 +1125,10 @@ class TestDatabaseUpdateManagerComprehensive:
     @pytest.mark.asyncio
     async def test_run_scheduled_update(self):
         """Test run_scheduled_update convenience function."""
-        from core.food_apis.update_manager import DatabaseUpdateManager, run_scheduled_update
+        from core.food_apis.update_manager import (
+            DatabaseUpdateManager,
+            run_scheduled_update,
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)

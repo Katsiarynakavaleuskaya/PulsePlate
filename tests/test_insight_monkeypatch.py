@@ -42,9 +42,7 @@ def test_insight_with_monkeypatched_provider(monkeypatch):
     monkeypatch.setattr(llm, "get_provider", lambda: _StubProvider())
 
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "hello"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 200
     data = r.json()
@@ -57,9 +55,7 @@ def test_insight_with_provider_exception(monkeypatch):
     monkeypatch.setattr(llm, "get_provider", lambda: _StubProviderException())
 
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "error"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "error"}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 503
     data = r.json()
@@ -71,9 +67,7 @@ def test_insight_no_provider(monkeypatch):
     monkeypatch.setattr(llm, "get_provider", lambda: None)
 
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 503
     data = r.json()
@@ -93,9 +87,7 @@ def test_api_v1_insight_provider_none(monkeypatch):
     monkeypatch.setattr("llm.get_provider", lambda: None)
 
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 503
     data = r.json()
@@ -113,9 +105,7 @@ def test_api_v1_insight_generate_exception(monkeypatch):
     monkeypatch.setattr("llm.get_provider", lambda: StubProvider())
 
     r = client.post(
-        "/api/v1/insight",
-        json={"text": "test"},
-        headers={"X-API-Key": "test_key"}
+        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert r.status_code == 503
     data = r.json()
@@ -125,6 +115,7 @@ def test_api_v1_insight_generate_exception(monkeypatch):
 def test_insight_feature_disabled():
     # Устанавливаем FEATURE_INSIGHT в false
     import os
+
     original = os.environ.get("FEATURE_INSIGHT")
     os.environ["FEATURE_INSIGHT"] = "false"
 
@@ -143,6 +134,7 @@ def test_insight_feature_disabled():
 def test_insight_no_llm_provider_env():
     # Устанавливаем LLM_PROVIDER в пустое
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = ""
 
@@ -161,11 +153,13 @@ def test_insight_no_llm_provider_env():
 def test_insight_provider_none():
     # Устанавливаем LLM_PROVIDER, но get_provider возвращает None
     import os
+
     original = os.environ.get("LLM_PROVIDER")
     os.environ["LLM_PROVIDER"] = "stub"
 
     # Monkeypatch get_provider
     import llm
+
     original_get_provider = llm.get_provider
     llm.get_provider = lambda: None
 
@@ -194,6 +188,7 @@ def test_insight_generate_exception(monkeypatch):
 
     # Set FEATURE_INSIGHT to enable the endpoint
     import os
+
     original = os.environ.get("FEATURE_INSIGHT")
     original_provider = os.environ.get("LLM_PROVIDER")
     os.environ["FEATURE_INSIGHT"] = "true"
@@ -227,6 +222,7 @@ def test_insight_success(monkeypatch):
 
     # Set FEATURE_INSIGHT to enable the endpoint
     import os
+
     original = os.environ.get("FEATURE_INSIGHT")
     original_provider = os.environ.get("LLM_PROVIDER")
     os.environ["FEATURE_INSIGHT"] = "true"
@@ -302,7 +298,7 @@ def test_bmi_endpoint_with_waist_risk_ru():
         "pregnant": "нет",
         "athlete": "нет",
         "waist_cm": 95,
-        "lang": "ru"
+        "lang": "ru",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -319,7 +315,7 @@ def test_bmi_endpoint_with_waist_risk_en():
         "pregnant": "no",
         "athlete": "no",
         "waist_cm": 95,
-        "lang": "en"
+        "lang": "en",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -336,7 +332,7 @@ def test_bmi_endpoint_high_waist_risk_ru():
         "pregnant": "нет",
         "athlete": "нет",
         "waist_cm": 105,
-        "lang": "ru"
+        "lang": "ru",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -353,7 +349,7 @@ def test_bmi_endpoint_high_waist_risk_en():
         "pregnant": "no",
         "athlete": "no",
         "waist_cm": 105,
-        "lang": "en"
+        "lang": "en",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -369,7 +365,7 @@ def test_bmi_endpoint_athlete_note_ru():
         "gender": "муж",
         "pregnant": "нет",
         "athlete": "да",
-        "lang": "ru"
+        "lang": "ru",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -386,7 +382,7 @@ def test_bmi_endpoint_athlete_note_en():
         "gender": "male",
         "pregnant": "no",
         "athlete": "yes",
-        "lang": "en"
+        "lang": "en",
     }
     r = client.post("/bmi", json=req)
     assert r.status_code == 200
@@ -404,7 +400,7 @@ def test_plan_endpoint_ru():
         "pregnant": "нет",
         "athlete": "нет",
         "lang": "ru",
-        "premium": True
+        "premium": True,
     }
     r = client.post("/plan", json=req)
     assert r.status_code == 200
@@ -422,7 +418,7 @@ def test_plan_endpoint_en():
         "pregnant": "no",
         "athlete": "no",
         "lang": "en",
-        "premium": True
+        "premium": True,
     }
     r = client.post("/plan", json=req)
     assert r.status_code == 200
@@ -432,11 +428,7 @@ def test_plan_endpoint_en():
 
 
 def test_api_v1_bmi_success():
-    req = {
-        "weight_kg": 70,
-        "height_cm": 170,
-        "group": "general"
-    }
+    req = {"weight_kg": 70, "height_cm": 170, "group": "general"}
     r = client.post("/api/v1/bmi", json=req, headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
     data = r.json()
@@ -446,11 +438,7 @@ def test_api_v1_bmi_success():
 
 
 def test_api_v1_bmi_invalid_height():
-    req = {
-        "weight_kg": 70,
-        "height_cm": 0,
-        "group": "general"
-    }
+    req = {"weight_kg": 70, "height_cm": 0, "group": "general"}
     r = client.post("/api/v1/bmi", json=req, headers={"X-API-Key": "test_key"})
     assert r.status_code == 422
     data = r.json()
@@ -458,11 +446,7 @@ def test_api_v1_bmi_invalid_height():
 
 
 def test_api_v1_bmi_invalid_weight():
-    req = {
-        "weight_kg": 0,
-        "height_cm": 170,
-        "group": "general"
-    }
+    req = {"weight_kg": 0, "height_cm": 170, "group": "general"}
     r = client.post("/api/v1/bmi", json=req, headers={"X-API-Key": "test_key"})
     assert r.status_code == 422
     data = r.json()
@@ -483,6 +467,7 @@ def test_insight_bodyfat_router_none(monkeypatch):
 def test_insight_bodyfat_router_not_none(monkeypatch):
     # Подменяем get_bodyfat_router на функцию, возвращающую роутер
     from fastapi import APIRouter
+
     mock_router = APIRouter()
     monkeypatch.setattr("app.get_bodyfat_router", lambda: mock_router)
 
@@ -496,22 +481,24 @@ def test_insight_bodyfat_router_not_none(monkeypatch):
 def test_insight_llm_import_fail(monkeypatch):
     # Mock the import to fail
     import sys
-    original_llm = sys.modules.get('llm')
-    if 'llm' in sys.modules:
-        del sys.modules['llm']
+
+    original_llm = sys.modules.get("llm")
+    if "llm" in sys.modules:
+        del sys.modules["llm"]
 
     # Mock builtins.__import__ to raise for llm
-    original_import = __builtins__['__import__']
+    original_import = __builtins__["__import__"]
 
     def mock_import(name, *args, **kwargs):
-        if name == 'llm':
+        if name == "llm":
             raise ImportError("Mocked import error")
         return original_import(name, *args, **kwargs)
 
-    __builtins__['__import__'] = mock_import
+    __builtins__["__import__"] = mock_import
 
     # Set FEATURE_INSIGHT to enable the endpoint
     import os
+
     original = os.environ.get("FEATURE_INSIGHT")
     original_provider = os.environ.get("LLM_PROVIDER")
     os.environ["FEATURE_INSIGHT"] = "true"
@@ -523,9 +510,9 @@ def test_insight_llm_import_fail(monkeypatch):
     assert "LLM module is not available" in data.get("detail", "")
 
     # Restore
-    __builtins__['__import__'] = original_import
+    __builtins__["__import__"] = original_import
     if original_llm:
-        sys.modules['llm'] = original_llm
+        sys.modules["llm"] = original_llm
     if original is not None:
         os.environ["FEATURE_INSIGHT"] = original
     else:

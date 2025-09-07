@@ -9,13 +9,7 @@ from pydantic import BaseModel, Field
 from app import calc_bmi
 
 # Use the simplified extras module that matches the function signatures used here
-from core.bmi_extras_simple import (
-    BMIProCard,
-    ffmi,
-    stage_obesity,
-    whr_ratio,
-    wht_ratio,
-)
+from core.bmi_extras_simple import BMIProCard, ffmi, stage_obesity, whr_ratio, wht_ratio
 
 # Import i18n functionality
 from core.i18n import Language
@@ -23,6 +17,7 @@ from core.i18n import Language
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 Sex = Literal["female", "male"]
+
 
 class BMIProRequest(BaseModel):
     height_cm: float = Field(..., gt=0)
@@ -34,6 +29,7 @@ class BMIProRequest(BaseModel):
     bodyfat_percent: Optional[float] = Field(None, ge=0, le=60)
     lang: Language = "en"  # Add language parameter
 
+
 class BMIProResponse(BaseModel):
     bmi: float
     whtr: float
@@ -41,6 +37,7 @@ class BMIProResponse(BaseModel):
     ffmi: float | None
     risk_level: Literal["low", "moderate", "high"]
     notes: list[str]
+
 
 @router.post("/pro", response_model=BMIProResponse)
 def bmi_pro(req: BMIProRequest):
@@ -58,15 +55,12 @@ def bmi_pro(req: BMIProRequest):
             if req.bodyfat_percent is not None
             else None
         )
-        risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
+        risk, notes = stage_obesity(
+            bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(
-        bmi=bmi_val,
-        whtr=v_whtr,
-        whr=v_whr,
-        ffmi=v_ffmi,
-        risk_level=risk,  # type: ignore
-        notes=notes
+        bmi=bmi_val, whtr=v_whtr, whr=v_whr, ffmi=v_ffmi, risk_level=risk, notes=notes
     )
     return BMIProResponse(**card.__dict__)

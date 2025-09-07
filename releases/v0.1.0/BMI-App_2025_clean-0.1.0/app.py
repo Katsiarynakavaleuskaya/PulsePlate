@@ -21,6 +21,7 @@ except Exception:
 
 app = FastAPI(title="BMI-App 2025")
 
+
 # ---------- Models ----------
 class BMIRequest(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0)
@@ -45,7 +46,7 @@ class BMIRequest(BaseModel):
 
 # ---------- Core logic ----------
 def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    return round(weight_kg / (height_m ** 2), 1)
+    return round(weight_kg / (height_m**2), 1)
 
 
 def category_by_bmi(bmi: float, lang: str = "ru") -> str:
@@ -61,8 +62,12 @@ def category_by_bmi(bmi: float, lang: str = "ru") -> str:
 
 def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
     gender_norm = {
-        "male": "male", "муж": "male", "м": "male",
-        "female": "female", "жен": "female", "ж": "female",
+        "male": "male",
+        "муж": "male",
+        "м": "male",
+        "female": "female",
+        "жен": "female",
+        "ж": "female",
     }.get(gender, gender)
 
     preg_true = pregnant in {"да", "беременна", "pregnant", "yes", "y"}
@@ -71,7 +76,11 @@ def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]
 
     is_athlete = athlete in {"спортсмен", "да", "yes", "y", "athlete"}
 
-    return {"gender_male": gender_norm == "male", "is_pregnant": is_pregnant, "is_athlete": is_athlete}
+    return {
+        "gender_male": gender_norm == "male",
+        "is_pregnant": is_pregnant,
+        "is_athlete": is_athlete,
+    }
 
 
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str = "ru") -> str:
@@ -81,7 +90,11 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str = "ru") -
     if waist_cm >= high:
         return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
     if waist_cm >= warn:
-        return "Повышенный риск по талии" if lang == "ru" else "Increased waist-related risk"
+        return (
+            "Повышенный риск по талии"
+            if lang == "ru"
+            else "Increased waist-related risk"
+        )
     return ""
 
 
@@ -103,7 +116,11 @@ def bmi_endpoint(req: BMIRequest):
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
     if flags["is_pregnant"]:
-        note = "BMI не применим при беременности" if req.lang == "ru" else "BMI is not valid during pregnancy"
+        note = (
+            "BMI не применим при беременности"
+            if req.lang == "ru"
+            else "BMI is not valid during pregnancy"
+        )
         return {
             "bmi": bmi,
             "category": None,
@@ -115,8 +132,11 @@ def bmi_endpoint(req: BMIRequest):
     category = category_by_bmi(bmi, req.lang)
     notes = []
     if flags["is_athlete"]:
-        notes.append("У спортсменов BMI может завышать жировую массу" if req.lang == "ru"
-                     else "For athletes, BMI may overestimate body fat")
+        notes.append(
+            "У спортсменов BMI может завышать жировую массу"
+            if req.lang == "ru"
+            else "For athletes, BMI may overestimate body fat"
+        )
     wr = waist_risk(req.waist_cm, flags["gender_male"], req.lang)
     if wr:
         notes.append(wr)
@@ -144,12 +164,19 @@ def plan_endpoint(req: BMIRequest):
             "bmi": bmi,
             "category": category,
             "premium": bool(req.premium),
-            "next_steps": ["Шаги: 7–10 тыс/день", "Белок: 1.2–1.6 г/кг", "Сон: 7–9 часов"],
+            "next_steps": [
+                "Шаги: 7–10 тыс/день",
+                "Белок: 1.2–1.6 г/кг",
+                "Сон: 7–9 часов",
+            ],
             "healthy_bmi": healthy_bmi,
             "action": "Сделай сегодня 20-мин быструю прогулку",
         }
         if req.premium:
-            base["premium_reco"] = ["Дефицит 300–500 ккал", "2–3 силовые тренировки/нед"]
+            base["premium_reco"] = [
+                "Дефицит 300–500 ккал",
+                "2–3 силовые тренировки/нед",
+            ]
     else:
         base = {
             "summary": "Personal plan (MVP)",
@@ -161,7 +188,10 @@ def plan_endpoint(req: BMIRequest):
             "action": "Take a brisk 20-min walk today",
         }
         if req.premium:
-            base["premium_reco"] = ["Calorie deficit 300–500 kcal", "2–3 strength sessions/week"]
+            base["premium_reco"] = [
+                "Calorie deficit 300–500 kcal",
+                "2–3 strength sessions/week",
+            ]
 
     return base
 
@@ -173,7 +203,12 @@ class InsightReq(BaseModel):
 
 @app.post("/insight")
 def insight(req: InsightReq):
-    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {"1", "true", "on", "yes"}:
+    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }:
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     # отложенный импорт, чтобы не падать, если файла нет
@@ -184,7 +219,10 @@ def insight(req: InsightReq):
 
     provider = get_provider()
     if provider is None:
-        raise HTTPException(status_code=503, detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok")
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok",
+        )
 
     insight_text = provider.generate(req.text)
     return {"provider": provider.name, "insight": insight_text}
@@ -202,7 +240,10 @@ def debug_env():
         "GROK_MODEL": os.getenv("GROK_MODEL", ""),
         "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
     }
-    data["insight_enabled"] = str(str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() in {"1", "true", "yes", "on"})
+    data["insight_enabled"] = str(
+        str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     return JSONResponse(content=data)
 
 
@@ -226,10 +267,12 @@ class BMIRequest(BaseModel):
     height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
     group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
 
+
 class BMIResponse(BaseModel):
     bmi: float
     category: str
     interpretation: str
+
 
 def _bmi_value(w: float, h_cm: float) -> float:
     h = h_cm / 100.0
@@ -237,20 +280,30 @@ def _bmi_value(w: float, h_cm: float) -> float:
         raise ValueError("height must be > 0")
     return round(w / (h * h), 2)
 
+
 def _bmi_category(b: float) -> str:
-    if b < 18.5: return "Underweight"
-    if b < 25:   return "Normal"
-    if b < 30:   return "Overweight"
+    if b < 18.5:
+        return "Underweight"
+    if b < 25:
+        return "Normal"
+    if b < 30:
+        return "Overweight"
     return "Obese"
+
 
 def _interpretation(b: float, g: str) -> str:
     base = _bmi_category(b)
     g = g.lower().strip()
-    if g == "athlete":  return f"{base} (мышечная масса может искажать BMI)"
-    if g == "pregnant": return "BMI не применим при беременности"
-    if g == "elderly":  return f"{base} (возрастные изменения состава тела)"
-    if g == "teen":     return "Используйте педиатрические перцентили BMI"
+    if g == "athlete":
+        return f"{base} (мышечная масса может искажать BMI)"
+    if g == "pregnant":
+        return "BMI не применим при беременности"
+    if g == "elderly":
+        return f"{base} (возрастные изменения состава тела)"
+    if g == "teen":
+        return "Используйте педиатрические перцентили BMI"
     return base
+
 
 @app.post("/api/v1/bmi", response_model=BMIResponse)
 def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
@@ -261,5 +314,5 @@ def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
     return BMIResponse(
         bmi=v,
         category=_bmi_category(v),
-        interpretation=_interpretation(v, payload.group)
+        interpretation=_interpretation(v, payload.group),
     )

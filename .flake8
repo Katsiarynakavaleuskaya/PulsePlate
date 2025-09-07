@@ -1,0 +1,8 @@
+[flake8]
+# Disable line length checking since we use ruff with 100-char limit
+max-line-length = 120
+# Ignore E501 (line too long) errors entirely
+ignore = E501
+# Disable flake8 completely by ignoring all errors
+# You can uncomment the line below if you want to fully disable flake8
+# ignore = E,F,W,C

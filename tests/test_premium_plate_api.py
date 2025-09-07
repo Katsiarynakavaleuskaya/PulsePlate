@@ -31,13 +31,11 @@ class TestPremiumPlateAPI:
             "sex": "male",
             "activity": "moderate",
             "goal": "maintain",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -55,7 +53,10 @@ class TestPremiumPlateAPI:
         assert "protein_g" in macros
         assert "carbs_g" in macros
         assert "fat_g" in macros
-        assert all(isinstance(v, (int, float)) and v > 0 for v in [macros["protein_g"], macros["carbs_g"], macros["fat_g"]])
+        assert all(
+            isinstance(v, (int, float)) and v > 0
+            for v in [macros["protein_g"], macros["carbs_g"], macros["fat_g"]]
+        )
 
         # Check visual layout
         assert isinstance(data["layout"], list)
@@ -75,13 +76,11 @@ class TestPremiumPlateAPI:
             "activity": "light",
             "goal": "loss",
             "bodyfat": 25,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -91,7 +90,9 @@ class TestPremiumPlateAPI:
 
         # Weight loss should have reasonable protein
         macros = data["macros"]
-        protein_ratio = macros["protein_g"] / data["kcal"] * 4 * 100  # protein % of calories
+        protein_ratio = (
+            macros["protein_g"] / data["kcal"] * 4 * 100
+        )  # protein % of calories
         assert protein_ratio >= 15  # At least 15% protein
 
         # Check that we have some meals
@@ -107,13 +108,11 @@ class TestPremiumPlateAPI:
             "activity": "active",
             "goal": "gain",
             "bodyfat": 15,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -123,7 +122,9 @@ class TestPremiumPlateAPI:
 
         # Muscle gain should have reasonable protein
         macros = data["macros"]
-        protein_ratio = macros["protein_g"] / data["kcal"] * 4 * 100  # protein % of calories
+        protein_ratio = (
+            macros["protein_g"] / data["kcal"] * 4 * 100
+        )  # protein % of calories
         assert protein_ratio >= 12  # Relaxed from 15 to 12
 
         # Check protein content
@@ -138,13 +139,11 @@ class TestPremiumPlateAPI:
             "sex": "male",
             "activity": "moderate",
             "goal": "maintain",
-            "lang": "ru"
+            "lang": "ru",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -163,7 +162,7 @@ class TestPremiumPlateAPI:
             "age": 30,
             "sex": "male",
             "goal": "maintain",
-            "lang": "en"
+            "lang": "en",
         }
 
         activity_levels = ["sedentary", "light", "moderate", "active", "very_active"]
@@ -172,9 +171,7 @@ class TestPremiumPlateAPI:
         for activity in activity_levels:
             payload = {**base_payload, "activity": activity}
             response = client.post(
-                "/api/v1/premium/plate",
-                json=payload,
-                headers={"X-API-Key": "test_key"}
+                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
 
             assert response.status_code == 200
@@ -192,13 +189,11 @@ class TestPremiumPlateAPI:
             "height_cm": 175,
             "age": 30,
             "sex": "male",
-            "activity": "moderate"
+            "activity": "moderate",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -207,9 +202,7 @@ class TestPremiumPlateAPI:
         payload["height_cm"] = 0
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -218,9 +211,7 @@ class TestPremiumPlateAPI:
         payload["age"] = 150
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -229,9 +220,7 @@ class TestPremiumPlateAPI:
         payload["sex"] = "other"
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -240,9 +229,7 @@ class TestPremiumPlateAPI:
         payload["activity"] = "invalid"
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -251,9 +238,7 @@ class TestPremiumPlateAPI:
         payload["goal"] = "invalid_goal"
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
@@ -262,11 +247,12 @@ class TestPremiumPlateAPI:
         payload["bodyfat"] = 70  # Over the limit
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
-        assert response.status_code in [400, 422]  # Either validation error is acceptable
+        assert response.status_code in [
+            400,
+            422,
+        ]  # Either validation error is acceptable
 
     def test_premium_plate_missing_api_key(self):
         """Test Premium Plate API without API key."""
@@ -276,13 +262,17 @@ class TestPremiumPlateAPI:
             "age": 30,
             "sex": "male",
             "activity": "moderate",
-            "goal": "maintain"  # Add required field
+            "goal": "maintain",  # Add required field
         }
 
         # Test without API key header
         response = client.post("/api/v1/premium/plate", json=payload)
         # Behavior depends on whether API_KEY is set in environment
-        assert response.status_code in [200, 403, 422]  # Include 422 for validation errors
+        assert response.status_code in [
+            200,
+            403,
+            422,
+        ]  # Include 422 for validation errors
 
     def test_premium_plate_with_bodyfat(self):
         """Test Premium Plate API with body fat percentage."""
@@ -294,13 +284,11 @@ class TestPremiumPlateAPI:
             "activity": "active",
             "goal": "gain",
             "bodyfat": 12,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -318,7 +306,7 @@ class TestPremiumPlateAPI:
             "age": 30,
             "sex": "male",
             "activity": "moderate",
-            "lang": "en"
+            "lang": "en",
         }
 
         # Test different goals
@@ -328,9 +316,7 @@ class TestPremiumPlateAPI:
         for goal in goals:
             payload = {**base_payload, "goal": goal}
             response = client.post(
-                "/api/v1/premium/plate",
-                json=payload,
-                headers={"X-API-Key": "test_key"}
+                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
 
             assert response.status_code == 200
@@ -352,13 +338,11 @@ class TestPremiumPlateAPI:
             "sex": "male",
             "activity": "moderate",
             "goal": "maintain",
-            "lang": "en"
+            "lang": "en",
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
-            json=payload,
-            headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
@@ -369,7 +353,9 @@ class TestPremiumPlateAPI:
         kcal = data["kcal"]
 
         # Calculate calories from macros (protein: 4 cal/g, carbs: 4 cal/g, fat: 9 cal/g)
-        calculated_calories = (macros["protein_g"] * 4) + (macros["carbs_g"] * 4) + (macros["fat_g"] * 9)
+        calculated_calories = (
+            (macros["protein_g"] * 4) + (macros["carbs_g"] * 4) + (macros["fat_g"] * 9)
+        )
 
         # Should be close to target calories (allow some rounding differences)
         assert abs(calculated_calories - kcal) / kcal < 0.05  # Within 5%

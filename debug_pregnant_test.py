@@ -24,7 +24,7 @@ def test_bmi_endpoint_debug():
         "pregnant": "yes",
         "athlete": "no",
         "lang": "en",
-        "include_chart": True
+        "include_chart": True,
     }
 
     # Test the normalize_flags function with this data

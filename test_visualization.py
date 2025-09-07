@@ -3,6 +3,7 @@
 Test script for BMI visualization functionality.
 """
 
+
 def test_bmi_visualization_without_matplotlib():
     """Test that visualization gracefully handles missing matplotlib."""
     from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
@@ -11,8 +12,7 @@ def test_bmi_visualization_without_matplotlib():
 
     if not MATPLOTLIB_AVAILABLE:
         result = generate_bmi_visualization(
-            bmi=24.5, age=30, gender="male",
-            pregnant="no", athlete="no", lang="en"
+            bmi=24.5, age=30, gender="male", pregnant="no", athlete="no", lang="en"
         )
 
         print("Result without matplotlib:")
@@ -22,8 +22,7 @@ def test_bmi_visualization_without_matplotlib():
         print("✅ Graceful degradation works correctly")
     else:
         result = generate_bmi_visualization(
-            bmi=24.5, age=30, gender="male",
-            pregnant="no", athlete="no", lang="en"
+            bmi=24.5, age=30, gender="male", pregnant="no", athlete="no", lang="en"
         )
 
         print("Result with matplotlib:")
@@ -33,6 +32,7 @@ def test_bmi_visualization_without_matplotlib():
         if result.get("chart_base64"):
             print("Chart generated (base64 length):", len(result["chart_base64"]))
         print("✅ Visualization generation works")
+
 
 def test_enhanced_segmentation():
     """Test the enhanced segmentation logic."""
@@ -55,6 +55,7 @@ def test_enhanced_segmentation():
     assert teen_display == "teenager"
 
     print("✅ Enhanced segmentation works correctly")
+
 
 if __name__ == "__main__":
     print("🧪 Testing BMI visualization and enhanced segmentation...")

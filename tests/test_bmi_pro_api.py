@@ -3,7 +3,6 @@ Tests for BMI Pro API endpoint.
 """
 
 import os
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,10 +35,12 @@ class TestBMIProAPI:
             "waist_cm": 85.0,
             "hip_cm": 100.0,
             "bodyfat_pct": 20.0,
-            "lang": "en"
+            "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -63,10 +64,12 @@ class TestBMIProAPI:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 80.0,
-            "lang": "en"
+            "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -86,10 +89,12 @@ class TestBMIProAPI:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 85.0,
-            "lang": "en"
+            "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 422  # Validation error
 
     def test_bmi_pro_endpoint_missing_api_key(self):
@@ -102,7 +107,7 @@ class TestBMIProAPI:
             "pregnant": "no",
             "athlete": "no",
             "waist_cm": 85.0,
-            "lang": "en"
+            "lang": "en",
         }
 
         response = self.client.post("/api/v1/bmi/pro", json=data)

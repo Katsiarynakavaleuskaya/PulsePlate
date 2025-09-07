@@ -14,11 +14,35 @@ import re
 from typing import Any, Dict, Optional, Tuple
 
 # Import i18n functionality
-from core.i18n import Language, t
+from core.i18n import Language, normalize_lang, t
 
 # -------------------------
 # Конфиг и локализация
 # -------------------------
+
+
+def bmi_value(weight_kg: float, height_m: float) -> float:
+    """
+    RU: Вычисляет значение BMI.
+    EN: Calculate BMI value.
+
+    Args:
+        weight_kg: Weight in kilograms
+        height_m: Height in meters
+
+    Returns:
+        BMI value rounded to 1 decimal place
+
+    Raises:
+        ValueError: If weight or height is invalid
+    """
+    if weight_kg <= 0:
+        raise ValueError("Weight must be positive")
+    if height_m <= 0:
+        raise ValueError("Height must be positive")
+
+    bmi = weight_kg / (height_m**2)
+    return round(bmi, 1)
 
 
 class Config:
@@ -43,55 +67,13 @@ class Config:
     ELDERLY_BMI_ADJUST = 1.0  # Allow slightly higher BMI for elderly
     TEEN_BMI_LOWER = 17.5  # Lower underweight threshold for teens
 
-# -------------------------
-# Валидация
-# -------------------------
 
-
-def _validate_age(age: int) -> None:
-    if not (Config.MIN_AGE <= age <= Config.MAX_AGE):
-        raise ValueError("Unrealistic age")
-
-
-def _validate_weight(weight_kg: float) -> None:
-    if not (Config.MIN_WEIGHT_KG <= weight_kg <= Config.MAX_WEIGHT_KG):
-        raise ValueError("Unrealistic weight")
-
-
-def _validate_height(height_m: float) -> None:
-    if not (Config.MIN_HEIGHT_M <= height_m <= Config.MAX_HEIGHT_M):
-        raise ValueError("Unrealistic height")
-
-
-def validate_measurements(weight_kg: float, height_m: float) -> None:
-    _validate_weight(weight_kg)
-    _validate_height(height_m)
-
-
-# -------------------------
-# BMI и категории
-# -------------------------
-
-
-def normalize_lang(lang: str) -> Language:
-    lang = (lang or "ru").lower()
-    # Handle locale-specific codes (e.g., es-ES, en-US)
-    if "-" in lang:
-        lang = lang.split("-")[0]
-    if lang not in ("ru", "en", "es"):
-        lang = "ru"
-    return lang  # type: ignore
-
-
-def bmi_value(weight_kg: float, height_m: float) -> float:
-    """Возвращает ИМТ с округлением до 1 знака. Валидирует вход."""
-    validate_measurements(weight_kg, height_m)
-    return round(weight_kg / (height_m ** 2), 1)
-
-
-def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None) -> str:
-    """Enhanced BMI categorization with age and population-specific adjustments."""
-    lang_code: Language = normalize_lang(lang)
+def bmi_category(
+    bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None
+) -> str:  # sourcery skip: switch
+    """Enhanced BMI categorization with age and population-specific
+    adjustments."""
+    lang_code = normalize_lang(lang)
 
     # Age-specific adjustments
     underweight_threshold = 18.5
@@ -132,15 +114,10 @@ def bmi_category(bmi: float, lang: str, age: Optional[int] = None, group: Option
 # -------------------------
 
 
-def auto_group(
-    age: int,
-    gender: str,
-    pregnant: str,
-    athlete: str,
-    lang: str
-) -> str:
-    """Enhanced user group detection with better teen/child distinction."""
-    lang_code: Language = normalize_lang(lang)
+def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) -> str:
+    """Enhanced user group detection with better teen/child
+    distinction."""
+    lang = normalize_lang(lang)
     g = (gender or "").strip().lower()
     p = (pregnant or "").strip().lower()
     a_raw = (athlete or "").strip().lower()
@@ -148,16 +125,13 @@ def auto_group(
     yes_vals = {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
 
     # Поддержка "спортсменка", "спортсмен", "атлетка", "атлет" + англ. athlete
-    athlete_yes = {
-        "спорт", "спортсмен", "спортсменка",
-        "атлет", "атлетка", "athlete", "atleta"
-    }
+    athlete_yes = {"спорт", "спортсмен", "спортсменка", "атлет", "атлетка", "athlete"}
     is_athlete = (a_raw in yes_vals) or (a_raw in athlete_yes)
-    if not is_athlete and a_raw and (
-        re.search(r"спортсмен(ка)?", a_raw)
-        or re.search(r"атлет(ка)?", a_raw)
-        or re.search(r"atleta", a_raw)
-    ):
+    # Check if athlete description matches sportsperson/athlete patterns
+    athlete_pattern_match = re.search(r"спортсмен(ка)?", a_raw) or re.search(
+        r"атлет(ка)?", a_raw
+    )
+    if not is_athlete and a_raw and athlete_pattern_match:
         is_athlete = True
 
     # Enhanced age-based grouping
@@ -171,16 +145,19 @@ def auto_group(
         return "elderly"
 
     # беременность учитываем только у женского пола
-    if (lang_code == "ru" and g.startswith("жен") and p in yes_vals) or (
-        lang_code == "en" and g == "female" and p in yes_vals) or (
-        lang_code == "es" and g.startswith("mujer") and p in yes_vals
+    if (
+        (lang == "ru" and g.startswith("жен") and p in yes_vals)
+        or (lang == "en" and g == "female" and p in yes_vals)
+        or (lang == "es" and g.startswith("mujer") and p in yes_vals)
     ):
         return "pregnant"
 
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
+def interpret_group(
+    bmi: float, group: str, lang: str, age: Optional[int] = None
+) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
     lang_code: Language = normalize_lang(lang)
 
@@ -210,41 +187,13 @@ def group_display_name(group: str, lang: str) -> str:
 
     # Use i18n for group display names
     group_names = {
-        "general": {
-            "ru": "общая",
-            "en": "general",
-            "es": "general"
-        },
-        "athlete": {
-            "ru": "спортсмен",
-            "en": "athlete",
-            "es": "atleta"
-        },
-        "pregnant": {
-            "ru": "беременная",
-            "en": "pregnant",
-            "es": "embarazada"
-        },
-        "elderly": {
-            "ru": "пожилой",
-            "en": "elderly",
-            "es": "anciano"
-        },
-        "child": {
-            "ru": "ребёнок",
-            "en": "child",
-            "es": "niño"
-        },
-        "teen": {
-            "ru": "подросток",
-            "en": "teenager",
-            "es": "adolescente"
-        },
-        "too_young": {
-            "ru": "слишком юный",
-            "en": "too young",
-            "es": "muy joven"
-        }
+        "general": {"ru": "общая", "en": "general", "es": "general"},
+        "athlete": {"ru": "спортсмен", "en": "athlete", "es": "atleta"},
+        "pregnant": {"ru": "беременная", "en": "pregnant", "es": "embarazada"},
+        "elderly": {"ru": "пожилой", "en": "elderly", "es": "anciano"},
+        "child": {"ru": "ребёнок", "en": "child", "es": "niño"},
+        "teen": {"ru": "подросток", "en": "teenager", "es": "adolescente"},
+        "too_young": {"ru": "слишком юный", "en": "too young", "es": "muy joven"},
     }
 
     return group_names.get(group, {}).get(lang_code, group)
@@ -268,17 +217,13 @@ def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
 # -------------------------
 
 
-def compute_wht_ratio(
-    waist_cm: Optional[float],
-    height_m: float
-) -> Optional[float]:
+def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[float]:
     """WHtR с мягкой обработкой отсутствующих/некорректных значений.
     Правило: waist_cm == 0 → None (как «нет данных»)."""
     if waist_cm is None:
         return None
-    try:
-        _validate_height(height_m)
-    except Exception:
+    # Basic height validation
+    if height_m <= 0 or height_m > 3.0:  # Reasonable height range
         return None
 
     # Мягкая обработка
@@ -298,11 +243,7 @@ def compute_wht_ratio(
 # -------------------------
 
 
-def healthy_bmi_range(
-    age: int,
-    group: str,
-    premium: bool
-) -> Tuple[float, float]:
+def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float]:
     bmin = 18.5
     bmax = 27.5 if age >= Config.ELDERLY_AGE else 25.0
     if group == "athlete" and premium:
@@ -317,11 +258,14 @@ def build_premium_plan(
     bmi: float,
     lang: str,
     group: str,
-    premium: bool
+    premium: bool,
 ) -> Dict[str, Any]:
     lang_code: Language = normalize_lang(lang)
-    _validate_age(age)
-    validate_measurements(weight_kg, height_m)
+    # Basic validation
+    if age < 0 or age > 150:
+        raise ValueError("Invalid age")
+    if weight_kg <= 0 or height_m <= 0:
+        raise ValueError("Invalid weight or height")
 
     bmin, bmax = healthy_bmi_range(age, group, premium)
     wmin = round(bmin * height_m * height_m, 1)
@@ -332,18 +276,18 @@ def build_premium_plan(
         "maintain": {
             "ru": "Поддерживайте текущий баланс.",
             "en": "Maintain current balance.",
-            "es": "Mantén el equilibrio actual."
+            "es": "Mantén el equilibrio actual.",
         },
         "lose": {
             "ru": "Сократите ~300–500 ккал/день; белок и овощи в приоритете.",
             "en": "Reduce ~300–500 kcal/day; focus on protein & veggies.",
-            "es": "Reduce ~300–500 kcal/día; enfócate en proteínas y verduras."
+            "es": "Reduce ~300–500 kcal/día; enfócate en proteínas y verduras.",
         },
         "gain": {
             "ru": "Добавьте ~300–500 ккал/день; 1.6–2.2 г белка/кг.",
             "en": "Add ~300–500 kcal/day; 1.6–2.2 g protein/kg.",
-            "es": "Agrega ~300–500 kcal/día; 1.6–2.2 g proteína/kg."
-        }
+            "es": "Agrega ~300–500 kcal/día; 1.6–2.2 g proteína/kg.",
+        },
     }
 
     # Use i18n for activity tips
@@ -351,29 +295,43 @@ def build_premium_plan(
         "maintain": {
             "ru": "2–3 силовых тренировки/нед.",
             "en": "2–3 strength sessions/week.",
-            "es": "2–3 sesiones de fuerza/semana."
+            "es": "2–3 sesiones de fuerza/semana.",
         },
         "lose": {
             "ru": "6–10 тыс. шагов/день, +2–3 силовые трен./нед.",
             "en": "6–10k steps/day, +2–3 strength sessions/wk.",
-            "es": "6–10k pasos/día, +2–3 sesiones de fuerza/sem."
+            "es": "6–10k pasos/día, +2–3 sesiones de fuerza/sem.",
         },
         "gain": {
             "ru": "2–3 силовых/нед; прогрессия нагрузок.",
             "en": "2–3 strength sessions/wk; progressive overload.",
-            "es": "2–3 sesiones de fuerza/sem; sobrecarga progresiva."
-        }
+            "es": "2–3 sesiones de fuerza/sem; sobrecarga progresiva.",
+        },
     }
 
-    action = ("maintain" if wmin <= weight_kg <= wmax else
-              "lose" if weight_kg > wmax else "gain")
-    delta = (0.0 if action == "maintain" else
-             round(weight_kg - wmax, 1) if action == "lose" else
-             round(wmin - weight_kg, 1))
-    est_weeks = ((None, None) if action == "maintain" else
-                 (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
-                 if action == "lose" else
-                 (max(1, int(delta / 0.25)), max(1, int(delta / 0.5))))
+    action = (
+        "maintain"
+        if wmin <= weight_kg <= wmax
+        else "lose" if weight_kg > wmax else "gain"
+    )
+    delta = (
+        0.0
+        if action == "maintain"
+        else (
+            round(weight_kg - wmax, 1)
+            if action == "lose"
+            else round(wmin - weight_kg, 1)
+        )
+    )
+    est_weeks = (
+        (None, None)
+        if action == "maintain"
+        else (
+            (max(1, int(delta / 0.5)), max(1, int(delta / 0.25)))
+            if action == "lose"
+            else (max(1, int(delta / 0.25)), max(1, int(delta / 0.5)))
+        )
+    )
 
     return {
         "healthy_bmi": (bmin, bmax),

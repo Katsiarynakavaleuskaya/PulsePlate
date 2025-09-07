@@ -17,11 +17,7 @@ def test_bmi_422_missing_fields():
 
     # отрицательные значения -> 422
     bad = {"weight_kg": -1, "height_cm": 0, "group": "general"}
-    r2 = client.post(
-        "/api/v1/bmi",
-        json=bad,
-        headers={"X-API-Key": "test_key"}
-    )
+    r2 = client.post("/api/v1/bmi", json=bad, headers={"X-API-Key": "test_key"})
     assert r2.status_code in (400, 422)
 
 
@@ -37,12 +33,8 @@ def test_bmi_422_missing_fields():
 def test_bmi_categories_via_api(weight, height, expected_cat):
     r = client.post(
         "/api/v1/bmi",
-        json={
-            "weight_kg": weight,
-            "height_cm": height,
-            "group": "general"
-        },
-        headers={"X-API-Key": "test_key"}
+        json={"weight_kg": weight, "height_cm": height, "group": "general"},
+        headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 200
     data = r.json()
