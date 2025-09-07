@@ -16,7 +16,8 @@ def test_api_v1_bmi_endpoint():
 
     response = client.post("/api/v1/bmi", json=payload)
     # This endpoint might not be fully implemented, but we want to cover the code
-    # Expected responses: 200 (if implemented), 404 (if not found), 422 (validation error), 403 (forbidden)
+    # Expected responses: 200 (if implemented), 404 (if not found), 
+    # 422 (validation error), 403 (forbidden)
     assert response.status_code in [200, 404, 422, 500, 403]
 
 
@@ -128,7 +129,7 @@ def test_build_premium_plan_edge_cases():
             premium=True,
         )
         # Function might return something or raise NotImplementedError
-# sourcery skip: no-conditionals-in-tests
+        # sourcery skip: no-conditionals-in-tests
         if plan is not None:
             assert isinstance(plan, dict)
     except (NotImplementedError, TypeError):

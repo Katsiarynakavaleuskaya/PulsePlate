@@ -340,7 +340,7 @@ class TestFinalCoverage:
                 data = response.json()
 
                 # Should include visualization error
-# sourcery skip: no-conditionals-in-tests
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
                     assert "error" in data["visualization"]
@@ -452,7 +452,7 @@ class TestFinalCoverage:
         original_modules = sys.modules.copy()
 
         # Mock slowapi import failure to test lines 21-26
-# sourcery skip: no-conditionals-in-tests
+        # sourcery skip: no-conditionals-in-tests
         if "slowapi" in sys.modules:
             del sys.modules["slowapi"]
         if "slowapi.errors" in sys.modules:
@@ -565,7 +565,7 @@ class TestFinalCoverage:
                 data = response.json()
                 # This should cover lines 303-308 for visualization error handling
                 # Verify the visualization was attempted
-# sourcery skip: no-conditionals-in-tests
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert data["visualization"]["available"] is False
 
@@ -706,7 +706,7 @@ class TestFinalCoverage:
                 assert response.status_code == 200
                 data = response.json()
                 # This should hit lines 303-308: the elif not MATPLOTLIB_AVAILABLE block
-# sourcery skip: no-conditionals-in-tests
+                # sourcery skip: no-conditionals-in-tests
                 if "visualization" in data:
                     assert "error" in data["visualization"]
                     assert "matplotlib not installed" in data["visualization"]["error"]
