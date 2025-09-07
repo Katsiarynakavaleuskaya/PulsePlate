@@ -91,12 +91,13 @@ from core.bmi_extras import (
     whr_ratio,
     wht_ratio,
 )
+
+# Add import for export functions
+from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
 from core.food_apis.scheduler import (
     start_background_updates,
     stop_background_updates,
 )
-# Add import for export functions
-from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
 
 # Ensure a patchable getter is always available on this module
 try:
@@ -174,7 +175,8 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Rate limiting setup (only if slowapi is available)
-if slowapi_available and Limiter is not None and RateLimitExceeded is not None and _rate_limit_exceeded_handler is not None:
+if (slowapi_available and Limiter is not None and RateLimitExceeded is not None 
+    and _rate_limit_exceeded_handler is not None):
     limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded,
