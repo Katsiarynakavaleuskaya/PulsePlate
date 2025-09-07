@@ -167,7 +167,7 @@ class TestAppCoverageImprovement:
                 mock_get_scheduler, "/api/v1/admin/check-updates"
             )
 
-    # TODO Rename this here and in `test_force_update_endpoint_exception` and 
+    # TODO Rename this here and in `test_force_update_endpoint_exception` and
     # `test_check_updates_endpoint_exception`
     def _extracted_from_test_check_updates_endpoint_exception_5(
         self, mock_get_scheduler, arg1

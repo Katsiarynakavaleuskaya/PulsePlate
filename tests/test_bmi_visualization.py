@@ -464,7 +464,7 @@ def test_bmi_visualization_endpoint_without_api_key():
     }
 
     response = client.post("/api/v1/bmi/visualize", json=payload)
-    # Should return 403 for missing API key, but may return 503 if 
+    # Should return 403 for missing API key, but may return 503 if
     # visualization module not available
     assert response.status_code in [403, 503]
 

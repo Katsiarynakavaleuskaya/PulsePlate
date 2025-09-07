@@ -16,7 +16,7 @@ def test_api_v1_bmi_endpoint():
 
     response = client.post("/api/v1/bmi", json=payload)
     # This endpoint might not be fully implemented, but we want to cover the code
-    # Expected responses: 200 (if implemented), 404 (if not found), 
+    # Expected responses: 200 (if implemented), 404 (if not found),
     # 422 (validation error), 403 (forbidden)
     assert response.status_code in [200, 404, 422, 500, 403]
 
