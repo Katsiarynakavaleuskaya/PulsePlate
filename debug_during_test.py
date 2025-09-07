@@ -39,7 +39,8 @@ def test_debug_during_test():
     with patch("app.generate_bmi_visualization") as mock_generate:
         print(f"Mock object: {mock_generate}")
         print(
-            f"app_module.generate_bmi_visualization during patch: {app_module.generate_bmi_visualization}"
+            f"app_module.generate_bmi_visualization during patch: "
+            f"{app_module.generate_bmi_visualization}"
         )
         print(f"Type: {type(app_module.generate_bmi_visualization)}")
         print(f"Callable: {callable(app_module.generate_bmi_visualization)}")

@@ -298,7 +298,8 @@ class TestUpdateManagerFinalCoverage:
                 await manager.close()
             except Exception:
                 # If an exception is raised, it should be caught and logged
-                # but the test should still pass since we're testing that it doesn't crash the system
+                # but the test should still pass since we're testing that it doesn't 
+                # crash the system
                 pass
 
 

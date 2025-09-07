@@ -58,7 +58,9 @@ class TestAppCoverageImprovement:
     @contextmanager
     def _mock_scheduler(self, scheduler_mock=None):
         """Context manager for mocking the scheduler."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch(
+            "app.get_update_scheduler", new_callable=AsyncMock
+        ) as mock_get_scheduler:
             if scheduler_mock is None:
                 scheduler_mock = AsyncMock()
             mock_get_scheduler.return_value = scheduler_mock
@@ -165,8 +167,11 @@ class TestAppCoverageImprovement:
                 mock_get_scheduler, "/api/v1/admin/check-updates"
             )
 
-    # TODO Rename this here and in `test_force_update_endpoint_exception` and `test_check_updates_endpoint_exception`
-    def _extracted_from_test_check_updates_endpoint_exception_5(self, mock_get_scheduler, arg1):
+    # TODO Rename this here and in `test_force_update_endpoint_exception` and 
+    # `test_check_updates_endpoint_exception`
+    def _extracted_from_test_check_updates_endpoint_exception_5(
+        self, mock_get_scheduler, arg1
+    ):
         mock_get_scheduler.side_effect = Exception("Test error")
         response = self.client.post(arg1, headers=self._get_standard_headers())
         assert response.status_code == 500
@@ -175,9 +180,7 @@ class TestAppCoverageImprovement:
         """Test rollback endpoint success case."""
         # Mock the scheduler and its methods to simulate a successful rollback
         mock_scheduler = AsyncMock()
-        mock_scheduler.update_manager.rollback_database = AsyncMock(
-            return_value=True
-        )
+        mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
         with self._mock_scheduler(mock_scheduler):
             response = self.client.post(
                 "/api/v1/admin/rollback",
@@ -194,7 +197,7 @@ class TestAppCoverageImprovement:
             response = self.client.post(
                 "/api/v1/premium/gaps",
                 json=self._get_standard_nutrient_payload(),
-                headers=self._get_standard_headers()
+                headers=self._get_standard_headers(),
             )
             # The app raises an HTTPException(503) directly when build_nutrition_targets is None
             assert response.status_code == 503
@@ -212,7 +215,7 @@ class TestAppCoverageImprovement:
             response = self.client.post(
                 "/api/v1/premium/gaps",
                 json=self._get_standard_nutrient_payload(),
-                headers=self._get_standard_headers()
+                headers=self._get_standard_headers(),
             )
             print(f"DEBUG: Status code: {response.status_code}")
             print(f"DEBUG: Response body: {response.json()}")

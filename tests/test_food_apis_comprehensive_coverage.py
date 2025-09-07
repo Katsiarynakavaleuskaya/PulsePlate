@@ -1013,15 +1013,16 @@ class TestDatabaseUpdateManagerComprehensive:
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
             backup_file.touch()
 
-            # Instead of patching glob directly (which causes issues), let's test by creating many backup files
-            # and mocking the unlink method to raise an exception
+            # Instead of patching glob directly (which causes issues), let's test by 
+            # creating many backup files and mocking the unlink method to raise an exception
             backup_files = []
             for i in range(10):
                 bf = manager.cache_dir / f"usda_backup_{i}.json"
                 bf.touch()
                 backup_files.append(bf)
 
-            # Mock the first few files to have an old timestamp and the unlink method to raise an exception
+            # Mock the first few files to have an old timestamp and the unlink method 
+            # to raise an exception
             for i, bf in enumerate(backup_files[:3]):
                 # Mock stat to return an old timestamp
                 _ = datetime.now() - timedelta(days=365)  # Old timestamp

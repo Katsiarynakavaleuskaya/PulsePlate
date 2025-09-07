@@ -148,8 +148,9 @@ LEGAL_DISCLAIMER = {
         "гарантий. Разработчики, участники и распространители этого приложения не "
         "несут ответственности за любые последствия для здоровья, ущерб или травмы, "
         "которые могут возникнуть в результате использования этого приложения или "
-        "следования его рекомендациям. Пользователи берут на себя полную ответственность "
-        "за свои решения о здоровье и должны обращаться за профессиональной медицинской консультацией."
+        "следования его рекомендациям. Пользователи берут на себя полную "
+        "ответственность за свои решения о здоровье и должны обращаться за "
+        "профессиональной медицинской консультацией."
     ),
 }
 
@@ -242,16 +243,21 @@ PROFESSIONAL_REFERRALS = {
         "ru": "Рассмотрите консультацию: Диетолог, Эндокринолог, Бариатрический специалист",
     },
     "sports": {
-        "en": "Consider consulting: Sports Nutritionist, Sports Medicine Physician, Registered Dietitian",
-        "ru": "Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной медицины, Диетолог",
+        "en": ("Consider consulting: Sports Nutritionist, Sports Medicine Physician, "
+               "Registered Dietitian"),
+        "ru": ("Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной "
+               "медицины, Диетолог"),
     },
     "pediatric": {
-        "en": "Consider consulting: Pediatrician, Pediatric Dietitian, Child Development Specialist",
+        "en": ("Consider consulting: Pediatrician, Pediatric Dietitian, "
+               "Child Development Specialist"),
         "ru": "Рассмотрите консультацию: Педиатр, Детский диетолог, Специалист по развитию детей",
     },
     "pregnancy": {
-        "en": "Consider consulting: Obstetrician, Midwife, Prenatal Nutritionist, Registered Dietitian",
-        "ru": "Рассмотрите консультацию: Акушер-гинеколог, Акушерка, Пренатальный нутрициолог, Диетолог",
+        "en": ("Consider consulting: Obstetrician, Midwife, Prenatal Nutritionist, "
+               "Registered Dietitian"),
+        "ru": ("Рассмотрите консультацию: Акушер-гинеколог, Акушерка, Пренатальный "
+               "нутрициолог, Диетолог"),
     },
     "elderly": {
         "en": "Consider consulting: Geriatrician, Registered Dietitian, Primary Care Physician",

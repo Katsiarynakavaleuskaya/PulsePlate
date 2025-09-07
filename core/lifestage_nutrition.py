@@ -435,11 +435,14 @@ class LifeStageNutritionCalculator:
                 "Individual needs vary significantly, especially during pregnancy, childhood, "
                 "and elderly years. Always consult qualified healthcare professionals including "
                 "registered dietitians, pediatricians, obstetricians, or geriatricians for "
-                "personalized medical and nutritional advice. This is NOT medical diagnosis or treatment."
+                "personalized medical and nutritional advice. This is NOT medical diagnosis "
+                "or treatment."
+
             ),
             "professional_referral_note": (
                 "Consider consulting: Registered Dietitian, Pediatrician (children), "
-                "Obstetrician/Midwife (pregnancy), Geriatrician (elderly), or Primary Care Physician"
+                "Obstetrician/Midwife (pregnancy), Geriatrician (elderly), or "
+                "Primary Care Physician"
             ),
         }
 

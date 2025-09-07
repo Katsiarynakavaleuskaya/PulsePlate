@@ -437,7 +437,8 @@ class TestPremiumEndpoints:
             response = self.client.post(
                 "/api/v1/premium/targets", json=data, headers=headers
             )
-            # The app raises HTTPException with status code 503 when build_nutrition_targets is not available
+            # The app raises HTTPException with status code 503 when 
+            # build_nutrition_targets is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -459,7 +460,8 @@ class TestPremiumEndpoints:
             response = self.client.post(
                 "/api/v1/premium/plan/week", json=data, headers=headers
             )
-            # The app raises HTTPException with status code 503 when make_weekly_menu is not available
+            # The app raises HTTPException with status code 503 when 
+            # make_weekly_menu is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 
@@ -484,7 +486,8 @@ class TestPremiumEndpoints:
             response = self.client.post(
                 "/api/v1/premium/gaps", json=data, headers=headers
             )
-            # The app raises HTTPException with status code 503 when analyze_nutrient_gaps is not available
+            # The app raises HTTPException with status code 503 when 
+            # analyze_nutrient_gaps is not available
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
 

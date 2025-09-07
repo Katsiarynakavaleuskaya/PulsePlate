@@ -118,6 +118,7 @@ async def get_update_scheduler():  # type: ignore[no-redef]
         return await _late_getter()
     return await _scheduler_getter()  # type: ignore[misc]
 
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -175,12 +176,17 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Rate limiting setup (only if slowapi is available)
-if (slowapi_available and Limiter is not None and RateLimitExceeded is not None 
-    and _rate_limit_exceeded_handler is not None):
+if (
+    slowapi_available
+    and Limiter is not None
+    and RateLimitExceeded is not None
+    and _rate_limit_exceeded_handler is not None
+):
     limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded,
-                              _rate_limit_exceeded_handler)  # type: ignore
+    app.add_exception_handler(
+        RateLimitExceeded, _rate_limit_exceeded_handler
+    )  # type: ignore
     app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
     limiter = None
@@ -258,9 +264,7 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(weight_kg / (height_m**2), 1)
 
 
-def normalize_flags(
-    gender: str, pregnant: str, athlete: str
-) -> Dict[str, bool]:
+def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",
@@ -288,10 +292,7 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str) -> str:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
     if waist_cm >= high:
-        return (
-            "Высокий риск по талии" if lang == "ru"
-            else "High waist-related risk"
-        )
+        return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
     if waist_cm >= warn:
         return (
             "Повышенный риск по талии"
@@ -314,7 +315,8 @@ async def root():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>BMI Calculator 2025</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
+                   padding: 20px; }
             form { margin-bottom: 20px; }
             input, button { display: block; margin: 10px 0; padding: 10px; width: 100%; }
             .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
@@ -368,7 +370,8 @@ async def root():
                     gender: document.getElementById('gender').value,
                     pregnant: document.getElementById('pregnant').value,
                     athlete: document.getElementById('athlete').value,
-                    waist_cm: document.getElementById('waist').value ? parseFloat(document.getElementById('waist').value) : null,
+                    waist_cm: document.getElementById('waist').value ? 
+                              parseFloat(document.getElementById('waist').value) : null,
                     lang: 'en'
                 };
 
@@ -745,9 +748,7 @@ def _interpretation(b: float, g: str) -> str:
 
 
 @app.post(
-    "/api/v1/bmi",
-    response_model=BMIResponse,
-    dependencies=[Depends(get_api_key)]
+    "/api/v1/bmi", response_model=BMIResponse, dependencies=[Depends(get_api_key)]
 )
 async def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
@@ -781,10 +782,7 @@ async def api_premium_bmr(data: BMRRequest):
     _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
     _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
     if not _calc_all_bmr or not _calc_all_tdee:
-        raise HTTPException(
-            status_code=503,
-            detail="Nutrition module not available"
-        )
+        raise HTTPException(status_code=503, detail="Nutrition module not available")
 
     try:
         # Calculate BMR using all available formulas
@@ -1318,7 +1316,7 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
         # Calculate adherence score
         total_nutrients = len(coverage)
-# sourcery skip: simplify-constant-sum
+        # sourcery skip: simplify-constant-sum
         adequate_nutrients = sum(
             1 for cov in coverage.values() if cov.coverage_percent >= 80
         )

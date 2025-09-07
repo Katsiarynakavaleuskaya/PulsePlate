@@ -23,13 +23,14 @@ def test_reproduce_issue():
     )
     with patch("app.generate_bmi_visualization", None):
         print(
-            f"During interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
+            f"During interference - app_module.generate_bmi_visualization: "
+            f"{app_module.generate_bmi_visualization}"
         )
         print(f"Type: {type(app_module.generate_bmi_visualization)}")
-        print(f"Callable: {callable(app_module.generate_bmi_visualization)}")
 
     print(
-        f"After interference - app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
+        f"After interference - app_module.generate_bmi_visualization: "
+        f"{app_module.generate_bmi_visualization}"
     )
     print(f"Type: {type(app_module.generate_bmi_visualization)}")
     print(f"Callable: {callable(app_module.generate_bmi_visualization)}")
