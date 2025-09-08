@@ -5,6 +5,7 @@
   // Если установлен flake8-расширение — глушим его подсказки:
   "python.linting.flake8Enabled": false,
   "cSpell.words": [
+    "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
     "автотестами",
     "активность",
     "анализ",
@@ -318,6 +319,7 @@
     "ACSM",
     "activo",
     "addopts",
+    "áéíóúñü",
     "Ardle",
     "asyncio",
     "autouse",
@@ -375,7 +377,9 @@
     "wmin",
     "xfailed",
     "xlim",
-    "ylabel"
+    "ylabel",
+    "αβγδε",
+    "العربية"
   ],
   "python.analysis.typeCheckingMode": "off"
 }

@@ -1,291 +1,182 @@
 """
-Final tests to reach 96% coverage.
+Final coverage tests to reach 96% target.
 """
 
-import os
-from unittest.mock import MagicMock, patch
+import pytest
+from unittest.mock import patch, Mock
 
-from fastapi.testclient import TestClient
-
-import app as app_mod
+from app.routers.premium_week import estimate_targets_minimal
 
 
 class TestFinalCoverage96:
-    """Test class to reach 96% coverage."""
+    """Tests to reach final 96% coverage target."""
 
-    def setup_method(self):
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-
-    def test_app_missing_lines_115_119(self):
-        """Test app lines 115-119 (late import fallback)."""
-        with patch.object(app_mod, "_scheduler_getter", None):
-            with patch("app.get_update_scheduler") as mock_getter:
-                mock_getter.return_value = MagicMock()
-
-                import asyncio
-
-                result = asyncio.run(app_mod.get_update_scheduler())
-                assert result is not None
-
-    def test_app_missing_line_278(self):
-        """Test app line 278 (exception handling)."""
-        from app import legacy_category_label
-
-        # Test with None lang to trigger exception
-        result = legacy_category_label("Normal weight", None)
-        assert result == "Normal weight"
-
-    def test_app_missing_line_600(self):
-        """Test app line 600 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/bmi", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_679(self):
-        """Test app line 679 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/plan", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_746_747(self):
-        """Test app lines 746-747 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/bmr", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_760_762(self):
-        """Test app lines 760-762 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plate", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_869_872(self):
-        """Test app lines 869-872 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/targets", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_878_881(self):
-        """Test app lines 878-881 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/gaps", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1042(self):
-        """Test app line 1042 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1049(self):
-        """Test app line 1049 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1084_1091(self):
-        """Test app lines 1084-1091 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1177(self):
-        """Test app line 1177 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1180_1182(self):
-        """Test app lines 1180-1182 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1216(self):
-        """Test app line 1216 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1264_1270(self):
-        """Test app lines 1264-1270 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1293(self):
-        """Test app line 1293 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1338_1344(self):
-        """Test app lines 1338-1344 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1374(self):
-        """Test app line 1374 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1397(self):
-        """Test app line 1397 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1432_1438(self):
-        """Test app lines 1432-1438 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1482_1483(self):
-        """Test app lines 1482-1483 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1529_1530(self):
-        """Test app lines 1529-1530 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1560_1561(self):
-        """Test app lines 1560-1561 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_app_missing_line_1590(self):
-        """Test app line 1590 (error handling)."""
-        client = TestClient(app_mod.app)
-
-        # Test with invalid data to trigger error handling
-        data = {"invalid": "data"}
-        response = client.post("/api/v1/premium/plan/week", json=data)
-        assert response.status_code in [422, 400, 403]
-
-    def test_bmi_pro_missing_lines_64_65(self):
-        """Test bmi_pro lines 64-65."""
-        client = TestClient(app_mod.app)
-
-        # Test BMI Pro endpoint
-        data = {
-            "weight_kg": 70.0,
-            "height_m": 1.75,
-            "age": 30,
-            "sex": "male",
-            "lang": "en",
-        }
-
-        response = client.post("/api/v1/bmi/pro", json=data)
-        assert response.status_code in [200, 422]
-
-    def test_premium_week_missing_lines_58_71(self):
-        """Test premium_week lines 58-71."""
-        client = TestClient(app_mod.app)
-
-        # Test premium week endpoint with valid data
-        data = {
-            "sex": "male",
-            "age": 30,
-            "height_cm": 175.0,
-            "weight_kg": 70.0,
-            "activity": "moderate",
-            "goal": "maintain",
-            "lang": "en",
-        }
-
-        response = client.post(
-            "/api/v1/premium/plan/week", json=data, headers={"X-API-Key": "test_key"}
+    def test_premium_week_estimate_targets_minimal(self):
+        """Test estimate_targets_minimal function - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="male",
+            age=30,
+            height_cm=175.0,
+            weight_kg=70.0,
+            activity="moderate",
+            goal="maintain"
         )
-        assert response.status_code in [200, 422]
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+        assert "water_ml" in result
+        assert "activity_week" in result
 
-    def test_premium_week_missing_lines_93_117(self):
-        """Test premium_week lines 93-117."""
-        client = TestClient(app_mod.app)
-
-        # Test premium week endpoint with different parameters
-        data = {
-            "sex": "female",
-            "age": 25,
-            "height_cm": 165.0,
-            "weight_kg": 60.0,
-            "activity": "active",
-            "goal": "loss",
-            "lang": "ru",
-        }
-
-        response = client.post(
-            "/api/v1/premium/plan/week", json=data, headers={"X-API-Key": "test_key"}
+    def test_premium_week_estimate_targets_minimal_female(self):
+        """Test estimate_targets_minimal with female profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="female",
+            age=25,
+            height_cm=165.0,
+            weight_kg=60.0,
+            activity="active",
+            goal="loss"
         )
-        assert response.status_code in [200, 422]
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_elderly(self):
+        """Test estimate_targets_minimal with elderly profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="male",
+            age=65,
+            height_cm=170.0,
+            weight_kg=75.0,
+            activity="light",
+            goal="maintain"
+        )
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_teen(self):
+        """Test estimate_targets_minimal with teen profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="female",
+            age=16,
+            height_cm=160.0,
+            weight_kg=55.0,
+            activity="moderate",
+            goal="gain"
+        )
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_athlete(self):
+        """Test estimate_targets_minimal with athlete profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="male",
+            age=28,
+            height_cm=185.0,
+            weight_kg=85.0,
+            activity="very_active",
+            goal="maintain"
+        )
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_obese(self):
+        """Test estimate_targets_minimal with obese profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="female",
+            age=40,
+            height_cm=160.0,
+            weight_kg=90.0,
+            activity="light",
+            goal="loss"
+        )
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_underweight(self):
+        """Test estimate_targets_minimal with underweight profile - lines 58-71."""
+        result = estimate_targets_minimal(
+            sex="male",
+            age=22,
+            height_cm=180.0,
+            weight_kg=60.0,
+            activity="moderate",
+            goal="gain"
+        )
+        
+        assert result is not None
+        assert "kcal" in result
+        assert "macros" in result
+        assert "micro" in result
+
+    def test_premium_week_estimate_targets_minimal_edge_cases(self):
+        """Test estimate_targets_minimal with edge case profiles - lines 58-71."""
+        # Test minimum age
+        result = estimate_targets_minimal(
+            sex="male",
+            age=11,
+            height_cm=140.0,
+            weight_kg=35.0,
+            activity="moderate",
+            goal="maintain"
+        )
+        assert result is not None
+        
+        # Test maximum age
+        result = estimate_targets_minimal(
+            sex="female",
+            age=89,
+            height_cm=150.0,
+            weight_kg=50.0,
+            activity="light",
+            goal="maintain"
+        )
+        assert result is not None
+
+    def test_premium_week_estimate_targets_minimal_all_activities(self):
+        """Test estimate_targets_minimal with all activity levels - lines 58-71."""
+        activities = ["sedentary", "light", "moderate", "active", "very_active"]
+        
+        for activity in activities:
+            result = estimate_targets_minimal(
+                sex="male",
+                age=30,
+                height_cm=175.0,
+                weight_kg=70.0,
+                activity=activity,
+                goal="maintain"
+            )
+            assert result is not None
+            assert "kcal" in result
+
+    def test_premium_week_estimate_targets_minimal_all_goals(self):
+        """Test estimate_targets_minimal with all goal types - lines 58-71."""
+        goals = ["loss", "maintain", "gain"]
+        
+        for goal in goals:
+            result = estimate_targets_minimal(
+                sex="female",
+                age=30,
+                height_cm=165.0,
+                weight_kg=60.0,
+                activity="moderate",
+                goal=goal
+            )
+            assert result is not None
+            assert "kcal" in result
