@@ -25,11 +25,29 @@ Content-Type: application/json
   "weight_kg": 70,
   "activity": "moderate",
   "goal": "maintain",
-  "life_stage": "adult"
+  "life_stage": "adult",
+  "lang": "en"
 }
 ```
 
-## Example curl Command
+### Parameters
+
+- **sex**: `"male"` | `"female"`
+- **age**: Integer (1-120)
+- **height_cm**: Float (>0)
+- **weight_kg**: Float (>0)
+- **activity**: `"sedentary"` | `"light"` | `"moderate"` | `"active"` | `"very_active"`
+- **goal**: `"loss"` | `"maintain"` | `"gain"`
+- **deficit_pct**: Float (5-25, optional, for weight loss)
+- **surplus_pct**: Float (5-20, optional, for weight gain)
+- **bodyfat**: Float (3-60, optional)
+- **diet_flags**: Array of `"VEG"` | `"GF"` | `"DAIRY_FREE"` | `"LOW_COST"` (optional)
+- **life_stage**: `"child"` | `"teen"` | `"adult"` | `"pregnant"` | `"lactating"` | `"elderly"`
+- **lang**: `"en"` | `"ru"` | `"es"` (language for warnings)
+
+## Example curl Commands
+
+### English (default)
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/premium/targets" \
@@ -41,7 +59,46 @@ curl -X POST "http://localhost:8000/api/v1/premium/targets" \
     "height_cm": 175,
     "weight_kg": 70,
     "activity": "moderate",
-    "goal": "maintain"
+    "goal": "maintain",
+    "life_stage": "adult",
+    "lang": "en"
+  }'
+```
+
+### Spanish (Español)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sex": "female",
+    "age": 25,
+    "height_cm": 165,
+    "weight_kg": 60,
+    "activity": "active",
+    "goal": "maintain",
+    "life_stage": "adult",
+    "lang": "es"
+  }'
+```
+
+### Russian (Русский)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sex": "female",
+    "age": 35,
+    "height_cm": 170,
+    "weight_kg": 65,
+    "activity": "moderate",
+    "goal": "loss",
+    "deficit_pct": 15,
+    "life_stage": "adult",
+    "lang": "ru"
   }'
 ```
 
@@ -73,13 +130,37 @@ curl -X POST "http://localhost:8000/api/v1/premium/targets" \
     "steps_daily": 8000
   },
   "calculation_date": "2025-01-15",
-  "warnings": []
+  "warnings": [
+    {
+      "code": "pregnant",
+      "message": "Pregnancy: requirements differ; consult specialized references."
+    }
+  ]
 }
 ```
+
+## Life Stage Warnings
+
+The API provides localized warnings for special life stages:
+
+### Warning Codes
+
+- **teen**: Teenage years (12-18) - use age-appropriate references
+- **pregnant**: Pregnancy - requirements differ from standard adult
+- **lactating**: Breastfeeding - increased nutrient requirements
+- **elderly**: Age 51+ - micronutrient needs may differ
+- **child**: Under 12 years - use pediatric references
+
+### Localized Messages
+
+- **English (en)**: "Teen life stage: use age-appropriate references."
+- **Spanish (es)**: "Etapa adolescente: use referencias apropiadas para la edad."
+- **Russian (ru)**: "Подростковая группа: используйте специализированные нормы."
 
 ## Required Micronutrients Provided
 
 The API returns targets for these key micronutrients as required:
+
 - **Fe** (Iron) - `iron_mg`
 - **Ca** (Calcium) - `calcium_mg`
 - **VitD** (Vitamin D) - `vitamin_d_iu`
@@ -92,6 +173,7 @@ The API returns targets for these key micronutrients as required:
 ## Validation
 
 All targets are validated to ensure:
+
 - Calorie targets are within safe ranges (1200-4000 kcal)
 - Macronutrient distribution follows WHO guidelines
   - Protein: 1.6-1.8 g/kg body weight

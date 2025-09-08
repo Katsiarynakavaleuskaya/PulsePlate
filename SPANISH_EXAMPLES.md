@@ -1,133 +1,273 @@
-# Spanish Language Support Examples
+# Spanish (Español) API Examples
 
-This document provides examples of how to use the BMI App with Spanish language support.
+This document provides Spanish language examples for the Premium Targets API.
 
-## Web Interface
+## Endpoint
 
-The web interface now supports Spanish language selection. When you visit the root endpoint (`/`), you can select "Español" from the language dropdown in the top right corner. The form labels and buttons will automatically translate to Spanish.
+```
+POST /api/v1/premium/targets
+```
 
-## API Examples
+## Request Headers
 
-### 1. BMI Calculation in Spanish
+```
+X-API-Key: YOUR_API_KEY
+Content-Type: application/json
+```
+
+## Spanish Examples
+
+### 1. Adult Female (Mujer Adulta)
 
 ```bash
-curl -X POST "http://localhost:8000/bmi" \
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
   -H "Content-Type: application/json" \
   -d '{
-    "weight_kg": 70,
-    "height_m": 1.75,
+    "sex": "female",
     "age": 30,
-    "gender": "hombre",
-    "pregnant": "no",
-    "athlete": "no",
-    "waist_cm": 80,
+    "height_cm": 165,
+    "weight_kg": 60,
+    "activity": "moderate",
+    "goal": "maintain",
+    "life_stage": "adult",
     "lang": "es"
   }'
 ```
 
 **Response:**
+
 ```json
 {
-  "bmi": 22.9,
-  "category": "Peso normal",
-  "note": "",
-  "athlete": false,
-  "group": "general"
-}
-```
-
-### 2. Body Fat Estimation in Spanish
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/bodyfat" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "weight_kg": 70,
-    "height_m": 1.75,
-    "age": 30,
-    "gender": "hombre",
-    "waist_cm": 80,
-    "neck_cm": 35,
-    "language": "es"
-  }'
-```
-
-**Response:**
-```json
-{
-  "methods": {
-    "deurenberg": 19.45,
-    "us_navy": 18.72,
-    "ymca": 18.21
+  "kcal_daily": 2075,
+  "macros": {
+    "protein_g": 102,
+    "fat_g": 54,
+    "carbs_g": 295,
+    "fiber_g": 25
   },
-  "median": 18.72,
-  "lang": "es",
-  "labels": {
-    "methods": "métodos",
-    "median": "mediana",
-    "units": "%"
-  }
+  "water_ml": 1800,
+  "priority_micros": {
+    "iron_mg": 18.0,
+    "calcium_mg": 1000.0,
+    "folate_ug": 400.0,
+    "vitamin_d_iu": 600.0,
+    "b12_ug": 2.4,
+    "iodine_ug": 150.0,
+    "magnesium_mg": 320.0,
+    "potassium_mg": 2600.0
+  },
+  "activity_weekly": {
+    "moderate_aerobic_min": 150,
+    "strength_sessions": 2,
+    "steps_daily": 8000
+  },
+  "calculation_date": "2025-01-15",
+  "warnings": []
 }
 ```
 
-### 3. BMI Pro Analysis in Spanish
+### 2. Pregnant Woman (Mujer Embarazada)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/bmi/pro" \
-  -H "X-API-Key: YOUR_API_KEY" \
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
   -H "Content-Type: application/json" \
   -d '{
+    "sex": "female",
+    "age": 28,
+    "height_cm": 170,
     "weight_kg": 70,
-    "height_cm": 175,
-    "age": 30,
-    "gender": "hombre",
-    "pregnant": "no",
-    "athlete": "no",
-    "waist_cm": 80,
-    "hip_cm": 90,
+    "activity": "moderate",
+    "goal": "maintain",
+    "life_stage": "pregnant",
     "lang": "es"
   }'
 ```
 
 **Response:**
+
 ```json
 {
-  "bmi": 22.9,
-  "bmi_category": "Peso normal",
-  "wht_ratio": 0.46,
-  "wht_risk_category": "Riesgo bajo para la salud",
-  "wht_risk_level": "Bajo",
-  "wht_description": "Rango de peso saludable",
-  "whr_ratio": 0.89,
-  "whr_risk_level": "Moderado",
-  "whr_description": "CCR ≥ 0.8 para hombres → riesgo adicional.",
-  "ffmi": null,
-  "ffm_kg": null,
-  "obesity_stage": "0",
-  "risk_factors": 1,
-  "recommendation": "Mantén el equilibrio actual.",
-  "note": ""
+  "kcal_daily": 2200,
+  "macros": {
+    "protein_g": 110,
+    "fat_g": 58,
+    "carbs_g": 312,
+    "fiber_g": 28
+  },
+  "water_ml": 2100,
+  "priority_micros": {
+    "iron_mg": 27.0,
+    "calcium_mg": 1000.0,
+    "folate_ug": 600.0,
+    "vitamin_d_iu": 600.0,
+    "b12_ug": 2.6,
+    "iodine_ug": 220.0,
+    "magnesium_mg": 350.0,
+    "potassium_mg": 2900.0
+  },
+  "activity_weekly": {
+    "moderate_aerobic_min": 150,
+    "strength_sessions": 2,
+    "steps_daily": 8000
+  },
+  "calculation_date": "2025-01-15",
+  "warnings": [
+    {
+      "code": "pregnant",
+      "message": "Embarazo: los requisitos difieren; consulte referencias especializadas."
+    }
+  ]
 }
 ```
 
-## Supported Spanish Terms
+### 3. Teenage Boy (Adolescente)
 
-The application recognizes Spanish terms for various fields:
+```bash
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sex": "male",
+    "age": 16,
+    "height_cm": 175,
+    "weight_kg": 65,
+    "activity": "active",
+    "goal": "maintain",
+    "life_stage": "teen",
+    "lang": "es"
+  }'
+```
 
-- **Gender**: "hombre" (male), "mujer" (female)
-- **Pregnant**: "si" or "sí" (yes), "no" (no)
-- **Athlete**: "atleta" (athlete), "si" (yes), "no" (no)
+**Response:**
 
-## Language Parameter
+```json
+{
+  "kcal_daily": 2800,
+  "macros": {
+    "protein_g": 120,
+    "fat_g": 70,
+    "carbs_g": 400,
+    "fiber_g": 30
+  },
+  "water_ml": 1950,
+  "priority_micros": {
+    "iron_mg": 11.0,
+    "calcium_mg": 1300.0,
+    "folate_ug": 400.0,
+    "vitamin_d_iu": 600.0,
+    "b12_ug": 2.4,
+    "iodine_ug": 150.0,
+    "magnesium_mg": 410.0,
+    "potassium_mg": 3000.0
+  },
+  "activity_weekly": {
+    "moderate_aerobic_min": 150,
+    "strength_sessions": 2,
+    "steps_daily": 8000
+  },
+  "calculation_date": "2025-01-15",
+  "warnings": [
+    {
+      "code": "teen",
+      "message": "Etapa adolescente: use referencias apropiadas para la edad."
+    }
+  ]
+}
+```
 
-All API endpoints accept a language parameter:
-- `/bmi` endpoint: `lang` parameter
-- `/api/v1/bodyfat` endpoint: `language` parameter
-- `/api/v1/bmi/pro` endpoint: `lang` parameter
+### 4. Elderly Person (Persona Mayor)
 
-The supported language codes are:
-- "ru" for Russian
-- "en" for English  
-- "es" for Spanish
+```bash
+curl -X POST "http://localhost:8000/api/v1/premium/targets" \
+  -H "X-API-Key: test_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sex": "male",
+    "age": 70,
+    "height_cm": 175,
+    "weight_kg": 75,
+    "activity": "light",
+    "goal": "maintain",
+    "life_stage": "elderly",
+    "lang": "es"
+  }'
+```
 
-When no language parameter is provided, the application defaults to Russian ("ru").
+**Response:**
+
+```json
+{
+  "kcal_daily": 2100,
+  "macros": {
+    "protein_g": 105,
+    "fat_g": 58,
+    "carbs_g": 300,
+    "fiber_g": 25
+  },
+  "water_ml": 2250,
+  "priority_micros": {
+    "iron_mg": 8.0,
+    "calcium_mg": 1200.0,
+    "folate_ug": 400.0,
+    "vitamin_d_iu": 800.0,
+    "b12_ug": 2.4,
+    "iodine_ug": 150.0,
+    "magnesium_mg": 420.0,
+    "potassium_mg": 3500.0
+  },
+  "activity_weekly": {
+    "moderate_aerobic_min": 150,
+    "strength_sessions": 2,
+    "steps_daily": 8000
+  },
+  "calculation_date": "2025-01-15",
+  "warnings": [
+    {
+      "code": "elderly",
+      "message": "51+: las necesidades de micronutrientes pueden diferir."
+    }
+  ]
+}
+```
+
+## Warning Messages in Spanish
+
+The API provides localized warning messages in Spanish:
+
+- **teen**: "Etapa adolescente: use referencias apropiadas para la edad."
+- **pregnant**: "Embarazo: los requisitos difieren; consulte referencias especializadas."
+- **lactating**: "Lactancia: requisitos de nutrientes aumentados."
+- **elderly**: "51+: las necesidades de micronutrientes pueden diferir."
+- **child**: "Edad infantil: use referencias pediátricas."
+
+## Units and Sources
+
+### Micronutrient Units
+
+- **Iron**: mg (milligrams)
+- **Calcium**: mg (milligrams)
+- **Folate**: μg (micrograms)
+- **Vitamin D**: IU (International Units)
+- **Vitamin B12**: μg (micrograms)
+- **Iodine**: μg (micrograms)
+- **Magnesium**: mg (milligrams)
+- **Potassium**: mg (milligrams)
+
+### Data Sources
+
+- **WHO**: World Health Organization guidelines
+- **EFSA**: European Food Safety Authority
+- **DRI**: Dietary Reference Intakes (US)
+- **IOM**: Institute of Medicine recommendations
+
+## Validation Rules
+
+All targets are validated to ensure:
+
+- Calorie targets are within safe ranges (1200-4000 kcal)
+- Macronutrient distribution follows WHO guidelines
+- Micronutrient targets are based on WHO/EFSA RDA values
+- Hydration targets are appropriate for body weight and activity level
+- Activity targets follow WHO recommendations

@@ -12,7 +12,7 @@ and physical activity guidelines.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Literal, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set
 
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]
@@ -263,3 +263,85 @@ class NutrientCoverage:
             elif self.status == "excess":
                 return f"Moderately reduce {self.nutrient_name}"
             return f"{self.nutrient_name} is adequate"
+
+
+def _life_stage_warnings(
+    age: int, life_stage: LifeStage, lang: str = "en"
+) -> List[Dict[str, str]]:
+    """
+    RU: Генерирует предупреждения по жизненным этапам с локализацией.
+    EN: Generates life stage warnings with localization.
+
+    Args:
+        age: Возраст пользователя
+        life_stage: Жизненный этап (child, teen, adult, pregnant, lactating, elderly)
+        lang: Язык локализации (ru, en, es)
+
+    Returns:
+        Список предупреждений с кодами и локализованными сообщениями
+    """
+    # Локализованные сообщения
+    M = {
+        "teen": {
+            "ru": "Подростковая группа: используйте специализированные нормы.",
+            "en": "Teen life stage: use age-appropriate references.",
+            "es": "Etapa adolescente: use referencias apropiadas para la edad.",
+        },
+        "pregnant": {
+            "ru": "Беременность: нормы отличаются; обратитесь к специализированным рекомендациям.",
+            "en": "Pregnancy: requirements differ; consult specialized guidelines.",
+            "es": "Embarazo: los requisitos difieren; consulte guías especializadas.",
+        },
+        "lactating": {
+            "ru": "Лактация: повышенные потребности в нутриентах.",
+            "en": "Lactation: increased nutrient requirements.",
+            "es": "Lactancia: requisitos de nutrientes aumentados.",
+        },
+        "elderly": {
+            "ru": "51+: возможна иная потребность в микронутриентах.",
+            "en": "Age 51+: micronutrient needs may differ.",
+            "es": "51+: las necesidades de micronutrientes pueden diferir.",
+        },
+        "child": {
+            "ru": "Детский возраст: используйте педиатрические нормы.",
+            "en": "Child age: use pediatric references.",
+            "es": "Edad infantil: use referencias pediátricas.",
+        },
+    }
+
+    warnings = []
+
+    # Проверяем возрастные группы
+    if 12 <= age <= 18 and life_stage == "teen":
+        warnings.append(
+            {"code": "teen", "message": M["teen"].get(lang, M["teen"]["en"])}
+        )
+
+    # Проверяем специальные состояния
+    if life_stage == "pregnant":
+        warnings.append(
+            {
+                "code": "pregnant",
+                "message": M["pregnant"].get(lang, M["pregnant"]["en"]),
+            }
+        )
+
+    if life_stage == "lactating":
+        warnings.append(
+            {
+                "code": "lactating",
+                "message": M["lactating"].get(lang, M["lactating"]["en"]),
+            }
+        )
+
+    if age >= 51 and life_stage == "elderly":
+        warnings.append(
+            {"code": "elderly", "message": M["elderly"].get(lang, M["elderly"]["en"])}
+        )
+
+    if age < 12 and life_stage == "child":
+        warnings.append(
+            {"code": "child", "message": M["child"].get(lang, M["child"]["en"])}
+        )
+
+    return warnings

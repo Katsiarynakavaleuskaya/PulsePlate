@@ -319,6 +319,7 @@
     "BMRAPI",
     "bodyfat",
     "carb",
+    "coveragerc",
     "deriat",
     "dotenv",
     "EFSA",
@@ -345,6 +346,7 @@
     "preg",
     "previou",
     "pycodestyle",
+    "Pydantic",
     "pyflakes",
     "pytest",
     "PYTHONPATH",
@@ -360,6 +362,7 @@
     "whtr",
     "wmax",
     "wmin",
+    "xfailed",
     "xlim",
     "ylabel"
   ],

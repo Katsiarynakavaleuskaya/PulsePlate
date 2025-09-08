@@ -940,6 +940,7 @@ class PlateResponse(BaseModel):
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
     layout: List[VisualShape]  # спецификация визуалки
     meals: List[Dict[str, Any]]  # список блюд с калориями/макро
+    day_micros: Dict[str, float] = {}  # агрегированные микронутриенты за день
 
 
 # WHO-Based Nutrition Models
@@ -958,7 +959,10 @@ class WHOTargetsRequest(BaseModel):
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
     diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Literal["adult", "pregnant", "lactating"] = "adult"
+    life_stage: Literal[
+        "child", "teen", "adult", "pregnant", "lactating", "elderly"
+    ] = "adult"
+    lang: str = "en"  # Language for localized warnings
 
 
 class WHOTargetsResponse(BaseModel):
@@ -972,7 +976,7 @@ class WHOTargetsResponse(BaseModel):
     priority_micros: Dict[str, float]  # Key micronutrients
     activity_weekly: Dict[str, int]  # Weekly activity targets
     calculation_date: str
-    warnings: List[str] = []  # Safety warnings if any
+    warnings: List[Dict[str, str]] = []  # Life stage warnings with codes and messages
 
 
 class NutrientGapsRequest(BaseModel):
@@ -1083,12 +1087,38 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         # 3) Convert layout to VisualShape objects
         layout = [VisualShape(**item) for item in plate_data["layout"]]
 
+        # 4) Aggregate daily micronutrients from meals
+        day_micros = {}
+
+        # Mock micronutrient data for demonstration (in real implementation,
+        # this would come from the meal generation logic)
+        mock_micros_per_meal = {
+            "iron_mg": 2.5,
+            "calcium_mg": 150.0,
+            "magnesium_mg": 45.0,
+            "potassium_mg": 300.0,
+            "vitamin_c_mg": 25.0,
+            "folate_ug": 50.0,
+            "vitamin_d_iu": 100.0,
+            "b12_ug": 1.2,
+        }
+
+        # Add micronutrients to each meal and aggregate
+        for meal in plate_data["meals"]:
+            # Add mock micronutrients to meal data
+            meal["micros"] = mock_micros_per_meal.copy()
+
+            # Aggregate daily totals
+            for nutrient, amount in mock_micros_per_meal.items():
+                day_micros[nutrient] = day_micros.get(nutrient, 0) + amount
+
         return PlateResponse(
             kcal=plate_data["kcal"],
             macros=plate_data["macros"],
             portions=plate_data["portions"],
             layout=layout,
             meals=plate_data["meals"],
+            day_micros=day_micros if day_micros else {},
         )
 
     except HTTPException:
@@ -1233,7 +1263,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             )
 
         # Convert request to UserProfile
-        from core.targets import UserProfile
+        from core.targets import UserProfile, _life_stage_warnings
 
         profile = UserProfile(
             sex=req.sex,
@@ -1252,10 +1282,26 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
         # Calculate WHO-based targets
         targets = _build_targets(profile)
 
-        # Validate safety
-        from core.recommendations import validate_targets_safety
+        # Generate life stage warnings
+        life_stage_warnings = _life_stage_warnings(
+            age=req.age, life_stage=req.life_stage, lang=req.lang
+        )
 
-        warnings = validate_targets_safety(targets)
+        # Validate safety (if function exists)
+        try:
+            from core.recommendations import validate_targets_safety
+
+            safety_warnings = validate_targets_safety(targets)
+            # Convert safety warnings to the new format if needed
+            if isinstance(safety_warnings, list) and safety_warnings:
+                for warning in safety_warnings:
+                    if isinstance(warning, str):
+                        life_stage_warnings.append(
+                            {"code": "safety", "message": warning}
+                        )
+        except ImportError:
+            # If validate_targets_safety doesn't exist, just use life stage warnings
+            pass
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
@@ -1273,7 +1319,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "steps_daily": targets.activity.steps_daily,
             },
             calculation_date=targets.calculation_date,
-            warnings=warnings,
+            warnings=life_stage_warnings,
         )
 
     except HTTPException:

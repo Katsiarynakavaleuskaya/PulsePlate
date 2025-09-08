@@ -44,7 +44,14 @@ class TestEnhancedPlateAPI:
         data = response.json()
 
         # Check required response structure
-        assert set(data.keys()) == {"kcal", "macros", "portions", "layout", "meals"}
+        assert set(data.keys()) == {
+            "kcal",
+            "macros",
+            "portions",
+            "layout",
+            "meals",
+            "day_micros",
+        }
         assert data["kcal"] > 1000
         assert all(
             k in data["macros"] for k in ("protein_g", "fat_g", "carbs_g", "fiber_g")
