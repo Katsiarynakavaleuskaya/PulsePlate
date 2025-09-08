@@ -5,6 +5,11 @@
 
 [![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
 
+## 🚀 Quick Start
+
+**📋 [TODO.md](TODO.md)** - Основной план задач и текущий спринт  
+**⚡ [QUICK_START.md](QUICK_START.md)** - Быстрый старт работы с проектом
+
 ## Overview
 
 BMI-App 2025 is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
