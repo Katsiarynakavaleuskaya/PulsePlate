@@ -15,18 +15,27 @@ from typing import Dict, Iterable, List
 from .food_sources.base import FoodRecord
 
 # Micro nutrients list
-MICROS = ["Fe_mg", "Ca_mg", "VitD_IU", "B12_ug", "Folate_ug", "Iodine_ug", "K_mg", "Mg_mg"]
+MICROS = [
+    "Fe_mg",
+    "Ca_mg",
+    "VitD_IU",
+    "B12_ug",
+    "Folate_ug",
+    "Iodine_ug",
+    "K_mg",
+    "Mg_mg",
+]
 
 
 def _merge_values(values: List[float], strategy: str = "median") -> float:
     """
     RU: Объединить значения по стратегии.
     EN: Merge values by strategy.
-    
+
     Args:
         values: List of values to merge
         strategy: Merge strategy ("median" or "first")
-        
+
     Returns:
         Merged value
     """
@@ -42,10 +51,10 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
     """
     RU: Объединить записи из нескольких источников.
     EN: Merge records from multiple sources.
-    
+
     Args:
         streams: List of iterables with FoodRecord objects
-        
+
     Returns:
         List of merged food records as dictionaries
     """
@@ -118,16 +127,28 @@ def _classify_food_group(record: Dict) -> str:
     """
     RU: Классифицировать продукт по группе на основе профиля макронутриентов.
     EN: Classify food by group based on macronutrient profile.
-    
+
     Args:
         record: Food record dictionary
-        
+
     Returns:
         Food group classification
     """
-    protein_pct = (record["protein_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
-    fat_pct = (record["fat_g"] * 9 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
-    carb_pct = (record["carbs_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
+    protein_pct = (
+        (record["protein_g"] * 4 / max(1, record["kcal"])) * 100
+        if record["kcal"] > 0
+        else 0
+    )
+    fat_pct = (
+        (record["fat_g"] * 9 / max(1, record["kcal"])) * 100
+        if record["kcal"] > 0
+        else 0
+    )
+    carb_pct = (
+        (record["carbs_g"] * 4 / max(1, record["kcal"])) * 100
+        if record["kcal"] > 0
+        else 0
+    )
 
     # High protein foods (>15% of calories from protein)
     if protein_pct > 15:
@@ -143,10 +164,14 @@ def _classify_food_group(record: Dict) -> str:
     # High carb foods (>50% of calories from carbs)
     if carb_pct > 50:
         if record["fiber_g"] > 3:  # High fiber carbs (e.g., whole grains, legumes)
-            if "legume" in record["name"] or any(legume in record["name"] for legume in ["lentil", "bean", "chickpea"]):
+            if "legume" in record["name"] or any(
+                legume in record["name"] for legume in ["lentil", "bean", "chickpea"]
+            ):
                 return "legume"
             return "grain"
-        elif record["sugar_g"] > 10 if "sugar_g" in record else False:  # High sugar carbs
+        elif (
+            record["sugar_g"] > 10 if "sugar_g" in record else False
+        ):  # High sugar carbs
             return "fruit"
         else:  # Starchy carbs
             return "grain"

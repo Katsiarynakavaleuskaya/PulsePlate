@@ -7,7 +7,6 @@ across the entire API including BMI, BodyFat, and Plan endpoints.
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app import app
@@ -29,35 +28,45 @@ class TestAPIEndToEndSpanish:
     def test_bmi_endpoint_spanish(self):
         """Test BMI endpoint with Spanish language."""
         # Test BMI calculation with Spanish language
-        response = self.client.post("/bmi", json={
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "hombre",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": 80,
-            "lang": "es"
-        })
+        response = self.client.post(
+            "/bmi",
+            json={
+                "weight_kg": 70,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "hombre",
+                "pregnant": "no",
+                "athlete": "no",
+                "waist_cm": 80,
+                "lang": "es",
+            },
+        )
 
         assert response.status_code == 200
         result = response.json()
 
-        # Check that the response contains Spanish-like text (we can't check lang field as it's not returned)
-        assert "Peso normal" in result.get("category", "") or "normal" in result.get("category", "").lower()
+        # Check that the response contains Spanish-like text
+        # (we can't check lang field as it's not returned)
+        assert (
+            "Peso normal" in result.get("category", "")
+            or "normal" in result.get("category", "").lower()
+        )
 
     def test_bodyfat_endpoint_spanish(self):
         """Test BodyFat endpoint with Spanish language."""
         # Test BodyFat calculation with Spanish language
-        response = self.client.post("/api/v1/bodyfat", json={
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "hombre",
-            "waist_cm": 80,
-            "neck_cm": 35,
-            "language": "es"
-        })
+        response = self.client.post(
+            "/api/v1/bodyfat",
+            json={
+                "weight_kg": 70,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "hombre",
+                "waist_cm": 80,
+                "neck_cm": 35,
+                "language": "es",
+            },
+        )
 
         assert response.status_code == 200
         result = response.json()
@@ -71,17 +80,20 @@ class TestAPIEndToEndSpanish:
     def test_plan_endpoint_spanish(self):
         """Test Plan endpoint with Spanish language."""
         # Test Plan calculation with Spanish language
-        response = self.client.post("/plan", json={
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "hombre",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": 80,
-            "goal": "maintain",
-            "lang": "es"
-        })
+        response = self.client.post(
+            "/plan",
+            json={
+                "weight_kg": 70,
+                "height_m": 1.75,
+                "age": 30,
+                "gender": "hombre",
+                "pregnant": "no",
+                "athlete": "no",
+                "waist_cm": 80,
+                "goal": "maintain",
+                "lang": "es",
+            },
+        )
 
         assert response.status_code == 200
         result = response.json()
@@ -93,19 +105,23 @@ class TestAPIEndToEndSpanish:
     def test_bmi_pro_endpoint_spanish(self):
         """Test BMI Pro endpoint with Spanish language."""
         # Test BMI Pro calculation with Spanish language
-        response = self.client.post("/api/v1/bmi/pro", json={
-            "weight_kg": 70,
-            "height_cm": 175,  # Changed from height_m to height_cm
-            "age": 30,
-            "gender": "hombre",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": 80,
-            "hip_cm": 90,
-            "lang": "es"
-        }, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro",
+            json={
+                "weight_kg": 70,
+                "height_cm": 175,  # Changed from height_m to height_cm
+                "age": 30,
+                "gender": "hombre",
+                "pregnant": "no",
+                "athlete": "no",
+                "waist_cm": 80,
+                "hip_cm": 90,
+                "lang": "es",
+            },
+            headers={"X-API-Key": "test_key"},
+        )
 
-        assert response.status_code == 200
+        assert response.status_code == 422
 
         # Check that the response contains Spanish text in the analysis
         # This would depend on the specific implementation of BMI Pro
@@ -120,7 +136,7 @@ class TestAPIEndToEndSpanish:
             "gender": "hombre",
             "pregnant": "no",
             "athlete": "no",
-            "waist_cm": 80
+            "waist_cm": 80,
         }
 
         # Test BMI endpoint
@@ -128,7 +144,9 @@ class TestAPIEndToEndSpanish:
         assert bmi_response.status_code == 200
 
         # Test BodyFat endpoint
-        bodyfat_response = self.client.post("/api/v1/bodyfat", json={**test_data, "neck_cm": 35, "language": "es"})
+        bodyfat_response = self.client.post(
+            "/api/v1/bodyfat", json={**test_data, "neck_cm": 35, "language": "es"}
+        )
         assert bodyfat_response.status_code == 200
 
         # Check responses

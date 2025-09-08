@@ -54,9 +54,13 @@ def map_to_canonical(raw_name: str, locale: str = "en") -> str:
 
     # Fallback: convert to snake_case, handling special characters
     # Remove extra whitespace and special characters, then convert to snake_case
-    canonical = re.sub(r'[^\w\s-]', '', key)  # Remove punctuation except spaces and hyphens
-    canonical = re.sub(r'[-\s]+', '_', canonical)  # Convert spaces and hyphens to underscores
-    canonical = canonical.strip('_')  # Remove leading/trailing underscores
+    canonical = re.sub(
+        r"[^\w\s-]", "", key
+    )  # Remove punctuation except spaces and hyphens
+    canonical = re.sub(
+        r"[-\s]+", "_", canonical
+    )  # Convert spaces and hyphens to underscores
+    canonical = canonical.strip("_")  # Remove leading/trailing underscores
     return canonical or "unknown"
 
 

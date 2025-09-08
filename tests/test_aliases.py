@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-from core.aliases import _load_aliases, add_alias, map_to_canonical
+from core.aliases import _load_aliases, map_to_canonical
 
 
 def test_map_to_canonical_basic():
@@ -32,7 +32,7 @@ def test_map_to_canonical_fallback():
 def test_map_to_canonical_with_custom_aliases():
     """Test with custom aliases file."""
     # Create temporary aliases file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         f.write("alias,canonical\n")
         f.write("espinacas,spinach_raw\n")
         f.write("pollo,chicken_breast\n")

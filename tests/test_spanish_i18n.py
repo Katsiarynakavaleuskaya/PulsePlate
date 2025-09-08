@@ -2,8 +2,6 @@
 Tests for Spanish i18n support in the BMI App.
 """
 
-import pytest
-
 from bmi_core import bmi_category, interpret_group
 from core.i18n import t
 

@@ -1,15 +1,14 @@
+# -*- coding: utf-8 -*-
 """
 --sql
 
 ;
-"""  # -*- coding: utf-8 -*-
+"""
 
-"""Комплексные тесты для bmi_core с покрытием граничных случаев."""
-
-
+"""Complex tests for bmi_core with edge case coverage."""
 import pytest
 
-from bmi_core import (  # build_premium_plan присутствует в твоём исправленном коде
+from bmi_core import (
     auto_group,
     bmi_category,
     bmi_value,

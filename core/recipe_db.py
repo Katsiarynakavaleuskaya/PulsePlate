@@ -23,12 +23,15 @@ class Recipe:
     RU: Рецепт с ингредиентами.
     EN: Recipe with ingredients.
     """
+
     name: str
     ingredients: Dict[str, float]  # ingredient_name: amount_in_grams
     flags: Set[str]
 
 
-def parse_recipe_db(csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodItem] = None) -> Dict[str, Recipe]:
+def parse_recipe_db(
+    csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodItem] = None
+) -> Dict[str, Recipe]:
     """
     RU: Парсит CSV файл базы данных рецептов.
     EN: Parse recipe database CSV file.
@@ -69,18 +72,16 @@ def parse_recipe_db(csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodI
             flags = set(flags_str.split(",")) if flags_str else set()
 
             # Create Recipe
-            recipe = Recipe(
-                name=row["name"],
-                ingredients=ingredients,
-                flags=flags
-            )
+            recipe = Recipe(name=row["name"], ingredients=ingredients, flags=flags)
 
             recipe_db[row["name"]] = recipe
 
     return recipe_db
 
 
-def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+def calculate_recipe_nutrients(
+    recipe: Recipe, food_db: Dict[str, FoodItem]
+) -> Dict[str, float]:
     """
     RU: Рассчитывает питательную ценность рецепта.
     EN: Calculate nutritional value of a recipe.
@@ -100,20 +101,35 @@ def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> 
 
             # Add nutrients from this ingredient
             nutrients = [
-                "protein_g", "fat_g", "carbs_g", "fiber_g",
-                "Fe_mg", "Ca_mg", "VitD_IU", "B12_ug", "Folate_ug",
-                "Iodine_ug", "K_mg", "Mg_mg"
+                "protein_g",
+                "fat_g",
+                "carbs_g",
+                "fiber_g",
+                "Fe_mg",
+                "Ca_mg",
+                "VitD_IU",
+                "B12_ug",
+                "Folate_ug",
+                "Iodine_ug",
+                "K_mg",
+                "Mg_mg",
             ]
 
             for nutrient in nutrients:
                 nutrient_amount = food_item.get_nutrient_amount(nutrient, amount_g)
-                total_nutrients[nutrient] = total_nutrients.get(nutrient, 0) + nutrient_amount
+                total_nutrients[nutrient] = (
+                    total_nutrients.get(nutrient, 0) + nutrient_amount
+                )
 
     return total_nutrients
 
 
-def scale_recipe_to_kcal(recipe: Recipe, kcal_goal: float, food_db: Dict[str, FoodItem],
-                        prefer_fiber: bool = True) -> Recipe:
+def scale_recipe_to_kcal(
+    recipe: Recipe,
+    kcal_goal: float,
+    food_db: Dict[str, FoodItem],
+    prefer_fiber: bool = True,
+) -> Recipe:
     """
     RU: Масштабирует рецепт до целевого количества калорий.
     EN: Scale recipe to target calorie amount.
@@ -130,9 +146,9 @@ def scale_recipe_to_kcal(recipe: Recipe, kcal_goal: float, food_db: Dict[str, Fo
     # Calculate current calories
     current_nutrients = calculate_recipe_nutrients(recipe, food_db)
     current_kcal = (
-        current_nutrients.get("protein_g", 0) * 4 +
-        current_nutrients.get("carbs_g", 0) * 4 +
-        current_nutrients.get("fat_g", 0) * 9
+        current_nutrients.get("protein_g", 0) * 4
+        + current_nutrients.get("carbs_g", 0) * 4
+        + current_nutrients.get("fat_g", 0) * 9
     )
 
     if current_kcal <= 0:
@@ -148,8 +164,4 @@ def scale_recipe_to_kcal(recipe: Recipe, kcal_goal: float, food_db: Dict[str, Fo
         scaled_ingredients[ingredient_name] = amount * scale_factor
 
     # Create scaled recipe
-    return Recipe(
-        name=recipe.name,
-        ingredients=scaled_ingredients,
-        flags=recipe.flags
-    )
+    return Recipe(name=recipe.name, ingredients=scaled_ingredients, flags=recipe.flags)

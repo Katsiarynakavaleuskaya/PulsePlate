@@ -19,11 +19,11 @@ sys.path.insert(0, project_root)
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(os.path.join(project_root, "logs", "food_db_update.log")),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def update_food_database():
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
         )
 
         if result.returncode == 0:
@@ -51,7 +51,9 @@ def update_food_database():
             logger.debug(f"Output: {result.stdout}")
             return True
         else:
-            logger.error(f"Food database update failed with return code {result.returncode}")
+            logger.error(
+                f"Food database update failed with return code {result.returncode}"
+            )
             logger.error(f"Error output: {result.stderr}")
             return False
 

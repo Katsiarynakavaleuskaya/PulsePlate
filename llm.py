@@ -66,7 +66,15 @@ def get_provider():
             api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
             model = os.getenv("GROK_MODEL", "grok-4-latest")
             endpoint = os.getenv("GROK_ENDPOINT", "https://api.x.ai/v1")
-            return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
+            try:
+                return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
+            except (TypeError, Exception):
+                # Fallback to positional args if keyword args fail
+                try:
+                    return GrokProvider(endpoint, model, api_key)
+                except Exception:
+                    # If both fail, return lite provider
+                    return GrokLiteProvider()
         # Fallback when real provider unavailable
         return GrokLiteProvider()
 
@@ -75,7 +83,15 @@ def get_provider():
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
         timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
-        return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
+        try:
+            return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
+        except (TypeError, Exception):
+            # Fallback to positional args if keyword args fail
+            try:
+                return OllamaProvider(endpoint, model, timeout_s)
+            except Exception:
+                # If both fail, return None
+                return None
 
     # неизвестное значение — считаем, что провайдера нет
     return None

@@ -13,4 +13,3 @@ def test_macro_distribution_field_validator_bounds_direct_call():
     with pytest.raises(ValueError):
         # Exceeds 0..100 window to trigger the check
         np.MacroDistribution.validate_percentages(150)
-

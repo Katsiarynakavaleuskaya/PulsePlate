@@ -42,4 +42,3 @@ def test_bodyfat_labels_ru_and_es():
     assert data_es.get("lang") == "es"
     assert data_es.get("labels", {}).get("methods") == "métodos"
     assert data_es.get("labels", {}).get("median") == "mediana"
-

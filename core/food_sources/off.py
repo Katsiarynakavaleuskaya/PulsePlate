@@ -26,14 +26,20 @@ class OFFAdapter(BaseAdapter):
         """
         RU: Инициализировать адаптер OFF.
         EN: Initialize OFF adapter.
-        
+
         Args:
             csv_path: Path to OFF CSV file
             locale: Locale of the data
         """
         if csv_path is None:
             # Default path relative to project root
-            csv_path = os.path.join(os.path.dirname(__file__), "..", "..", "external", "off_products_sample.csv")
+            csv_path = os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "external",
+                "off_products_sample.csv",
+            )
         self.csv_path = csv_path
         self.locale = locale
 
@@ -53,7 +59,11 @@ class OFFAdapter(BaseAdapter):
         today = date.today().isoformat()
         for row in self.fetch():
             # Get product name (try multiple fields)
-            raw_name = row.get("product_name", "") or row.get("generic_name", "") or row.get("product_name_en", "")
+            raw_name = (
+                row.get("product_name", "")
+                or row.get("generic_name", "")
+                or row.get("product_name_en", "")
+            )
             canonical = map_to_canonical(raw_name, locale=self.locale)
             per_g = 100.0
 
@@ -67,7 +77,9 @@ class OFFAdapter(BaseAdapter):
             # Micro nutrients (often empty in OFF)
             Fe_mg = float(row.get("iron_100g", 0) or 0)
             Ca_mg = float(row.get("calcium_100g", 0) or 0)
-            VitD_IU = float(row.get("vitamin-d_100g", 0) or 0)  # May be in µg, needs conversion
+            VitD_IU = float(
+                row.get("vitamin-d_100g", 0) or 0
+            )  # May be in µg, needs conversion
             B12_ug = float(row.get("vitamin-b12_100g", 0) or 0)
             Folate_ug = float(row.get("vitamin-b9_100g", 0) or 0)
             Iodine_ug = float(row.get("iodine_100g", 0) or 0)
@@ -105,5 +117,5 @@ class OFFAdapter(BaseAdapter):
                 flags=flags,
                 price=0.0,
                 source="OFF",
-                version_date=today
+                version_date=today,
             )

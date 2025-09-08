@@ -5,14 +5,17 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-# Use calc_bmi defined in main app module
-from app import calc_bmi
-
 # Use the simplified extras module that matches the function signatures used here
 from core.bmi_extras_simple import BMIProCard, ffmi, stage_obesity, whr_ratio, wht_ratio
 
 # Import i18n functionality
 from core.i18n import Language
+
+
+# Define calc_bmi locally to avoid circular import
+def calc_bmi(weight_kg: float, height_m: float) -> float:
+    return round(weight_kg / (height_m**2), 1)
+
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 

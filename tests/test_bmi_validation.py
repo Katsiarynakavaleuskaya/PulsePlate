@@ -10,7 +10,7 @@ client = TestClient(app_module.app)
 def test_bmi_height_as_string_invalid():
     r = client.post(
         "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": "170"},
+        json={"weight_kg": 70, "height_cm": "invalid"},
         headers={"X-API-Key": "test_key"},
     )
     assert r.status_code == 422

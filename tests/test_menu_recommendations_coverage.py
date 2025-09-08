@@ -25,4 +25,3 @@ def test_menu_engine_empty_coverage_and_adherence():
 def test_recommendations_calculate_weekly_coverage_empty():
     weekly = recommendations.calculate_weekly_coverage([])
     assert weekly == {}
-

@@ -22,4 +22,3 @@ def test_generate_weekly_plan_smoke():
     assert isinstance(week["days"], list) and len(week["days"]) == 7
     assert isinstance(week["weekly_coverage"], dict)
     assert isinstance(week["shopping_list"], dict)
-

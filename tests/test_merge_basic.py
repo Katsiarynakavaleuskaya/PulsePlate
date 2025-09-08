@@ -5,8 +5,6 @@ RU: Базовые тесты мерджа.
 EN: Basic merge tests.
 """
 
-import os
-
 import pytest
 
 from core.food_merge import merge_records
@@ -37,7 +35,7 @@ def test_merge_same_canonical_no_duplicates():
             flags=[],
             price=0.0,
             source="USDA",
-            version_date="2025-01-01"
+            version_date="2025-01-01",
         )
     ]
 
@@ -62,7 +60,7 @@ def test_merge_same_canonical_no_duplicates():
             flags=["GF", "VEG"],
             price=0.0,
             source="OFF",
-            version_date="2025-01-01"
+            version_date="2025-01-01",
         )
     ]
 
@@ -98,18 +96,18 @@ def test_micro_prioritization_usda():
         fat_g=3.6,
         carbs_g=0,
         fiber_g=0,
-        Fe_mg=0.7,      # USDA value
-        Ca_mg=15,       # USDA value
-        VitD_IU=0.7,    # USDA value
-        B12_ug=0.3,     # USDA value
-        Folate_ug=6,    # USDA value
-        Iodine_ug=7,    # USDA value
-        K_mg=256,       # USDA value
-        Mg_mg=27,       # USDA value
+        Fe_mg=0.7,  # USDA value
+        Ca_mg=15,  # USDA value
+        VitD_IU=0.7,  # USDA value
+        B12_ug=0.3,  # USDA value
+        Folate_ug=6,  # USDA value
+        Iodine_ug=7,  # USDA value
+        K_mg=256,  # USDA value
+        Mg_mg=27,  # USDA value
         flags=[],
         price=0.0,
         source="USDA",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     # Create OFF record with different micro values
@@ -122,18 +120,18 @@ def test_micro_prioritization_usda():
         fat_g=3.6,
         carbs_g=0,
         fiber_g=0,
-        Fe_mg=1.0,      # Different OFF value
-        Ca_mg=20,       # Different OFF value
-        VitD_IU=1.0,    # Different OFF value
-        B12_ug=0.5,     # Different OFF value
-        Folate_ug=10,   # Different OFF value
-        Iodine_ug=10,   # Different OFF value
-        K_mg=300,       # Different OFF value
-        Mg_mg=30,       # Different OFF value
+        Fe_mg=1.0,  # Different OFF value
+        Ca_mg=20,  # Different OFF value
+        VitD_IU=1.0,  # Different OFF value
+        B12_ug=0.5,  # Different OFF value
+        Folate_ug=10,  # Different OFF value
+        Iodine_ug=10,  # Different OFF value
+        K_mg=300,  # Different OFF value
+        Mg_mg=30,  # Different OFF value
         flags=[],
         price=0.0,
         source="OFF",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     # Merge records
@@ -144,14 +142,14 @@ def test_micro_prioritization_usda():
 
     # Check that micro values come from USDA (when USDA is present)
     record = merged[0]
-    assert record["Fe_mg"] == 0.7    # USDA value
-    assert record["Ca_mg"] == 15.0   # USDA value
+    assert record["Fe_mg"] == 0.7  # USDA value
+    assert record["Ca_mg"] == 15.0  # USDA value
     assert record["VitD_IU"] == 0.7  # USDA value
-    assert record["B12_ug"] == 0.3   # USDA value
-    assert record["Folate_ug"] == 6.0 # USDA value
-    assert record["Iodine_ug"] == 7.0 # USDA value
-    assert record["K_mg"] == 256.0   # USDA value
-    assert record["Mg_mg"] == 27.0   # USDA value
+    assert record["B12_ug"] == 0.3  # USDA value
+    assert record["Folate_ug"] == 6.0  # USDA value
+    assert record["Iodine_ug"] == 7.0  # USDA value
+    assert record["K_mg"] == 256.0  # USDA value
+    assert record["Mg_mg"] == 27.0  # USDA value
 
 
 def test_macro_median_merge():
@@ -177,7 +175,7 @@ def test_macro_median_merge():
         flags=["VEG"],
         price=0.0,
         source="USDA",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     record2 = FoodRecord(
@@ -200,7 +198,7 @@ def test_macro_median_merge():
         flags=["GF"],
         price=0.0,
         source="OFF",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     # Merge records

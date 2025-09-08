@@ -17,17 +17,18 @@ client = TestClient(app)
 
 
 def test_bmi_category_boundaries():
-    f = app_mod._bmi_category  # type: ignore[attr-defined]
+    from bmi_core import bmi_category
+
     # ниже 18.5
-    assert f(18.49) == "Underweight"
+    assert bmi_category(18.49, "en") == "Underweight"
     # [18.5, 25)
-    assert f(18.5) == "Normal"
-    assert f(24.99) == "Normal"
+    assert bmi_category(18.5, "en") == "Normal weight"
+    assert bmi_category(24.99, "en") == "Normal weight"
     # [25, 30)
-    assert f(25.0) == "Overweight"
-    assert f(29.99) == "Overweight"
+    assert bmi_category(25.0, "en") == "Overweight"
+    assert bmi_category(29.99, "en") == "Overweight"
     # >= 30
-    assert f(30.0) == "Obese"
+    assert bmi_category(30.0, "en") == "Obese Class I"
 
 
 @pytest.mark.parametrize(

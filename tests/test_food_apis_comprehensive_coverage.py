@@ -726,7 +726,7 @@ class TestDatabaseUpdateManagerComprehensive:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
             # Create a proper food item for testing
-            from core.food_apis.unified_db import UnifiedFoodItem
+            # UnifiedFoodItem already imported above
 
             test_food = UnifiedFoodItem(
                 name="Chicken",

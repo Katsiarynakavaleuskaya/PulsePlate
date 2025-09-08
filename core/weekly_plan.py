@@ -6,7 +6,9 @@ from .recipe_db import parse_recipe_db
 from .targets import NutritionTargets
 
 
-def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None) -> Dict:
+def generate_weekly_plan(
+    targets: NutritionTargets, diet_flags: Set[str] = None
+) -> Dict:
     """
     RU: Генерирует недельный план питания.
     EN: Generates weekly meal plan.
@@ -39,14 +41,14 @@ def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None)
             kcal_total=kcal_target,
             diet_flags=diet_flags,
             food_db=food_db,
-            recipe_db=recipe_db
+            recipe_db=recipe_db,
         )
 
         day_entry = {
             "day": day_index + 1,
             "kcal_target": kcal_target,
             "meals": day_plan["meals"],
-            "micro_coverage": day_plan["micro_coverage"]
+            "micro_coverage": day_plan["micro_coverage"],
         }
 
         days.append(day_entry)
@@ -86,5 +88,5 @@ def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None)
         "days": days,
         "weekly_coverage": weekly_coverage,
         "shopping_list": shopping_list,
-        "total_cost": round(total_cost, 2)
+        "total_cost": round(total_cost, 2),
     }

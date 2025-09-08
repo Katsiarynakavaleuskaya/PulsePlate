@@ -1,23 +1,15 @@
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
 # -*- coding: utf-8 -*-
 """Комплексные тесты для bmi_core с покрытием граничных случаев."""
-import pytest
 
-from bmi_core import (  # build_premium_plan присутствует в твоём исправленном коде
+import pathlib
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import pytest  # noqa: E402
+
+from bmi_core import (  # noqa: E402
     auto_group,
     bmi_category,
     bmi_value,

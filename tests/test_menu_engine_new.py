@@ -17,8 +17,12 @@ from core.recipe_db_new import RecipeDB
 def test_build_plate_day_structure():
     """Test that build_plate_day returns the correct structure."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -27,12 +31,7 @@ def test_build_plate_day_structure():
     # Create mock targets
     targets = {
         "kcal": 2000,
-        "macros": {
-            "protein_g": 100,
-            "fat_g": 70,
-            "carbs_g": 250,
-            "fiber_g": 30
-        },
+        "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
         "micro": {
             "Fe_mg": 18.0,
             "Ca_mg": 1000.0,
@@ -41,8 +40,8 @@ def test_build_plate_day_structure():
             "Folate_ug": 400.0,
             "Iodine_ug": 150.0,
             "K_mg": 3500.0,
-            "Mg_mg": 400.0
-        }
+            "Mg_mg": 400.0,
+        },
     }
 
     # Build a day plan
@@ -69,11 +68,16 @@ def test_build_plate_day_structure():
         assert "macros" in meal
         assert "micros" in meal
 
+
 def test_build_plate_day_calorie_target():
     """Test that build_plate_day respects calorie targets."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -82,12 +86,7 @@ def test_build_plate_day_calorie_target():
     # Create mock targets with specific calorie goal
     targets = {
         "kcal": 1800,
-        "macros": {
-            "protein_g": 90,
-            "fat_g": 60,
-            "carbs_g": 220,
-            "fiber_g": 25
-        },
+        "macros": {"protein_g": 90, "fat_g": 60, "carbs_g": 220, "fiber_g": 25},
         "micro": {
             "Fe_mg": 18.0,
             "Ca_mg": 1000.0,
@@ -96,8 +95,8 @@ def test_build_plate_day_calorie_target():
             "Folate_ug": 400.0,
             "Iodine_ug": 150.0,
             "K_mg": 3500.0,
-            "Mg_mg": 400.0
-        }
+            "Mg_mg": 400.0,
+        },
     }
 
     # Build a day plan
@@ -107,11 +106,16 @@ def test_build_plate_day_calorie_target():
     # Allow ±15% variation (increased tolerance due to recipe scaling)
     assert abs(day_plan.kcal - 1800) <= 270
 
+
 def test_build_plate_day_multilingual():
     """Test that build_plate_day works with different languages."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -120,12 +124,7 @@ def test_build_plate_day_multilingual():
     # Create mock targets
     targets = {
         "kcal": 2000,
-        "macros": {
-            "protein_g": 100,
-            "fat_g": 70,
-            "carbs_g": 250,
-            "fiber_g": 30
-        },
+        "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
         "micro": {
             "Fe_mg": 18.0,
             "Ca_mg": 1000.0,
@@ -134,8 +133,8 @@ def test_build_plate_day_multilingual():
             "Folate_ug": 400.0,
             "Iodine_ug": 150.0,
             "K_mg": 3500.0,
-            "Mg_mg": 400.0
-        }
+            "Mg_mg": 400.0,
+        },
     }
 
     # Test with different languages
@@ -167,6 +166,7 @@ def test_build_plate_day_multilingual():
             for tip in day_plan.tips:
                 assert isinstance(tip, str)
                 assert len(tip) > 0
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

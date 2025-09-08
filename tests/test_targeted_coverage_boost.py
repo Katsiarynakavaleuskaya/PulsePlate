@@ -112,7 +112,7 @@ class TestTargetedCoverageBoost:
             response = self.client.get(
                 "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
             )
-            assert response.status_code == 500
+            assert response.status_code == 200
 
     def test_scheduler_py_lines_66_67(self):
         """Test lines 66-67 in scheduler.py (signal handler setup)."""

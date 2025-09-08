@@ -69,12 +69,16 @@ def test_bmi_category_property(bmi_val, lang):
     assert category in [
         # English categories
         "Underweight",
-        "Normal",
+        "Normal weight",
         "Overweight",
-        "Obese",
+        "Obese Class I",
+        "Obese Class II",
+        "Obese Class III",
         # Russian categories (if supported)
         "Недостаточная масса",
         "Норма",
         "Избыточная масса",
-        "Ожирение",
+        "Ожирение I степени",
+        "Ожирение II степени",
+        "Ожирение III степени",
     ]

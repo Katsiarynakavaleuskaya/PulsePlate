@@ -5,8 +5,6 @@ This test ensures that fitness level descriptions are correctly localized
 in Spanish and other supported languages.
 """
 
-import pytest
-
 from bmi_core import estimate_level
 
 
@@ -45,8 +43,16 @@ class TestLevelES:
         beginner_ru = estimate_level(freq_per_week=1, years=0.2, lang="ru")
 
         # All should be strings and non-empty
-        for level in [advanced_en, intermediate_en, novice_en, beginner_en,
-                      advanced_ru, intermediate_ru, novice_ru, beginner_ru]:
+        for level in [
+            advanced_en,
+            intermediate_en,
+            novice_en,
+            beginner_en,
+            advanced_ru,
+            intermediate_ru,
+            novice_ru,
+            beginner_ru,
+        ]:
             assert isinstance(level, str)
             assert len(level) > 0
 

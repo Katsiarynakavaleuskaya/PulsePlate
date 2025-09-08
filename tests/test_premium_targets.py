@@ -5,8 +5,6 @@ RU: Тесты для реализации Премиум Таргетов (P1).
 EN: Tests for Premium Targets (P1) implementation.
 """
 
-from typing import Any, Dict
-
 import pytest
 
 from core.recommendations import build_nutrition_targets
@@ -25,7 +23,7 @@ class TestPremiumTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         # Build targets
@@ -75,7 +73,7 @@ class TestPremiumTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -107,7 +105,9 @@ class TestPremiumTargets:
 
         # Check hydration target (~30 ml/kg)
         expected_water = int(60 * 30)
-        assert abs(targets.water_ml_daily - expected_water) <= 100  # Allow some variation
+        assert (
+            abs(targets.water_ml_daily - expected_water) <= 100
+        )  # Allow some variation
 
         # Check activity targets (150/75 min/week)
         assert targets.activity.moderate_aerobic_min == 150
@@ -123,7 +123,7 @@ class TestPremiumTargets:
             height_cm=180,
             weight_kg=80,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -156,7 +156,9 @@ class TestPremiumTargets:
 
         # Check hydration target (~30 ml/kg)
         expected_water = int(80 * 30)
-        assert abs(targets.water_ml_daily - expected_water) <= 100  # Allow some variation
+        assert (
+            abs(targets.water_ml_daily - expected_water) <= 100
+        )  # Allow some variation
 
         # Check activity targets (150/75 min/week)
         assert targets.activity.moderate_aerobic_min == 150
@@ -172,7 +174,7 @@ class TestPremiumTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -211,7 +213,7 @@ class TestPremiumTargets:
             height_cm=170,
             weight_kg=70,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -228,7 +230,7 @@ class TestPremiumTargets:
             height_cm=170,
             weight_kg=70,
             activity="moderate",
-            goal="loss"
+            goal="loss",
         )
 
         loss_targets = build_nutrition_targets(loss_profile)
@@ -253,7 +255,7 @@ class TestPremiumTargets:
             height_cm=165,
             weight_kg=60,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
 
         targets = build_nutrition_targets(profile)
@@ -271,9 +273,18 @@ class TestPremiumTargets:
 
         # Micronutrients (check that all required ones are present)
         required_micros = [
-            "iron_mg", "calcium_mg", "magnesium_mg", "zinc_mg", "potassium_mg",
-            "iodine_ug", "selenium_ug", "folate_ug", "b12_ug", "vitamin_d_iu",
-            "vitamin_a_ug", "vitamin_c_mg"
+            "iron_mg",
+            "calcium_mg",
+            "magnesium_mg",
+            "zinc_mg",
+            "potassium_mg",
+            "iodine_ug",
+            "selenium_ug",
+            "folate_ug",
+            "b12_ug",
+            "vitamin_d_iu",
+            "vitamin_a_ug",
+            "vitamin_c_mg",
         ]
         for micro in required_micros:
             assert hasattr(targets.micros, micro)

@@ -81,15 +81,15 @@ except ImportError:
 from bmi_core import bmi_category
 
 # Add import for the new BMI Pro functions
-from core.bmi_extras import (
-    ffmi,
-    interpret_whr_ratio,
-    interpret_wht_ratio,
-    stage_obesity,
-    whr_ratio,
-    wht_ratio,
-)
-
+# Note: These imports are kept for potential future use
+# from core.bmi_extras import (
+#     ffmi,
+#     interpret_whr_ratio,
+#     interpret_wht_ratio,
+#     stage_obesity,
+#     whr_ratio,
+#     wht_ratio,
+# )
 # Add import for export functions
 from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
 from core.food_apis.scheduler import (
@@ -165,6 +165,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BMI-App 2025", lifespan=lifespan)
 
+
 start_time = time.time()
 
 # Legacy event handlers - replaced with lifespan
@@ -215,12 +216,16 @@ def legacy_category_label(cat: str, lang: str) -> str:
 
 
 # Rate limiting setup (only if slowapi is available)
-if (
-    slowapi_available
-    and Limiter is not None
-    and RateLimitExceeded is not None
-    and _rate_limit_exceeded_handler is not None
-):
+def _is_rate_limiting_available():
+    return (
+        slowapi_available
+        and Limiter is not None
+        and RateLimitExceeded is not None
+        and _rate_limit_exceeded_handler is not None
+    )
+
+
+if _is_rate_limiting_available():
     limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
     app.add_exception_handler(
@@ -285,41 +290,30 @@ class BMIRequestV1(BaseModel):
         return values
 
 
-# Add the new BMI Pro request model
-class BMIProRequest(BaseModel):
-    """Request model for BMI Pro analysis"""
+# BMR Request and Response models
+class BMRRequest(BaseModel):
+    """Request model for BMR calculation"""
 
-    weight_kg: StrictFloat = Field(..., gt=0)
+    weight_kg: float = Field(..., gt=0)
     height_cm: float = Field(..., gt=0)
     age: int = Field(..., ge=0, le=120)
-    gender: str
-    pregnant: str
-    athlete: str
-    waist_cm: float = Field(..., gt=0)
-    hip_cm: Optional[float] = Field(None, gt=0)
-    bodyfat_pct: Optional[float] = Field(None, ge=0, le=100)
+    sex: str = Field(..., pattern="^(male|female)$")
+    activity: str = Field(
+        ..., pattern="^(sedentary|light|moderate|active|very_active)$"
+    )
+    bodyfat: Optional[float] = Field(None, ge=0, le=60)
     lang: Language = "en"
 
 
-# Add the new BMI Pro response model
-class BMIProResponse(BaseModel):
-    """Response model for BMI Pro analysis"""
+class BMRResponse(BaseModel):
+    """Response model for BMR calculation"""
 
-    bmi: float
-    bmi_category: str
-    wht_ratio: float
-    wht_risk_category: str
-    wht_risk_level: str
-    wht_description: str
-    whr_ratio: Optional[float] = None
-    whr_risk_level: Optional[str] = None
-    whr_description: Optional[str] = None
-    ffmi: Optional[float] = None
-    ffm_kg: Optional[float] = None
-    obesity_stage: str
-    risk_factors: int
-    recommendation: str
-    note: str
+    bmr: Dict[str, float]
+    tdee: Dict[str, float]
+    activity_level: str
+    recommended_intake: Dict[str, float]
+    formulas_used: List[str]
+    notes: List[str]
 
 
 # ---------- Core logic ----------
@@ -604,6 +598,27 @@ async def health_v1():
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    if generate_latest:
+        return Response(generate_latest(), media_type="text/plain")
+    return {"error": "Prometheus client not available"}
+
+
+@app.get("/privacy")
+async def privacy():
+    """Privacy policy endpoint."""
+    return {
+        "privacy_policy": (
+            "This application processes BMI calculations locally. "
+            "No personal data is stored or transmitted to external servers."
+        ),
+        "data_retention": "No data is retained beyond the current session.",
+        "contact": "For privacy concerns, please contact the application administrator.",
+    }
+
+
 # ---------- v0 endpoints (bmi/plan) ----------
 
 
@@ -675,6 +690,59 @@ async def bmi_endpoint(req: BMIRequest):
     return result
 
 
+@app.post("/plan")
+async def plan_endpoint(req: BMIRequest):
+    """Generate a personal plan based on BMI and user profile."""
+    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
+    bmi = calc_bmi(req.weight_kg, req.height_m)
+    category = (
+        None
+        if flags["is_pregnant"]
+        else bmi_category(
+            bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
+        )
+    )
+
+    healthy_bmi = {"min": 18.5, "max": 24.9}
+
+    if req.lang == "ru":
+        base = {
+            "summary": "Персональный план (MVP)",
+            "bmi": bmi,
+            "category": category,
+            "premium": bool(req.premium),
+            "next_steps": [
+                "Шаги: 7–10 тыс/день",
+                "Белок: 1.2–1.6 г/кг",
+                "Сон: 7–9 часов",
+            ],
+            "healthy_bmi": healthy_bmi,
+            "action": "Сделай сегодня 20-мин быструю прогулку",
+        }
+        if req.premium:
+            base["premium_reco"] = [
+                "Дефицит 300–500 ккал",
+                "2–3 силовые тренировки/нед",
+            ]
+    else:
+        base = {
+            "summary": "Personal plan (MVP)",
+            "bmi": bmi,
+            "category": category,
+            "premium": bool(req.premium),
+            "next_steps": ["Steps: 7–10k/day", "Protein: 1.2–1.6 g/kg", "Sleep: 7–9 h"],
+            "healthy_bmi": healthy_bmi,
+            "action": "Take a brisk 20-min walk today",
+        }
+        if req.premium:
+            base["premium_reco"] = [
+                "Calorie deficit 300–500 kcal",
+                "2–3 strength sessions/week",
+            ]
+
+    return base
+
+
 @app.post("/api/v1/bmi", dependencies=[Depends(get_api_key)])
 async def bmi_endpoint_v1(req: BMIRequestV1):
     """V1 BMI endpoint with API key authentication."""
@@ -686,14 +754,13 @@ async def bmi_endpoint_v1(req: BMIRequestV1):
 
     if flags["is_pregnant"]:
         note = t(req.lang, "bmi_not_valid_during_pregnancy")
-        result = {
+        return {
             "bmi": bmi,
             "category": None,
             "note": note,
             "athlete": flags["is_athlete"],
             "group": "athlete" if flags["is_athlete"] else "general",
         }
-        return result
 
     category = bmi_category(
         bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
@@ -704,7 +771,7 @@ async def bmi_endpoint_v1(req: BMIRequestV1):
     if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
         notes.append(wr)
 
-    result = {
+    return {
         "bmi": bmi,
         "category": category,
         "note": " | ".join(notes) if notes else "",
@@ -712,7 +779,78 @@ async def bmi_endpoint_v1(req: BMIRequestV1):
         "group": "athlete" if flags["is_athlete"] else "general",
     }
 
-    return result
+
+# ---------- Insight endpoints ----------
+class InsightReq(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+@app.post("/insight")
+async def insight(req: InsightReq):
+    """Generate insight using LLM provider."""
+    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }:
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+
+    # отложенный импорт, чтобы не падать, если файла нет
+    try:
+        from llm import get_provider
+    except Exception:
+        raise HTTPException(status_code=503, detail="LLM module is not available")
+
+    provider = get_provider()
+    if provider is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok",
+        )
+
+    try:
+        insight_text = await provider.generate(req.text)
+        return {"provider": provider.name, "insight": insight_text}
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM provider error: {str(e)}",
+        )
+
+
+@app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
+async def insight_v1(req: InsightReq):
+    """Generate insight using LLM provider (v1 with API key)."""
+    if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }:
+        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+
+    # отложенный импорт, чтобы не падать, если файла нет
+    try:
+        from llm import get_provider
+    except Exception:
+        raise HTTPException(status_code=503, detail="LLM module is not available")
+
+    provider = get_provider()
+    if provider is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured. Set LLM_PROVIDER=stub|grok",
+        )
+
+    try:
+        insight_text = await provider.generate(req.text)
+        return {"provider": provider.name, "insight": insight_text}
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM provider error: {str(e)}",
+        )
 
 
 try:
@@ -965,6 +1103,102 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         ) from e
 
 
+# Premium BMR Endpoint
+@app.post(
+    "/api/v1/premium/bmr",
+    dependencies=[Depends(get_api_key)],
+    response_model=BMRResponse,
+)
+async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
+    """
+    RU: Рассчитывает BMR и TDEE с использованием нескольких формул.
+    EN: Calculates BMR and TDEE using multiple formulas.
+
+    Supports:
+    - Mifflin-St Jeor equation (primary)
+    - Harris-Benedict equation (secondary)
+    - Katch-McArdle equation (if body fat provided)
+    - Multiple activity levels
+    - Localized responses
+    """
+    try:
+        # Check if nutrition module is available
+        _calc_all_bmr = getattr(
+            globals().get("__module__", None), "calculate_all_bmr", None
+        )
+        _calc_all_tdee = getattr(
+            globals().get("__module__", None), "calculate_all_tdee", None
+        )
+
+        if _calc_all_bmr is None or _calc_all_tdee is None:
+            # Try to import from nutrition_core
+            try:
+                from nutrition_core import calculate_all_bmr, calculate_all_tdee
+
+                _calc_all_bmr = calculate_all_bmr
+                _calc_all_tdee = calculate_all_tdee
+            except ImportError:
+                raise HTTPException(
+                    status_code=503, detail="BMR calculation module not available"
+                )
+
+        # Calculate BMR using multiple formulas
+        bmr_results = _calc_all_bmr(
+            req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat
+        )
+
+        # Calculate TDEE
+        tdee_results = _calc_all_tdee(bmr_results, req.activity)
+
+        # Prepare response
+        formulas_used = list(bmr_results.keys())
+        notes = []
+
+        # Add activity level description
+        activity_descriptions = {
+            "sedentary": t(req.lang, "activity_sedentary"),
+            "light": t(req.lang, "activity_light"),
+            "moderate": t(req.lang, "activity_moderate"),
+            "active": t(req.lang, "activity_active"),
+            "very_active": t(req.lang, "activity_very_active"),
+        }
+        activity_level = activity_descriptions.get(req.activity, req.activity)
+
+        # Add notes based on formulas used
+        if "katch" in bmr_results and req.bodyfat:
+            notes.append(t(req.lang, "bmr_katch_note"))
+
+        # Calculate recommended intake (using Mifflin as primary)
+        # primary_bmr = bmr_results.get("mifflin", list(bmr_results.values())[0])
+        # Not used currently
+        primary_tdee = tdee_results.get("mifflin", list(tdee_results.values())[0])
+
+        recommended_intake = {
+            "maintenance": primary_tdee,
+            "weight_loss": primary_tdee * 0.8,  # 20% deficit
+            "weight_gain": primary_tdee * 1.2,  # 20% surplus
+        }
+
+        return BMRResponse(
+            bmr=bmr_results,
+            tdee=tdee_results,
+            activity_level=activity_level,
+            recommended_intake=recommended_intake,
+            formulas_used=formulas_used,
+            notes=notes,
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
+    except Exception as e:
+        logger.error(f"premium_bmr error: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"BMR calculation failed: {str(e)}"
+        ) from e
+
+
 # WHO-Based Nutrition Endpoints
 
 
@@ -1092,9 +1326,8 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
             life_stage=req.life_stage,
         )
 
-        if _make_weekly_menu is not None:
-            # Generate weekly menu via core.menu_engine
-            week_menu = _make_weekly_menu(profile)
+        # Generate weekly menu via core.menu_engine
+        week_menu = _make_weekly_menu(profile)
 
         return WeeklyMenuResponse(
             week_summary={
@@ -1387,89 +1620,6 @@ async def rollback_database(source: str, target_version: str):
         ) from e
 
 
-@app.post(
-    "/api/v1/bmi/pro",
-    response_model=BMIProResponse,
-    dependencies=[Depends(get_api_key)],
-)
-async def api_v1_bmi_pro(payload: BMIProRequest):
-    """
-    BMI Pro: Advanced BMI analysis with waist measurements, body composition, and risk staging.
-
-    Provides comprehensive health risk assessment including:
-    - Traditional BMI and category
-    - Waist-to-Height Ratio (WHtR) with risk interpretation
-    - Waist-to-Hip Ratio (WHR) with sex-specific risk thresholds
-    - Fat-Free Mass Index (FFMI) for body composition analysis
-    - Multi-factor obesity staging and personalized recommendations
-    """
-    try:
-        # Calculate traditional BMI
-        height_m = payload.height_cm / 100.0
-        bmi = round(payload.weight_kg / (height_m**2), 1)
-        bmi_cat = bmi_category(bmi, payload.lang)
-
-        # Calculate WHtR
-        wht = wht_ratio(payload.waist_cm, payload.height_cm)
-        wht_interpretation = interpret_wht_ratio(wht, payload.lang)
-
-        # Normalize gender for functions that expect Literal["male", "female"]
-        normalized_gender = (
-            "male" if payload.gender.lower() in {"male", "муж", "м"} else "female"
-        )
-
-        # Calculate WHR if hip measurement provided
-        whr = None
-        whr_interpretation = None
-        if payload.hip_cm:
-            whr = whr_ratio(payload.waist_cm, payload.hip_cm, normalized_gender)
-            whr_interpretation = interpret_whr_ratio(
-                whr, normalized_gender, payload.lang
-            )
-
-        # Calculate FFMI if body fat percentage provided
-        ffm_result = None
-        if payload.bodyfat_pct is not None:
-            ffm_result = ffmi(payload.weight_kg, payload.height_cm, payload.bodyfat_pct)
-
-        # Stage obesity using multiple metrics
-        obesity_staging = stage_obesity(bmi, wht, whr or 0, normalized_gender)
-
-        # Build response
-        response = BMIProResponse(
-            bmi=bmi,
-            bmi_category=bmi_cat,
-            wht_ratio=wht,
-            wht_risk_category=wht_interpretation["category"],
-            wht_risk_level=wht_interpretation["risk"],
-            wht_description=wht_interpretation["description"],
-            obesity_stage=obesity_staging["stage"],
-            risk_factors=int(obesity_staging["risk_factors"]),
-            recommendation=obesity_staging["recommendation"],
-            note="BMI Pro analysis complete",
-        )
-
-        # Add WHR data if available
-        if whr is not None and whr_interpretation is not None:
-            response.whr_ratio = whr
-            response.whr_risk_level = whr_interpretation["risk"]
-            response.whr_description = whr_interpretation["description"]
-
-        # Add FFMI data if available
-        if ffm_result is not None:
-            response.ffmi = ffm_result["ffmi"]
-            response.ffm_kg = ffm_result["ffm_kg"]
-
-        return response
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"BMI Pro analysis failed: {str(e)}"
-        ) from e
-
-
 # Export Endpoints
 
 
@@ -1529,7 +1679,6 @@ async def export_daily_plan_csv(plan_id: str):
         import sys as _sys
 
         _pkg = _sys.modules.get("app")
-        _mod = _sys.modules.get(__name__)
         _to_csv_day = (
             getattr(_pkg, "to_csv_day", None)
             if _pkg and hasattr(_pkg, "to_csv_day")
@@ -1841,3 +1990,13 @@ async def export_weekly_plan_pdf(plan_id: str):
 # Include bodyfat router if available
 if get_bodyfat_router:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
+
+# Include BMI Pro router
+from app.routers.bmi_pro import router as bmi_pro_router
+
+app.include_router(bmi_pro_router)
+
+# Include Premium Week router
+from app.routers.premium_week import router as premium_week_router
+
+app.include_router(premium_week_router)

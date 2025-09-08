@@ -6,7 +6,6 @@ This test ensures that the web interface correctly supports Spanish language sel
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app import app

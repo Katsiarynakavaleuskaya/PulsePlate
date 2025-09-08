@@ -7,11 +7,10 @@ from fastapi.testclient import TestClient
 os.environ["API_KEY"] = "test_key"
 
 # Import and check scheduler state
+from app import app
 from core.food_apis.scheduler import _scheduler_instance
 
 print(f"Initial scheduler instance: {_scheduler_instance}")
-
-from app import app
 
 client = TestClient(app)
 

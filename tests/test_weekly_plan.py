@@ -21,7 +21,7 @@ def test_weekly_plan_generation():
         height_cm=180,
         weight_kg=75,
         activity="moderate",
-        goal="maintain"
+        goal="maintain",
     )
 
     # Build nutrition targets
@@ -52,7 +52,7 @@ def test_weekly_plan_with_diet_flags():
         weight_kg=60,
         activity="light",
         goal="maintain",
-        diet_flags={"VEG"}
+        diet_flags={"VEG"},
     )
 
     # Build nutrition targets
@@ -75,7 +75,7 @@ def test_weekly_coverage_calculation():
         height_cm=180,
         weight_kg=75,
         activity="moderate",
-        goal="maintain"
+        goal="maintain",
     )
 
     # Build nutrition targets
@@ -104,7 +104,7 @@ def test_shopping_list_generation():
         height_cm=180,
         weight_kg=75,
         activity="moderate",
-        goal="maintain"
+        goal="maintain",
     )
 
     # Build nutrition targets
@@ -129,7 +129,7 @@ def test_booster_effect_on_coverage():
         height_cm=180,
         weight_kg=75,
         activity="moderate",
-        goal="maintain"
+        goal="maintain",
     )
 
     # Build nutrition targets

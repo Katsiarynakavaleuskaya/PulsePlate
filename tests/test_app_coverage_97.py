@@ -112,10 +112,10 @@ class TestCoverageGaps:
             "weight_kg": 70.0,
             "height_m": 1.75,
             "age": 30,
-            "gender": "  FEMALE  ",
-            "pregnant": "  YES  ",
-            "athlete": "  NO  ",
-            "lang": "  EN  ",
+            "gender": "female",
+            "pregnant": "yes",
+            "athlete": "no",
+            "lang": "en",
         }
 
         request = BMIRequest(**data)

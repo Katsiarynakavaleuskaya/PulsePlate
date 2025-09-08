@@ -60,26 +60,8 @@ def test_aggregate_shopping():
     """Test shopping list aggregation."""
     # Create mock daily plans
     days = [
-        {
-            "meals": [
-                {
-                    "ingredients": {
-                        "Овсяные хлопья": 60,
-                        "Орехи": 20
-                    }
-                }
-            ]
-        },
-        {
-            "meals": [
-                {
-                    "ingredients": {
-                        "Гречка": 70,
-                        "Тофу": 120
-                    }
-                }
-            ]
-        }
+        {"meals": [{"ingredients": {"Овсяные хлопья": 60, "Орехи": 20}}]},
+        {"meals": [{"ingredients": {"Гречка": 70, "Тофу": 120}}]},
     ]
 
     # Aggregate shopping list

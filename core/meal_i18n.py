@@ -15,18 +15,14 @@ FOOD_TRANSLATIONS = {
         "salmon": "Лосось",
         "greek_yogurt": "Греческий йогурт",
         "tofu": "Тофу",
-
         # Vegetables
         "spinach": "Шпинат",
         "lentils": "Чечевица",
-
         # Grains
         "oats": "Овсянка",
         "brown_rice": "Бурый рис",
-
         # Fats
         "olive_oil": "Оливковое масло",
-
         # Fruits
         "banana": "Банан",
     },
@@ -36,18 +32,14 @@ FOOD_TRANSLATIONS = {
         "salmon": "Salmon",
         "greek_yogurt": "Greek yogurt",
         "tofu": "Tofu",
-
         # Vegetables
         "spinach": "Spinach",
         "lentils": "Lentils",
-
         # Grains
         "oats": "Oats",
         "brown_rice": "Brown rice",
-
         # Fats
         "olive_oil": "Olive oil",
-
         # Fruits
         "banana": "Banana",
     },
@@ -57,21 +49,17 @@ FOOD_TRANSLATIONS = {
         "salmon": "Salmón",
         "greek_yogurt": "Yogur griego",
         "tofu": "Tofu",
-
         # Vegetables
         "spinach": "Espinacas",
         "lentils": "Lentejas",
-
         # Grains
         "oats": "Avena",
         "brown_rice": "Arroz integral",
-
         # Fats
         "olive_oil": "Aceite de oliva",
-
         # Fruits
         "banana": "Plátano",
-    }
+    },
 }
 
 # Translation dictionaries for recipes
@@ -99,7 +87,7 @@ RECIPE_TRANSLATIONS = {
         "salmon_plate_dinner": "Cena de salmón",
         "lentil_salad_lunch": "Almuerzo de ensalada de lentejas",
         "yogurt_snack": "Merienda de yogur",
-    }
+    },
 }
 
 # Translation dictionaries for meal types
@@ -121,7 +109,7 @@ MEAL_TRANSLATIONS = {
         "lunch": "Almuerzo",
         "dinner": "Cena",
         "snack": "Merienda",
-    }
+    },
 }
 
 # Translation dictionaries for tips and messages
@@ -155,7 +143,7 @@ TIP_TRANSLATIONS = {
         "low_Iodine_ug": "Bajo yodo → agregado {}",
         "low_K_mg": "Bajo potasio → agregado {}",
         "low_Mg_mg": "Bajo magnesio → agregado {}",
-    }
+    },
 }
 
 # Type alias for language codes

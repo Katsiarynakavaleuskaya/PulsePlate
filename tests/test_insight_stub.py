@@ -24,6 +24,14 @@ client = TestClient(fastapi_app)
 
 
 def test_insight_stub_provider():
+    # Устанавливаем переменные окружения для теста
+    import os
+
+    original_feature = os.environ.get("FEATURE_INSIGHT")
+    original_provider = os.environ.get("LLM_PROVIDER")
+    os.environ["FEATURE_INSIGHT"] = "true"
+    os.environ["LLM_PROVIDER"] = "stub"
+
     r = client.post(
         "/api/v1/insight", json={"text": "ping"}, headers={"X-API-Key": "test_key"}
     )
@@ -34,3 +42,14 @@ def test_insight_stub_provider():
     assert isinstance(data, dict)
     assert "insight" in data
     assert isinstance(data["insight"], str) and data["insight"]
+
+    # Восстанавливаем переменные окружения
+    if original_feature is not None:
+        os.environ["FEATURE_INSIGHT"] = original_feature
+    else:
+        del os.environ["FEATURE_INSIGHT"]
+
+    if original_provider is not None:
+        os.environ["LLM_PROVIDER"] = original_provider
+    else:
+        del os.environ["LLM_PROVIDER"]

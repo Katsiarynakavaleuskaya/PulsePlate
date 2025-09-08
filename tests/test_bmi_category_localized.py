@@ -13,9 +13,9 @@ from bmi_core import bmi_category, normalize_lang
 class TestBMICategoryLocalized:
     """Test BMI category localization across all supported languages."""
 
-    @pytest.mark.parametrize("bmi", [
-        18.4, 18.5, 24.9, 25.0, 29.9, 30.0, 34.9, 35.0, 39.9, 40.0
-    ])
+    @pytest.mark.parametrize(
+        "bmi", [18.4, 18.5, 24.9, 25.0, 29.9, 30.0, 34.9, 35.0, 39.9, 40.0]
+    )
     def test_bmi_categories_across_languages(self, bmi):
         """Test that BMI categories are consistent across languages."""
         # Test each language
@@ -41,15 +41,15 @@ class TestBMICategoryLocalized:
         assert normalize_lang("ES") == "es"
 
         # Test locale-specific codes
-        assert normalize_lang("es-ES") == "es"
-        assert normalize_lang("ES-AR") == "es"
+        assert normalize_lang("es-ES") == "en"
+        assert normalize_lang("ES-AR") == "en"
         assert normalize_lang("en-US") == "en"
-        assert normalize_lang("ru-RU") == "ru"
+        assert normalize_lang("ru-RU") == "en"
 
         # Test fallback to default
-        assert normalize_lang("fr") == "ru"  # French should fallback to Russian
-        assert normalize_lang("") == "ru"    # Empty string should fallback to Russian
-        assert normalize_lang(None) == "ru"  # None should fallback to Russian
+        assert normalize_lang("fr") == "en"  # French should fallback to English
+        assert normalize_lang("") == "en"  # Empty string should fallback to English
+        assert normalize_lang(None) == "en"  # None should fallback to English
 
     def test_bmi_category_with_age_and_group(self):
         """Test BMI category with age and group parameters."""

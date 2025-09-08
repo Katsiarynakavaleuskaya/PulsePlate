@@ -58,4 +58,3 @@ def test_weekly_menu_endpoint_smoke():
     if r.status_code == 200:
         data = r.json()
         assert "weekly_coverage" in data or "week_summary" in data
-

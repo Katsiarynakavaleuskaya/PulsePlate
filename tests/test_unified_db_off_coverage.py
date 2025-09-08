@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import asyncio
 import tempfile
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,7 +30,7 @@ class _FakeOFFClient:
 @pytest.mark.asyncio
 async def test_unified_db_search_uses_off_and_caches():
     # Patch USDA to return empty so OFF branch is used
-    with patch('core.food_apis.unified_db.USDAClient') as mock_usda_cls:
+    with patch("core.food_apis.unified_db.USDAClient") as mock_usda_cls:
         mock_usda = MagicMock()
         mock_usda.search_foods = AsyncMock(return_value=[])
         mock_usda_cls.return_value = mock_usda
@@ -52,7 +50,7 @@ async def test_unified_db_search_uses_off_and_caches():
 
 @pytest.mark.asyncio
 async def test_unified_db_get_food_by_id_off_success():
-    with patch('core.food_apis.unified_db.USDAClient'):
+    with patch("core.food_apis.unified_db.USDAClient"):
         with tempfile.TemporaryDirectory() as temp_dir:
             db = UnifiedFoodDatabase(cache_dir=temp_dir)
             db.off_client = _FakeOFFClient()
@@ -60,4 +58,3 @@ async def test_unified_db_get_food_by_id_off_success():
             item = await db.get_food_by_id("openfoodfacts", "000111222")
             assert isinstance(item, UnifiedFoodItem)
             assert item.source == "Open Food Facts"
-

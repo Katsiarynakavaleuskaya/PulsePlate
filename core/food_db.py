@@ -23,9 +23,10 @@ class FoodItem:
     RU: Элемент базы данных продуктов.
     EN: Food database item.
     """
+
     name: str
     unit_per: int  # e.g., 100
-    unit: str      # e.g., g
+    unit: str  # e.g., g
     protein_g: float
     fat_g: float
     carbs_g: float
@@ -58,7 +59,7 @@ class FoodItem:
             b12_ug=self.B12_ug,
             vitamin_d_iu=self.VitD_IU,
             vitamin_a_ug=0.0,  # Not in CSV, would need to be added
-            vitamin_c_mg=0.0   # Not in CSV, would need to be added
+            vitamin_c_mg=0.0,  # Not in CSV, would need to be added
         )
 
     def get_nutrient_amount(self, nutrient_name: str, amount_g: float) -> float:
@@ -91,10 +92,10 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     """
     RU: Парсит CSV файл базы данных продуктов.
     EN: Parse food database CSV file.
-    
+
     Args:
         csv_path: Path to the food database CSV file
-        
+
     Returns:
         Dictionary mapping food names to FoodItem objects
     """
@@ -125,7 +126,7 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
                 K_mg=float(row["K_mg"]),
                 Mg_mg=float(row["Mg_mg"]),
                 price_per_unit=float(row.get("price_per_unit", 0) or 0),
-                flags=flags
+                flags=flags,
             )
 
             # Use name as key (assuming unique names)
@@ -134,16 +135,18 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     return food_db
 
 
-def pick_booster_for(micro: str, flags: Set[str], food_db: Dict[str, FoodItem]) -> Optional[str]:
+def pick_booster_for(
+    micro: str, flags: Set[str], food_db: Dict[str, FoodItem]
+) -> Optional[str]:
     """
     RU: Выбирает продукт-бустер для конкретного микронутриента.
     EN: Picks a booster food for a specific micronutrient.
-    
+
     Args:
         micro: Micronutrient name (e.g., "iron_mg", "folate_ug")
         flags: Dietary flags to consider
         food_db: Food database
-        
+
     Returns:
         Name of the best booster food or None if not found
     """
@@ -167,7 +170,11 @@ def pick_booster_for(micro: str, flags: Set[str], food_db: Dict[str, FoodItem]) 
         if candidate in food_db:
             food = food_db[candidate]
             # Check if food matches dietary flags
-            if not flags or flags.issubset(food.flags) or not flags.intersection(food.flags):
+            if (
+                not flags
+                or flags.issubset(food.flags)
+                or not flags.intersection(food.flags)
+            ):
                 filtered_candidates.append(candidate)
 
     # Return the first matching candidate
@@ -178,10 +185,10 @@ def aggregate_shopping(days: List[Dict]) -> Dict[str, float]:
     """
     RU: Агрегирует список покупок за несколько дней.
     EN: Aggregates shopping list across multiple days.
-    
+
     Args:
         days: List of daily meal plans with ingredients
-        
+
     Returns:
         Dictionary mapping ingredient names to total amounts needed
     """
@@ -192,6 +199,8 @@ def aggregate_shopping(days: List[Dict]) -> Dict[str, float]:
             for meal in day["meals"]:
                 if "ingredients" in meal:
                     for ingredient_name, amount in meal["ingredients"].items():
-                        shopping_list[ingredient_name] = shopping_list.get(ingredient_name, 0) + amount
+                        shopping_list[ingredient_name] = (
+                            shopping_list.get(ingredient_name, 0) + amount
+                        )
 
     return shopping_list

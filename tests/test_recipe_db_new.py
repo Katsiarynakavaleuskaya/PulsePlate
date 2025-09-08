@@ -10,14 +10,18 @@ import os
 import pytest
 
 from core.food_db_new import FoodDB
-from core.recipe_db_new import Recipe, RecipeDB
+from core.recipe_db_new import RecipeDB
 
 
 def test_parse_recipe_db():
     """Test that recipe database is parsed correctly."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -45,11 +49,16 @@ def test_parse_recipe_db():
     assert "oats" in recipe.ingredients
     assert recipe.ingredients["oats"] == 60.0
 
+
 def test_pick_base_recipe():
     """Test base recipe selection."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -63,13 +72,21 @@ def test_pick_base_recipe():
     # Test with vegetarian flag
     veg_recipe = recipe_db.pick_base_recipe(["VEG"], 0)  # 0 = breakfast
     assert veg_recipe is not None
-    assert "VEG" in veg_recipe.tags or len([t for t in veg_recipe.tags if t in ["VEG", "GF", "DAIRY_FREE"]]) > 0
+    assert (
+        "VEG" in veg_recipe.tags
+        or len([t for t in veg_recipe.tags if t in ["VEG", "GF", "DAIRY_FREE"]]) > 0
+    )
+
 
 def test_scale_recipe_to_kcal():
     """Test recipe scaling to calorie targets."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -93,11 +110,16 @@ def test_scale_recipe_to_kcal():
     # Check that kcal is approximately correct (allowing for some variation)
     assert abs(scaled_meal.kcal - 500) <= 50
 
+
 def test_scale_recipe_to_kcal_multilingual():
     """Test multilingual recipe scaling."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
-    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+    food_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
+    )
+    recipe_csv_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
+    )
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -115,6 +137,7 @@ def test_scale_recipe_to_kcal_multilingual():
         assert hasattr(scaled_meal, "title")
         assert hasattr(scaled_meal, "title_translated")
         assert scaled_meal.title_translated != ""
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -5,8 +5,6 @@ This test ensures that all translation keys are present in all languages
 and that the i18n system works consistently across RU/EN/ES.
 """
 
-import pytest
-
 from core.i18n import TRANSLATIONS, t, validate_translation_key
 
 
@@ -23,7 +21,9 @@ class TestI18nParity:
 
         # Check that all key sets are identical
         for i in range(1, len(key_sets)):
-            assert key_sets[0] == key_sets[i], f"Keys differ between {languages[0]} and {languages[i]}"
+            assert (
+                key_sets[0] == key_sets[i]
+            ), f"Keys differ between {languages[0]} and {languages[i]}"
 
     def test_translation_function_works_for_all_languages(self):
         """Test that the translation function works for all languages."""

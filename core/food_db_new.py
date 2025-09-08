@@ -16,7 +16,17 @@ from typing import Dict, List, Optional
 
 from .meal_i18n import Language, translate_food
 
-MICRO_KEYS = ["Fe_mg","Ca_mg","VitD_IU","B12_ug","Folate_ug","Iodine_ug","K_mg","Mg_mg"]
+MICRO_KEYS = [
+    "Fe_mg",
+    "Ca_mg",
+    "VitD_IU",
+    "B12_ug",
+    "Folate_ug",
+    "Iodine_ug",
+    "K_mg",
+    "Mg_mg",
+]
+
 
 @dataclass
 class FoodItem:
@@ -31,14 +41,20 @@ class FoodItem:
     flags: List[str]
     price: float
 
+
 class FoodDB:
     """RU: Хранилище продуктов (100 г). EN: Simple 100g-based food database."""
+
     def __init__(self, path: str) -> None:
         self.items: Dict[str, FoodItem] = {}
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 micros = {k: float(row.get(k, 0) or 0) for k in MICRO_KEYS}
-                flags = [x.strip() for x in (row.get("flags","") or "").split(";") if x.strip()]
+                flags = [
+                    x.strip()
+                    for x in (row.get("flags", "") or "").split(";")
+                    if x.strip()
+                ]
                 self.items[row["name"]] = FoodItem(
                     name=row["name"],
                     group=row["group"],
@@ -61,17 +77,17 @@ class FoodDB:
 
     def pick_booster_for(self, micro: str, diet_flags: List[str]) -> Optional[str]:
         """RU: Выбрать продукт-донор для микро с учетом флагов диеты.
-           EN: Pick a donor food for given micro respecting diet flags.
+        EN: Pick a donor food for given micro respecting diet flags.
         """
         donors = {
-            "Fe_mg": ["lentils","spinach","tofu","chicken_breast"],
-            "Ca_mg": ["greek_yogurt","tofu","spinach"],
-            "VitD_IU": ["salmon","eggs?"],
-            "B12_ug": ["salmon","chicken_breast","greek_yogurt"],
-            "Folate_ug": ["spinach","lentils"],
+            "Fe_mg": ["lentils", "spinach", "tofu", "chicken_breast"],
+            "Ca_mg": ["greek_yogurt", "tofu", "spinach"],
+            "VitD_IU": ["salmon", "eggs?"],
+            "B12_ug": ["salmon", "chicken_breast", "greek_yogurt"],
+            "Folate_ug": ["spinach", "lentils"],
             "Iodine_ug": ["salmon"],  # и/или йодированная соль (тут пропускаем)
-            "K_mg": ["banana","spinach","potato?"],
-            "Mg_mg": ["oats","spinach","lentils"],
+            "K_mg": ["banana", "spinach", "potato?"],
+            "Mg_mg": ["oats", "spinach", "lentils"],
         }
         for candidate in donors.get(micro, []):
             item = self.items.get(candidate)
@@ -105,10 +121,12 @@ class FoodDB:
                 price = round(self.items[name].price * (grams / 100.0), 2)
             # Add translated name to shopping list
             translated_name = self.get_translated_food_name(name, lang)
-            out.append({
-                "name": name,
-                "name_translated": translated_name,
-                "grams": round(grams, 0),
-                "price_est": price
-            })
+            out.append(
+                {
+                    "name": name,
+                    "name_translated": translated_name,
+                    "grams": round(grams, 0),
+                    "price_est": price,
+                }
+            )
         return out

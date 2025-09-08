@@ -17,4 +17,3 @@ def test_i18n_missing_key_keyerror():
 def test_i18n_validate_translation_key():
     assert validate_translation_key("bmi_normal") is True
     assert validate_translation_key("__definitely_missing__") is False
-

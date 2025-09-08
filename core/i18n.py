@@ -16,7 +16,16 @@ TRANSLATIONS = {
         "bmi_obese_1": "Ожирение I степени",
         "bmi_obese_2": "Ожирение II степени",
         "bmi_obese_3": "Ожирение III степени",
-
+        # Activity Levels
+        "level_beginner": "Начинающий",
+        "level_novice": "Новичок",
+        "level_intermediate": "Средний",
+        "level_advanced": "Продвинутый",
+        "activity_sedentary": "Малоподвижный",
+        "activity_light": "Легкая активность",
+        "activity_moderate": "Умеренная активность",
+        "activity_active": "Активный",
+        "activity_very_active": "Очень активный",
         # Validation Errors
         "validation_weight_positive": "Вес должен быть положительным числом",
         "validation_height_positive": "Рост должен быть положительным числом",
@@ -24,7 +33,6 @@ TRANSLATIONS = {
         "validation_waist_positive": "Обхват талии должен быть положительным числом",
         "validation_hip_positive": "Обхват бедер должен быть положительным числом",
         "validation_bodyfat_range": "Процент жира должен быть от 0 до 60",
-
         # Web Form Labels
         "form_weight": "Вес (кг)",
         "form_height": "Рост (см)",
@@ -40,18 +48,16 @@ TRANSLATIONS = {
         "form_female": "Женский",
         "form_yes": "Да",
         "form_no": "Нет",
-
         # Advice Texts
         "advice_underweight": "Вам следует набрать вес. Проконсультируйтесь с врачом "
-                          "для составления плана питания.",
+        "для составления плана питания.",
         "advice_normal": "У вас нормальный вес. Продолжайте поддерживать здоровый "
-                     "образ жизни.",
+        "образ жизни.",
         "advice_overweight": "Вам следует сбросить вес. Рекомендуется сбалансированная "
-                         "диета и физическая активность.",
+        "диета и физическая активность.",
         "advice_obese": "Вам необходимо снизить вес. Обратитесь к врачу для "
-                    "консультации и составления плана похудения.",
+        "консультации и составления плана похудения.",
         "advice_athlete_bmi": "У спортсменов BMI может завышать жировую массу",
-
         # Risk Assessment
         "risk_high_waist": "Высокий риск по талии",
         "risk_increased_waist": "Повышенный риск по талии",
@@ -68,29 +74,26 @@ TRANSLATIONS = {
         "risk_elderly_note": "У пожилых ИМТ может занижать долю жира (саркопения).",
         "risk_child_note": "Для подростков используйте возрастные центильные таблицы.",
         "risk_teen_note": "Подростковый возраст: учитывайте этап полового созревания.",
-
         # BMI Pro Labels
         "bmi_pro_low_risk": "Низкий",
         "bmi_pro_moderate_risk": "Умеренный",
         "bmi_pro_high_risk": "Высокий",
         "bmi_pro_analysis_complete": "Анализ BMI Pro завершен",
-
         # Recommendations
         "recommendation_consult_healthcare": "Рассмотрите возможность консультации с "
-                                         "медицинским специалистом для комплексной оценки",
+        "медицинским специалистом для комплексной оценки",
         "recommendation_monitor_health": "Следите за показателями здоровья и рассмотрите "
-                                     "возможность изменения образа жизни",
+        "возможность изменения образа жизни",
         "recommendation_maintain_habits": "Поддерживайте текущие здоровые привычки",
-
-        # Levels
-        "level_advanced": "продвинутый",
-        "level_intermediate": "средний",
-        "level_novice": "начальный",
-        "level_beginner": "базовый",
-
+        # Levels (Russian)
+        "level_advanced": "продвинутый",  # noqa: F601
+        "level_intermediate": "средний",  # noqa: F601
+        "level_novice": "начальный",  # noqa: F601
+        "level_beginner": "базовый",  # noqa: F601
         # General
         "bmi_not_valid_during_pregnancy": "BMI не применим при беременности",
         "bmi_visualization_success": "Визуализация ИМТ создана успешно",
+        "bmr_katch_note": "Использована формула Katch-McArdle (требует процент жира)",
     },
     "en": {
         # BMI Categories
@@ -100,7 +103,16 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obese Class I",
         "bmi_obese_2": "Obese Class II",
         "bmi_obese_3": "Obese Class III",
-
+        # Activity Levels (English)
+        "level_beginner": "Beginner",
+        "level_novice": "Novice",
+        "level_intermediate": "Intermediate",
+        "level_advanced": "Advanced",
+        "activity_sedentary": "Sedentary",
+        "activity_light": "Light activity",
+        "activity_moderate": "Moderate activity",
+        "activity_active": "Active",
+        "activity_very_active": "Very active",
         # Validation Errors
         "validation_weight_positive": "Weight must be a positive number",
         "validation_height_positive": "Height must be a positive number",
@@ -108,7 +120,6 @@ TRANSLATIONS = {
         "validation_waist_positive": "Waist circumference must be a positive number",
         "validation_hip_positive": "Hip circumference must be a positive number",
         "validation_bodyfat_range": "Body fat percentage must be between 0 and 60",
-
         # Web Form Labels
         "form_weight": "Weight (kg)",
         "form_height": "Height (cm)",
@@ -124,18 +135,16 @@ TRANSLATIONS = {
         "form_female": "Female",
         "form_yes": "Yes",
         "form_no": "No",
-
         # Advice Texts
         "advice_underweight": "You should gain weight. Consult a doctor to "
-                          "develop a nutrition plan.",
+        "develop a nutrition plan.",
         "advice_normal": "You have a normal weight. Continue maintaining a "
-                     "healthy lifestyle.",
+        "healthy lifestyle.",
         "advice_overweight": "You should lose weight. A balanced diet and "
-                         "physical activity are recommended.",
+        "physical activity are recommended.",
         "advice_obese": "You need to reduce your weight. Consult a doctor for "
-                    "advice and a weight loss plan.",
+        "advice and a weight loss plan.",
         "advice_athlete_bmi": "For athletes, BMI may overestimate body fat due to muscle mass",
-
         # Risk Assessment
         "risk_high_waist": "High waist-related risk",
         "risk_increased_waist": "Increased waist-related risk",
@@ -152,29 +161,26 @@ TRANSLATIONS = {
         "risk_elderly_note": "In older adults, BMI can underestimate body fat (sarcopenia).",
         "risk_child_note": "Use BMI-for-age percentiles for youth.",
         "risk_teen_note": "Teenage years: consider pubertal development stage.",
-
         # BMI Pro Labels
         "bmi_pro_low_risk": "Low",
         "bmi_pro_moderate_risk": "Moderate",
         "bmi_pro_high_risk": "High",
         "bmi_pro_analysis_complete": "BMI Pro analysis complete",
-
         # Recommendations
         "recommendation_consult_healthcare": "Consider consulting with a healthcare "
-                                         "professional for comprehensive assessment",
+        "professional for comprehensive assessment",
         "recommendation_monitor_health": "Monitor health metrics and consider "
-                                     "lifestyle modifications",
+        "lifestyle modifications",
         "recommendation_maintain_habits": "Maintain current healthy habits",
-
-        # Levels
-        "level_advanced": "advanced",
-        "level_intermediate": "intermediate",
-        "level_novice": "novice",
-        "level_beginner": "beginner",
-
+        # Levels (English lowercase)
+        "level_advanced": "advanced",  # noqa: F601
+        "level_intermediate": "intermediate",  # noqa: F601
+        "level_novice": "novice",  # noqa: F601
+        "level_beginner": "beginner",  # noqa: F601
         # General
         "bmi_not_valid_during_pregnancy": "BMI is not valid during pregnancy",
         "bmi_visualization_success": "BMI visualization generated successfully",
+        "bmr_katch_note": "Using Katch-McArdle formula (requires body fat percentage)",
     },
     "es": {
         # BMI Categories
@@ -184,7 +190,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obesidad Clase I",
         "bmi_obese_2": "Obesidad Clase II",
         "bmi_obese_3": "Obesidad Clase III",
-
+        # Activity Levels (Spanish)
+        "level_beginner": "Principiante",
+        "level_novice": "Novato",
+        "level_intermediate": "Intermedio",
+        "level_advanced": "Avanzado",
         # Validation Errors
         "validation_weight_positive": "El peso debe ser un número positivo",
         "validation_height_positive": "La altura debe ser un número positivo",
@@ -192,7 +202,6 @@ TRANSLATIONS = {
         "validation_waist_positive": "La circunferencia de la cintura debe ser un número positivo",
         "validation_hip_positive": "La circunferencia de la cadera debe ser un número positivo",
         "validation_bodyfat_range": "El porcentaje de grasa corporal debe estar entre 0 y 60",
-
         # Web Form Labels
         "form_weight": "Peso (kg)",
         "form_height": "Altura (cm)",
@@ -208,18 +217,16 @@ TRANSLATIONS = {
         "form_female": "Femenino",
         "form_yes": "Sí",
         "form_no": "No",
-
         # Advice Texts
         "advice_underweight": "Deberías ganar peso. Consulta con un médico para "
-                          "desarrollar un plan nutricional.",
+        "desarrollar un plan nutricional.",
         "advice_normal": "Tienes un peso normal. Sigue manteniendo un estilo de "
-                     "vida saludable.",
+        "vida saludable.",
         "advice_overweight": "Deberías perder peso. Se recomienda una dieta "
-                         "equilibrada y actividad física.",
+        "equilibrada y actividad física.",
         "advice_obese": "Necesitas reducir tu peso. Consulta con un médico para "
-                    "obtener consejos y un plan de pérdida de peso.",
+        "obtener consejos y un plan de pérdida de peso.",
         "advice_athlete_bmi": "Para atletas, el IMC puede sobreestimar la grasa corporal",
-
         # Risk Assessment
         "risk_high_waist": "Alto riesgo relacionado con la cintura",
         "risk_increased_waist": "Riesgo aumentado relacionado con la cintura",
@@ -234,33 +241,35 @@ TRANSLATIONS = {
         "risk_high_health": "Alto riesgo para la salud",
         "risk_high_android_shape": "Alto riesgo para la salud (forma androide/manzana)",
         "risk_elderly_note": "En adultos mayores, el IMC puede subestimar la grasa "
-                         "corporal (sarcopenia).",
+        "corporal (sarcopenia).",
         "risk_child_note": "Utilice percentiles de IMC para la edad en jóvenes.",
         "risk_teen_note": "Años adolescentes: considere la etapa de desarrollo puberal.",
-
         # BMI Pro Labels
         "bmi_pro_low_risk": "Bajo",
         "bmi_pro_moderate_risk": "Moderado",
         "bmi_pro_high_risk": "Alto",
         "bmi_pro_analysis_complete": "Análisis de IMC Pro completado",
-
         # Recommendations
         "recommendation_consult_healthcare": "Considera consultar con un profesional "
-                                         "de la salud para una evaluación completa",
+        "de la salud para una evaluación completa",
         "recommendation_monitor_health": "Monitorea los indicadores de salud y "
-                                     "considera modificaciones en el estilo de vida",
+        "considera modificaciones en el estilo de vida",
         "recommendation_maintain_habits": "Mantén tus hábitos saludables actuales",
-
-        # Levels
-        "level_advanced": "avanzado",
-        "level_intermediate": "intermedio",
-        "level_novice": "novato",
-        "level_beginner": "principiante",
-
+        # Levels (Spanish lowercase)
+        "level_advanced": "avanzado",  # noqa: F601
+        "level_intermediate": "intermedio",  # noqa: F601
+        "level_novice": "novato",  # noqa: F601
+        "level_beginner": "principiante",  # noqa: F601
+        "activity_sedentary": "Sedentario",
+        "activity_light": "Actividad ligera",
+        "activity_moderate": "Actividad moderada",
+        "activity_active": "Activo",
+        "activity_very_active": "Muy activo",
         # General
         "bmi_not_valid_during_pregnancy": "El IMC no es válido durante el embarazo",
         "bmi_visualization_success": "Visualización del IMC generada con éxito",
-    }
+        "bmr_katch_note": "Usando fórmula Katch-McArdle (requiere porcentaje de grasa corporal)",
+    },
 }
 
 # Type alias for language codes
@@ -306,3 +315,41 @@ def validate_translation_key(key: str) -> bool:
         True if key exists in all languages, False otherwise
     """
     return all(key in translations for translations in TRANSLATIONS.values())
+
+
+def normalize_lang(lang: str) -> Language:
+    """
+    Normalize language code to supported language.
+
+    Args:
+        lang: Language code (case insensitive)
+
+    Returns:
+        Normalized language code
+
+    Raises:
+        ValueError: If language is not supported
+    """
+    if not lang:
+        return "en"  # Default to English
+
+    lang_lower = lang.lower().strip()
+
+    # Map common variations to supported languages
+    lang_map = {
+        "ru": "ru",
+        "russian": "ru",
+        "русский": "ru",
+        "en": "en",
+        "english": "en",
+        "es": "es",
+        "spanish": "es",
+        "español": "es",
+        "испанский": "es",
+    }
+
+    if lang_lower in lang_map:
+        return lang_map[lang_lower]
+
+    # Default to English for unsupported languages
+    return "en"

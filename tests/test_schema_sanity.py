@@ -5,8 +5,6 @@ RU: Тесты валидности схемы.
 EN: Schema sanity tests.
 """
 
-import os
-
 import pytest
 
 from core.food_merge import merge_records
@@ -35,7 +33,7 @@ def test_non_negative_nutrients():
         flags=[],
         price=1.5,
         source="TEST",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     # All values should be non-negative
@@ -77,7 +75,7 @@ def test_kcal_calculation_approximation():
         flags=[],
         price=0.0,
         source="TEST",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     # Calculate expected kcal from macronutrients
@@ -113,7 +111,7 @@ def test_per_g_consistency():
         flags=[],
         price=1.5,
         source="TEST",
-        version_date="2025-01-01"
+        version_date="2025-01-01",
     )
 
     assert record.per_g == 100.0
@@ -143,7 +141,7 @@ def test_merged_schema_sanity():
             flags=[],
             price=0.0,
             source="USDA",
-            version_date="2025-01-01"
+            version_date="2025-01-01",
         )
     ]
 

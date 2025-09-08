@@ -17,25 +17,26 @@ class FoodRecord:
     RU: Запись о продукте питания.
     EN: Food record.
     """
-    name: str          # canonical name
-    locale: str        # "en", "fr", "es", ...
-    per_g: float       # base weight (100.0 for 100g)
-    kcal: float        # energy in kcal
-    protein_g: float   # protein in grams
-    fat_g: float       # fat in grams
-    carbs_g: float     # carbohydrates in grams
-    fiber_g: float     # fiber in grams
-    Fe_mg: float       # iron in mg
-    Ca_mg: float       # calcium in mg
-    VitD_IU: float     # vitamin D in IU
-    B12_ug: float      # vitamin B12 in µg
-    Folate_ug: float   # folate in µg
-    Iodine_ug: float   # iodine in µg
-    K_mg: float        # potassium in mg
-    Mg_mg: float       # magnesium in mg
-    flags: list        # dietary flags
-    price: float       # price per 100g
-    source: str        # data source
+
+    name: str  # canonical name
+    locale: str  # "en", "fr", "es", ...
+    per_g: float  # base weight (100.0 for 100g)
+    kcal: float  # energy in kcal
+    protein_g: float  # protein in grams
+    fat_g: float  # fat in grams
+    carbs_g: float  # carbohydrates in grams
+    fiber_g: float  # fiber in grams
+    Fe_mg: float  # iron in mg
+    Ca_mg: float  # calcium in mg
+    VitD_IU: float  # vitamin D in IU
+    B12_ug: float  # vitamin B12 in µg
+    Folate_ug: float  # folate in µg
+    Iodine_ug: float  # iodine in µg
+    K_mg: float  # potassium in mg
+    Mg_mg: float  # magnesium in mg
+    flags: list  # dietary flags
+    price: float  # price per 100g
+    source: str  # data source
     version_date: str  # ISO date
 
 

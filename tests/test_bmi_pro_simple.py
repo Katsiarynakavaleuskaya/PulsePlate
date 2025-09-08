@@ -15,12 +15,12 @@ def test_bmi_pro_ok():
         "weight_kg": 70,
         "height_cm": 170,
         "age": 30,
-        "gender": "male",
+        "sex": "male",
         "pregnant": "no",
         "athlete": "no",
         "waist_cm": 85,
         "hip_cm": 95,
-        "bodyfat_pct": 18,
+        "bodyfat_percent": 18,
         "lang": "en",
     }
     r = client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": "test_key"})
@@ -28,12 +28,12 @@ def test_bmi_pro_ok():
     data = r.json()
 
     # Check that required fields are present
-    required_fields = ["bmi", "wht_ratio", "obesity_stage", "recommendation"]
+    required_fields = ["bmi", "whtr", "risk_level"]
     for field in required_fields:
         assert field in data
 
     # Check specific values
-    assert abs(data["wht_ratio"] - 85 / 170) < 0.01
+    assert abs(data["whtr"] - 85 / 170) < 0.01
 
     # Clean up
     if "API_KEY" in os.environ:
@@ -49,7 +49,7 @@ def test_bmi_pro_validation():
         "weight_kg": 70,
         "height_cm": 0,  # Invalid
         "age": 30,
-        "gender": "male",
+        "sex": "male",
         "pregnant": "no",
         "athlete": "no",
         "waist_cm": 80,

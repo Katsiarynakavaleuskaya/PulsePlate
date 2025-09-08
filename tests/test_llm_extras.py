@@ -94,6 +94,8 @@ def test_get_provider_grok_env_block_executes(monkeypatch):
     mod = types.ModuleType("providers.grok")
 
     class GrokProvider:
+        name = "grok"
+
         # позиционно-только — вызов с именованными параметрами приведёт к TypeError
         def __init__(self, endpoint, model, api_key, /):  # noqa: D401
             self.endpoint = endpoint
@@ -123,6 +125,8 @@ def test_get_provider_ollama_typeerror_posargs_fallback(monkeypatch):
     mod = types.ModuleType("providers.ollama")
 
     class OllamaProvider:
+        name = "ollama"
+
         # позиционно-только — именованные параметры вызовут TypeError
         def __init__(self, endpoint, model, /):  # noqa: D401
             self.endpoint = endpoint
@@ -174,6 +178,8 @@ def test_get_provider_grok_missing_api_key_triggers_branch(monkeypatch):
     mod = types.ModuleType("providers.grok")
 
     class GrokProvider:
+        name = "grok"
+
         def __init__(self, *args, **kwargs):
             pass
 

@@ -223,7 +223,7 @@ def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[fl
     if waist_cm is None:
         return None
     # Basic height validation
-    if height_m <= 0 or height_m > 3.0:  # Reasonable height range
+    if height_m <= 0.5 or height_m > 3.0:  # Reasonable height range (50cm to 300cm)
         return None
 
     # Мягкая обработка

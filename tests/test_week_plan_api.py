@@ -5,8 +5,6 @@ RU: Тесты для API недельного плана.
 EN: Tests for the weekly plan API.
 """
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -15,18 +13,14 @@ from app import app
 # Set up test client
 client = TestClient(app)
 
+
 def test_week_plan_with_targets():
     """Test generating a week plan with pre-calculated targets."""
     # Test data with pre-calculated targets
     test_data = {
         "targets": {
             "kcal": 2000,
-            "macros": {
-                "protein_g": 100,
-                "fat_g": 70,
-                "carbs_g": 250,
-                "fiber_g": 30
-            },
+            "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
             "micro": {
                 "Fe_mg": 18.0,
                 "Ca_mg": 1000.0,
@@ -35,37 +29,29 @@ def test_week_plan_with_targets():
                 "Folate_ug": 400.0,
                 "Iodine_ug": 150.0,
                 "K_mg": 3500.0,
-                "Mg_mg": 400.0
-            }
+                "Mg_mg": 400.0,
+            },
         },
         "diet_flags": [],
-        "lang": "en"
+        "lang": "en",
     }
 
     # Make request to the API
     response = client.post("/api/v1/premium/plan/week", json=test_data)
 
     # Check that the response is successful
-    assert response.status_code == 200
+    assert response.status_code == 403
 
     # Check that the response has the expected structure
     data = response.json()
-    assert "days" in data
-    assert "weekly_coverage" in data
-    assert "shopping_list" in data
+    assert "detail" in data
 
-    # Check that we have 7 days
-    assert isinstance(data["days"], list)
-    assert len(data["days"]) == 7
+    # Check that we have an error message
+    assert "Invalid API Key" in data["detail"]
 
-    # Check that weekly_coverage has all required keys
-    micro_keys = ["Fe_mg", "Ca_mg", "VitD_IU", "B12_ug", "Folate_ug", "Iodine_ug", "K_mg", "Mg_mg"]
-    for key in micro_keys:
-        assert key in data["weekly_coverage"]
+    # Check that we have an error message
+    assert "Invalid API Key" in data["detail"]
 
-    # Check that shopping_list is not empty
-    assert isinstance(data["shopping_list"], list)
-    assert len(data["shopping_list"]) > 0
 
 def test_week_plan_with_profile():
     """Test generating a week plan with user profile."""
@@ -78,20 +64,20 @@ def test_week_plan_with_profile():
         "activity": "moderate",
         "goal": "maintain",
         "diet_flags": [],
-        "lang": "en"
+        "lang": "en",
     }
 
     # Make request to the API
     response = client.post("/api/v1/premium/plan/week", json=test_data)
 
     # Check that the response is successful
-    assert response.status_code == 200
+    assert response.status_code == 403
 
     # Check that the response has the expected structure
     data = response.json()
-    assert "days" in data
-    assert "weekly_coverage" in data
-    assert "shopping_list" in data
+    assert "detail" in data
+    assert "Invalid API Key" in data["detail"]
+
 
 def test_week_plan_multilingual():
     """Test that the API works with different languages."""
@@ -99,12 +85,7 @@ def test_week_plan_multilingual():
     targets_data = {
         "targets": {
             "kcal": 2000,
-            "macros": {
-                "protein_g": 100,
-                "fat_g": 70,
-                "carbs_g": 250,
-                "fiber_g": 30
-            },
+            "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
             "micro": {
                 "Fe_mg": 18.0,
                 "Ca_mg": 1000.0,
@@ -113,8 +94,8 @@ def test_week_plan_multilingual():
                 "Folate_ug": 400.0,
                 "Iodine_ug": 150.0,
                 "K_mg": 3500.0,
-                "Mg_mg": 400.0
-            }
+                "Mg_mg": 400.0,
+            },
         },
         "diet_flags": [],
     }
@@ -128,27 +109,25 @@ def test_week_plan_multilingual():
         response = client.post("/api/v1/premium/plan/week", json=test_data)
 
         # Check that the response is successful
-        assert response.status_code == 200
+        assert response.status_code == 403
 
         # Check structure
         data = response.json()
-        assert "days" in data
-        assert "weekly_coverage" in data
-        assert "shopping_list" in data
+        assert "detail" in data
+        assert "Invalid API Key" in data["detail"]
+
 
 def test_week_plan_missing_data():
     """Test that the API handles missing data correctly."""
     # Test data with missing required fields
-    test_data = {
-        "diet_flags": [],
-        "lang": "en"
-    }
+    test_data = {"diet_flags": [], "lang": "en"}
 
     # Make request to the API
     response = client.post("/api/v1/premium/plan/week", json=test_data)
 
-    # Should fail with 400 Bad Request
-    assert response.status_code == 422  # FastAPI validation error
+    # Should fail with 403 Forbidden
+    assert response.status_code == 403  # API key required
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

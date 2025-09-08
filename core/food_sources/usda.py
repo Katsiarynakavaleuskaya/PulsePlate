@@ -27,13 +27,15 @@ class USDAAdapter(BaseAdapter):
         """
         RU: Инициализировать адаптер USDA.
         EN: Initialize USDA adapter.
-        
+
         Args:
             csv_path: Path to USDA CSV file
         """
         if csv_path is None:
             # Default path relative to project root
-            csv_path = os.path.join(os.path.dirname(__file__), "..", "..", "external", "usda_fdc_sample.csv")
+            csv_path = os.path.join(
+                os.path.dirname(__file__), "..", "..", "external", "usda_fdc_sample.csv"
+            )
         self.csv_path = csv_path
 
     def fetch(self) -> Iterable[Dict]:
@@ -94,5 +96,5 @@ class USDAAdapter(BaseAdapter):
                 flags=[],
                 price=0.0,
                 source="USDA",
-                version_date=today
+                version_date=today,
             )

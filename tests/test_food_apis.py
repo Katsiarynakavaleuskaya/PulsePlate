@@ -24,8 +24,10 @@ class TestUSDAClient:
             "foods": [
                 {
                     "fdcId": 168149,
-                    "description": ("Chicken, broiler or fryers, breast, skinless, "
-                                   "boneless, meat only, cooked, roasted"),
+                    "description": (
+                        "Chicken, broiler or fryers, breast, skinless, "
+                        "boneless, meat only, cooked, roasted"
+                    ),
                     "dataType": "Foundation",
                     "foodCategory": {"description": "Poultry Products"},
                     "foodNutrients": [
@@ -449,7 +451,7 @@ class TestUSDAClient:
                 {
                     "fdcId": 168149,
                     "description": "Chicken, broiler or fryers, breast, skinless, "
-                                   "boneless, meat only, cooked, roasted",
+                    "boneless, meat only, cooked, roasted",
                     "dataType": "Foundation",
                     "foodCategory": {"description": "Poultry Products"},
                     "foodNutrients": [

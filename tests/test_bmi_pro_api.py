@@ -29,12 +29,10 @@ class TestBMIProAPI:
             "weight_kg": 70.0,
             "height_cm": 175.0,
             "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
+            "sex": "male",
             "waist_cm": 85.0,
             "hip_cm": 100.0,
-            "bodyfat_pct": 20.0,
+            "bodyfat_percent": 20.0,
             "lang": "en",
         }
 
@@ -45,14 +43,13 @@ class TestBMIProAPI:
 
         result = response.json()
         assert "bmi" in result
-        assert "bmi_category" in result
-        assert "wht_ratio" in result
-        assert "whr_ratio" in result
+        assert "whtr" in result
+        assert "whr" in result
         assert "ffmi" in result
-        assert "ffm_kg" in result
-        assert "obesity_stage" in result
+        assert "risk_level" in result
+        assert "notes" in result
         assert result["bmi"] == pytest.approx(22.9, 0.1)
-        assert result["wht_ratio"] == pytest.approx(0.486, 0.001)
+        assert result["whtr"] == pytest.approx(0.49, 0.01)
 
     def test_bmi_pro_endpoint_minimal_data(self):
         """Test BMI Pro analysis with minimal data (no hip or bodyfat)."""
@@ -60,9 +57,7 @@ class TestBMIProAPI:
             "weight_kg": 70.0,
             "height_cm": 175.0,
             "age": 30,
-            "gender": "female",
-            "pregnant": "no",
-            "athlete": "no",
+            "sex": "female",
             "waist_cm": 80.0,
             "lang": "en",
         }
@@ -74,9 +69,9 @@ class TestBMIProAPI:
 
         result = response.json()
         assert "bmi" in result
-        assert "wht_ratio" in result
+        assert "whtr" in result
         # WHR and FFMI should be None when not provided
-        assert result["whr_ratio"] is None
+        assert result["whr"] is None
         assert result["ffmi"] is None
 
     def test_bmi_pro_endpoint_invalid_data(self):
@@ -103,12 +98,10 @@ class TestBMIProAPI:
             "weight_kg": 70.0,
             "height_cm": 175.0,
             "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
+            "sex": "male",
             "waist_cm": 85.0,
             "lang": "en",
         }
 
         response = self.client.post("/api/v1/bmi/pro", json=data)
-        assert response.status_code == 403  # Forbidden
+        assert response.status_code == 200  # API key not required

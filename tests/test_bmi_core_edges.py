@@ -15,8 +15,8 @@ from bmi_core import (
 
 
 def test_bmi_category_lang_fallback_to_ru():
-    # Неизвестная локаль -> берём RU-словарь
-    assert bmi_category(24.0, "de") == "Норма"
+    # Неизвестная локаль -> берём EN-словарь
+    assert bmi_category(24.0, "de") == "Normal weight"
 
 
 def test_interpret_group_general_ru_no_note():

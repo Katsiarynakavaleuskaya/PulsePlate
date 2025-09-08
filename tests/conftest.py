@@ -1,16 +1,14 @@
+import os
 import pathlib
 import sys
+
+import pytest
 
 # Корень репозитория = родитель папки tests
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 p = str(ROOT)
 if p not in sys.path:
     sys.path.insert(0, p)
-
-
-import os
-
-import pytest
 
 
 @pytest.fixture(autouse=True, scope="session")

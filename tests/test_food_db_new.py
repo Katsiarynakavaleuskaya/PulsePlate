@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from core.food_db_new import MICRO_KEYS, FoodDB
+from core.food_db_new import FoodDB
 
 
 def test_parse_food_db():
@@ -45,6 +45,7 @@ def test_parse_food_db():
     assert chicken.micros["Fe_mg"] == 0.7
     assert "OMNI" in chicken.flags
 
+
 def test_pick_booster_for():
     """Test booster food selection."""
     # Get the path to the test data file
@@ -65,6 +66,7 @@ def test_pick_booster_for():
     assert veg_booster in ["lentils", "spinach", "tofu"]
     assert veg_booster != "chicken_breast"  # Should not return non-veg items
 
+
 def test_aggregate_shopping():
     """Test shopping list aggregation."""
     # Get the path to the test data file
@@ -75,28 +77,8 @@ def test_aggregate_shopping():
 
     # Create mock daily plans
     days = [
-        {
-            "meals": [
-                {
-                    "grams": {
-                        "oats": 60,
-                        "greek_yogurt": 150,
-                        "banana": 100
-                    }
-                }
-            ]
-        },
-        {
-            "meals": [
-                {
-                    "grams": {
-                        "lentils": 180,
-                        "spinach": 120,
-                        "olive_oil": 10
-                    }
-                }
-            ]
-        }
+        {"meals": [{"grams": {"oats": 60, "greek_yogurt": 150, "banana": 100}}]},
+        {"meals": [{"grams": {"lentils": 180, "spinach": 120, "olive_oil": 10}}]},
     ]
 
     # Aggregate shopping list
@@ -107,9 +89,12 @@ def test_aggregate_shopping():
     assert oats_item is not None
     assert oats_item["grams"] == 60
 
-    spinach_item = next((item for item in shopping_list if item["name"] == "spinach"), None)
+    spinach_item = next(
+        (item for item in shopping_list if item["name"] == "spinach"), None
+    )
     assert spinach_item is not None
     assert spinach_item["grams"] == 120
+
 
 def test_get_translated_food_name():
     """Test food name translation."""
@@ -122,10 +107,13 @@ def test_get_translated_food_name():
     # Test translation for different languages
     assert food_db.get_translated_food_name("chicken_breast", "en") == "Chicken breast"
     assert food_db.get_translated_food_name("chicken_breast", "ru") == "Куриная грудка"
-    assert food_db.get_translated_food_name("chicken_breast", "es") == "Pechuga de pollo"
+    assert (
+        food_db.get_translated_food_name("chicken_breast", "es") == "Pechuga de pollo"
+    )
 
     # Test that unknown food returns original name
     assert food_db.get_translated_food_name("unknown_food", "en") == "unknown_food"
+
 
 def test_aggregate_shopping_multilingual():
     """Test multilingual shopping list aggregation."""
@@ -136,19 +124,7 @@ def test_aggregate_shopping_multilingual():
     food_db = FoodDB(csv_path)
 
     # Create mock daily plans
-    days = [
-        {
-            "meals": [
-                {
-                    "grams": {
-                        "oats": 60,
-                        "greek_yogurt": 150,
-                        "banana": 100
-                    }
-                }
-            ]
-        }
-    ]
+    days = [{"meals": [{"grams": {"oats": 60, "greek_yogurt": 150, "banana": 100}}]}]
 
     # Test shopping list with different languages
     for lang in ["en", "ru", "es"]:
@@ -161,6 +137,7 @@ def test_aggregate_shopping_multilingual():
             assert "name_translated" in item
             assert "grams" in item
             assert "price_est" in item
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

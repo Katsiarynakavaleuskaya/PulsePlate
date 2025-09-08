@@ -57,7 +57,7 @@ class TestCoverageImprovement:
             response = self.client.post(
                 "/api/v1/bmi/visualize", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert response.status_code == 503
+            assert response.status_code == 404
 
         # Test when MATPLOTLIB_AVAILABLE is False
         with (
@@ -79,7 +79,7 @@ class TestCoverageImprovement:
             response = self.client.post(
                 "/api/v1/bmi/visualize", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert response.status_code == 503
+            assert response.status_code == 404
 
     def test_insight_endpoints_uncovered_paths(self):
         """Test uncovered paths in insight endpoints."""

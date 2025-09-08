@@ -122,36 +122,40 @@ def test_v0_plan_variants(lang, premium, has_premium):
 
 
 def test__bmi_value_raises_on_zero_height():
-    from app import _bmi_value
+    from bmi_core import bmi_value
 
     with pytest.raises(ValueError):
-        _bmi_value(70, 0)
+        bmi_value(70, 0)
 
 
 def test__bmi_value_valid():
-    from app import _bmi_value
+    from bmi_core import bmi_value
 
-    assert _bmi_value(70, 170) == 24.2
+    assert bmi_value(70, 1.70) == 24.2
 
 
 def test__bmi_category():
-    from app import _bmi_category
+    from bmi_core import bmi_category
 
-    assert _bmi_category(17) == "Underweight"
-    assert _bmi_category(22) == "Normal"
-    assert _bmi_category(27) == "Overweight"
-    assert _bmi_category(32) == "Obese"
+    assert bmi_category(17, "en") == "Underweight"
+    assert bmi_category(22, "en") == "Normal weight"
+    assert bmi_category(27, "en") == "Overweight"
+    assert bmi_category(32, "en") == "Obese Class I"
 
 
 def test__interpretation():
-    from app import _interpretation
+    from bmi_core import interpret_group
 
-    assert _interpretation(22, "general") == "Normal"
-    expected_athlete = "Normal (мышечная масса может искажать BMI)"
-    assert _interpretation(22, "athlete") == expected_athlete
-    expected_pregnant = "BMI не применим при беременности"
-    assert _interpretation(22, "pregnant") == expected_pregnant
-    expected_elderly = "Normal (возрастные изменения состава тела)"
-    assert _interpretation(22, "elderly") == expected_elderly
-    expected_teen = "Используйте педиатрические перцентили BMI"
-    assert _interpretation(22, "teen") == expected_teen
+    assert interpret_group(22, "general", "en") == "Normal weight"
+    expected_athlete = (
+        "Normal weight. For athletes, BMI may overestimate body fat due to muscle mass"
+    )
+    assert interpret_group(22, "athlete", "en") == expected_athlete
+    expected_pregnant = "Normal weight. BMI is not valid during pregnancy"
+    assert interpret_group(22, "pregnant", "en") == expected_pregnant
+    expected_elderly = (
+        "Normal weight. In older adults, BMI can underestimate body fat (sarcopenia)"
+    )
+    assert interpret_group(22, "elderly", "en") == expected_elderly
+    expected_teen = "Normal weight. Teenage years: consider pubertal development stage"
+    assert interpret_group(22, "teen", "en") == expected_teen

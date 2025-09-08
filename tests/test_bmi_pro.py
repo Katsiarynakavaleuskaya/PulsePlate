@@ -100,36 +100,36 @@ class TestBMIFunctions:
     def test_interpret_whr_ratio_male(self):
         """Test WHR interpretation for males."""
         # Low risk male
-        result = interpret_whr_ratio(0.9, "male")
+        result = interpret_whr_ratio(0.9, "male", "en")
         assert result["risk"] == "low"
 
         # High risk male
-        result = interpret_whr_ratio(1.0, "male")
+        result = interpret_whr_ratio(1.0, "male", "en")
         assert result["risk"] == "high"
 
     def test_interpret_whr_ratio_female(self):
         """Test WHR interpretation for females."""
         # Low risk female
-        result = interpret_whr_ratio(0.75, "female")
+        result = interpret_whr_ratio(0.75, "female", "en")
         assert result["risk"] == "low"
 
         # High risk female
-        result = interpret_whr_ratio(0.85, "female")
+        result = interpret_whr_ratio(0.85, "female", "en")
         assert result["risk"] == "high"
 
     def test_stage_obesity(self):
         """Test obesity staging function."""
         # Low risk case
-        result = stage_obesity(22, 0.4, 0.8, "male")
+        result = stage_obesity(bmi=22, wht=0.4, whr=0.8, sex="male", lang="en")
         assert result["stage"] == "low_risk"
-        assert int(result["risk_factors"]) == 0
+        assert result["risk_factors"] == "0"
 
         # Moderate risk case
-        result = stage_obesity(28, 0.5, 0.8, "male")
+        result = stage_obesity(bmi=28, wht=0.5, whr=0.8, sex="male", lang="en")
         assert result["stage"] == "moderate_risk"
-        assert int(result["risk_factors"]) == 1
+        assert result["risk_factors"] == "1"
 
         # High risk case
-        result = stage_obesity(32, 0.6, 1.0, "male")
+        result = stage_obesity(bmi=32, wht=0.6, whr=1.0, sex="male", lang="en")
         assert result["stage"] == "high_risk"
-        assert int(result["risk_factors"]) == 3
+        assert result["risk_factors"] == "3"

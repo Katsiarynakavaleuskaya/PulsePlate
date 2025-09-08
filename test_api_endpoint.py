@@ -15,9 +15,12 @@ import importlib.util
 
 from fastapi.testclient import TestClient
 
-spec = importlib.util.spec_from_file_location("app", "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/app.py")
+spec = importlib.util.spec_from_file_location(
+    "app", "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/app.py"
+)
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
+
 
 def test_api_endpoint_multilingual():
     """Test the API endpoint with different languages."""
@@ -37,7 +40,7 @@ def test_api_endpoint_multilingual():
         "activity": "moderate",
         "goal": "maintain",
         "diet_flags": [],
-        "lang": "en"  # Will change this for each test
+        "lang": "en",  # Will change this for each test
     }
 
     # Test with different languages
@@ -47,9 +50,7 @@ def test_api_endpoint_multilingual():
 
         # Make request to the API
         response = client.post(
-            "/api/v1/premium/plan/week",
-            json=test_data,
-            headers={"X-API-Key": api_key}
+            "/api/v1/premium/plan/week", json=test_data, headers={"X-API-Key": api_key}
         )
 
         # Check that the response is successful
@@ -91,6 +92,7 @@ def test_api_endpoint_multilingual():
 
         print(f"✓ Language {lang} test passed")
 
+
 def test_api_endpoint_with_targets():
     """Test the API endpoint with pre-calculated targets."""
     # Set up test client
@@ -104,12 +106,7 @@ def test_api_endpoint_with_targets():
     test_data = {
         "targets": {
             "kcal": 2000,
-            "macros": {
-                "protein_g": 100,
-                "fat_g": 70,
-                "carbs_g": 250,
-                "fiber_g": 30
-            },
+            "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
             "micro": {
                 "Fe_mg": 18.0,
                 "Ca_mg": 1000.0,
@@ -118,18 +115,16 @@ def test_api_endpoint_with_targets():
                 "Folate_ug": 400.0,
                 "Iodine_ug": 150.0,
                 "K_mg": 3500.0,
-                "Mg_mg": 400.0
-            }
+                "Mg_mg": 400.0,
+            },
         },
         "diet_flags": [],
-        "lang": "es"
+        "lang": "es",
     }
 
     # Make request to the API
     response = client.post(
-        "/api/v1/premium/plan/week",
-        json=test_data,
-        headers={"X-API-Key": api_key}
+        "/api/v1/premium/plan/week", json=test_data, headers={"X-API-Key": api_key}
     )
 
     # Check that the response is successful
@@ -144,6 +139,7 @@ def test_api_endpoint_with_targets():
     assert "shopping_list" in result
 
     print("✓ Pre-calculated targets test passed")
+
 
 if __name__ == "__main__":
     print("Testing premium week plan API endpoint...")

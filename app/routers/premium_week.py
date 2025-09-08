@@ -19,12 +19,14 @@ from core.weekly_plan_new import build_week
 
 router = APIRouter(prefix="/api/v1/premium/plan", tags=["premium"])
 
+
 class TargetsIn(BaseModel):
     kcal: conint(gt=500, lt=6000)
     macros: Dict[str, confloat(ge=0)]
     micro: Dict[str, confloat(ge=0)]
     water_ml: Optional[conint(ge=0)] = 0
     activity_week: Optional[Dict[str, conint(ge=0)]] = None
+
 
 class WeekPlanRequest(BaseModel):
     # режим A: передают готовые targets
@@ -39,13 +41,18 @@ class WeekPlanRequest(BaseModel):
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
 
-class WeekPlanResponse(BaseModel):
-    days: List[Dict]
-    weekly_coverage: Dict[str, float]
-    shopping_list: List[Dict]
 
-def estimate_targets_minimal(sex: str, age: int, height_cm: float, weight_kg: float,
-                           activity: str, goal: str) -> dict:
+class WeekPlanResponse(BaseModel):
+    daily_menus: List[Dict]
+    weekly_coverage: Dict[str, float]
+    shopping_list: Dict[str, float]
+    total_cost: float
+    adherence_score: float
+
+
+def estimate_targets_minimal(
+    sex: str, age: int, height_cm: float, weight_kg: float, activity: str, goal: str
+) -> dict:
     """Temporary function to estimate targets from user profile."""
     # Create a UserProfile object
     profile = UserProfile(
@@ -54,7 +61,7 @@ def estimate_targets_minimal(sex: str, age: int, height_cm: float, weight_kg: fl
         height_cm=height_cm,
         weight_kg=weight_kg,
         activity=activity,
-        goal=goal
+        goal=goal,
     )
 
     # Build nutrition targets using existing WHO-based system
@@ -67,7 +74,7 @@ def estimate_targets_minimal(sex: str, age: int, height_cm: float, weight_kg: fl
             "protein_g": targets.macros.protein_g,
             "fat_g": targets.macros.fat_g,
             "carbs_g": targets.macros.carbs_g,
-            "fiber_g": targets.macros.fiber_g
+            "fiber_g": targets.macros.fiber_g,
         },
         "micro": targets.micros.get_priority_nutrients(),
         "water_ml": targets.water_ml_daily,
@@ -75,9 +82,10 @@ def estimate_targets_minimal(sex: str, age: int, height_cm: float, weight_kg: fl
             "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
             "vigorous_aerobic_min": targets.activity.vigorous_aerobic_min,
             "strength_sessions": targets.activity.strength_sessions,
-            "steps_daily": targets.activity.steps_daily
-        }
+            "steps_daily": targets.activity.steps_daily,
+        },
     }
+
 
 @router.post("/week", response_model=WeekPlanResponse)
 async def generate_week_plan(req: WeekPlanRequest):
@@ -94,8 +102,12 @@ async def generate_week_plan(req: WeekPlanRequest):
             raise HTTPException(status_code=400, detail="Missing user profile data")
 
         targets = estimate_targets_minimal(
-            sex=req.sex, age=req.age, height_cm=req.height_cm,
-            weight_kg=req.weight_kg, activity=req.activity, goal=req.goal
+            sex=req.sex,
+            age=req.age,
+            height_cm=req.height_cm,
+            weight_kg=req.weight_kg,
+            activity=req.activity,
+            goal=req.goal,
         )
         if not targets:
             raise HTTPException(status_code=400, detail="Unable to derive targets")
