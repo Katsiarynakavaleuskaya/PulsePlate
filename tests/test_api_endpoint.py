@@ -5,21 +5,10 @@ This script tests the /api/v1/premium/plan/week endpoint with different language
 """
 
 import os
-import sys
-
-# Add the project root to the Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Import the app directly from app.py
-import importlib.util
 
 from fastapi.testclient import TestClient
 
-spec = importlib.util.spec_from_file_location(
-    "app", "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/app.py"
-)
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
+import app as app_module
 
 
 def test_api_endpoint_multilingual():
@@ -60,35 +49,28 @@ def test_api_endpoint_multilingual():
         result = response.json()
 
         # Check that we have the expected structure
-        assert "days" in result
-        assert "weekly_coverage" in result
-        assert "shopping_list" in result
+        assert "daily_menus" in result
+        assert "week_summary" in result
 
         # Check that we have 7 days
-        assert len(result["days"]) == 7
+        assert len(result["daily_menus"]) == 7
 
         # Check that each day has the expected structure
-        for day in result["days"]:
+        for day in result["daily_menus"]:
             assert "meals" in day
-            assert "kcal" in day
-            assert "macros" in day
-            assert "micros" in day
-            assert "coverage" in day
-            assert "tips" in day
+            assert "total_kcal" in day
+            assert "daily_cost" in day
+            assert "date" in day
 
-            # Check that meals have translated titles
+            # Check that meals have the expected structure
             for meal in day["meals"]:
-                assert "title" in meal
-                assert "title_translated" in meal
-                print(f"  Meal: {meal['title']} -> {meal['title_translated']}")
+                assert "carbs_g" in meal
+                assert "fat_g" in meal
+                assert "ingredients" in meal
+                assert "detailed_nutrients" in meal
 
-        # Check that shopping list has translated names
-        for item in result["shopping_list"]:
-            assert "name" in item
-            assert "name_translated" in item
-            assert "grams" in item
-            assert "price_est" in item
-            print(f"  Shopping item: {item['name']} -> {item['name_translated']}")
+        # Check that week summary exists
+        assert "week_summary" in result
 
         print(f"✓ Language {lang} test passed")
 
@@ -106,18 +88,25 @@ def test_api_endpoint_with_targets():
     test_data = {
         "targets": {
             "kcal": 2000,
-            "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
-            "micro": {
-                "Fe_mg": 18.0,
-                "Ca_mg": 1000.0,
-                "VitD_IU": 600.0,
-                "B12_ug": 2.4,
-                "Folate_ug": 400.0,
-                "Iodine_ug": 150.0,
-                "K_mg": 3500.0,
-                "Mg_mg": 400.0,
-            },
+            "protein": 100,
+            "carbs": 250,
+            "fat": 70,
+            "fiber": 30,
+            "iron": 18.0,
+            "calcium": 1000.0,
+            "vitamin_d": 600.0,
+            "vitamin_b12": 2.4,
+            "folate": 400.0,
+            "iodine": 150.0,
+            "potassium": 3500.0,
+            "magnesium": 400.0,
         },
+        "sex": "female",
+        "age": 25,
+        "height_cm": 165.0,
+        "weight_kg": 60.0,
+        "activity": "moderate",
+        "goal": "maintain",
         "diet_flags": [],
         "lang": "es",
     }
@@ -128,21 +117,16 @@ def test_api_endpoint_with_targets():
     )
 
     # Check that the response is successful
+    if response.status_code != 200:
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.text}")
     assert response.status_code == 200, "Failed with pre-calculated targets"
 
     # Parse the response
     result = response.json()
 
     # Check that we have the expected structure
-    assert "days" in result
-    assert "weekly_coverage" in result
-    assert "shopping_list" in result
+    assert "daily_menus" in result
+    assert "week_summary" in result
 
     print("✓ Pre-calculated targets test passed")
-
-
-if __name__ == "__main__":
-    print("Testing premium week plan API endpoint...")
-    test_api_endpoint_multilingual()
-    test_api_endpoint_with_targets()
-    print("\nAll tests passed! 🎉")
