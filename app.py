@@ -1238,6 +1238,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
     response_model=WHOTargetsResponse,
 )
 async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
+    # sourcery skip: use-contextlib-suppress
     """
     RU: Рассчитывает индивидуальные цели по нормам ВОЗ.
     EN: Calculates individual nutrition targets based on WHO guidelines.
