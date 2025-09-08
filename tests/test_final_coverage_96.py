@@ -2,9 +2,6 @@
 Final coverage tests to reach 96% target.
 """
 
-import pytest
-from unittest.mock import patch, Mock
-
 from app.routers.premium_week import estimate_targets_minimal
 
 
@@ -19,9 +16,9 @@ class TestFinalCoverage96:
             height_cm=175.0,
             weight_kg=70.0,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -37,9 +34,9 @@ class TestFinalCoverage96:
             height_cm=165.0,
             weight_kg=60.0,
             activity="active",
-            goal="loss"
+            goal="loss",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -53,9 +50,9 @@ class TestFinalCoverage96:
             height_cm=170.0,
             weight_kg=75.0,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -69,9 +66,9 @@ class TestFinalCoverage96:
             height_cm=160.0,
             weight_kg=55.0,
             activity="moderate",
-            goal="gain"
+            goal="gain",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -85,9 +82,9 @@ class TestFinalCoverage96:
             height_cm=185.0,
             weight_kg=85.0,
             activity="very_active",
-            goal="maintain"
+            goal="maintain",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -101,9 +98,9 @@ class TestFinalCoverage96:
             height_cm=160.0,
             weight_kg=90.0,
             activity="light",
-            goal="loss"
+            goal="loss",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -117,9 +114,9 @@ class TestFinalCoverage96:
             height_cm=180.0,
             weight_kg=60.0,
             activity="moderate",
-            goal="gain"
+            goal="gain",
         )
-        
+
         assert result is not None
         assert "kcal" in result
         assert "macros" in result
@@ -134,10 +131,10 @@ class TestFinalCoverage96:
             height_cm=140.0,
             weight_kg=35.0,
             activity="moderate",
-            goal="maintain"
+            goal="maintain",
         )
         assert result is not None
-        
+
         # Test maximum age
         result = estimate_targets_minimal(
             sex="female",
@@ -145,14 +142,14 @@ class TestFinalCoverage96:
             height_cm=150.0,
             weight_kg=50.0,
             activity="light",
-            goal="maintain"
+            goal="maintain",
         )
         assert result is not None
 
     def test_premium_week_estimate_targets_minimal_all_activities(self):
         """Test estimate_targets_minimal with all activity levels - lines 58-71."""
         activities = ["sedentary", "light", "moderate", "active", "very_active"]
-        
+
         for activity in activities:
             result = estimate_targets_minimal(
                 sex="male",
@@ -160,7 +157,7 @@ class TestFinalCoverage96:
                 height_cm=175.0,
                 weight_kg=70.0,
                 activity=activity,
-                goal="maintain"
+                goal="maintain",
             )
             assert result is not None
             assert "kcal" in result
@@ -168,7 +165,7 @@ class TestFinalCoverage96:
     def test_premium_week_estimate_targets_minimal_all_goals(self):
         """Test estimate_targets_minimal with all goal types - lines 58-71."""
         goals = ["loss", "maintain", "gain"]
-        
+
         for goal in goals:
             result = estimate_targets_minimal(
                 sex="female",
@@ -176,7 +173,7 @@ class TestFinalCoverage96:
                 height_cm=165.0,
                 weight_kg=60.0,
                 activity="moderate",
-                goal=goal
+                goal=goal,
             )
             assert result is not None
             assert "kcal" in result
