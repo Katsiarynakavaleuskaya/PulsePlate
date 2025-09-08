@@ -119,6 +119,7 @@ class TestLlmSimple96:
         with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
             os.environ,
             {
+                "LLM_PROVIDER": "ollama",
                 "OLLAMA_ENDPOINT": "http://test",
                 "OLLAMA_MODEL": "test_model",
                 "OLLAMA_TIMEOUT": "10.5",
