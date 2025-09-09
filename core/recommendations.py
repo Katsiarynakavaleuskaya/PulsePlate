@@ -27,6 +27,7 @@ from .rules_who import (
 from .targets import (
     ActivityTargets,
     MacroTargets,
+    MicronutrientTargets,
     MicroTargets,
     NutrientCoverage,
     NutritionTargets,
@@ -418,3 +419,85 @@ def validate_targets_safety(targets: NutritionTargets) -> List[str]:
         warnings.append("Hydration target above safe maximum (4000ml)")
 
     return warnings
+
+
+def build_micronutrient_targets(profile: UserProfile) -> MicronutrientTargets:
+    """
+    RU: Создает расширенные микронутриентные цели с диапазонами и допусками.
+    EN: Creates enhanced micronutrient targets with ranges and tolerances.
+
+    Based on WHO/EFSA/DRI recommendations with age, sex, and life stage adjustments.
+    Includes deficiency thresholds and priority levels for auto-repair functionality.
+
+    Args:
+        profile: User profile with demographics and goals
+
+    Returns:
+        MicronutrientTargets with ranges (min, target, max) for each nutrient
+    """
+    # Base targets from WHO/EFSA recommendations
+    # Values are (minimum, target, maximum) for each nutrient
+
+    # Adjust for age and sex
+    age_factor = _get_age_factor(profile.age, profile.life_stage)
+    sex_factor = 1.2 if profile.sex == "female" else 1.0  # Women need more iron
+
+    # Core minerals (mg/day)
+    iron_mg = (8.0 * sex_factor, 15.0 * sex_factor, 45.0)  # Higher for women
+    calcium_mg = (800.0 * age_factor, 1000.0 * age_factor, 2500.0)
+    magnesium_mg = (300.0, 400.0, 700.0)
+    zinc_mg = (8.0, 11.0, 40.0)
+    potassium_mg = (3500.0, 4700.0, 6000.0)
+
+    # Trace elements (μg/day)
+    iodine_ug = (150.0, 150.0, 1100.0)
+    selenium_ug = (55.0, 55.0, 400.0)
+
+    # B Vitamins (μg/day)
+    folate_ug = (400.0, 400.0, 1000.0)
+    b12_ug = (2.4, 2.4, 100.0)
+
+    # Fat-soluble vitamins
+    vitamin_d_iu = (600.0, 800.0, 4000.0)  # Higher target for adults
+    vitamin_a_ug = (700.0, 900.0, 3000.0)  # RAE
+
+    # Water-soluble vitamins (mg/day)
+    vitamin_c_mg = (75.0, 90.0, 2000.0)
+
+    # Pregnancy/lactation adjustments
+    if profile.life_stage == "pregnant":
+        iron_mg = (27.0, 27.0, 45.0)  # Higher iron needs
+        folate_ug = (600.0, 600.0, 1000.0)  # Higher folate needs
+        calcium_mg = (1000.0, 1000.0, 2500.0)
+    elif profile.life_stage == "lactating":
+        iron_mg = (9.0, 9.0, 45.0)
+        folate_ug = (500.0, 500.0, 1000.0)
+        calcium_mg = (1000.0, 1000.0, 2500.0)
+
+    return MicronutrientTargets(
+        iron_mg=iron_mg,
+        calcium_mg=calcium_mg,
+        magnesium_mg=magnesium_mg,
+        zinc_mg=zinc_mg,
+        potassium_mg=potassium_mg,
+        iodine_ug=iodine_ug,
+        selenium_ug=selenium_ug,
+        folate_ug=folate_ug,
+        b12_ug=b12_ug,
+        vitamin_d_iu=vitamin_d_iu,
+        vitamin_a_ug=vitamin_a_ug,
+        vitamin_c_mg=vitamin_c_mg,
+        deficiency_threshold=0.8,  # 80% of target
+    )
+
+
+def _get_age_factor(age: int, life_stage: str) -> float:
+    """Get age-based adjustment factor for micronutrient needs."""
+    if life_stage == "child":
+        return 0.8  # Children need less
+    elif life_stage == "teen":
+        return 1.2  # Teens need more
+    elif life_stage == "elderly":
+        return 1.1  # Elderly may need more
+    else:  # adult
+        return 1.0

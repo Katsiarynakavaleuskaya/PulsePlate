@@ -84,6 +84,100 @@ class MacroTargets:
 
 
 @dataclass(frozen=True)
+class MicronutrientTargets:
+    """
+    RU: Расширенные микронутриентные цели с диапазонами и допусками для VIP функций.
+    EN: Enhanced micronutrient targets with ranges and tolerances for VIP features.
+
+    Includes WHO/EFSA-based daily requirements with deficiency thresholds
+    and priority levels for auto-repair functionality.
+    """
+
+    # Core micronutrients with ranges (min, target, max)
+    iron_mg: tuple[float, float, float]  # (min, target, max)
+    calcium_mg: tuple[float, float, float]
+    magnesium_mg: tuple[float, float, float]
+    zinc_mg: tuple[float, float, float]
+    potassium_mg: tuple[float, float, float]
+
+    # Trace elements
+    iodine_ug: tuple[float, float, float]
+    selenium_ug: tuple[float, float, float]
+
+    # B Vitamins
+    folate_ug: tuple[float, float, float]
+    b12_ug: tuple[float, float, float]
+
+    # Fat-soluble vitamins
+    vitamin_d_iu: tuple[float, float, float]
+    vitamin_a_ug: tuple[float, float, float]  # RAE
+
+    # Water-soluble vitamins
+    vitamin_c_mg: tuple[float, float, float]
+
+    # Deficiency thresholds (percentage of target)
+    deficiency_threshold: float = 0.8  # 80% of target
+
+    # Priority levels for auto-repair (1-5, 5 = highest)
+    priority_nutrients: Dict[str, int] = field(
+        default_factory=lambda: {
+            "iron_mg": 5,
+            "calcium_mg": 5,
+            "vitamin_d_iu": 4,
+            "folate_ug": 4,
+            "b12_ug": 4,
+            "iodine_ug": 3,
+            "magnesium_mg": 3,
+            "potassium_mg": 3,
+            "zinc_mg": 2,
+            "vitamin_c_mg": 2,
+            "vitamin_a_ug": 2,
+            "selenium_ug": 1,
+        }
+    )
+
+    def get_target(self, nutrient: str) -> float:
+        """Get target value for a nutrient."""
+        if hasattr(self, nutrient):
+            return getattr(self, nutrient)[1]  # middle value is target
+        raise ValueError(f"Unknown nutrient: {nutrient}")
+
+    def get_minimum(self, nutrient: str) -> float:
+        """Get minimum acceptable value for a nutrient."""
+        if hasattr(self, nutrient):
+            return getattr(self, nutrient)[0]  # first value is minimum
+        raise ValueError(f"Unknown nutrient: {nutrient}")
+
+    def get_maximum(self, nutrient: str) -> float:
+        """Get maximum safe value for a nutrient."""
+        if hasattr(self, nutrient):
+            return getattr(self, nutrient)[2]  # third value is maximum
+        raise ValueError(f"Unknown nutrient: {nutrient}")
+
+    def is_deficient(self, nutrient: str, actual_value: float) -> bool:
+        """Check if actual intake is deficient."""
+        target = self.get_target(nutrient)
+        threshold = target * self.deficiency_threshold
+        return actual_value < threshold
+
+    def get_priority_nutrients(self) -> Dict[str, float]:
+        """Get priority nutrients with their targets."""
+        return {
+            nutrient: self.get_target(nutrient)
+            for nutrient, priority in self.priority_nutrients.items()
+            if priority >= 3  # Only high-priority nutrients
+        }
+
+    def get_high_priority_nutrients(self) -> List[str]:
+        """Get list of high-priority nutrients (priority >= 4)."""
+        return [
+            nutrient
+            for nutrient, priority in self.priority_nutrients.items()
+            if priority >= 4
+        ]
+
+
+@dataclass(frozen=True)
 class MicroTargets:
     """
     RU: Целевые значения микронутриентов по рекомендациям ВОЗ/EFSA/DRI.
