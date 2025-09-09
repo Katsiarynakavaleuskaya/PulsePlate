@@ -12,6 +12,59 @@ from typing import List, Set
 from pydantic import BaseModel, Field
 
 
+class MicronutrientType(str, Enum):
+    """RU: Типы микронутриентов; EN: Micronutrient types."""
+
+    # Vitamins
+    VITAMIN_A = "vitamin_a"  # Retinol equivalents (mcg)
+    VITAMIN_B1 = "vitamin_b1"  # Thiamine (mg)
+    VITAMIN_B2 = "vitamin_b2"  # Riboflavin (mg)
+    VITAMIN_B3 = "vitamin_b3"  # Niacin (mg)
+    VITAMIN_B6 = "vitamin_b6"  # Pyridoxine (mg)
+    VITAMIN_B9 = "vitamin_b9"  # Folate (mcg)
+    VITAMIN_B12 = "vitamin_b12"  # Cobalamin (mcg)
+    VITAMIN_C = "vitamin_c"  # Ascorbic acid (mg)
+    VITAMIN_D = "vitamin_d"  # Cholecalciferol (mcg)
+    VITAMIN_E = "vitamin_e"  # Tocopherol (mg)
+    VITAMIN_K = "vitamin_k"  # Phylloquinone (mcg)
+
+    # Minerals
+    CALCIUM = "calcium"  # Ca (mg)
+    IRON = "iron"  # Fe (mg)
+    MAGNESIUM = "magnesium"  # Mg (mg)
+    PHOSPHORUS = "phosphorus"  # P (mg)
+    POTASSIUM = "potassium"  # K (mg)
+    SODIUM = "sodium"  # Na (mg)
+    ZINC = "zinc"  # Zn (mg)
+    COPPER = "copper"  # Cu (mg)
+    MANGANESE = "manganese"  # Mn (mg)
+    SELENIUM = "selenium"  # Se (mcg)
+    IODINE = "iodine"  # I (mcg)
+
+
+class AgeGroup(str, Enum):
+    """RU: Возрастные группы; EN: Age groups."""
+
+    INFANT_0_6M = "infant_0_6m"
+    INFANT_7_12M = "infant_7_12m"
+    CHILD_1_3Y = "child_1_3y"
+    CHILD_4_8Y = "child_4_8y"
+    CHILD_9_13Y = "child_9_13y"
+    ADOLESCENT_14_18Y = "adolescent_14_18y"
+    ADULT_19_50Y = "adult_19_50y"
+    ADULT_51_70Y = "adult_51_70y"
+    ELDERLY_70Y_PLUS = "elderly_70y_plus"
+    PREGNANT = "pregnant"
+    LACTATING = "lactating"
+
+
+class Gender(str, Enum):
+    """RU: Пол; EN: Gender."""
+
+    MALE = "male"
+    FEMALE = "female"
+
+
 class Region(str, Enum):
     """RU: Поддерживаемые регионы; EN: Supported regions."""
 
