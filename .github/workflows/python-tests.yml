@@ -32,8 +32,8 @@ jobs:
           python -m pip install -U pip
           pip install -r requirements-dev.txt
 
-      - name: Run tests (94% coverage required)
-        run: python -m pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=94
+      - name: Run tests (97% coverage required)
+        run: python -m pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=97
         env:
           PYTHONPATH: .
           APP_ENV: ci
