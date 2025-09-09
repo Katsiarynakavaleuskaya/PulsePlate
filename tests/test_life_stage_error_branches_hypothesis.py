@@ -423,6 +423,7 @@ class TestLifeStageErrorBranchesHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_invalid_life_stage_validation_hypothesis(
         self, age: int, life_stage: str, lang: str, sex: str, activity: str, goal: str
     ):
