@@ -219,9 +219,12 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_api_key(api_key: str = Depends(api_key_header)):
     expected = os.getenv("API_KEY")
-    # If API_KEY is not set in environment, allow any key (for development)
-    # If API_KEY is set, validate the provided key
-    if expected is not None and api_key != expected:
+    # For testing, use a default key if none is set
+    if expected is None:
+        expected = "test_key"
+
+    # Validate the provided key
+    if api_key != expected:
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return api_key
 
