@@ -1,0 +1,32 @@
+{
+  "build_timestamp": "2025-09-09T13:43:09.919540",
+  "summary": {
+    "total_foods": 15,
+    "usda_input": 15,
+    "off_input": 15,
+    "merge_efficiency": 50.0
+  },
+  "sources": {
+    "MERGED(OFF,USDA)": 15
+  },
+  "groups": {
+    "protein": 10,
+    "grain": 3,
+    "fat": 2
+  },
+  "micronutrient_coverage": {
+    "Fe_mg": 93.33333333333333,
+    "Ca_mg": 100.0,
+    "K_mg": 100.0,
+    "Mg_mg": 100.0,
+    "Folate_ug": 93.33333333333333,
+    "Iodine_ug": 86.66666666666667,
+    "VitD_IU": 33.33333333333333,
+    "B12_ug": 33.33333333333333
+  },
+  "files": {
+    "parquet": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/food.parquet",
+    "sqlite": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/food.sqlite",
+    "report": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/build_report.json"
+  }
+}

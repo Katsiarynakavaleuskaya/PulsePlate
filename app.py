@@ -15,6 +15,10 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 
+# Import routers
+from app.routers.foods import router as foods_router
+from app.routers.recipes import router as recipes_router
+
 if TYPE_CHECKING:
     # Type hints for slowapi when not available at runtime
     Limiter = None  # type: ignore
@@ -176,6 +180,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BMI-App 2025", lifespan=lifespan)
 
+# Include API routers
+app.include_router(foods_router)
+app.include_router(recipes_router)
 
 start_time = time.time()
 

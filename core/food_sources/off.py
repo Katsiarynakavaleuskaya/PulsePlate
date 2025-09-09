@@ -45,10 +45,20 @@ class OFFAdapter(BaseAdapter):
 
     def fetch(self) -> Iterable[Dict]:
         """
-        RU: Читаем CSV Open Food Facts.
-        EN: Read Open Food Facts CSV.
+        RU: Читаем один CSV или все CSV в директории (чанки) Open Food Facts.
+        EN: Read a single CSV or all CSVs in a directory (chunks).
         """
-        with open(self.csv_path, newline="", encoding="utf-8") as f:
+        path = self.csv_path
+        if os.path.isdir(path):
+            for name in sorted(os.listdir(path)):
+                if not name.lower().endswith(".csv"):
+                    continue
+                full = os.path.join(path, name)
+                with open(full, newline="", encoding="utf-8") as f:
+                    yield from csv.DictReader(f)
+            return
+
+        with open(path, newline="", encoding="utf-8") as f:
             yield from csv.DictReader(f)
 
     def normalize(self) -> Iterable[FoodRecord]:

@@ -1,4 +1,4 @@
-name,ingredients,flags
-Овсянка с орехами,"Овсяные хлопья:60;Орехи:20;Ягоды:80",GF,DAIRY_FREE
-Гречка с тофу,"Гречка:70;Тофу:120;Овощи:150",VEG,GF,DAIRY_FREE,LOW_COST
-Рис с курицей,"Рис:70;Курица филе:150;Овощи:150",LOW_COST
+recipe_id,title,locale,servings,ingredients,steps_json,tags_json,allergens_json
+recipe_1,Овсянка с орехами,ru,2,"Овсяные хлопья:60;Орехи:20;Ягоды:80","[]","[\"GF\",\"DAIRY_FREE\"]","[]"
+recipe_2,Гречка с тофу,ru,2,"Гречка:70;Тофу:120;Овощи:150","[]","[\"VEG\",\"GF\",\"DAIRY_FREE\",\"LOW_COST\"]","[]"
+recipe_3,Рис с курицей,ru,2,"Рис:70;Курица филе:150;Овощи:150","[]","[\"LOW_COST\"]","[]"

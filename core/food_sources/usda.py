@@ -40,10 +40,21 @@ class USDAAdapter(BaseAdapter):
 
     def fetch(self) -> Iterable[Dict]:
         """
-        RU: Читаем CSV FDC (скачан заранее).
-        EN: Read pre-downloaded USDA CSV.
+        RU: Читаем один CSV или все CSV в директории (чанки).
+        EN: Read a single CSV or all CSVs in a directory (chunks).
         """
-        with open(self.csv_path, newline="", encoding="utf-8") as f:
+        path = self.csv_path
+        if os.path.isdir(path):
+            # Iterate over CSV files in directory, sorted for determinism
+            for name in sorted(os.listdir(path)):
+                if not name.lower().endswith(".csv"):
+                    continue
+                full = os.path.join(path, name)
+                with open(full, newline="", encoding="utf-8") as f:
+                    yield from csv.DictReader(f)
+            return
+
+        with open(path, newline="", encoding="utf-8") as f:
             yield from csv.DictReader(f)
 
     def normalize(self) -> Iterable[FoodRecord]:
