@@ -5,14 +5,9 @@ VIP API Tests
 RU: Тесты для VIP API эндпоинтов
 EN: Tests for VIP API endpoints
 """
-import os
-
-# Set VIP_MODULE_ENABLED for testing BEFORE importing app
-os.environ["VIP_MODULE_ENABLED"] = "true"
-
 from fastapi.testclient import TestClient
 
-import app as app_module  # noqa: E402
+import app as app_module
 
 client = TestClient(app_module.app)
 
@@ -54,14 +49,15 @@ def test_vip_weekly_repair_echo():
 
 def test_vip_module_disabled():
     """Test that VIP endpoints return 404 when module is disabled"""
+    import importlib
+    import os
+
     # Temporarily disable VIP module
     original_value = os.environ.get("VIP_MODULE_ENABLED")
     os.environ["VIP_MODULE_ENABLED"] = "false"
 
     try:
         # Reimport app with disabled VIP
-        import importlib
-
         importlib.reload(app_module)
 
         client_disabled = TestClient(app_module.app)

@@ -25,8 +25,8 @@
     "B12_ug": 33.33333333333333
   },
   "files": {
-    "parquet": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/food.parquet",
-    "sqlite": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/food.sqlite",
-    "report": "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/data/build_report.json"
+    "parquet": "/Users/katsiarynakavaleuskaya/PulsePlate/data/food.parquet",
+    "sqlite": "/Users/katsiarynakavaleuskaya/PulsePlate/data/food.sqlite",
+    "report": "/Users/katsiarynakavaleuskaya/PulsePlate/data/build_report.json"
   }
 }

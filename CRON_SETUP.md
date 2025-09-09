@@ -7,7 +7,7 @@ To automatically update the food database weekly, add the following entry to you
 
 ```bash
 # Run every Sunday at 2:00 AM
-0 2 * * 0 /usr/bin/python3 /path/to/BMI-App_2025_clean/scripts/schedule_food_db_update.py >> /path/to/BMI-App_2025_clean/logs/cron.log 2>&1
+0 2 * * 0 /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/cron.log 2>&1
 ```
 
 ### How to set up CRON:
@@ -34,11 +34,11 @@ To automatically update the food database weekly, add the following entry to you
 
 ### Example for daily updates at 3:30 AM:
 ```bash
-30 3 * * * /usr/bin/python3 /path/to/BMI-App_2025_clean/scripts/schedule_food_db_update.py >> /path/to/BMI-App_2025_clean/logs/cron.log 2>&1
+30 3 * * * /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/cron.log 2>&1
 ```
 
 ### Notes:
 - Make sure the script paths are absolute
 - Ensure the user running the CRON job has the necessary permissions
-- Logs will be written to `/path/to/BMI-App_2025_clean/logs/food_db_update.log`
+- Logs will be written to `/path/to/PulsePlate/logs/food_db_update.log`
 - The CRON log will capture any CRON-related issues

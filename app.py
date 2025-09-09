@@ -185,7 +185,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error stopping background updates: {e}")
 
 
-app = FastAPI(title="BMI-App 2025", lifespan=lifespan)
+app = FastAPI(title="PulsePlate", lifespan=lifespan)
 
 # Include API routers
 app.include_router(foods_router)

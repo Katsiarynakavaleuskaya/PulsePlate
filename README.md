@@ -1,7 +1,7 @@
 # PulsePlate (FastAPI)
 
-[![python-tests](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/python-tests.yml)
-[![CI](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean/actions/workflows/ci.yml)
+[![python-tests](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/python-tests.yml)
+[![CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml)
 
 [![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
 
@@ -243,8 +243,8 @@ The merged food database follows a standardized schema:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/Katsiarynakavaleuskaya/BMI-App_2025_clean.git
-   cd BMI-App_2025_clean
+   git clone https://github.com/Katsiarynakavaleuskaya/PulsePlate.git
+   cd PulsePlate
    ```
 
 2. Install dependencies:
@@ -368,4 +368,8 @@ make lint
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved. Unauthorized copying, distribution, modification, or use of this code is strictly prohibited without prior written permission from the author.
+
+For commercial or licensing inquiries, please contact: lexakm532@gmail.com
+
+See the [LICENSE](LICENSE) file for full details.

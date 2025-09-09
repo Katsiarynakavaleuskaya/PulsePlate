@@ -1,14 +1,14 @@
 #!/bin/zsh
-# 🚀 Автоматический запуск 3-х окон для BMI-App
+# 🚀 Автоматический запуск 3-х окон для PulsePlate
 
 # === 1. API сервер ===
 osascript -e 'tell application "Terminal"
-    do script "cd ~/BMI-App_2025_clean && conda activate bmi && uvicorn app:app --host 0.0.0.0 --port 8001 --reload"
+    do script "cd ~/PulsePlate && conda activate bmi && uvicorn app:app --host 0.0.0.0 --port 8001 --reload"
 end tell'
 
 # === 2. LocalTunnel ===
 osascript -e 'tell application "Terminal"
-    do script "cd ~/BMI-App_2025_clean && conda activate bmi && npx localtunnel --port 8001 --local-host 127.0.0.1 --print-requests"
+    do script "cd ~/PulsePlate && conda activate bmi && npx localtunnel --port 8001 --local-host 127.0.0.1 --print-requests"
 end tell'
 
 # === 3. Health-check ===
