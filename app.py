@@ -889,6 +889,7 @@ try:
         analyze_nutrient_gaps,
         make_daily_menu,
         make_weekly_menu,
+        repair_week_plan,
     )
     from core.plate import make_plate
     from core.recommendations import build_nutrition_targets
@@ -904,6 +905,7 @@ except ImportError:
         analyze_nutrient_gaps = None  # type: ignore
     make_daily_menu = None
     make_weekly_menu = None
+    repair_week_plan = None
 
 # Ensure analyze_nutrient_gaps is available at module level for tests
 if "analyze_nutrient_gaps" not in globals():
@@ -920,6 +922,15 @@ if "make_weekly_menu" not in globals():
         from core.menu_engine import make_weekly_menu
 
         globals()["make_weekly_menu"] = make_weekly_menu
+    except Exception:
+        pass
+
+# Ensure repair_week_plan is available at module level for tests
+if "repair_week_plan" not in globals():
+    try:
+        from core.menu_engine import repair_week_plan
+
+        globals()["repair_week_plan"] = repair_week_plan
     except Exception:
         pass
 
