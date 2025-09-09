@@ -2087,6 +2087,6 @@ if get_bodyfat_router:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Include Premium Week router
-if premium_week_router:
-    app.include_router(premium_week_router)
+# Include Premium Week router (temporarily disabled due to URL conflict)
+# if premium_week_router:
+#     app.include_router(premium_week_router)
