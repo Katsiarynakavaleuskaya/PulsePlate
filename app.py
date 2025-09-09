@@ -4,6 +4,9 @@ import time
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
+# VIP Module Feature Flag
+VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "false").lower() == "true"
+
 try:
     from prometheus_client import Counter, Histogram, generate_latest
 except ImportError:
@@ -18,6 +21,10 @@ from fastapi.security import APIKeyHeader
 # Import routers
 from app.routers.foods import router as foods_router
 from app.routers.recipes import router as recipes_router
+
+# VIP router (conditional import)
+if VIP_MODULE_ENABLED:
+    from app.routers.vip import router as vip_router
 
 if TYPE_CHECKING:
     # Type hints for slowapi when not available at runtime
@@ -183,6 +190,10 @@ app = FastAPI(title="BMI-App 2025", lifespan=lifespan)
 # Include API routers
 app.include_router(foods_router)
 app.include_router(recipes_router)
+
+# Include VIP router (conditional)
+if VIP_MODULE_ENABLED:
+    app.include_router(vip_router)
 
 start_time = time.time()
 
