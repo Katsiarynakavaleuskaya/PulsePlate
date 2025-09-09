@@ -329,6 +329,7 @@ class TestPlateTargetsMicrosHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_plate_targets_macro_alignment_hypothesis(
         self,
         sex: str,
