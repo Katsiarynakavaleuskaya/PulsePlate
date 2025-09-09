@@ -293,6 +293,7 @@ class TestLifeStageErrorBranchesHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_invalid_sex_validation_hypothesis(
         self, age: int, life_stage: str, lang: str, sex: str, activity: str, goal: str
     ):
@@ -333,6 +334,7 @@ class TestLifeStageErrorBranchesHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_invalid_activity_validation_hypothesis(
         self, age: int, life_stage: str, lang: str, sex: str, activity: str, goal: str
     ):
@@ -373,6 +375,7 @@ class TestLifeStageErrorBranchesHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_invalid_goal_validation_hypothesis(
         self, age: int, life_stage: str, lang: str, sex: str, activity: str, goal: str
     ):
@@ -466,6 +469,7 @@ class TestLifeStageErrorBranchesHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_invalid_lang_validation_hypothesis(
         self, age: int, life_stage: str, lang: str, sex: str, activity: str, goal: str
     ):

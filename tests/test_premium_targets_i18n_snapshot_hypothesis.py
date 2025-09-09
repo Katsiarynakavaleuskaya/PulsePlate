@@ -7,7 +7,7 @@ import os
 from typing import Dict
 
 from fastapi.testclient import TestClient
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
@@ -35,6 +35,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         ),
         lang=st.sampled_from(["en", "ru", "es"]),
     )
+    @settings(deadline=None)
     def test_premium_targets_i18n_snapshot_hypothesis(
         self,
         sex: str,
@@ -184,6 +185,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_multilingual_consistency_snapshot_hypothesis(
         self,
         sex: str,

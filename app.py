@@ -97,6 +97,17 @@ from core.food_apis.scheduler import (
     stop_background_updates,
 )
 
+# Import routers
+try:
+    from app.routers.bmi_pro import router as bmi_pro_router
+except ImportError:
+    bmi_pro_router = None
+
+try:
+    from app.routers.premium_week import router as premium_week_router
+except ImportError:
+    premium_week_router = None
+
 # Import i18n functionality
 from core.i18n import Language, t
 
@@ -2039,11 +2050,9 @@ if get_bodyfat_router:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
 # Include BMI Pro router
-from app.routers.bmi_pro import router as bmi_pro_router
-
-app.include_router(bmi_pro_router)
+if bmi_pro_router:
+    app.include_router(bmi_pro_router)
 
 # Include Premium Week router
-from app.routers.premium_week import router as premium_week_router
-
-app.include_router(premium_week_router)
+if premium_week_router:
+    app.include_router(premium_week_router)

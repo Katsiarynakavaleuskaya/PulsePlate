@@ -2,16 +2,20 @@
 
 ## Overview
 
-This document provides comprehensive information about the sources and units used in the BMI App 2025 nutrition calculation system.
+This document provides comprehensive information about the sources and units
+used in the BMI App 2025 nutrition calculation system.
 
 ## Data Sources
 
 ### WHO (World Health Organization)
 
 - **Primary source** for international nutrition recommendations
-- **Reference**: WHO Technical Report Series 916 - Diet, Nutrition and the Prevention of Chronic Diseases
-- **Coverage**: Global recommendations for macronutrients, micronutrients, and physical activity
-- **Languages**: Available in multiple languages including English, Spanish, and Russian
+- **Reference**: WHO Technical Report Series 916 - Diet, Nutrition and the
+  Prevention of Chronic Diseases
+- **Coverage**: Global recommendations for macronutrients, micronutrients, and
+  physical activity
+- **Languages**: Available in multiple languages including English, Spanish,
+  and Russian
 
 ### EFSA (European Food Safety Authority)
 
@@ -241,10 +245,25 @@ Returned for:
 - Extra fields (API is tolerant)
 - Empty string values (API is tolerant)
 
+## ES Example
+
+**Spanish API Example with curl:**
+
+```bash
+curl -s http://localhost:8000/api/v1/premium/targets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sex":"female","age":30,"height_cm":170,"weight_kg":65,
+    "activity":"moderate","goal":"maintain","lang":"es"
+  }' | jq
+```
+
 ## References
 
-1. WHO Technical Report Series 916 - Diet, Nutrition and the Prevention of Chronic Diseases
-2. EFSA Panel on Dietetic Products, Nutrition and Allergies (NDA) - Scientific Opinion on Dietary Reference Values
+1. WHO Technical Report Series 916 - Diet, Nutrition and the Prevention of
+   Chronic Diseases
+2. EFSA Panel on Dietetic Products, Nutrition and Allergies (NDA) - Scientific
+   Opinion on Dietary Reference Values
 3. Institute of Medicine (IOM) - Dietary Reference Intakes
 4. WHO/FAO Vitamin and Mineral Requirements in Human Nutrition
 5. FastAPI Documentation - Request Validation and Error Handling

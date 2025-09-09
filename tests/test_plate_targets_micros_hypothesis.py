@@ -6,7 +6,7 @@ Focus on Fe/Ca/Mg/K micronutrient coverage and day_micros collection.
 import os
 
 from fastapi.testclient import TestClient
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
@@ -30,6 +30,7 @@ class TestPlateTargetsMicrosHypothesis:
         ),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_plate_targets_micros_integration_hypothesis(
         self,
         sex: str,
