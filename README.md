@@ -12,7 +12,7 @@
 
 ## Overview
 
-BMI-App 2025 is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
+PulsePlate is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
 
 ## Features
 
