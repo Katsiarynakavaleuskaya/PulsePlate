@@ -7,10 +7,10 @@ EN: Tests for VIP API endpoints
 """
 import os
 
-from fastapi.testclient import TestClient
-
-# Set VIP_MODULE_ENABLED for testing
+# Set VIP_MODULE_ENABLED for testing BEFORE importing app
 os.environ["VIP_MODULE_ENABLED"] = "true"
+
+from fastapi.testclient import TestClient
 
 import app as app_module  # noqa: E402
 
