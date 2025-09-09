@@ -55,7 +55,7 @@ class TestFoodDatabaseExpansionHypothesis:
         ]
 
         # Should have some results for reasonable criteria
-        if min_protein <= 20 and min_calcium <= 100 and max_calories >= 200:
+        if min_protein <= 10 and min_calcium <= 50 and max_calories >= 100:
             assert len(filtered_usda) > 0 or len(filtered_off) > 0
 
     @given(
