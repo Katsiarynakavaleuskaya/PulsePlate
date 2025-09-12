@@ -1,0 +1,25 @@
+{
+    "template_id": "pasta",
+    "name": "Pasta Dish",
+    "cuisine_type": "italian",
+    "base_ingredients": [
+        "pasta",
+        "sauce",
+        "cheese",
+        "herbs"
+    ],
+    "cooking_methods": [
+        "boiling",
+        "simmering"
+    ],
+    "typical_prep_time": 10,
+    "typical_cook_time": 20,
+    "difficulty": "easy",
+    "instruction_template": "Bring a large pot of salted water to boil. Add pasta and cook according to package instructions until al dente. Meanwhile, prepare sauce in a separate pan. Drain pasta, reserving 1/2 cup pasta water. Combine pasta with sauce, adding pasta water as needed. Add cheese and herbs. Toss well and serve immediately.",
+    "nutrition_profile": {
+        "calories": 400,
+        "protein": 15,
+        "carbs": 60,
+        "fat": 12
+    }
+}

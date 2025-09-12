@@ -184,12 +184,8 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_calcium > 0, "Target calcium should be positive"
         assert plate_calcium >= 0, "Plate calcium should be non-negative"
-        assert isinstance(
-            target_calcium, (int, float)
-        ), "Target calcium should be numeric"
-        assert isinstance(
-            plate_calcium, (int, float)
-        ), "Plate calcium should be numeric"
+        assert isinstance(target_calcium, (int, float)), "Target calcium should be numeric"
+        assert isinstance(plate_calcium, (int, float)), "Plate calcium should be numeric"
 
     def test_magnesium_coverage_plate_targets(self):
         """Test magnesium (Mg) coverage between plate and targets"""
@@ -224,12 +220,8 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_magnesium > 0, "Target magnesium should be positive"
         assert plate_magnesium >= 0, "Plate magnesium should be non-negative"
-        assert isinstance(
-            target_magnesium, (int, float)
-        ), "Target magnesium should be numeric"
-        assert isinstance(
-            plate_magnesium, (int, float)
-        ), "Plate magnesium should be numeric"
+        assert isinstance(target_magnesium, (int, float)), "Target magnesium should be numeric"
+        assert isinstance(plate_magnesium, (int, float)), "Plate magnesium should be numeric"
 
     def test_potassium_coverage_plate_targets(self):
         """Test potassium (K) coverage between plate and targets"""
@@ -264,12 +256,8 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_potassium > 0, "Target potassium should be positive"
         assert plate_potassium >= 0, "Plate potassium should be non-negative"
-        assert isinstance(
-            target_potassium, (int, float)
-        ), "Target potassium should be numeric"
-        assert isinstance(
-            plate_potassium, (int, float)
-        ), "Plate potassium should be numeric"
+        assert isinstance(target_potassium, (int, float)), "Target potassium should be numeric"
+        assert isinstance(plate_potassium, (int, float)), "Plate potassium should be numeric"
 
     def test_vitamin_d_coverage_plate_targets(self):
         """Test vitamin D coverage between plate and targets"""
@@ -304,9 +292,7 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_vitd > 0, "Target vitamin D should be positive"
         assert plate_vitd >= 0, "Plate vitamin D should be non-negative"
-        assert isinstance(
-            target_vitd, (int, float)
-        ), "Target vitamin D should be numeric"
+        assert isinstance(target_vitd, (int, float)), "Target vitamin D should be numeric"
         assert isinstance(plate_vitd, (int, float)), "Plate vitamin D should be numeric"
 
     def test_b12_coverage_plate_targets(self):
@@ -378,9 +364,7 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_folate > 0, "Target folate should be positive"
         assert plate_folate >= 0, "Plate folate should be non-negative"
-        assert isinstance(
-            target_folate, (int, float)
-        ), "Target folate should be numeric"
+        assert isinstance(target_folate, (int, float)), "Target folate should be numeric"
         assert isinstance(plate_folate, (int, float)), "Plate folate should be numeric"
 
     def test_iodine_coverage_plate_targets(self):
@@ -416,9 +400,7 @@ class TestPlateTargetsMicroCoverage:
 
         assert target_iodine > 0, "Target iodine should be positive"
         assert plate_iodine >= 0, "Plate iodine should be non-negative"
-        assert isinstance(
-            target_iodine, (int, float)
-        ), "Target iodine should be numeric"
+        assert isinstance(target_iodine, (int, float)), "Target iodine should be numeric"
         assert isinstance(plate_iodine, (int, float)), "Plate iodine should be numeric"
 
     def test_micro_coverage_different_profiles(self):
@@ -468,9 +450,7 @@ class TestPlateTargetsMicroCoverage:
             assert (
                 len(target_micros) > 0
             ), f"Targets should have micronutrients for profile {profile}"
-            assert (
-                len(plate_micros) > 0
-            ), f"Plate should have micronutrients for profile {profile}"
+            assert len(plate_micros) > 0, f"Plate should have micronutrients for profile {profile}"
 
             # Verify all micronutrients are non-negative
             for nutrient in target_micros:

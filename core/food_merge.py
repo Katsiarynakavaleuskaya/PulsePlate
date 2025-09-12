@@ -135,20 +135,10 @@ def _classify_food_group(record: Dict) -> str:
         Food group classification
     """
     protein_pct = (
-        (record["protein_g"] * 4 / max(1, record["kcal"])) * 100
-        if record["kcal"] > 0
-        else 0
+        (record["protein_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
     )
-    fat_pct = (
-        (record["fat_g"] * 9 / max(1, record["kcal"])) * 100
-        if record["kcal"] > 0
-        else 0
-    )
-    carb_pct = (
-        (record["carbs_g"] * 4 / max(1, record["kcal"])) * 100
-        if record["kcal"] > 0
-        else 0
-    )
+    fat_pct = (record["fat_g"] * 9 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
+    carb_pct = (record["carbs_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
 
     # High protein foods (>15% of calories from protein)
     if protein_pct > 15:
@@ -169,9 +159,7 @@ def _classify_food_group(record: Dict) -> str:
             ):
                 return "legume"
             return "grain"
-        elif (
-            record["sugar_g"] > 10 if "sugar_g" in record else False
-        ):  # High sugar carbs
+        elif record["sugar_g"] > 10 if "sugar_g" in record else False:  # High sugar carbs
             return "fruit"
         else:  # Starchy carbs
             return "grain"

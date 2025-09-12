@@ -128,9 +128,7 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
     athlete_yes = {"спорт", "спортсмен", "спортсменка", "атлет", "атлетка", "athlete"}
     is_athlete = (a_raw in yes_vals) or (a_raw in athlete_yes)
     # Check if athlete description matches sportsperson/athlete patterns
-    athlete_pattern_match = re.search(r"спортсмен(ка)?", a_raw) or re.search(
-        r"атлет(ка)?", a_raw
-    )
+    athlete_pattern_match = re.search(r"спортсмен(ка)?", a_raw) or re.search(r"атлет(ка)?", a_raw)
     if not is_athlete and a_raw and athlete_pattern_match:
         is_athlete = True
 
@@ -155,9 +153,7 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(
-    bmi: float, group: str, lang: str, age: Optional[int] = None
-) -> str:
+def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
     lang_code: Language = normalize_lang(lang)
 
@@ -309,19 +305,11 @@ def build_premium_plan(
         },
     }
 
-    action = (
-        "maintain"
-        if wmin <= weight_kg <= wmax
-        else "lose" if weight_kg > wmax else "gain"
-    )
+    action = "maintain" if wmin <= weight_kg <= wmax else "lose" if weight_kg > wmax else "gain"
     delta = (
         0.0
         if action == "maintain"
-        else (
-            round(weight_kg - wmax, 1)
-            if action == "lose"
-            else round(wmin - weight_kg, 1)
-        )
+        else (round(weight_kg - wmax, 1) if action == "lose" else round(wmin - weight_kg, 1))
     )
     est_weeks = (
         (None, None)

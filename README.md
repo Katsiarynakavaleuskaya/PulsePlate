@@ -1,13 +1,48 @@
 # PulsePlate (FastAPI)
 
+[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
+
 [![python-tests](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/python-tests.yml)
 [![CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml)
+[![Tests + Coverage](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/coverage.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/coverage.yml)
 
 [![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
 
 ## 🚀 Quick Start
 
-**📋 [TODO.md](TODO.md)** - Основной план задач (спринт "Улучшение покрытия и документации" завершен ✅)  
+### Python Version
+
+- Закреплена версия Python: 3.13.5 (`.python-version`, `.tool-versions`).
+- Рекомендуемая установка через `pyenv` или `asdf`.
+
+Setup (pyenv):
+
+```bash
+pyenv install 3.13.5 -s
+pyenv local 3.13.5
+python -V  # Python 3.13.5
+```
+
+Setup (asdf):
+
+```bash
+asdf plugin add python || true
+asdf install python 3.13.5
+asdf local python 3.13.5
+python -V  # Python 3.13.5
+```
+
+Create venv and install deps:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+python -m pip install -U pip setuptools wheel
+pip install -r requirements-dev.txt
+pip install -r requirements.txt
+```
+
+**📋 [TODO.md](TODO.md)** - Основной план задач (спринт "Улучшение покрытия и документации" завершен ✅)
 **⚡ [QUICK_START.md](QUICK_START.md)** - Быстрый старт работы с проектом
 
 ## Overview

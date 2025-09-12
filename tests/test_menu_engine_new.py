@@ -17,12 +17,8 @@ from core.recipe_db_new import RecipeDB
 def test_build_plate_day_structure():
     """Test that build_plate_day returns the correct structure."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -72,12 +68,8 @@ def test_build_plate_day_structure():
 def test_build_plate_day_calorie_target():
     """Test that build_plate_day respects calorie targets."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -110,12 +102,8 @@ def test_build_plate_day_calorie_target():
 def test_build_plate_day_multilingual():
     """Test that build_plate_day works with different languages."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)

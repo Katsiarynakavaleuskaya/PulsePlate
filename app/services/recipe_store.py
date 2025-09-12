@@ -17,14 +17,24 @@ def _con():
 
 
 def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
-    sql = """
-      SELECT r.recipe_id, r.title, r.kcal_per_serv, r.tags_json
-      FROM recipes r
-      JOIN recipes_fts f ON f.rowid = r.rowid
-      WHERE f.title MATCH ?
-      LIMIT ? OFFSET ?
-    """
-    params = [query or "*", limit, offset]
+    # Handle empty or wildcard queries for FTS
+    if not query or query == "*":
+        sql = """
+          SELECT r.recipe_id, r.title, r.kcal_per_serv, r.tags_json
+          FROM recipes r
+          LIMIT ? OFFSET ?
+        """
+        params = [limit, offset]
+    else:
+        sql = """
+          SELECT r.recipe_id, r.title, r.kcal_per_serv, r.tags_json
+          FROM recipes r
+          JOIN recipes_fts f ON f.rowid = r.rowid
+          WHERE f.title MATCH ?
+          LIMIT ? OFFSET ?
+        """
+        params = [query, limit, offset]
+
     with _con() as con:
         rows = con.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
@@ -32,7 +42,5 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
 
 def get_recipe(recipe_id: str) -> Optional[Dict]:
     with _con() as con:
-        r = con.execute(
-            "SELECT * FROM recipes WHERE recipe_id = ?", (recipe_id,)
-        ).fetchone()
+        r = con.execute("SELECT * FROM recipes WHERE recipe_id = ?", (recipe_id,)).fetchone()
     return dict(r) if r else None

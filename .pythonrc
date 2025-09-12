@@ -1,0 +1,75 @@
+# -*- coding: utf-8 -*-
+"""
+PulsePlate Python Shell Configuration
+Настройки для интерактивной работы с Python в проекте PulsePlate
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Добавляем пути проекта в PYTHONPATH
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "core"))
+sys.path.insert(0, str(project_root / "app"))
+sys.path.insert(0, str(project_root / "tests"))
+
+# Устанавливаем переменные окружения
+os.environ["VIP_MODULE_ENABLED"] = "true"
+os.environ["PYTHONPATH"] = ":".join([
+    str(project_root),
+    str(project_root / "core"),
+    str(project_root / "app"),
+    str(project_root / "tests")
+])
+
+# Импорты для удобной работы
+try:
+    from core.targets import UserProfile, NutritionTargets, MicronutrientTargets
+    from core.menu_engine import make_weekly_menu, repair_week_plan, analyze_nutrient_gaps
+    from core.recommendations import build_micronutrient_targets
+    from app.schemas.vip import VIPConfig, VIPFeatureFlags
+    print("✅ Core modules imported successfully")
+except ImportError as e:
+    print(f"⚠️  Some modules not available: {e}")
+
+# Настройки для удобной работы
+import json
+from typing import Dict, List, Any
+
+def pretty_print(obj: Any) -> None:
+    """Красивый вывод объектов"""
+    if hasattr(obj, 'model_dump'):
+        print(json.dumps(obj.model_dump(), indent=2, ensure_ascii=False))
+    elif hasattr(obj, '__dict__'):
+        print(json.dumps(obj.__dict__, indent=2, ensure_ascii=False))
+    else:
+        print(json.dumps(obj, indent=2, ensure_ascii=False))
+
+def create_test_profile() -> UserProfile:
+    """Создать тестовый профиль пользователя"""
+    return UserProfile(
+        age=30,
+        sex="female",
+        weight_kg=65.0,
+        height_cm=165.0,
+        activity_level="moderate",
+        goal="maintenance",
+        life_stage="adult"
+    )
+
+def create_test_targets(profile: UserProfile = None) -> MicronutrientTargets:
+    """Создать тестовые микронутриентные цели"""
+    if profile is None:
+        profile = create_test_profile()
+    return build_micronutrient_targets(profile)
+
+print("🚀 PulsePlate Python Shell готов к работе!")
+print("📋 Доступные функции:")
+print("  - create_test_profile() - создать тестовый профиль")
+print("  - create_test_targets() - создать тестовые цели")
+print("  - pretty_print(obj) - красивый вывод объектов")
+print("  - make_weekly_menu() - создать недельное меню")
+print("  - repair_week_plan() - исправить недельный план")
+print("  - analyze_nutrient_gaps() - анализ дефицитов")

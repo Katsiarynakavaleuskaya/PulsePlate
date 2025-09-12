@@ -51,8 +51,7 @@ TRANSLATIONS = {
         # Advice Texts
         "advice_underweight": "Вам следует набрать вес. Проконсультируйтесь с врачом "
         "для составления плана питания.",
-        "advice_normal": "У вас нормальный вес. Продолжайте поддерживать здоровый "
-        "образ жизни.",
+        "advice_normal": "У вас нормальный вес. Продолжайте поддерживать здоровый " "образ жизни.",
         "advice_overweight": "Вам следует сбросить вес. Рекомендуется сбалансированная "
         "диета и физическая активность.",
         "advice_obese": "Вам необходимо снизить вес. Обратитесь к врачу для "
@@ -138,8 +137,7 @@ TRANSLATIONS = {
         # Advice Texts
         "advice_underweight": "You should gain weight. Consult a doctor to "
         "develop a nutrition plan.",
-        "advice_normal": "You have a normal weight. Continue maintaining a "
-        "healthy lifestyle.",
+        "advice_normal": "You have a normal weight. Continue maintaining a " "healthy lifestyle.",
         "advice_overweight": "You should lose weight. A balanced diet and "
         "physical activity are recommended.",
         "advice_obese": "You need to reduce your weight. Consult a doctor for "
@@ -220,8 +218,7 @@ TRANSLATIONS = {
         # Advice Texts
         "advice_underweight": "Deberías ganar peso. Consulta con un médico para "
         "desarrollar un plan nutricional.",
-        "advice_normal": "Tienes un peso normal. Sigue manteniendo un estilo de "
-        "vida saludable.",
+        "advice_normal": "Tienes un peso normal. Sigue manteniendo un estilo de " "vida saludable.",
         "advice_overweight": "Deberías perder peso. Se recomienda una dieta "
         "equilibrada y actividad física.",
         "advice_obese": "Necesitas reducir tu peso. Consulta con un médico para "

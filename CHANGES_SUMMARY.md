@@ -114,7 +114,7 @@ LOG_FILE="ollama_monitor.log"
 monitor_process() {
     while true; do
         TIMESTAMP=$(date '+%H:%M:%S')
-        
+
         # CPU и Memory usage процесса Ollama
         OLLAMA_PID=$(pgrep -f "ollama serve")
         if [ ! -z "$OLLAMA_PID" ]; then
@@ -122,15 +122,15 @@ monitor_process() {
             CPU=$(echo $STATS | awk '{print $2}')
             MEM=$(echo $STATS | awk '{print $3}')
             RSS=$(echo $STATS | awk '{print $4}')
-            
+
             # Активность на порту 11434
             CONNECTIONS=$(lsof -i :11434 2>/dev/null | wc -l)
-            
+
             # Логируем и выводим
             LOG_ENTRY="[$TIMESTAMP] CPU: ${CPU}% | MEM: ${MEM}% | RSS: ${RSS}KB | Connections: $CONNECTIONS"
             echo "$LOG_ENTRY"
             echo "$LOG_ENTRY" >> $LOG_FILE
-            
+
             # Если CPU > 50% или MEM > 10% - модель активно работает
             if (( $(echo "$CPU > 50.0" | bc -l 2>/dev/null || echo "0") )); then
                 echo "   🔥 HIGH CPU ACTIVITY - Model is processing!"
@@ -142,7 +142,7 @@ monitor_process() {
         else
             echo "[$TIMESTAMP] ❌ Ollama process not found"
         fi
-        
+
         sleep 2
     done
 }
@@ -169,7 +169,7 @@ def __init__(self, endpoint: str = "http://localhost:11434", model: str = "llama
 
 ### Времена отклика Ollama
 
-- **Холодный старт (первый запрос):** 30-90 секунд  
+- **Холодный старт (первый запрос):** 30-90 секунд
 - **Прогрев модели:** 15-45 секунд
 - **Последующие запросы:** 3-10 секунд
 - **Полный простой → работа:** 2-5 минут
@@ -243,7 +243,7 @@ curl -s -X POST http://127.0.0.1:8001/plan \
   -d '{"height_m":1.75,"weight_kg":85,"age":30,"gender":"male","pregnant":"no","athlete":"no","user_group":"general","language":"en"}'
 # ✅ Полный план с рекомендациями
 
-# Insight endpoint  
+# Insight endpoint
 curl -s -X POST http://127.0.0.1:8001/insight \
   -H "Content-Type: application/json" \
   -d '{"text": "Provide health advice for BMI 27.8"}'
@@ -286,10 +286,10 @@ make kill
 
 ## 📈 СТАТУС ПРОЕКТА
 
-✅ **Основной функционал:** BMI расчеты работают отлично  
-✅ **LLM интеграция:** Все провайдеры протестированы  
-✅ **Диагностика:** Созданы инструменты мониторинга  
-✅ **Переключение провайдеров:** Работает через переменные среды  
+✅ **Основной функционал:** BMI расчеты работают отлично
+✅ **LLM интеграция:** Все провайдеры протестированы
+✅ **Диагностика:** Созданы инструменты мониторинга
+✅ **Переключение провайдеров:** Работает через переменные среды
 ✅ **Тестирование:** Все endpoints функциональны
 
 **Проект готов к продолжению разработки!** 🎉
@@ -301,6 +301,7 @@ make kill
 **Итог:** общее покрытие 99%+, без исключения `core/food_apis/*`.
 
 Добавлены тесты:
+
 - `tests/test_app_missing_lines_extra.py` — дополнительные ветки в `app.py` (lifespan, визуализация, ошибки BMR/Plate/Pro/Exports)
 - `tests/test_sports_nutrition_extra.py` — оставшиеся ветки `core/sports_nutrition.py`
 - `tests/test_food_apis_full_coverage.py` — базовое покрытие `core/food_apis/*`
@@ -308,6 +309,7 @@ make kill
 - `tests/test_food_apis_push95.py` — доведение покрытия `core/food_apis` до 95%+
 
 Покрытие по ключевым модулям:
+
 - `core/food_apis/usda_client.py`: ~96%
 - `core/food_apis/unified_db.py`: ~98%
 - `core/food_apis/update_manager.py`: ~99%

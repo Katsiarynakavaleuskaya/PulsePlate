@@ -50,11 +50,7 @@ class FoodDB:
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 micros = {k: float(row.get(k, 0) or 0) for k in MICRO_KEYS}
-                flags = [
-                    x.strip()
-                    for x in (row.get("flags", "") or "").split(";")
-                    if x.strip()
-                ]
+                flags = [x.strip() for x in (row.get("flags", "") or "").split(";") if x.strip()]
                 self.items[row["name"]] = FoodItem(
                     name=row["name"],
                     group=row["group"],

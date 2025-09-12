@@ -30,9 +30,7 @@ def main():
     print("📊 Статистика базы данных:")
     print(f"  Всего продуктов: {stats['total_products']}")
     print(f"  Всего сортов: {stats['total_varieties']}")
-    print(
-        f"  Среднее количество сортов на продукт: {stats['avg_varieties_per_product']}"
-    )
+    print(f"  Среднее количество сортов на продукт: {stats['avg_varieties_per_product']}")
     print()
 
     # Демонстрируем работу с молочными продуктами
@@ -62,8 +60,7 @@ def main():
                 print(f"       Примечание: {variety.notes}")
 
         # Показываем сравнение питательной ценности
-        comparison = manager.get_nutritional_comparison(product_name)
-        if comparison:
+        if comparison := manager.get_nutritional_comparison(product_name):
             print("  📊 Сравнение питательной ценности:")
             for variety_name, nutrition in comparison.items():
                 print(f"    {variety_name}:")
@@ -78,23 +75,16 @@ def main():
         print("  🎯 Рекомендации:")
 
         # Низкосахарный вариант
-        low_sugar = manager.get_best_variety(product_name, "low_sugar")
-        if low_sugar:
-            print(
-                f"    Низкий сахар: {low_sugar.variety} ({low_sugar.sugar_g}g сахара)"
-            )
+        if low_sugar := manager.get_best_variety(product_name, "low_sugar"):
+            print(f"    Низкий сахар: {low_sugar.variety} ({low_sugar.sugar_g}g сахара)")
 
         # Высокобелковый вариант
-        high_protein = manager.get_best_variety(product_name, "high_protein")
-        if high_protein:
-            print(
-                f"    Высокий белок: {high_protein.variety} ({high_protein.protein_g}g белка)"
-            )
+        if high_protein := manager.get_best_variety(product_name, "high_protein"):
+            print(f"    Высокий белок: {high_protein.variety} ({high_protein.protein_g}g белка)")
 
         # Низкожирный вариант
-        low_fat = manager.get_best_variety(product_name, "low_fat")
-        if low_fat:
-            print(f"    Низкие жиры: {low_fat.variety} ({low_fat.fat_g}g жиров)")
+        if low_fat := manager.get_best_variety(product_name, "low_fat"):
+            print(f"    Низкие жиры: {low_fat.variety} ({low_fat.fat_g} жиров)")
 
         print()
 
@@ -116,10 +106,7 @@ def main():
         print(f"   Предпочтения: {profile['preferences']}")
 
         for product_name in ["Молоко", "Сыр"]:
-            recommended = manager.recommend_variety(
-                product_name, profile["preferences"]
-            )
-            if recommended:
+            if recommended := manager.recommend_variety(product_name, profile["preferences"]):
                 print(f"   {product_name}: {recommended.variety} ({recommended.brand})")
                 print(
                     f"     Белок: {recommended.protein_g}g, Жиры: {recommended.fat_g}g, "
@@ -146,9 +133,7 @@ def main():
         if brand:
             print(f"   Марка: {brand}")
 
-        results = manager.search_varieties(product_name, variety_name, brand)
-
-        if results:
+        if results := manager.search_varieties(product_name, variety_name, brand):
             print(f"   Найдено: {len(results)} результатов")
             for variety in results:
                 print(f"     - {variety.variety} ({variety.brand})")

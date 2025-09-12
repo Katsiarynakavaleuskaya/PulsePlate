@@ -107,9 +107,7 @@ class TestProductFinderHypothesis:
         confidence2=st.floats(min_value=0.0, max_value=1.0),
     )
     @settings(deadline=None)
-    def test_confidence_calculation_hypothesis(
-        self, confidence1: float, confidence2: float
-    ):
+    def test_confidence_calculation_hypothesis(self, confidence1: float, confidence2: float):
         """Test confidence calculation with Hypothesis."""
         # Тестируем с различными названиями
         test_cases = [

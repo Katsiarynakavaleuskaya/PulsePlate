@@ -87,9 +87,7 @@ class OFFAdapter(BaseAdapter):
             # Micro nutrients (often empty in OFF)
             Fe_mg = float(row.get("iron_100g", 0) or 0)
             Ca_mg = float(row.get("calcium_100g", 0) or 0)
-            VitD_IU = float(
-                row.get("vitamin-d_100g", 0) or 0
-            )  # May be in µg, needs conversion
+            VitD_IU = float(row.get("vitamin-d_100g", 0) or 0)  # May be in µg, needs conversion
             B12_ug = float(row.get("vitamin-b12_100g", 0) or 0)
             Folate_ug = float(row.get("vitamin-b9_100g", 0) or 0)
             Iodine_ug = float(row.get("iodine_100g", 0) or 0)

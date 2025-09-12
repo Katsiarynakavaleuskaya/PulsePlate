@@ -135,9 +135,7 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     return food_db
 
 
-def pick_booster_for(
-    micro: str, flags: Set[str], food_db: Dict[str, FoodItem]
-) -> Optional[str]:
+def pick_booster_for(micro: str, flags: Set[str], food_db: Dict[str, FoodItem]) -> Optional[str]:
     """
     RU: Выбирает продукт-бустер для конкретного микронутриента.
     EN: Picks a booster food for a specific micronutrient.
@@ -170,11 +168,7 @@ def pick_booster_for(
         if candidate in food_db:
             food = food_db[candidate]
             # Check if food matches dietary flags
-            if (
-                not flags
-                or flags.issubset(food.flags)
-                or not flags.intersection(food.flags)
-            ):
+            if not flags or flags.issubset(food.flags) or not flags.intersection(food.flags):
                 filtered_candidates.append(candidate)
 
     # Return the first matching candidate

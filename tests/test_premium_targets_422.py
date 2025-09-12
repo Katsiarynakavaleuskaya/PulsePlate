@@ -45,9 +45,7 @@ def test_invalid_payload_422(bad_field, bad_value):
     }
     payload[bad_field] = bad_value
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 422
 
     # Check that the response contains validation error details
@@ -70,9 +68,7 @@ def test_missing_required_fields_422():
         "lang": "en",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 422
 
     data = resp.json()
@@ -97,9 +93,7 @@ def test_invalid_lang_parameter():
         "lang": "xx",  # invalid language code
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     # Should still work (lang is just a string, not validated enum)
     assert resp.status_code == 200
 
@@ -117,9 +111,7 @@ def test_edge_case_values():
         "lang": "en",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
 
@@ -139,7 +131,5 @@ def test_maximum_valid_values():
         "lang": "es",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200

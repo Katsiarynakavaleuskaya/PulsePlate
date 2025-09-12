@@ -275,9 +275,7 @@ class TestFoodMergeHypothesis96:
                 carbs_g=st.floats(min_value=0, max_value=100),
                 fiber_g=st.floats(min_value=0, max_value=50),
                 source=st.sampled_from(["USDA", "OFF", "CUSTOM"]),
-                flags=st.lists(
-                    st.text(min_size=1, max_size=10), min_size=0, max_size=3
-                ),
+                flags=st.lists(st.text(min_size=1, max_size=10), min_size=0, max_size=3),
             ),
             min_size=0,
             max_size=5,
@@ -368,9 +366,7 @@ class TestFoodMergeHypothesis96:
                 ),
                 name=st.text(min_size=1, max_size=20),
                 source=st.sampled_from(["USDA", "OFF", "CUSTOM"]),
-                flags=st.lists(
-                    st.text(min_size=1, max_size=10), min_size=0, max_size=3
-                ),
+                flags=st.lists(st.text(min_size=1, max_size=10), min_size=0, max_size=3),
             ),
             min_size=1,
             max_size=3,
@@ -425,9 +421,7 @@ class TestFoodMergeHypothesis96:
                     version_date="2024-01-01",
                 ),
                 name=st.text(min_size=1, max_size=20),
-                flags=st.lists(
-                    st.text(min_size=1, max_size=10), min_size=0, max_size=5
-                ),
+                flags=st.lists(st.text(min_size=1, max_size=10), min_size=0, max_size=5),
             ),
             min_size=1,
             max_size=3,

@@ -37,9 +37,7 @@ def test_life_stage_warnings(case, lang):
         "life_stage": case["life_stage"],
         "lang": lang,
     }
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     data = resp.json()
 
@@ -69,9 +67,7 @@ def test_life_stage_warnings_no_warnings():
         "life_stage": "adult",
         "lang": "en",
     }
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     data = resp.json()
 
@@ -93,9 +89,7 @@ def test_life_stage_warnings_localization():
         "life_stage": "teen",
         "lang": "ru",
     }
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     data = resp.json()
 

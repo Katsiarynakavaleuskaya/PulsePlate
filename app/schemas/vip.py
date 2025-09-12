@@ -86,12 +86,8 @@ class MicronutrientGoal(BaseModel):
     """
 
     nutrient: str = Field(..., description="Nutrient name (e.g., 'Fe_mg', 'VitD_IU')")
-    target_daily: float = Field(
-        ..., gt=0, description="Daily target in appropriate units"
-    )
-    priority: int = Field(
-        default=1, ge=1, le=5, description="Priority 1-5 (5 = highest)"
-    )
+    target_daily: float = Field(..., gt=0, description="Daily target in appropriate units")
+    priority: int = Field(default=1, ge=1, le=5, description="Priority 1-5 (5 = highest)")
     deficiency_threshold: float = Field(
         default=0.8,
         ge=0.1,
@@ -113,9 +109,7 @@ class AutoRepairConfig(BaseModel):
     preserve_flags: Set[str] = Field(
         default_factory=set, description="Dietary flags to preserve (VEG, GF, etc.)"
     )
-    prefer_local_products: bool = Field(
-        default=True, description="Prefer local/regional products"
-    )
+    prefer_local_products: bool = Field(default=True, description="Prefer local/regional products")
 
 
 class RegionalConfig(BaseModel):
@@ -127,12 +121,8 @@ class RegionalConfig(BaseModel):
     region: Region = Field(..., description="Target region")
     currency: Currency = Field(..., description="Local currency")
     language: str = Field(default="en", description="Language code")
-    units_system: str = Field(
-        default="metric", description="Units system (metric/imperial)"
-    )
-    local_brands: List[str] = Field(
-        default_factory=list, description="Preferred local brands"
-    )
+    units_system: str = Field(default="metric", description="Units system (metric/imperial)")
+    local_brands: List[str] = Field(default_factory=list, description="Preferred local brands")
 
 
 class ShoplistConfig(BaseModel):
@@ -141,15 +131,9 @@ class ShoplistConfig(BaseModel):
     EN: Shopping list configuration.
     """
 
-    round_to_packages: bool = Field(
-        default=True, description="Round quantities to package sizes"
-    )
-    include_alternatives: bool = Field(
-        default=True, description="Include product alternatives"
-    )
-    group_by_category: bool = Field(
-        default=True, description="Group items by food category"
-    )
+    round_to_packages: bool = Field(default=True, description="Round quantities to package sizes")
+    include_alternatives: bool = Field(default=True, description="Include product alternatives")
+    group_by_category: bool = Field(default=True, description="Group items by food category")
     show_prices: bool = Field(default=True, description="Show estimated prices")
 
 
@@ -159,18 +143,14 @@ class RecipeGenerationConfig(BaseModel):
     EN: Recipe generation configuration.
     """
 
-    max_ingredients: int = Field(
-        default=8, ge=3, le=15, description="Max ingredients per recipe"
-    )
+    max_ingredients: int = Field(default=8, ge=3, le=15, description="Max ingredients per recipe")
     cooking_time_max: int = Field(
         default=60, ge=15, le=180, description="Max cooking time in minutes"
     )
     difficulty_levels: List[str] = Field(
         default=["easy", "medium"], description="Allowed difficulty levels"
     )
-    cuisine_styles: List[str] = Field(
-        default_factory=list, description="Preferred cuisine styles"
-    )
+    cuisine_styles: List[str] = Field(default_factory=list, description="Preferred cuisine styles")
 
 
 class VIPConfig(BaseModel):
@@ -185,12 +165,8 @@ class VIPConfig(BaseModel):
         default_factory=lambda: RegionalConfig(region=Region.US, currency=Currency.USD)
     )
     shoplist: ShoplistConfig = Field(default_factory=ShoplistConfig)
-    recipe_generation: RecipeGenerationConfig = Field(
-        default_factory=RecipeGenerationConfig
-    )
-    enabled_features: Set[str] = Field(
-        default_factory=set, description="Enabled VIP features"
-    )
+    recipe_generation: RecipeGenerationConfig = Field(default_factory=RecipeGenerationConfig)
+    enabled_features: Set[str] = Field(default_factory=set, description="Enabled VIP features")
 
 
 class VIPFeatureFlags(BaseModel):

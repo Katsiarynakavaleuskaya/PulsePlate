@@ -32,9 +32,7 @@ def test_insight_stub_provider():
     os.environ["FEATURE_INSIGHT"] = "true"
     os.environ["LLM_PROVIDER"] = "stub"
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "ping"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "ping"}, headers={"X-API-Key": "test_key"})
     if r.status_code == 404:
         pytest.skip("No /api/v1/insight route (skipping)")
     assert r.status_code == 200

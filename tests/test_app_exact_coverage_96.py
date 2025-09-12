@@ -94,9 +94,7 @@ class TestAppExactCoverage96:
         # Should have special note for pregnant women
         assert "note" in data
         assert data["category"] is None  # No category for pregnant women
-        assert (
-            "pregnancy" in data["note"].lower() or "not valid" in data["note"].lower()
-        )
+        assert "pregnancy" in data["note"].lower() or "not valid" in data["note"].lower()
 
     def test_pregnant_female_bmi_note_russian(self):
         """Test BMI calculation for pregnant female in Russian - lines 756-757."""

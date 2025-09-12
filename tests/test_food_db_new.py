@@ -89,9 +89,7 @@ def test_aggregate_shopping():
     assert oats_item is not None
     assert oats_item["grams"] == 60
 
-    spinach_item = next(
-        (item for item in shopping_list if item["name"] == "spinach"), None
-    )
+    spinach_item = next((item for item in shopping_list if item["name"] == "spinach"), None)
     assert spinach_item is not None
     assert spinach_item["grams"] == 120
 
@@ -107,9 +105,7 @@ def test_get_translated_food_name():
     # Test translation for different languages
     assert food_db.get_translated_food_name("chicken_breast", "en") == "Chicken breast"
     assert food_db.get_translated_food_name("chicken_breast", "ru") == "Куриная грудка"
-    assert (
-        food_db.get_translated_food_name("chicken_breast", "es") == "Pechuga de pollo"
-    )
+    assert food_db.get_translated_food_name("chicken_breast", "es") == "Pechuga de pollo"
 
     # Test that unknown food returns original name
     assert food_db.get_translated_food_name("unknown_food", "en") == "unknown_food"

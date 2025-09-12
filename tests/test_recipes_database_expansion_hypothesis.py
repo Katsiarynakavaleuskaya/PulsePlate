@@ -25,9 +25,7 @@ class TestRecipesDatabaseExpansionHypothesis:
         max_calories=st.floats(min_value=800.0, max_value=1500.0),
     )
     @settings(deadline=None)
-    def test_recipe_calorie_range_hypothesis(
-        self, min_calories: float, max_calories: float
-    ):
+    def test_recipe_calorie_range_hypothesis(self, min_calories: float, max_calories: float):
         """Test recipes within calorie range."""
         if min_calories >= max_calories:
             return  # Skip invalid ranges
@@ -50,9 +48,7 @@ class TestRecipesDatabaseExpansionHypothesis:
                     # Calculate calories for this ingredient
                     # (4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat)
                     calories_per_100g = (
-                        (food_item.protein_g * 4)
-                        + (food_item.carbs_g * 4)
-                        + (food_item.fat_g * 9)
+                        (food_item.protein_g * 4) + (food_item.carbs_g * 4) + (food_item.fat_g * 9)
                     )
                     calories_for_amount = (calories_per_100g * amount) / 100
                     total_calories += calories_for_amount
@@ -91,9 +87,7 @@ class TestRecipesDatabaseExpansionHypothesis:
         min_ingredients=st.integers(min_value=2, max_value=5),
     )
     @settings(deadline=None)
-    def test_recipe_protein_content_hypothesis(
-        self, min_protein: float, min_ingredients: int
-    ):
+    def test_recipe_protein_content_hypothesis(self, min_protein: float, min_ingredients: int):
         """Test recipes with minimum protein content."""
         high_protein_recipes = []
 
@@ -204,9 +198,7 @@ class TestRecipesDatabaseExpansionHypothesis:
                 if food_item:
                     # Calculate nutrients
                     calories_per_100g = (
-                        (food_item.protein_g * 4)
-                        + (food_item.carbs_g * 4)
-                        + (food_item.fat_g * 9)
+                        (food_item.protein_g * 4) + (food_item.carbs_g * 4) + (food_item.fat_g * 9)
                     )
                     calories_for_amount = (calories_per_100g * amount) / 100
                     protein_for_amount = (food_item.protein_g * amount) / 100

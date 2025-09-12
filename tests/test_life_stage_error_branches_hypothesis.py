@@ -26,9 +26,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["teen"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     def test_teen_life_stage_warning_hypothesis(
@@ -69,9 +67,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["pregnant"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["female"]),  # Only females can be pregnant
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     def test_pregnant_life_stage_warning_hypothesis(
@@ -112,9 +108,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["elderly"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     def test_elderly_life_stage_warning_hypothesis(
@@ -149,18 +143,14 @@ class TestLifeStageErrorBranchesHypothesis:
         assert len(elderly_warnings) == 1
         message = elderly_warnings[0]["message"]
         message_lower = message.lower()
-        assert (
-            "51+" in message or "elderly" in message_lower or "пожил" in message_lower
-        )
+        assert "51+" in message or "elderly" in message_lower or "пожил" in message_lower
 
     @given(
         age=st.integers(min_value=1, max_value=11),
         life_stage=st.sampled_from(["child"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -202,9 +192,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["lactating"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["female"]),  # Only females can be lactating
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     def test_lactating_life_stage_warning_hypothesis(
@@ -245,9 +233,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -279,9 +265,7 @@ class TestLifeStageErrorBranchesHypothesis:
 
         # Check that no life_stage warnings are present
         life_stage_warning_codes = ["teen", "pregnant", "lactating", "elderly", "child"]
-        life_stage_warnings = [
-            w for w in data["warnings"] if w["code"] in life_stage_warning_codes
-        ]
+        life_stage_warnings = [w for w in data["warnings"] if w["code"] in life_stage_warning_codes]
         assert len(life_stage_warnings) == 0
 
     @given(
@@ -289,9 +273,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -330,9 +312,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -371,9 +351,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -419,9 +397,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -466,9 +442,7 @@ class TestLifeStageErrorBranchesHypothesis:
         life_stage=st.sampled_from(["adult"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         sex=st.sampled_from(["male", "female"]),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)

@@ -1,11 +1,42 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
       - id: black
+        language_version: python3
+        args: [--line-length=100]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.1.6
     hooks:
       - id: ruff
-        args: [--fix]
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: python -m pytest tests -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: coverage
+        name: coverage
+        entry: python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

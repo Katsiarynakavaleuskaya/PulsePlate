@@ -63,9 +63,7 @@ class TestUpdateManagerCoverage:
             manager = DatabaseUpdateManager(cache_dir=Path(temp_dir))
 
             # Mock _check_usda_updates to raise an exception
-            with patch.object(
-                manager, "_check_usda_updates", side_effect=Exception("Test error")
-            ):
+            with patch.object(manager, "_check_usda_updates", side_effect=Exception("Test error")):
                 updates = await manager.check_for_updates()
                 # Should still return dict with USDA set to False
                 assert isinstance(updates, dict)
@@ -140,9 +138,7 @@ class TestUpdateManagerCoverage:
                 errors=[],
                 duration_seconds=1.0,
             )
-            with patch.object(
-                manager, "_update_usda_database", return_value=mock_result
-            ):
+            with patch.object(manager, "_update_usda_database", return_value=mock_result):
                 # Should not crash despite callback exception
                 result = await manager.update_database("usda")
                 assert result.success is True
@@ -165,9 +161,7 @@ class TestUpdateManagerCoverage:
             manager.versions["usda"] = version
 
             # Mock _create_backup to raise an exception
-            with patch.object(
-                manager, "_create_backup", side_effect=Exception("Backup error")
-            ):
+            with patch.object(manager, "_create_backup", side_effect=Exception("Backup error")):
                 # Mock unified_db.get_common_foods_database
                 with patch.object(
                     manager.unified_db,
@@ -205,9 +199,7 @@ class TestUpdateManagerCoverage:
                 mock_get_foods.return_value = {"chicken": MagicMock()}
 
                 # Mock _load_backup to raise an exception
-                with patch.object(
-                    manager, "_load_backup", side_effect=Exception("Load error")
-                ):
+                with patch.object(manager, "_load_backup", side_effect=Exception("Load error")):
                     # Should handle the exception and still complete the update
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
@@ -414,9 +406,7 @@ class TestUpdateManagerCoverage:
             manager.versions["usda"] = version
 
             # Mock _load_backup to raise an exception
-            with patch.object(
-                manager, "_load_backup", side_effect=Exception("Test error")
-            ):
+            with patch.object(manager, "_load_backup", side_effect=Exception("Test error")):
                 # Should handle the exception
                 success = await manager.rollback_database("usda", "1.0")
                 assert success is False

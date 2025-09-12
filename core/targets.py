@@ -170,11 +170,7 @@ class MicronutrientTargets:
 
     def get_high_priority_nutrients(self) -> List[str]:
         """Get list of high-priority nutrients (priority >= 4)."""
-        return [
-            nutrient
-            for nutrient, priority in self.priority_nutrients.items()
-            if priority >= 4
-        ]
+        return [nutrient for nutrient, priority in self.priority_nutrients.items() if priority >= 4]
 
 
 @dataclass(frozen=True)
@@ -359,9 +355,7 @@ class NutrientCoverage:
             return f"{self.nutrient_name} is adequate"
 
 
-def _life_stage_warnings(
-    age: int, life_stage: LifeStage, lang: str = "en"
-) -> List[Dict[str, str]]:
+def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> List[Dict[str, str]]:
     """
     RU: Генерирует предупреждения по жизненным этапам с локализацией.
     EN: Generates life stage warnings with localization.
@@ -407,9 +401,7 @@ def _life_stage_warnings(
 
     # Проверяем возрастные группы
     if 12 <= age <= 18 and life_stage == "teen":
-        warnings.append(
-            {"code": "teen", "message": M["teen"].get(lang, M["teen"]["en"])}
-        )
+        warnings.append({"code": "teen", "message": M["teen"].get(lang, M["teen"]["en"])})
 
     # Проверяем специальные состояния
     if life_stage == "pregnant":
@@ -429,13 +421,9 @@ def _life_stage_warnings(
         )
 
     if age >= 51 and life_stage == "elderly":
-        warnings.append(
-            {"code": "elderly", "message": M["elderly"].get(lang, M["elderly"]["en"])}
-        )
+        warnings.append({"code": "elderly", "message": M["elderly"].get(lang, M["elderly"]["en"])})
 
     if age < 12 and life_stage == "child":
-        warnings.append(
-            {"code": "child", "message": M["child"].get(lang, M["child"]["en"])}
-        )
+        warnings.append({"code": "child", "message": M["child"].get(lang, M["child"]["en"])})
 
     return warnings

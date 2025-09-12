@@ -41,17 +41,13 @@ class TestFoodDatabaseExpansionHypothesis:
         filtered_usda = [
             f
             for f in usda_foods
-            if f.protein_g >= min_protein
-            and f.Ca_mg >= min_calcium
-            and f.kcal <= max_calories
+            if f.protein_g >= min_protein and f.Ca_mg >= min_calcium and f.kcal <= max_calories
         ]
 
         filtered_off = [
             f
             for f in off_foods
-            if f.protein_g >= min_protein
-            and f.Ca_mg >= min_calcium
-            and f.kcal <= max_calories
+            if f.protein_g >= min_protein and f.Ca_mg >= min_calcium and f.kcal <= max_calories
         ]
 
         # Should have some results for reasonable criteria
@@ -59,15 +55,11 @@ class TestFoodDatabaseExpansionHypothesis:
             assert len(filtered_usda) > 0 or len(filtered_off) > 0
 
     @given(
-        nutrient_name=st.sampled_from(
-            ["protein_g", "Ca_mg", "Fe_mg", "kcal", "fiber_g"]
-        ),
+        nutrient_name=st.sampled_from(["protein_g", "Ca_mg", "Fe_mg", "kcal", "fiber_g"]),
         min_value=st.floats(min_value=0.0, max_value=4.0),
     )
     @settings(deadline=None)
-    def test_nutrient_availability_hypothesis(
-        self, nutrient_name: str, min_value: float
-    ):
+    def test_nutrient_availability_hypothesis(self, nutrient_name: str, min_value: float):
         """Test nutrient availability in foods."""
         usda_foods = list(self.usda_adapter.normalize())
         off_foods = list(self.off_adapter.normalize())
@@ -85,9 +77,7 @@ class TestFoodDatabaseExpansionHypothesis:
         if min_value <= 3.0:  # Reasonable threshold based on our data
             assert len(foods_with_nutrient) > 0
 
-    @given(
-        food_group=st.sampled_from(["protein", "grain", "vegetable", "fruit", "fat"])
-    )
+    @given(food_group=st.sampled_from(["protein", "grain", "vegetable", "fruit", "fat"]))
     @settings(deadline=None)
     def test_food_group_distribution_hypothesis(self, food_group: str):
         """Test food group distribution."""

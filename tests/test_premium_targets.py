@@ -105,9 +105,7 @@ class TestPremiumTargets:
 
         # Check hydration target (~30 ml/kg)
         expected_water = int(60 * 30)
-        assert (
-            abs(targets.water_ml_daily - expected_water) <= 100
-        )  # Allow some variation
+        assert abs(targets.water_ml_daily - expected_water) <= 100  # Allow some variation
 
         # Check activity targets (150/75 min/week)
         assert targets.activity.moderate_aerobic_min == 150
@@ -156,9 +154,7 @@ class TestPremiumTargets:
 
         # Check hydration target (~30 ml/kg)
         expected_water = int(80 * 30)
-        assert (
-            abs(targets.water_ml_daily - expected_water) <= 100
-        )  # Allow some variation
+        assert abs(targets.water_ml_daily - expected_water) <= 100  # Allow some variation
 
         # Check activity targets (150/75 min/week)
         assert targets.activity.moderate_aerobic_min == 150

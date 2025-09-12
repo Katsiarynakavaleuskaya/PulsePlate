@@ -1,0 +1,13 @@
+category,unit,typical_packages,rounding_strategy
+vegetables,g,"100,250,500,1000",up
+fruits,g,"100,250,500,1000",up
+meat,g,"200,400,500,1000",up
+fish,g,"200,400,500,1000",up
+dairy,ml,"200,500,1000",up
+grains,g,"250,500,1000",up
+nuts,g,"100,200,500",up
+oils,ml,"250,500,1000",up
+spices,g,"10,25,50,100",up
+bread,pcs,"1,2,3,5",up
+eggs,pcs,"6,10,12,20",up
+default,g,"100,250,500,1000",up

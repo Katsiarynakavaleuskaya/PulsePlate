@@ -61,7 +61,24 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     # Углеводы из остатка калорий (4/9/4 правило)
     kcal_pro = protein_g * 4
     kcal_fat = fat_g * 9
-    carbs_g = max(0, round((kcal - kcal_pro - kcal_fat) / 4))
+    remaining_kcal = kcal - kcal_pro - kcal_fat
+
+    if remaining_kcal < 0:
+        # Если белок + жир превышают калории, уменьшаем белок и жир
+        excess_kcal = -remaining_kcal
+        protein_reduction = min(excess_kcal / 4, protein_g - 1.0)  # Не меньше 1г/кг
+        protein_g -= protein_reduction
+        kcal_pro = protein_g * 4
+        remaining_kcal = kcal - kcal_pro - kcal_fat
+
+        if remaining_kcal < 0:
+            # Если всё ещё отрицательно, уменьшаем жир
+            fat_reduction = min(-remaining_kcal / 9, fat_g - 0.5)  # Не меньше 0.5г/кг
+            fat_g -= fat_reduction
+            kcal_fat = fat_g * 9
+            remaining_kcal = kcal - kcal_pro - kcal_fat
+
+    carbs_g = max(1, round(remaining_kcal / 4))
     # Клетчатка целимся 25–35 г/сут (зависит от калорийности, дадим минимум 25)
     fiber_g = 25 if kcal < 2200 else 30
 
@@ -73,9 +90,7 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     }
 
 
-def _portions_from_macros(
-    macros: Dict[str, int], meals_per_day: int = 3
-) -> Dict[str, Any]:
+def _portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
     """
@@ -197,14 +212,10 @@ def make_plate(
     if diet_flags:
         if "VEG" in diet_flags:
             for m in meals:
-                m["title"] = (
-                    m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
-                )
+                m["title"] = m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
         if "GF" in diet_flags:
             for m in meals:
-                m["title"] = (
-                    m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
-                )
+                m["title"] = m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
         if "DAIRY_FREE" in diet_flags:
             # просто не добавляем молочку в названиях/рецептах
             pass

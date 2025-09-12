@@ -141,9 +141,7 @@ class OFFClient:
             "vitamin-b6_100g": "b6_mg",
         }
 
-    async def search_products(
-        self, query: str, page_size: int = 25
-    ) -> List[OFFFoodItem]:
+    async def search_products(self, query: str, page_size: int = 25) -> List[OFFFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search products by name.
@@ -224,9 +222,7 @@ class OFFClient:
             )
             return None
 
-    def _parse_product_item(
-        self, product_data: Dict[str, Any]
-    ) -> Optional[OFFFoodItem]:
+    def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
         """
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
@@ -268,11 +264,7 @@ class OFFClient:
             # Parse countries
             countries_raw = product_data.get("countries", "")
             countries = (
-                [
-                    country.strip()
-                    for country in countries_raw.split(",")
-                    if country.strip()
-                ]
+                [country.strip() for country in countries_raw.split(",") if country.strip()]
                 if countries_raw
                 else ["World"]
             )

@@ -19,12 +19,9 @@ class TestPremiumWeekEndpointSimple96:
 
         with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
             "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch(
-            "app.routers.premium_week.RecipeDB"
-        ) as mock_recipedb, patch(
+        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
             "app.routers.premium_week.build_week"
         ) as mock_build_week:
-
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -69,14 +66,9 @@ class TestPremiumWeekEndpointSimple96:
 
         with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
             "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch(
-            "app.routers.premium_week.RecipeDB"
-        ) as mock_recipedb, patch(
+        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
             "app.routers.premium_week.estimate_targets_minimal"
-        ) as mock_estimate, patch(
-            "app.routers.premium_week.build_week"
-        ) as mock_build_week:
-
+        ) as mock_estimate, patch("app.routers.premium_week.build_week") as mock_build_week:
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -131,7 +123,6 @@ class TestPremiumWeekEndpointSimple96:
         with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
             "app.routers.premium_week.FoodDB"
         ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb:
-
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -164,12 +155,9 @@ class TestPremiumWeekEndpointSimple96:
 
         with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
             "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch(
-            "app.routers.premium_week.RecipeDB"
-        ) as mock_recipedb, patch(
+        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
             "app.routers.premium_week.estimate_targets_minimal"
         ) as mock_estimate:
-
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -194,9 +182,7 @@ class TestPremiumWeekEndpointSimple96:
                 headers={"X-API-Key": "test_api_key"},
             )
 
-            assert (
-                response.status_code == 200
-            )  # Mocking doesn't work for app.py endpoint
+            assert response.status_code == 200  # Mocking doesn't work for app.py endpoint
             # The endpoint actually works and returns a response
             data = response.json()
             assert "daily_menus" in data or "week_summary" in data

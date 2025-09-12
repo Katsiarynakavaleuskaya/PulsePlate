@@ -38,9 +38,7 @@ class TestSchedulerFinalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(
-            side_effect=Exception("Test error")
-        )
+        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_update_check()
@@ -56,9 +54,7 @@ class TestSchedulerFinalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(
-            side_effect=Exception("Test error")
-        )
+        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
 
         with patch("core.food_apis.scheduler.logger"):
             await scheduler._run_source_update("test_source")

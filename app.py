@@ -14,6 +14,7 @@ except ImportError:
     Histogram = None
     generate_latest = None
 
+# Import FastAPI dependencies at top level
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
@@ -56,9 +57,7 @@ with suppress(ImportError):
     import dotenv
 
     # Avoid auto-loading .env during tests/CI to keep predictable defaults
-    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv(
-        "APP_ENV", ""
-    ).lower() not in {
+    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv("APP_ENV", "").lower() not in {
         "test",
         "ci",
     }:
@@ -126,7 +125,7 @@ from core.i18n import Language, t
 try:
     from core.food_apis.scheduler import (
         get_update_scheduler as _scheduler_getter,
-    )  # type: ignore
+    )
 except Exception:  # pragma: no cover
     _scheduler_getter = None  # type: ignore
 
@@ -136,7 +135,7 @@ async def get_update_scheduler():  # type: ignore[no-redef]
     if _scheduler_getter is None:
         from core.food_apis.scheduler import (
             get_update_scheduler as _late_getter,
-        )  # type: ignore
+        )
 
         return await _late_getter()
     return await _scheduler_getter()  # type: ignore[misc]
@@ -219,9 +218,9 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_api_key(api_key: str = Depends(api_key_header)):
     expected = os.getenv("API_KEY")
-    # If API_KEY is not set in environment, allow any key (for development)
-    # If API_KEY is set, validate the provided key
-    if expected is not None and api_key != expected:
+    # If API_KEY is not set in environment or is empty, allow any key (for development)
+    # If API_KEY is set and not empty, validate the provided key
+    if expected and api_key != expected:
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return api_key
 
@@ -259,9 +258,7 @@ def _is_rate_limiting_available():
 if _is_rate_limiting_available():
     limiter = Limiter(key_func=get_remote_address)  # type: ignore
     app.state.limiter = limiter
-    app.add_exception_handler(
-        RateLimitExceeded, _rate_limit_exceeded_handler
-    )  # type: ignore
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
     app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
     limiter = None
@@ -314,7 +311,11 @@ class BMIRequestV1(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values: Dict):
+    def _normalize_values(cls, values):
+        # Handle case where values might be bytes or other non-dict types
+        if not isinstance(values, dict):
+            return values
+
         for k in ["gender", "pregnant", "athlete", "lang"]:
             if k in values and isinstance(values[k], str):
                 values[k] = values[k].strip().lower()
@@ -329,9 +330,7 @@ class BMRRequest(BaseModel):
     height_cm: float = Field(..., gt=0)
     age: int = Field(..., ge=0, le=120)
     sex: str = Field(..., pattern="^(male|female)$")
-    activity: str = Field(
-        ..., pattern="^(sedentary|light|moderate|active|very_active)$"
-    )
+    activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
     bodyfat: Optional[float] = Field(None, ge=0, le=60)
     lang: Language = "en"
 
@@ -384,11 +383,7 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> 
     if waist_cm >= high:
         return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
     if waist_cm >= warn:
-        return (
-            "Повышенный риск по талии"
-            if lang == "ru"
-            else "Increased waist-related risk"
-        )
+        return "Повышенный риск по талии" if lang == "ru" else "Increased waist-related risk"
     return ""
 
 
@@ -683,9 +678,7 @@ async def bmi_endpoint(req: BMIRequest):
 
         return result
 
-    category = bmi_category(
-        bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
-    )
+    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
     notes = []
     if flags["is_athlete"]:
         notes.append(t(req.lang, "advice_athlete_bmi"))
@@ -729,9 +722,7 @@ async def plan_endpoint(req: BMIRequest):
     category = (
         None
         if flags["is_pregnant"]
-        else bmi_category(
-            bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
-        )
+        else bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
     )
 
     healthy_bmi = {"min": 18.5, "max": 24.9}
@@ -793,9 +784,7 @@ async def bmi_endpoint_v1(req: BMIRequestV1):
             "group": "athlete" if flags["is_athlete"] else "general",
         }
 
-    category = bmi_category(
-        bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general"
-    )
+    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
     notes = []
     if flags["is_athlete"]:
         notes.append(t(req.lang, "advice_athlete_bmi"))
@@ -974,9 +963,7 @@ class VisualShape(BaseModel):
 
 class PlateResponse(BaseModel):
     kcal: int
-    macros: Dict[
-        str, int
-    ]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
+    macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
     portions: Dict[
         str, Any
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
@@ -1001,9 +988,7 @@ class WHOTargetsRequest(BaseModel):
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
     diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Literal[
-        "child", "teen", "adult", "pregnant", "lactating", "elderly"
-    ] = "adult"
+    life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
     lang: str = "en"  # Language for localized warnings
 
 
@@ -1095,28 +1080,20 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         _module = _sys.modules[__name__]
         _make_plate = getattr(_module, "make_plate", None)
         if _make_plate is None:
-            raise HTTPException(
-                status_code=503, detail="Enhanced plate feature not available"
-            )
+            raise HTTPException(status_code=503, detail="Enhanced plate feature not available")
 
         _calc_all_bmr = getattr(_module, "calculate_all_bmr", None)
         _calc_all_tdee = getattr(_module, "calculate_all_tdee", None)
         if _calc_all_bmr is None or _calc_all_tdee is None:
-            raise HTTPException(
-                status_code=503, detail="BMR/TDEE calculation not available"
-            )
+            raise HTTPException(status_code=503, detail="BMR/TDEE calculation not available")
 
         # 1) Calculate BMR/TDEE (using Mifflin-St Jeor as default, can add formula choice later)
-        bmr_results = _calc_all_bmr(
-            req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat
-        )
+        bmr_results = _calc_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
         tdee_results = _calc_all_tdee(bmr_results, req.activity)
         tdee_val = tdee_results["mifflin"]  # Use Mifflin-St Jeor as primary
 
         # 2) Generate plate with enhanced logic
-        diet_flags_str = (
-            {str(flag) for flag in req.diet_flags} if req.diet_flags else None
-        )
+        diet_flags_str = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
         plate_data = _make_plate(
             weight_kg=req.weight_kg,
             tdee_val=tdee_val,
@@ -1195,12 +1172,8 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
     """
     try:
         # Check if nutrition module is available
-        _calc_all_bmr = getattr(
-            globals().get("__module__", None), "calculate_all_bmr", None
-        )
-        _calc_all_tdee = getattr(
-            globals().get("__module__", None), "calculate_all_tdee", None
-        )
+        _calc_all_bmr = getattr(globals().get("__module__", None), "calculate_all_bmr", None)
+        _calc_all_tdee = getattr(globals().get("__module__", None), "calculate_all_tdee", None)
 
         if _calc_all_bmr is None or _calc_all_tdee is None:
             # Try to import from nutrition_core
@@ -1210,14 +1183,10 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
                 _calc_all_bmr = calculate_all_bmr
                 _calc_all_tdee = calculate_all_tdee
             except ImportError:
-                raise HTTPException(
-                    status_code=503, detail="BMR calculation module not available"
-                )
+                raise HTTPException(status_code=503, detail="BMR calculation module not available")
 
         # Calculate BMR using multiple formulas
-        bmr_results = _calc_all_bmr(
-            req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat
-        )
+        bmr_results = _calc_all_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
 
         # Calculate TDEE
         tdee_results = _calc_all_tdee(bmr_results, req.activity)
@@ -1266,9 +1235,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
     except Exception as e:
         logger.error(f"premium_bmr error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"BMR calculation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"BMR calculation failed: {str(e)}") from e
 
 
 # WHO-Based Nutrition Endpoints
@@ -1339,9 +1306,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             if isinstance(safety_warnings, list) and safety_warnings:
                 for warning in safety_warnings:
                     if isinstance(warning, str):
-                        life_stage_warnings.append(
-                            {"code": "safety", "message": warning}
-                        )
+                        life_stage_warnings.append({"code": "safety", "message": warning})
         except ImportError:
             # If validate_targets_safety doesn't exist, just use life stage warnings
             pass
@@ -1520,12 +1485,8 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
         # Calculate adherence score
         total_nutrients = len(coverage)
         # sourcery skip: simplify-constant-sum
-        adequate_nutrients = sum(
-            1 for cov in coverage.values() if cov.coverage_percent >= 80
-        )
-        adherence_score = (
-            (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
-        )
+        adequate_nutrients = sum(1 for cov in coverage.values() if cov.coverage_percent >= 80)
+        adherence_score = (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
 
         return NutrientGapsResponse(
             gaps=gaps,
@@ -1631,9 +1592,7 @@ async def force_database_update(source: Optional[str] = None):
         return JSONResponse(content=response)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Force update failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Force update failed: {str(e)}") from e
 
 
 @app.post("/api/v1/admin/check-updates", dependencies=[Depends(get_api_key)])
@@ -1662,9 +1621,7 @@ async def check_for_updates():
         return JSONResponse(content=response)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Update check failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
 
 
 @app.post("/api/v1/admin/rollback", dependencies=[Depends(get_api_key)])
@@ -1686,9 +1643,7 @@ async def rollback_database(source: str, target_version: str):
         _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
         logger.debug(f"rollback_database using getter: {_getter!r}")
         scheduler = await _getter()
-        success = await scheduler.update_manager.rollback_database(
-            source, target_version
-        )
+        success = await scheduler.update_manager.rollback_database(source, target_version)
 
         if success:
             return JSONResponse(
@@ -1704,17 +1659,13 @@ async def rollback_database(source: str, target_version: str):
             )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Rollback operation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Rollback operation failed: {str(e)}") from e
 
 
 # Export Endpoints
 
 
-@app.get(
-    "/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)]
-)
+@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)])
 async def export_daily_plan_csv(plan_id: str):
     """
     RU: Экспортировать дневной план в CSV.
@@ -1778,20 +1729,14 @@ async def export_daily_plan_csv(plan_id: str):
         return Response(
             content=csv_data,
             media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"
-            },
+            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"CSV export failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
 
-@app.get(
-    "/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)]
-)
+@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)])
 async def export_weekly_plan_csv(plan_id: str):
     """
     RU: Экспортировать недельный план в CSV.
@@ -1879,20 +1824,14 @@ async def export_weekly_plan_csv(plan_id: str):
         return Response(
             content=csv_data,
             media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"
-            },
+            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"CSV export failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
 
-@app.get(
-    "/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)]
-)
+@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
 async def export_daily_plan_pdf(plan_id: str):
     # sourcery skip: raise-from-previous-error
     """
@@ -1955,9 +1894,7 @@ async def export_daily_plan_pdf(plan_id: str):
         return Response(
             content=pdf_data,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"
-            },
+            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
         )
 
     except ImportError:
@@ -1965,14 +1902,10 @@ async def export_daily_plan_pdf(plan_id: str):
             status_code=503, detail="PDF export not available - ReportLab not installed"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"PDF export failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
-@app.get(
-    "/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)]
-)
+@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
 async def export_weekly_plan_pdf(plan_id: str):
     # sourcery skip: raise-from-previous-error
     """
@@ -2061,9 +1994,7 @@ async def export_weekly_plan_pdf(plan_id: str):
         return Response(
             content=pdf_data,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"
-            },
+            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
         )
 
     except ImportError:
@@ -2071,9 +2002,7 @@ async def export_weekly_plan_pdf(plan_id: str):
             status_code=503, detail="PDF export not available - ReportLab not installed"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"PDF export failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
 # Include bodyfat router if available
@@ -2084,6 +2013,6 @@ if get_bodyfat_router:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Include Premium Week router (temporarily disabled due to URL conflict)
-# if premium_week_router:
-#     app.include_router(premium_week_router)
+# Include Premium Week router
+if premium_week_router:
+    app.include_router(premium_week_router)

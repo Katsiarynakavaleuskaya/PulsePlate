@@ -1,0 +1,25 @@
+{
+    "template_id": "salad",
+    "name": "Fresh Salad",
+    "cuisine_type": "mediterranean",
+    "base_ingredients": [
+        "greens",
+        "vegetables",
+        "dressing",
+        "nuts"
+    ],
+    "cooking_methods": [
+        "chopping",
+        "mixing"
+    ],
+    "typical_prep_time": 20,
+    "typical_cook_time": 0,
+    "difficulty": "easy",
+    "instruction_template": "Wash and thoroughly dry all vegetables and greens. Chop vegetables into bite-sized pieces. Combine greens and vegetables in a large bowl. Prepare dressing by whisking together oil, vinegar, and seasonings. Add dressing to salad and toss gently to coat. Top with nuts, seeds, or cheese if desired. Serve immediately.",
+    "nutrition_profile": {
+        "calories": 200,
+        "protein": 8,
+        "carbs": 20,
+        "fat": 12
+    }
+}

@@ -72,9 +72,7 @@ def test_llm_stub_import_alias_path(monkeypatch):
 
     fake.Provider = Provider  # pyright: ignore[reportAttributeAccessIssue]
 
-    with mock_module(
-        "providers.stub", fake
-    ), clean_llm_import(), monkeypatch.context() as m:
+    with mock_module("providers.stub", fake), clean_llm_import(), monkeypatch.context() as m:
         m.setenv("LLM_PROVIDER", "stub")
 
         # Перезагружаем llm, чтобы прошёл путь с import Provider as StubProvider

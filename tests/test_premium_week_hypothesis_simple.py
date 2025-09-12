@@ -22,9 +22,7 @@ class TestPremiumWeekHypothesisSimple:
         age=st.integers(min_value=11, max_value=89),
         height_cm=st.floats(min_value=101.0, max_value=219.0),
         weight_kg=st.floats(min_value=31.0, max_value=299.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         diet_flags=st.lists(
@@ -137,9 +135,7 @@ class TestPremiumWeekHypothesisSimple:
         age=st.integers(min_value=11, max_value=89),
         height_cm=st.floats(min_value=101.0, max_value=219.0),
         weight_kg=st.floats(min_value=31.0, max_value=299.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         diet_flags=st.lists(
@@ -189,9 +185,7 @@ class TestPremiumWeekHypothesisSimple:
         age=st.integers(min_value=11, max_value=89),
         height_cm=st.floats(min_value=101.0, max_value=219.0),
         weight_kg=st.floats(min_value=31.0, max_value=299.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
         lang=st.sampled_from(["en", "ru", "es"]),
         diet_flags=st.lists(

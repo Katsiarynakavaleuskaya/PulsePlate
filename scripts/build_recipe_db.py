@@ -87,9 +87,7 @@ def main():
         total_g = float(sum(i["grams"] for i in ingredients))
         tot = _sum_nutrients(ingredients)
         serv = 2  # По умолчанию 2 порции
-        per_serv = (
-            {k: (v / serv) for k, v in tot.items()} if serv else {k: 0.0 for k in KEYS}
-        )
+        per_serv = {k: (v / serv) for k, v in tot.items()} if serv else {k: 0.0 for k in KEYS}
         cost_total = _sum_cost(ingredients)
         cost_per_serv = cost_total / serv if serv else 0.0
 

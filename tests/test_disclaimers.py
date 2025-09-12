@@ -62,8 +62,7 @@ class TestMedicalDisclaimers:
         # Test elderly disclaimer
         elderly_disclaimer = get_disclaimer_text("medical", "elderly", "en")
         assert (
-            "elderly" in elderly_disclaimer.lower()
-            or "older adults" in elderly_disclaimer.lower()
+            "elderly" in elderly_disclaimer.lower() or "older adults" in elderly_disclaimer.lower()
         )
 
     def test_legal_disclaimer(self):
@@ -103,16 +102,12 @@ class TestMedicalDisclaimers:
         """Test professional referral recommendations."""
         # Test general referral
         general_referral = get_professional_referral("general")
-        assert (
-            "dietitian" in general_referral.lower()
-            or "physician" in general_referral.lower()
-        )
+        assert "dietitian" in general_referral.lower() or "physician" in general_referral.lower()
 
         # Test pregnancy referral
         pregnancy_referral = get_professional_referral("pregnancy")
         assert (
-            "obstetrician" in pregnancy_referral.lower()
-            or "midwife" in pregnancy_referral.lower()
+            "obstetrician" in pregnancy_referral.lower() or "midwife" in pregnancy_referral.lower()
         )
 
         # Test pediatric referral
@@ -130,10 +125,7 @@ class TestDisclaimerConstants:
 
         for lang_disclaimer in MEDICAL_DISCLAIMER.values():
             assert len(lang_disclaimer) > 100  # Should be substantial
-            assert (
-                "medical" in lang_disclaimer.lower()
-                or "медицинский" in lang_disclaimer.lower()
-            )
+            assert "medical" in lang_disclaimer.lower() or "медицинский" in lang_disclaimer.lower()
 
     def test_special_population_structure(self):
         """Test special population disclaimers structure."""
@@ -156,8 +148,7 @@ class TestDisclaimerConstants:
         for lang_disclaimer in LEGAL_DISCLAIMER.values():
             assert len(lang_disclaimer) > 50
             assert (
-                "liable" in lang_disclaimer.lower()
-                or "ответственности" in lang_disclaimer.lower()
+                "liable" in lang_disclaimer.lower() or "ответственности" in lang_disclaimer.lower()
             )
 
     def test_privacy_disclaimer_structure(self):
@@ -185,16 +176,13 @@ class TestDisclaimerIntegration:
 
         # All should be in English (no Cyrillic characters)
         assert not any(
-            russian_char in medical_en
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+            russian_char in medical_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
         )
         assert not any(
-            russian_char in legal_en
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+            russian_char in legal_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
         )
         assert not any(
-            russian_char in privacy_en
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+            russian_char in privacy_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
         )
 
         # Russian
@@ -204,16 +192,11 @@ class TestDisclaimerIntegration:
 
         # Should contain Cyrillic characters
         assert any(
-            russian_char in medical_ru
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+            russian_char in medical_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
         )
+        assert any(russian_char in legal_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
         assert any(
-            russian_char in legal_ru
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
-        assert any(
-            russian_char in privacy_ru
-            for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+            russian_char in privacy_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
         )
 
     def test_disclaimer_length_appropriate(self):

@@ -146,9 +146,7 @@ class BMIVisualizer:
         ax.legend(loc="upper right")
         ax.set_title(f"Current BMI: {bmi}", fontsize=14, fontweight="bold")
 
-    def _create_guidance_chart(
-        self, ax, bmi: float, age: int, gender: str, group: str, lang: str
-    ):
+    def _create_guidance_chart(self, ax, bmi: float, age: int, gender: str, group: str, lang: str):
         """Create guidance and recommendations chart."""
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)
@@ -205,9 +203,7 @@ class BMIVisualizer:
             )
         else:
             recommendation = (
-                "Maintain current weight"
-                if lang == "en"
-                else "Поддерживайте текущий вес"
+                "Maintain current weight" if lang == "en" else "Поддерживайте текущий вес"
             )
 
         ax.text(

@@ -1,0 +1,23 @@
+
+# --- Core ---
+fastapi==0.116.1
+uvicorn==0.35.0
+pydantic==2.11.7
+openai==1.102.0
+httpx==0.28.1
+python-dotenv==1.1.1
+prometheus-client==0.22.1
+python-multipart==0.0.20
+slowapi==0.1.9
+tenacity==9.1.2
+
+# --- Testing & Dev ---
+pytest>=8.3
+pytest-cov>=6.0
+hypothesis==6.138.10
+black>=24.0
+ruff>=0.6
+mypy>=1.10
+pre-commit>=3.7
+bandit>=1.7
+safety>=3.2

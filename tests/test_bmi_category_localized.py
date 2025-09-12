@@ -13,9 +13,7 @@ from bmi_core import bmi_category, normalize_lang
 class TestBMICategoryLocalized:
     """Test BMI category localization across all supported languages."""
 
-    @pytest.mark.parametrize(
-        "bmi", [18.4, 18.5, 24.9, 25.0, 29.9, 30.0, 34.9, 35.0, 39.9, 40.0]
-    )
+    @pytest.mark.parametrize("bmi", [18.4, 18.5, 24.9, 25.0, 29.9, 30.0, 34.9, 35.0, 39.9, 40.0])
     def test_bmi_categories_across_languages(self, bmi):
         """Test that BMI categories are consistent across languages."""
         # Test each language

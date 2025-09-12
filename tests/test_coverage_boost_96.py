@@ -145,9 +145,7 @@ class TestCoverageBoost96:
             "lang": "en",
         }
 
-        response = client.post(
-            "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         result = response.json()
         assert "bmr" in result
@@ -193,9 +191,7 @@ class TestCoverageBoost96:
         client = TestClient(app_mod.app)
 
         # Test database status
-        response = client.get(
-            "/api/v1/admin/db-status", headers={"X-API-Key": "test_key"}
-        )
+        response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
 
     def test_metrics_endpoint_coverage(self):

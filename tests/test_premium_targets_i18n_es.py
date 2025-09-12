@@ -28,9 +28,7 @@ def test_premium_targets_es_localization(lang):
         "lang": lang,
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -141,9 +139,7 @@ def test_premium_targets_es_snapshot_values():
         "lang": "es",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -205,21 +201,14 @@ def test_premium_targets_es_multilingual_consistency():
 
     # Macro values should be the same
     for macro in ["protein_g", "fat_g", "carbs_g", "fiber_g"]:
-        assert (
-            es_data["macros"][macro]
-            == en_data["macros"][macro]
-            == ru_data["macros"][macro]
-        )
+        assert es_data["macros"][macro] == en_data["macros"][macro] == ru_data["macros"][macro]
 
     # Water intake should be the same
     assert es_data["water_ml"] == en_data["water_ml"] == ru_data["water_ml"]
 
     # Priority micros should have the same values
     for nutrient in es_data["priority_micros"]:
-        if (
-            nutrient in en_data["priority_micros"]
-            and nutrient in ru_data["priority_micros"]
-        ):
+        if nutrient in en_data["priority_micros"] and nutrient in ru_data["priority_micros"]:
             assert (
                 es_data["priority_micros"][nutrient]
                 == en_data["priority_micros"][nutrient]
@@ -241,9 +230,7 @@ def test_premium_targets_es_special_cases():
         "lang": "es",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -268,9 +255,7 @@ def test_premium_targets_es_special_cases():
         "lang": "es",
     }
 
-    resp = client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()

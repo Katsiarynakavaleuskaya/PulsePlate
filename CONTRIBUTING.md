@@ -51,4 +51,3 @@ pytest -q --maxfail=1 --disable-warnings \
 
 - Open a Draft PR early for feedback.
 - Use the issue tracker for bugs and small enhancements.
-

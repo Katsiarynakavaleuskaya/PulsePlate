@@ -102,9 +102,7 @@ def ffmi(
     return {"ffm_kg": round(ffm, 1), "ffmi": round(ffmi_value, 1)}
 
 
-def interpret_wht_ratio(
-    wht_ratio_value: float, lang: Language = "en"
-) -> Dict[str, str]:
+def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[str, str]:
     """Interpret WHtR value according to health risk categories.
 
     Args:
@@ -195,16 +193,13 @@ def stage_obesity(
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
-    if (sex == "male" and whr >= 0.95) or (
-        sex == "female" and whr >= 0.80
-    ):  # High WHR risk
+    if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):  # High WHR risk
         risk_factors += 1
 
     if risk_factors >= 2:
         stage = "high_risk"
         recommendation = (
-            "Consider consulting with a healthcare professional for "
-            "comprehensive assessment"
+            "Consider consulting with a healthcare professional for " "comprehensive assessment"
         )
     elif risk_factors == 1:
         stage = "moderate_risk"
@@ -216,7 +211,11 @@ def stage_obesity(
     bmi_category = (
         "obese"
         if bmi >= 30
-        else "overweight" if bmi >= 25 else "normal" if bmi >= 18.5 else "underweight"
+        else "overweight"
+        if bmi >= 25
+        else "normal"
+        if bmi >= 18.5
+        else "underweight"
     )
 
     return {

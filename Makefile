@@ -12,6 +12,7 @@ venv: ## Create venv and install requirements
 	@if [ -f requirements-dev.txt ]; then $(PIP) install -r requirements-dev.txt; fi
 	@if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
 
+
 ## Run local dev server on :8001
 dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
 	uvicorn app:app --reload --host 0.0.0.0 --port 8001

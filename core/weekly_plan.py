@@ -6,9 +6,7 @@ from .recipe_db import parse_recipe_db
 from .targets import NutritionTargets
 
 
-def generate_weekly_plan(
-    targets: NutritionTargets, diet_flags: Set[str] = None
-) -> Dict:
+def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None) -> Dict:
     """
     RU: Генерирует недельный план питания.
     EN: Generates weekly meal plan.

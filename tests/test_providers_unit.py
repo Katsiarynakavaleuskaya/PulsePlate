@@ -112,9 +112,7 @@ def test_grok_generate_error_wrapped(monkeypatch):
         # обходим декоратор retry
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(
-                p.generate.__wrapped__(p, "oops")  # type: ignore[attr-defined]
-            )
+            loop.run_until_complete(p.generate.__wrapped__(p, "oops"))  # type: ignore[attr-defined]
         finally:
             loop.close()
     assert "Grok error:" in str(ei.value)
@@ -133,9 +131,7 @@ class _FakeResp:
 
 
 class _FakeAsyncClient:
-    def __init__(
-        self, chat_payload: Dict[str, Any] | None, gen_payload: Dict[str, Any] | None
-    ):
+    def __init__(self, chat_payload: Dict[str, Any] | None, gen_payload: Dict[str, Any] | None):
         self._chat_payload = chat_payload
         self._gen_payload = gen_payload
 
@@ -157,9 +153,7 @@ def test_ollama_chat_success(monkeypatch):
     from providers import ollama as ollama_mod
 
     def _factory(*a, **kw):
-        return _FakeAsyncClient(
-            chat_payload={"message": {"content": "hi"}}, gen_payload=None
-        )
+        return _FakeAsyncClient(chat_payload={"message": {"content": "hi"}}, gen_payload=None)
 
     monkeypatch.setattr(ollama_mod.httpx, "AsyncClient", _factory)
 
@@ -205,9 +199,7 @@ def test_ollama_unavailable_wrapped(monkeypatch):
         # обойти retries
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(
-                p.generate.__wrapped__(p, "text")  # type: ignore[attr-defined]
-            )
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
         finally:
             loop.close()
 
@@ -231,9 +223,7 @@ def test_ollama_request_error_wrapped(monkeypatch):
     with pytest.raises(RuntimeError) as ei:
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(
-                p.generate.__wrapped__(p, "text")  # type: ignore[attr-defined]
-            )
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
         finally:
             loop.close()
     assert "ollama_unavailable" in str(ei.value)
@@ -294,9 +284,7 @@ def test_pico_generate_http_error(monkeypatch):
 
     class _Resp:
         def raise_for_status(self):
-            raise httpx.HTTPStatusError(
-                "bad", request=None, response=None
-            )  # pyright: ignore[reportArgumentType]
+            raise httpx.HTTPStatusError("bad", request=None, response=None)  # pyright: ignore[reportArgumentType]
 
         def json(self):  # pragma: no cover - не будет вызван
             return {}
@@ -328,19 +316,13 @@ def test_ollama_helpers_non_200(monkeypatch):
         async def post(self, url: str, *a, **kw):
             return _FakeResp(500, {})
 
-    monkeypatch.setattr(
-        ollama_mod.httpx, "AsyncClient", lambda *a, **kw: _ClientNon200()
-    )
+    monkeypatch.setattr(ollama_mod.httpx, "AsyncClient", lambda *a, **kw: _ClientNon200())
     p = ollama_mod.OllamaProvider(endpoint="http://x", model="m")
     loop = asyncio.new_event_loop()
     try:
         c = _ClientNon200()
-        assert (
-            loop.run_until_complete(p._chat(c, "t")) is None
-        )  # pyright: ignore[reportArgumentType]
-        assert (
-            loop.run_until_complete(p._generate(c, "t")) is None
-        )  # pyright: ignore[reportArgumentType]
+        assert loop.run_until_complete(p._chat(c, "t")) is None  # pyright: ignore[reportArgumentType]
+        assert loop.run_until_complete(p._generate(c, "t")) is None  # pyright: ignore[reportArgumentType]
     finally:
         loop.close()
 

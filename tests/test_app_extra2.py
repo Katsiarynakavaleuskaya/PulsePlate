@@ -153,9 +153,7 @@ def test__interpretation():
     assert interpret_group(22, "athlete", "en") == expected_athlete
     expected_pregnant = "Normal weight. BMI is not valid during pregnancy"
     assert interpret_group(22, "pregnant", "en") == expected_pregnant
-    expected_elderly = (
-        "Normal weight. In older adults, BMI can underestimate body fat (sarcopenia)"
-    )
+    expected_elderly = "Normal weight. In older adults, BMI can underestimate body fat (sarcopenia)"
     assert interpret_group(22, "elderly", "en") == expected_elderly
     expected_teen = "Normal weight. Teenage years: consider pubertal development stage"
     assert interpret_group(22, "teen", "en") == expected_teen

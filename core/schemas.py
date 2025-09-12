@@ -42,9 +42,7 @@ class FoodItem(BaseModel):
     Iodine_ug: float = Field(default=0.0, description="Iodine in µg")
 
     # Product metadata
-    flags: List[str] = Field(
-        default_factory=list, description="Dietary flags (VEG, GF, etc.)"
-    )
+    flags: List[str] = Field(default_factory=list, description="Dietary flags (VEG, GF, etc.)")
     brand: Optional[str] = Field(default=None, description="Product brand")
     gtin: Optional[str] = Field(default=None, description="GTIN/barcode")
     fdc_id: Optional[str] = Field(default=None, description="USDA FDC ID")
@@ -53,9 +51,7 @@ class FoodItem(BaseModel):
     source: str = Field(..., description="Data source (USDA, OFF, etc.)")
     source_priority: int = Field(default=0, description="Source priority for conflicts")
     version_date: str = Field(..., description="Data version date")
-    price_per_100g: float = Field(
-        default=0.0, description="Price per 100g in local currency"
-    )
+    price_per_100g: float = Field(default=0.0, description="Price per 100g in local currency")
 
 
 class RecipeIngredient(BaseModel):
@@ -126,9 +122,7 @@ class RecipeSearchRequest(BaseModel):
 
     query: Optional[str] = Field(default=None, description="Search query")
     diet: Optional[str] = Field(default=None, description="Diet type filter")
-    max_kcal: Optional[float] = Field(
-        default=None, description="Max calories per serving"
-    )
+    max_kcal: Optional[float] = Field(default=None, description="Max calories per serving")
     tags: Optional[List[str]] = Field(default=None, description="Tag filters")
     limit: int = Field(default=20, ge=1, le=100, description="Results limit")
     offset: int = Field(default=0, ge=0, description="Results offset")
@@ -159,9 +153,7 @@ class RecipePreviewResponse(BaseModel):
     total_weight_g: float = Field(..., description="Total recipe weight")
     cost_total: float = Field(..., description="Total recipe cost")
     cost_per_serv: float = Field(..., description="Cost per serving")
-    nutrients_per_serv: Dict[str, float] = Field(
-        ..., description="Nutrients per serving"
-    )
+    nutrients_per_serv: Dict[str, float] = Field(..., description="Nutrients per serving")
     missing_ingredients: List[str] = Field(
         default_factory=list, description="Ingredients not found in database"
     )

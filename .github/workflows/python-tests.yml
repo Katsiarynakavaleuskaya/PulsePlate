@@ -37,4 +37,3 @@ jobs:
         env:
           PYTHONPATH: .
           APP_ENV: ci
-        

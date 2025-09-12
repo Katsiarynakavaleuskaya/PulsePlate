@@ -115,7 +115,7 @@ LOG_FILE="ollama_monitor.log"
 monitor_process() {
     while true; do
         TIMESTAMP=$(date '+%H:%M:%S')
-        
+
         # CPU и Memory usage процесса Ollama
         OLLAMA_PID=$(pgrep -f "ollama serve")
         if [ ! -z "$OLLAMA_PID" ]; then
@@ -123,15 +123,15 @@ monitor_process() {
             CPU=$(echo $STATS | awk '{print $2}')
             MEM=$(echo $STATS | awk '{print $3}')
             RSS=$(echo $STATS | awk '{print $4}')
-            
+
             # Активность на порту 11434
             CONNECTIONS=$(lsof -i :11434 2>/dev/null | wc -l)
-            
+
             # Логируем и выводим
             LOG_ENTRY="[$TIMESTAMP] CPU: ${CPU}% | MEM: ${MEM}% | RSS: ${RSS}KB | Connections: $CONNECTIONS"
             echo "$LOG_ENTRY"
             echo "$LOG_ENTRY" >> $LOG_FILE
-            
+
             # Если CPU > 50% или MEM > 10% - модель активно работает
             if (( $(echo "$CPU > 50.0" | bc -l 2>/dev/null || echo "0") )); then
                 echo "   🔥 HIGH CPU ACTIVITY - Model is processing!"
@@ -143,7 +143,7 @@ monitor_process() {
         else
             echo "[$TIMESTAMP] ❌ Ollama process not found"
         fi
-        
+
         sleep 2
     done
 }
@@ -220,10 +220,10 @@ make kill
 
 ## 6. ОСНОВНЫЕ ВЫВОДЫ
 
-✅ **Ollama холодный старт:** 2-5 минут - это нормально  
-✅ **Stub провайдер:** Мгновенные ответы для разработки  
-✅ **Переключение провайдеров:** Через переменные среды  
-✅ **Мониторинг:** Созданы инструменты диагностики  
-✅ **Все endpoints:** Протестированы и работают  
+✅ **Ollama холодный старт:** 2-5 минут - это нормально
+✅ **Stub провайдер:** Мгновенные ответы для разработки
+✅ **Переключение провайдеров:** Через переменные среды
+✅ **Мониторинг:** Созданы инструменты диагностики
+✅ **Все endpoints:** Протестированы и работают
 
 **Проект готов к дальнейшей разработке!**

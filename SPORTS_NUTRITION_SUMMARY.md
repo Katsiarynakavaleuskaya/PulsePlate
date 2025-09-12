@@ -120,7 +120,7 @@ comprehensive = get_comprehensive_disclaimer(["pregnancy", "athletes"])
 This implementation successfully delivers:
 
 - ✅ NASM/ACSM/IFPA sports nutrition guidelines
-- ✅ WHO/EFSA life-stage nutrition recommendations  
+- ✅ WHO/EFSA life-stage nutrition recommendations
 - ✅ Comprehensive medical disclaimers and legal protection
 - ✅ Working test suite with core functionality covered
 - ✅ Production-ready safety features

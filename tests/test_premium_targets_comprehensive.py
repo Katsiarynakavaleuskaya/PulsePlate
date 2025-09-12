@@ -130,9 +130,7 @@ class TestPremiumTargetsComprehensive:
         required_macros = {"protein_g", "fat_g", "carbs_g", "fiber_g"}
         for macro in required_macros:
             assert macro in macros, f"Missing required macronutrient: {macro}"
-            assert (
-                macros[macro] > 0
-            ), f"Macronutrient {macro} should have a positive value"
+            assert macros[macro] > 0, f"Macronutrient {macro} should have a positive value"
 
         # Check protein target (1.6-1.8 g/kg for maintenance)
         expected_protein_min = int(70 * 1.6)  # 112g
@@ -172,11 +170,7 @@ class TestPremiumTargetsComprehensive:
         # Check that water target is approximately 30 ml/kg (±20% tolerance)
         expected_water = 70 * 30  # 2100 ml
         tolerance = expected_water * 0.2  # 20% tolerance
-        assert (
-            (expected_water - tolerance)
-            <= result["water_ml"]
-            <= (expected_water + tolerance)
-        ), (
+        assert (expected_water - tolerance) <= result["water_ml"] <= (expected_water + tolerance), (
             f"Water target {result['water_ml']}ml not in expected range "
             f"{expected_water - tolerance}-{expected_water + tolerance}ml"
         )
@@ -204,9 +198,7 @@ class TestPremiumTargetsComprehensive:
         # Check that all required activity targets are present
         required_activity = {"moderate_aerobic_min", "strength_sessions", "steps_daily"}
         for activity_item in required_activity:
-            assert (
-                activity_item in activity
-            ), f"Missing required activity target: {activity_item}"
+            assert activity_item in activity, f"Missing required activity target: {activity_item}"
 
         # Check WHO activity guidelines for adults
         assert activity["moderate_aerobic_min"] == 150, (

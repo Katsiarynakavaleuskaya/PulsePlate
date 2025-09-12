@@ -320,9 +320,7 @@ class TestOFFClient:
             # Mock response for not found
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(
-                return_value={"status": 0}  # Product not found
-            )
+            mock_response.json = AsyncMock(return_value={"status": 0})  # Product not found
             mock_get.return_value = mock_response
 
             # Test get product details
