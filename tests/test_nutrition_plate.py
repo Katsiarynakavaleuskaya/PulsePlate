@@ -28,9 +28,7 @@ class TestMacroDistribution:
 
     def test_valid_macro_distribution(self):
         """Test valid macro distribution creation."""
-        macro = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
         assert macro.protein_percent == 25.0
         assert macro.carbs_percent == 45.0
         assert macro.fat_percent == 30.0
@@ -53,62 +51,44 @@ class TestMacroDistribution:
 
         # Test protein too high
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=60.0, carbs_percent=25.0, fat_percent=15.0
-            )
+            MacroDistribution(protein_percent=60.0, carbs_percent=25.0, fat_percent=15.0)
 
         # Test carbs too low
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=25.0, carbs_percent=15.0, fat_percent=60.0
-            )
+            MacroDistribution(protein_percent=25.0, carbs_percent=15.0, fat_percent=60.0)
 
         # Test carbs too high
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=15.0, carbs_percent=75.0, fat_percent=10.0
-            )
+            MacroDistribution(protein_percent=15.0, carbs_percent=75.0, fat_percent=10.0)
 
         # Test fat too low
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=50.0, carbs_percent=40.0, fat_percent=10.0
-            )
+            MacroDistribution(protein_percent=50.0, carbs_percent=40.0, fat_percent=10.0)
 
         # Test fat too high
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=15.0, carbs_percent=35.0, fat_percent=50.0
-            )
+            MacroDistribution(protein_percent=15.0, carbs_percent=35.0, fat_percent=50.0)
 
     def test_macro_percentage_negative_validation(self):
         """Test that negative percentages are rejected."""
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=-5.0, carbs_percent=55.0, fat_percent=50.0
-            )
+            MacroDistribution(protein_percent=-5.0, carbs_percent=55.0, fat_percent=50.0)
 
     def test_macro_percentage_over_100_validation(self):
         """Test that percentages over 100 are rejected."""
         with pytest.raises(ValidationError):
-            MacroDistribution(
-                protein_percent=110.0, carbs_percent=45.0, fat_percent=30.0
-            )
+            MacroDistribution(protein_percent=110.0, carbs_percent=45.0, fat_percent=30.0)
 
     def test_floating_point_tolerance(self):
         """Test that small floating point differences are tolerated."""
         # Should pass with 99.9% (within tolerance)
-        macro = MacroDistribution(
-            protein_percent=25.0, carbs_percent=44.9, fat_percent=30.0
-        )
+        macro = MacroDistribution(protein_percent=25.0, carbs_percent=44.9, fat_percent=30.0)
         assert macro is not None
 
     def test_valid_percentage_return_value(self):
         """Test that valid percentages are properly returned by validator."""
         # This specifically tests the return v path in the validator
-        macro = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
         # Verify the values were properly set (testing the return path)
         assert macro.protein_percent == 25.0
         assert macro.carbs_percent == 45.0
@@ -187,9 +167,7 @@ class TestCalculateMacrosInGrams:
 
     def test_basic_macro_calculation(self):
         """Test basic macro calculation."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         macros = calculate_macros_in_grams(2000, macro_dist)
 
@@ -202,13 +180,9 @@ class TestCalculateMacrosInGrams:
 
     def test_macro_calculation_rounding(self):
         """Test that macro calculations are properly rounded."""
-        macro_dist = MacroDistribution(
-            protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0)
 
-        macros = calculate_macros_in_grams(
-            1837, macro_dist
-        )  # Odd number to test rounding
+        macros = calculate_macros_in_grams(1837, macro_dist)  # Odd number to test rounding
 
         # All values should be rounded to 1 decimal place
         assert isinstance(macros["protein"], float)
@@ -217,9 +191,7 @@ class TestCalculateMacrosInGrams:
 
     def test_low_calorie_calculation(self):
         """Test macro calculation with low calories."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         macros = calculate_macros_in_grams(1200, macro_dist)
 
@@ -230,9 +202,7 @@ class TestCalculateMacrosInGrams:
 
     def test_high_calorie_calculation(self):
         """Test macro calculation with high calories."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         macros = calculate_macros_in_grams(3500, macro_dist)
 
@@ -247,9 +217,7 @@ class TestGetMealSuggestions:
 
     def test_basic_meal_suggestions_english(self):
         """Test basic meal suggestions in English."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         suggestions = get_meal_suggestions(macro_dist, "en")
 
@@ -261,9 +229,7 @@ class TestGetMealSuggestions:
 
     def test_basic_meal_suggestions_russian(self):
         """Test basic meal suggestions in Russian."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         suggestions = get_meal_suggestions(macro_dist, "ru")
 
@@ -275,9 +241,7 @@ class TestGetMealSuggestions:
 
     def test_high_protein_additional_suggestions(self):
         """Test additional suggestions for high protein diets."""
-        macro_dist = MacroDistribution(
-            protein_percent=35.0, carbs_percent=35.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=35.0, carbs_percent=35.0, fat_percent=30.0)
 
         suggestions_en = get_meal_suggestions(macro_dist, "en")
         suggestions_ru = get_meal_suggestions(macro_dist, "ru")
@@ -288,9 +252,7 @@ class TestGetMealSuggestions:
 
     def test_high_carb_additional_suggestions(self):
         """Test additional suggestions for high carb diets."""
-        macro_dist = MacroDistribution(
-            protein_percent=20.0, carbs_percent=55.0, fat_percent=25.0
-        )
+        macro_dist = MacroDistribution(protein_percent=20.0, carbs_percent=55.0, fat_percent=25.0)
 
         suggestions_en = get_meal_suggestions(macro_dist, "en")
         suggestions_ru = get_meal_suggestions(macro_dist, "ru")
@@ -301,9 +263,7 @@ class TestGetMealSuggestions:
 
     def test_default_language_english(self):
         """Test default language is English."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         suggestions = get_meal_suggestions(macro_dist)  # No lang specified
 
@@ -316,9 +276,7 @@ class TestGetNutritionNotes:
 
     def test_basic_nutrition_notes_english(self):
         """Test basic nutrition notes in English."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         notes = get_nutrition_notes(macro_dist, "maintenance", "en")
 
@@ -329,9 +287,7 @@ class TestGetNutritionNotes:
 
     def test_basic_nutrition_notes_russian(self):
         """Test basic nutrition notes in Russian."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         notes = get_nutrition_notes(macro_dist, "maintenance", "ru")
 
@@ -342,9 +298,7 @@ class TestGetNutritionNotes:
 
     def test_weight_loss_specific_notes(self):
         """Test weight loss specific notes."""
-        macro_dist = MacroDistribution(
-            protein_percent=30.0, carbs_percent=35.0, fat_percent=35.0
-        )
+        macro_dist = MacroDistribution(protein_percent=30.0, carbs_percent=35.0, fat_percent=35.0)
 
         notes_en = get_nutrition_notes(macro_dist, "weight_loss", "en")
         notes_ru = get_nutrition_notes(macro_dist, "weight_loss", "ru")
@@ -355,9 +309,7 @@ class TestGetNutritionNotes:
 
     def test_muscle_gain_specific_notes(self):
         """Test muscle gain specific notes."""
-        macro_dist = MacroDistribution(
-            protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=30.0, carbs_percent=40.0, fat_percent=30.0)
 
         notes_en = get_nutrition_notes(macro_dist, "muscle_gain", "en")
         notes_ru = get_nutrition_notes(macro_dist, "muscle_gain", "ru")
@@ -368,9 +320,7 @@ class TestGetNutritionNotes:
 
     def test_default_language_english(self):
         """Test default language is English."""
-        macro_dist = MacroDistribution(
-            protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0
-        )
+        macro_dist = MacroDistribution(protein_percent=25.0, carbs_percent=45.0, fat_percent=30.0)
 
         notes = get_nutrition_notes(macro_dist, "maintenance")  # No lang specified
 
@@ -383,9 +333,7 @@ class TestMakePlate:
 
     def test_basic_plate_creation(self):
         """Test basic plate creation."""
-        plate = make_plate(
-            weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="moderate"
-        )
+        plate = make_plate(weight_kg=70.0, height_cm=175.0, age=30, sex="male", activity="moderate")
 
         assert isinstance(plate, PlateRecommendation)
         assert plate.target_calories > 0
@@ -574,15 +522,9 @@ class TestMakePlate:
         muscle_gain_plate = make_plate(**base_params, goal="muscle_gain")
 
         # Check specific calorie differences
-        assert (
-            weight_loss_plate.target_calories == maintenance_plate.target_calories - 500
-        )
-        assert (
-            weight_gain_plate.target_calories == maintenance_plate.target_calories + 500
-        )
-        assert (
-            muscle_gain_plate.target_calories == maintenance_plate.target_calories + 300
-        )
+        assert weight_loss_plate.target_calories == maintenance_plate.target_calories - 500
+        assert weight_gain_plate.target_calories == maintenance_plate.target_calories + 500
+        assert muscle_gain_plate.target_calories == maintenance_plate.target_calories + 300
 
     def test_edge_case_values(self):
         """Test edge case input values."""

@@ -23,10 +23,7 @@ class TestDailyPlateCoverage96:
         """Test create_daily_plate when food_db is None - line 44."""
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db, patch(
-            "core.daily_plate.create_meal"
-        ) as mock_create_meal:
-
+        ) as mock_parse_recipe_db, patch("core.daily_plate.create_meal") as mock_create_meal:
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -49,7 +46,6 @@ class TestDailyPlateCoverage96:
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
         ) as mock_parse_recipe_db:
-
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -217,7 +213,6 @@ class TestDailyPlateCoverage96:
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
         ) as mock_parse_recipe_db:
-
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
 
@@ -241,13 +236,10 @@ class TestDailyPlateCoverage96:
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
         ) as mock_parse_recipe_db:
-
             mock_food_item = Mock(spec=FoodItem)
             mock_food_item.get_nutrient_amount.return_value = 10.0
             mock_food_db = {"apple": mock_food_item}
-            mock_recipe = Recipe(
-                name="breakfast", ingredients={"apple": 100}, flags=set()
-            )
+            mock_recipe = Recipe(name="breakfast", ingredients={"apple": 100}, flags=set())
             mock_recipe_db = {"breakfast_recipe": mock_recipe}
 
             mock_parse_food_db.return_value = mock_food_db

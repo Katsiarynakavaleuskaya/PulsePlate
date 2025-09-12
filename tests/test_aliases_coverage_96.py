@@ -257,9 +257,7 @@ class TestAliasesCoverage96:
                 add_alias("test", "Test", custom_path)
 
                 # Should use custom path
-                mock_file.assert_called_once_with(
-                    custom_path, "a", newline="", encoding="utf-8"
-                )
+                mock_file.assert_called_once_with(custom_path, "a", newline="", encoding="utf-8")
 
     def test_add_alias_multiple_calls(self):
         """Test add_alias with multiple calls - lines 77-87."""

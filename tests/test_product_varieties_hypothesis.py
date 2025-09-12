@@ -171,45 +171,35 @@ class TestProductVarietiesHypothesis:
                 # Проверяем, что если есть низкосахарные варианты,
                 # то выбран один из них
                 low_sugar_varieties = [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_low_sugar()
+                    v for v in self.manager.get_varieties(product_name) if v.is_low_sugar()
                 ]
                 if low_sugar_varieties:
                     assert recommended.is_low_sugar()
 
             if low_fat:
                 low_fat_varieties = [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_low_fat()
+                    v for v in self.manager.get_varieties(product_name) if v.is_low_fat()
                 ]
                 if low_fat_varieties:
                     assert recommended.is_low_fat()
 
             if high_protein:
                 high_protein_varieties = [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_high_protein()
+                    v for v in self.manager.get_varieties(product_name) if v.is_high_protein()
                 ]
                 if high_protein_varieties:
                     assert recommended.is_high_protein()
 
             if vegetarian:
                 veg_varieties = [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if "VEG" in v.flags
+                    v for v in self.manager.get_varieties(product_name) if "VEG" in v.flags
                 ]
                 if veg_varieties:
                     assert "VEG" in recommended.flags
 
             if gluten_free:
                 gf_varieties = [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if "GF" in v.flags
+                    v for v in self.manager.get_varieties(product_name) if "GF" in v.flags
                 ]
                 if gf_varieties:
                     assert "GF" in recommended.flags
@@ -239,9 +229,7 @@ class TestProductVarietiesHypothesis:
         )
 
         # Тестируем методы
-        assert variety.get_calories() == (20.0 * 4) + (10.0 * 4) + (
-            5.0 * 9
-        )  # 80 + 40 + 45 = 165
+        assert variety.get_calories() == (20.0 * 4) + (10.0 * 4) + (5.0 * 9)  # 80 + 40 + 45 = 165
         assert variety.get_sugar_content() == 3.0
         assert variety.is_low_sugar()  # 3.0 <= 5.0
         assert variety.is_high_protein()  # 20.0 >= 20.0

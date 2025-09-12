@@ -384,9 +384,7 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/bmr", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
@@ -406,9 +404,7 @@ class TestPremiumEndpoints:
                 "goal": "maintain",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/plate", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/plate", json=data, headers=headers)
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
@@ -427,9 +423,7 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/targets", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/targets", json=data, headers=headers)
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
@@ -448,9 +442,7 @@ class TestPremiumEndpoints:
                 "activity": "moderate",
             }
 
-            response = self.client.post(
-                "/api/v1/premium/plan/week", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/plan/week", json=data, headers=headers)
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
@@ -472,9 +464,7 @@ class TestPremiumEndpoints:
                 },
             }
 
-            response = self.client.post(
-                "/api/v1/premium/gaps", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/premium/gaps", json=data, headers=headers)
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
@@ -590,9 +580,7 @@ class TestVisualizationEndpoint:
                 "athlete": "no",
             }
 
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
             assert response.status_code == 404
 
     def test_bmi_visualize_matplotlib_unavailable(self):
@@ -612,9 +600,7 @@ class TestVisualizationEndpoint:
                 "athlete": "no",
             }
 
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers=headers
-            )
+            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
             assert response.status_code == 404
 
 

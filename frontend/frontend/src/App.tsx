@@ -149,10 +149,10 @@ function App() {
                   <h3>TDEE</h3>
                   <p className="result-value">{tdee} kcal</p>
                   <p className="result-description">
-                    {goal === 'lose' 
-                      ? `Recommended: ${Math.round(tdee * 0.8)} kcal (20% deficit)` 
-                      : goal === 'gain' 
-                      ? `Recommended: ${Math.round(tdee * 1.1)} kcal (10% surplus)` 
+                    {goal === 'lose'
+                      ? `Recommended: ${Math.round(tdee * 0.8)} kcal (20% deficit)`
+                      : goal === 'gain'
+                      ? `Recommended: ${Math.round(tdee * 1.1)} kcal (10% surplus)`
                       : `Maintain at ${tdee} kcal`}
                   </p>
                 </div>

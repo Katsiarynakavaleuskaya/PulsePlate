@@ -27,9 +27,7 @@ def test_bmi_groups_exercise_branches(group: str):
 
 def test_insight_route_or_skip():
     """Если /insight не поднят (404) — скипаем, иначе ждём 503."""
-    res = client.post(
-        "/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"}
-    )
+    res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"})
     if res.status_code == 404:
         pytest.skip("No /insight route (skipping)")
     assert res.status_code == 503

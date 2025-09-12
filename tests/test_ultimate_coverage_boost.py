@@ -27,9 +27,7 @@ class TestUltimateCoverageBoost:
     def test_unified_db_py_remaining_lines(self):
         """Test remaining uncovered lines in unified_db.py."""
         # Test get_common_foods_database with cache file error
-        with patch(
-            "core.food_apis.unified_db.open", side_effect=Exception("File error")
-        ):
+        with patch("core.food_apis.unified_db.open", side_effect=Exception("File error")):
             from core.food_apis.unified_db import UnifiedFoodDatabase
 
             db = UnifiedFoodDatabase()
@@ -46,9 +44,7 @@ class TestUltimateCoverageBoost:
     def test_update_manager_py_remaining_lines(self):
         """Test remaining uncovered lines in update_manager.py."""
         # Test _create_backup with file error
-        with patch(
-            "core.food_apis.update_manager.open", side_effect=Exception("File error")
-        ):
+        with patch("core.food_apis.update_manager.open", side_effect=Exception("File error")):
             from core.food_apis.update_manager import DatabaseUpdateManager
 
             manager = DatabaseUpdateManager()
@@ -65,9 +61,7 @@ class TestUltimateCoverageBoost:
                 pass
 
         # Test _load_backup with file error
-        with patch(
-            "core.food_apis.update_manager.open", side_effect=Exception("File error")
-        ):
+        with patch("core.food_apis.update_manager.open", side_effect=Exception("File error")):
             from core.food_apis.update_manager import DatabaseUpdateManager
 
             manager = DatabaseUpdateManager()
@@ -102,9 +96,7 @@ class TestUltimateCoverageBoost:
             import core.sports_nutrition
 
             # Try to access functions that are actually in the module
-            attrs = [
-                attr for attr in dir(core.sports_nutrition) if not attr.startswith("_")
-            ]
+            attrs = [attr for attr in dir(core.sports_nutrition) if not attr.startswith("_")]
             # Just access the module to increase coverage
             assert len(attrs) >= 0
         except Exception:

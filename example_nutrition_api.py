@@ -85,12 +85,8 @@ def main():
         print(f"BMR (Harris): {result['bmr']['harris']} kcal/day")
         print(f"TDEE (Mifflin): {result['tdee']['mifflin']} kcal/day")
         print(f"Activity: {result['activity_description']}")
-        print(
-            f"Maintenance calories: {result['recommended_intake']['maintenance']} kcal/day"
-        )
-        print(
-            f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day"
-        )
+        print(f"Maintenance calories: {result['recommended_intake']['maintenance']} kcal/day")
+        print(f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day")
         print()
 
     except Exception as e:
@@ -138,9 +134,7 @@ def main():
 
         print(f"Описание активности: {result['activity_description']}")
         print(f"Рекомендации: {result['recommended_intake']['description']}")
-        print(
-            f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день"
-        )
+        print(f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день")
         print()
 
     except Exception as e:

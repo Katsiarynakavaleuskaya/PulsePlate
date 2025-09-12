@@ -1,0 +1,16 @@
+product_id,name_es,name_en,category,unit,typical_package_size,price_eur,store_chain,region
+1,Tomate,Tomato,vegetables,g,500,1.50,Mercadona,Valencia
+2,Lechuga,Lettuce,vegetables,g,300,0.80,Carrefour,Madrid
+3,Pollo,Chicken,meat,g,1000,4.50,El Corte Inglés,Barcelona
+4,Salmón,Salmon,fish,g,400,8.90,Hipercor,Sevilla
+5,Leche,Milk,dairy,ml,1000,0.95,Día,Valencia
+6,Pan,Bread,bakery,g,500,1.20,Lidl,Madrid
+7,Huevos,Eggs,protein,pcs,12,2.10,Alcampo,Barcelona
+8,Aceite de oliva,Olive oil,oils,ml,500,3.50,Consum,Valencia
+9,Arroz,Rice,grains,g,1000,1.80,Eroski,Madrid
+10,Plátano,Banana,fruits,g,1000,1.40,Carrefour,Sevilla
+11,Manzana,Apple,fruits,g,1000,2.20,Mercadona,Barcelona
+12,Patata,Potato,vegetables,g,2000,1.60,Día,Valencia
+13,Queso,Cheese,dairy,g,200,2.80,El Corte Inglés,Madrid
+14,Yogur,Yogurt,dairy,ml,500,1.10,Hipercor,Sevilla
+15,Atún,Tuna,fish,g,160,1.90,Lidl,Barcelona

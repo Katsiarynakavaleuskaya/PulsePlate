@@ -25,9 +25,7 @@ class TestPlateTargetsMicrosHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -86,18 +84,14 @@ class TestPlateTargetsMicrosHypothesis:
 
         # Check for common micronutrients
         common_micros = set(plate_micros.keys()) & set(target_micros.keys())
-        assert (
-            len(common_micros) > 0
-        ), "No common micronutrients between plate and targets"
+        assert len(common_micros) > 0, "No common micronutrients between plate and targets"
 
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     def test_fe_ca_mg_k_coverage_hypothesis(
@@ -171,9 +165,7 @@ class TestPlateTargetsMicrosHypothesis:
                 # If both have it, values should be reasonable
                 if plate_value is not None and target_value is not None:
                     # Values should be positive
-                    assert (
-                        plate_value > 0
-                    ), f"{micro} plate value should be positive: {plate_value}"
+                    assert plate_value > 0, f"{micro} plate value should be positive: {plate_value}"
                     assert (
                         target_value > 0
                     ), f"{micro} target value should be positive: {target_value}"
@@ -183,11 +175,10 @@ class TestPlateTargetsMicrosHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_day_micros_structure_hypothesis(
         self,
         sex: str,
@@ -252,9 +243,7 @@ class TestPlateTargetsMicrosHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -324,9 +313,7 @@ class TestPlateTargetsMicrosHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -384,18 +371,12 @@ class TestPlateTargetsMicrosHypothesis:
                 target_val = target_macros[macro]
 
                 # Both should be positive
-                assert (
-                    plate_val > 0
-                ), f"{macro} plate value should be positive: {plate_val}"
-                assert (
-                    target_val > 0
-                ), f"{macro} target value should be positive: {target_val}"
+                assert plate_val > 0, f"{macro} plate value should be positive: {plate_val}"
+                assert target_val > 0, f"{macro} target value should be positive: {target_val}"
 
                 # Should be reasonably aligned (within 50% for macros, especially fiber)
                 deviation = abs(plate_val - target_val) / target_val
-                max_deviation = (
-                    0.8 if macro == "fiber_g" else 0.4
-                )  # Allow more deviation for fiber
+                max_deviation = 0.8 if macro == "fiber_g" else 0.4  # Allow more deviation for fiber
                 assert deviation <= max_deviation, (
                     f"{macro} deviation too high: {deviation:.2%} "
                     f"(plate: {plate_val}, target: {target_val})"

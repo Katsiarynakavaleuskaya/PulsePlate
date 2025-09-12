@@ -155,10 +155,7 @@ def is_compatible_with_flags(recipe_flags: Set[str], diet_flags: Set[str]) -> bo
     if "VEG" in diet_flags and not recipe_flags.intersection({"VEG"}):
         # Check if recipe contains non-vegetarian ingredients
         non_veg_indicators = {"курица", "лосось", "рыба", "мясо"}
-        if any(
-            indicator in ",".join(recipe_flags).lower()
-            for indicator in non_veg_indicators
-        ):
+        if any(indicator in ",".join(recipe_flags).lower() for indicator in non_veg_indicators):
             return False
 
     # Check other flags
@@ -173,9 +170,7 @@ def is_compatible_with_flags(recipe_flags: Set[str], diet_flags: Set[str]) -> bo
     return True
 
 
-def calculate_micro_coverage(
-    nutrients: Dict[str, float], kcal_target: int
-) -> Dict[str, float]:
+def calculate_micro_coverage(nutrients: Dict[str, float], kcal_target: int) -> Dict[str, float]:
     """
     RU: Рассчитывает покрытие микронутриентов (упрощенная версия).
     EN: Calculates micronutrient coverage (simplified version).
@@ -248,9 +243,7 @@ def apply_boosters_if_needed(
                         food_item = food_db[booster_food]
                         nutrient_amount = food_item.get_nutrient_amount(micro, 50)
                         # Simplified update to coverage
-                        total_micro_coverage[micro] += (
-                            nutrient_amount / 10
-                        )  # Rough estimate
+                        total_micro_coverage[micro] += nutrient_amount / 10  # Rough estimate
 
                     break
 

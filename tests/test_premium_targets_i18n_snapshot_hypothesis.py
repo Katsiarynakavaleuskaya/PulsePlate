@@ -26,13 +26,9 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
-        life_stage=st.sampled_from(
-            ["adult", "teen", "pregnant", "lactating", "elderly", "child"]
-        ),
+        life_stage=st.sampled_from(["adult", "teen", "pregnant", "lactating", "elderly", "child"]),
         lang=st.sampled_from(["en", "ru", "es"]),
     )
     @settings(deadline=None)
@@ -92,9 +88,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
     @given(
         lang=st.sampled_from(["en", "ru", "es"]),
-        life_stage=st.sampled_from(
-            ["teen", "pregnant", "lactating", "elderly", "child"]
-        ),
+        life_stage=st.sampled_from(["teen", "pregnant", "lactating", "elderly", "child"]),
         age=st.one_of(
             st.integers(min_value=13, max_value=17),  # teen
             st.integers(min_value=18, max_value=45),  # pregnant/lactating
@@ -180,9 +174,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         age=st.integers(min_value=18, max_value=65),
         height_cm=st.floats(min_value=150.0, max_value=200.0),
         weight_kg=st.floats(min_value=45.0, max_value=120.0),
-        activity=st.sampled_from(
-            ["sedentary", "light", "moderate", "active", "very_active"]
-        ),
+        activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
     @settings(deadline=None)
@@ -230,21 +222,14 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Macro values should be identical
         for macro in ["protein_g", "fat_g", "carbs_g", "fiber_g"]:
-            assert (
-                en_data["macros"][macro]
-                == ru_data["macros"][macro]
-                == es_data["macros"][macro]
-            )
+            assert en_data["macros"][macro] == ru_data["macros"][macro] == es_data["macros"][macro]
 
         # Water intake should be identical
         assert en_data["water_ml"] == ru_data["water_ml"] == es_data["water_ml"]
 
         # Priority micros should have identical values
         for nutrient in en_data["priority_micros"]:
-            if (
-                nutrient in ru_data["priority_micros"]
-                and nutrient in es_data["priority_micros"]
-            ):
+            if nutrient in ru_data["priority_micros"] and nutrient in es_data["priority_micros"]:
                 en_val = en_data["priority_micros"][nutrient]
                 ru_val = ru_data["priority_micros"][nutrient]
                 es_val = es_data["priority_micros"][nutrient]
@@ -273,9 +258,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
             ]
         ),
     )
-    def test_invalid_input_i18n_snapshot_hypothesis(
-        self, lang: str, invalid_input: Dict[str, str]
-    ):
+    def test_invalid_input_i18n_snapshot_hypothesis(self, lang: str, invalid_input: Dict[str, str]):
         """Test invalid input handling with i18n (snapshot test)."""
         payload = {
             "sex": "male",
@@ -331,9 +314,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         data = response.json()
 
         # Snapshot test - check specific ES pregnancy warning
-        pregnancy_warnings = [
-            w for w in data["warnings"] if w.get("code") == "pregnant"
-        ]
+        pregnancy_warnings = [w for w in data["warnings"] if w.get("code") == "pregnant"]
         assert len(pregnancy_warnings) > 0
 
         pregnancy_warning = pregnancy_warnings[0]

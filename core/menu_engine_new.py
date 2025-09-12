@@ -87,15 +87,9 @@ def build_plate_day(
                 "fiber_g": fi.fiber_g * (grams / fi.per_g),
             }
             m_kcal = int(
-                round(
-                    m_macros["protein_g"] * 4
-                    + m_macros["carbs_g"] * 4
-                    + m_macros["fat_g"] * 9
-                )
+                round(m_macros["protein_g"] * 4 + m_macros["carbs_g"] * 4 + m_macros["fat_g"] * 9)
             )
-            m_micros = {
-                k: fi.micros.get(k, 0.0) * (grams / fi.per_g) for k in MICRO_KEYS
-            }
+            m_micros = {k: fi.micros.get(k, 0.0) * (grams / fi.per_g) for k in MICRO_KEYS}
             # Get translated booster food name
             translated_donor = fooddb.get_translated_food_name(donor, lang)
             meals.append(

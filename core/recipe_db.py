@@ -79,9 +79,7 @@ def parse_recipe_db(
     return recipe_db
 
 
-def calculate_recipe_nutrients(
-    recipe: Recipe, food_db: Dict[str, FoodItem]
-) -> Dict[str, float]:
+def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
     """
     RU: Рассчитывает питательную ценность рецепта.
     EN: Calculate nutritional value of a recipe.
@@ -117,9 +115,7 @@ def calculate_recipe_nutrients(
 
             for nutrient in nutrients:
                 nutrient_amount = food_item.get_nutrient_amount(nutrient, amount_g)
-                total_nutrients[nutrient] = (
-                    total_nutrients.get(nutrient, 0) + nutrient_amount
-                )
+                total_nutrients[nutrient] = total_nutrients.get(nutrient, 0) + nutrient_amount
 
     return total_nutrients
 

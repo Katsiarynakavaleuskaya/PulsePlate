@@ -1,0 +1,31 @@
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "bmi_core"]
+
+# Игнор длинных строк там, где они осознанны (сообщения/тексты)
+[tool.ruff.lint.per-file-ignores]
+"core/disclaimers.py" = ["E501"]
+"core/lifestage_nutrition.py" = ["E501"]
+"core/bmi_extras.py" = ["E501"]
+"core/food_apis/usda_client.py" = ["E501"]
+"nutrition_plate.py" = ["E501"]
+"bodyfat.py" = ["E402", "E501"]
+"providers/grok.py" = ["E501"]
+"providers/ollama.py" = ["E501"]
+"providers/pico.py" = ["E501"]
+
+# Если хочешь, можно убрать Flake8 совсем (Ruff заменяет его). Оставляю блок на случай, если расширение Flake8 активно.
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203"]

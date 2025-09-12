@@ -78,10 +78,21 @@ class TestCorePlateLogic:
         assert macros["carbs_g"] >= 0
 
         # Verify calorie consistency (approximately)
-        total_kcal = (
-            (macros["protein_g"] * 4) + (macros["fat_g"] * 9) + (macros["carbs_g"] * 4)
-        )
+        total_kcal = (macros["protein_g"] * 4) + (macros["fat_g"] * 9) + (macros["carbs_g"] * 4)
         assert abs(total_kcal - kcal) <= 20  # Allow small rounding differences
+
+        # Test edge case: very low calories that require macro reduction
+        low_kcal = 800  # Very low calories
+        macros_low = _macros_by_rules(weight, low_kcal, "loss")
+        # Should still have reasonable macros, carbs should be at least 1
+        assert macros_low["protein_g"] >= 1
+        assert macros_low["fat_g"] >= 0.5 * weight  # Should not go below 0.5g/kg
+        assert macros_low["carbs_g"] >= 1  # Minimum carbs
+        # Total calories should be close to target
+        total_kcal_low = (
+            (macros_low["protein_g"] * 4) + (macros_low["fat_g"] * 9) + (macros_low["carbs_g"] * 4)
+        )
+        assert abs(total_kcal_low - low_kcal) <= 50  # Allow some tolerance for edge cases
 
     def test_portions_from_macros(self):
         """Test conversion of macros to hand/cup portions."""
@@ -223,9 +234,7 @@ class TestCorePlateLogic:
         base_params = {"weight_kg": 70, "tdee_val": 2000, "diet_flags": None}
 
         # Test loss goal
-        plate_loss = make_plate(
-            goal="loss", deficit_pct=15, surplus_pct=None, **base_params
-        )
+        plate_loss = make_plate(goal="loss", deficit_pct=15, surplus_pct=None, **base_params)
         assert plate_loss["kcal"] < 2000  # Should be below TDEE
 
         # Test maintain goal
@@ -235,16 +244,12 @@ class TestCorePlateLogic:
         assert plate_maintain["kcal"] == 2000  # Should equal TDEE
 
         # Test gain goal
-        plate_gain = make_plate(
-            goal="gain", deficit_pct=None, surplus_pct=12, **base_params
-        )
+        plate_gain = make_plate(goal="gain", deficit_pct=None, surplus_pct=12, **base_params)
         assert plate_gain["kcal"] > 2000  # Should be above TDEE
 
         # Loss should have relatively more protein
         loss_protein_ratio = plate_loss["macros"]["protein_g"] / plate_loss["kcal"]
-        maintain_protein_ratio = (
-            plate_maintain["macros"]["protein_g"] / plate_maintain["kcal"]
-        )
+        maintain_protein_ratio = plate_maintain["macros"]["protein_g"] / plate_maintain["kcal"]
         assert loss_protein_ratio >= maintain_protein_ratio
 
     def test_edge_cases(self):
@@ -273,9 +278,7 @@ class TestCorePlateLogic:
 
         # Test zero macros scenario (should not crash)
         try:
-            layout = _visual_layout(
-                {"protein_g": 0, "fat_g": 0, "carbs_g": 0, "fiber_g": 0}
-            )
+            layout = _visual_layout({"protein_g": 0, "fat_g": 0, "carbs_g": 0, "fiber_g": 0})
             assert len(layout) == 6  # Should still return proper layout
         except ZeroDivisionError:
             pytest.fail("Visual layout should handle zero macros gracefully")

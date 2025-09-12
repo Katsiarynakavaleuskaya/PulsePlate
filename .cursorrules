@@ -1,0 +1,129 @@
+# PulsePlate Project Rules for Cursor AI
+
+## Project Overview
+
+PulsePlate is a FastAPI-based nutrition and meal planning application with VIP features for micronutrient optimization, auto-repair of meal plans, and regional shopping lists.
+
+## Key Technologies
+
+- FastAPI 0.116.1
+- Pydantic 2.11.7
+- Python 3.13.5
+- pytest with coverage (target: 97%)
+- Black formatter (line-length: 100)
+- Ruff linter
+- Hypothesis for property-based testing
+
+## Project Structure
+
+```
+PulsePlate/
+├── app/                    # FastAPI application
+│   ├── routers/           # API endpoints
+│   ├── schemas/           # Pydantic models
+│   └── services/          # Business logic
+├── core/                  # Core business logic
+│   ├── targets.py         # Nutrition targets and profiles
+│   ├── menu_engine.py     # Meal planning engine
+│   └── recommendations.py # Nutrition recommendations
+├── tests/                 # Test suite
+└── data/                  # Data files (CSV, JSON)
+```
+
+## Coding Standards
+
+### Python Style
+
+- Use Black formatter with line-length=100
+- Use Ruff for linting
+- Follow PEP 8 with exceptions for line length
+- Use type hints for all function parameters and return values
+- Use Pydantic v2 syntax (model_dump(), model_validate())
+
+### Testing
+
+- Maintain 97% test coverage
+- Use pytest for unit tests
+- Use Hypothesis for property-based testing
+- Mock external dependencies
+- Test both success and error paths
+- Use descriptive test names
+
+### API Design
+
+- Use FastAPI with Pydantic models
+- Include proper HTTP status codes
+- Use API key authentication for VIP endpoints
+- Include comprehensive error handling
+- Document endpoints with OpenAPI
+
+### VIP Features
+
+- VIP_MODULE_ENABLED feature flag controls VIP functionality
+- MicronutrientTargets for enhanced nutrition goals
+- Auto-repair functionality for meal plans
+- Regional shopping lists with package rounding
+- Recipe generation based on meal plans
+
+## Development Workflow
+
+### Before Committing
+
+1. Run all tests: `python -m pytest tests -q`
+2. Check coverage: `python -m pytest --cov=. --cov-fail-under=97 -q`
+3. Run linting: `python -m ruff check . --fix`
+4. Format code: `python -m black . --line-length=100`
+
+### Test Commands
+
+- `pptest` - Run all tests
+- `ppcov` - Run tests with coverage
+- `pplint` - Run linting
+- `ppformat` - Format code
+- `ppcheck` - Full quality check
+
+### Environment Variables
+
+- `VIP_MODULE_ENABLED=true` - Enable VIP features
+- `PYTHONPATH` - Includes project root, core, app, tests
+
+## Sprint Progress
+
+- ✅ Sprint 0: VIP Module Foundation
+- ✅ Sprint 1: Micronutrient Targets and Auto-repair
+- 🔄 Sprint 2: Shoplist with package rounding
+- ⏳ Sprint 3: Region Catalog (ES/US)
+- ⏳ Sprint 4: Recipe Synthesis
+- ⏳ Sprint 5: Auto-repair UX loop
+- ⏳ Sprint 6: i18n, currency, PDF export
+
+## Current Priorities
+
+1. Fix test_app_coverage_final.py (red files issue)
+2. Reach 97% test coverage
+3. Complete Sprint 2: Shoplist functionality
+4. Ensure all tests pass before any git push
+
+## Important Notes
+
+- Never push code without running full test suite
+- Always check coverage before committing
+- Use feature flags for new functionality
+- Maintain backward compatibility
+- Document all API changes
+- Use proper error handling and logging
+
+## File Naming Conventions
+
+- Test files: test_*.py
+- Core modules: snake_case
+- API endpoints: kebab-case in URLs
+- Configuration files: .env, pyproject.toml, pytest.ini
+
+## Error Handling
+
+- Use HTTPException for API errors
+- Log errors with appropriate levels
+- Provide meaningful error messages
+- Handle edge cases gracefully
+- Use try-catch blocks for external API calls

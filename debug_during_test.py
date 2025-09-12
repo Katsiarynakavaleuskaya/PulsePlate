@@ -29,9 +29,7 @@ def test_debug_during_test():
 
     # Test with patching
     print("\n=== Before patching ===")
-    print(
-        f"app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}"
-    )
+    print(f"app_module.generate_bmi_visualization: {app_module.generate_bmi_visualization}")
     print(f"Type: {type(app_module.generate_bmi_visualization)}")
     print(f"Callable: {callable(app_module.generate_bmi_visualization)}")
 

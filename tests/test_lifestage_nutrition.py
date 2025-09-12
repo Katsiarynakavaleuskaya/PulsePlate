@@ -270,8 +270,7 @@ class TestLifeStageDetection:
         """Test automatic life stage detection based on age."""
         # Test child stages
         assert (
-            LifeStageNutritionCalculator.get_appropriate_lifestage(3, "male")
-            == LifeStage.CHILD_2_5
+            LifeStageNutritionCalculator.get_appropriate_lifestage(3, "male") == LifeStage.CHILD_2_5
         )
         assert (
             LifeStageNutritionCalculator.get_appropriate_lifestage(8, "female")
@@ -283,10 +282,7 @@ class TestLifeStageDetection:
         )
 
         # Test adult
-        assert (
-            LifeStageNutritionCalculator.get_appropriate_lifestage(30, "male")
-            == LifeStage.ADULT
-        )
+        assert LifeStageNutritionCalculator.get_appropriate_lifestage(30, "male") == LifeStage.ADULT
 
         # Test elderly
         assert (
@@ -345,9 +341,7 @@ class TestLifeStageIntegration:
         )
 
         # Test pregnancy recommendations
-        recommendations = get_lifestage_recommendations(
-            profile, is_pregnant=True, trimester=2
-        )
+        recommendations = get_lifestage_recommendations(profile, is_pregnant=True, trimester=2)
 
         assert recommendations["life_stage"] == "pregnant_t2"
         assert "energy_needs" in recommendations
@@ -415,9 +409,7 @@ class TestMedicalDisclaimers:
             goal="maintain",
         )
 
-        recommendations = get_lifestage_recommendations(
-            profile, is_pregnant=True, trimester=1
-        )
+        recommendations = get_lifestage_recommendations(profile, is_pregnant=True, trimester=1)
 
         disclaimer = recommendations["medical_disclaimer"]
 

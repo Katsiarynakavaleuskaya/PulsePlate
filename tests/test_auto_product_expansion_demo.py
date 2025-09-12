@@ -88,9 +88,7 @@ class TestAutoProductExpansionDemo:
                 else:
                     print(f"  ❌ {product} - не найден")
 
-            print(
-                f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено"
-            )
+            print(f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено")
 
             # Проверяем, что система работает корректно
             assert len(unique_ingredients) > 0

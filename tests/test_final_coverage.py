@@ -109,9 +109,7 @@ class TestFinalCoverage:
 
         # Test when GrokProvider is None, should use GrokLiteProvider
         with patch("llm.GrokProvider", None):
-            with patch.dict(
-                os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test_key"}
-            ):
+            with patch.dict(os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test_key"}):
                 provider = get_provider()
                 # This should return GrokLiteProvider and cover line 69
                 assert provider is not None
@@ -582,9 +580,7 @@ class TestFinalCoverage:
                 mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post(
-                    "/api/v1/insight", json={"text": "test"}, headers=headers
-                )
+                response = client.post("/api/v1/insight", json={"text": "test"}, headers=headers)
                 # This should cover line 339 and related API endpoint lines
 
         # Test visualization endpoint lines (341, 353, 359, 379)
@@ -602,9 +598,7 @@ class TestFinalCoverage:
 
             # Test when visualization is not available (line 341)
             with patch("app.generate_bmi_visualization", None):
-                response = client.post(
-                    "/api/v1/bmi/visualize", json=payload, headers=headers
-                )
+                response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                 # Expected to be 404 when visualization is not available
                 assert response.status_code == 404
                 # This covers line 341
@@ -721,16 +715,12 @@ class TestFinalCoverage:
                 mock_llm = mock_modules["llm"]
                 mock_llm.get_provider.return_value = mock_provider
 
-                response = client.post(
-                    "/api/v1/insight", json={"text": "test"}, headers=headers
-                )
+                response = client.post("/api/v1/insight", json={"text": "test"}, headers=headers)
                 # This covers line 339
 
             # Test visualization endpoint when module not found (line 341)
             with patch("app.generate_bmi_visualization", None):
-                response = client.post(
-                    "/api/v1/bmi/visualize", json=payload, headers=headers
-                )
+                response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                 # Expected to be 404 when visualization is not available
                 assert response.status_code == 404
                 # This covers line 341
@@ -752,9 +742,7 @@ class TestFinalCoverage:
 
             with patch("app.generate_bmi_visualization", mock_viz):
                 with patch("app.MATPLOTLIB_AVAILABLE", True):
-                    response = client.post(
-                        "/api/v1/bmi/visualize", json=payload, headers=headers
-                    )
+                    response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     # This covers lines 359, 379
 
             # Test visualization failure (line 498)
@@ -762,9 +750,7 @@ class TestFinalCoverage:
 
             with patch("app.generate_bmi_visualization", mock_viz):
                 with patch("app.MATPLOTLIB_AVAILABLE", True):
-                    response = client.post(
-                        "/api/v1/bmi/visualize", json=payload, headers=headers
-                    )
+                    response = client.post("/api/v1/bmi/visualize", json=payload, headers=headers)
                     assert response.status_code == 404
                     # This covers line 498
 

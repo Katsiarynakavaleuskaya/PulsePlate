@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Food Database Builder
 
@@ -6,20 +5,20 @@ RU: Сборка профессиональной базы данных прод
 EN: Build professional food database from CSV to Parquet/SQLite.
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent))
+
 import hashlib
 import json
 import sqlite3
-
-# Add project root to path
-import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
 from pydantic import ValidationError
-
-sys.path.append(str(Path(__file__).parent.parent))
 
 from core.food_merge import merge_records
 from core.food_sources.off import OFFAdapter
@@ -92,9 +91,7 @@ class FoodDatabaseBuilder:
 
         return usda_data, off_data
 
-    def merge_and_validate(
-        self, usda_data: List[Dict], off_data: List[Dict]
-    ) -> List[FoodItem]:
+    def merge_and_validate(self, usda_data: List[Dict], off_data: List[Dict]) -> List[FoodItem]:
         """
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
@@ -146,9 +143,7 @@ class FoodDatabaseBuilder:
                 validated_foods.append(food_item)
 
             except ValidationError as e:
-                validation_errors.append(
-                    {"index": i, "record": record, "error": str(e)}
-                )
+                validation_errors.append({"index": i, "record": record, "error": str(e)})
 
         if validation_errors:
             print(f"  ⚠️  Validation errors: {len(validation_errors)}")
@@ -303,9 +298,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ SQLite saved: {self.food_sqlite}")
         print("  🔍 FTS enabled for search")
 
-    def generate_report(
-        self, foods: List[FoodItem], usda_count: int, off_count: int
-    ) -> None:
+    def generate_report(self, foods: List[FoodItem], usda_count: int, off_count: int) -> None:
         """
         RU: Сгенерировать отчет о сборке.
         EN: Generate build report.
@@ -338,9 +331,7 @@ class FoodDatabaseBuilder:
             ]
             for field in micronutrient_fields:
                 if getattr(food, field) > 0:
-                    micronutrient_coverage[field] = (
-                        micronutrient_coverage.get(field, 0) + 1
-                    )
+                    micronutrient_coverage[field] = micronutrient_coverage.get(field, 0) + 1
 
         # Calculate coverage percentages
         micronutrient_percentages = {
@@ -354,8 +345,7 @@ class FoodDatabaseBuilder:
                 "total_foods": total_foods,
                 "usda_input": usda_count,
                 "off_input": off_count,
-                "merge_efficiency": (total_foods / max(usda_count + off_count, 1))
-                * 100,
+                "merge_efficiency": (total_foods / max(usda_count + off_count, 1)) * 100,
             },
             "sources": sources,
             "groups": groups,

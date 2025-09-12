@@ -17,5 +17,3 @@ osascript -e 'tell application "Terminal"
 end tell'
 
 echo "✅ Все три окна запущены!"
-
-

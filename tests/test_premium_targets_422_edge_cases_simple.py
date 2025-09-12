@@ -39,9 +39,7 @@ class TestPremiumTargets422EdgeCasesSimple:
 
         error_data = resp.json()
         assert "detail" in error_data
-        assert any(
-            "field required" in str(error).lower() for error in error_data["detail"]
-        )
+        assert any("field required" in str(error).lower() for error in error_data["detail"])
 
     def test_boundary_age_values_422(self):
         """Test 422 for boundary age values"""

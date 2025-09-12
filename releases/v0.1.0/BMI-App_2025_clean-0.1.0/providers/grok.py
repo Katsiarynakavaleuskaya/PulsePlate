@@ -12,9 +12,7 @@ class GrokProvider:
 
     name = "grok"
 
-    def __init__(
-        self, endpoint: str, model: str, api_key: str, timeout: Optional[float] = 30.0
-    ):
+    def __init__(self, endpoint: str, model: str, api_key: str, timeout: Optional[float] = 30.0):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.api_key = api_key

@@ -17,12 +17,8 @@ from core.weekly_plan_new import build_week
 def test_build_week_structure():
     """Test that build_week returns the correct structure."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -87,12 +83,8 @@ def test_build_week_structure():
 def test_build_week_calorie_target():
     """Test that build_week respects calorie targets."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -126,12 +118,8 @@ def test_build_week_calorie_target():
 def test_build_week_multilingual():
     """Test that build_week works with different languages."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)

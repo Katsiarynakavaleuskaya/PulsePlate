@@ -20,9 +20,7 @@ class PicoProvider(ProviderBase):
         self.endpoint = endpoint or os.getenv(
             "PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         )
-        self.model = model or os.getenv(
-            "PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-        )
+        self.model = model or os.getenv("PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b"))
         self.client = httpx.Client(base_url=self.endpoint, timeout=30.0)
 
     def generate(self, text: str) -> str:

@@ -112,4 +112,3 @@ echo "Done. Next steps:"
 echo "- In Xcode: rename Target & Scheme to $APP_NAME, update Product Name (Packaging)."
 echo "- If using Capacitor: run 'npx cap sync ios' to sync config."
 echo "- Build (⌘B) and run (⌘R) to verify Springboard label."
-

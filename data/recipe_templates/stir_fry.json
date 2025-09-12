@@ -1,0 +1,26 @@
+{
+    "template_id": "stir_fry",
+    "name": "Stir Fry",
+    "cuisine_type": "asian",
+    "base_ingredients": [
+        "vegetables",
+        "protein",
+        "oil",
+        "garlic",
+        "ginger"
+    ],
+    "cooking_methods": [
+        "stir_frying",
+        "sautéing"
+    ],
+    "typical_prep_time": 15,
+    "typical_cook_time": 10,
+    "difficulty": "easy",
+    "instruction_template": "Heat oil in a wok or large pan over high heat. Add garlic and ginger, stir for 30 seconds until fragrant. Add protein and cook until done, about 5-7 minutes. Add vegetables and stir-fry for 3-5 minutes until crisp-tender. Season with soy sauce, sesame oil, and serve immediately.",
+    "nutrition_profile": {
+        "calories": 300,
+        "protein": 25,
+        "carbs": 15,
+        "fat": 15
+    }
+}

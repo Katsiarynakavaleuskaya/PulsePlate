@@ -23,7 +23,6 @@ class TestDailyPlateSimple96:
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
         ) as mock_parse_recipe_db:
-
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -45,7 +44,6 @@ class TestDailyPlateSimple96:
         with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
             "core.daily_plate.parse_recipe_db"
         ) as mock_parse_recipe_db:
-
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -103,9 +101,7 @@ class TestDailyPlateSimple96:
             mock_fallback_meal = Mock()
             mock_create_fallback.return_value = mock_fallback_meal
 
-            recipe_db = {
-                "breakfast_recipe": Mock(name="breakfast", kcal=600, flags=set())
-            }
+            recipe_db = {"breakfast_recipe": Mock(name="breakfast", kcal=600, flags=set())}
 
             result = find_recipe_for_meal(
                 meal_name="breakfast",
@@ -123,11 +119,7 @@ class TestDailyPlateSimple96:
             mock_fallback_meal = Mock()
             mock_create_fallback.return_value = mock_fallback_meal
 
-            recipe_db = {
-                "breakfast_recipe": Mock(
-                    name="breakfast", kcal=500, flags={"vegetarian"}
-                )
-            }
+            recipe_db = {"breakfast_recipe": Mock(name="breakfast", kcal=500, flags={"vegetarian"})}
 
             result = find_recipe_for_meal(
                 meal_name="breakfast",
@@ -230,9 +222,7 @@ class TestDailyPlateSimple96:
     def test_find_recipe_for_meal_diet_flags_subset(self):
         """Test find_recipe_for_meal with diet flags subset match."""
         recipe_db = {
-            "breakfast_recipe": Mock(
-                name="breakfast", kcal=500, flags={"vegetarian", "healthy"}
-            )
+            "breakfast_recipe": Mock(name="breakfast", kcal=500, flags={"vegetarian", "healthy"})
         }
 
         result = find_recipe_for_meal(

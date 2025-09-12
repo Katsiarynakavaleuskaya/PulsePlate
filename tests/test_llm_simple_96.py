@@ -24,7 +24,6 @@ class TestLlmSimple96:
                 "GROK_MODEL": "test_model",
             },
         ):
-
             # Mock keyword args failure
             mock_grok_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
@@ -52,7 +51,6 @@ class TestLlmSimple96:
                 "GROK_MODEL": "test_model",
             },
         ):
-
             # Mock both calls fail
             mock_grok_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
@@ -78,7 +76,6 @@ class TestLlmSimple96:
                 "OLLAMA_TIMEOUT": "5",
             },
         ):
-
             # Mock keyword args failure
             mock_ollama_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
@@ -102,7 +99,6 @@ class TestLlmSimple96:
                 "OLLAMA_TIMEOUT": "5",
             },
         ):
-
             # Mock both calls fail
             mock_ollama_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
@@ -125,7 +121,6 @@ class TestLlmSimple96:
                 "OLLAMA_TIMEOUT": "10.5",
             },
         ):
-
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
 
@@ -148,7 +143,6 @@ class TestLlmSimple96:
             },
             clear=True,
         ):
-
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
 
@@ -167,7 +161,6 @@ class TestLlmSimple96:
             {"LLM_PROVIDER": "ollama", "OLLAMA_MODEL": "test_model"},
             clear=True,
         ):
-
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
 
@@ -186,7 +179,6 @@ class TestLlmSimple96:
             {"LLM_PROVIDER": "ollama", "OLLAMA_ENDPOINT": "http://test"},
             clear=True,
         ):
-
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
 
@@ -203,7 +195,6 @@ class TestLlmSimple96:
         with patch("llm.GrokProvider", None), patch(
             "llm.GrokLiteProvider"
         ) as mock_grok_lite, patch.dict(os.environ, {"LLM_PROVIDER": "grok"}):
-
             mock_lite_provider = Mock()
             mock_grok_lite.return_value = mock_lite_provider
 
@@ -215,10 +206,7 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_when_unavailable(self):
         """Test get_provider with OllamaProvider when unavailable."""
-        with patch("llm.OllamaProvider", None), patch.dict(
-            os.environ, {"LLM_PROVIDER": "ollama"}
-        ):
-
+        with patch("llm.OllamaProvider", None), patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}):
             result = get_provider()
 
             # Should return None when OllamaProvider is None

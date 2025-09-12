@@ -78,9 +78,7 @@ class TestGroupDisplayES:
         elderly_note = t("es", "risk_elderly_note")
         assert isinstance(elderly_note, str)
         assert len(elderly_note) > 0
-        assert (
-            "sarcopenia" in elderly_note or "IMC" in elderly_note
-        )  # Check key term is present
+        assert "sarcopenia" in elderly_note or "IMC" in elderly_note  # Check key term is present
 
         # Test child note in Spanish
         child_note = t("es", "risk_child_note")

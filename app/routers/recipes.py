@@ -17,9 +17,7 @@ router = APIRouter(tags=["recipes"])
 
 
 @router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
-def list_recipes(
-    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
-):
+def list_recipes(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
     rows = recipe_store.search_recipes(query or "*", limit, offset)

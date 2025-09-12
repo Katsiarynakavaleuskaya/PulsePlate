@@ -44,9 +44,7 @@ def test_insight_with_monkeypatched_provider(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
     data = r.json()
     assert data.get("insight", "").startswith("insight::")
@@ -60,9 +58,7 @@ def test_insight_with_provider_exception(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "error"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "error"}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 503
     data = r.json()
     assert "LLM provider error" in data.get("detail", "")
@@ -75,9 +71,7 @@ def test_insight_no_provider(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 503
     data = r.json()
     assert "No LLM provider configured" in data.get("detail", "")
@@ -98,9 +92,7 @@ def test_api_v1_insight_provider_none(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 503
     data = r.json()
     assert "No LLM provider configured" in data.get("detail", "")
@@ -119,9 +111,7 @@ def test_api_v1_insight_generate_exception(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
-    r = client.post(
-        "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 503
     data = r.json()
     assert "LLM provider error" in data.get("detail", "")

@@ -18,7 +18,7 @@ timeout_s: float = 120.0
 - Скопировать содержимое из CODE_CHANGES.md
 - Выполнить: `chmod +x ollama_diagnostic.sh`
 
-**B. Файл: `ollama_monitor.sh`**  
+**B. Файл: `ollama_monitor.sh`**
 - Скопировать содержимое из CODE_CHANGES.md
 - Выполнить: `chmod +x ollama_monitor.sh`
 
@@ -40,7 +40,7 @@ LLM_PROVIDER=ollama FEATURE_INSIGHT=1 make run
 
 ## ✅ РЕЗУЛЬТАТ:
 - ⚡ Быстрое тестирование с stub провайдером
-- 🐌 Стабильная работа с Ollama (без таймаутов)  
+- 🐌 Стабильная работа с Ollama (без таймаутов)
 - 🔍 Инструменты диагностики и мониторинга
 - 🔄 Легкое переключение между провайдерами
 

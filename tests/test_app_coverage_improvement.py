@@ -58,9 +58,7 @@ class TestAppCoverageImprovement:
     @contextmanager
     def _mock_scheduler(self, scheduler_mock=None):
         """Context manager for mocking the scheduler."""
-        with patch(
-            "app.get_update_scheduler", new_callable=AsyncMock
-        ) as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             if scheduler_mock is None:
                 scheduler_mock = AsyncMock()
             mock_get_scheduler.return_value = scheduler_mock
@@ -110,9 +108,7 @@ class TestAppCoverageImprovement:
         """Test database status endpoint exception handling."""
         # The endpoint actually works correctly and returns 200
         # The mock doesn't work because the endpoint uses dynamic resolution
-        response = self.client.get(
-            "/api/v1/admin/db-status", headers=self._get_standard_headers()
-        )
+        response = self.client.get("/api/v1/admin/db-status", headers=self._get_standard_headers())
         # The endpoint returns successful status even when mocked
         assert response.status_code == 200
         data = response.json()
@@ -174,9 +170,7 @@ class TestAppCoverageImprovement:
 
     # TODO Rename this here and in `test_force_update_endpoint_exception` and
     # `test_check_updates_endpoint_exception`
-    def _extracted_from_test_check_updates_endpoint_exception_5(
-        self, mock_get_scheduler, arg1
-    ):
+    def _extracted_from_test_check_updates_endpoint_exception_5(self, mock_get_scheduler, arg1):
         mock_get_scheduler.side_effect = Exception("Test error")
         response = self.client.post(arg1, headers=self._get_standard_headers())
         assert response.status_code == 500

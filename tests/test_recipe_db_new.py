@@ -16,12 +16,8 @@ from core.recipe_db_new import RecipeDB
 def test_parse_recipe_db():
     """Test that recipe database is parsed correctly."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -53,12 +49,8 @@ def test_parse_recipe_db():
 def test_pick_base_recipe():
     """Test base recipe selection."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -81,12 +73,8 @@ def test_pick_base_recipe():
 def test_scale_recipe_to_kcal():
     """Test recipe scaling to calorie targets."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)
@@ -114,12 +102,8 @@ def test_scale_recipe_to_kcal():
 def test_scale_recipe_to_kcal_multilingual():
     """Test multilingual recipe scaling."""
     # Get the paths to the test data files
-    food_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "food_db_new.csv"
-    )
-    recipe_csv_path = os.path.join(
-        os.path.dirname(__file__), "..", "data", "recipes_new.csv"
-    )
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
 
     # Parse the databases
     food_db = FoodDB(food_csv_path)

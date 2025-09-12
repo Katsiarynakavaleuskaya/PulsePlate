@@ -92,9 +92,7 @@ class TestPremiumWeekCoverageFinal:
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
     @patch("app.routers.premium_week.build_week")
-    def test_generate_week_plan_with_targets(
-        self, mock_build_week, mock_recipe_db, mock_food_db
-    ):
+    def test_generate_week_plan_with_targets(self, mock_build_week, mock_recipe_db, mock_food_db):
         """Тест generate_week_plan с готовыми targets"""
         # Настройка моков
         mock_food_db_instance = MagicMock()

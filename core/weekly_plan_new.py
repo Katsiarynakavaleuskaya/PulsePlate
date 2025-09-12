@@ -30,9 +30,7 @@ def build_week(
         days.append(d.__dict__)
     # усредняем покрытие
     MICRO_KEYS = list(days[0]["coverage"].keys())
-    weekly_cov = {
-        k: round(sum(d["coverage"][k] for d in days) / 7.0, 1) for k in MICRO_KEYS
-    }
+    weekly_cov = {k: round(sum(d["coverage"][k] for d in days) / 7.0, 1) for k in MICRO_KEYS}
     shopping_list = fooddb.aggregate_shopping(days, lang)
     # Convert shopping list to dictionary format
     shopping_dict = {item["name"]: item["grams"] for item in shopping_list}

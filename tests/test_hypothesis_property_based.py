@@ -56,9 +56,7 @@ class TestBMIPropertyBased:
         category = bmi_category(bmi, "en")
 
         # Property: Category should be a valid string
-        assert isinstance(
-            category, str
-        ), f"Category should be string, got {type(category)}"
+        assert isinstance(category, str), f"Category should be string, got {type(category)}"
         assert len(category) > 0, "Category should not be empty"
 
         # Property: Category should be a valid string (localized)
@@ -88,9 +86,7 @@ class TestBMIPropertyBased:
                 "overweight" in category.lower() or "over" in category.lower()
             ), f"BMI {bmi} should indicate overweight, got {category}"
         else:  # bmi >= 30
-            assert (
-                "obese" in category.lower()
-            ), f"BMI {bmi} should indicate obese, got {category}"
+            assert "obese" in category.lower(), f"BMI {bmi} should indicate obese, got {category}"
 
 
 class TestLifeStageWarningsPropertyBased:
@@ -106,21 +102,15 @@ class TestLifeStageWarningsPropertyBased:
         warnings = _life_stage_warnings(age, life_stage, lang)
 
         # Property 1: Warnings should be a list
-        assert isinstance(
-            warnings, list
-        ), f"Warnings should be list, got {type(warnings)}"
+        assert isinstance(warnings, list), f"Warnings should be list, got {type(warnings)}"
 
         # Property 2: Each warning should have required structure
         for warning in warnings:
-            assert isinstance(
-                warning, dict
-            ), f"Warning should be dict, got {type(warning)}"
+            assert isinstance(warning, dict), f"Warning should be dict, got {type(warning)}"
             assert "code" in warning, "Warning should have 'code' field"
             assert "message" in warning, "Warning should have 'message' field"
             assert isinstance(warning["code"], str), "Warning code should be string"
-            assert isinstance(
-                warning["message"], str
-            ), "Warning message should be string"
+            assert isinstance(warning["message"], str), "Warning message should be string"
             assert len(warning["code"]) > 0, "Warning code should not be empty"
             assert len(warning["message"]) > 0, "Warning message should not be empty"
 
@@ -219,11 +209,7 @@ class TestDataValidationPropertyBased:
                     len(value) <= 100
                 ), f"List value for {key} should not be too large: {len(value)}"
 
-    @given(
-        numbers=st.lists(
-            st.floats(min_value=0.1, max_value=1000.0), min_size=1, max_size=50
-        )
-    )
+    @given(numbers=st.lists(st.floats(min_value=0.1, max_value=1000.0), min_size=1, max_size=50))
     def test_nutrition_calculations_properties(self, numbers):
         """Test properties of nutrition calculations."""
         # Property 1: Sum should be positive
@@ -232,9 +218,7 @@ class TestDataValidationPropertyBased:
 
         # Property 2: Average should be within bounds
         average = total / len(numbers)
-        assert (
-            0.1 <= average <= 1000.0
-        ), f"Average should be within bounds, got {average}"
+        assert 0.1 <= average <= 1000.0, f"Average should be within bounds, got {average}"
 
         # Property 3: All individual values should be positive
         for num in numbers:
@@ -250,9 +234,7 @@ class TestEdgeCasesPropertyBased:
         percentage = value * 100
 
         # Property 1: Percentage should be between 0 and 100
-        assert (
-            0.0 <= percentage <= 100.0
-        ), f"Percentage should be 0-100, got {percentage}"
+        assert 0.0 <= percentage <= 100.0, f"Percentage should be 0-100, got {percentage}"
 
         # Property 2: Converting back should give original value
         original = percentage / 100

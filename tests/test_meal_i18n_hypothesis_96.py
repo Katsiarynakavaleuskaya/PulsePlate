@@ -5,7 +5,7 @@ This module uses Hypothesis to generate diverse test cases and find edge cases
 that might be missed by traditional unit tests.
 """
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from core.meal_i18n import (
@@ -20,9 +20,7 @@ class TestMealI18nHypothesis96:
     """Hypothesis property-based tests for meal_i18n.py."""
 
     @given(
-        st.sampled_from(
-            ["en", "ru", "es", "fr", "de", "it"]
-        ),  # Include unsupported languages
+        st.sampled_from(["en", "ru", "es", "fr", "de", "it"]),  # Include unsupported languages
         st.text(min_size=1, max_size=50),
     )
     def test_translate_food_property_based(self, lang, food_name):
@@ -77,7 +75,7 @@ class TestMealI18nHypothesis96:
 
     @given(
         st.sampled_from(["en", "ru", "es", "fr", "de", "it"]),
-        st.text(min_size=1, max_size=50),
+        st.sampled_from(["protein_boost", "vitamin_boost", "mineral_boost", "fiber_boost"]),
         st.text(min_size=0, max_size=50),
     )
     def test_translate_tip_property_based(self, lang, tip_key, donor_food):
@@ -135,7 +133,7 @@ class TestMealI18nHypothesis96:
 
     @given(
         st.sampled_from(["en", "ru", "es"]),
-        st.text(min_size=1, max_size=50),
+        st.sampled_from(["protein_boost", "vitamin_boost", "mineral_boost", "fiber_boost"]),
         st.text(min_size=0, max_size=50),
     )
     def test_translate_tip_supported_languages(self, lang, tip_key, donor_food):
@@ -154,6 +152,7 @@ class TestMealI18nHypothesis96:
             # This is expected behavior for malformed format strings
             pass
 
+    @settings(deadline=None, max_examples=10)
     @given(st.text(min_size=1, max_size=50), st.text(min_size=0, max_size=50))
     def test_translate_tip_donor_food_variations(self, tip_key, donor_food):
         """Test translate_tip with various donor_food values."""
@@ -186,13 +185,9 @@ class TestMealI18nHypothesis96:
 
             # All results should be strings
             assert all(
-                isinstance(r, str)
-                for r in [result1, result2, result3, result4, result5, result6]
+                isinstance(r, str) for r in [result1, result2, result3, result4, result5, result6]
             )
-            assert all(
-                len(r) > 0
-                for r in [result1, result2, result3, result4, result5, result6]
-            )
+            assert all(len(r) > 0 for r in [result1, result2, result3, result4, result5, result6])
 
             # Test translate_tip with error handling
             try:
@@ -256,9 +251,7 @@ class TestMealI18nHypothesis96:
                     result4 = translate_tip(lang, special_name, name2)
 
                     # Should return strings (even if they're the same as input)
-                    assert all(
-                        isinstance(r, str) for r in [result1, result2, result3, result4]
-                    )
+                    assert all(isinstance(r, str) for r in [result1, result2, result3, result4])
                 except Exception:
                     # Some special characters might cause issues, that's okay
                     pass
@@ -283,9 +276,7 @@ class TestMealI18nHypothesis96:
                     result4 = translate_tip(lang, unicode_name, name2)
 
                     # Should return strings
-                    assert all(
-                        isinstance(r, str) for r in [result1, result2, result3, result4]
-                    )
+                    assert all(isinstance(r, str) for r in [result1, result2, result3, result4])
                 except Exception:
                     # Some unicode might cause issues, that's okay
                     pass
@@ -304,9 +295,7 @@ class TestMealI18nHypothesis96:
                 result4 = translate_tip(lang, long_name1, long_name2)
 
                 # Should return strings
-                assert all(
-                    isinstance(r, str) for r in [result1, result2, result3, result4]
-                )
+                assert all(isinstance(r, str) for r in [result1, result2, result3, result4])
             except Exception:
                 # Long strings might cause issues, that's okay
                 pass

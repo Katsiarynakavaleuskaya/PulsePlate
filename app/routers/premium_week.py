@@ -17,7 +17,7 @@ from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
 from core.weekly_plan_new import build_week
 
-router = APIRouter(prefix="/api/v1/premium/plan", tags=["premium"])
+router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
 
 class TargetsIn(BaseModel):
@@ -87,7 +87,7 @@ def estimate_targets_minimal(
     }
 
 
-@router.post("/week", response_model=WeekPlanResponse)
+@router.post("/plan/week-flexible", response_model=WeekPlanResponse)
 async def generate_week_plan(req: WeekPlanRequest):
     # 0) Загрузка БД (можно держать как синглтоны)
     fooddb = FoodDB("data/food_db_new.csv")

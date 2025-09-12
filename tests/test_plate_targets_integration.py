@@ -204,9 +204,7 @@ def test_plate_targets_life_stage_warnings():
     assert "pregnant" in warning_codes
 
     # Generate plate (should work despite warnings)
-    plate_payload = {
-        k: v for k, v in payload.items() if k not in ["life_stage", "lang"]
-    }
+    plate_payload = {k: v for k, v in payload.items() if k not in ["life_stage", "lang"]}
     plate_resp = client.post(
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )

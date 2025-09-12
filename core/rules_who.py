@@ -268,9 +268,7 @@ def get_compact_micronutrient_rda(sex: Sex) -> Dict[str, float]:
     return COMPACT_MICRONUTRIENT_RDA[sex].copy()
 
 
-def get_micronutrient_rda(
-    sex: Sex, age: int, life_stage: LifeStage = "adult"
-) -> Dict[str, float]:
+def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -> Dict[str, float]:
     """
     RU: Получает рекомендуемые дневные нормы микронутриентов.
     EN: Gets recommended daily allowances for micronutrients.
@@ -344,9 +342,7 @@ def calculate_hydration_target(
     return target_ml
 
 
-def validate_macro_distribution(
-    protein_pct: float, fat_pct: float, carbs_pct: float
-) -> bool:
+def validate_macro_distribution(protein_pct: float, fat_pct: float, carbs_pct: float) -> bool:
     """
     RU: Проверяет, соответствует ли распределение макросов рекомендациям ВОЗ.
     EN: Validates if macro distribution meets WHO guidelines.
@@ -359,9 +355,7 @@ def validate_macro_distribution(
         return False
 
     # Check individual ranges
-    if not (
-        ranges["protein_percent"][0] <= protein_pct <= ranges["protein_percent"][1]
-    ):
+    if not (ranges["protein_percent"][0] <= protein_pct <= ranges["protein_percent"][1]):
         return False
     if not (ranges["fat_percent"][0] <= fat_pct <= ranges["fat_percent"][1]):
         return False
@@ -376,9 +370,7 @@ def get_fiber_target(total_calories: int) -> int:
     RU: Рассчитывает целевое потребление клетчатки по калориям.
     EN: Calculates fiber target based on total calories.
     """
-    return int(
-        (total_calories / 1000) * WHO_MACRONUTRIENT_RANGES["fiber_g_per_1000_cal"]
-    )
+    return int((total_calories / 1000) * WHO_MACRONUTRIENT_RANGES["fiber_g_per_1000_cal"])
 
 
 # Priority nutrients for deficiency monitoring

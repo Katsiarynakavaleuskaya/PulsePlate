@@ -288,9 +288,7 @@ class ProductFinder:
             logger.error(f"Failed to add {search_result.product_name}: {e}")
             return False
 
-    def _convert_to_food_item(
-        self, food_record: FoodRecord, product_name: str
-    ) -> FoodItem:
+    def _convert_to_food_item(self, food_record: FoodRecord, product_name: str) -> FoodItem:
         """
         RU: Конвертировать FoodRecord в FoodItem.
         EN: Convert FoodRecord to FoodItem.

@@ -46,10 +46,7 @@ class TestSpanishEndToEndSmoke:
         bmi_result = bmi_response.json()
 
         # Check that the response contains Spanish text
-        assert (
-            "Peso normal" in bmi_result["category"]
-            or "normal" in bmi_result["category"].lower()
-        )
+        assert "Peso normal" in bmi_result["category"] or "normal" in bmi_result["category"].lower()
         assert bmi_result["bmi"] == 22.9
 
         # 2. Test BodyFat calculation with Spanish language

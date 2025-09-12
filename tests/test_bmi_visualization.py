@@ -130,9 +130,9 @@ def test_bmi_visualization_with_matplotlib_success():
 
             # Mock the visualizer instance
             mock_visualizer = Mock()
-            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(
-                test_data
-            ).decode("utf-8")
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(test_data).decode(
+                "utf-8"
+            )
             mock_visualizer_class.return_value = mock_visualizer
 
             with patch("io.BytesIO", return_value=mock_buffer):
@@ -253,9 +253,7 @@ def test_bmi_visualization_chart_creation_methods():
             # Test guidance chart creation
             mock_ax.reset_mock()
             mock_ax.bar.return_value = mock_bars  # Reset the return value
-            visualizer._create_guidance_chart(
-                mock_ax, 22.0, 30, "male", "general", "en"
-            )
+            visualizer._create_guidance_chart(mock_ax, 22.0, 30, "male", "general", "en")
             # Verify that bar method was called
             assert mock_ax.bar.called
             assert mock_ax.set_ylabel.called
@@ -497,9 +495,7 @@ def test_bmi_visualization_endpoint_with_api_key():
     # Mock at the app level to bypass all the bmi_visualization internal checks
     import app
 
-    original_generate_bmi_visualization = getattr(
-        app, "generate_bmi_visualization", None
-    )
+    original_generate_bmi_visualization = getattr(app, "generate_bmi_visualization", None)
     original_matplotlib_available = getattr(app, "MATPLOTLIB_AVAILABLE", None)
 
     # Temporarily replace the function and flag at the app module level
@@ -558,9 +554,9 @@ def test_bmi_visualization_base64_encoding():
 
             # Mock the visualizer instance
             mock_visualizer = Mock()
-            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(
-                test_data
-            ).decode("utf-8")
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(test_data).decode(
+                "utf-8"
+            )
             mock_visualizer_class.return_value = mock_visualizer
 
             with patch("io.BytesIO", return_value=mock_buffer):

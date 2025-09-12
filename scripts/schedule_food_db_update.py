@@ -51,9 +51,7 @@ def update_food_database():
             logger.debug(f"Output: {result.stdout}")
             return True
         else:
-            logger.error(
-                f"Food database update failed with return code {result.returncode}"
-            )
+            logger.error(f"Food database update failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
 

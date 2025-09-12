@@ -25,9 +25,7 @@ def test_plate_endpoint_has_day_micros():
         "goal": "maintain",
     }
 
-    resp = client.post(
-        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -46,9 +44,7 @@ def test_day_micros_aggregation():
         "goal": "maintain",
     }
 
-    resp = client.post(
-        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -83,9 +79,7 @@ def test_meals_contain_micros():
         "goal": "maintain",
     }
 
-    resp = client.post(
-        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -125,9 +119,7 @@ def test_day_micros_calculation():
         "goal": "maintain",
     }
 
-    resp = client.post(
-        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -165,9 +157,7 @@ def test_plate_endpoint_with_different_goals():
             **case,
         }
 
-        resp = client.post(
-            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
         assert resp.status_code == 200
 
         data = resp.json()

@@ -223,6 +223,23 @@ def translate_tip(lang: Language, tip_key: str, donor_food: str = "") -> str:
     tip_template = translations.get(tip_key, tip_key)
 
     # Translate the donor food name
-    translated_donor = translate_food(lang, donor_food) if donor_food else donor_food
+    translated_donor = translate_food(lang, donor_food) if donor_food else ""
 
-    return tip_template.format(translated_donor)
+    # When donor is empty but template expects a placeholder, ensure non-empty fallback
+    fallback_by_lang = {
+        "en": "ingredient",
+        "ru": "продукт",
+        "es": "alimento",
+    }
+    value = translated_donor or fallback_by_lang.get(lang, "item")
+
+    # Only attempt formatting if template contains braces; otherwise return as-is
+    if "{" in tip_template and "}" in tip_template:
+        try:
+            formatted = tip_template.format(value)
+        except (IndexError, KeyError, ValueError):
+            # Malformed format string; return template as a safe, non-empty fallback
+            return tip_template or value
+        # Ensure non-empty output even for edge cases like "{}" with empty donor
+        return formatted if formatted else value
+    return tip_template

@@ -213,11 +213,11 @@ button:hover {
   .results-section {
     grid-template-columns: 1fr;
   }
-  
+
   .app {
     padding: 0.5rem;
   }
-  
+
   .input-section,
   .plate-visualization {
     padding: 1rem;

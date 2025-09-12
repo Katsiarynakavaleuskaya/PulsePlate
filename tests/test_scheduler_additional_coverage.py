@@ -48,14 +48,10 @@ class TestSchedulerAdditionalCoverage:
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 
             # Mock _run_update_check to raise CancelledError
-            scheduler._run_update_check = AsyncMock(
-                side_effect=asyncio.CancelledError()
-            )
+            scheduler._run_update_check = AsyncMock(side_effect=asyncio.CancelledError())
 
             # Mock asyncio.sleep to avoid waiting
-            with patch(
-                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
-            ):
+            with patch("core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock):
                 # Should not crash
                 await scheduler._update_loop()
 
@@ -77,9 +73,7 @@ class TestSchedulerAdditionalCoverage:
             scheduler._run_update_check = AsyncMock(side_effect=Exception("Test error"))
 
             # Mock asyncio.sleep to control execution
-            with patch(
-                "core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock
-            ):
+            with patch("core.food_apis.scheduler.asyncio.sleep", new_callable=AsyncMock):
                 # Create a task to run the loop
                 loop_task = asyncio.create_task(scheduler._update_loop())
 
@@ -99,9 +93,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
-        scheduler.update_manager.check_for_updates = AsyncMock(
-            side_effect=Exception("Test error")
-        )
+        scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
 
         # Should not crash
         await scheduler._run_update_check()
@@ -112,9 +104,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
-        scheduler.update_manager.update_database = AsyncMock(
-            side_effect=Exception("Test error")
-        )
+        scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
 
         # Should handle the exception gracefully
         await scheduler._run_source_update("test_source")
@@ -207,9 +197,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates
-        scheduler.update_manager.check_for_updates = AsyncMock(
-            return_value={"test_source": True}
-        )
+        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"test_source": True})
 
         # Mock update_manager.update_database
         mock_result = UpdateResult(

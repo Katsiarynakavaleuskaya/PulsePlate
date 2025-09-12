@@ -86,9 +86,7 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_low(self):
         """Test deficit percentage validation - too low."""
-        with pytest.raises(
-            ValueError, match="Deficit percentage must be between 5-25%"
-        ):
+        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
             UserProfile(
                 sex="female",
                 age=25,
@@ -101,9 +99,7 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_high(self):
         """Test deficit percentage validation - too high."""
-        with pytest.raises(
-            ValueError, match="Deficit percentage must be between 5-25%"
-        ):
+        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
             UserProfile(
                 sex="female",
                 age=25,
@@ -116,9 +112,7 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_low(self):
         """Test surplus percentage validation - too low."""
-        with pytest.raises(
-            ValueError, match="Surplus percentage must be between 5-20%"
-        ):
+        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
             UserProfile(
                 sex="male",
                 age=25,
@@ -131,9 +125,7 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_high(self):
         """Test surplus percentage validation - too high."""
-        with pytest.raises(
-            ValueError, match="Surplus percentage must be between 5-20%"
-        ):
+        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
             UserProfile(
                 sex="male",
                 age=25,
@@ -269,9 +261,7 @@ class TestNutritionTargets:
         # Create consistent targets (macros match calories)
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(
-                protein_g=120, fat_g=67, carbs_g=250, fiber_g=28
-            ),  # ~1867 kcal
+            macros=MacroTargets(protein_g=120, fat_g=67, carbs_g=250, fiber_g=28),  # ~1867 kcal
             water_ml_daily=2500,
             micros=MicroTargets(
                 iron_mg=15.0,
@@ -314,9 +304,7 @@ class TestNutritionTargets:
         # Create inconsistent targets (macros don't match calories)
         targets = NutritionTargets(
             kcal_daily=2000,
-            macros=MacroTargets(
-                protein_g=200, fat_g=100, carbs_g=400, fiber_g=40
-            ),  # ~3100 kcal
+            macros=MacroTargets(protein_g=200, fat_g=100, carbs_g=400, fiber_g=40),  # ~3100 kcal
             water_ml_daily=2500,
             micros=MicroTargets(
                 iron_mg=15.0,

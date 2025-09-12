@@ -157,9 +157,7 @@ class ProductVarietiesManager:
                             K_mg=float(row.get("K_mg", 0)),
                             Mg_mg=float(row.get("Mg_mg", 0)),
                             flags=(
-                                set(row.get("flags", "").split(","))
-                                if row.get("flags")
-                                else set()
+                                set(row.get("flags", "").split(",")) if row.get("flags") else set()
                             ),
                             notes=row.get("notes", ""),
                         )
@@ -212,9 +210,7 @@ class ProductVarietiesManager:
             # Выбираем сорт с наиболее сбалансированным составом
             return min(
                 varieties,
-                key=lambda v: abs(v.protein_g - 15)
-                + abs(v.fat_g - 10)
-                + abs(v.sugar_g - 5),
+                key=lambda v: abs(v.protein_g - 15) + abs(v.fat_g - 10) + abs(v.sugar_g - 5),
             )
         elif criteria == "low_sugar":
             return min(varieties, key=lambda v: v.sugar_g)
@@ -246,17 +242,13 @@ class ProductVarietiesManager:
 
         filtered = varieties
         if variety_name:
-            filtered = [
-                v for v in filtered if variety_name.lower() in v.variety.lower()
-            ]
+            filtered = [v for v in filtered if variety_name.lower() in v.variety.lower()]
         if brand:
             filtered = [v for v in filtered if brand.lower() in v.brand.lower()]
 
         return filtered
 
-    def get_nutritional_comparison(
-        self, product_name: str
-    ) -> Dict[str, Dict[str, float]]:
+    def get_nutritional_comparison(self, product_name: str) -> Dict[str, Dict[str, float]]:
         """
         RU: Получить сравнение питательной ценности сортов продукта.
         EN: Get nutritional comparison of product varieties.
@@ -347,9 +339,7 @@ class ProductVarietiesManager:
         # Для нескольких вариантов выбираем наиболее сбалансированный
         return min(
             filtered,
-            key=lambda v: abs(v.protein_g - 15)
-            + abs(v.fat_g - 10)
-            + abs(v.sugar_g - 5),
+            key=lambda v: abs(v.protein_g - 15) + abs(v.fat_g - 10) + abs(v.sugar_g - 5),
         )
 
     def get_all_products(self) -> List[str]:
@@ -372,9 +362,7 @@ class ProductVarietiesManager:
         """
         total_products = len(self.varieties)
         total_varieties = sum(len(varieties) for varieties in self.varieties.values())
-        avg_varieties_per_product = (
-            total_varieties / total_products if total_products > 0 else 0
-        )
+        avg_varieties_per_product = total_varieties / total_products if total_products > 0 else 0
 
         return {
             "total_products": total_products,

@@ -66,9 +66,7 @@ class TestAPISpanish:
             "lang": "es",
         }
 
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422
 
         result = response.json()
@@ -98,6 +96,4 @@ class TestAPISpanish:
         assert "category" in result
 
         # Check that the summary is in Spanish
-        assert (
-            "plan" in result["summary"].lower() or "plan" in result["summary"].lower()
-        )
+        assert "plan" in result["summary"].lower() or "plan" in result["summary"].lower()

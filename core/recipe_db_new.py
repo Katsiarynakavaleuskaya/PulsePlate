@@ -47,11 +47,7 @@ class RecipeDB:
                 for pair in row["ingredients"].split(";"):
                     name, grams = pair.split(":")
                     ings[name.strip()] = float(grams)
-                tags = [
-                    x.strip()
-                    for x in (row.get("tags", "") or "").split(";")
-                    if x.strip()
-                ]
+                tags = [x.strip() for x in (row.get("tags", "") or "").split(";") if x.strip()]
                 self.recipes.append(Recipe(row["name"], row["meal"], ings, tags))
 
     def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Recipe:
@@ -59,15 +55,11 @@ class RecipeDB:
         meal_map = ["breakfast", "lunch", "dinner", "snack"]
         target = meal_map[meal_index % len(meal_map)]
         candidates = [
-            r
-            for r in self.recipes
-            if r.meal == target and self._compatible(r.tags, diet_flags)
+            r for r in self.recipes if r.meal == target and self._compatible(r.tags, diet_flags)
         ]
         if not candidates:
             # fallback: любой с совместимыми флагами
-            candidates = [
-                r for r in self.recipes if self._compatible(r.tags, diet_flags)
-            ]
+            candidates = [r for r in self.recipes if self._compatible(r.tags, diet_flags)]
         return random.choice(candidates) if candidates else None
 
     def _compatible(self, recipe_flags: List[str], diet_flags: List[str]) -> bool:
@@ -79,9 +71,7 @@ class RecipeDB:
             return False
         return True
 
-    def _nutrition_for(
-        self, grams_map: Dict[str, float]
-    ) -> Dict[str, Dict[str, float]]:
+    def _nutrition_for(self, grams_map: Dict[str, float]) -> Dict[str, Dict[str, float]]:
         kcal = 0.0
         macros = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
         micros = {k: 0.0 for k in MICRO_KEYS}
