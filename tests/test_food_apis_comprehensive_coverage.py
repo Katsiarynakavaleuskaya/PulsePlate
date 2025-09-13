@@ -1099,10 +1099,7 @@ class TestDatabaseUpdateManagerComprehensive:
     @pytest.mark.asyncio
     async def test_run_scheduled_update(self):
         """Test run_scheduled_update convenience function."""
-        from core.food_apis.update_manager import (
-            DatabaseUpdateManager,
-            run_scheduled_update,
-        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, run_scheduled_update
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)

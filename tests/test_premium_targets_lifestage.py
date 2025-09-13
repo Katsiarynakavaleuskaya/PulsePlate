@@ -3,6 +3,7 @@
 RU: Тест предупреждений по жизненным этапам для /api/v1/premium/targets.
 EN: Test life stage warnings for /api/v1/premium/targets.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import importlib
+import os
 import sys
 from unittest.mock import patch
 
@@ -317,28 +318,48 @@ def test_compute_wht_ratio_round_exception():
 
 
 def test_v1_bmi_invalid_api_key():
-    r = client.post(
-        "/api/v1/bmi",
-        json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-        headers={"X-API-Key": "wrong_key"},
-    )
-    assert r.status_code == 403
-    data = r.json()
-    assert "Invalid API Key" in data["detail"]
+    # Устанавливаем API_KEY в environment чтобы валидация работала
+    os.environ["API_KEY"] = "valid_key"
+    try:
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70, "height_cm": 170, "group": "general"},
+            headers={"X-API-Key": "wrong_key"},
+        )
+        assert r.status_code == 403
+        data = r.json()
+        assert "Invalid API Key" in data["detail"]
+    finally:
+        # Очищаем API_KEY после теста
+        if "API_KEY" in os.environ:
+            del os.environ["API_KEY"]
 
 
 def test_v1_bmi_no_api_key():
-    r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
-    assert r.status_code == 403
-    data = r.json()
-    assert "Invalid API Key" in data["detail"]
+    # Устанавливаем API_KEY для активации валидации
+    os.environ["API_KEY"] = "valid_key"
+    try:
+        r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
+        assert r.status_code == 403
+        data = r.json()
+        assert "Invalid API Key" in data["detail"]
+    finally:
+        if "API_KEY" in os.environ:
+            del os.environ["API_KEY"]
 
 
 def test_v1_insight_invalid_api_key():
-    r = client.post("/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"})
-    assert r.status_code == 403
-    data = r.json()
-    assert "Invalid API Key" in data["detail"]
+    os.environ["API_KEY"] = "valid_key"
+    try:
+        r = client.post(
+            "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "wrong_key"}
+        )
+        assert r.status_code == 403
+        data = r.json()
+        assert "Invalid API Key" in data["detail"]
+    finally:
+        if "API_KEY" in os.environ:
+            del os.environ["API_KEY"]
 
 
 def test_slowapi_import_failure():

@@ -2,6 +2,7 @@
 """
 Тесты для покрытия недостающих строк в app/routers/premium_week.py
 """
+
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient

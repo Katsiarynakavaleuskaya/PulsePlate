@@ -3,6 +3,7 @@
 RU: Доступ к RecipeDB (SQLite) — поиск и карточка.
 EN: Access to RecipeDB (SQLite) — search and details.
 """
+
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional

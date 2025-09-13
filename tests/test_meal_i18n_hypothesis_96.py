@@ -8,12 +8,7 @@ that might be missed by traditional unit tests.
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from core.meal_i18n import (
-    translate_food,
-    translate_meal_type,
-    translate_recipe,
-    translate_tip,
-)
+from core.meal_i18n import translate_food, translate_meal_type, translate_recipe, translate_tip
 
 
 class TestMealI18nHypothesis96:

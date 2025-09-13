@@ -5,7 +5,6 @@ Tests BMI calculations, body fat estimates, and insight generation
 with random inputs.
 """
 
-
 import pytest
 from fastapi.testclient import TestClient
 

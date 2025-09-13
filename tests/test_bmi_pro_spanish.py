@@ -2,11 +2,7 @@
 Tests for BMI Pro features with Spanish language support.
 """
 
-from core.bmi_extras import (
-    interpret_whr_ratio,
-    interpret_wht_ratio,
-    stage_obesity,
-)
+from core.bmi_extras import interpret_whr_ratio, interpret_wht_ratio, stage_obesity
 
 
 class TestBMIProSpanish:

@@ -11,11 +11,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.food_apis.unified_db import UnifiedFoodItem
-from core.food_apis.update_manager import (
-    DatabaseUpdateManager,
-    DatabaseVersion,
-    UpdateResult,
-)
+from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion, UpdateResult
 
 
 class TestUpdateManagerFinalCoverage:

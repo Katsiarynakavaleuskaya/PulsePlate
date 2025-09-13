@@ -20,9 +20,10 @@ class TestDailyPlateSimple96:
 
     def test_create_daily_plate_food_db_none(self):
         """Test create_daily_plate when food_db is None - line 44."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+        ):
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -41,9 +42,10 @@ class TestDailyPlateSimple96:
 
     def test_create_daily_plate_recipe_db_none(self):
         """Test create_daily_plate when recipe_db is None - line 46."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+        ):
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db

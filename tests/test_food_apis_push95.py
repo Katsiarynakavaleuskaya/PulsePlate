@@ -39,11 +39,7 @@ def test_usda_client_parse_exception_branch():
 
 
 def test_usda_common_foods_database():
-    from core.food_apis.usda_client import (
-        USDAClient,
-        USDAFoodItem,
-        get_common_foods_database,
-    )
+    from core.food_apis.usda_client import USDAClient, USDAFoodItem, get_common_foods_database
 
     async def _search(self, q: str, page_size: int = 5):
         return [

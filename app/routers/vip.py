@@ -5,6 +5,7 @@ VIP Module Router
 RU: Роутер для VIP функций - микронутриентные цели, авто-ремонт меню, списки покупок
 EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping lists
 """
+
 from typing import Any, Dict
 
 from fastapi import APIRouter

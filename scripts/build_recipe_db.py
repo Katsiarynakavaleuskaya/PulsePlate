@@ -3,6 +3,7 @@
 RU: Сборка RecipeDB из CSV → recipes.sqlite/parquet с расчётом на порцию.
 EN: Build RecipeDB from CSV → recipes.sqlite/parquet with per-serving compute.
 """
+
 import json
 import sqlite3
 from datetime import date

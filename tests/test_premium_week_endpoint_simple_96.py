@@ -17,11 +17,12 @@ class TestPremiumWeekEndpointSimple96:
         """Test generate_week_plan with provided targets - lines 93-117."""
         client = TestClient(app)
 
-        with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
-            "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
-            "app.routers.premium_week.build_week"
-        ) as mock_build_week:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_api_key"}),
+            patch("app.routers.premium_week.FoodDB") as mock_fooddb,
+            patch("app.routers.premium_week.RecipeDB") as mock_recipedb,
+            patch("app.routers.premium_week.build_week") as mock_build_week,
+        ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -64,11 +65,13 @@ class TestPremiumWeekEndpointSimple96:
         """Test generate_week_plan with user profile - lines 93-117."""
         client = TestClient(app)
 
-        with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
-            "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
-            "app.routers.premium_week.estimate_targets_minimal"
-        ) as mock_estimate, patch("app.routers.premium_week.build_week") as mock_build_week:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_api_key"}),
+            patch("app.routers.premium_week.FoodDB") as mock_fooddb,
+            patch("app.routers.premium_week.RecipeDB") as mock_recipedb,
+            patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+            patch("app.routers.premium_week.build_week") as mock_build_week,
+        ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -120,9 +123,11 @@ class TestPremiumWeekEndpointSimple96:
         """Test generate_week_plan with missing profile data - lines 101-102."""
         client = TestClient(app)
 
-        with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
-            "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_api_key"}),
+            patch("app.routers.premium_week.FoodDB") as mock_fooddb,
+            patch("app.routers.premium_week.RecipeDB") as mock_recipedb,
+        ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()
@@ -153,11 +158,12 @@ class TestPremiumWeekEndpointSimple96:
         """Test generate_week_plan when unable to derive targets - lines 112-113."""
         client = TestClient(app)
 
-        with patch.dict(os.environ, {"API_KEY": "test_api_key"}), patch(
-            "app.routers.premium_week.FoodDB"
-        ) as mock_fooddb, patch("app.routers.premium_week.RecipeDB") as mock_recipedb, patch(
-            "app.routers.premium_week.estimate_targets_minimal"
-        ) as mock_estimate:
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_api_key"}),
+            patch("app.routers.premium_week.FoodDB") as mock_fooddb,
+            patch("app.routers.premium_week.RecipeDB") as mock_recipedb,
+            patch("app.routers.premium_week.estimate_targets_minimal") as mock_estimate,
+        ):
             # Mock database objects
             mock_fooddb.return_value = Mock()
             mock_recipedb.return_value = Mock()

@@ -14,12 +14,7 @@ class TestMissingCoverage:
     def test_app_imports(self):
         """Тест импортов app.py"""
         # Проверяем, что все импорты работают
-        from app import (
-            MATPLOTLIB_AVAILABLE,
-            TYPE_CHECKING,
-            VIP_MODULE_ENABLED,
-            slowapi_available,
-        )
+        from app import MATPLOTLIB_AVAILABLE, TYPE_CHECKING, VIP_MODULE_ENABLED, slowapi_available
 
         assert isinstance(VIP_MODULE_ENABLED, bool)
         assert isinstance(MATPLOTLIB_AVAILABLE, bool)

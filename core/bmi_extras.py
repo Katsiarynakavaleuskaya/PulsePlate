@@ -199,7 +199,7 @@ def stage_obesity(
     if risk_factors >= 2:
         stage = "high_risk"
         recommendation = (
-            "Consider consulting with a healthcare professional for " "comprehensive assessment"
+            "Consider consulting with a healthcare professional for comprehensive assessment"
         )
     elif risk_factors == 1:
         stage = "moderate_risk"

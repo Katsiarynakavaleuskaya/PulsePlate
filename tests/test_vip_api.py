@@ -5,6 +5,7 @@ VIP API Tests
 RU: Тесты для VIP API эндпоинтов
 EN: Tests for VIP API endpoints
 """
+
 from fastapi.testclient import TestClient
 
 import app as app_module

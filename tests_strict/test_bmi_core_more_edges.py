@@ -1,12 +1,7 @@
 # -*- coding: utf-8 -*-
 """Маленькие edge-тесты, которые добивают покрытие до ~99–100% при нашей версии ядра."""
 
-from bmi_core import (
-    bmi_value,
-    build_premium_plan,
-    estimate_level,
-    healthy_bmi_range,
-)
+from bmi_core import bmi_value, build_premium_plan, estimate_level, healthy_bmi_range
 
 
 def test_estimate_level_beginner_en():

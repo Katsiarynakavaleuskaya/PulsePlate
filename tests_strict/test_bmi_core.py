@@ -9,10 +9,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import pytest  # noqa: E402
 
-from bmi_core import (  # noqa: E402
+from bmi_core import bmi_value  # noqa: E402
+from bmi_core import (
     auto_group,
     bmi_category,
-    bmi_value,
     build_premium_plan,
     compute_wht_ratio,
     estimate_level,

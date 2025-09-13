@@ -2,6 +2,7 @@
 """
 Тесты для покрытия недостающих строк в app/services/food_store.py
 """
+
 from unittest.mock import MagicMock, patch
 
 from app.services.food_store import expand_query, get_food, nutrients_for, search_foods

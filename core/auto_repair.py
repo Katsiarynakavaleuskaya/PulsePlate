@@ -159,7 +159,7 @@ class AutoRepairEngine:
             status = RepairStatus.PARTIAL
             fixed = len(initial_gaps) - len(final_gaps)
             total = len(initial_gaps)
-            message = "Частичный ремонт: устранено " f"{fixed} из {total} дефицитов"
+            message = f"Частичный ремонт: устранено {fixed} из {total} дефицитов"
         else:
             status = RepairStatus.FAILED
             message = "Не удалось устранить дефициты автоматически"

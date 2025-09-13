@@ -246,14 +246,12 @@ PROFESSIONAL_REFERRALS = {
             "Registered Dietitian"
         ),
         "ru": (
-            "Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной "
-            "медицины, Диетолог"
+            "Рассмотрите консультацию: Спортивный нутрициолог, Врач спортивной медицины, Диетолог"
         ),
     },
     "pediatric": {
         "en": (
-            "Consider consulting: Pediatrician, Pediatric Dietitian, "
-            "Child Development Specialist"
+            "Consider consulting: Pediatrician, Pediatric Dietitian, Child Development Specialist"
         ),
         "ru": "Рассмотрите консультацию: Педиатр, Детский диетолог, Специалист по развитию детей",
     },

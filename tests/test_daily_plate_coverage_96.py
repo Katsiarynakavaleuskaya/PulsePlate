@@ -7,11 +7,7 @@ us from reaching 96% coverage.
 
 from unittest.mock import Mock, patch
 
-from core.daily_plate import (
-    create_daily_plate,
-    create_fallback_meal,
-    find_recipe_for_meal,
-)
+from core.daily_plate import create_daily_plate, create_fallback_meal, find_recipe_for_meal
 from core.food_db import FoodItem
 from core.recipe_db import Recipe
 
@@ -21,9 +17,11 @@ class TestDailyPlateCoverage96:
 
     def test_create_daily_plate_food_db_none(self):
         """Test create_daily_plate when food_db is None - line 44."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db, patch("core.daily_plate.create_meal") as mock_create_meal:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+            patch("core.daily_plate.create_meal") as mock_create_meal,
+        ):
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -43,9 +41,10 @@ class TestDailyPlateCoverage96:
 
     def test_create_daily_plate_recipe_db_none(self):
         """Test create_daily_plate when recipe_db is None - line 46."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+        ):
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
             mock_parse_food_db.return_value = mock_food_db
@@ -210,9 +209,10 @@ class TestDailyPlateCoverage96:
 
     def test_create_daily_plate_integration(self):
         """Test create_daily_plate integration with all components."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+        ):
             mock_food_db = {"apple": {"kcal": 52}}
             mock_recipe_db = {}
 
@@ -233,9 +233,10 @@ class TestDailyPlateCoverage96:
 
     def test_create_daily_plate_with_existing_databases(self):
         """Test create_daily_plate with existing food_db and recipe_db."""
-        with patch("core.daily_plate.parse_food_db") as mock_parse_food_db, patch(
-            "core.daily_plate.parse_recipe_db"
-        ) as mock_parse_recipe_db:
+        with (
+            patch("core.daily_plate.parse_food_db") as mock_parse_food_db,
+            patch("core.daily_plate.parse_recipe_db") as mock_parse_recipe_db,
+        ):
             mock_food_item = Mock(spec=FoodItem)
             mock_food_item.get_nutrient_amount.return_value = 10.0
             mock_food_db = {"apple": mock_food_item}
