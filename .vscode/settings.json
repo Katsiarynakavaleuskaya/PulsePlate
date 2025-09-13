@@ -39,6 +39,8 @@
   "ruff.lineLength": 100,
   "python.analysis.typeCheckingMode": "off",
   "cSpell.words": [
-    "команда"
+    "команда",
+    "gtin",
+    "isort"
   ]
 }

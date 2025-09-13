@@ -17,6 +17,7 @@ class TestCoverageBoost96:
     def setup_method(self):
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler with late import fallback."""

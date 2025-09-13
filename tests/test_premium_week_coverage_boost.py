@@ -117,7 +117,12 @@ class TestPremiumWeekCoverage:
         mock_build_targets.return_value = mock_targets
 
         result = estimate_targets_minimal(
-            sex="male", age=30, height_cm=180, weight_kg=75, activity="moderate", goal="maintain"
+            sex="male",
+            age=30,
+            height_cm=180,
+            weight_kg=75,
+            activity="moderate",
+            goal="maintain",
         )
 
         assert result["kcal"] == 2000
@@ -159,7 +164,9 @@ class TestPremiumWeekCoverage:
         }
 
         response = client.post(
-            "/api/v1/premium/plan/week", json=request_data, headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plan/week",
+            json=request_data,
+            headers={"X-API-Key": "test_key"},
         )
         # Accept both 200 and 422 as valid responses for coverage testing
         assert response.status_code in [200, 422]
@@ -209,7 +216,9 @@ class TestPremiumWeekCoverage:
         }
 
         response = client.post(
-            "/api/v1/premium/plan/week", json=request_data, headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plan/week",
+            json=request_data,
+            headers={"X-API-Key": "test_key"},
         )
         # Accept both 200 and 422 as valid responses for coverage testing
         assert response.status_code in [200, 422]
@@ -227,7 +236,9 @@ class TestPremiumWeekCoverage:
         }
 
         response = client.post(
-            "/api/v1/premium/plan/week", json=request_data, headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plan/week",
+            json=request_data,
+            headers={"X-API-Key": "test_key"},
         )
         # Accept both 400 and 422 as valid responses for coverage testing
         assert response.status_code in [400, 422]
@@ -250,7 +261,9 @@ class TestPremiumWeekCoverage:
         }
 
         response = client.post(
-            "/api/v1/premium/plan/week", json=request_data, headers={"X-API-Key": "test_key"}
+            "/api/v1/premium/plan/week",
+            json=request_data,
+            headers={"X-API-Key": "test_key"},
         )
         # Accept any response code for coverage testing
         assert response.status_code in [200, 400, 422]

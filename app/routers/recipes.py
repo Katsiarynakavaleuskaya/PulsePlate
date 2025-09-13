@@ -4,12 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.schemas.recipe import (
-    Recipe,
-    RecipePreviewRequest,
-    RecipePreviewResponse,
-    RecipeQueryHit,
-)
+from app.schemas.recipe import Recipe, RecipePreviewRequest, RecipePreviewResponse, RecipeQueryHit
 from app.services import recipe_store
 from app.services.food_store import nutrients_for
 

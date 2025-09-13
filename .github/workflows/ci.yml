@@ -1,4 +1,5 @@
 name: CI
+
 permissions:
   contents: read
 
@@ -8,56 +9,76 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+          cache: "pip"
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euxo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          if [[ -f requirements-dev.txt ]]; then
+            pip install -r requirements-dev.txt
+          elif [[ -f requirements.txt ]]; then
+            pip install -r requirements.txt
+          fi
+          # Ensure test tools available
+          pip install pytest pytest-cov pre-commit bandit
 
-      - name: Security scan with Bandit (non-blocking)
-        run: bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
+      - name: Pre-commit (lint/format/security quick checks)
+        run: pre-commit run --all-files --show-diff-on-failure
 
-      # Safety scan disabled due to typer compatibility issue
-      # See: https://github.com/pyupio/safety/issues/566
-      # - name: Security scan with Safety (non-blocking)
-      #   run: safety scan --output json > safety-report.json || true
-
-      - name: Run tests with coverage (97% required)
+      - name: Run tests with coverage
         env:
-          PYTHONPATH: .
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
           APP_ENV: ci
         run: |
-          pytest -q --maxfail=1 --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=97
+          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 -x
 
-      - name: Upload coverage.xml
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.python-version }}
+          name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
+          if-no-files-found: ignore
 
-      - name: Upload coverage to Codecov (non-blocking)
-        if: ${{ always() }}
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4
+      - name: Security scan with Bandit (non-blocking)
+        if: always()
+        run: |
+          bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
+        continue-on-error: true
+
+      - name: Upload bandit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          file: ./coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
+          name: bandit-report-${{ matrix.python-version }}
+          path: bandit-report.json
+          if-no-files-found: ignore
+
+      - name: Upload to Codecov (optional)
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
         continue-on-error: true

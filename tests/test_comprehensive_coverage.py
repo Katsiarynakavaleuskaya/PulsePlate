@@ -17,12 +17,15 @@ class TestComprehensiveCoverage:
     def setup_method(self):
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_debug_env_endpoint(self):
         """Test debug_env endpoint."""
@@ -200,108 +203,119 @@ class TestComprehensiveCoverage:
 
     def test_premium_plate_endpoint_success(self):
         """Test premium plate endpoint success case."""
-        with (
-            patch("app.make_plate") as mock_make_plate,
-            patch("app.calculate_all_bmr") as mock_calc_bmr,
-            patch("app.calculate_all_tdee") as mock_calc_tdee,
-        ):
-            mock_calc_bmr.return_value = {"mifflin": 1500}
-            mock_calc_tdee.return_value = {"mifflin": 2000}
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+        try:
+            with (
+                patch("app.make_plate") as mock_make_plate,
+                patch("app.calculate_all_bmr") as mock_calc_bmr,
+                patch("app.calculate_all_tdee") as mock_calc_tdee,
+            ):
+                mock_calc_bmr.return_value = {"mifflin": 1500}
+                mock_calc_tdee.return_value = {"mifflin": 2000}
 
-            mock_make_plate.return_value = {
-                "kcal": 2000,
-                "macros": {
-                    "protein_g": 100,
-                    "fat_g": 70,
-                    "carbs_g": 250,
-                    "fiber_g": 30,
-                },
-                "portions": {
-                    "protein_palm": 4.0,
-                    "carb_cups": 3.0,
-                    "veg_cups": 2.0,
-                    "fat_thumbs": 2.5,
-                },
-                "layout": [
-                    {
-                        "kind": "plate_sector",
-                        "fraction": 0.4,
-                        "label": "Carbs",
-                        "tooltip": "Energy source",
+                mock_make_plate.return_value = {
+                    "kcal": 2000,
+                    "macros": {
+                        "protein_g": 100,
+                        "fat_g": 70,
+                        "carbs_g": 250,
+                        "fiber_g": 30,
                     },
-                    {
-                        "kind": "plate_sector",
-                        "fraction": 0.3,
-                        "label": "Protein",
-                        "tooltip": "Muscle building",
+                    "portions": {
+                        "protein_palm": 4.0,
+                        "carb_cups": 3.0,
+                        "veg_cups": 2.0,
+                        "fat_thumbs": 2.5,
                     },
-                    {
-                        "kind": "plate_sector",
-                        "fraction": 0.2,
-                        "label": "Vegetables",
-                        "tooltip": "Vitamins & minerals",
-                    },
-                    {
-                        "kind": "plate_sector",
-                        "fraction": 0.1,
-                        "label": "Fats",
-                        "tooltip": "Essential fatty acids",
-                    },
-                ],
-                "meals": [
-                    {
-                        "name": "Breakfast",
-                        "kcal": 500,
-                        "macros": {"protein_g": 25, "fat_g": 15, "carbs_g": 60},
-                    },
-                    {
-                        "name": "Lunch",
-                        "kcal": 750,
-                        "macros": {"protein_g": 35, "fat_g": 25, "carbs_g": 90},
-                    },
-                ],
-            }
+                    "layout": [
+                        {
+                            "kind": "plate_sector",
+                            "fraction": 0.4,
+                            "label": "Carbs",
+                            "tooltip": "Energy source",
+                        },
+                        {
+                            "kind": "plate_sector",
+                            "fraction": 0.3,
+                            "label": "Protein",
+                            "tooltip": "Muscle building",
+                        },
+                        {
+                            "kind": "plate_sector",
+                            "fraction": 0.2,
+                            "label": "Vegetables",
+                            "tooltip": "Vitamins & minerals",
+                        },
+                        {
+                            "kind": "plate_sector",
+                            "fraction": 0.1,
+                            "label": "Fats",
+                            "tooltip": "Essential fatty acids",
+                        },
+                    ],
+                    "meals": [
+                        {
+                            "name": "Breakfast",
+                            "kcal": 500,
+                            "macros": {"protein_g": 25, "fat_g": 15, "carbs_g": 60},
+                        },
+                        {
+                            "name": "Lunch",
+                            "kcal": 750,
+                            "macros": {"protein_g": 35, "fat_g": 25, "carbs_g": 90},
+                        },
+                    ],
+                }
 
-            payload = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175,
-                "weight_kg": 70,
-                "activity": "moderate",
-                "goal": "maintain",
-            }
+                payload = {
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175,
+                    "weight_kg": 70,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                }
 
-            response = self.client.post(
-                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert "kcal" in data
-            assert "macros" in data
-            assert "portions" in data
+                response = self.client.post(
+                    "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert "kcal" in data
+                assert "macros" in data
+                assert "portions" in data
+        finally:
+            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+                del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_premium_plate_endpoint_value_error(self):
         """Test premium plate endpoint with ValueError."""
-        with patch("app.make_plate") as mock_make_plate:
-            mock_make_plate.side_effect = ValueError("Invalid input")
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+        try:
+            with patch("app.make_plate") as mock_make_plate:
+                mock_make_plate.side_effect = ValueError("Invalid input")
 
-            payload = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175,
-                "weight_kg": 70,
-                "activity": "moderate",
-                "goal": "maintain",
-            }
+                payload = {
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175,
+                    "weight_kg": 70,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                }
 
-            response = self.client.post(
-                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-            )
-            # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
-            assert response.status_code == 200
+                response = self.client.post(
+                    "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+                )
+                # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
+                assert response.status_code == 400
+        finally:
+            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+                del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_premium_plate_endpoint_general_exception(self):
         """Test premium plate endpoint with general exception."""
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.make_plate") as mock_make_plate:
             mock_make_plate.side_effect = Exception("Test error")
 
@@ -317,7 +331,7 @@ class TestComprehensiveCoverage:
             response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
-            assert response.status_code == 200
+            assert response.status_code == 500
 
     def test_who_targets_endpoint_success(self):
         """Test WHO targets endpoint success case."""
@@ -365,6 +379,7 @@ class TestComprehensiveCoverage:
 
     def test_who_targets_endpoint_value_error(self):
         """Test WHO targets endpoint with ValueError."""
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = ValueError("Invalid input")
 
@@ -382,10 +397,11 @@ class TestComprehensiveCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
-            assert response.status_code == 200
+            assert response.status_code == 400
 
     def test_who_targets_endpoint_general_exception(self):
         """Test WHO targets endpoint with general exception."""
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = Exception("Test error")
 
@@ -402,7 +418,7 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code == 200
+            assert response.status_code == 500
 
     def test_weekly_menu_endpoint_success(self):
         """Test weekly menu endpoint success case."""

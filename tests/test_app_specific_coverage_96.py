@@ -46,9 +46,7 @@ class TestAppSpecificCoverage96:
         # Mock generate_latest to return some metrics
         with patch("app.generate_latest") as mock_generate:
             mock_generate.return_value = (
-                b"# HELP test_metric Test metric\n"
-                b"# TYPE test_metric counter\n"
-                b"test_metric 1\n"
+                b"# HELP test_metric Test metric\n# TYPE test_metric counter\ntest_metric 1\n"
             )
             response = self.client.get("/metrics")
             assert response.status_code == 200

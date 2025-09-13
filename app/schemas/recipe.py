@@ -3,6 +3,7 @@
 RU: Нормализованная схема рецепта и превью.
 EN: Normalized recipe schema and preview.
 """
+
 from typing import Dict, List
 
 from pydantic import BaseModel, Field, conlist

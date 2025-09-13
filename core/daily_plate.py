@@ -13,12 +13,7 @@ from __future__ import annotations
 from typing import Dict, List, Set, Tuple
 
 from .food_db import FoodItem, parse_food_db, pick_booster_for
-from .recipe_db import (
-    Recipe,
-    calculate_recipe_nutrients,
-    parse_recipe_db,
-    scale_recipe_to_kcal,
-)
+from .recipe_db import Recipe, calculate_recipe_nutrients, parse_recipe_db, scale_recipe_to_kcal
 
 
 def create_daily_plate(

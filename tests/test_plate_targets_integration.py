@@ -3,6 +3,7 @@
 RU: Интеграционный тест покрытия Plate→Targets.
 EN: Integration test for Plate→Targets coverage.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

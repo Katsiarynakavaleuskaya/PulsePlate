@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 """Edge-тесты для доведения покрытия до ~100%."""
 
-from bmi_core import (
-    auto_group,
-    bmi_category,
-    interpret_group,
-)
+from bmi_core import auto_group, bmi_category, interpret_group
 
 
 def test_bmi_category_lang_fallback_to_ru():

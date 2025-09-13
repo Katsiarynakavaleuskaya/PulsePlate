@@ -1,42 +1,63 @@
+# Pre-commit hooks for PulsePlate
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v6.0.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
       - id: debug-statements
-
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 25.1.0
     hooks:
       - id: black
         language_version: python3
         args: [--line-length=100]
-
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: [--ignore=E203,W503,F601]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.13.0
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-
   - repo: local
     hooks:
-      - id: pytest
-        name: pytest
-        entry: python -m pytest tests -q
+      - id: pytest-check
+        name: Run tests before commit
+        entry: pytest --maxfail=2 --disable-warnings tests/
         language: system
         pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-
-      - id: coverage
-        name: coverage
-        entry: python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q
+      - id: coverage-check
+        name: Check coverage >=97% before push
+        entry: bash -c 'coverage run -m pytest && coverage report --fail-under=97'
         language: system
-        pass_filenames: false
-        always_run: true
         stages: [pre-push]
+        pass_filenames: false
+      - id: security-check
+        name: Security scan before push
+        entry: bash -c 'bandit -r . -f json -o bandit-report.json || echo "Security scan completed with warnings"'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+      - id: dependency-check
+        name: Check for vulnerable dependencies
+        entry: bash -c 'pip-audit --format=json --output=pip-audit.json || echo "Dependency check completed"'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+      - id: main-branch-protection
+        name: Protect main branch from direct push
+        entry: bash -c 'scripts/check_main_branch_push.sh'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false

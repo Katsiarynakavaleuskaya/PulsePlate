@@ -3,6 +3,7 @@
 RU: Сервис доступа к FoodDB (SQLite) с FTS и алиасами.
 EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
+
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -50,8 +51,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
         params = [*terms, limit, offset]
     else:
         sql = (
-            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g "
-            "FROM foods LIMIT ? OFFSET ?"
+            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ? OFFSET ?"
         )
         params = [limit, offset]
     with _connect() as con:

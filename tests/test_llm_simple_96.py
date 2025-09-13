@@ -13,16 +13,18 @@ class TestLlmSimple96:
 
     def test_get_provider_grok_keyword_args_fail(self):
         """Test get_provider with GrokProvider keyword args failure - line 71-77."""
-        with patch("llm.GrokProvider") as mock_grok_provider, patch(
-            "llm.GrokLiteProvider"
-        ) as mock_grok_lite, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "grok",
-                "GROK_ENDPOINT": "http://test",
-                "GROK_API_KEY": "test_key",
-                "GROK_MODEL": "test_model",
-            },
+        with (
+            patch("llm.GrokProvider") as mock_grok_provider,
+            patch("llm.GrokLiteProvider") as mock_grok_lite,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "grok",
+                    "GROK_ENDPOINT": "http://test",
+                    "GROK_API_KEY": "test_key",
+                    "GROK_MODEL": "test_model",
+                },
+            ),
         ):
             # Mock keyword args failure
             mock_grok_provider.side_effect = [
@@ -40,16 +42,18 @@ class TestLlmSimple96:
 
     def test_get_provider_grok_both_fail(self):
         """Test get_provider with GrokProvider both calls fail - line 75-77."""
-        with patch("llm.GrokProvider") as mock_grok_provider, patch(
-            "llm.GrokLiteProvider"
-        ) as mock_grok_lite, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "grok",
-                "GROK_ENDPOINT": "http://test",
-                "GROK_API_KEY": "test_key",
-                "GROK_MODEL": "test_model",
-            },
+        with (
+            patch("llm.GrokProvider") as mock_grok_provider,
+            patch("llm.GrokLiteProvider") as mock_grok_lite,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "grok",
+                    "GROK_ENDPOINT": "http://test",
+                    "GROK_API_KEY": "test_key",
+                    "GROK_MODEL": "test_model",
+                },
+            ),
         ):
             # Mock both calls fail
             mock_grok_provider.side_effect = [
@@ -67,14 +71,17 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_keyword_args_fail(self):
         """Test get_provider with OllamaProvider keyword args failure - line 88-92."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "ollama",
-                "OLLAMA_ENDPOINT": "http://test",
-                "OLLAMA_MODEL": "test_model",
-                "OLLAMA_TIMEOUT": "5",
-            },
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "ollama",
+                    "OLLAMA_ENDPOINT": "http://test",
+                    "OLLAMA_MODEL": "test_model",
+                    "OLLAMA_TIMEOUT": "5",
+                },
+            ),
         ):
             # Mock keyword args failure
             mock_ollama_provider.side_effect = [
@@ -90,14 +97,17 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_both_fail(self):
         """Test get_provider with OllamaProvider both calls fail - line 90-94."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "ollama",
-                "OLLAMA_ENDPOINT": "http://test",
-                "OLLAMA_MODEL": "test_model",
-                "OLLAMA_TIMEOUT": "5",
-            },
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "ollama",
+                    "OLLAMA_ENDPOINT": "http://test",
+                    "OLLAMA_MODEL": "test_model",
+                    "OLLAMA_TIMEOUT": "5",
+                },
+            ),
         ):
             # Mock both calls fail
             mock_ollama_provider.side_effect = [
@@ -112,14 +122,17 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_timeout_float_conversion(self):
         """Test get_provider with OllamaProvider timeout float conversion - line 85."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "ollama",
-                "OLLAMA_ENDPOINT": "http://test",
-                "OLLAMA_MODEL": "test_model",
-                "OLLAMA_TIMEOUT": "10.5",
-            },
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "ollama",
+                    "OLLAMA_ENDPOINT": "http://test",
+                    "OLLAMA_MODEL": "test_model",
+                    "OLLAMA_TIMEOUT": "10.5",
+                },
+            ),
         ):
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
@@ -134,14 +147,17 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_default_timeout(self):
         """Test get_provider with OllamaProvider default timeout - line 85."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {
-                "LLM_PROVIDER": "ollama",
-                "OLLAMA_ENDPOINT": "http://test",
-                "OLLAMA_MODEL": "test_model",
-            },
-            clear=True,
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {
+                    "LLM_PROVIDER": "ollama",
+                    "OLLAMA_ENDPOINT": "http://test",
+                    "OLLAMA_MODEL": "test_model",
+                },
+                clear=True,
+            ),
         ):
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
@@ -156,10 +172,13 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_default_endpoint(self):
         """Test get_provider with OllamaProvider default endpoint - line 82."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {"LLM_PROVIDER": "ollama", "OLLAMA_MODEL": "test_model"},
-            clear=True,
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {"LLM_PROVIDER": "ollama", "OLLAMA_MODEL": "test_model"},
+                clear=True,
+            ),
         ):
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
@@ -174,10 +193,13 @@ class TestLlmSimple96:
 
     def test_get_provider_ollama_default_model(self):
         """Test get_provider with OllamaProvider default model - line 83."""
-        with patch("llm.OllamaProvider") as mock_ollama_provider, patch.dict(
-            os.environ,
-            {"LLM_PROVIDER": "ollama", "OLLAMA_ENDPOINT": "http://test"},
-            clear=True,
+        with (
+            patch("llm.OllamaProvider") as mock_ollama_provider,
+            patch.dict(
+                os.environ,
+                {"LLM_PROVIDER": "ollama", "OLLAMA_ENDPOINT": "http://test"},
+                clear=True,
+            ),
         ):
             mock_provider = Mock()
             mock_ollama_provider.return_value = mock_provider
@@ -192,9 +214,11 @@ class TestLlmSimple96:
 
     def test_get_provider_grok_fallback_when_unavailable(self):
         """Test get_provider with GrokProvider fallback when unavailable - line 78-79."""
-        with patch("llm.GrokProvider", None), patch(
-            "llm.GrokLiteProvider"
-        ) as mock_grok_lite, patch.dict(os.environ, {"LLM_PROVIDER": "grok"}):
+        with (
+            patch("llm.GrokProvider", None),
+            patch("llm.GrokLiteProvider") as mock_grok_lite,
+            patch.dict(os.environ, {"LLM_PROVIDER": "grok"}),
+        ):
             mock_lite_provider = Mock()
             mock_grok_lite.return_value = mock_lite_provider
 

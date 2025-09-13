@@ -3,6 +3,7 @@
 RU: Тест валидации Pydantic для /api/v1/premium/targets (422 ошибки).
 EN: Test Pydantic validation for /api/v1/premium/targets (422 errors).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
