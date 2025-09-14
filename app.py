@@ -4,9 +4,6 @@ import time
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-# VIP Module Feature Flag
-VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "false").lower() == "true"
-
 try:
     from prometheus_client import Counter, Histogram, generate_latest
 except ImportError:
@@ -14,18 +11,14 @@ except ImportError:
     Histogram = None
     generate_latest = None
 
-# Import FastAPI dependencies at top level
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 
-# Import routers
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
 from app.routers.foods import router as foods_router
 from app.routers.recipes import router as recipes_router
-
-# VIP router (conditional import)
-if VIP_MODULE_ENABLED:
-    from app.routers.vip import router as vip_router
 
 if TYPE_CHECKING:
     # Type hints for slowapi when not available at runtime
@@ -53,16 +46,6 @@ else:
 
 from pydantic import BaseModel, Field, StrictFloat, model_validator
 
-with suppress(ImportError):
-    import dotenv
-
-    # Avoid auto-loading .env during tests/CI to keep predictable defaults
-    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv("APP_ENV", "").lower() not in {
-        "test",
-        "ci",
-    }:
-        dotenv.load_dotenv()
-
 try:
     from bodyfat import get_router as get_bodyfat_router
 except ImportError:
@@ -76,21 +59,16 @@ except ImportError:
 
 try:
     from nutrition_core import calculate_all_bmr, calculate_all_tdee, get_activity_descriptions
-
-    # Create module-level aliases that can be easily mocked in tests
-    calculate_all_bmr = calculate_all_bmr  # pylint: disable=self-assigning-variable
-    calculate_all_tdee = calculate_all_tdee  # pylint: disable=self-assigning-variable
 except ImportError:
     calculate_all_bmr = None
     calculate_all_tdee = None
     get_activity_descriptions = None
 
-# Shared utils
 try:
     from core.utils import get_activity_factor, resolve_attr
 except Exception:  # pragma: no cover - keep local fallbacks if import fails in tests
-
-    def get_activity_factor(activity: str) -> float:  # type: ignore
+    # Fallbacks defined here if import fails
+    def _fallback_get_activity_factor(activity: str) -> float:
         mapping = {
             "sedentary": 1.2,
             "light": 1.375,
@@ -98,9 +76,11 @@ except Exception:  # pragma: no cover - keep local fallbacks if import fails in 
             "active": 1.725,
             "very_active": 1.9,
         }
-        return mapping.get(str(activity), 1.55)
+        return mapping.get(activity, 1.55)
 
-    def resolve_attr(name: str, local_default: Any, candidates: Optional[list[Any]] = None) -> Any:  # type: ignore
+    def _fallback_resolve_attr(
+        name: str, local_default: Any, candidates: Optional[list[Any]] = None
+    ) -> Any:
         import sys as _sys
 
         cand = candidates or [_sys.modules.get("app"), _sys.modules.get("_app_top_module")]
@@ -113,6 +93,47 @@ except Exception:  # pragma: no cover - keep local fallbacks if import fails in 
             except Exception:
                 continue
         return local_default
+
+    get_activity_factor = _fallback_get_activity_factor
+    resolve_attr = _fallback_resolve_attr
+
+from bmi_core import bmi_category
+from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
+from core.food_apis.scheduler import start_background_updates, stop_background_updates
+
+try:
+    from app.routers.bmi_pro import router as bmi_pro_router
+except ImportError:
+    bmi_pro_router = None
+
+try:
+    from app.routers.premium_week import router as premium_week_router
+except ImportError:
+    premium_week_router = None
+
+from core.i18n import Language, t
+
+try:
+    from core.food_apis.scheduler import get_update_scheduler as _scheduler_getter
+except Exception:  # pragma: no cover
+    _scheduler_getter = None  # type: ignore
+
+# VIP Module Feature Flag
+VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "false").lower() == "true"
+
+# VIP router (conditional import)
+if VIP_MODULE_ENABLED:
+    from app.routers.vip import router as vip_router
+
+with suppress(ImportError):
+    import dotenv
+
+    # Avoid auto-loading .env during tests/CI to keep predictable defaults
+    if os.getenv("PYTEST_CURRENT_TEST") is None and os.getenv("APP_ENV", "").lower() not in {
+        "test",
+        "ci",
+    }:
+        dotenv.load_dotenv()
 
 
 # Create wrapper functions for easier mocking in tests
@@ -128,43 +149,6 @@ def _calculate_all_tdee_wrapper(bmr_results, activity):
     if calculate_all_tdee is None:
         raise ImportError("nutrition_core module not available")
     return calculate_all_tdee(bmr_results, activity)
-
-
-from bmi_core import bmi_category
-
-# Add import for the new BMI Pro functions
-# Note: These imports are kept for potential future use
-# from core.bmi_extras import (
-#     ffmi,
-#     interpret_whr_ratio,
-#     interpret_wht_ratio,
-#     stage_obesity,
-#     whr_ratio,
-#     wht_ratio,
-# )
-# Add import for export functions
-from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
-from core.food_apis.scheduler import start_background_updates, stop_background_updates
-
-# Import routers
-try:
-    from app.routers.bmi_pro import router as bmi_pro_router
-except ImportError:
-    bmi_pro_router = None
-
-try:
-    from app.routers.premium_week import router as premium_week_router
-except ImportError:
-    premium_week_router = None
-
-# Import i18n functionality
-from core.i18n import Language, t
-
-# Ensure a patchable getter is always available on this module
-try:
-    from core.food_apis.scheduler import get_update_scheduler as _scheduler_getter
-except Exception:  # pragma: no cover
-    _scheduler_getter = None  # type: ignore
 
 
 async def get_update_scheduler():  # type: ignore[no-redef]
@@ -248,13 +232,8 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
 def get_api_key(api_key: str = Depends(api_key_header)):
-    expected = os.getenv("API_KEY")
-    # If API_KEY is set and not empty, validate strictly; treat missing as invalid
-    if expected:
+    if expected := os.getenv("API_KEY"):
         if not api_key or api_key != expected:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
@@ -1799,7 +1778,9 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             age=req.age, life_stage=req.life_stage, lang=req.lang
         )
 
-        # Validate safety if already loaded (avoid importing to not break tests that patch __import__)
+        # Validate safety if already loaded.
+        # Keep import side-effects minimal to avoid breaking tests
+        # that patch __import__ or manipulate sys.modules.
         _rec_mod = _sys.modules.get("core.recommendations")
         if _rec_mod is not None and hasattr(_rec_mod, "validate_targets_safety"):
             try:

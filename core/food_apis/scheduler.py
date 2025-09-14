@@ -294,7 +294,6 @@ async def stop_background_updates():
     RU: Останавливает фоновые обновления баз данных.
     EN: Stop background database updates.
     """
-    global _scheduler_instance
     if _scheduler_instance and _scheduler_instance.is_running:
         await _scheduler_instance.stop()
         logger.info("Background database updates stopped")
