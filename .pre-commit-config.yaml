@@ -45,13 +45,13 @@ repos:
         pass_filenames: false
       - id: security-check
         name: Security scan before push
-        entry: bash -c 'bandit -r . -f json -o bandit-report.json || echo "Security scan completed with warnings"'
+        entry: bash scripts/ci_bandit.sh
         language: system
         stages: [pre-push]
         pass_filenames: false
       - id: dependency-check
         name: Check for vulnerable dependencies
-        entry: bash -c 'pip-audit --format=json --output=pip-audit.json || echo "Dependency check completed"'
+        entry: bash scripts/ci_pip_audit.sh
         language: system
         stages: [pre-push]
         pass_filenames: false
