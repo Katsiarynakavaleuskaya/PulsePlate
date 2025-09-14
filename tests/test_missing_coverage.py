@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Тесты для покрытия недостающих строк
@@ -10,6 +12,11 @@ from app import app
 
 class TestMissingCoverage:
     """Тесты для покрытия недостающих строк"""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_app_imports(self):
         """Тест импортов app.py"""

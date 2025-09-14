@@ -12,6 +12,8 @@ Tests cover:
 - Error handling and edge cases
 """
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -22,6 +24,11 @@ client = TestClient(app)
 
 class TestEnhancedPlateAPI:
     """Test Enhanced My Plate API endpoint."""
+
+    def setup_method(self):
+        """Set up test environment."""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_plate_contract_basic(self):
         """Test basic plate API contract with all required fields."""

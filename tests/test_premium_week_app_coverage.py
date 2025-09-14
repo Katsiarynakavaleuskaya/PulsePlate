@@ -19,6 +19,11 @@ class TestPremiumWeekAppCoverage:
     """Test suite for premium week endpoint coverage in app.py."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)

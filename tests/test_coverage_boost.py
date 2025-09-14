@@ -4,6 +4,7 @@ Quick Coverage Booster Tests
 Simple tests to improve coverage for main modules.
 """
 
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -16,6 +17,11 @@ from core.targets import UserProfile
 
 class TestMenuEngineCoverage:
     """Tests to improve menu_engine.py coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_make_daily_menu_basic(self):
         """Test basic daily menu generation."""
@@ -83,6 +89,11 @@ class TestMenuEngineCoverage:
 class TestRecommendationsCoverage:
     """Tests to improve recommendations.py coverage."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_build_nutrition_targets_variations(self):
         """Test nutrition targets with different profiles."""
         # Test elderly profile
@@ -137,6 +148,11 @@ class TestRecommendationsCoverage:
 class TestWHORulesBasics:
     """Test WHO rules basic functionality."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_who_requirements_structure(self):
         """Test WHO requirements data structures."""
         # Check micronutrient requirements exist
@@ -165,6 +181,11 @@ class TestWHORulesBasics:
 
 class TestTargetsBasics:
     """Test targets module basic functionality."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_user_profile_creation(self):
         """Test UserProfile creation with different parameters."""
@@ -227,6 +248,11 @@ class TestTargetsBasics:
 class TestErrorHandling:
     """Test error handling in various modules."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_invalid_inputs_handling(self):
         """Test handling of invalid inputs."""
         # Test with invalid age
@@ -269,6 +295,11 @@ class TestErrorHandling:
 
 class TestLifeStageIntegrationQuick:
     """Quick tests for life stage integration."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_lifestage_edge_cases(self):
         """Test edge cases in life stage detection."""

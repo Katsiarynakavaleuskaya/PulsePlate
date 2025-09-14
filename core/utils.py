@@ -3,6 +3,7 @@
 - get_activity_factor: unified mapping for activity multipliers.
 - resolve_attr: safe dynamic attribute resolver respecting test-time patches.
 """
+
 from __future__ import annotations
 
 import sys

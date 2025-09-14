@@ -4,6 +4,7 @@ RU: Тесты для повышения покрытия app/routers/premium_we
 EN: Coverage boost tests for app/routers/premium_week.py
 """
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,6 +27,11 @@ client = TestClient(fastapi_app)
 
 class TestPremiumWeekCoverage:
     """Test class for premium week coverage boost."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_targets_in_validation(self):
         """Test TargetsIn model validation."""

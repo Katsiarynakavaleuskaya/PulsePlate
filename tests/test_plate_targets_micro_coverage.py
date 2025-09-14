@@ -5,6 +5,8 @@ Tests for micronutrient coverage between /api/v1/premium/plate and /api/v1/premi
 to ensure that daily micronutrient values from plate meet minimum thresholds from targets.
 """
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,6 +20,11 @@ client = TestClient(app_mod.app)  # type: ignore
 
 class TestPlateTargetsMicroCoverage:
     """Tests for micronutrient coverage between Plate and Targets endpoints"""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_plate_targets_micro_consistency(self):
         """Test that plate and targets endpoints return consistent micronutrient data"""
@@ -447,22 +454,22 @@ class TestPlateTargetsMicroCoverage:
             plate_micros = set(plate_data["day_micros"].keys())
 
             # Note: They may not be exactly the same due to different implementations
-            assert (
-                len(target_micros) > 0
-            ), f"Targets should have micronutrients for profile {profile}"
+            assert len(target_micros) > 0, (
+                f"Targets should have micronutrients for profile {profile}"
+            )
             assert len(plate_micros) > 0, f"Plate should have micronutrients for profile {profile}"
 
             # Verify all micronutrients are non-negative
             for nutrient in target_micros:
                 target_value = targets_data["priority_micros"][nutrient]
 
-                assert (
-                    target_value > 0
-                ), f"Target {nutrient} should be positive for profile {profile}"
+                assert target_value > 0, (
+                    f"Target {nutrient} should be positive for profile {profile}"
+                )
 
                 # Check plate value if nutrient exists there
                 if nutrient in plate_micros:
                     plate_value = plate_data["day_micros"][nutrient]
-                    assert (
-                        plate_value >= 0
-                    ), f"Plate {nutrient} should be non-negative for profile {profile}"
+                    assert plate_value >= 0, (
+                        f"Plate {nutrient} should be non-negative for profile {profile}"
+                    )

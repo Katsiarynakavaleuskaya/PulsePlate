@@ -1,3 +1,5 @@
+import os
+
 """
 Targeted coverage tests for core.recommendations module.
 These tests specifically target the uncovered lines to improve overall coverage.
@@ -28,6 +30,11 @@ from core.targets import (
 
 class TestDeficiencyRecommendations:
     """Test deficiency recommendation generation."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_recommendations_with_deficiencies(self):
         """Test generating recommendations for deficient nutrients."""
@@ -177,6 +184,11 @@ class TestDeficiencyRecommendations:
 class TestWeeklyCoverage:
     """Test weekly coverage calculations."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_weekly_average_calculation(self):
         """Test calculating weekly average coverage."""
         daily_coverages = [
@@ -261,6 +273,11 @@ class TestWeeklyCoverage:
 
 class TestTargetsSafety:
     """Test safety validation of nutrition targets."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_safe_targets(self):
         """Test validation of safe targets."""
@@ -529,6 +546,11 @@ class TestTargetsSafety:
 class TestFoodSources:
     """Test food source functions."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_get_nutrient_food_sources_english(self):
         """Test getting food sources in English."""
         sources = _get_nutrient_food_sources("en")
@@ -579,6 +601,11 @@ class TestFoodSources:
 
 class TestBuildNutritionTargets:
     """Test the main build_nutrition_targets function."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_build_nutrition_targets_basic(self):
         """Test basic nutrition targets building."""
@@ -638,6 +665,11 @@ class TestBuildNutritionTargets:
 
 class TestScoreNutrientCoverage:
     """Test nutrient coverage scoring."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_score_nutrient_coverage_basic(self):
         """Test basic nutrient coverage scoring."""
@@ -737,6 +769,11 @@ class TestScoreNutrientCoverage:
 class TestCalorieCalculation:
     """Test internal calorie calculation functions."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_calculate_target_calories_maintain(self):
         """Test calorie calculation for maintenance."""
         profile = UserProfile(
@@ -831,6 +868,11 @@ class TestCalorieCalculation:
 class TestMacroCalculation:
     """Test macro calculation functions."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_calculate_macro_targets_basic(self):
         """Test basic macro calculation."""
         profile = UserProfile(
@@ -873,6 +915,11 @@ class TestMacroCalculation:
 
 class TestMicroAndActivityCalculation:
     """Test micro and activity calculation functions."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_calculate_micro_targets_basic(self):
         """Test micronutrient calculation."""

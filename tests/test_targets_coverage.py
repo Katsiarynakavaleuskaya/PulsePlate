@@ -1,3 +1,5 @@
+import os
+
 """
 Targeted coverage tests for core.targets module.
 These tests specifically target the uncovered lines to improve overall coverage.
@@ -17,6 +19,11 @@ from core.targets import (
 
 class TestUserProfile:
     """Test UserProfile validation and edge cases."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_user_profile_basic(self):
         """Test basic UserProfile creation."""
@@ -166,6 +173,11 @@ class TestUserProfile:
 class TestMacroTargets:
     """Test MacroTargets calculations."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_macro_targets_total_calories(self):
         """Test total calories calculation."""
         macros = MacroTargets(protein_g=120, fat_g=70, carbs_g=250, fiber_g=30)
@@ -183,6 +195,11 @@ class TestMacroTargets:
 
 class TestMicroTargets:
     """Test MicroTargets functionality."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_micro_targets_get_priority_nutrients(self):
         """Test getting priority nutrients."""
@@ -219,6 +236,11 @@ class TestMicroTargets:
 class TestActivityTargets:
     """Test ActivityTargets calculations."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_activity_targets_total_aerobic_equivalent(self):
         """Test total aerobic equivalent calculation."""
         activity = ActivityTargets(
@@ -246,6 +268,11 @@ class TestActivityTargets:
 
 class TestNutritionTargets:
     """Test NutritionTargets validation and summary."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_nutrition_targets_validate_consistency_valid(self):
         """Test consistency validation with valid targets."""
@@ -383,6 +410,11 @@ class TestNutritionTargets:
 
 class TestNutrientCoverage:
     """Test NutrientCoverage calculations and status."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_nutrient_coverage_properties(self):
         """Test coverage percentage and status calculations."""

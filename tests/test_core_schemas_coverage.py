@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Test coverage for core/schemas.py
@@ -21,6 +23,11 @@ from core.schemas import (
 
 class TestCoreSchemasCoverage:
     """Test suite for core/schemas.py coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_food_item_creation(self):
         """Test FoodItem creation with all fields."""

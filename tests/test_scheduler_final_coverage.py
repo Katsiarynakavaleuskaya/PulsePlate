@@ -1,3 +1,5 @@
+import os
+
 """
 Final tests to cover remaining lines in core/food_apis/scheduler.py.
 """
@@ -11,6 +13,11 @@ from core.food_apis.scheduler import DatabaseUpdateScheduler
 
 class TestSchedulerFinalCoverage:
     """Final tests to cover remaining lines in scheduler.py."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_setup_signal_handlers_exception_detailed(self):
         """Test _setup_signal_handlers with exception in signal.signal."""

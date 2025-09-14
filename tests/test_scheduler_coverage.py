@@ -3,6 +3,7 @@ Additional tests to improve coverage for scheduler.py to reach 97%+.
 """
 
 import asyncio
+import os
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,11 @@ from core.food_apis.update_manager import UpdateResult
 
 class TestSchedulerCoverage:
     """Additional tests to improve coverage for DatabaseUpdateScheduler."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_setup_signal_handlers_exception(self):
         """Test signal handler setup with exception."""
