@@ -2,6 +2,7 @@
 Additional tests to improve coverage for unified_db.py to reach 97%+.
 """
 
+import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,6 +18,11 @@ from core.food_apis.unified_db import (
 
 class TestUnifiedDBCoverage:
     """Additional tests to improve coverage for UnifiedFoodDatabase."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
     async def test_search_food_prefer_openfoodfacts(self):

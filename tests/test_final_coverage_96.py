@@ -1,3 +1,5 @@
+import os
+
 """
 Final coverage tests to reach 96% target.
 """
@@ -7,6 +9,11 @@ from app.routers.premium_week import estimate_targets_minimal
 
 class TestFinalCoverage96:
     """Tests to reach final 96% coverage target."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_premium_week_estimate_targets_minimal(self):
         """Test estimate_targets_minimal function - lines 58-71."""

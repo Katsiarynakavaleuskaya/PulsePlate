@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Тесты для покрытия недостающих строк в app/routers/premium_week.py
@@ -17,6 +19,11 @@ from app.routers.premium_week import (
 
 class TestPremiumWeekCoverageFinal:
     """Тесты для покрытия недостающих строк в premium_week.py"""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_estimate_targets_minimal_basic(self):
         """Тест estimate_targets_minimal с базовыми параметрами"""

@@ -3,6 +3,7 @@ Additional tests to cover missing lines in core/food_apis/scheduler.py.
 """
 
 import asyncio
+import os
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,6 +18,11 @@ from core.food_apis.scheduler import (
 
 class TestSchedulerMissingCoverage:
     """Tests to cover missing lines in scheduler.py."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_setup_signal_handlers_success(self):
         """Test _setup_signal_handlers success case."""

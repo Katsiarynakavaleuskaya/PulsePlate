@@ -18,6 +18,11 @@ client = TestClient(app)
 class TestFinalCoverage:
     """Tests to cover the final missing lines to reach 97% coverage"""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_slowapi_imports_error_handling(self):
         """Test slowapi import error handling (lines 22-25, 86-89)"""
         # Test the ImportError handling for slowapi

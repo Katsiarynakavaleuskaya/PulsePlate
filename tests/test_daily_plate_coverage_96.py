@@ -5,6 +5,7 @@ This module focuses on covering the missing lines in daily_plate.py that are pre
 us from reaching 96% coverage.
 """
 
+import os
 from unittest.mock import Mock, patch
 
 from core.daily_plate import create_daily_plate, create_fallback_meal, find_recipe_for_meal
@@ -14,6 +15,11 @@ from core.recipe_db import Recipe
 
 class TestDailyPlateCoverage96:
     """Tests to cover missing lines in daily_plate.py for 96%+ coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_create_daily_plate_food_db_none(self):
         """Test create_daily_plate when food_db is None - line 44."""

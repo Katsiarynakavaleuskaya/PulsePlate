@@ -15,6 +15,11 @@ class TestUltimateCoverageBoost:
     """Ultimate targeted tests to boost coverage to exactly 97%+."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)

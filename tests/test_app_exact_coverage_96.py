@@ -1,3 +1,5 @@
+import os
+
 """
 Exact tests to cover specific missing lines in app.py for 96%+ coverage.
 
@@ -14,6 +16,11 @@ from app import app
 
 class TestAppExactCoverage96:
     """Tests to cover exact missing lines in app.py."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def setup_method(self):
         """Set up test client."""

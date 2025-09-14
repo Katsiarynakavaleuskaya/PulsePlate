@@ -3,6 +3,7 @@ Basic tests to improve coverage for food_apis modules.
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
+import os
 import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,6 +14,11 @@ import pytest
 # Test unified_db module
 class TestUnifiedFoodDatabase:
     """Basic tests for UnifiedFoodDatabase to improve coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @patch("core.food_apis.unified_db.USDAClient")
     def test_unified_food_database_init(self, mock_usda_class):
@@ -77,6 +83,11 @@ class TestUnifiedFoodDatabase:
 # Test update_manager module
 class TestDatabaseUpdateManager:
     """Basic tests for DatabaseUpdateManager to improve coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_database_update_manager_init(self):
         """Test basic initialization."""
@@ -143,6 +154,11 @@ class TestDatabaseUpdateManager:
 class TestDatabaseUpdateScheduler:
     """Basic tests for DatabaseUpdateScheduler to improve coverage."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_database_update_scheduler_init(self):
         """Test basic initialization."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -198,6 +214,11 @@ class TestDatabaseUpdateScheduler:
 # Test module-level functions
 class TestModuleFunctions:
     """Test standalone module functions to improve coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
     async def test_get_unified_food_db(self):

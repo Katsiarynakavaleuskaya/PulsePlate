@@ -3,6 +3,7 @@ Final tests to improve coverage for update_manager.py to reach 97%+.
 """
 
 import json
+import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,6 +17,11 @@ from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
 class TestUpdateManagerFinalCoverage:
     """Final tests to improve coverage for DatabaseUpdateManager to reach 97%+."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_database_version_dataclass(self):
         """Test DatabaseVersion dataclass creation and attributes."""

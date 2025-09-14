@@ -1,3 +1,5 @@
+import os
+
 """
 Additional tests to improve coverage for core/rules_who.py to reach 97%+.
 """
@@ -17,6 +19,11 @@ from core.rules_who import (
 
 class TestRulesWhoCoverage:
     """Additional tests to improve coverage for WHO rules."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_get_age_category_edge_cases(self):
         """Test get_age_category with edge cases."""

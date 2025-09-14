@@ -16,6 +16,11 @@ from app import app
 class TestLifespanEvents:
     """Test lifespan event handlers."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     @pytest.mark.asyncio
     async def test_lifespan_startup_success(self):
         """Test successful lifespan startup."""
@@ -89,6 +94,11 @@ class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test client."""
         self.client = TestClient(app)
 
@@ -138,6 +148,11 @@ class TestAPIEndpoints:
 
 class TestBMIEndpoints:
     """Test BMI calculation endpoints."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def setup_method(self):
         """Set up test client."""
@@ -260,6 +275,11 @@ class TestInsightEndpoints:
     """Test insight endpoints."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test client."""
         self.client = TestClient(app)
 
@@ -338,6 +358,11 @@ class TestInsightEndpoints:
 
 class TestPremiumEndpoints:
     """Test premium API endpoints."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def setup_method(self):
         """Set up test client."""
@@ -473,6 +498,11 @@ class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test client."""
         self.client = TestClient(app)
 
@@ -535,6 +565,11 @@ class TestDebugEndpoint:
     """Test debug environment endpoint."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test client."""
         self.client = TestClient(app)
 
@@ -559,6 +594,11 @@ class TestDebugEndpoint:
 
 class TestVisualizationEndpoint:
     """Test BMI visualization endpoint."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def setup_method(self):
         """Set up test client."""

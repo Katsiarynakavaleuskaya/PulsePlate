@@ -16,6 +16,11 @@ class TestAppCoverageImprovement:
     """Additional tests to improve coverage for app.py."""
 
     def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
         """Set up test environment."""
         # Set a test API key for testing
         os.environ["API_KEY"] = "test_key"

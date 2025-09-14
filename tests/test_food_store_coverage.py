@@ -1,3 +1,5 @@
+import os
+
 # -*- coding: utf-8 -*-
 """
 Тесты для покрытия недостающих строк в app/services/food_store.py
@@ -10,6 +12,11 @@ from app.services.food_store import expand_query, get_food, nutrients_for, searc
 
 class TestFoodStoreCoverage:
     """Тесты для покрытия недостающих строк в food_store.py"""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_expand_query_empty_string(self):
         """Тест expand_query с пустой строкой"""

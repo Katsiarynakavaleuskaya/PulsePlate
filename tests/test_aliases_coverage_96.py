@@ -1,3 +1,5 @@
+import os
+
 """
 Tests to improve coverage in core/aliases.py for 96%+ coverage.
 
@@ -12,6 +14,11 @@ from core.aliases import _load_aliases, add_alias, map_to_canonical
 
 class TestAliasesCoverage96:
     """Tests to cover missing lines in aliases.py for 96%+ coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_load_aliases_file_not_found(self):
         """Test _load_aliases when file doesn't exist - lines 29-31."""

@@ -18,6 +18,11 @@ import pytest
 class TestDatabaseUpdateSchedulerComprehensive:
     """Comprehensive tests for DatabaseUpdateScheduler to improve coverage."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     def test_setup_signal_handlers_exception(self):
         """Test signal handler setup with exception."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -320,6 +325,11 @@ class TestDatabaseUpdateSchedulerComprehensive:
 class TestUnifiedFoodDatabaseComprehensive:
     """Comprehensive tests for UnifiedFoodDatabase to improve coverage."""
 
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
     @pytest.mark.asyncio
     async def test_search_food_prefer_openfoodfacts(self):
         """Test search_food with prefer_source='openfoodfacts'."""
@@ -515,6 +525,11 @@ class TestUnifiedFoodDatabaseComprehensive:
 # Test update_manager module comprehensively
 class TestDatabaseUpdateManagerComprehensive:
     """Comprehensive tests for DatabaseUpdateManager to improve coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_load_versions_file_not_exists(self):
         """Test _load_versions with non-existent file."""

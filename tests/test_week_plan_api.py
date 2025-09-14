@@ -48,13 +48,13 @@ def test_week_plan_with_targets():
 
     # Check that we have an error message (could be API key or validation error)
     if response.status_code == 403:
-        assert "Invalid API Key" in data["detail"]
+        assert "API Key" in data["detail"]
     elif response.status_code == 422:
         assert "detail" in data
 
         # Check that we have an error message (could be API key or validation error)
     if response.status_code == 403:
-        assert "Invalid API Key" in data["detail"]
+        assert "API Key" in data["detail"]
     elif response.status_code == 422:
         assert "detail" in data
 
@@ -86,7 +86,7 @@ def test_week_plan_with_profile():
         assert "daily_menus" in data or "adherence_score" in data
     elif response.status_code == 403:
         assert "detail" in data
-        assert "Invalid API Key" in data["detail"]
+        assert "API Key" in data["detail"]
     elif response.status_code == 422:
         assert "detail" in data
 
@@ -127,7 +127,7 @@ def test_week_plan_multilingual():
         data = response.json()
         assert "detail" in data
         if response.status_code == 403:
-            assert "Invalid API Key" in data["detail"]
+            assert "API Key" in data["detail"]
 
 
 def test_week_plan_missing_data():

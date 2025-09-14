@@ -5,6 +5,7 @@ This module focuses on covering the missing lines in food_merge.py that are prev
 us from reaching 96% coverage.
 """
 
+import os
 from datetime import date
 
 from core.food_merge import MICROS, _classify_food_group, _merge_values, merge_records
@@ -13,6 +14,11 @@ from core.food_sources.base import FoodRecord
 
 class TestFoodMergeCoverage96:
     """Tests to cover missing lines in food_merge.py for 96%+ coverage."""
+
+    def setup_method(self):
+        """Setup test environment"""
+        os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def _create_food_record(self, name="apple", **kwargs):
         """Helper to create FoodRecord with default values."""

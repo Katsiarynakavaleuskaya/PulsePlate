@@ -60,9 +60,9 @@ def test_premium_targets_es_localization(lang):
                     "niño",
                     "especializada",
                 ]
-                assert any(
-                    keyword in message.lower() for keyword in spanish_keywords
-                ), f"Message '{message}' doesn't contain Spanish keywords"
+                assert any(keyword in message.lower() for keyword in spanish_keywords), (
+                    f"Message '{message}' doesn't contain Spanish keywords"
+                )
 
 
 def test_premium_targets_es_life_stage_warnings():
@@ -122,9 +122,9 @@ def test_premium_targets_es_life_stage_warnings():
         if warning:
             message = warning["message"].lower()
             for keyword in case["expected_keywords"]:
-                assert (
-                    keyword in message
-                ), f"Expected keyword '{keyword}' not found in message '{warning['message']}'"
+                assert keyword in message, (
+                    f"Expected keyword '{keyword}' not found in message '{warning['message']}'"
+                )
 
 
 def test_premium_targets_es_snapshot_values():

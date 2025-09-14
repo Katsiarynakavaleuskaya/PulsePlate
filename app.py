@@ -76,6 +76,7 @@ except ImportError:
 
 try:
     from nutrition_core import calculate_all_bmr, calculate_all_tdee, get_activity_descriptions
+
     # Create module-level aliases that can be easily mocked in tests
     calculate_all_bmr = calculate_all_bmr  # pylint: disable=self-assigning-variable
     calculate_all_tdee = calculate_all_tdee  # pylint: disable=self-assigning-variable
@@ -88,6 +89,7 @@ except ImportError:
 try:
     from core.utils import get_activity_factor, resolve_attr
 except Exception:  # pragma: no cover - keep local fallbacks if import fails in tests
+
     def get_activity_factor(activity: str) -> float:  # type: ignore
         mapping = {
             "sedentary": 1.2,
@@ -100,6 +102,7 @@ except Exception:  # pragma: no cover - keep local fallbacks if import fails in 
 
     def resolve_attr(name: str, local_default: Any, candidates: Optional[list[Any]] = None) -> Any:  # type: ignore
         import sys as _sys
+
         cand = candidates or [_sys.modules.get("app"), _sys.modules.get("_app_top_module")]
         for m in cand:
             try:
@@ -125,7 +128,6 @@ def _calculate_all_tdee_wrapper(bmr_results, activity):
     if calculate_all_tdee is None:
         raise ImportError("nutrition_core module not available")
     return calculate_all_tdee(bmr_results, activity)
-
 
 
 from bmi_core import bmi_category
@@ -262,7 +264,11 @@ def get_api_key(api_key: str = Depends(api_key_header)):
     if not api_key:
         raise HTTPException(status_code=403, detail="Missing API Key")
     token = str(api_key).strip()
-    if not token or token.lower() in {"invalid", "invalid_key", "wrong", "bad", "null"} or len(token) < 4:
+    if (
+        not token
+        or token.lower() in {"invalid", "invalid_key", "wrong", "bad", "null"}
+        or len(token) < 4
+    ):
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return token
 
@@ -438,9 +444,7 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
 
 
 def normalize_flags(
-    gender: str,
-    pregnant: Union[str, bool],
-    athlete: Union[str, bool]
+    gender: str, pregnant: Union[str, bool], athlete: Union[str, bool]
 ) -> Dict[str, bool]:
     gender_norm = {
         "male": "male",
@@ -763,7 +767,12 @@ async def bmi_endpoint(req: BMIRequest):
         if req.include_chart:
             # Resolve visualization function dynamically to respect test patches
             import sys as _sys
-            _mod = _sys.modules.get(__name__) or _sys.modules.get("_app_top_module") or _sys.modules.get("app")
+
+            _mod = (
+                _sys.modules.get(__name__)
+                or _sys.modules.get("_app_top_module")
+                or _sys.modules.get("app")
+            )
             _viz_func = (
                 getattr(_mod, "generate_bmi_visualization", None) if _mod else None
             ) or generate_bmi_visualization
@@ -809,7 +818,12 @@ async def bmi_endpoint(req: BMIRequest):
     # Add visualization if requested and available
     if req.include_chart:
         import sys as _sys
-        _mod = _sys.modules.get(__name__) or _sys.modules.get("_app_top_module") or _sys.modules.get("app")
+
+        _mod = (
+            _sys.modules.get(__name__)
+            or _sys.modules.get("_app_top_module")
+            or _sys.modules.get("app")
+        )
         _viz_func = (
             getattr(_mod, "generate_bmi_visualization", None) if _mod else None
         ) or generate_bmi_visualization
@@ -1223,6 +1237,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     try:
         # Resolve through multiple module candidates to respect tests patching 'app.*'
         import sys as _sys
+
         _candidates = [
             _sys.modules.get("app"),
             _sys.modules.get(__name__),
@@ -1263,16 +1278,51 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             }
 
             layout = [
-                VisualShape(kind="plate_sector", fraction=0.35, label="Protein", tooltip="Lean protein"),
-                VisualShape(kind="plate_sector", fraction=0.40, label="Carbs", tooltip="Whole grains"),
-                VisualShape(kind="plate_sector", fraction=0.20, label="Vegetables", tooltip="Non-starchy veg"),
-                VisualShape(kind="plate_sector", fraction=0.05, label="Fats", tooltip="Healthy fats"),
+                VisualShape(
+                    kind="plate_sector", fraction=0.35, label="Protein", tooltip="Lean protein"
+                ),
+                VisualShape(
+                    kind="plate_sector", fraction=0.40, label="Carbs", tooltip="Whole grains"
+                ),
+                VisualShape(
+                    kind="plate_sector",
+                    fraction=0.20,
+                    label="Vegetables",
+                    tooltip="Non-starchy veg",
+                ),
+                VisualShape(
+                    kind="plate_sector", fraction=0.05, label="Fats", tooltip="Healthy fats"
+                ),
             ]
 
             meals = [
-                {"name": "Breakfast", "kcal": int(target_kcal * 0.3), "macros": {"protein_g": int(protein_g * 0.3), "carbs_g": int(carbs_g * 0.3), "fat_g": int(fat_g * 0.3)}},
-                {"name": "Lunch", "kcal": int(target_kcal * 0.4), "macros": {"protein_g": int(protein_g * 0.4), "carbs_g": int(carbs_g * 0.4), "fat_g": int(fat_g * 0.4)}},
-                {"name": "Dinner", "kcal": int(target_kcal * 0.3), "macros": {"protein_g": protein_g - int(protein_g * 0.7), "carbs_g": carbs_g - int(carbs_g * 0.7), "fat_g": fat_g - int(fat_g * 0.7)}},
+                {
+                    "name": "Breakfast",
+                    "kcal": int(target_kcal * 0.3),
+                    "macros": {
+                        "protein_g": int(protein_g * 0.3),
+                        "carbs_g": int(carbs_g * 0.3),
+                        "fat_g": int(fat_g * 0.3),
+                    },
+                },
+                {
+                    "name": "Lunch",
+                    "kcal": int(target_kcal * 0.4),
+                    "macros": {
+                        "protein_g": int(protein_g * 0.4),
+                        "carbs_g": int(carbs_g * 0.4),
+                        "fat_g": int(fat_g * 0.4),
+                    },
+                },
+                {
+                    "name": "Dinner",
+                    "kcal": int(target_kcal * 0.3),
+                    "macros": {
+                        "protein_g": protein_g - int(protein_g * 0.7),
+                        "carbs_g": carbs_g - int(carbs_g * 0.7),
+                        "fat_g": fat_g - int(fat_g * 0.7),
+                    },
+                },
             ]
 
             return PlateResponse(
@@ -1290,7 +1340,12 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             )
 
         # Feature flag: disable premium nutrition features by default unless explicitly enabled
-        if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {"1", "true", "on", "yes"}:
+        if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {
+            "1",
+            "true",
+            "on",
+            "yes",
+        }:
             raise HTTPException(status_code=503, detail="Enhanced plate feature not available")
 
         # Calculate BMR/TDEE and generate plate
@@ -1341,7 +1396,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
     except Exception as e:
         logger.error(f"premium_plate error: {e}")
-        raise HTTPException(status_code=500, detail=f"Enhanced plate generation failed: {str(e)}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
+        ) from e
 
 
 # Premium BMR Endpoint
@@ -1383,8 +1440,14 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         baseline_tdee = calculate_all_tdee
         baseline_missing = (baseline_bmr is None) or (baseline_tdee is None)
 
-        app_bmr = getattr(_pkg, "calculate_all_bmr", baseline_bmr) if _pkg is not None else baseline_bmr
-        app_tdee = getattr(_pkg, "calculate_all_tdee", baseline_tdee) if _pkg is not None else baseline_tdee
+        app_bmr = (
+            getattr(_pkg, "calculate_all_bmr", baseline_bmr) if _pkg is not None else baseline_bmr
+        )
+        app_tdee = (
+            getattr(_pkg, "calculate_all_tdee", baseline_tdee)
+            if _pkg is not None
+            else baseline_tdee
+        )
 
         # Patched to None at runtime
         patched_missing = (app_bmr is None) or (app_tdee is None)
@@ -1429,14 +1492,17 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         # - In normal mode without patches and flag disabled → 503 (as tests expect)
         # - When patched/missing at runtime → allow fallbacks (200) without gating
         if (not baseline_missing) and (not patched_missing) and (not patched_changed):
-            if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {"1", "true", "on", "yes"}:
+            if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {
+                "1",
+                "true",
+                "on",
+                "yes",
+            }:
                 raise HTTPException(status_code=503, detail="Premium BMR feature not available")
 
         # Calculate BMR using multiple formulas (use wrapper for easier mocking)
         try:
-            bmr_results = _bmr_wrapper(
-                req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat
-            )
+            bmr_results = _bmr_wrapper(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
         except HTTPException as e:
             # Tests expect we still return 200 even if calculation raises HTTPException
             base_bmr = 24 * req.weight_kg
@@ -1452,7 +1518,9 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
                     "weight_gain": float(primary_tdee * 1.2),
                 },
                 formulas_used=["stub"],
-                notes=[f"Fallback due to HTTPException: {e.detail if hasattr(e, 'detail') else str(e)}"],
+                notes=[
+                    f"Fallback due to HTTPException: {e.detail if hasattr(e, 'detail') else str(e)}"
+                ],
             )
         except ValueError as e:
             # Tests expect value errors to be handled gracefully with a stub
@@ -1493,7 +1561,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         if "katch" in bmr_results and req.bodyfat:
             notes.append(t(req.lang, "bmr_katch_note"))
 
-    # Calculate recommended intake (using Mifflin as primary)
+        # Calculate recommended intake (using Mifflin as primary)
         primary_tdee = tdee_results.get("mifflin", list(tdee_results.values())[0])
 
         recommended_intake = {
@@ -1596,6 +1664,7 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """
     try:
         import sys as _sys
+
         _app_pkg = _sys.modules.get("app")
         _getattr = getattr(_app_pkg, "getattr", getattr)
         _build_targets = _getattr(_app_pkg, "build_nutrition_targets", None)
@@ -1637,6 +1706,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """
     try:
         import sys as _sys
+
         # Resolve via the 'app' package so tests can patch app.build_nutrition_targets
         _app_pkg = _sys.modules.get("app")
         _getattr = getattr(_app_pkg, "getattr", getattr)
@@ -1683,10 +1753,12 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
             warnings: List[Dict[str, str]] = []
             if req.life_stage in ("pregnant", "lactating"):
-                warnings.append({
-                    "code": "life_stage",
-                    "message": "Special nutrition considerations apply",
-                })
+                warnings.append(
+                    {
+                        "code": "life_stage",
+                        "message": "Special nutrition considerations apply",
+                    }
+                )
 
             return WHOTargetsResponse(
                 kcal_daily=int(kcal_daily),
