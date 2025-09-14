@@ -6,5 +6,5 @@ coverage==7.10.6
 ruff==0.12.11
 bandit==1.8.6
 # safety==3.6.1b0  # Temporarily disabled due to typer compatibility issue
-mypy==1.17.1
+mypy==1.18.1
 black==25.1.0
