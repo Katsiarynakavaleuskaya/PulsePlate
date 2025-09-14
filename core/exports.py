@@ -23,13 +23,8 @@ try:
     from reportlab.lib import colors  # type: ignore
     from reportlab.lib.pagesizes import letter  # type: ignore
     from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
-    from reportlab.platypus import (
-        Paragraph,  # type: ignore
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    from reportlab.platypus import Paragraph  # type: ignore
+    from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle
 
     REPORTLAB_AVAILABLE = True
     REPORTLAB_CLASSES.update(
@@ -50,7 +45,6 @@ except ImportError:
 
 def _import_reportlab_modules():
     """Return reportlab modules, importing them if necessary."""
-    global REPORTLAB_CLASSES
     if not REPORTLAB_AVAILABLE:
         raise ImportError(
             "ReportLab is required for PDF export. Install with 'pip install reportlab'"

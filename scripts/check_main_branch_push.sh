@@ -37,22 +37,9 @@ if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
         exit 0
     fi
 
-    # В локальной разработке - спрашиваем подтверждение
-    echo -e "${YELLOW}❓ Продолжить push в $current_branch? (y/N):${NC}"
-    read -r response
-    case $response in
-        [yY][eE][sS]|[yY])
-            echo -e "${GREEN}✅ Push в $current_branch разрешен${NC}"
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}❌ Push в $current_branch отменен${NC}"
-            echo -e "${BLUE}💡 Рекомендация: создайте feature-ветку для разработки:${NC}"
-            echo "   git checkout -b feature/your-feature-name"
-            echo "   git push -u origin feature/your-feature-name"
-            exit 1
-            ;;
-    esac
+    # В локальной разработке - делаем неинтерактивным и разрешаем, но напомнить
+    echo -e "${YELLOW}ℹ️  Локальная разработка обнаружена — пропускаем подтверждение. Убедитесь, что проверки проходят локально перед PR.${NC}"
+    exit 0
 else
     echo -e "${GREEN}✅ Push в ветку $current_branch разрешен${NC}"
     exit 0

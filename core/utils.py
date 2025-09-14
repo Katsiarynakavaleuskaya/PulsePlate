@@ -33,7 +33,8 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
         name: attribute name to retrieve
         local_default: value to return if not found in candidates
         candidates: optional iterable of modules or module names to search.
-                    If None, defaults to [sys.modules.get("app"), sys.modules.get("_app_top_module")]
+            If None, defaults to [sys.modules.get("app"),
+            sys.modules.get("_app_top_module")]
 
     Returns:
         Resolved attribute value or local_default when not found.

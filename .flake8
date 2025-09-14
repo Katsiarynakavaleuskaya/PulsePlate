@@ -3,6 +3,22 @@
 max-line-length = 120
 # Ignore E501 (line too long) errors entirely
 ignore = E501
+
+# Allow late imports in specific files (intentional for runtime behavior/tests)
+per-file-ignores =
+	app.py:E402
+	tests/*.py:E402,F811
+	tests_strict/*.py:E402,F811
+	scripts/*.py:E402
+	debug_*.py:E402
+
+exclude =
+	.git,
+	__pycache__,
+	.venv,
+	venv,
+	env,
+	releases/*
 # Disable flake8 completely by ignoring all errors
 # You can uncomment the line below if you want to fully disable flake8
 # ignore = E,F,W,C

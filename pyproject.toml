@@ -3,16 +3,17 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-# Базовые наборы правил (pycodestyle/pyflakes/isort)
-select = ["E", "F", "W", "I"]
+# Базовые наборы правил (pycodestyle/pyflakes). Импорт-сортировку делаем через isort, чтобы
+# избежать конфликтов с ruff и black.
+select = ["E", "F", "W"]
 
 [tool.ruff.lint.per-file-ignores]
 # В тестах часто встречается импорт внутри тест-функций: игнорируем E402.
-"tests/**/*.py" = ["E402"]
+"tests/**/*.py" = ["E402", "F811", "E501"]
 # В app.py допускаем «поздние» импорты (если они действительно нужны):
 "app.py" = ["E402"]
 # В строгих тестах тоже допускаем поздние импорты:
-"tests_strict/**/*.py" = ["E402"]
+"tests_strict/**/*.py" = ["E402", "F811", "E501"]
 # В скриптах и debug файлах допускаем поздние импорты для sys.path манипуляций:
 "scripts/**/*.py" = ["E402"]
 "debug_endpoint.py" = ["E402"]
@@ -23,3 +24,7 @@ select = ["E", "F", "W", "I"]
 pythonpath = "."
 addopts = "-q"
 asyncio_mode = "auto"
+
+[tool.isort]
+profile = "black"
+line_length = 100

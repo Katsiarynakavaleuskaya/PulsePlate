@@ -39,8 +39,15 @@
   "ruff.lineLength": 100,
   "python.analysis.typeCheckingMode": "off",
   "cSpell.words": [
+    "Избыточный",
     "команда",
+    "масса",
+    "cand",
+    "dotenv",
     "gtin",
-    "isort"
+    "isort",
+    "redef",
+    "slowapi",
+    "tdee"
   ]
 }
