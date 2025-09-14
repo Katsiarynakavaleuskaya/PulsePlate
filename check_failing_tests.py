@@ -11,10 +11,12 @@ import sys
 def run_test_file(test_file):
     """Run a single test file and return result"""
     try:
-        result = subprocess.run([
-            "python", "-m", "pytest", test_file,
-            "--tb=short", "-x", "--maxfail=1"
-        ], capture_output=True, text=True, timeout=60)
+        result = subprocess.run(
+            ["python", "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
 
         if result.returncode == 0:
             return "PASS", result.stdout
@@ -24,6 +26,7 @@ def run_test_file(test_file):
         return "TIMEOUT", f"Test {test_file} timed out"
     except Exception as e:
         return "ERROR", str(e)
+
 
 def main():
     # Get all test files
@@ -60,9 +63,9 @@ def main():
         for test_file, output in failing_tests:
             print(f"  - {test_file}")
             # Show first error line
-            lines = output.split('\n')
+            lines = output.split("\n")
             for line in lines:
-                if 'assert' in line and '==' in line:
+                if "assert" in line and "==" in line:
                     print(f"    Error: {line.strip()}")
                     break
 
@@ -72,6 +75,7 @@ def main():
             print(f"  - {test_file}")
 
     return len(failing_tests) + len(timeout_tests)
+
 
 if __name__ == "__main__":
     exit_code = main()
