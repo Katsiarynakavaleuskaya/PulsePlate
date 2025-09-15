@@ -4,8 +4,9 @@
 Этот файл содержит рабочие тесты с правильными данными для всех эндпоинтов.
 """
 
-import pytest
 import os
+
+import pytest
 from fastapi.testclient import TestClient
 
 
