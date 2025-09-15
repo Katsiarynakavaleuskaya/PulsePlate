@@ -196,5 +196,7 @@ dist/
 local/
 dev/
 debug_*.py
-test_*.py
 reproduce_*.py
+
+# Allow tests under tests/ (do not ignore them)
+!tests/**
