@@ -2,6 +2,7 @@
 
 import sys
 from unittest.mock import Mock, patch
+
 from core.utils import get_activity_factor, resolve_attr
 
 

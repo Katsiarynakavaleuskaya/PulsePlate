@@ -1,7 +1,6 @@
-# Pre-commit hooks for PulsePlate
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v4.6.0
     hooks:
       - id: check-yaml
       - id: check-added-large-files
@@ -9,45 +8,50 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: debug-statements
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
-    hooks:
-      - id: isort
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
       - id: black
-        language_version: python3
         args: [--line-length=100]
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
   - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
+    rev: 7.1.1
     hooks:
       - id: flake8
-        args: ["--ignore=E203,W503,F601"]
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.13.0
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.1
     hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+        args:
+          - --config-file=pyproject.toml
+          - app
+          - core
+        pass_filenames: false
   - repo: local
     hooks:
-      - id: pytest-check
-        name: Run quick smoke tests before commit
-        entry: bash -c 'pytest -q test_quick_check.py test_setup.py -x'
+      - id: pytest-smoke
+        name: pytest smoke
+        entry: bash -lc 'pytest -q -k "smoke or quick or basic"'
         language: system
         pass_filenames: false
         stages: [pre-commit]
-      - id: coverage-check
-        name: Check coverage >=97% before push (CI only)
-        entry: bash -c 'if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then echo "[coverage-check] CI detected, enforcing coverage >=97%"; coverage run -m pytest && coverage report --fail-under=97; else echo "[coverage-check] Local push detected, skipping coverage gate (CI enforces it)"; fi'
-        language: system
-        stages: [pre-push]
-        pass_filenames: false
       - id: security-check
         name: Security scan before push
         entry: bash scripts/ci_bandit.sh
         language: system
         stages: [pre-push]
+        pass_filenames: false
+      - id: env-check
+        name: Environment smoke check
+        entry: python scripts/env_check.py
+        language: system
+        stages: [pre-commit]
         pass_filenames: false
       - id: dependency-check
         name: Check for vulnerable dependencies
@@ -57,7 +61,7 @@ repos:
         pass_filenames: false
       - id: main-branch-protection
         name: Protect main branch from direct push
-        entry: bash -c 'scripts/check_main_branch_push.sh'
+        entry: bash scripts/check_main_branch_push.sh
         language: system
         stages: [pre-push]
         pass_filenames: false

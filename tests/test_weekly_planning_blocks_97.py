@@ -9,10 +9,12 @@
 3. Тестировать различные комбинации параметров для максимального покрытия
 """
 
-import pytest
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+
 from app import app
 
 
