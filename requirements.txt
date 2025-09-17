@@ -10,7 +10,7 @@ slowapi==0.1.9
 hypothesis==6.138.10
 tenacity==9.1.2
 matplotlib==3.10.6
-reportlab==4.2.2
+reportlab==4.4.3
 sqlalchemy==2.0.36
 alembic==1.14.0
 psycopg[binary]==3.2.1
