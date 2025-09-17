@@ -1,0 +1,102 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en,ru,es",
+  "ignorePaths": [
+    "**/.git/**",
+    "**/.svn/**",
+    "**/.hg/**",
+    "**/.idea/**",
+    "**/.vscode/**",
+    "**/__pycache__/**",
+    "**/.mypy_cache/**",
+    "**/.pytest_cache/**",
+    "**/.ruff_cache/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/*.egg-info/**",
+    "**/htmlcov/**",
+    "**/coverage_html/**",
+    "**/cov_html/**",
+    "**/coverage.xml",
+    "**/coverage_report_detailed.txt",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/.tox/**",
+    "**/.eggs/**",
+    "**/.npm/**",
+    "**/.yarn/**",
+    "**/.pnpm-store/**",
+    "**/.cache/**",
+    "**/.DS_Store",
+    "**/bandit-report.json",
+    "frontend/**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/poetry.lock",
+    "data/build_report.json",
+    "data/food_merge_report.json",
+    "releases/**"
+  ],
+  "files": [
+    "**/*.{py,pyi,md,mdx,rst,txt,json,json5,yml,yaml,toml,ini,js,jsx,ts,tsx,html,css,scss,sh,lock}"
+  ],
+  "enableFiletypes": [
+    "shellscript"
+  ],
+  "import": [
+    "@cspell/dict-ru_ru",
+    "@cspell/dict-es-es",
+    "@cspell/dict-python",
+    "@cspell/dict-data-science"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "workspace-terms",
+      "path": "./cspell-workspace.txt",
+      "description": "Project specific terms",
+      "addWords": true
+    },
+    {
+      "name": "ru_ru",
+      "path": "./node_modules/@cspell/dict-ru_ru/cspell-ext.json",
+      "description": "Russian dictionary from cspell"
+    },
+    {
+      "name": "es_es",
+      "path": "./node_modules/@cspell/dict-es-es/cspell-ext.json",
+      "description": "Spanish dictionary from cspell"
+    },
+    {
+      "name": "python",
+      "path": "./node_modules/@cspell/dict-python/cspell-ext.json",
+      "description": "Python dictionary"
+    },
+    {
+      "name": "data-science",
+      "path": "./node_modules/@cspell/dict-data-science/cspell-ext.json",
+      "description": "Data science dictionary"
+    }
+  ],
+  "dictionaries": [
+    "workspace-terms",
+    "ru_ru",
+    "es_es",
+    "python",
+    "data-science"
+  ],
+  "languageSettings": [
+    {
+      "locale": "ru,ru-RU",
+      "dictionaries": ["ru_ru"]
+    },
+    {
+      "locale": "es,es-ES",
+      "dictionaries": ["es_es"]
+    }
+  ],
+  "userWords": []
+}

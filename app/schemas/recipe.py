@@ -6,7 +6,7 @@ EN: Normalized recipe schema and preview.
 
 from typing import Dict, List
 
-from pydantic import BaseModel, Field, conlist
+from pydantic import BaseModel, Field
 
 
 class Ingredient(BaseModel):
@@ -20,7 +20,7 @@ class Recipe(BaseModel):
     locale: str = "en"
     servings: int
     yield_total_g: float
-    ingredients: conlist(Ingredient, min_length=1)
+    ingredients: List[Ingredient] = Field(..., min_length=1)
     steps: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     allergens: List[str] = Field(default_factory=list)
@@ -41,7 +41,7 @@ class RecipeQueryHit(BaseModel):
 class RecipePreviewRequest(BaseModel):
     title: str
     servings: int = 1
-    ingredients: conlist(Ingredient, min_length=1)
+    ingredients: List[Ingredient] = Field(..., min_length=1)
 
 
 class RecipePreviewResponse(BaseModel):

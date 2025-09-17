@@ -1,0 +1,97 @@
+"""
+Simple tests for Food APIs update pipeline error handling.
+Target uncovered lines in update_manager.py and unified_db.py.
+"""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+import pytest
+
+from core.food_apis.update_manager import DatabaseUpdateManager
+
+
+class TestFoodAPIsSimple:
+    """Simple tests for Food APIs error paths."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create temporary directory."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            yield Path(tmp_dir)
+
+    @pytest.fixture
+    def manager(self, temp_dir):
+        """Create update manager."""
+        return DatabaseUpdateManager(cache_dir=temp_dir)
+
+    def test_versions_file_not_exists(self, manager):
+        """Test load_versions when file doesn't exist (line 146)."""
+        if manager.versions_file.exists():
+            manager.versions_file.unlink()
+
+        versions = manager._load_versions()
+        assert versions == {}
+
+    def test_versions_file_invalid_json(self, manager):
+        """Test load_versions with invalid JSON (lines 159-160)."""
+        manager.versions_file.parent.mkdir(parents=True, exist_ok=True)
+        manager.versions_file.write_text("invalid json")
+
+        with patch("core.food_apis.update_manager.logger") as mock_logger:
+            versions = manager._load_versions()
+            assert versions == {}
+            mock_logger.error.assert_called_once()
+
+    def test_save_versions_error(self, manager):
+        """Test save_versions with write error (lines 171-172)."""
+        # Mock the versions attribute to have some data
+        manager.versions = {"usda": MagicMock()}
+
+        with patch("builtins.open", side_effect=OSError("Write error")):
+            with patch("core.food_apis.update_manager.logger") as mock_logger:
+                manager._save_versions()
+                mock_logger.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_check_usda_updates_no_version(self, manager):
+        """Test _check_usda_updates when no current version (line 214)."""
+        manager._load_versions = MagicMock(return_value={})
+        result = await manager._check_usda_updates()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_off_updates_no_version(self, manager):
+        """Test _check_off_updates when no current version (line 231)."""
+        manager._load_versions = MagicMock(return_value={})
+        with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
+            result = await manager._check_off_updates()
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_for_updates_usda_error(self, manager):
+        """Test check_for_updates with USDA error (lines 194-195)."""
+        with patch.object(manager, "_check_usda_updates", side_effect=Exception("USDA error")):
+            with patch("core.food_apis.update_manager.logger") as mock_logger:
+                result = await manager.check_for_updates()
+                assert "usda" not in result or result["usda"] is False
+                mock_logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_check_for_updates_off_error(self, manager):
+        """Test check_for_updates with OFF error (lines 203-204)."""
+        with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
+            with patch.object(manager, "_check_off_updates", side_effect=Exception("OFF error")):
+                with patch("core.food_apis.update_manager.logger") as mock_logger:
+                    result = await manager.check_for_updates()
+                    assert "off" not in result or result["off"] is False
+                    mock_logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_simple_coverage_test(self, manager):
+        """Test simple paths for coverage improvement."""
+        # Test basic functionality
+        result = await manager.update_database("usda", force=False)
+        # Should work without crashing
+        assert result is not None
+        assert hasattr(result, "success")

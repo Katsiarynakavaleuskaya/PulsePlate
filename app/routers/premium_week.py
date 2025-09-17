@@ -6,9 +6,10 @@ EN: Router for generating weekly meal plans.
 """
 
 from typing import Dict, List, Optional
+import math
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, confloat, conint
+from pydantic import BaseModel, Field, field_validator
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -21,11 +22,39 @@ router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
 
 class TargetsIn(BaseModel):
-    kcal: conint(gt=500, lt=6000)
-    macros: Dict[str, confloat(ge=0)]
-    micro: Dict[str, confloat(ge=0)]
-    water_ml: Optional[conint(ge=0)] = 0
-    activity_week: Optional[Dict[str, conint(ge=0)]] = None
+    kcal: int = Field(..., gt=500, lt=6000)
+    macros: Dict[str, float]
+    micro: Dict[str, float]
+    water_ml: int = Field(0, ge=0)
+    activity_week: Optional[Dict[str, int]] = None
+
+    @field_validator("macros")
+    @classmethod
+    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
+        # Ensure all values are finite numbers >= 0
+        for key, val in v.items():
+            # Check if value is a numeric type (int or float)
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+
+            # Check if value is finite (not NaN or Infinity) and non-negative
+            if not math.isfinite(val) or val < 0:
+                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+        return v
+
+    @field_validator("micro")
+    @classmethod
+    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
+        # Ensure all values are finite numbers >= 0
+        for key, val in v.items():
+            # Check if value is a numeric type (int or float)
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                raise ValueError(f"micro[{key}] must be a finite number >= 0")
+
+            # Check if value is finite (not NaN or Infinity) and non-negative
+            if not math.isfinite(val) or val < 0:
+                raise ValueError(f"micro[{key}] must be a finite number >= 0")
+        return v
 
 
 class WeekPlanRequest(BaseModel):
@@ -33,9 +62,9 @@ class WeekPlanRequest(BaseModel):
     targets: Optional[TargetsIn] = None
     # режим B: быстрый профиль (fallback)
     sex: Optional[str] = None
-    age: Optional[conint(gt=10, lt=90)] = None
-    height_cm: Optional[conint(gt=100, lt=220)] = None
-    weight_kg: Optional[conint(gt=30, lt=300)] = None
+    age: Optional[int] = Field(None, gt=10, lt=90)
+    height_cm: Optional[int] = Field(None, gt=100, lt=220)
+    weight_kg: Optional[int] = Field(None, gt=30, lt=300)
     activity: Optional[str] = "moderate"
     goal: Optional[str] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)

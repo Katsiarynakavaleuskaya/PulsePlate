@@ -56,14 +56,14 @@ class Recipe:
 
     def calculate_nutrients_per_serving(self, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
         """Calculate nutrients per serving from ingredients."""
-        total_nutrients = {}
+        total_nutrients: Dict[str, float] = {}
 
         for ingredient_name, amount_g in self.ingredients.items():
             if ingredient_name in food_db:
                 food_item = food_db[ingredient_name]
                 for nutrient, value_per_100g in food_item.nutrients_per_100g.items():
                     nutrient_amount = (value_per_100g * amount_g) / 100
-                    total_nutrients[nutrient] = total_nutrients.get(nutrient, 0) + nutrient_amount
+                    total_nutrients[nutrient] = total_nutrients.get(nutrient, 0.0) + nutrient_amount
 
         # Divide by servings
         return {k: v / self.servings for k, v in total_nutrients.items()}
@@ -177,7 +177,13 @@ def make_weekly_menu(
     Weekly planning allows for day-to-day variation while ensuring
     adequate average intake of all nutrients over the week.
     """
-    daily_menus = []
+    # Ensure defaults if not provided (avoid relying on external async DB during tests)
+    if food_db is None:
+        food_db = _get_default_food_db()
+    if recipe_db is None:
+        recipe_db = _get_default_recipe_db()
+
+    daily_menus: List[DayMenu] = []
 
     # Generate 7 daily menus with some variation
     for day in range(7):
@@ -218,29 +224,38 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
     """
     # Try to get cached common foods first
     try:
-        # Run async function in sync context
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # If already in a running event loop (e.g., FastAPI TestClient), skip async calls
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError("running event loop; skip async food DB load")
+        except RuntimeError:
+            # No running loop – safe to create a temporary event loop
+            loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(loop)
+                unified_db = loop.run_until_complete(get_unified_food_db())
+                common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
 
-        unified_db = loop.run_until_complete(get_unified_food_db())
-        common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
+                # Convert to FoodItem format
+                foods_db: Dict[str, FoodItem] = {}
+                for key, unified_item in common_foods.items():
+                    foods_db[key] = FoodItem(
+                        name=unified_item.name,
+                        nutrients_per_100g=unified_item.nutrients_per_100g,
+                        cost_per_100g=unified_item.cost_per_100g,
+                        tags=unified_item.tags,
+                        availability_regions=unified_item.availability_regions,
+                    )
 
-        # Convert to FoodItem format
-        foods_db = {}
-        for key, unified_item in common_foods.items():
-            foods_db[key] = FoodItem(
-                name=unified_item.name,
-                nutrients_per_100g=unified_item.nutrients_per_100g,
-                cost_per_100g=unified_item.cost_per_100g,
-                tags=unified_item.tags,
-                availability_regions=unified_item.availability_regions,
-            )
-
-        if foods_db:
-            return foods_db
-
+                if foods_db:
+                    return foods_db
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
     except Exception as e:
-        # Fall back to basic mock data if API fails
+        # Fall back to basic mock data if API fails or loop is running
         print(f"Warning: Could not load USDA data, using fallback: {e}")
 
     # Fallback mock data (reduced set)
@@ -333,7 +348,7 @@ def _enhance_meals_with_micros(
 
 
 def _estimate_meal_nutrients(
-    meal_title: str, food_db: Dict[str, FoodItem], diet_flags: set
+    meal_title: str, food_db: Dict[str, FoodItem], diet_flags: set[str]
 ) -> Dict[str, float]:
     """
     RU: Оценивает содержание нутриентов в блюде по названию.
@@ -342,23 +357,23 @@ def _estimate_meal_nutrients(
     This is a simplified approach - in production, would use actual recipes.
     """
     # Basic nutrient estimates based on meal type
-    base_nutrients = {
-        "protein_g": 0,
-        "fat_g": 0,
-        "carbs_g": 0,
-        "fiber_g": 0,
-        "iron_mg": 0,
-        "calcium_mg": 0,
-        "folate_ug": 0,
-        "vitamin_d_iu": 0,
-        "b12_ug": 0,
-        "magnesium_mg": 0,
-        "zinc_mg": 0,
-        "selenium_ug": 0,
-        "vitamin_c_mg": 0,
-        "iodine_ug": 0,
-        "potassium_mg": 0,
-        "vitamin_a_ug": 0,
+    base_nutrients: Dict[str, float] = {
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        "iron_mg": 0.0,
+        "calcium_mg": 0.0,
+        "folate_ug": 0.0,
+        "vitamin_d_iu": 0.0,
+        "b12_ug": 0.0,
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "selenium_ug": 0.0,
+        "vitamin_c_mg": 0.0,
+        "iodine_ug": 0.0,
+        "potassium_mg": 0.0,
+        "vitamin_a_ug": 0.0,
     }
 
     # Simple pattern matching for nutrient estimation
@@ -366,24 +381,45 @@ def _estimate_meal_nutrients(
 
     if "курица" in title_lower or "chicken" in title_lower:
         if "VEG" not in diet_flags:
-            base_nutrients.update({"protein_g": 25, "b12_ug": 0.3, "selenium_ug": 14, "zinc_mg": 1})
+            base_nutrients.update(
+                {
+                    "protein_g": 25.0,
+                    "b12_ug": 0.3,
+                    "selenium_ug": 14.0,
+                    "zinc_mg": 1.0,
+                }
+            )
 
     if "тофу" in title_lower or "tofu" in title_lower:
-        base_nutrients.update({"protein_g": 15, "calcium_mg": 200, "magnesium_mg": 30})
+        base_nutrients.update({"protein_g": 15.0, "calcium_mg": 200.0, "magnesium_mg": 30.0})
 
     if "гречка" in title_lower or "buckwheat" in title_lower:
-        base_nutrients.update({"carbs_g": 30, "fiber_g": 5, "magnesium_mg": 80, "iron_mg": 2})
+        base_nutrients.update(
+            {
+                "carbs_g": 30.0,
+                "fiber_g": 5.0,
+                "magnesium_mg": 80.0,
+                "iron_mg": 2.0,
+            }
+        )
 
     if "овсянка" in title_lower or "oatmeal" in title_lower:
-        base_nutrients.update({"carbs_g": 25, "fiber_g": 4, "iron_mg": 2, "magnesium_mg": 60})
+        base_nutrients.update(
+            {
+                "carbs_g": 25.0,
+                "fiber_g": 4.0,
+                "iron_mg": 2.0,
+                "magnesium_mg": 60.0,
+            }
+        )
 
     if "салат" in title_lower or "салad" in title_lower:
-        base_nutrients.update({"vitamin_c_mg": 15, "folate_ug": 50, "calcium_mg": 50})
+        base_nutrients.update({"vitamin_c_mg": 15.0, "folate_ug": 50.0, "calcium_mg": 50.0})
 
     return base_nutrients
 
 
-def _estimate_meal_ingredients(meal_title: str, diet_flags: set) -> List[str]:
+def _estimate_meal_ingredients(meal_title: str, diet_flags: set[str]) -> List[str]:
     """
     RU: Оценивает ингредиенты блюда по названию.
     EN: Estimates meal ingredients based on title.
@@ -405,12 +441,15 @@ def _estimate_meal_ingredients(meal_title: str, diet_flags: set) -> List[str]:
     return ingredients
 
 
-def _calculate_total_nutrients(meals: List[Dict], food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+def _calculate_total_nutrients(
+    meals: List[Dict[str, Any]],
+    food_db: Dict[str, FoodItem],
+) -> Dict[str, float]:
     """
     RU: Рассчитывает общее содержание нутриентов за день.
     EN: Calculates total daily nutrient content.
     """
-    total = {
+    total: Dict[str, float] = {
         "protein_g": 0,
         "fat_g": 0,
         "carbs_g": 0,
@@ -479,7 +518,7 @@ def _generate_shopping_list(
     RU: Генерирует список покупок на неделю.
     EN: Generates weekly shopping list.
     """
-    shopping_list = {}
+    shopping_list: Dict[str, float] = {}
 
     for daily_menu in daily_menus:
         for meal in daily_menu.meals:
@@ -493,7 +532,7 @@ def _generate_shopping_list(
 
 
 def _calculate_weekly_coverage_simple(
-    daily_coverages: List[Dict[str, Dict]],
+    daily_coverages: List[Dict[str, Dict[str, Any]]],
 ) -> Dict[str, float]:
     """
     RU: Рассчитывает среднее покрытие нутриентов за неделю (упрощённая версия).
@@ -504,7 +543,7 @@ def _calculate_weekly_coverage_simple(
 
     # Get all nutrient names from first day
     nutrient_names = list(daily_coverages[0].keys())
-    weekly_averages = {}
+    weekly_averages: Dict[str, float] = {}
 
     for nutrient in nutrient_names:
         total_coverage = sum(
@@ -635,7 +674,7 @@ def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str,
     EN: Aggregate weekly gaps.
     """
     weekly_gaps = {}
-    all_nutrients = set()
+    all_nutrients: set[str] = set()
 
     # Collect all nutrients
     for day_gaps in daily_gaps.values():
@@ -657,7 +696,7 @@ def _find_booster_foods(
     RU: Находит продукты-усилители для дефицитных нутриентов.
     EN: Find booster foods for deficient nutrients.
     """
-    booster_foods = {}
+    booster_foods: Dict[str, List[FoodItem]] = {}
 
     for nutrient, gap in gaps.items():
         if gap > 0:  # Only for deficient nutrients
@@ -748,7 +787,7 @@ def _calculate_day_nutrients(day_menu: DayMenu) -> Dict[str, float]:
     RU: Рассчитывает общее потребление нутриентов за день.
     EN: Calculate total daily nutrient intake.
     """
-    day_nutrients = {}
+    day_nutrients: Dict[str, float] = {}
 
     for meal in day_menu.meals:
         meal_nutrients = meal.get("nutrients", {})

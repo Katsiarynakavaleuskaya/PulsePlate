@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from .update_manager import DatabaseUpdateManager, UpdateResult
+from ..time_utils import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class DatabaseUpdateScheduler:
         while self.is_running:
             try:
                 # Check if it's time for updates
-                current_time = datetime.now()
+                current_time = now_utc()
 
                 if self._should_check_for_updates(current_time):
                     await self._run_update_check()
@@ -299,7 +300,7 @@ async def stop_background_updates():
         logger.info("Background database updates stopped")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test the scheduler
     async def test_scheduler():
         scheduler = DatabaseUpdateScheduler(

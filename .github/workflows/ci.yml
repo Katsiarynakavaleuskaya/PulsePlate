@@ -25,6 +25,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -46,6 +56,8 @@ jobs:
 
       - name: Pre-commit (lint/format/security quick checks)
         run: pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: no-commit-to-branch
 
       - name: Run tests with coverage
         env:
@@ -65,7 +77,7 @@ jobs:
       - name: Security scan with Bandit (non-blocking)
         if: always()
         run: |
-          bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
+          bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov --output bandit-report.json
         continue-on-error: true
 
       - name: Upload bandit artifact

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from .targets import UserProfile
 
@@ -287,7 +287,7 @@ def get_sport_recommendations(
     sport: SportCategory,
     training_phase: TrainingPhase = TrainingPhase.IN_SEASON,
     training_hours_per_week: float = 5.0,
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     RU: Получить рекомендации по спортивному питанию.
     EN: Get sports nutrition recommendations.

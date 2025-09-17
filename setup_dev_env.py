@@ -44,7 +44,7 @@ def check_dependencies():
         "pydantic",
         "pytest",
         "black",
-        "ruff",
+        "flake8",
         "hypothesis",
         "uvicorn",
         "httpx",
@@ -95,7 +95,7 @@ def run_coverage():
 
 def run_linting():
     """Запустить линтинг"""
-    return run_command("python -m ruff check . --fix", "Линтинг кода")
+    return run_command("python -m flake8 .", "Линтинг кода")
 
 
 def format_code():

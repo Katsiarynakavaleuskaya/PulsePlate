@@ -222,6 +222,9 @@ class OFFClient:
             )
             return None
 
+        # Explicitly return None when product is not found
+        return None
+
     def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
         """
         RU: Парсит данные продукта из формата Open Food Facts.
@@ -304,9 +307,9 @@ class OFFClient:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and None values
-        valid_results = []
+        valid_results: List[OFFFoodItem] = []
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.error(f"Error fetching product: {result}")
             elif result is not None:
                 valid_results.append(result)

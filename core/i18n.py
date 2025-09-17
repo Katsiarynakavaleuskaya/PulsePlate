@@ -4,7 +4,7 @@ Internationalization (i18n) module for the BMI App.
 Provides translation dictionaries and functions for RU/EN/ES localization.
 """
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 # Translation dictionaries
 TRANSLATIONS = {
@@ -84,11 +84,6 @@ TRANSLATIONS = {
         "recommendation_monitor_health": "Следите за показателями здоровья и рассмотрите "
         "возможность изменения образа жизни",
         "recommendation_maintain_habits": "Поддерживайте текущие здоровые привычки",
-        # Levels (Russian)
-        "level_advanced": "продвинутый",  # noqa: F601
-        "level_intermediate": "средний",  # noqa: F601
-        "level_novice": "начальный",  # noqa: F601
-        "level_beginner": "базовый",  # noqa: F601
         # General
         "bmi_not_valid_during_pregnancy": "BMI не применим при беременности",
         "bmi_visualization_success": "Визуализация ИМТ создана успешно",
@@ -170,11 +165,6 @@ TRANSLATIONS = {
         "recommendation_monitor_health": "Monitor health metrics and consider "
         "lifestyle modifications",
         "recommendation_maintain_habits": "Maintain current healthy habits",
-        # Levels (English lowercase)
-        "level_advanced": "advanced",  # noqa: F601
-        "level_intermediate": "intermediate",  # noqa: F601
-        "level_novice": "novice",  # noqa: F601
-        "level_beginner": "beginner",  # noqa: F601
         # General
         "bmi_not_valid_during_pregnancy": "BMI is not valid during pregnancy",
         "bmi_visualization_success": "BMI visualization generated successfully",
@@ -252,11 +242,6 @@ TRANSLATIONS = {
         "recommendation_monitor_health": "Monitorea los indicadores de salud y "
         "considera modificaciones en el estilo de vida",
         "recommendation_maintain_habits": "Mantén tus hábitos saludables actuales",
-        # Levels (Spanish lowercase)
-        "level_advanced": "avanzado",  # noqa: F601
-        "level_intermediate": "intermedio",  # noqa: F601
-        "level_novice": "novato",  # noqa: F601
-        "level_beginner": "principiante",  # noqa: F601
         "activity_sedentary": "Sedentario",
         "activity_light": "Actividad ligera",
         "activity_moderate": "Actividad moderada",
@@ -271,6 +256,73 @@ TRANSLATIONS = {
 
 # Type alias for language codes
 Language = Literal["ru", "en", "es"]
+
+# Backwards-compatible alias for internal use when normalizing
+Lang = Language
+
+# Configuration for locale special-case handling
+# Each base language can have a default fallback and exception regions
+LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
+    # English: Always maps to English (no exceptions needed)
+    "en": {
+        "default": "en",
+        "exceptions": set(),  # All English regions → English
+    },
+    # Russian: Business requirement - all regions fallback to English
+    "ru": {
+        "default": "en",
+        "exceptions": set(),  # No Russian regions map to Russian
+    },
+    # Spanish: Market-selective - only Mexico gets Spanish, rest get English
+    "es": {
+        "default": "en",
+        "exceptions": {"mx"},  # Only Mexico gets Spanish
+    },
+}
+
+# Aliases mapping for language normalization
+#
+# FALLBACK STRATEGY EXPLAINED:
+# This is a market-based localization strategy, not purely linguistic.
+# The app supports 3 primary markets with different locale handling:
+#
+# 1. ENGLISH MARKETS: All English locales → English (universal support)
+# 2. RUSSIAN MARKET: Base Russian supported, but regional Russian locales → English
+#    (business decision for international consistency)
+# 3. SPANISH MARKETS: Selective support based on target markets
+#    - es-MX (Mexico): Primary Spanish market → Spanish
+#    - es-ES (Spain), es-AR (Argentina): Secondary markets → English fallback
+#
+# This strategy allows controlled localization rollout while maintaining
+# a consistent user experience in non-primary markets.
+LANG_ALIASES: dict[str, Lang] = {
+    # =================================================================
+    # BASE LANGUAGES (core supported languages)
+    # =================================================================
+    "ru": "ru",
+    "en": "en",
+    "es": "es",
+    # =================================================================
+    # LANGUAGE NAME ALIASES (multilingual support)
+    # =================================================================
+    "russian": "ru",
+    "english": "en",
+    "spanish": "es",
+    "español": "es",
+    "русский": "ru",
+    # =================================================================
+    # LOCALE MAPPINGS (market-based strategy)
+    # =================================================================
+    # English markets (universal support)
+    "en-us": "en",
+    "en-gb": "en",
+    # Russian markets (selective support)
+    "ru-ru": "en",  # Regional Russian → English (business requirement)
+    # Spanish markets (selective support)
+    "es-mx": "es",  # Mexico → Spanish (primary market)
+    "es-es": "en",  # Spain → English (secondary market)
+    "es-ar": "en",  # Argentina → English (secondary market)
+}
 
 
 def t(lang: Language, key: str, **kwargs: Any) -> str:
@@ -314,39 +366,65 @@ def validate_translation_key(key: str) -> bool:
     return all(key in translations for translations in TRANSLATIONS.values())
 
 
-def normalize_lang(lang: str) -> Language:
+def normalize_lang(lang: Optional[str]) -> Lang:
     """
-    Normalize language code to supported language.
+    Normalize input language code to supported languages ('ru'|'en'|'es').
+
+    Uses a configurable market-based localization strategy where locale fallbacks
+    are determined by business requirements defined in LOCALE_SPECIAL_CASES.
+
+    Strategy:
+    1. Check exact aliases from LANG_ALIASES first
+    2. For unknown locales (xx-YY), apply configurable rules from LOCALE_SPECIAL_CASES:
+       - Each base language has a default fallback and exception regions
+       - If region is in exceptions → return base language
+       - Otherwise → return configured default
+    3. Unknown languages → English (default)
 
     Args:
-        lang: Language code (case insensitive)
+        lang: Input language code (can be None, empty, or any format)
 
     Returns:
-        Normalized language code
+        Normalized language code: 'ru', 'en', or 'es'
 
-    Raises:
-        ValueError: If language is not supported
+    Examples:
+        >>> normalize_lang("en-US")    # → "en" (en default)
+        >>> normalize_lang("es-MX")    # → "es" (mx in es exceptions)
+        >>> normalize_lang("es-ES")    # → "en" (es default, ES not in exceptions)
+        >>> normalize_lang("ru-RU")    # → "en" (ru default, no exceptions)
+        >>> normalize_lang("français") # → "en" (unsupported)
     """
     if not lang:
-        return "en"  # Default to English
+        return "en"
 
-    lang_lower = lang.lower().strip()
+    key = lang.strip().lower().replace("_", "-")
 
-    # Map common variations to supported languages
-    lang_map = {
-        "ru": "ru",
-        "russian": "ru",
-        "русский": "ru",
-        "en": "en",
-        "english": "en",
-        "es": "es",
-        "spanish": "es",
-        "español": "es",
-        "испанский": "es",
-    }
+    # Step 1: Check exact aliases first
+    if key in LANG_ALIASES:
+        return LANG_ALIASES[key]
 
-    if lang_lower in lang_map:
-        return lang_map[lang_lower]
+    # Step 2: Handle unknown locales with configurable market-based rules
+    if "-" in key:
+        base, region = key.split("-", 1)
 
-    # Default to English for unsupported languages
+        # Normalize base and region to lowercase for consistent lookup
+        base = base.lower()
+        region = region.lower()
+
+        # Apply locale special-case rules if base language has configuration
+        if base in LOCALE_SPECIAL_CASES:
+            config = LOCALE_SPECIAL_CASES[base]
+
+            # If region is in exceptions, return the base language
+            if region in config["exceptions"]:
+                return base  # type: ignore[return-value]
+
+            # Otherwise return the configured default
+            return config["default"]
+
+    # Step 3: Check direct base languages
+    if key in ("ru", "en", "es"):
+        return key  # type: ignore[return-value]
+
+    # Step 4: Default fallback for all unknown languages
     return "en"

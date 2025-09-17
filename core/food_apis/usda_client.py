@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
 
@@ -95,6 +95,16 @@ class USDAClient:
 
     BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
+    # Type alias for httpx param values
+    ParamValue = Union[
+        str,
+        int,
+        float,
+        bool,
+        None,
+        Sequence[Union[str, int, float, bool, None]],
+    ]
+
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize USDA client.
@@ -150,7 +160,8 @@ class USDAClient:
         """
         try:
             url = f"{self.BASE_URL}/foods/search"
-            params = {
+            # Ensure param types match httpx expectations
+            params: Dict[str, USDAClient.ParamValue] = {
                 "query": query,
                 "pageSize": min(page_size, 200),
                 "api_key": self.api_key,
@@ -248,7 +259,19 @@ class USDAClient:
                 return None
 
             # Extract basic info
-            fdc_id = food_data.get("fdcId")
+            fdc_id_raw = food_data.get("fdcId")
+            # Guard and normalize fdc_id to int
+            if isinstance(fdc_id_raw, str):
+                try:
+                    fdc_id = int(fdc_id_raw)
+                except ValueError:
+                    logger.error(f"Invalid fdcId string: {fdc_id_raw}")
+                    return None
+            elif isinstance(fdc_id_raw, int):
+                fdc_id = fdc_id_raw
+            else:
+                logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+                return None
             description = food_data.get("description", "Unknown Food")
             data_type = food_data.get("dataType", "Unknown")
             publication_date = food_data.get("publicationDate") or food_data.get("publishedDate")
@@ -357,7 +380,7 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
         await client.close()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test the USDA client
     async def test_usda_client():
         client = USDAClient()

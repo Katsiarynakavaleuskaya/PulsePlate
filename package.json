@@ -1,0 +1,31 @@
+{
+  "name": "bmi-app_2025_clean",
+  "version": "1.0.0",
+  "description": "[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)",
+  "main": "worker.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Katsiarynakavaleuskaya/PulsePlate.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues"
+  },
+  "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
+  "devDependencies": {
+    "@cspell/dict-data-science": "^2.0.9",
+    "@cspell/dict-es-es": "^3.0.8",
+    "@cspell/dict-python": "^4.2.19",
+    "@cspell/dict-ru_ru": "^2.3.2",
+    "cspell": "^9.2.1"
+  }
+}

@@ -1,17 +1,20 @@
 # 📊 План интеграции DLT (Data Load Tool) в BMI-App проект
 
 ## 🎯 Цель
+
 Автоматизировать ETL pipeline для nutrition данных используя **DLT** - современный Python фреймворк для data loading.
 
 ## 📋 Текущее состояние данных
 
-### Существующие источники:
+### Существующие источники
+
 - **`data/food_db.csv`** - 19 локальных продуктов (RU/EN)
 - **`external/usda_fdc_sample.csv`** - 12 USDA продуктов
 - **`external/off_products_sample.csv`** - OpenFoodFacts продукты
 - **Перспектива**: Миллионы записей из USDA FDC + OFF
 
-### Структура данных:
+### Структура данных
+
 ```csv
 name,group,per_g,kcal,protein_g,fat_g,carbs_g,fiber_g,Fe_mg,Ca_mg,VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price,source,version_date
 ```

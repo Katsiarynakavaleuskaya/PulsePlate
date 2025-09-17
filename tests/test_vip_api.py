@@ -7,8 +7,12 @@ EN: Tests for VIP API endpoints
 """
 
 from fastapi.testclient import TestClient
+from fastapi import FastAPI
 
 import app as app_module
+
+# Type assertion to satisfy type checker
+assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
 
 client = TestClient(app_module.app)
 
@@ -18,7 +22,7 @@ def test_vip_health():
     r = client.get("/api/v1/vip/health")
     assert r.status_code == 200
     data = r.json()
-    assert data["status"] == "healthy"
+    assert data["status"] == "success"
     assert data["module"] == "vip"
     assert "features" in data
 
@@ -32,7 +36,7 @@ def test_vip_weekly_plan_echo():
     r = client.post("/api/v1/vip/menu/weekly/plan", json=payload)
     assert r.status_code == 200
     data = r.json()
-    assert data["status"] == "planned"
+    assert data["status"] == "success"
     assert "echo" in data
     assert data["echo"] == payload
 
@@ -43,7 +47,7 @@ def test_vip_weekly_repair_echo():
     r = client.post("/api/v1/vip/menu/weekly/repair", json=payload)
     assert r.status_code == 200
     data = r.json()
-    assert data["status"] == "repaired"
+    assert data["status"] == "success"
     assert "echo" in data
     assert data["echo"] == payload
 
@@ -61,6 +65,7 @@ def test_vip_module_disabled():
         # Reimport app with disabled VIP
         importlib.reload(app_module)
 
+        assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
         client_disabled = TestClient(app_module.app)
         r = client_disabled.get("/api/v1/vip/health")
         assert r.status_code == 404

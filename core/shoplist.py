@@ -95,7 +95,7 @@ class ShoplistGenerator:
         Returns:
             Словарь {ingredient_name: total_grams}
         """
-        aggregated = {}
+        aggregated: Dict[str, float] = {}
 
         # Если week_plan содержит дни
         if "days" in week_plan:
@@ -175,10 +175,13 @@ class ShoplistGenerator:
 
             # Получаем правило упаковки для категории
             rule = rules.get(category, rules.get("default"))
+            if not isinstance(rule, PackagingRule):
+                # Fallback to a sane default rule
+                rule = PackagingRule("default", "g", [100, 250, 500, 1000], "up")
 
             # Округляем до ближайшей упаковки
             package_size, packages_needed = self._find_best_package(
-                total_grams, rule.typical_packages, rule.rounding_strategy
+                float(total_grams), list(rule.typical_packages), str(rule.rounding_strategy)
             )
 
             # Конвертируем обратно в исходные единицы

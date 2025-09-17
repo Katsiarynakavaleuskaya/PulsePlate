@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .targets import UserProfile
 
@@ -368,7 +368,7 @@ class LifeStageNutritionCalculator:
     @classmethod
     def calculate_lifestage_targets(
         cls, profile: UserProfile, life_stage: LifeStage
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         RU: Рассчитывает цели питания для конкретного этапа жизни.
         EN: Calculate nutrition targets for specific life stage.
@@ -490,7 +490,7 @@ def get_lifestage_recommendations(
     is_pregnant: bool = False,
     is_lactating: bool = False,
     trimester: Optional[int] = None,
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     RU: Получить рекомендации по питанию для этапа жизни.
     EN: Get life-stage nutrition recommendations.

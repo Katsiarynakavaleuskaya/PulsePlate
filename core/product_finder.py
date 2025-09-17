@@ -23,6 +23,28 @@ from .food_sources.usda import USDAAdapter
 logger = logging.getLogger(__name__)
 
 
+# Shared CSV schema for food DB rows
+FIELDNAMES: List[str] = [
+    "name",
+    "unit_per",
+    "unit",
+    "protein_g",
+    "fat_g",
+    "carbs_g",
+    "fiber_g",
+    "Fe_mg",
+    "Ca_mg",
+    "VitD_IU",
+    "B12_ug",
+    "Folate_ug",
+    "Iodine_ug",
+    "K_mg",
+    "Mg_mg",
+    "price_per_unit",
+    "flags",
+]
+
+
 @dataclass
 class ProductSearchResult:
     """
@@ -330,57 +352,14 @@ class ProductFinder:
         """
         db_path = Path("data/food_db.csv")
 
-        # Проверяем, существует ли файл
-        file_exists = db_path.exists()
+        # Determine if we need to write header: file missing or empty
+        need_header = (not db_path.exists()) or (db_path.exists() and db_path.stat().st_size == 0)
 
         with open(db_path, "a", newline="", encoding="utf-8") as csvfile:
-            fieldnames = [
-                "name",
-                "unit_per",
-                "unit",
-                "protein_g",
-                "fat_g",
-                "carbs_g",
-                "fiber_g",
-                "Fe_mg",
-                "Ca_mg",
-                "VitD_IU",
-                "B12_ug",
-                "Folate_ug",
-                "Iodine_ug",
-                "K_mg",
-                "Mg_mg",
-                "price_per_unit",
-                "flags",
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-            # Записываем заголовок, если файл новый
-            if not file_exists:
+            writer = csv.DictWriter(csvfile, fieldnames=FIELDNAMES)
+            if need_header:
                 writer.writeheader()
-
-            # Записываем данные продукта
-            writer.writerow(
-                {
-                    "name": food_item.name,
-                    "unit_per": food_item.unit_per,
-                    "unit": food_item.unit,
-                    "protein_g": food_item.protein_g,
-                    "fat_g": food_item.fat_g,
-                    "carbs_g": food_item.carbs_g,
-                    "fiber_g": food_item.fiber_g,
-                    "Fe_mg": food_item.Fe_mg,
-                    "Ca_mg": food_item.Ca_mg,
-                    "VitD_IU": food_item.VitD_IU,
-                    "B12_ug": food_item.B12_ug,
-                    "Folate_ug": food_item.Folate_ug,
-                    "Iodine_ug": food_item.Iodine_ug,
-                    "K_mg": food_item.K_mg,
-                    "Mg_mg": food_item.Mg_mg,
-                    "price_per_unit": food_item.price_per_unit,
-                    "flags": ",".join(food_item.flags) if food_item.flags else "",
-                }
-            )
+            writer.writerow(self._as_row(food_item))
 
     def auto_expand_database(self, recipe_ingredients: List[str]) -> Dict[str, bool]:
         """
@@ -422,3 +401,79 @@ class ProductFinder:
 
         logger.info("Automatic database expansion completed")
         return results
+
+    def expand_database(self, products: List[str], csv_path: str) -> Dict[str, bool]:
+        """
+        RU: Расширить базу данных указанными продуктами и записать/добавить их в CSV.
+        EN: Expand the database with provided products and write/append them into a CSV.
+
+        Args:
+            products: Список названий продуктов для поиска и добавления
+            csv_path: Путь к CSV файлу, куда записывать продукты
+
+        Returns:
+            Словарь {product_name: success}
+        """
+        results: Dict[str, bool] = {}
+
+        # Ensure the directory exists (if any)
+        try:
+            path_obj = Path(csv_path)
+            if path_obj.parent and not path_obj.parent.exists():
+                path_obj.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Best-effort; writing the file below will surface any errors
+            pass
+
+        # Determine if we need to write header: file missing or empty
+        csv_path_obj = Path(csv_path)
+        need_header = not csv_path_obj.exists() or (
+            csv_path_obj.exists() and csv_path_obj.stat().st_size == 0
+        )
+
+        # Open file in append mode; write header if new or empty file
+        with open(csv_path, "a", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=FIELDNAMES)
+            if need_header:
+                writer.writeheader()
+
+            for product in products:
+                try:
+                    search_result = self.search_product(product)
+                    if search_result.found and search_result.food_record:
+                        # Convert and write a row
+                        food_item = self._convert_to_food_item(search_result.food_record, product)
+                        writer.writerow(self._as_row(food_item))
+                        results[product] = True
+                        logger.info(f"Added product to CSV: {product}")
+                    else:
+                        results[product] = False
+                        logger.warning(f"Product not found and was not added: {product}")
+                except Exception as e:
+                    # On any error for a single product, mark as False and continue
+                    results[product] = False
+                    logger.warning(f"Failed to process product '{product}': {e}")
+
+        return results
+
+    def _as_row(self, food_item: FoodItem) -> Dict[str, str | float | int]:
+        """Map FoodItem to CSV row using shared FIELDNAMES order."""
+        return {
+            "name": food_item.name,
+            "unit_per": food_item.unit_per,
+            "unit": food_item.unit,
+            "protein_g": food_item.protein_g,
+            "fat_g": food_item.fat_g,
+            "carbs_g": food_item.carbs_g,
+            "fiber_g": food_item.fiber_g,
+            "Fe_mg": food_item.Fe_mg,
+            "Ca_mg": food_item.Ca_mg,
+            "VitD_IU": food_item.VitD_IU,
+            "B12_ug": food_item.B12_ug,
+            "Folate_ug": food_item.Folate_ug,
+            "Iodine_ug": food_item.Iodine_ug,
+            "K_mg": food_item.K_mg,
+            "Mg_mg": food_item.Mg_mg,
+            "price_per_unit": food_item.price_per_unit,
+            "flags": ",".join(sorted(food_item.flags)) if food_item.flags else "",
+        }

@@ -11,19 +11,20 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+from fastapi import FastAPI
+
+if not isinstance(app, FastAPI):
+    raise RuntimeError("Imported 'app' is not a FastAPI instance")
+
 
 class TestAppCoverageImprovement:
     """Additional tests to improve coverage for app.py."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test environment."""
         # Set a test API key for testing
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
         # Reset the global scheduler instance
@@ -158,7 +159,7 @@ class TestAppCoverageImprovement:
             return_value={"usda": True, "openfoodfacts": False}
         )
         with self._mock_scheduler(mock_scheduler):
-            response = self.client.post(
+            response = self.client.get(
                 "/api/v1/admin/check-updates", headers=self._get_standard_headers()
             )
             assert response.status_code == 200
@@ -167,7 +168,7 @@ class TestAppCoverageImprovement:
         """Test check updates endpoint exception handling."""
         # The endpoint actually works correctly and returns 200
         # The mock doesn't work because the endpoint uses dynamic resolution
-        response = self.client.post(
+        response = self.client.get(
             "/api/v1/admin/check-updates", headers=self._get_standard_headers()
         )
         # The endpoint returns successful status even when mocked

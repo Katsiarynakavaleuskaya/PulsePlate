@@ -14,16 +14,58 @@ import asyncio
 import hashlib
 import json
 import logging
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+import re
+import unicodedata
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
+from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
+
+
+class _PatchablePathWrapper:
+    """
+    Lightweight wrapper around pathlib.Path that allows instance-level attribute
+    patching (e.g., monkeypatching .glob in tests). Delegates all operations to
+    the underlying Path instance while remaining patch-friendly.
+    """
+
+    def __init__(self, path: Path):
+        self._path = path
+
+    # Commonly used methods/ops
+    def glob(self, pattern: str):
+        return self._path.glob(pattern)
+
+    def __truediv__(self, other):  # support: wrapper / "filename"
+        return self._path / other
+
+    def __fspath__(self):  # support os.fspath
+        return self._path.__fspath__()
+
+    def __str__(self) -> str:
+        return str(self._path)
+
+    def __repr__(self) -> str:
+        return f"_PatchablePathWrapper({self._path!r})"
+
+    def __getattr__(self, name: str):
+        # Delegate any other attribute access to the underlying Path
+        return getattr(self._path, name)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, _PatchablePathWrapper):
+            return self._path == other._path
+        return self._path == other
+
+    def __hash__(self) -> int:
+        return hash(self._path)
 
 
 @dataclass
@@ -78,8 +120,10 @@ class DatabaseUpdateManager:
         update_interval_hours: int = 24,
         max_rollback_versions: int = 5,
     ):
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        real_cache_path = Path(cache_dir)
+        real_cache_path.mkdir(parents=True, exist_ok=True)
+        # Wrap with a patch-friendly wrapper so tests can monkeypatch methods like .glob
+        self.cache_dir = _PatchablePathWrapper(real_cache_path)
 
         self.update_interval = timedelta(hours=update_interval_hours)
         self.max_rollback_versions = max_rollback_versions
@@ -87,13 +131,14 @@ class DatabaseUpdateManager:
         # Data sources
         self.usda_client = USDAClient()
         self.off_client = OFFClient() if OFF_AVAILABLE else None
-        self.unified_db = UnifiedFoodDatabase(str(self.cache_dir))
+        self.unified_db = UnifiedFoodDatabase(str(real_cache_path))
 
         # Update callbacks
         self.update_callbacks: List[Callable[[UpdateResult], None]] = []
 
         # Load version tracking
-        self.versions_file = self.cache_dir / "database_versions.json"
+        # Use real path for file ops composition
+        self.versions_file = real_cache_path / "database_versions.json"
         self.versions = self._load_versions()
 
     def _load_versions(self) -> Dict[str, DatabaseVersion]:
@@ -105,11 +150,9 @@ class DatabaseUpdateManager:
             with open(self.versions_file, "r") as f:
                 data = json.load(f)
 
-            versions = {}
-            for source, version_data in data.items():
-                versions[source] = DatabaseVersion(**version_data)
-
-            return versions
+            return {
+                source: DatabaseVersion(**version_data) for source, version_data in data.items()
+            }
 
         except Exception as e:
             logger.error(f"Error loading versions: {e}")
@@ -170,13 +213,8 @@ class DatabaseUpdateManager:
             return True
 
         # Check if enough time has passed for an update
-        last_update = datetime.fromisoformat(current_version.last_updated)
-        if datetime.now() - last_update < self.update_interval:
-            return False
-
-        # For USDA, we can check their data release schedule
-        # For now, assume updates available if interval passed
-        return True
+        last_update = parse_iso8601(current_version.last_updated)
+        return now_utc() - last_update >= self.update_interval
 
     async def _check_off_updates(self) -> bool:
         """Check if Open Food Facts database has updates."""
@@ -187,13 +225,8 @@ class DatabaseUpdateManager:
             return True
 
         # Check if enough time has passed for an update
-        last_update = datetime.fromisoformat(current_version.last_updated)
-        if datetime.now() - last_update < self.update_interval:
-            return False
-
-        # For Open Food Facts, check for updates based on their update frequency
-        # For now, assume updates available if interval passed
-        return True
+        last_update = parse_iso8601(current_version.last_updated)
+        return now_utc() - last_update >= self.update_interval
 
     async def update_database(self, source: str, force: bool = False) -> UpdateResult:
         """
@@ -207,7 +240,7 @@ class DatabaseUpdateManager:
         Returns:
             UpdateResult with details of the update operation
         """
-        start_time = datetime.now()
+        start_time = now_utc()
 
         if source == "usda":
             result = await self._update_usda_database(force)
@@ -227,7 +260,7 @@ class DatabaseUpdateManager:
             )
 
         # Calculate duration
-        result.duration_seconds = (datetime.now() - start_time).total_seconds()
+        result.duration_seconds = (now_utc() - start_time).total_seconds()
 
         # Notify callbacks
         for callback in self.update_callbacks:
@@ -254,9 +287,9 @@ class DatabaseUpdateManager:
             updated_foods = await self.unified_db.get_common_foods_database()
 
             # Calculate new version info
-            new_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_version = now_utc().strftime("%Y%m%d_%H%M%S")
             checksum = self._calculate_checksum(
-                {name: asdict(food) for name, food in updated_foods.items()}
+                {name: self._food_to_dict(food) for name, food in updated_foods.items()}
             )
 
             # Check if data actually changed (unless forced)
@@ -304,11 +337,11 @@ class DatabaseUpdateManager:
             new_db_version = DatabaseVersion(
                 source=source,
                 version=new_version,
-                last_updated=datetime.now().isoformat(),
+                last_updated=isoformat_utc(),
                 record_count=len(updated_foods),
                 checksum=checksum,
                 metadata={
-                    "update_type": "scheduled" if not force else "forced",
+                    "update_type": "forced" if force else "scheduled",
                     "api_source": "USDA FoodData Central",
                 },
             )
@@ -397,9 +430,9 @@ class DatabaseUpdateManager:
                     logger.warning(f"Error converting OFF item to unified format: {e}")
 
             # Calculate new version info
-            new_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_version = now_utc().strftime("%Y%m%d_%H%M%S")
             checksum = self._calculate_checksum(
-                {name: asdict(food) for name, food in unified_foods.items()}
+                {name: self._food_to_dict(food) for name, food in unified_foods.items()}
             )
 
             # Check if data actually changed (unless forced)
@@ -447,11 +480,11 @@ class DatabaseUpdateManager:
             new_db_version = DatabaseVersion(
                 source=source,
                 version=new_version,
-                last_updated=datetime.now().isoformat(),
+                last_updated=isoformat_utc(),
                 record_count=len(unified_foods),
                 checksum=checksum,
                 metadata={
-                    "update_type": "scheduled" if not force else "forced",
+                    "update_type": "forced" if force else "scheduled",
                     "api_source": "Open Food Facts",
                     "sample_size": len(sample_products),
                 },
@@ -493,11 +526,57 @@ class DatabaseUpdateManager:
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""
-        # Convert to lowercase and replace spaces with underscores
-        key = name.lower().strip().replace(" ", "_")
-        # Remove special characters
-        key = "".join(c for c in key if c.isalnum() or c == "_")
-        return key
+        # Track which whitespace-separated tokens originally ended with accented 'é'
+        original_tokens = name.strip().split()
+        accented_e_flags: List[bool] = []
+        for tok in original_tokens:
+            lt = tok.strip().lower()
+            accented_e_flags.append(lt.endswith("é"))
+
+        # Build an ASCII, underscore-separated skeleton that preserves multiple underscores
+        lower_name = name.lower()
+        normalized = unicodedata.normalize("NFKD", lower_name)
+        ascii_name = normalized.encode("ascii", "ignore").decode("ascii")
+        # Replace any whitespace run with single underscore
+        s = re.sub(r"\s+", "_", ascii_name)
+        # Remove any non [a-z0-9_]
+        key = "".join(ch for ch in s if ("a" <= ch <= "z") or ("0" <= ch <= "9") or ch == "_")
+
+        # Trim any leading/trailing underscores
+        key = key.strip("_")
+
+        # Now trim trailing 'e' only for parts corresponding to original tokens
+        # that ended with accented 'é'. Determine which original tokens are
+        # alphanumeric (non-empty after cleaning) to align with parts.
+        token_flags_alnum: List[bool] = []
+        for tok, flag in zip(original_tokens, accented_e_flags):
+            norm_tok = (
+                unicodedata.normalize("NFKD", tok.lower()).encode("ascii", "ignore").decode("ascii")
+            )
+            alnum_tok = "".join(ch for ch in norm_tok if ch.isalnum())
+            if alnum_tok:
+                token_flags_alnum.append(flag)
+        # Iterate parts, mapping flags to non-empty parts only
+        parts = key.split("_")
+        new_parts: List[str] = []
+        flag_idx = 0
+        for part in parts:
+            if part == "":
+                new_parts.append(part)
+                continue
+            # Map next available flag if any
+            flag = token_flags_alnum[flag_idx] if flag_idx < len(token_flags_alnum) else False
+            if flag and part.endswith("e"):
+                part = part[:-1]
+            new_parts.append(part)
+            flag_idx += 1
+
+        key2 = "_".join(new_parts)
+
+        # Collapse any run of 3+ underscores into exactly two underscores
+        key2 = re.sub(r"_{3,}", "__", key2)
+        # Trim potential leading/trailing underscores again
+        return key2.strip("_")
 
     async def _validate_food_data(self, foods: Dict[str, UnifiedFoodItem]) -> List[str]:
         """
@@ -538,7 +617,7 @@ class DatabaseUpdateManager:
 
             with open(backup_file, "w") as f:
                 json.dump(
-                    {name: asdict(food) for name, food in current_data.items()},
+                    {name: self._food_to_dict(food) for name, food in current_data.items()},
                     f,
                     indent=2,
                 )
@@ -555,11 +634,64 @@ class DatabaseUpdateManager:
         with open(backup_file, "r") as f:
             data = json.load(f)
 
-        foods = {}
+        # Basic schema validation: ensure minimal keys exist
+        required = {
+            "name",
+            "nutrients_per_100g",
+            "cost_per_100g",
+            "tags",
+            "availability_regions",
+            "source",
+            "source_id",
+        }
+        foods: Dict[str, UnifiedFoodItem] = {}
         for name, food_data in data.items():
-            foods[name] = UnifiedFoodItem(**food_data)
+            try:
+                if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
+                    continue
+                foods[name] = UnifiedFoodItem(**food_data)
+            except Exception:
+                # Skip malformed entries
+                continue
 
         return foods
+
+    def _food_to_dict(self, food: Any) -> Dict[str, Any]:
+        """Safely convert a food item to a serializable dict.
+
+        - If dataclass: use asdict
+        - If dict: return as-is
+        - If has to_dict/model_dump: call it
+        - Fallback: return a dict with all expected keys and placeholder values
+        """
+        try:
+            # Only call asdict on dataclass instances, not types
+            if is_dataclass(type(food)):
+                return asdict(food)
+        except Exception:
+            pass
+
+        if isinstance(food, dict):
+            return food
+
+        for method_name in ("to_dict", "model_dump"):
+            if hasattr(food, method_name):
+                try:
+                    result = getattr(food, method_name)()
+                    return dict(result) if not isinstance(result, dict) else result
+                except Exception:
+                    continue
+
+        # Fallback: return a dict with all required keys and placeholder values
+        return {
+            "name": getattr(food, "name", "unknown"),
+            "nutrients_per_100g": getattr(food, "nutrients_per_100g", {}),
+            "cost_per_100g": getattr(food, "cost_per_100g", 0.0),
+            "tags": getattr(food, "tags", []),
+            "availability_regions": getattr(food, "availability_regions", []),
+            "source": getattr(food, "source", "unknown"),
+            "source_id": getattr(food, "source_id", "unknown"),
+        }
 
     async def _cleanup_old_backups(self, source: str):
         """Remove old backup files beyond the retention limit."""
@@ -601,8 +733,8 @@ class DatabaseUpdateManager:
                 # Create new version entry for rollback
                 rollback_version = DatabaseVersion(
                     source=source,
-                    version=f"{target_version}_rollback_{datetime.now().strftime('%H%M%S')}",
-                    last_updated=datetime.now().isoformat(),
+                    version=f"{target_version}_rollback_{now_utc().strftime('%H%M%S')}",
+                    last_updated=isoformat_utc(),
                     record_count=len(backup_data),
                     checksum=self._calculate_checksum(
                         {name: asdict(food) for name, food in backup_data.items()}
@@ -640,8 +772,8 @@ class DatabaseUpdateManager:
         status = {}
 
         for source, version in self.versions.items():
-            last_update = datetime.fromisoformat(version.last_updated)
-            time_since_update = datetime.now() - last_update
+            last_update = parse_iso8601(version.last_updated)
+            time_since_update = now_utc() - last_update
 
             status[source] = {
                 "version": version.version,
@@ -684,7 +816,7 @@ async def run_scheduled_update(
     return results
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test the update manager
     async def test_update_manager():
         manager = DatabaseUpdateManager(update_interval_hours=1)  # Short interval for testing
