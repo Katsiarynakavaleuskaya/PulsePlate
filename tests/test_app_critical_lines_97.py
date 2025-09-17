@@ -159,7 +159,4 @@ def client():
     """Создает тестового клиента"""
     import app
 
-    app_instance = getattr(app, "app", None)
-    if app_instance is None:
-        raise RuntimeError("app.app is None, cannot create TestClient")
-    return TestClient(app_instance)
+    return TestClient(app.app)

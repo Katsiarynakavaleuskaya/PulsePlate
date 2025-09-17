@@ -46,9 +46,7 @@ class TestUpdateManagerEndpoints:
         target_module = sys.modules.get("_app_top_module")
 
         with ExitStack() as stack:
-            stack.enter_context(
-                patch.object(app, "get_update_scheduler", new=mock_get_scheduler)
-            )
+            stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
             if target_module is not None:
                 stack.enter_context(
                     patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
@@ -56,9 +54,7 @@ class TestUpdateManagerEndpoints:
                 stack.enter_context(
                     patch.object(target_module, "_scheduler_getter", new=mock_get_scheduler)
                 )
-            response = client.get(
-                "/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"}
-            )
+            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
 
         assert response.status_code == 200
         data = response.json()
@@ -90,9 +86,7 @@ class TestUpdateManagerEndpoints:
         target_module = sys.modules.get("_app_top_module")
 
         with ExitStack() as stack:
-            stack.enter_context(
-                patch.object(app, "get_update_scheduler", new=mock_get_scheduler)
-            )
+            stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
             if target_module is not None:
                 stack.enter_context(
                     patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
@@ -125,9 +119,7 @@ class TestUpdateManagerEndpoints:
         target_module = sys.modules.get("_app_top_module")
 
         with ExitStack() as stack:
-            stack.enter_context(
-                patch.object(app, "get_update_scheduler", new=mock_get_scheduler)
-            )
+            stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
             if target_module is not None:
                 stack.enter_context(
                     patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
@@ -150,9 +142,7 @@ class TestUpdateManagerEndpoints:
         """Test rollback with exception."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
-        mock_update_manager.rollback_database = AsyncMock(
-            side_effect=ValueError("Invalid version")
-        )
+        mock_update_manager.rollback_database = AsyncMock(side_effect=ValueError("Invalid version"))
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
@@ -161,9 +151,7 @@ class TestUpdateManagerEndpoints:
         target_module = sys.modules.get("_app_top_module")
 
         with ExitStack() as stack:
-            stack.enter_context(
-                patch.object(app, "get_update_scheduler", new=mock_get_scheduler)
-            )
+            stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
             if target_module is not None:
                 stack.enter_context(
                     patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)

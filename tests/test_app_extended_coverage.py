@@ -6,10 +6,8 @@ Tests lifespan events, API endpoints, error handling, and edge cases.
 
 import os
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from typing import cast
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app import app
@@ -96,9 +94,12 @@ class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
     def setup_method(self):
-        """Setup test environment and test client."""
+        """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
+        """Set up test client."""
         self.client = TestClient(app)
 
     def test_root_endpoint_html_content(self):
@@ -151,10 +152,9 @@ class TestBMIEndpoints:
     def setup_method(self):
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(cast(FastAPI, app))
         """Set up test client."""
         self.client = TestClient(app)
 
@@ -275,9 +275,12 @@ class TestInsightEndpoints:
     """Test insight endpoints."""
 
     def setup_method(self):
-        """Setup test environment and test client."""
+        """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+
+    def setup_method(self):
+        """Set up test client."""
         self.client = TestClient(app)
 
     def test_insight_endpoint_disabled_explicitly(self):

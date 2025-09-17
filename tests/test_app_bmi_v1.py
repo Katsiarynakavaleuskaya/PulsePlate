@@ -13,16 +13,10 @@ Tests cover:
 """
 
 import os
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import app as app_mod
+import app as app_mod  # type: ignore
 
-# Ensure we have a valid FastAPI app instance
-app_instance = getattr(app_mod, "app", None)
-if not isinstance(app_instance, FastAPI):
-    raise RuntimeError("Could not find a valid FastAPI app instance in app module")
-
-client = TestClient(app_instance)
+client = TestClient(app_mod.app)
 
 
 class TestBMIv1API:
