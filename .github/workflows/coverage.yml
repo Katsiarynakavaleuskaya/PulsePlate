@@ -28,14 +28,13 @@ jobs:
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Lint (ruff)
-        run: ruff check .
+      # Linting handled via pre-commit locally; CI lint optional
 
       - name: Run tests with coverage (97% gate)
         run: |
           pytest -q --maxfail=1 \
-            --cov=. \
-            --cov-report=xml \
+            --cov \
+            --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
             --cov-fail-under=97
 

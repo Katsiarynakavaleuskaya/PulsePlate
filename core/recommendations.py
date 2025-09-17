@@ -11,7 +11,6 @@ for optimizing nutrient intake through food choices.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Dict, List
 
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
@@ -33,6 +32,7 @@ from .targets import (
     NutritionTargets,
     UserProfile,
 )
+from .time_utils import local_date_today
 
 
 def build_nutrition_targets(profile: UserProfile) -> NutritionTargets:
@@ -81,7 +81,7 @@ def build_nutrition_targets(profile: UserProfile) -> NutritionTargets:
         micros=micros,
         activity=activity,
         calculated_for=profile,
-        calculation_date=datetime.now().isoformat()[:10],
+        calculation_date=local_date_today(profile.timezone),
     )
 
 
@@ -224,13 +224,13 @@ def score_nutrient_coverage(
         "vitamin_c_mg": (targets.micros.vitamin_c_mg, "mg"),
     }
 
-    for nutrient, (target_val, unit) in micro_mapping.items():
-        consumed = consumed_nutrients.get(nutrient, 0.0)
-        coverage[nutrient] = NutrientCoverage(
-            nutrient_name=nutrient,
-            target_amount=target_val,
+    for micro_name, (micro_target, micro_unit) in micro_mapping.items():
+        consumed = consumed_nutrients.get(micro_name, 0.0)
+        coverage[micro_name] = NutrientCoverage(
+            nutrient_name=micro_name,
+            target_amount=micro_target,
             consumed_amount=consumed,
-            unit=unit,
+            unit=micro_unit,
         )
 
     return coverage

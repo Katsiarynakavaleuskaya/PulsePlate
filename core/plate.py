@@ -48,15 +48,17 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     EN: Macros via rules: protein 1.6–2.0 g/kg, fat 0.8–1.0 g/kg, carbs = rest.
     """
     # Чуть варьируем по цели
+    # Align with tests: loss emphasizes protein (≥1.8 g/kg) and lower fat (0.8 g/kg),
+    # maintain uses ~1.7 g/kg protein and 0.9 g/kg fat, gain uses 1.6 g/kg protein and 1.0 g/kg fat.
     if goal == "loss":
-        protein_g = round(max(1.8 * weight_kg, 1.6 * weight_kg))
-        fat_g = round(0.8 * weight_kg)
+        protein_g: float = float(round(1.8 * weight_kg))
+        fat_g: float = float(round(0.8 * weight_kg))
     elif goal == "gain":
-        protein_g = round(1.6 * weight_kg)
-        fat_g = round(1.0 * weight_kg)
+        protein_g = float(round(1.6 * weight_kg))
+        fat_g = float(round(1.0 * weight_kg))
     else:  # maintain
-        protein_g = round(1.7 * weight_kg)
-        fat_g = round(0.9 * weight_kg)
+        protein_g = float(round(1.7 * weight_kg))
+        fat_g = float(round(0.9 * weight_kg))
 
     # Углеводы из остатка калорий (4/9/4 правило)
     kcal_pro = protein_g * 4
@@ -212,16 +214,19 @@ def make_plate(
     if diet_flags:
         if "VEG" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
+                title = str(m.get("title", ""))
+                m["title"] = title.replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
         if "GF" in diet_flags:
             for m in meals:
-                m["title"] = m["title"].replace("Овсянка", "Гречка").replace("Рис", "Гречка")
+                title = str(m.get("title", ""))
+                m["title"] = title.replace("Овсянка", "Гречка").replace("Рис", "Гречка")
         if "DAIRY_FREE" in diet_flags:
             # просто не добавляем молочку в названиях/рецептах
             pass
         if "LOW_COST" in diet_flags:
             for m in meals:
-                m["title"] += " (бюджет)"
+                title = str(m.get("title", ""))
+                m["title"] = title + " (бюджет)"
 
     return {
         "kcal": int(target),

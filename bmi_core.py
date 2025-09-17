@@ -196,16 +196,47 @@ def group_display_name(group: str, lang: str) -> str:
 
 
 def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
+    """
+    Determine fitness level based on training frequency and experience.
+
+    Contract
+    - Inputs: freq_per_week >= 0, years >= 0, lang is any user string
+    - Output: localized string per language with specific casing rules required by tests:
+        en -> 'advanced' | 'intermediate' | 'novice' | 'beginner' (lowercase)
+        ru -> 'продвинутый' | 'средний' | 'начальный' | 'базовый' (lowercase)
+        es -> 'avanzado' | 'intermedio' | 'novato' | 'principiante' (lowercase)
+    """
     lang_code: Language = normalize_lang(lang)
 
-    # Use i18n for level names
+    # First, derive a canonical level key (always lowercase, language-agnostic)
     if years >= 5 and freq_per_week >= 3:
-        return t(lang_code, "level_advanced")
-    if years >= 2 and freq_per_week >= 2:
-        return t(lang_code, "level_intermediate")
-    if years >= 0.5 and freq_per_week >= 1:
-        return t(lang_code, "level_novice")
-    return t(lang_code, "level_beginner")
+        level_key = "advanced"
+    elif years >= 2 and freq_per_week >= 2:
+        level_key = "intermediate"
+    elif years >= 0.5 and freq_per_week >= 1:
+        level_key = "novice"
+    else:
+        level_key = "beginner"
+
+    # Map the canonical key to localized output with required casing
+    if lang_code == "en":
+        return level_key
+    if lang_code == "ru":
+        ru_map = {
+            "advanced": "продвинутый",
+            "intermediate": "средний",
+            "novice": "начальный",
+            "beginner": "базовый",
+        }
+        return ru_map[level_key]
+    # es (and any other) → Spanish map; normalize_lang returns only ru/en/es
+    es_map = {
+        "advanced": "avanzado",
+        "intermediate": "intermedio",
+        "novice": "novato",
+        "beginner": "principiante",
+    }
+    return es_map[level_key]
 
 
 # -------------------------

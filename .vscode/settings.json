@@ -1,53 +1,29 @@
 {
-  // Make Cursor/VS Code use the local venv by default
-  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "editor.rulers": [100],
 
-  // Ensure terminal starts with venv in PATH (non-destructive)
-  "terminal.integrated.env.osx": {
-    "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-    "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
-  },
-  "terminal.integrated.env.linux": {
-    "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-    "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
-  },
-  "terminal.integrated.env.windows": {
-    "VIRTUAL_ENV": "${workspaceFolder}\\.venv",
-    "Path": "${workspaceFolder}\\.venv\\Scripts;${env:Path}"
-  },
-
-  // Optional: define a dedicated terminal profile that prefers the venv
-  "terminal.integrated.profiles.osx": {
-    "Venv": {
-      "path": "zsh",
-      "args": ["-l"],
-      "env": {
-        "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-        "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
-      }
-    }
-  },
-  "terminal.integrated.defaultProfile.osx": "Venv",
-
-  // Testing defaults
-  "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["-q", "tests"],
 
-  // Ruff integration (if extension installed)
-  "ruff.enable": true,
-  "ruff.lineLength": 100,
-  "python.analysis.typeCheckingMode": "off",
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.pylintEnabled": false,
+
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["app", "core", "tests"],
+
+  "isort.args": ["--profile", "black", "--line-length", "100"],
+
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
   "cSpell.words": [
-    "Избыточный",
-    "команда",
-    "масса",
-    "cand",
-    "dotenv",
-    "gtin",
-    "isort",
-    "redef",
-    "slowapi",
-    "tdee"
+    "корневого",
+    "pesc",
+    "sanitise",
+    "shoplist"
   ]
 }

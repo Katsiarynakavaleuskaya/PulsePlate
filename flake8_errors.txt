@@ -1,0 +1,2 @@
+./tests/test_food_store_coverage_boost.py:80:9: F841 local variable 'mock_cursor' is assigned to but never used
+./tests/test_unified_db_advanced.py:64:9: F841 local variable 'cache_file' is assigned to but never used

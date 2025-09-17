@@ -1,25 +1,3 @@
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-# Базовые наборы правил (pycodestyle/pyflakes). Импорт-сортировку делаем через isort, чтобы
-# избежать конфликтов с ruff и black.
-select = ["E", "F", "W"]
-
-[tool.ruff.lint.per-file-ignores]
-# В тестах часто встречается импорт внутри тест-функций: игнорируем E402.
-"tests/**/*.py" = ["E402", "F811", "E501"]
-# В app.py допускаем «поздние» импорты (если они действительно нужны):
-"app.py" = ["E402"]
-# В строгих тестах тоже допускаем поздние импорты:
-"tests_strict/**/*.py" = ["E402", "F811", "E501"]
-# В скриптах и debug файлах допускаем поздние импорты для sys.path манипуляций:
-"scripts/**/*.py" = ["E402"]
-"debug_endpoint.py" = ["E402"]
-# В coverage boost тестах игнорируем неиспользуемые переменные:
-"tests/test_premium_week_coverage_boost.py" = ["F841"]
-
 [tool.pytest.ini_options]
 pythonpath = "."
 addopts = "-q"
@@ -28,3 +6,33 @@ asyncio_mode = "auto"
 [tool.isort]
 profile = "black"
 line_length = 100
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+no_implicit_optional = false
+ignore_missing_imports = true
+plugins = []
+explicit_package_bases = true
+# Exclude files/dirs that cause duplicate module mapping or are heavy/generated.
+# - app.py conflicts with package module "app" (app/__init__.py) for mypy module resolution.
+# - Exclude caches and build artifacts to keep runs stable and fast.
+exclude = '''
+(
+  ^app\.py$|
+  ^cache/|
+  ^test_cache/|
+  ^frontend/build/|
+  ^htmlcov/|
+  ^releases/|
+  ^data/|
+  ^external/
+)
+'''
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]

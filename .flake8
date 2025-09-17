@@ -1,8 +1,8 @@
 [flake8]
 # Disable line length checking since we use ruff with 100-char limit
 max-line-length = 120
-# Ignore E501 (line too long) errors entirely
-ignore = E501
+# Ignore style rules that conflict with Black or are too noisy for this repo
+ignore = E501,W503,E203
 
 # Allow late imports in specific files (intentional for runtime behavior/tests)
 per-file-ignores =

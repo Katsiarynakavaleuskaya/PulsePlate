@@ -184,14 +184,14 @@ class TestAppMissingLinesExtra:
 
     def test_export_pdf_generic_errors(self):
         # Hit 1677-1678 and 1740-1741 by raising generic exceptions from to_pdf_*
-        with patch.object(app_mod, "to_pdf_day", side_effect=RuntimeError("x")):
+        with patch("app.to_pdf_day", side_effect=RuntimeError("x")):
             r = self.client.get(
                 "/api/v1/premium/exports/day/plan123.pdf",
                 headers={"X-API-Key": "test_key"},
             )
             assert r.status_code == 500
 
-        with patch.object(app_mod, "to_pdf_week", side_effect=RuntimeError("y")):
+        with patch("app.to_pdf_week", side_effect=RuntimeError("y")):
             r = self.client.get(
                 "/api/v1/premium/exports/week/plan123.pdf",
                 headers={"X-API-Key": "test_key"},

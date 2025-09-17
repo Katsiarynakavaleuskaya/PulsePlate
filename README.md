@@ -40,14 +40,53 @@ source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -U pip setuptools wheel
 pip install -r requirements-dev.txt
 pip install -r requirements.txt
+
+# Инструменты автоматизации (cspell, husky, и т.д.)
+npm ci
+
+# Быстрый запуск окружения (shell + PYTHONPATH + алиасы)
+source scripts/dev_shell.sh
+
+# Проверка типов (автоустановка missing types)
+./scripts/mypy_check.sh
+
+# (Опционально) Настроить git post-commit напоминание
+./scripts/install_post_commit_reminder.sh
 ```
 
-**📋 [TODO.md](TODO.md)** - Основной план задач (спринт "Улучшение покрытия и документации" завершен ✅)
-**⚡ [QUICK_START.md](QUICK_START.md)** - Быстрый старт работы с проектом
+**📋 Archived planning docs moved to `docs/archive/`**
+**⚡ [QUICK_START.md](docs/archive/2025-09-16/QUICK_START.md)** - Исторический быстрый старт
+
+## Database
+
+- Приложение использует SQLAlchemy 2.x + Alembic. Базовая конфигурация находится в `core/db.py`.
+- По умолчанию создаётся SQLite-файл `cache/app.db`. Переопределите `DATABASE_URL`, чтобы подключиться к PostgreSQL (через `psycopg[binary]`) или другой БД.
+- Миграции управляются Alembic (`alembic.ini`, каталог `alembic/`). Первичная ревизия создаёт таблицу `users`.
+- Быстрый старт data layer:
+  1. `alembic upgrade head` — применить миграции к текущему `DATABASE_URL`.
+  2. `uvicorn app:app --reload` — запустить API локально.
+  3. `curl -s http://127.0.0.1:8000/health/db` — убедиться, что подключение к БД работает.
+- Примеры запросов к пользовательскому API:
+  ```bash
+  curl -s -X POST http://127.0.0.1:8000/api/v1/users \
+       -H 'Content-Type: application/json' \
+       -d '{"email": "demo@example.com", "name": "Demo"}'
+  curl -s http://127.0.0.1:8000/api/v1/users
+  ```
 
 ## Overview
 
 PulsePlate is a comprehensive health and nutrition application that provides BMI calculations, body fat percentage analysis, and personalized nutrition recommendations.
+
+### Feature Flags and Auth
+
+- `FEATURE_PREMIUM_NUTRITION` — enable premium endpoints (plate/targets). Off by default.
+- `VIP_MODULE_ENABLED` — include VIP router if available (safe fallback if missing).
+- `FEATURE_RAG` — enable lightweight RAG context in `/insight` endpoints. Off by default.
+- `API_KEY` — API key for `/api/v1/*` routes. When set, strict equality is enforced.
+- `API_KEY_REQUIRED` — when `true` and `API_KEY` is not set, requests are rejected (prod safety).
+
+Fine-tuning options and integrating tuned models: see `docs/finetune/README.md`.
 
 ## Features
 
@@ -405,6 +444,6 @@ make lint
 
 This project is proprietary software. All rights reserved. Unauthorized copying, distribution, modification, or use of this code is strictly prohibited without prior written permission from the author.
 
-For commercial or licensing inquiries, please contact: lexakm532@gmail.com
+For commercial or licensing inquiries, please contact: <lexakm532@gmail.com>
 
 See the [LICENSE](LICENSE) file for full details.

@@ -5,25 +5,25 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
-
 from providers import ProviderBase
+from core.time_utils import isoformat_utc
+
+
+class GrokLiteProvider:  # lightweight fallback that never uses network
+    name = "grok"
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def generate(self, text: str) -> str:
+        return f"[grok-lite] {text}"
+
 
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
 try:
     from providers.grok import GrokProvider  # xAI
 except Exception:
     GrokProvider = None  # type: ignore
-
-    # Lightweight fallback so tests can run without external deps
-    class GrokLiteProvider:  # type: ignore
-        name = "grok"
-
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def generate(self, text: str) -> str:
-            return f"[grok-lite] {text}"
 
 
 try:
@@ -43,7 +43,7 @@ class StubProvider(ProviderBase):
     async def generate(self, text: str) -> str:
         # RU: простая заглушка, чтобы не было сетевых вызовов
         # EN: simple stub to avoid any network calls
-        dt = datetime.now(timezone.utc).isoformat()
+        dt = isoformat_utc()
         return f"[stub @ {dt}] Insight: {text}"
 
 
@@ -66,9 +66,12 @@ def get_provider():
             api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
             model = os.getenv("GROK_MODEL", "grok-4-latest")
             endpoint = os.getenv("GROK_ENDPOINT", "https://api.x.ai/v1")
+            # If no API key is provided, prefer lightweight fallback to avoid network use
+            if not api_key.strip():
+                return GrokLiteProvider()
             try:
                 return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
-            except (TypeError, Exception):
+            except Exception:
                 # Fallback to positional args if keyword args fail
                 try:
                     return GrokProvider(endpoint, model, api_key)
@@ -85,7 +88,7 @@ def get_provider():
         timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
         try:
             return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
-        except (TypeError, Exception):
+        except Exception:
             # Fallback to positional args if keyword args fail
             try:
                 return OllamaProvider(endpoint, model, timeout_s)

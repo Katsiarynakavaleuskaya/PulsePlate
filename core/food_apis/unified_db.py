@@ -11,22 +11,33 @@ This module provides a single interface to access multiple food databases
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .usda_client import USDAClient, USDAFoodItem
 
-# Try to import Open Food Facts client
-try:
-    from .openfoodfacts_client import OFFClient, OFFFoodItem
+# Type-only imports for Open Food Facts
+if TYPE_CHECKING:
+    from .openfoodfacts_client import OFFClient as OFFClientType
+    from .openfoodfacts_client import OFFFoodItem as OFFFoodItemType
+else:
+    OFFClientType = Any
+    OFFFoodItemType = Any
 
-    OFF_AVAILABLE = True
-except ImportError:
-    OFFClient = None
-    OFFFoodItem = None
+# Ensure OFFClient symbol exists in module scope for tests to patch
+OFFClient: Any = None  # will be replaced if import succeeds
+
+# Runtime import of Open Food Facts module and expose OFFClient symbol
+try:
+    _off_module = importlib.import_module(f"{__package__}.openfoodfacts_client")
+    OFFClient = getattr(_off_module, "OFFClient", None)  # exposed for tests to patch
+    OFF_AVAILABLE = OFFClient is not None
+except Exception:
+    OFFClient = None  # Fallback when OFF module is unavailable
     OFF_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -65,7 +76,9 @@ class UnifiedFoodItem:
         )
 
     @classmethod
-    def from_off_item(cls, off_item: OFFFoodItem, estimated_cost: float = 1.5) -> "UnifiedFoodItem":
+    def from_off_item(
+        cls, off_item: "OFFFoodItemType", estimated_cost: float = 1.5
+    ) -> "UnifiedFoodItem":
         """Convert Open Food Facts item to unified format."""
         return cls(
             name=off_item.product_name,
@@ -100,7 +113,10 @@ class UnifiedFoodDatabase:
 
     def __init__(self, cache_dir: Optional[str] = None):
         self.usda_client = USDAClient()
-        self.off_client = OFFClient() if OFF_AVAILABLE else None
+        # Instantiate runtime OFF client if available
+        # Instantiate OFF client via exposed symbol so tests can patch it
+        runtime_off: Optional[Any] = OFFClient() if callable(OFFClient) else None
+        self.off_client: Optional[Any] = runtime_off
         self.cache_dir = Path(cache_dir or "cache/food_db")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,6 +125,13 @@ class UnifiedFoodDatabase:
 
         # Load persistent cache
         self._load_cache()
+        # Throttle state for disk saves
+        try:
+            import time as _time
+
+            self._last_save_ts = _time.monotonic()
+        except Exception:
+            self._last_save_ts = None  # type: ignore
 
     def _get_cache_file(self) -> Path:
         """Get path to cache file."""
@@ -132,6 +155,18 @@ class UnifiedFoodDatabase:
     def _save_cache(self):
         """Save cached food items to disk."""
         try:
+            # Optional throttle via env (milliseconds)
+            import time as _time
+            import os as _os
+
+            ms = int(_os.getenv("UNIFIED_DB_SAVE_THROTTLE_MS", "0"))
+            if ms > 0:
+                last_save_ts = getattr(self, "_last_save_ts", None)
+                if last_save_ts is not None:
+                    now = _time.monotonic()
+                    if (now - last_save_ts) * 1000.0 < ms:
+                        return
+                    self._last_save_ts = now
             cache_data = {key: asdict(item) for key, item in self._memory_cache.items()}
 
             with open(self._get_cache_file(), "w", encoding="utf-8") as f:
@@ -274,6 +309,11 @@ class UnifiedFoodDatabase:
 
         foods_db = {}
 
+        # Optional sleep override for faster tests
+        import os as _os
+
+        _sleep_ms = int(_os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", "100"))
+
         for standard_name, search_query in common_searches.items():
             try:
                 results = await self.search_food(search_query)
@@ -282,8 +322,8 @@ class UnifiedFoodDatabase:
                     foods_db[standard_name] = results[0]
                     logger.info(f"Found food for {standard_name}: {results[0].name}")
 
-                # Small delay to be respectful to the API
-                await asyncio.sleep(0.1)
+                # Small delay to be respectful to the API (adjustable)
+                await asyncio.sleep(max(0.0, _sleep_ms / 1000.0))
 
             except Exception as e:
                 logger.error(f"Error fetching {standard_name}: {e}")
@@ -335,7 +375,7 @@ async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[st
     return [item.to_menu_engine_format() for item in results[:max_results]]
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test the unified database
     async def test_unified_db():
         db = UnifiedFoodDatabase()

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sys
 from typing import Any, Iterable, Optional
+import types
 
 
 def get_activity_factor(activity: str) -> float:
@@ -50,7 +51,29 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
                 m = sys.modules.get(m)
                 if m is None:
                     continue
-            if hasattr(m, name):
+
+            # Prefer explicit attributes to avoid Mock auto-created attrs.
+            dct = getattr(m, "__dict__", None)
+            if isinstance(dct, dict) and name in dct:
+                return dct[name]
+
+            # Avoid triggering unittest.mock auto-creation of attributes
+            # If it's a mock-like object and attribute isn't explicitly set, skip it
+            try:
+                is_mock_like = (
+                    getattr(m, "_mock_children", None) is not None
+                    or m.__class__.__name__ in {"Mock", "MagicMock", "AsyncMock"}
+                    or getattr(m, "__module__", "").startswith("unittest.mock")
+                )
+            except Exception:
+                is_mock_like = False
+            if is_mock_like:
+                # Only return values that are explicitly present in __dict__ for mocks
+                # If not present, continue searching other candidates
+                continue
+
+            # Fallback: if it's a real module, allow getattr
+            if isinstance(m, types.ModuleType) and hasattr(m, name):
                 return getattr(m, name)
         except Exception:
             # Ignore any errors from broken modules; continue searching

@@ -1,0 +1,63 @@
+"""Timezone utilities for consistent UTC handling across the app.
+
+RU: Утилиты для работы с часовыми поясами и UTC-временем.
+EN: Utilities for working with timezones and UTC-aware datetimes.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+
+try:  # Python 3.9+
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover - fallback for very old runtimes
+    ZoneInfo = None  # type: ignore
+
+
+def now_utc() -> datetime:
+    """Return the current UTC time as an aware ``datetime``."""
+
+    return datetime.now(timezone.utc)
+
+
+def ensure_utc(dt: datetime) -> datetime:
+    """Ensure ``dt`` is timezone-aware in UTC."""
+
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def isoformat_utc(dt: Optional[datetime] = None) -> str:
+    """Return an ISO 8601 string in UTC."""
+
+    return ensure_utc(dt or now_utc()).isoformat()
+
+
+def parse_iso8601(value: str) -> datetime:
+    """Parse an ISO 8601 string, defaulting to UTC when tzinfo is missing."""
+
+    dt = datetime.fromisoformat(value)
+    return ensure_utc(dt)
+
+
+def to_timezone(dt: datetime, tz_name: str) -> datetime:
+    """Convert ``dt`` (assumed UTC if naive) to the user's timezone."""
+
+    if ZoneInfo is None:
+        raise RuntimeError("zoneinfo module is required for timezone conversions")
+    tz = ZoneInfo(tz_name)
+    return ensure_utc(dt).astimezone(tz)
+
+
+def local_now(tz_name: str) -> datetime:
+    """Return current time in the given timezone."""
+
+    return to_timezone(now_utc(), tz_name)
+
+
+def local_date_today(tz_name: str) -> str:
+    """Return today's date (YYYY-MM-DD) in the given timezone."""
+
+    return local_now(tz_name).date().isoformat()

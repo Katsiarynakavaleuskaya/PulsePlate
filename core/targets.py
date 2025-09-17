@@ -48,6 +48,7 @@ class UserProfile:
     # Additional context
     bodyfat: Optional[float] = None  # body fat percentage
     region: str = "BY"  # region for food availability
+    timezone: str = "UTC"  # IANA timezone identifier for localisation
     diet_flags: Set[str] = field(default_factory=set)  # VEG, GF, DAIRY_FREE, LOW_COST
 
     # Special conditions
@@ -139,19 +140,22 @@ class MicronutrientTargets:
     def get_target(self, nutrient: str) -> float:
         """Get target value for a nutrient."""
         if hasattr(self, nutrient):
-            return getattr(self, nutrient)[1]  # middle value is target
+            val = getattr(self, nutrient)[1]  # middle value is target
+            return float(val)
         raise ValueError(f"Unknown nutrient: {nutrient}")
 
     def get_minimum(self, nutrient: str) -> float:
         """Get minimum acceptable value for a nutrient."""
         if hasattr(self, nutrient):
-            return getattr(self, nutrient)[0]  # first value is minimum
+            val = getattr(self, nutrient)[0]  # first value is minimum
+            return float(val)
         raise ValueError(f"Unknown nutrient: {nutrient}")
 
     def get_maximum(self, nutrient: str) -> float:
         """Get maximum safe value for a nutrient."""
         if hasattr(self, nutrient):
-            return getattr(self, nutrient)[2]  # third value is maximum
+            val = getattr(self, nutrient)[2]  # third value is maximum
+            return float(val)
         raise ValueError(f"Unknown nutrient: {nutrient}")
 
     def is_deficient(self, nutrient: str, actual_value: float) -> bool:

@@ -74,7 +74,13 @@ class RecipeSynthesizer:
             self._create_default_templates()
             return
 
-        for template_file in self.templates_dir.glob("*.json"):
+        template_files = list(self.templates_dir.glob("*.json"))
+        if not template_files:
+            # If directory exists but has no templates, create defaults
+            self._create_default_templates()
+            return
+
+        for template_file in template_files:
             try:
                 with open(template_file, "r", encoding="utf-8") as f:
                     template_data = json.load(f)

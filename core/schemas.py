@@ -7,9 +7,9 @@ EN: Data schemas for foods and recipes with full provenance tracking.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional
 
-from pydantic import BaseModel, Field, conlist
+from pydantic import BaseModel, Field
 
 
 class FoodItem(BaseModel):
@@ -78,7 +78,7 @@ class Recipe(BaseModel):
     # Recipe structure
     yield_total_g: float = Field(..., gt=0, description="Total recipe weight in grams")
     servings: int = Field(..., gt=0, description="Number of servings")
-    ingredients: conlist(RecipeIngredient, min_length=1) = Field(
+    ingredients: Annotated[List[RecipeIngredient], Field(min_length=1)] = Field(
         ..., description="List of ingredients with quantities"
     )
     steps: List[str] = Field(default_factory=list, description="Cooking steps")
@@ -135,7 +135,7 @@ class RecipePreviewRequest(BaseModel):
     """
 
     title: str = Field(..., description="Recipe title")
-    ingredients: conlist(RecipeIngredient, min_length=1) = Field(
+    ingredients: Annotated[List[RecipeIngredient], Field(min_length=1)] = Field(
         ..., description="List of ingredients"
     )
     servings: int = Field(..., gt=0, description="Number of servings")

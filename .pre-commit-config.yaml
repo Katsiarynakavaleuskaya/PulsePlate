@@ -30,11 +30,19 @@ repos:
           - types-PyYAML
         args:
           - --config-file=pyproject.toml
+          - --install-types
+          - --non-interactive
           - app
           - core
         pass_filenames: false
   - repo: local
     hooks:
+      - id: cspell
+        name: cspell lint
+        entry: bash -lc 'npx cspell lint --no-progress --gitignore "$@"'
+        language: system
+        pass_filenames: true
+        types_or: [python, markdown, text, yaml, json, toml, javascript, ts, html, css, shell]
       - id: pytest-smoke
         name: pytest smoke
         entry: bash -lc 'pytest -q -k "smoke or quick or basic"'

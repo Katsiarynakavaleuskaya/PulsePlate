@@ -154,6 +154,8 @@ Thumbs.db
 coverage_report_detailed.txt
 coverage.xml
 htmlcov/
+coverage_html/
+cov_html/
 
 # Cache directories
 cache/

@@ -67,15 +67,17 @@ cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
 	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
-## Lint (ruff)
-lint: ## Lint with ruff
+## Lint (flake8)
+lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	ruff check .
+	flake8 .
 
-## Auto-fix (ruff)
-fmt: ## Format with ruff --fix
+## Auto-fix (format + imports)
+fmt: ## Format with black and isort
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	ruff check . --fix || true
+	black .
+	isort .
+	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
 	black .
 	isort .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
@@ -246,13 +248,12 @@ cov: ## Run coverage with pytest (term + XML)
 cov-html: ## Generate HTML coverage and open in browser
 	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
-## Lint (ruff)
-lint: ## Lint with ruff
-	ruff check .
+## Lint (flake8)
+lint: ## Lint with flake8
+	flake8 .
 
-## Auto-fix (ruff)
-fmt: ## Format with ruff --fix
-	ruff check . --fix || true
+## Auto-fix (format + imports)
+fmt: ## Format with black and isort
 
 ## Smoke test (auto: 8000 then 8001)
 smoke-auto: ## Try health+bmi on 8000 then 8001

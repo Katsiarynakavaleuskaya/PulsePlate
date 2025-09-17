@@ -186,7 +186,7 @@ def aggregate_shopping(days: List[Dict]) -> Dict[str, float]:
     Returns:
         Dictionary mapping ingredient names to total amounts needed
     """
-    shopping_list = {}
+    shopping_list: Dict[str, float] = {}
 
     for day in days:
         if "meals" in day:

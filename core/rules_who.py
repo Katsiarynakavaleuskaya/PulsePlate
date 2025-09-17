@@ -14,12 +14,20 @@ Data sources:
 Last updated: January 2025
 """
 
-from typing import Dict
+from typing import Dict, Tuple, TypedDict
 
 from .targets import LifeStage, Sex
 
+
 # WHO Physical Activity Recommendations (minutes per week)
-WHO_ACTIVITY_GUIDELINES = {
+class ActivityGuidelines(TypedDict):
+    moderate_aerobic_min: int
+    vigorous_aerobic_min: int
+    strength_sessions: int
+    steps_daily: int
+
+
+WHO_ACTIVITY_GUIDELINES: Dict[str, ActivityGuidelines] = {
     "adult": {
         "moderate_aerobic_min": 150,  # 150 min/week moderate OR
         "vigorous_aerobic_min": 75,  # 75 min/week vigorous
@@ -204,17 +212,34 @@ WHO_MICRONUTRIENT_RDA = {
     },
 }
 
+
 # WHO Hydration Guidelines (ml/kg body weight)
-WHO_HYDRATION_GUIDELINES = {
-    "base_ml_per_kg": 30,  # Base: 30ml per kg body weight
+class HydrationGuidelines(TypedDict):
+    base_ml_per_kg: float
+    active_adjustment: float
+    hot_climate_adjustment: float
+    minimum_ml_daily: int
+    maximum_ml_daily: int
+
+
+WHO_HYDRATION_GUIDELINES: HydrationGuidelines = {
+    "base_ml_per_kg": 30.0,  # Base: 30ml per kg body weight
     "active_adjustment": 1.2,  # 20% increase for active individuals
     "hot_climate_adjustment": 1.3,  # 30% increase for hot climates
     "minimum_ml_daily": 1500,  # Absolute minimum
     "maximum_ml_daily": 4000,  # Upper safe limit
 }
 
+
 # Acceptable Macronutrient Distribution Ranges (AMDR) - WHO/IOM
-WHO_MACRONUTRIENT_RANGES = {
+class MacronutrientRanges(TypedDict):
+    protein_percent: Tuple[int, int]
+    fat_percent: Tuple[int, int]
+    carbs_percent: Tuple[int, int]
+    fiber_g_per_1000_cal: int
+
+
+WHO_MACRONUTRIENT_RANGES: MacronutrientRanges = {
     "protein_percent": (10, 35),  # 10-35% of total calories
     "fat_percent": (20, 35),  # 20-35% of total calories
     "carbs_percent": (45, 65),  # 45-65% of total calories
@@ -297,7 +322,7 @@ def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -
     return WHO_MICRONUTRIENT_RDA[("male", "19-50", "adult")].copy()
 
 
-def get_activity_guidelines(age: int) -> Dict[str, int]:
+def get_activity_guidelines(age: int) -> ActivityGuidelines:
     """
     RU: Получает рекомендации ВОЗ по физической активности.
     EN: Gets WHO physical activity guidelines.

@@ -143,7 +143,7 @@ class TestComprehensiveCoverage:
             )
             mock_get_scheduler.return_value = mock_scheduler
 
-            response = self.client.post(
+            response = self.client.get(
                 "/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
@@ -156,7 +156,7 @@ class TestComprehensiveCoverage:
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
-            response = self.client.post(
+            response = self.client.get(
                 "/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200

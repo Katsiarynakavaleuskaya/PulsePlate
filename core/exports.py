@@ -20,10 +20,10 @@ REPORTLAB_CLASSES = {}
 
 # Try to import reportlab
 try:
-    from reportlab.lib import colors  # type: ignore
-    from reportlab.lib.pagesizes import letter  # type: ignore
-    from reportlab.lib.styles import getSampleStyleSheet  # type: ignore
-    from reportlab.platypus import Paragraph  # type: ignore
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph
     from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle
 
     REPORTLAB_AVAILABLE = True
