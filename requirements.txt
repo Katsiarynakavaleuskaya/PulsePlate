@@ -13,5 +13,7 @@ matplotlib==3.10.6
 reportlab==4.2.2
 sqlalchemy==2.0.36
 alembic==1.14.0
-psycopg[binary]==3.2.1
+# Pin to the latest available 3.2.x; 3.2.1 does not exist on PyPI (CI failed)
+psycopg[binary]==3.2.10
 email-validator==2.2.0
+faker==30.8.2
