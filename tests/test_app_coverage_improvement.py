@@ -11,11 +11,6 @@ from fastapi.testclient import TestClient
 
 from app import app
 
-from fastapi import FastAPI
-
-if not isinstance(app, FastAPI):
-    raise RuntimeError("Imported 'app' is not a FastAPI instance")
-
 
 class TestAppCoverageImprovement:
     """Additional tests to improve coverage for app.py."""

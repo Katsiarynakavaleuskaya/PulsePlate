@@ -301,4 +301,3 @@ class TestFoodSourcesIntegration:
 
             # Should return empty results when no CSV files found
             assert len(results) == 0
-

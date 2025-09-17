@@ -131,3 +131,58 @@ class TestFoodDbNewMissingLines:
                 assert isinstance(item["grams"], (int, float))
                 assert isinstance(item["price_est"], (int, float))
                 assert item["price_est"] >= 0
+
+
+import os
+import tempfile
+
+from core.food_db_new import FoodDB
+
+
+class TestFoodDbNewMissingLines:
+    """Regressions targeting edge paths in FoodDB.pick_booster_for/_compatible."""
+
+    # NOTE: Keep donor rows in sync with FoodDB.pick_booster_for() order.
+    CSV_CONTENT = """name,group,per_g,protein_g,fat_g,carbs_g,fiber_g,Fe_mg,Ca_mg,VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price
+lentils,legumes,1.0,9.0,0.4,20.0,7.9,3.3,19.0,0.0,0.0,181.0,0.0,369.0,36.0,VEG;GF,2.50
+spinach,vegetables,1.0,2.9,0.4,3.6,2.2,2.7,99.0,0.0,0.0,194.0,0.0,558.0,79.0,VEG;GF,3.00
+chicken_breast,meat,1.0,31.0,3.6,0.0,0.0,0.9,15.0,0.0,0.3,4.0,0.0,256.0,28.0,OMNI,8.50
+salmon,fish,1.0,25.0,11.0,0.0,0.0,0.8,12.0,360.0,4.8,25.0,0.0,363.0,29.0,OMNI;PESC,15.00
+tofu,soy,1.0,8.1,4.8,1.9,0.3,5.4,350.0,0.0,0.0,15.0,0.0,121.0,53.0,VEG;GF,4.20
+greek_yogurt,dairy,1.0,10.0,0.4,3.6,0.0,0.1,110.0,0.0,0.5,7.0,0.0,141.0,11.0,VEG,5.50
+oats,grains,1.0,16.9,6.9,66.3,10.6,4.7,54.0,0.0,0.0,56.0,0.0,429.0,177.0,VEG,1.80
+banana,fruits,1.0,1.1,0.3,22.8,2.6,0.3,5.0,0.0,0.0,20.0,0.0,358.0,27.0,VEG;GF,1.20
+eggs,eggs,1.0,13.0,11.0,1.1,0.0,1.8,56.0,41.0,0.9,47.0,24.0,138.0,12.0,VEG,3.40
+bread_gluten,grains,1.0,8.0,1.0,49.0,2.7,2.7,41.0,0.0,0.0,43.0,0.0,115.0,22.0,VEG,2.10"""
+
+    def setup_method(self):
+        self.temp_csv = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
+        self.temp_csv.write(self.CSV_CONTENT)
+        self.temp_csv.close()
+        self.db = FoodDB(self.temp_csv.name)
+
+    def teardown_method(self):
+        if os.path.exists(self.temp_csv.name):
+            os.unlink(self.temp_csv.name)
+
+    def test_pick_booster_returns_none_when_candidate_missing(self):
+        result = self.db.pick_booster_for("VitD_IU", ["VEG"])
+        assert result is None
+
+    def test_pick_booster_returns_first_compatible_candidate(self):
+        assert self.db.pick_booster_for("Fe_mg", []) == "lentils"
+        assert self.db.pick_booster_for("Ca_mg", ["VEG"]) == "greek_yogurt"
+        assert self.db.pick_booster_for("B12_ug", ["PESC"]) == "greek_yogurt"
+
+    def test_pick_booster_skips_incompatible_options(self):
+        # VEG diet should reject OMNI donors until a vegetarian option appears.
+        assert self.db.pick_booster_for("B12_ug", ["VEG"]) == "greek_yogurt"
+        # GF diet should only accept donors explicitly marked GF.
+        assert self.db.pick_booster_for("Fe_mg", ["GF"]) == "lentils"
+
+    def test_compatible_filters(self):
+        assert not self.db._compatible(["OMNI"], ["VEG"])
+        assert not self.db._compatible(["OMNI"], ["PESC"])
+        assert not self.db._compatible(["VEG"], ["GF"])
+        assert self.db._compatible(["VEG", "GF"], ["GF"])
+        assert self.db._compatible(["VEG"], ["VEG"])

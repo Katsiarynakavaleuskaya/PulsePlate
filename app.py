@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 try:
     from prometheus_client import Counter, Histogram, generate_latest
 except ImportError:
-    Counter = None  # type: ignore[assignment]
-    Histogram = None  # type: ignore[assignment]
-    generate_latest = None  # type: ignore[assignment]
+    Counter = None
+    Histogram = None
+    generate_latest = None
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse

@@ -160,11 +160,14 @@ class TestUpdateManagerFixed:
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
-            with patch.object(
-                manager,
-                "_check_usda_updates",
-                new=AsyncMock(side_effect=Exception("Network error")),
-            ), patch("core.food_apis.update_manager.logger") as mock_logger:
+            with (
+                patch.object(
+                    manager,
+                    "_check_usda_updates",
+                    new=AsyncMock(side_effect=Exception("Network error")),
+                ),
+                patch("core.food_apis.update_manager.logger") as mock_logger,
+            ):
                 result = await manager.check_for_updates()
                 assert result.get("usda") is False
                 mock_logger.error.assert_called()

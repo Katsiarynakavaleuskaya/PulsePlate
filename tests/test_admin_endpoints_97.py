@@ -18,9 +18,6 @@ from fastapi.testclient import TestClient
 
 from app import app
 
-if app is None:
-    raise RuntimeError("FastAPI app instance could not be imported from 'app'.")
-
 
 @pytest.fixture
 def client():

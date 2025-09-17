@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -121,22 +122,17 @@ def test_resolve_attr_prefers_candidates(monkeypatch: pytest.MonkeyPatch) -> Non
     utils = pytest.importorskip("core.utils")
     sentinel = object()
 
-    import types
-
-    candidate_module = types.ModuleType("candidate_module")
-    setattr(candidate_module, "target_value", "from_namespace")
-    resolved = utils.resolve_attr("target_value", sentinel, [candidate_module])
+    candidate = SimpleNamespace(target_value="from_namespace")
+    resolved = utils.resolve_attr("target_value", sentinel, [candidate])
     assert resolved == "from_namespace"
 
-    fake_module_name = "tests.fake_module_for_utils"
-    fake_module = types.ModuleType(fake_module_name)
-    setattr(fake_module, "target_value", "from_sys_modules")
-    sys.modules[fake_module_name] = fake_module
+    module_name = "tests.fake_module_for_utils"
+    sys.modules[module_name] = SimpleNamespace(target_value="from_sys_modules")
     try:
-        resolved = utils.resolve_attr("target_value", sentinel, [fake_module_name])
+        resolved = utils.resolve_attr("target_value", sentinel, [module_name])
         assert resolved == "from_sys_modules"
     finally:
-        sys.modules.pop(fake_module_name, None)
+        sys.modules.pop(module_name, None)
 
     assert utils.resolve_attr("missing", sentinel, []) is sentinel
 
