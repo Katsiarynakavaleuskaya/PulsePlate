@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -36,8 +36,8 @@ class BMIProRequest(BaseModel):
 class BMIProResponse(BaseModel):
     bmi: float
     whtr: float
-    whr: float | None
-    ffmi: float | None
+    whr: Optional[float]
+    ffmi: Optional[float]
     risk_level: Literal["low", "moderate", "high"]
     notes: list[str]
 

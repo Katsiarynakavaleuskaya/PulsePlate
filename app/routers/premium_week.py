@@ -124,7 +124,7 @@ async def generate_week_plan(req: WeekPlanRequest):
 
     # 1) Получить targets
     if req.targets:
-        targets = req.targets.dict()
+        targets = req.targets.model_dump()
     else:
         # временный расчет через твой bmi_core (BMR/TDEE + макросы + микро-таблица)
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):

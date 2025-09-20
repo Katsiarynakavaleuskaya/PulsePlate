@@ -1,8 +1,6 @@
 # RU: Простой заглушечный провайдер — без внешних зависимостей
 # EN: Simple stub provider — no external deps
-from datetime import UTC, datetime
-
-from core.time_utils import isoformat_utc
+from datetime import datetime, timezone
 
 
 class StubProvider:
@@ -11,5 +9,5 @@ class StubProvider:
     def generate(self, text: str) -> str:
         # RU: Возвращаем детерминированную "инсайт"-строку
         # EN: Return deterministic "insight" string
-        ts = isoformat_utc(datetime.now(UTC).replace(microsecond=0))
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         return f"[{self.name} @ {ts}] Insight: {text[:120]}"

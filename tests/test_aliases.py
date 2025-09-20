@@ -70,5 +70,61 @@ def test_map_to_canonical_edge_cases():
     assert map_to_canonical("Spinach - raw") == "spinach_raw"
 
 
+def test_load_aliases_file_not_found():
+    """Test _load_aliases when file doesn't exist."""
+    # Test with non-existent file
+    aliases = _load_aliases("/non/existent/path.csv")
+    assert aliases == {}
+
+
+def test_add_alias_new_file():
+    """Test add_alias creating new file."""
+    # Create temporary file path
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        temp_path = f.name
+    
+    try:
+        # Remove the file to test creation
+        os.unlink(temp_path)
+        
+        # Add alias to non-existent file
+        add_alias("test_alias", "test_canonical", temp_path)
+        
+        # Verify file was created and contains the alias
+        aliases = _load_aliases(temp_path)
+        assert "test_alias" in aliases
+        assert aliases["test_alias"] == "test_canonical"
+        
+    finally:
+        # Clean up
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_add_alias_existing_file():
+    """Test add_alias appending to existing file."""
+    # Create temporary file with initial content
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        f.write("alias,canonical\n")
+        f.write("existing,existing_canonical\n")
+        temp_path = f.name
+    
+    try:
+        # Add new alias to existing file
+        add_alias("new_alias", "new_canonical", temp_path)
+        
+        # Verify both aliases exist
+        aliases = _load_aliases(temp_path)
+        assert "existing" in aliases
+        assert aliases["existing"] == "existing_canonical"
+        assert "new_alias" in aliases
+        assert aliases["new_alias"] == "new_canonical"
+        
+    finally:
+        # Clean up
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
