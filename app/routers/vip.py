@@ -616,7 +616,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         weekly_recipes = _safe_call(synthesize_recipes_for_week, week_plan, recipes_per_day)
 
         # Конвертируем рецепты в словари для JSON
-        formatted_recipes = {}
+        formatted_recipes: Dict[str, List[Dict]] = {}
         for day, recipes in weekly_recipes.items() if isinstance(weekly_recipes, dict) else []:
             formatted_recipes[day] = []
             for recipe in recipes:

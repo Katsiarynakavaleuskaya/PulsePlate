@@ -90,12 +90,12 @@ def estimate_targets_minimal(
     """Temporary function to estimate targets from user profile."""
     # Create a UserProfile object
     profile = UserProfile(
-        sex=sex,
+        sex=sex,  # type: ignore
         age=age,
         height_cm=height_cm,
         weight_kg=weight_kg,
-        activity=activity,
-        goal=goal,
+        activity=activity,  # type: ignore
+        goal=goal,  # type: ignore
     )
 
     # Build nutrition targets using existing WHO-based system

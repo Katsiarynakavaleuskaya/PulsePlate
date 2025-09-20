@@ -5,15 +5,12 @@ RU: Тесты для логики мерджа данных о продукта
 EN: Tests for food data merge logic.
 """
 
-import pytest
 from datetime import date
-from unittest.mock import Mock
 
 from core.food_merge import (
-    _merge_values, 
-    merge_records, 
-    _classify_food_group,
-    MICROS
+    _merge_values,
+    merge_records,
+    _classify_food_group
 )
 from core.food_sources.base import FoodRecord
 
@@ -518,9 +515,9 @@ class TestMergeRecords:
             self.create_food_record("apple", "USDA", kcal=52.0, protein_g=0.3)
         ]
         streams = [records]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["name"] == "apple"
         assert result[0]["kcal"] == 52.0
@@ -532,9 +529,9 @@ class TestMergeRecords:
         records1 = [self.create_food_record("apple", "USDA", kcal=52.0, protein_g=0.3)]
         records2 = [self.create_food_record("apple", "OFF", kcal=50.0, protein_g=0.2)]
         streams = [records1, records2]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["name"] == "apple"
         assert result[0]["kcal"] == 51.0  # median of 52.0 and 50.0
@@ -546,9 +543,9 @@ class TestMergeRecords:
         records1 = [self.create_food_record("apple", "USDA", Fe_mg=2.0, Ca_mg=100.0)]
         records2 = [self.create_food_record("apple", "OFF", Fe_mg=1.0, Ca_mg=50.0)]
         streams = [records1, records2]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["Fe_mg"] == 2.0  # USDA value
         assert result[0]["Ca_mg"] == 100.0  # USDA value
@@ -558,9 +555,9 @@ class TestMergeRecords:
         records1 = [self.create_food_record("apple", "OFF", Fe_mg=1.0, Ca_mg=50.0)]
         records2 = [self.create_food_record("apple", "CUSTOM", Fe_mg=3.0, Ca_mg=75.0)]
         streams = [records1, records2]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["Fe_mg"] == 2.0  # median of 1.0 and 3.0
         assert result[0]["Ca_mg"] == 62.5  # median of 50.0 and 75.0
@@ -570,9 +567,9 @@ class TestMergeRecords:
         records1 = [self.create_food_record("milk", "USDA", flags=["DAIRY", "ORGANIC"])]
         records2 = [self.create_food_record("milk", "OFF", flags=["DAIRY", "LOW_FAT"])]
         streams = [records1, records2]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert set(result[0]["flags"]) == {"DAIRY", "ORGANIC", "LOW_FAT"}
 
@@ -587,9 +584,9 @@ class TestMergeRecords:
             self.create_food_record("orange", "OFF", kcal=47.0)
         ]
         streams = [records1, records2]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 3  # apple, banana, orange
         names = [r["name"] for r in result]
         assert "apple" in names
@@ -606,32 +603,205 @@ class TestMergeRecords:
         """Test that version_date is set to today."""
         records = [self.create_food_record("apple", "USDA")]
         streams = [records]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["version_date"] == date.today().isoformat()
 
     def test_merge_records_food_group_classification(self):
         """Test that food group classification is applied."""
-        records = [self.create_food_record("chicken", "USDA", 
-                                         kcal=165.0, protein_g=31.0, fat_g=3.6, carbs_g=0.0)]
+        records = [self.create_food_record("chicken", "USDA",
+                                           kcal=165.0, protein_g=31.0, fat_g=3.6, carbs_g=0.0)]
         streams = [records]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["group"] == "protein"  # Should be classified as protein
 
     def test_merge_records_rounding(self):
         """Test that values are properly rounded."""
-        records = [self.create_food_record("apple", "USDA", 
-                                         kcal=52.123456, protein_g=0.256789, Fe_mg=1.234567)]
+        records = [self.create_food_record("apple", "USDA",
+                                           kcal=52.123456, protein_g=0.256789, Fe_mg=1.234567)]
         streams = [records]
-        
+
         result = merge_records(streams)
-        
+
         assert len(result) == 1
         assert result[0]["kcal"] == 52.1  # rounded to 1 decimal
         assert result[0]["protein_g"] == 0.26  # rounded to 2 decimals
         assert result[0]["Fe_mg"] == 1.235  # rounded to 3 decimals
+
+    def test_classify_high_carb_no_sugar_grain(self):
+        """Test classification of high carb food without sugar field (line 162)."""
+        record = {
+            "name": "rice",
+            "kcal": 130.0,
+            "protein_g": 2.7,  # Low protein
+            "fat_g": 0.3,
+            "carbs_g": 28.0,  # High carbs > 50%
+            "fiber_g": 0.4,  # Low fiber
+            "flags": []
+            # No sugar_g field
+        }
+        result = _classify_food_group(record)
+        assert result == "grain"
+
+    def test_classify_high_carb_high_sugar_fruit(self):
+        """Test classification of high carb food with high sugar (line 162)."""
+        record = {
+            "name": "banana",
+            "kcal": 89.0,
+            "protein_g": 1.1,  # Low protein
+            "fat_g": 0.3,
+            "carbs_g": 22.8,  # High carbs > 50%
+            "fiber_g": 2.6,  # Low fiber
+            "sugar_g": 12.2,  # High sugar > 10
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "fruit"
+
+    def test_classify_vegetable_high_fiber_low_calorie(self):
+        """Test classification of vegetable with high fiber and low calories (line 168)."""
+        record = {
+            "name": "broccoli",
+            "kcal": 34.0,  # Low calories < 100
+            "protein_g": 2.8,  # High protein percentage
+            "fat_g": 0.4,
+            "carbs_g": 6.6,
+            "fiber_g": 2.6,  # High fiber > 2
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "protein"  # High protein percentage takes priority
+
+    def test_classify_fruit_by_sugar_no_sugar_field(self):
+        """Test classification of fruit by sugar without sugar field (line 172)."""
+        record = {
+            "name": "apple",
+            "kcal": 52.0,
+            "protein_g": 0.3,  # Low protein
+            "fat_g": 0.2,
+            "carbs_g": 13.8,  # High carbs > 50%
+            "fiber_g": 2.4,
+            "flags": []
+            # No sugar_g field
+        }
+        result = _classify_food_group(record)
+        assert result == "grain"  # High carbs without high fiber
+
+    def test_classify_dairy_by_flags_no_dairy_flags(self):
+        """Test classification without dairy flags (line 176)."""
+        record = {
+            "name": "milk",
+            "kcal": 42.0,
+            "protein_g": 3.4,  # High protein percentage
+            "fat_g": 1.0,
+            "carbs_g": 5.0,
+            "fiber_g": 0.0,
+            "flags": []  # No DAIRY flag
+        }
+        result = _classify_food_group(record)
+        assert result == "protein"  # High protein percentage takes priority
+
+    def test_classify_vegetable_low_protein_high_fiber(self):
+        """Test classification of vegetable with low protein and high fiber (line 169)."""
+        record = {
+            "name": "lettuce",
+            "kcal": 15.0,  # Low calories < 100
+            "protein_g": 0.5,  # Very low protein percentage
+            "fat_g": 0.2,
+            "carbs_g": 2.9,
+            "fiber_g": 2.5,  # High fiber > 2
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "grain"  # High carbs without high protein
+
+    def test_classify_fruit_by_sugar_field(self):
+        """Test classification of fruit by sugar field (line 173)."""
+        record = {
+            "name": "grape",
+            "kcal": 67.0,
+            "protein_g": 0.6,  # Low protein
+            "fat_g": 0.4,
+            "carbs_g": 17.0,
+            "fiber_g": 0.9,
+            "sugar_g": 16.0,  # High sugar > 5
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "fruit"
+
+    def test_classify_dairy_by_flags_field(self):
+        """Test classification of dairy by flags field (line 177)."""
+        record = {
+            "name": "yogurt",
+            "kcal": 59.0,
+            "protein_g": 0.5,  # Low protein
+            "fat_g": 0.4,
+            "carbs_g": 3.6,
+            "fiber_g": 0.0,
+            "flags": ["DAIRY"]  # Has DAIRY flag
+        }
+        result = _classify_food_group(record)
+        assert result == "dairy"  # Dairy flags take priority when protein is low
+
+    def test_classify_legume_by_name_high_fiber(self):
+        """Test classification of legume by name with high fiber (lines 157-161)."""
+        record = {
+            "name": "lentil",
+            "kcal": 116.0,
+            "protein_g": 2.0,  # Very low protein percentage
+            "fat_g": 0.4,
+            "carbs_g": 20.1,  # High carbs > 50%
+            "fiber_g": 7.9,  # High fiber > 3
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "legume"  # Should be classified as legume by name
+
+    def test_classify_grain_high_fiber_not_legume(self):
+        """Test classification of grain with high fiber but not legume name (line 161)."""
+        record = {
+            "name": "quinoa",  # Not a legume name
+            "kcal": 120.0,
+            "protein_g": 1.0,  # Very low protein percentage
+            "fat_g": 0.4,
+            "carbs_g": 22.0,  # High carbs > 50%
+            "fiber_g": 5.0,  # High fiber > 3
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "grain"  # Should be classified as grain
+
+    def test_classify_vegetable_very_low_protein(self):
+        """Test classification of vegetable with very low protein (line 169)."""
+        record = {
+            "name": "spinach",
+            "kcal": 23.0,  # Low calories < 100
+            "protein_g": 0.5,  # Very low protein percentage
+            "fat_g": 0.4,
+            "carbs_g": 1.0,  # Low carbs < 50%
+            "fiber_g": 2.2,  # High fiber > 2
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "veg"  # Should be classified as vegetable
+
+    def test_classify_fruit_very_low_protein(self):
+        """Test classification of fruit with very low protein (line 173)."""
+        record = {
+            "name": "strawberry",
+            "kcal": 32.0,
+            "protein_g": 0.7,  # Low protein
+            "fat_g": 0.3,
+            "carbs_g": 1.0,  # Low carbs < 50%
+            "fiber_g": 2.0,
+            "sugar_g": 4.9,  # High sugar > 5
+            "flags": []
+        }
+        result = _classify_food_group(record)
+        assert result == "other"  # Default classification when conditions don't match
