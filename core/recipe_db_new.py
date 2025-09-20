@@ -13,7 +13,7 @@ from __future__ import annotations
 import csv
 import random
 from dataclasses import dataclass
-from typing import Dict, List, TypedDict, Optional
+from typing import Dict, List, Optional, Sequence, TypedDict
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_recipe
@@ -47,6 +47,7 @@ class RecipeDB:
     def __init__(self, path: str, fooddb: FoodDB) -> None:
         self.fooddb = fooddb
         self.recipes: List[Recipe] = []
+        self._recipe_by_name: Dict[str, Recipe] = {}
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 ings = {}
@@ -54,7 +55,9 @@ class RecipeDB:
                     name, grams = pair.split(":")
                     ings[name.strip()] = float(grams)
                 tags = [x.strip() for x in (row.get("tags", "") or "").split(";") if x.strip()]
-                self.recipes.append(Recipe(row["name"], row["meal"], ings, tags))
+                recipe = Recipe(row["name"], row["meal"], ings, tags)
+                self.recipes.append(recipe)
+                self._recipe_by_name[recipe.name] = recipe
 
     def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Optional[Recipe]:
         # breakfast/lunch/dinner/snack by index
@@ -92,6 +95,60 @@ class RecipeDB:
             for mk in MICRO_KEYS:
                 micros[mk] += fi.micros.get(mk, 0.0) * mul
         return {"kcal": kcal, "macros": macros, "micros": micros}
+
+    def get_recipe_by_id(self, recipe_id: int | str) -> Optional[Recipe]:
+        """Return a recipe by its identifier.
+
+        The CSV does not provide an explicit numeric id, so we treat the recipe
+        name as the primary identifier. Tests may also reference recipes by
+        positional index, so we accept integers as index lookups too.
+        """
+
+        # Fast path: lookup by canonical recipe name
+        key = str(recipe_id).strip()
+        recipe = self._recipe_by_name.get(key)
+        if recipe is not None:
+            return recipe
+
+        # Allow numeric lookups by index (string digits or int)
+        try:
+            idx = int(recipe_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if 0 <= idx < len(self.recipes):
+            return self.recipes[idx]
+        return None
+
+    def search_recipes(
+        self,
+        query: str = "",
+        *,
+        tags: Optional[Sequence[str]] = None,
+        limit: Optional[int] = None,
+    ) -> List[Recipe]:
+        """Search recipes by name substring and optional tag filters."""
+
+        normalized_query = (query or "").strip().lower()
+        normalized_tags = {t.lower() for t in (tags or []) if t}
+
+        def matches(recipe: Recipe) -> bool:
+            if normalized_query and normalized_query not in recipe.name.lower():
+                return False
+            if normalized_tags:
+                recipe_tags = {t.lower() for t in recipe.tags}
+                if not normalized_tags.issubset(recipe_tags):
+                    return False
+            return True
+
+        results = [r for r in self.recipes if matches(r)]
+        if limit is None or limit < 0:
+            return results
+        return results[:limit]
+
+    def get_all_recipes(self) -> List[Recipe]:
+        """Return a shallow copy of all recipes for read-only iteration."""
+
+        return list(self.recipes)
 
     def scale_recipe_to_kcal(
         self,

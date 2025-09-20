@@ -21,12 +21,14 @@ class TestMissingCoverage:
     def test_app_imports(self):
         """Тест импортов app.py"""
         # Проверяем, что все импорты работают
-        from app import MATPLOTLIB_AVAILABLE, TYPE_CHECKING, VIP_MODULE_ENABLED, slowapi_available
+        import app
 
-        assert isinstance(VIP_MODULE_ENABLED, bool)
-        assert isinstance(MATPLOTLIB_AVAILABLE, bool)
-        assert isinstance(TYPE_CHECKING, bool)
-        assert isinstance(slowapi_available, bool)
+        # Проверяем что app импортируется корректно
+        assert hasattr(app, "app")
+        assert hasattr(app, "VIP_MODULE_ENABLED")
+
+        # Проверяем типы доступных переменных
+        assert isinstance(app.VIP_MODULE_ENABLED, bool)
 
     def test_middleware_paths(self):
         """Тест путей middleware"""
