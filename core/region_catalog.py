@@ -9,7 +9,7 @@ Sprint 3: Region Catalog (ES/US open-data мок)
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 
 @dataclass
@@ -43,7 +43,7 @@ class RegionCatalog:
 
     def __init__(self, data_dir: str = "data/regions"):
         self.data_dir = Path(data_dir)
-        self.regions = {}
+        self.regions: Dict[str, List[RegionalProduct]] = {}
         self._load_regions()
 
     def _load_regions(self):
