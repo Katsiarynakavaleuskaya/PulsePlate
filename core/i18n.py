@@ -420,7 +420,7 @@ def normalize_lang(lang: Optional[str]) -> Lang:
                 return base  # type: ignore[return-value]
 
             # Otherwise return the configured default
-            return config["default"]
+            return config["default"]  # type: ignore
 
     # Step 3: Check direct base languages
     if key in ("ru", "en", "es"):

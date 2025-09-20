@@ -151,17 +151,17 @@ def interpret_whr_ratio(
     if sex.lower() == "male":
         if whr_ratio_value < 0.95:
             risk_level = "low"
-            description = t(lang, "risk_low_health")
+            description = t(lang, "risk_low_health")  # type: ignore
         else:
             risk_level = "high"
-            description = t(lang, "risk_high_android_shape")
+            description = t(lang, "risk_high_android_shape")  # type: ignore
     else:  # female
         if whr_ratio_value < 0.80:
             risk_level = "low"
-            description = t(lang, "risk_low_health")
+            description = t(lang, "risk_low_health")  # type: ignore
         else:
             risk_level = "high"
-            description = t(lang, "risk_high_android_shape")
+            description = t(lang, "risk_high_android_shape")  # type: ignore
 
     return {"risk": risk_level, "description": description}
 
@@ -184,7 +184,7 @@ def stage_obesity(
         Dictionary with staging information and recommendations
     """
     # Get individual risk assessments
-    wht_interpretation = interpret_wht_ratio(wht, lang)
+    wht_interpretation = interpret_wht_ratio(wht, lang)  # type: ignore
     whr_interpretation = interpret_whr_ratio(whr, sex, lang)
 
     # Determine overall staging
@@ -203,10 +203,10 @@ def stage_obesity(
         )
     elif risk_factors == 1:
         stage = "moderate_risk"
-        recommendation = t(lang, "recommendation_monitor_health")
+        recommendation = t(lang, "recommendation_monitor_health")  # type: ignore
     else:
         stage = "low_risk"
-        recommendation = t(lang, "recommendation_maintain_habits")
+        recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
 
     bmi_category = (
         "obese"
