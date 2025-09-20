@@ -64,7 +64,6 @@ class RecipeSynthesizer:
     """Синтезатор рецептов"""
 
     def __init__(self, templates_dir: str = "data/recipe_templates"):
-        from typing import Any  # Fix for undefined name 'Any'
         self.templates_dir = Path(templates_dir)
         self.templates: Dict[str, Dict[str, Any]] = {}
         self._load_templates()

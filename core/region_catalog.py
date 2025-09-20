@@ -8,10 +8,9 @@ Sprint 3: Region Catalog (ES/US open-data мок)
 
 import csv
 from dataclasses import dataclass
-
 from pathlib import Path
 from typing import Dict, List, Optional
-from dataclasses import dataclass
+
 
 @dataclass
 class RegionalProduct:
