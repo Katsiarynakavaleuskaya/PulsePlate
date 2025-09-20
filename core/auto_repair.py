@@ -8,10 +8,13 @@ Sprint 5: Auto-repair недели (UX-петля)
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
+
 
 from core.menu_engine import repair_week_plan
 from core.targets import MicronutrientTargets
+
+
 class RepairStrategy(Enum):
     """Стратегии ремонта"""
 
