@@ -78,7 +78,7 @@ try:  # pragma: no cover - defensive; avoid impacting production runtime
     # Always attach proxy; importlib.reload() will replace it with a real ModuleSpec immediately
     _self = _sys.modules.get(__name__)
     if _self is not None:
-        _self.__spec__ = _ReloadSpecProxy(_self)  # type: ignore[attr-defined]
+        _self.__spec__ = _ReloadSpecProxy(_self)  # type: ignore[attr-defined,assignment]
 except Exception:
     pass
 # Note: We intentionally avoid custom aliasing beyond this stabilization. Standard

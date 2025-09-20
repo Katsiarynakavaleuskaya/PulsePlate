@@ -10,7 +10,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 
 @dataclass
@@ -64,8 +64,9 @@ class RecipeSynthesizer:
     """Синтезатор рецептов"""
 
     def __init__(self, templates_dir: str = "data/recipe_templates"):
+        from typing import Any  # Fix for undefined name 'Any'
         self.templates_dir = Path(templates_dir)
-        self.templates = {}
+        self.templates: Dict[str, Dict[str, Any]] = {}
         self._load_templates()
 
     def _load_templates(self):
@@ -243,7 +244,7 @@ class RecipeSynthesizer:
         difficulty_preference: str,
     ) -> RecipeTemplate:
         """Выбирает лучший шаблон для ингредиентов"""
-        ingredient_names = [ing.get("name", "").lower() for ing in ingredients]
+        ingredient_names = [str(ing.get("name", "")).lower() for ing in ingredients]
 
         # Фильтруем шаблоны по предпочтениям
         suitable_templates = []
@@ -268,7 +269,7 @@ class RecipeSynthesizer:
                 best_score = score
                 best_template = template
 
-        return best_template or list(self.templates.values())[0]
+        return best_template or list(self.templates.values())[0]  # type: ignore
 
     def _calculate_ingredient_match_score(
         self, ingredient_names: List[str], template_ingredients: List[str]
@@ -329,8 +330,9 @@ class RecipeSynthesizer:
         for ing in ingredients:
             adapted_ing = ing.copy()
             # Простая логика: если количество больше 100g, считаем что это на 4 порции
-            if isinstance(ing.get("amount"), (int, float)) and ing.get("amount", 0) > 100:
-                adapted_ing["amount"] = round(ing["amount"] * target_servings / 4, 1)
+            amount = ing.get("amount", 0)
+            if isinstance(amount, (int, float)) and amount > 100:
+                adapted_ing["amount"] = round(amount * target_servings / 4, 1)
             adapted.append(adapted_ing)
         return adapted
 
@@ -410,10 +412,10 @@ class RecipeSynthesizer:
     ) -> Dict[str, float]:
         """Вычисляет питательную ценность на порцию"""
         # Упрощенная логика расчета питательной ценности
-        total_calories = 0
-        total_protein = 0
-        total_carbs = 0
-        total_fat = 0
+        total_calories = 0.0
+        total_protein = 0.0
+        total_carbs = 0.0
+        total_fat = 0.0
 
         for ing in ingredients:
             amount = ing.get("amount", 0)
@@ -454,7 +456,7 @@ class RecipeSynthesizer:
         tags = [template.cuisine_type, template.difficulty]
 
         # Добавляем теги на основе ингредиентов
-        ingredient_names = [ing.get("name", "").lower() for ing in ingredients]
+        ingredient_names = [str(ing.get("name", "")).lower() for ing in ingredients]
 
         if any("vegetable" in name for name in ingredient_names):
             tags.append("vegetarian")

@@ -159,7 +159,7 @@ def to_pdf_week(week: dict, path: Path) -> None:
             m = day["macros"]
             data.append(
                 [
-                    i,
+                    str(i),
                     day["kcal"],
                     m["protein_g"],
                     m["fat_g"],
