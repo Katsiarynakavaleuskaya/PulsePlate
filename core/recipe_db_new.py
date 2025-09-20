@@ -116,7 +116,7 @@ class RecipeDB:
         nut = self._nutrition_for(grams)
 
         # если сильно промахнулись по цели >5%, подправим ещё раз
-        if abs(nut["kcal"] - kcal_goal) / max(1, kcal_goal) > 0.05:
+        if abs(nut["kcal"] - kcal_goal) / max(1.0, kcal_goal) > 0.05:
             alpha2 = kcal_goal / max(1.0, nut["kcal"])
             grams = {k: v * alpha2 for k, v in grams.items()}
             nut = self._nutrition_for(grams)
