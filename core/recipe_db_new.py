@@ -110,7 +110,7 @@ class RecipeDB:
         else:
             alpha = kcal_goal / base["kcal"]
         # первичное масштабирование
-        grams = {k: max(10.0, v * alpha) for k, v in grams.items()}
+        grams = {k: max(10.0, float(v) * alpha) for k, v in grams.items()}
         # лёгкая рандомизация (±5%) для вариативности
         grams = {k: v * (0.95 + 0.10 * random.random()) for k, v in grams.items()}
         nut = self._nutrition_for(grams)

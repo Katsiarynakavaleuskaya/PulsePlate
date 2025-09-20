@@ -11,7 +11,7 @@ This module implements professional-level BMI analysis including:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional, Union
 
 # Import i18n functionality
 from core.i18n import Language, t
@@ -27,8 +27,8 @@ class BMIProCard:
 
     bmi: float
     whtr: float
-    whr: float | None
-    ffmi: float | None
+    whr: Optional[float]
+    ffmi: Optional[float]
     risk_level: Literal["low", "moderate", "high"]
     notes: list[str]
 
@@ -59,7 +59,7 @@ def ffmi(value_weight_kg: float, height_cm: float, bodyfat_percent: float) -> fl
 
 
 def stage_obesity(
-    *, bmi: float, whtr: float, whr: float | None, sex: Sex, lang: Language = "en"
+    *, bmi: float, whtr: float, whr: Optional[float], sex: Sex, lang: Language = "en"
 ) -> tuple[str, list[str]]:
     """RU: Мягкое стадирование риска по BMI+WHtR(+WHR).
     EN: Light risk staging using BMI+WHtR(+WHR).
