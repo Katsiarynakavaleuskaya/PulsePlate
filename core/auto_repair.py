@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional
 
-from core.menu_engine import repair_week_plan
+from core.menu_engine import repair_week_plan, WeekMenu
 from core.targets import MicronutrientTargets
 
 
@@ -63,7 +63,7 @@ class AutoRepairEngine:
 
     def __init__(self, max_iterations: int = 3):
         self.max_iterations = max_iterations
-        self.repair_history = []
+        self.repair_history: List[RepairIteration] = []
 
     def auto_repair_week_plan(
         self,
@@ -229,9 +229,9 @@ class AutoRepairEngine:
 
         try:
             # Используем существующую функцию ремонта
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)
+            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore
 
-            gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)
+            gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)  # type: ignore
 
             changes = [
                 {

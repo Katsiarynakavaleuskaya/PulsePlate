@@ -13,10 +13,16 @@ from __future__ import annotations
 import csv
 import random
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, TypedDict, Optional
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_recipe
+
+
+class NutritionData(TypedDict):
+    kcal: float
+    macros: Dict[str, float]
+    micros: Dict[str, float]
 
 
 @dataclass
@@ -50,7 +56,7 @@ class RecipeDB:
                 tags = [x.strip() for x in (row.get("tags", "") or "").split(";") if x.strip()]
                 self.recipes.append(Recipe(row["name"], row["meal"], ings, tags))
 
-    def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Recipe:
+    def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Optional[Recipe]:
         # breakfast/lunch/dinner/snack by index
         meal_map = ["breakfast", "lunch", "dinner", "snack"]
         target = meal_map[meal_index % len(meal_map)]
@@ -71,7 +77,7 @@ class RecipeDB:
             return False
         return True
 
-    def _nutrition_for(self, grams_map: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+    def _nutrition_for(self, grams_map: Dict[str, float]) -> NutritionData:
         kcal = 0.0
         macros = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
         micros = {k: 0.0 for k in MICRO_KEYS}
