@@ -249,8 +249,8 @@ class RecipeSynthesizer:
         # Фильтруем шаблоны по предпочтениям
         suitable_templates = []
         for template in self.templates.values():
-            if template.cuisine_type == cuisine_preference or cuisine_preference == "international":
-                if template.difficulty == difficulty_preference:
+            if template.get("cuisine_type") == cuisine_preference or cuisine_preference == "international":
+                if template.get("difficulty") == difficulty_preference:
                     suitable_templates.append(template)
 
         if not suitable_templates:
@@ -263,7 +263,7 @@ class RecipeSynthesizer:
 
         for template in suitable_templates:
             score = self._calculate_ingredient_match_score(
-                ingredient_names, template.base_ingredients
+                ingredient_names, template.get("base_ingredients", [])
             )
             if score > best_score:
                 best_score = score
@@ -422,23 +422,23 @@ class RecipeSynthesizer:
             if isinstance(amount, (int, float)):
                 # Примерные значения на 100g
                 if (
-                    "meat" in ing.get("name", "").lower()
-                    or "chicken" in ing.get("name", "").lower()
+                    "meat" in str(ing.get("name", "")).lower()
+                    or "chicken" in str(ing.get("name", "")).lower()
                 ):
                     total_calories += amount * 2.5  # 250 cal per 100g
                     total_protein += amount * 0.25  # 25g protein per 100g
                 elif (
-                    "vegetable" in ing.get("name", "").lower()
-                    or "tomato" in ing.get("name", "").lower()
+                    "vegetable" in str(ing.get("name", "")).lower()
+                    or "tomato" in str(ing.get("name", "")).lower()
                 ):
                     total_calories += amount * 0.2  # 20 cal per 100g
                     total_carbs += amount * 0.04  # 4g carbs per 100g
                 elif (
-                    "pasta" in ing.get("name", "").lower() or "rice" in ing.get("name", "").lower()
+                    "pasta" in str(ing.get("name", "")).lower() or "rice" in str(ing.get("name", "")).lower()
                 ):
                     total_calories += amount * 3.5  # 350 cal per 100g
                     total_carbs += amount * 0.75  # 75g carbs per 100g
-                elif "oil" in ing.get("name", "").lower():
+                elif "oil" in str(ing.get("name", "")).lower():
                     total_calories += amount * 9  # 900 cal per 100g
                     total_fat += amount * 1  # 100g fat per 100g
 
@@ -474,9 +474,9 @@ class RecipeSynthesizer:
         # Берем основной ингредиент
         main_ingredient = None
         for ing in ingredients:
-            name = ing.get("name", "").lower()
+            name = str(ing.get("name", "")).lower()
             if any(word in name for word in ["chicken", "beef", "salmon", "tofu"]):
-                main_ingredient = ing.get("name", "").title()
+                main_ingredient = str(ing.get("name", "")).title()
                 break
 
         if main_ingredient:
