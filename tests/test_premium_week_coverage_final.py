@@ -290,8 +290,8 @@ class TestPremiumWeekCoverageFinal:
             age=35,
             height_cm=180,
             weight_kg=80,
-            activity="high",
-            goal="weight_loss",
+            activity="very_active",
+            goal="loss",
             diet_flags=["vegan"],
             lang="ru",
         )

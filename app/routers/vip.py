@@ -6,8 +6,11 @@ RU: Роутер для VIP функций - микронутриентные ц
 EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping lists
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 import os
+
+# VIP feature flag: enable/disable VIP module via env or default True
+VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import APIKeyHeader

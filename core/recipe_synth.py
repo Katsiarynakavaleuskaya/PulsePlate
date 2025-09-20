@@ -10,7 +10,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union
 
 
 @dataclass
@@ -65,7 +65,7 @@ class RecipeSynthesizer:
 
     def __init__(self, templates_dir: str = "data/recipe_templates"):
         self.templates_dir = Path(templates_dir)
-        self.templates: Dict[str, Dict[str, Any]] = {}
+        self.templates: Dict[str, RecipeTemplate] = {}
         self._load_templates()
 
     def _load_templates(self):
@@ -248,8 +248,8 @@ class RecipeSynthesizer:
         # Фильтруем шаблоны по предпочтениям
         suitable_templates = []
         for template in self.templates.values():
-            if template.get("cuisine_type") == cuisine_preference or cuisine_preference == "international":
-                if template.get("difficulty") == difficulty_preference:
+            if template.cuisine_type == cuisine_preference or cuisine_preference == "international":
+                if template.difficulty == difficulty_preference:
                     suitable_templates.append(template)
 
         if not suitable_templates:
@@ -262,13 +262,13 @@ class RecipeSynthesizer:
 
         for template in suitable_templates:
             score = self._calculate_ingredient_match_score(
-                ingredient_names, template.get("base_ingredients", [])
+                ingredient_names, template.base_ingredients
             )
             if score > best_score:
                 best_score = score
                 best_template = template
 
-        return best_template or list(self.templates.values())[0]  # type: ignore
+        return best_template or list(self.templates.values())[0]
 
     def _calculate_ingredient_match_score(
         self, ingredient_names: List[str], template_ingredients: List[str]
@@ -433,7 +433,8 @@ class RecipeSynthesizer:
                     total_calories += amount * 0.2  # 20 cal per 100g
                     total_carbs += amount * 0.04  # 4g carbs per 100g
                 elif (
-                    "pasta" in str(ing.get("name", "")).lower() or "rice" in str(ing.get("name", "")).lower()
+                    "pasta" in str(ing.get("name", "")).lower()
+                    or "rice" in str(ing.get("name", "")).lower()
                 ):
                     total_calories += amount * 3.5  # 350 cal per 100g
                     total_carbs += amount * 0.75  # 75g carbs per 100g

@@ -22,10 +22,17 @@
   },
   "cSpell.words": [
     "корневого",
+    "ломать",
     "pesc",
     "sanitise",
     "shoplist"
   ],
   "coderabbit.agentType": "Codex CLI",
-  "coderabbit.autoReviewMode": "auto"
+  "coderabbit.autoReviewMode": "auto",
+  "cursorpyright.analysis.extraPaths": [
+    "app",
+    "core",
+    "tests"
+  ],
+  "cursorpyright.analysis.typeCheckingMode": "basic"
 }

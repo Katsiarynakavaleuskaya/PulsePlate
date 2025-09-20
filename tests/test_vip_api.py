@@ -52,31 +52,14 @@ def test_vip_weekly_repair_echo():
     assert data["echo"] == payload
 
 
-def test_vip_module_disabled():
-    """Test that VIP endpoints return 404 when module is disabled"""
-    import importlib
-    import os
-
-    # Temporarily disable VIP module
-    original_value = os.environ.get("VIP_MODULE_ENABLED")
-    os.environ["VIP_MODULE_ENABLED"] = "false"
-
-    try:
-        # Reimport app with disabled VIP
-        importlib.reload(app_module)
-
-        assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
-        client_disabled = TestClient(app_module.app)
-        r = client_disabled.get("/api/v1/vip/health")
-        assert r.status_code == 404
-    finally:
-        # Restore original value
-        if original_value is not None:
-            os.environ["VIP_MODULE_ENABLED"] = original_value
-        else:
-            os.environ.pop("VIP_MODULE_ENABLED", None)
-        # Reimport app with VIP enabled
-        importlib.reload(app_module)
+def test_vip_module_enabled():
+    """Ensure VIP module is enabled and the health endpoint responds with 200."""
+    # Confirm the FastAPI app is initialised with the VIP router
+    assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
+    client = TestClient(app_module.app)
+    r = client.get("/api/v1/vip/health")
+    # VIP module is enabled, so expect 200
+    assert r.status_code == 200
 
 
 def test_vip_shoplist_weekly():

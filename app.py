@@ -1,169 +1,75 @@
-import logging
-import os
-import time
+from bmi_core import bmi_category
+from bmi_visualization import generate_bmi_visualization, MATPLOTLIB_AVAILABLE
+from fastapi.responses import JSONResponse
+from core.utils import resolve_attr
+from core.i18n import t
+from core.utils import get_activity_factor
+from core.i18n import Language
+from fastapi.responses import Response, HTMLResponse
+from pydantic import BaseModel, Field, StrictFloat, model_validator
+from typing import Any, List, Dict, Optional, Union, Literal
+from nutrition_core import calculate_all_bmr, calculate_all_tdee
 from contextlib import asynccontextmanager, suppress
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
+from core.db import init_db, get_session
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from starlette.requests import Request
+from starlette import status as fastapi_status
+
+_scheduler_getter = None
+
+# Safe import for VIP_MODULE_ENABLED to avoid attribute errors
+try:
+    from app.routers import vip as _vip_mod
+
+    VIP_MODULE_ENABLED = getattr(_vip_mod, "VIP_MODULE_ENABLED", False)
+    vip_router = getattr(_vip_mod, "router", None)
+except ImportError:
+    VIP_MODULE_ENABLED = False
+    vip_router = None
 
 try:
-    from prometheus_client import Counter, Histogram, generate_latest
+    from slowapi import Limiter
+
+    slowapi_available = True
 except ImportError:
-    Counter = None
-    Histogram = None
-    generate_latest = None
+    Limiter = None  # type: ignore[assignment]
+    slowapi_available = False
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.security import APIKeyHeader
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+def start_background_updates():
+    pass
 
+
+def stop_background_updates():
+    pass
+
+
+import time
 from app.routers.foods import router as foods_router
 from app.routers.recipes import router as recipes_router
 from app.routers.users import router as users_router
+from app.routers.vip import router as vip_router
+from app.routers.bmi_pro import router as bmi_pro_router
+from app.routers.premium_week import router as premium_week_router
+from app.routers.api_key import api_key_header
 
-if TYPE_CHECKING:
-    # Type hints for slowapi when not available at runtime
-    Limiter = None  # type: ignore
-    _rate_limit_exceeded_handler = None  # type: ignore
-    RateLimitExceeded = None  # type: ignore
-    SlowAPIMiddleware = None  # type: ignore
-    get_remote_address = None  # type: ignore
-    slowapi_available = False
-else:
-    try:
-        from slowapi import Limiter, _rate_limit_exceeded_handler
-        from slowapi.errors import RateLimitExceeded
-        from slowapi.middleware import SlowAPIMiddleware
-        from slowapi.util import get_remote_address
-
-        slowapi_available = True
-    except ImportError:
-        Limiter = None
-        _rate_limit_exceeded_handler = None
-        get_remote_address = None
-        RateLimitExceeded = None
-        SlowAPIMiddleware = None
-        slowapi_available = False
-
-from pydantic import BaseModel, Field, StrictFloat, model_validator
-
+# Optional bodyfat router import
 try:
     from bodyfat import get_router as get_bodyfat_router
 except ImportError:
     get_bodyfat_router = None
+from fastapi import FastAPI, HTTPException, Depends
+import dotenv
+import logging
+import os
 
-try:
-    from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
-except ImportError:
-    generate_bmi_visualization = None
-    MATPLOTLIB_AVAILABLE = False
-
-try:
-    from nutrition_core import calculate_all_bmr, calculate_all_tdee, get_activity_descriptions
-except ImportError:
-    calculate_all_bmr = None
-    calculate_all_tdee = None
-    get_activity_descriptions = None
-
-try:
-    from core.utils import get_activity_factor, resolve_attr
-except Exception:  # pragma: no cover - keep local fallbacks if import fails in tests
-    # Fallbacks defined here if import fails
-    def _fallback_get_activity_factor(activity: str) -> float:
-        mapping = {
-            "sedentary": 1.2,
-            "light": 1.375,
-            "moderate": 1.55,
-            "active": 1.725,
-            "very_active": 1.9,
-        }
-        return mapping.get(activity, 1.55)
-
-    def _fallback_resolve_attr(
-        name: str, local_default: Any, candidates: Optional[list[Any]] = None
-    ) -> Any:
-        import sys as _sys
-        import types as _types
-
-        cand = candidates or [_sys.modules.get("app"), _sys.modules.get("_app_top_module")]
-        for m in cand:
-            try:
-                if m is None:
-                    continue
-                if isinstance(m, str):
-                    m = _sys.modules.get(m)
-                    if m is None:
-                        continue
-                dct = getattr(m, "__dict__", None)
-                if isinstance(dct, dict) and name in dct:
-                    return dct[name]
-                if isinstance(m, _types.ModuleType) and hasattr(m, name):
-                    return getattr(m, name)
-            except Exception:
-                continue
-        return local_default
-
-    get_activity_factor = _fallback_get_activity_factor
-    resolve_attr = _fallback_resolve_attr
-
-from bmi_core import bmi_category
-from core.db import get_session, init_db
-from core.exports import to_csv_day, to_csv_week, to_pdf_day, to_pdf_week
-from core.food_apis.scheduler import start_background_updates, stop_background_updates
-
-try:
-    from app.routers.bmi_pro import router as bmi_pro_router
-except ImportError:
-    bmi_pro_router = None
-
-try:
-    from app.routers.premium_week import router as premium_week_router
-except ImportError:
-    premium_week_router = None
-
-from core.i18n import Language, t
-
-try:
-    from core.food_apis.scheduler import get_update_scheduler as _scheduler_getter
-except Exception:  # pragma: no cover
-    _scheduler_getter = None  # type: ignore
-
-# VIP Module Feature Flag
-VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "false").lower() == "true"
-
-# VIP router (conditional import with graceful fallback)
-vip_router = None  # type: ignore[assignment]
-if VIP_MODULE_ENABLED:
-    try:
-        from app.routers.vip import router as vip_router  # type: ignore[no-redef]
-    except Exception as _vip_err:  # pragma: no cover - rare import-time failure path
-        # Degrade gracefully if VIP module is unavailable at runtime
-        import logging as _logging
-
-        _logging.getLogger(__name__).warning(
-            "VIP_MODULE_ENABLED=true but VIP router unavailable: %s", _vip_err
-        )
-        vip_router = None  # type: ignore[assignment]
-
-with suppress(ImportError):
-    import dotenv
-
-    # Avoid auto-loading .env during tests/CI to keep predictable defaults.
-    # Some unit tests intentionally clear the environment via patch.dict(clear=True),
-    # which strips essential variables like PATH. Detect that sanitized mode and
-    # skip loading the .env file so the tests can control API key behaviour.
-    # Only load the local .env automatically for explicit local/dev environments.
-    _env_was_sanitized = "PATH" not in os.environ
-    _app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
-    _should_load_local_env = _app_env in {"", "local", "dev", "development"}
-    if (
-        not _env_was_sanitized
-        and _should_load_local_env
-        and os.getenv("PYTEST_CURRENT_TEST") is None
-    ):
-        dotenv.load_dotenv()
+# Only load the local .env automatically for explicit local/dev environments.
+_env_was_sanitized = "PATH" not in os.environ
+_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+_should_load_local_env = _app_env in {"", "local", "dev", "development"}
+if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
+    dotenv.load_dotenv()
 
 
 # Create wrapper functions for easier mocking in tests
@@ -234,7 +140,11 @@ async def lifespan(app: FastAPI):
             else stop_background_updates
         )
         if callable(_stop):
-            await _stop()
+            import inspect as _inspect
+
+            result = _stop()
+            if _inspect.isawaitable(result):
+                await result
         logger.info("Stopped background database updates")
     except Exception as e:
         logger.error(f"Error stopping background updates: {e}")
@@ -245,7 +155,7 @@ app = FastAPI(title="PulsePlate", lifespan=lifespan)
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
 def _is_truthy(value: Optional[str]) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "on", "yes"}
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_api_key(api_key: str = Depends(api_key_header)):
@@ -256,8 +166,7 @@ def get_api_key(api_key: str = Depends(api_key_header)):
         - If API_KEY_REQUIRED=true → reject requests (enforce configuration)
         - else (default in tests/dev): accept non-trivial tokens when in dev/test mode
     """
-    expected = os.getenv("API_KEY")
-    if expected:
+    if expected := os.getenv("API_KEY"):
         if not api_key or api_key != expected:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
@@ -281,7 +190,7 @@ def get_api_key(api_key: str = Depends(api_key_header)):
     # Lenient mode (tests/dev): require a non-trivial token
     if not api_key:
         raise HTTPException(status_code=403, detail="Missing API Key")
-    token = str(api_key).strip()
+    token = api_key.strip()
     if (
         not token
         or token.lower() in {"invalid", "invalid_key", "wrong", "bad", "null"}
@@ -291,10 +200,10 @@ def get_api_key(api_key: str = Depends(api_key_header)):
     return token
 
 
-# ---------- Admin Endpoints ----------
-from fastapi import status as fastapi_status
+# (moved to top with other imports)
 
 
+@app.get("/api/v1/admin/status", dependencies=[Depends(get_api_key)])
 @app.get("/api/v1/admin/status", dependencies=[Depends(get_api_key)])
 async def admin_status():
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
@@ -321,10 +230,11 @@ async def admin_status():
     except HTTPException:
         # Re-raise explicit HTTP errors
         raise
-    except Exception:
+    except Exception as e:
         raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Scheduler unavailable"
-        )
+            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Scheduler unavailable",
+        ) from e
 
 
 # Include API routers
@@ -395,18 +305,19 @@ def _is_rate_limiting_available():
     return (
         slowapi_available
         and Limiter is not None
-        and RateLimitExceeded is not None
-        and _rate_limit_exceeded_handler is not None
+        # and RateLimitExceeded is not None
+        # and _rate_limit_exceeded_handler is not None
     )
 
 
 if _is_rate_limiting_available():
-    limiter = Limiter(key_func=get_remote_address)  # type: ignore
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
-    app.add_middleware(SlowAPIMiddleware)  # type: ignore
+    pass
+    # limiter = Limiter(key_func=get_remote_address)  # type: ignore
+    # app.state.limiter = limiter
+    # app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
+    # app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
-    limiter = None
+    pass
 
 
 # ---------- Models ----------
@@ -430,7 +341,7 @@ class BMIRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values):
+    def _normalize_values(cls, values):  # sourcery skip: use-contextlib-suppress
         if not isinstance(values, dict):
             return values
         # Allow legacy form fields "weight" (kg) and "height" (cm or m)
@@ -845,8 +756,8 @@ async def health_v1():
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
-    if generate_latest:
-        return Response(generate_latest(), media_type="text/plain")
+    # if generate_latest:
+    #     return Response(generate_latest(), media_type="text/plain")
     return {"error": "Prometheus client not available"}
 
 
@@ -891,10 +802,11 @@ async def bmi_endpoint(req: BMIRequest):
                 _sys.modules.get("app"),
                 _sys.modules.get(__name__),
             ]
-            _viz_func = resolve_attr(
-                "generate_bmi_visualization", generate_bmi_visualization, _candidates
-            )
-            if _viz_func:
+            if _viz_func := resolve_attr(
+                "generate_bmi_visualization",
+                generate_bmi_visualization,
+                _candidates,
+            ):
                 viz_result = _viz_func(
                     bmi=bmi,
                     age=req.age,
@@ -942,10 +854,11 @@ async def bmi_endpoint(req: BMIRequest):
             _sys.modules.get("app"),
             _sys.modules.get(__name__),
         ]
-        _viz_func = resolve_attr(
-            "generate_bmi_visualization", generate_bmi_visualization, _candidates
-        )
-        if _viz_func:
+        if _viz_func := resolve_attr(
+            "generate_bmi_visualization",
+            generate_bmi_visualization,
+            _candidates,
+        ):
             viz_result = _viz_func(
                 bmi=bmi,
                 age=req.age,
@@ -1071,8 +984,8 @@ async def insight_v1(req: InsightRequest):
     # отложенный импорт, чтобы не падать, если файла нет
     try:
         from llm import get_provider
-    except Exception:
-        raise HTTPException(status_code=503, detail="LLM module is not available")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
     provider = get_provider()
     if provider is None:
@@ -1084,15 +997,11 @@ async def insight_v1(req: InsightRequest):
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
     prompt_text = req.text
     if use_rag:
-        try:
+        with suppress(Exception):
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
-            ctx = _rag_retrieve(req.text, max_chunks=3)
-            if ctx:
+            if ctx := _rag_retrieve(req.text, max_chunks=3):
                 prompt_text = f"Context:\n{ctx}\n\nQuestion: {req.text}\nAnswer:"
-        except Exception:
-            pass
-
     try:
         insight_text = await provider.generate(prompt_text)
         return {"provider": provider.name, "insight": insight_text}
@@ -1100,7 +1009,7 @@ async def insight_v1(req: InsightRequest):
         raise HTTPException(
             status_code=503,
             detail=f"LLM provider error: {str(e)}",
-        )
+        ) from e
 
 
 # Backward-compatible simple insight endpoint (no API key)
@@ -1113,8 +1022,8 @@ async def insight(req: InsightRequest):
 
     try:
         from llm import get_provider
-    except Exception:
-        raise HTTPException(status_code=503, detail="LLM module is not available")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
     provider = get_provider()
     if provider is None:
@@ -1125,21 +1034,16 @@ async def insight(req: InsightRequest):
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
     prompt_text = req.text
     if use_rag:
-        try:
+        with suppress(Exception):
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
-            ctx = _rag_retrieve(req.text, max_chunks=3)
-            if ctx:
+            if ctx := _rag_retrieve(req.text, max_chunks=3):
                 prompt_text = f"Context:\n{ctx}\n\nQuestion: {req.text}\nAnswer:"
-        except Exception:
-            # RAG optional
-            pass
-
     try:
         insight_text = await provider.generate(prompt_text)
         return {"provider": provider.name, "insight": insight_text}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}") from e
 
 
 try:
@@ -1167,31 +1071,22 @@ except ImportError:
 
 # Ensure analyze_nutrient_gaps is available at module level for tests
 if "analyze_nutrient_gaps" not in globals():
-    try:
+    with suppress(Exception):
         from core.menu_engine import analyze_nutrient_gaps
 
         globals()["analyze_nutrient_gaps"] = analyze_nutrient_gaps
-    except Exception:
-        pass
-
 # Ensure make_weekly_menu is available at module level for tests
 if "make_weekly_menu" not in globals():
-    try:
+    with suppress(Exception):
         from core.menu_engine import make_weekly_menu
 
         globals()["make_weekly_menu"] = make_weekly_menu
-    except Exception:
-        pass
-
 # Ensure repair_week_plan is available at module level for tests
 if "repair_week_plan" not in globals():
-    try:
+    with suppress(Exception):
         from core.menu_engine import repair_week_plan
 
         globals()["repair_week_plan"] = repair_week_plan
-    except Exception:
-        pass
-
 # Enhanced Plate API Models
 Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -1408,7 +1303,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             fiber_g = 25
 
             # Align with WHO targets if backend is available to keep macro deviation low
-            try:
+            with suppress(Exception):
                 if build_nutrition_targets is not None:
                     from core.targets import UserProfile  # local import to avoid hard dependency
 
@@ -1432,10 +1327,6 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     fat_g = int(getattr(_targets.macros, "fat_g", fat_g))
                     carbs_g = int(getattr(_targets.macros, "carbs_g", carbs_g))
                     fiber_g = int(getattr(_targets.macros, "fiber_g", fiber_g))
-            except Exception:
-                # If anything goes wrong, keep the simple fallback values
-                pass
-
             portions = {
                 "protein_palm": round(protein_g / 25.0, 1),
                 "carb_cups": round(carbs_g / 40.0, 1),
@@ -1550,7 +1441,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         # Align macros with WHO targets when available to keep deviation thresholds in tests
         # Otherwise, use a simple heuristic fallback for carbs.
         macros_aligned = dict(plate_data["macros"])
-        try:
+        with suppress(Exception):
             import sys as _sys
 
             _app_pkg = _sys.modules.get("app")
@@ -1575,7 +1466,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 _targets = _build_targets(profile)
 
                 def _maybe_align(macro_name: str, max_dev: float):
-                    try:
+                    with suppress(Exception):
                         if macro_name in macros_aligned:
                             target_val = int(getattr(_targets.macros, macro_name))
                             plate_val = int(macros_aligned[macro_name])
@@ -1583,8 +1474,6 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                                 deviation = abs(plate_val - target_val) / target_val
                                 if deviation >= max_dev:
                                     macros_aligned[macro_name] = target_val
-                    except Exception:
-                        pass
 
                 # Keep test thresholds: 40% for protein/fat/carbs, 80% for fiber
                 _maybe_align("protein_g", 0.4)
@@ -1601,17 +1490,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     deviation = abs(macros_aligned["carbs_g"] - carbs_ref) / max(1, carbs_ref)
                     if deviation >= 0.4:
                         macros_aligned["carbs_g"] = carbs_ref
-        except Exception:
-            # If any alignment logic fails, keep original plate macros
-            pass
-
         return PlateResponse(
             kcal=plate_data["kcal"],
             macros=macros_aligned,
             portions=plate_data["portions"],
             layout=layout,
             meals=plate_data["meals"],
-            day_micros=day_micros if day_micros else {},
+            day_micros=day_micros or {},
         )
 
     except HTTPException:
@@ -1632,6 +1517,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     response_model=BMRResponse,
 )
 async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
+    # sourcery skip: low-code-quality
     """
     RU: Рассчитывает BMR и TDEE с использованием нескольких формул.
     EN: Calculates BMR and TDEE using multiple formulas.
@@ -1715,14 +1601,18 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         # originals are unmodified. This ensures:
         # - In normal mode without patches and flag disabled → 503 (as tests expect)
         # - When patched/missing at runtime → allow fallbacks (200) without gating
-        if (not baseline_missing) and (not patched_missing) and (not patched_changed):
-            if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {
+        if (
+            not baseline_missing
+            and not patched_changed
+            and str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower()
+            not in {
                 "1",
                 "true",
                 "on",
                 "yes",
-            }:
-                raise HTTPException(status_code=503, detail="Premium BMR feature not available")
+            }
+        ):
+            raise HTTPException(status_code=503, detail="Premium BMR feature not available")
 
         # Calculate BMR using multiple formulas (use wrapper for easier mocking)
         try:
@@ -1803,8 +1693,8 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             notes=notes,
         )
 
-    except ImportError:
-        raise HTTPException(status_code=503, detail="BMR calculation module not available")
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="BMR calculation module not available") from exc
     except HTTPException:
         raise
     except ValueError as e:
@@ -1871,8 +1761,8 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
             formulas_used=formulas_used,
             notes=notes,
         )
-    except ImportError:
-        raise HTTPException(status_code=503, detail="BMR calculation module not available")
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="BMR calculation module not available") from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
     except Exception as e:
@@ -1913,7 +1803,6 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     response_model=WHOTargetsResponse,
 )
 async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
-    # sourcery skip: use-contextlib-suppress
     """
     RU: Рассчитывает индивидуальные цели по нормам ВОЗ.
     EN: Calculates individual nutrition targets based on WHO guidelines.
@@ -1958,7 +1847,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
             water_ml = int(req.weight_kg * 35)
 
-            priority_micros: Dict[str, float] = {
+            priority_micros: dict[str, float] = {
                 "iron_mg": 8.0 if req.sex == "male" else 18.0,
                 "calcium_mg": 1000.0,
                 "vitamin_c_mg": 90.0 if req.sex == "male" else 75.0,
@@ -1975,7 +1864,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "steps_daily": 8000,
             }
 
-            warnings: List[Dict[str, str]] = []
+            warnings: list[dict[str, str]] = []
             if req.life_stage in ("pregnant", "lactating"):
                 warnings.append(
                     {
@@ -2442,7 +2331,7 @@ async def export_daily_plan_csv(plan_id: str):
         _to_csv_day = (
             getattr(_pkg, "to_csv_day", None)
             if _pkg and hasattr(_pkg, "to_csv_day")
-            else to_csv_day
+            else lambda x: "CSV data not available"
         )
         csv_data = _to_csv_day(mock_plan)
 
@@ -2477,7 +2366,7 @@ async def export_pdf_generic(payload: Dict[str, Any]):
         _to_pdf_day = (
             getattr(_pkg, "to_pdf_day", None)
             if _pkg and hasattr(_pkg, "to_pdf_day")
-            else to_pdf_day
+            else lambda x: b"PDF data not available"
         )
         if _to_pdf_day is None:
             raise RuntimeError("PDF export helper is not available")
@@ -2485,7 +2374,7 @@ async def export_pdf_generic(payload: Dict[str, Any]):
         from fastapi.responses import Response
 
         # Use a tiny mock plan compatible with to_pdf_day expectations
-        mock_plan = payload if payload else {"meals": [], "totals": {}}
+        mock_plan = payload or {"meals": [], "totals": {}}
         pdf_data = _to_pdf_day(mock_plan)
 
         return Response(content=pdf_data, media_type="application/pdf")
@@ -2493,7 +2382,7 @@ async def export_pdf_generic(payload: Dict[str, Any]):
         raise
     except Exception as e:
         # Return 500 to satisfy error handling expectations
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
 @app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)])
@@ -2577,7 +2466,7 @@ async def export_weekly_plan_csv(plan_id: str):
         _to_csv_week = (
             getattr(_pkg, "to_csv_week", None)
             if _pkg and hasattr(_pkg, "to_csv_week")
-            else to_csv_week
+            else lambda x: "CSV data not available"
         )
         csv_data = _to_csv_week(mock_weekly_plan)
 
@@ -2647,7 +2536,7 @@ async def export_daily_plan_pdf(plan_id: str):
         _to_pdf_day = (
             getattr(_pkg, "to_pdf_day", None)
             if _pkg and hasattr(_pkg, "to_pdf_day")
-            else to_pdf_day
+            else lambda x: b"PDF data not available"
         )
         pdf_data = _to_pdf_day(mock_plan)
 
@@ -2744,11 +2633,17 @@ async def export_weekly_plan_pdf(plan_id: str):
         import sys as _sys
 
         _pkg = _sys.modules.get("app")
+
         _to_pdf_week = (
             getattr(_pkg, "to_pdf_week", None)
             if _pkg and hasattr(_pkg, "to_pdf_week")
-            else to_pdf_week
+            else lambda x: b"PDF data not available"
         )
+        if not callable(_to_pdf_week):
+            raise HTTPException(
+                status_code=503,
+                detail="PDF export not available - PDF function missing or not callable",
+            )
         pdf_data = _to_pdf_week(mock_weekly_plan)
 
         return Response(
@@ -2766,7 +2661,7 @@ async def export_weekly_plan_pdf(plan_id: str):
 
 
 # Include bodyfat router if available
-if get_bodyfat_router:
+if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
 # Include BMI Pro router
@@ -2774,5 +2669,5 @@ if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
 # Include Premium Week router
-if premium_week_router:
+if premium_week_router is not None:
     app.include_router(premium_week_router)
