@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-from core.aliases import _load_aliases, map_to_canonical
+from core.aliases import _load_aliases, map_to_canonical, add_alias
 
 
 def test_map_to_canonical_basic():
