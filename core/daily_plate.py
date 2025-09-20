@@ -44,7 +44,7 @@ def create_daily_plate(
     meal_splits = {"breakfast": 0.25, "lunch": 0.35, "dinner": 0.30, "snack": 0.10}
 
     meals = []
-    total_micro_coverage = {}
+    total_micro_coverage: Dict[str, float] = {}
 
     # Create meals for each time slot
     for meal_name, split in meal_splits.items():

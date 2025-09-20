@@ -13,7 +13,7 @@ import csv
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 
 from .food_db import FoodItem
 
@@ -352,7 +352,7 @@ class ProductVarietiesManager:
         """
         return list(self.varieties.keys())
 
-    def get_statistics(self) -> Dict[str, int]:
+    def get_statistics(self) -> Dict[str, Union[int, float]]:
         """
         RU: Получить статистику по сортам продуктов.
         EN: Get statistics on product varieties.

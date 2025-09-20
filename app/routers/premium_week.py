@@ -5,7 +5,7 @@ RU: Роутер для генерации недельного плана пи�
 EN: Router for generating weekly meal plans.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
 import math
 
 from fastapi import APIRouter, HTTPException
@@ -61,12 +61,12 @@ class WeekPlanRequest(BaseModel):
     # режим A: передают готовые targets
     targets: Optional[TargetsIn] = None
     # режим B: быстрый профиль (fallback)
-    sex: Optional[str] = None
+    sex: Optional[Literal["female", "male"]] = None
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
     weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Optional[str] = "moderate"
-    goal: Optional[str] = "maintain"
+    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = "moderate"
+    goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
 
@@ -80,7 +80,12 @@ class WeekPlanResponse(BaseModel):
 
 
 def estimate_targets_minimal(
-    sex: str, age: int, height_cm: float, weight_kg: float, activity: str, goal: str
+    sex: Literal["female", "male"],
+    age: int,
+    height_cm: float,
+    weight_kg: float,
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
+    goal: Literal["loss", "maintain", "gain"]
 ) -> dict:
     """Temporary function to estimate targets from user profile."""
     # Create a UserProfile object
@@ -130,13 +135,17 @@ async def generate_week_plan(req: WeekPlanRequest):
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
             raise HTTPException(status_code=400, detail="Missing user profile data")
 
+        # Ensure all required fields are present
+        if not all([req.sex, req.age, req.height_cm, req.weight_kg, req.activity, req.goal]):
+            raise HTTPException(status_code=400, detail="All profile fields are required")
+
         targets = estimate_targets_minimal(
-            sex=req.sex,
-            age=req.age,
-            height_cm=req.height_cm,
-            weight_kg=req.weight_kg,
-            activity=req.activity,
-            goal=req.goal,
+            sex=req.sex,  # type: ignore
+            age=req.age,  # type: ignore
+            height_cm=req.height_cm,  # type: ignore
+            weight_kg=req.weight_kg,  # type: ignore
+            activity=req.activity,  # type: ignore
+            goal=req.goal,  # type: ignore
         )
         if not targets:
             raise HTTPException(status_code=400, detail="Unable to derive targets")

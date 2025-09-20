@@ -91,7 +91,7 @@ def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> 
     Returns:
         Dictionary mapping nutrient names to amounts
     """
-    total_nutrients = {}
+    total_nutrients: Dict[str, float] = {}
 
     for ingredient_name, amount_g in recipe.ingredients.items():
         if ingredient_name in food_db:
