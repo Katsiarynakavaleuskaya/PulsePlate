@@ -10,7 +10,7 @@ calorie splits, dietary flags, and nutrient coverage optimization.
 
 from __future__ import annotations
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Union, Optional
 
 from .food_db import FoodItem, parse_food_db, pick_booster_for
 from .recipe_db import Recipe, calculate_recipe_nutrients, parse_recipe_db, scale_recipe_to_kcal
@@ -19,8 +19,8 @@ from .recipe_db import Recipe, calculate_recipe_nutrients, parse_recipe_db, scal
 def create_daily_plate(
     kcal_total: int,
     diet_flags: Set[str],
-    food_db: Dict[str, FoodItem] | None = None,
-    recipe_db: Dict[str, Recipe] | None = None,
+    food_db: Optional[Dict[str, FoodItem]] = None,
+    recipe_db: Optional[Dict[str, Recipe]] = None,
 ) -> Dict:
     """
     RU: Создает план питания на день.

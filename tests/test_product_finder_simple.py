@@ -6,7 +6,7 @@ Covers main functionality for coverage improvement.
 
 import pytest
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Union
 from unittest.mock import Mock, patch, mock_open
 
 from core.product_finder import ProductSearchResult, ProductFinder
@@ -160,8 +160,8 @@ class TestProductFinder:
     )
     def test_similar_names(
         self,
-        name1: Literal["apple"] | Literal["chicken breast"],
-        name2: Literal["apple"] | Literal["breast"] | Literal["chicken"],
+        name1: Union[Literal["apple"], Literal["chicken breast"]],
+        name2: Union[Literal["apple"], Literal["breast"], Literal["chicken"]],
         expected: bool,
     ):
         """Test similar names detection."""
@@ -329,7 +329,7 @@ class TestProductFinder:
     def test_calculate_confidence(
         self,
         search_name: Literal["apple"],
-        found_name: Literal["apple"] | Literal["green apple"] | Literal["banana"],
+        found_name: Union[Literal["apple"], Literal["green apple"], Literal["banana"]],
         expected_min: float,
         expected_max: float,
     ):

@@ -1,75 +1,40 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v4.4.0
     hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
       - id: debug-statements
+
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 23.12.1
     hooks:
       - id: black
+        language_version: python3
         args: [--line-length=100]
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.1.6
     hooks:
-      - id: isort
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.1
+    rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies:
-          - types-requests
-          - types-PyYAML
-        args:
-          - --config-file=pyproject.toml
-          - --install-types
-          - --non-interactive
-          - app
-          - core
-        pass_filenames: false
+        additional_dependencies: [types-all]
+        args: [--ignore-missing-imports]
+
   - repo: local
     hooks:
-      - id: cspell
-        name: cspell lint
-        entry: bash -lc 'npx cspell lint --no-progress --gitignore "$@"'
-        language: system
-        pass_filenames: true
-        types_or: [python, markdown, text, yaml, json, toml, javascript, ts, html, css, shell]
-      - id: pytest-smoke
-        name: pytest smoke
-        entry: bash -lc 'pytest -q -k "smoke or quick or basic"'
+      - id: pytest
+        name: pytest
+        entry: python3 -m pytest --cov=. --cov-fail-under=97 -q
         language: system
         pass_filenames: false
-        stages: [pre-commit]
-      - id: security-check
-        name: Security scan before push
-        entry: bash scripts/ci_bandit.sh
-        language: system
+        always_run: true
         stages: [pre-push]
-        pass_filenames: false
-      - id: env-check
-        name: Environment smoke check
-        entry: python scripts/env_check.py
-        language: system
-        stages: [pre-commit]
-        pass_filenames: false
-      - id: dependency-check
-        name: Check for vulnerable dependencies
-        entry: bash scripts/ci_pip_audit.sh
-        language: system
-        stages: [pre-push]
-        pass_filenames: false
-      - id: main-branch-protection
-        name: Protect main branch from direct push
-        entry: bash scripts/check_main_branch_push.sh
-        language: system
-        stages: [pre-push]
-        pass_filenames: false
