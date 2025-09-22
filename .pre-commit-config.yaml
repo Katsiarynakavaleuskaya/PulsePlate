@@ -32,8 +32,13 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: python3 -m pytest --cov=. --cov-fail-under=97 -q
+        entry: python3 -m pytest --cov=. --cov-fail-under=97 -q --maxfail=5
         language: system
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+        env:
+          PYTHONPATH: ".:core:app:tests"
+          VIP_MODULE_ENABLED: "true"
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test-key"
