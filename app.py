@@ -5,9 +5,21 @@ from core.utils import resolve_attr
 from core.i18n import t
 from core.utils import get_activity_factor
 from core.i18n import Language
+
+
 from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field, StrictFloat, model_validator
-from typing import Any, List, Dict, Optional, Union, Literal
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Union,
+    Literal,
+    TYPE_CHECKING,
+)
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 from contextlib import asynccontextmanager, suppress
 from core.db import init_db, get_session
@@ -15,8 +27,35 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from starlette.requests import Request
 from starlette import status as fastapi_status
+from fastapi import FastAPI, HTTPException, Depends, APIRouter
+import time
+import dotenv
+import logging
+import os
+from app.routers.foods import router as foods_router
+from app.routers.recipes import router as recipes_router
+from app.routers.users import router as users_router
+from app.routers.bmi_pro import router as bmi_pro_router
+from app.routers.premium_week import router as premium_week_router
+from app.routers.api_key import api_key_header
 
-_scheduler_getter = None
+if TYPE_CHECKING:
+    from slowapi import Limiter as LimiterType
+else:
+    LimiterType = Any
+
+Limiter: Optional[type[LimiterType]]
+try:
+    from slowapi import Limiter as _Limiter
+
+    Limiter = _Limiter  # Assign the class itself
+except ImportError:
+    Limiter = None
+
+slowapi_available = Limiter is not None
+
+vip_router: Optional[APIRouter]
+_scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 
 # Safe import for VIP_MODULE_ENABLED to avoid attribute errors
 try:
@@ -28,41 +67,21 @@ except ImportError:
     VIP_MODULE_ENABLED = False
     vip_router = None
 
-try:
-    from slowapi import Limiter
 
-    slowapi_available = True
-except ImportError:
-    Limiter = None  # type: ignore[assignment]
-    slowapi_available = False
-
-
-def start_background_updates():
+def start_background_updates(update_interval_hours: int = 24) -> None:
     pass
 
 
-def stop_background_updates():
+def stop_background_updates() -> None:
     pass
 
 
-import time
-from app.routers.foods import router as foods_router
-from app.routers.recipes import router as recipes_router
-from app.routers.users import router as users_router
-from app.routers.vip import router as vip_router
-from app.routers.bmi_pro import router as bmi_pro_router
-from app.routers.premium_week import router as premium_week_router
-from app.routers.api_key import api_key_header
-
-# Optional bodyfat router import
+GetRouterCallable = Callable[[], APIRouter]
+get_bodyfat_router: Optional[GetRouterCallable]
 try:
     from bodyfat import get_router as get_bodyfat_router
 except ImportError:
     get_bodyfat_router = None
-from fastapi import FastAPI, HTTPException, Depends
-import dotenv
-import logging
-import os
 
 # Only load the local .env automatically for explicit local/dev environments.
 _env_was_sanitized = "PATH" not in os.environ
@@ -87,13 +106,13 @@ def _calculate_all_tdee_wrapper(bmr_results, activity):
     return calculate_all_tdee(bmr_results, activity)
 
 
-async def get_update_scheduler():  # type: ignore[no-redef]
+async def get_update_scheduler() -> Any:
     """Return the global update scheduler (wrapper to aid patching in tests)."""
     if _scheduler_getter is None:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
 
         return await _late_getter()
-    return await _scheduler_getter()  # type: ignore[misc]
+    return await _scheduler_getter()
 
 
 # Set up logging
@@ -113,6 +132,7 @@ async def lifespan(app: FastAPI):
         raise
 
     try:
+        import inspect as _inspect
         import sys as _sys
 
         _pkg = _sys.modules.get("app")
@@ -122,7 +142,9 @@ async def lifespan(app: FastAPI):
             else start_background_updates
         )
         if callable(_start):
-            await _start(update_interval_hours=24)
+            result = _start(update_interval_hours=24)
+            if _inspect.isawaitable(result):
+                await result
         logger.info("Started background database updates")
     except Exception as e:
         logger.error(f"Failed to start background updates: {e}")
@@ -402,6 +424,19 @@ class BMIRequest(BaseModel):
             raise ValueError("gender must be 'male', 'female', or 'unknown'")
         return self
 
+    @model_validator(mode="after")
+    def validate_realistic_values(self):
+        """Validate that weight and height are realistic."""
+        # Check for unrealistic BMI values
+        bmi = self.weight_kg / (self.height_m**2)
+
+        if bmi < 10:  # Unrealistically low BMI
+            raise ValueError("Weight is unrealistically low for the given height")
+        if bmi > 50:  # Unrealistically high BMI (changed from 100 to 50)
+            raise ValueError("Weight is unrealistically high for the given height")
+
+        return self
+
 
 class BMIRequestV1(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0)
@@ -441,6 +476,51 @@ class BMIRequestV1(BaseModel):
         return values
 
 
+def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> None:
+    """Add BMI visualization to result if requested and available.
+
+    Args:
+        result: The result dictionary to add visualization to
+        req: The BMI request containing visualization parameters
+    """
+    if not req.include_chart:
+        return
+
+    # Resolve visualization function dynamically to respect test patches
+    import sys as _sys
+
+    _candidates = [
+        _sys.modules.get("_app_top_module"),  # allow tests to patch here first
+        _sys.modules.get("app"),
+        _sys.modules.get(__name__),
+    ]
+    if _viz_func := resolve_attr(
+        "generate_bmi_visualization",
+        generate_bmi_visualization,
+        _candidates,
+    ):
+        viz_result = _viz_func(
+            bmi=result["bmi"],
+            age=req.age,
+            gender=req.gender,
+            pregnant=req.pregnant,
+            athlete=req.athlete,
+            lang=req.lang,
+        )
+        if viz_result.get("available"):
+            result["visualization"] = viz_result
+        else:
+            result["visualization"] = {
+                "error": "Visualization not available - generation failed",
+                "available": False,
+            }
+    elif not MATPLOTLIB_AVAILABLE:
+        result["visualization"] = {
+            "error": "Visualization not available - matplotlib not installed",
+            "available": False,
+        }
+
+
 # BMR Request and Response models
 class BMRRequest(BaseModel):
     """Request model for BMR calculation"""
@@ -469,7 +549,7 @@ class BMRResponse(BaseModel):
 
 
 def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    return round(weight_kg / (height_m**2), 1)
+    return round(float(weight_kg) / (height_m**2), 1)
 
 
 def normalize_flags(
@@ -793,40 +873,7 @@ async def bmi_endpoint(req: BMIRequest):
         }
 
         # Add visualization if requested and available
-        if req.include_chart:
-            # Resolve visualization function dynamically to respect test patches
-            import sys as _sys
-
-            _candidates = [
-                _sys.modules.get("_app_top_module"),  # allow tests to patch here first
-                _sys.modules.get("app"),
-                _sys.modules.get(__name__),
-            ]
-            if _viz_func := resolve_attr(
-                "generate_bmi_visualization",
-                generate_bmi_visualization,
-                _candidates,
-            ):
-                viz_result = _viz_func(
-                    bmi=bmi,
-                    age=req.age,
-                    gender=req.gender,
-                    pregnant=req.pregnant,
-                    athlete=req.athlete,
-                    lang=req.lang,
-                )
-                if viz_result.get("available"):
-                    result["visualization"] = viz_result
-                else:
-                    result["visualization"] = {
-                        "error": "Visualization not available - generation failed",
-                        "available": False,
-                    }
-            elif not MATPLOTLIB_AVAILABLE:
-                result["visualization"] = {
-                    "error": "Visualization not available - matplotlib not installed",
-                    "available": False,
-                }
+        add_visualization_if_requested(result, req)
 
         return result
 
@@ -837,7 +884,7 @@ async def bmi_endpoint(req: BMIRequest):
     if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
         notes.append(wr)
 
-    result = {
+    bmi_result: Dict[str, Any] = {
         "bmi": bmi,
         "category": category,
         "note": " | ".join(notes) if notes else "",
@@ -846,35 +893,9 @@ async def bmi_endpoint(req: BMIRequest):
     }
 
     # Add visualization if requested and available
-    if req.include_chart:
-        import sys as _sys
+    add_visualization_if_requested(bmi_result, req)
 
-        _candidates = [
-            _sys.modules.get("_app_top_module"),  # allow tests to patch here first
-            _sys.modules.get("app"),
-            _sys.modules.get(__name__),
-        ]
-        if _viz_func := resolve_attr(
-            "generate_bmi_visualization",
-            generate_bmi_visualization,
-            _candidates,
-        ):
-            viz_result = _viz_func(
-                bmi=bmi,
-                age=req.age,
-                gender=req.gender,
-                pregnant=req.pregnant,
-                athlete=req.athlete,
-                lang=req.lang,
-            )
-            result["visualization"] = viz_result
-        elif not MATPLOTLIB_AVAILABLE:
-            result["visualization"] = {
-                "error": "Visualization not available - matplotlib not installed",
-                "available": False,
-            }
-
-    return result
+    return bmi_result
 
 
 @app.post("/plan")
@@ -1046,28 +1067,55 @@ async def insight(req: InsightRequest):
         raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}") from e
 
 
+MenuEngineCallable = Callable[..., Any]
+
+analyze_nutrient_gaps: Optional[MenuEngineCallable] = None
+make_daily_menu: Optional[MenuEngineCallable] = None
+make_weekly_menu: Optional[MenuEngineCallable] = None
+repair_week_plan: Optional[MenuEngineCallable] = None
+make_plate: Optional[MenuEngineCallable] = None
+build_nutrition_targets: Optional[MenuEngineCallable] = None
+
+ExportCallable = Callable[..., Any]
+to_csv_day: Optional[ExportCallable] = None
+to_pdf_day: Optional[ExportCallable] = None
+to_csv_week: Optional[ExportCallable] = None
+to_pdf_week: Optional[ExportCallable] = None
+
 try:
     from core.menu_engine import (
-        analyze_nutrient_gaps,
-        make_daily_menu,
-        make_weekly_menu,
-        repair_week_plan,
+        analyze_nutrient_gaps as _analyze_nutrient_gaps,
+        make_daily_menu as _make_daily_menu,
+        make_weekly_menu as _make_weekly_menu,
+        repair_week_plan as _repair_week_plan,
     )
-    from core.plate import make_plate
-    from core.recommendations import build_nutrition_targets
+    from core.plate import make_plate as _make_plate
+    from core.recommendations import build_nutrition_targets as _build_nutrition_targets
 except ImportError:
-    make_plate = None
-    build_nutrition_targets = None
-    try:
-        # Ensure attribute exists for patching in tests
-        from core.menu_engine import analyze_nutrient_gaps as _analyze_ng  # type: ignore
+    pass
+else:
+    analyze_nutrient_gaps = _analyze_nutrient_gaps
+    make_daily_menu = _make_daily_menu
+    make_weekly_menu = _make_weekly_menu
+    repair_week_plan = _repair_week_plan
+    make_plate = _make_plate
+    build_nutrition_targets = _build_nutrition_targets
 
-        analyze_nutrient_gaps = _analyze_ng  # type: ignore
-    except Exception:
-        analyze_nutrient_gaps = None  # type: ignore
-    make_daily_menu = None
-    make_weekly_menu = None
-    repair_week_plan = None
+try:
+    from core.exports import to_csv_day as _to_csv_day_fn, to_csv_week as _to_csv_week_fn
+except ImportError:
+    pass
+else:
+    to_csv_day = _to_csv_day_fn
+    to_csv_week = _to_csv_week_fn
+
+try:
+    from core.exports_simple import to_pdf_day as _to_pdf_day_fn, to_pdf_week as _to_pdf_week_fn
+except ImportError:
+    pass
+else:
+    to_pdf_day = _to_pdf_day_fn
+    to_pdf_week = _to_pdf_week_fn
 
 # Ensure analyze_nutrient_gaps is available at module level for tests
 if "analyze_nutrient_gaps" not in globals():
@@ -1787,7 +1835,8 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 status_code=503, detail="WHO nutrition targets feature not available"
             )
         # If available, delegate to the main implementation
-        return await api_who_targets(req)
+        result: WHOTargetsResponse = await api_who_targets(req)
+        return result
     except HTTPException:
         raise
     except Exception as e:  # pragma: no cover
@@ -2189,7 +2238,7 @@ async def force_database_update(source: Optional[str] = None):
         results = await scheduler.force_update(source)
 
         # Format response
-        response = {
+        response: Dict[str, Any] = {
             "message": f"Force update completed for {source or 'all sources'}",
             "results": {},
         }
@@ -2331,8 +2380,11 @@ async def export_daily_plan_csv(plan_id: str):
         _to_csv_day = (
             getattr(_pkg, "to_csv_day", None)
             if _pkg and hasattr(_pkg, "to_csv_day")
-            else lambda x: "CSV data not available"
+            else to_csv_day
         )
+        if not callable(_to_csv_day):
+            raise HTTPException(status_code=503, detail="CSV export helper is not available")
+
         csv_data = _to_csv_day(mock_plan)
 
         return Response(
@@ -2366,10 +2418,13 @@ async def export_pdf_generic(payload: Dict[str, Any]):
         _to_pdf_day = (
             getattr(_pkg, "to_pdf_day", None)
             if _pkg and hasattr(_pkg, "to_pdf_day")
-            else lambda x: b"PDF data not available"
+            else to_pdf_day
         )
-        if _to_pdf_day is None:
-            raise RuntimeError("PDF export helper is not available")
+        if _to_pdf_day is None or not callable(_to_pdf_day):
+            raise HTTPException(
+                status_code=503,
+                detail="PDF export not available - PDF function missing or not callable",
+            )
 
         from fastapi.responses import Response
 
@@ -2466,8 +2521,11 @@ async def export_weekly_plan_csv(plan_id: str):
         _to_csv_week = (
             getattr(_pkg, "to_csv_week", None)
             if _pkg and hasattr(_pkg, "to_csv_week")
-            else lambda x: "CSV data not available"
+            else to_csv_week
         )
+        if not callable(_to_csv_week):
+            raise HTTPException(status_code=503, detail="CSV export helper is not available")
+
         csv_data = _to_csv_week(mock_weekly_plan)
 
         return Response(
@@ -2536,8 +2594,14 @@ async def export_daily_plan_pdf(plan_id: str):
         _to_pdf_day = (
             getattr(_pkg, "to_pdf_day", None)
             if _pkg and hasattr(_pkg, "to_pdf_day")
-            else lambda x: b"PDF data not available"
+            else to_pdf_day
         )
+        if _to_pdf_day is None or not callable(_to_pdf_day):
+            raise HTTPException(
+                status_code=503,
+                detail="PDF export not available - PDF function missing or not callable",
+            )
+
         pdf_data = _to_pdf_day(mock_plan)
 
         return Response(
@@ -2637,9 +2701,9 @@ async def export_weekly_plan_pdf(plan_id: str):
         _to_pdf_week = (
             getattr(_pkg, "to_pdf_week", None)
             if _pkg and hasattr(_pkg, "to_pdf_week")
-            else lambda x: b"PDF data not available"
+            else to_pdf_week
         )
-        if not callable(_to_pdf_week):
+        if _to_pdf_week is None or not callable(_to_pdf_week):
             raise HTTPException(
                 status_code=503,
                 detail="PDF export not available - PDF function missing or not callable",
