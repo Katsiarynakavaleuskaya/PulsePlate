@@ -7,4 +7,4 @@ flake8==7.1.1
 bandit==1.8.6
 # safety==3.6.1b0  # Temporarily disabled due to typer compatibility issue
 mypy==1.18.1
-black==25.1.0
+black==25.9.0
