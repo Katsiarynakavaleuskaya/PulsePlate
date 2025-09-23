@@ -1,9 +1,9 @@
 import os
 
 """
-Tests to improve coverage in app.py to reach 96%+ coverage.
+Tests to improve coverage in main.py to reach 96%+ coverage.
 
-This module focuses on covering the missing lines in app.py that are preventing
+This module focuses on covering the missing lines in main.py that are preventing
 us from reaching 96% coverage.
 """
 
@@ -13,7 +13,7 @@ from app import app
 
 
 class TestAppMissingCoverage96:
-    """Tests to cover missing lines in app.py for 96%+ coverage."""
+    """Tests to cover missing lines in main.py for 96%+ coverage."""
 
     def setup_method(self):
         """Setup test environment"""

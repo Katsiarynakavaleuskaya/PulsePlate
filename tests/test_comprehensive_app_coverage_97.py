@@ -1,7 +1,7 @@
 """
-Comprehensive test coverage для app.py - цель 97%.
+Comprehensive test coverage для main.py - цель 97%.
 
-Этот файл содержит тесты для покрытия максимального количества строк app.py.
+Этот файл содержит тесты для покрытия максимального количества строк main.py.
 Ключевые области для покрытия:
 - Import handling blocks (12-15, 46-52, 64, 68-69, 76-78, 86-89)
 - Rate limiting (113-114, 118-119)
@@ -13,6 +13,8 @@ Comprehensive test coverage для app.py - цель 97%.
 import pytest
 import os
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 from unittest.mock import patch  # noqa: F401 - patch used for testing
 import sys
 
@@ -34,7 +36,7 @@ class TestImportErrorHandling:
         with patch("sys.modules", {"prometheus_client": None}):
             from app import app
 
-            client = TestClient(app)
+            client = TestClient(cast(ASGIApp, app))
             response = client.get("/health")
             assert response.status_code == 200
 
@@ -61,7 +63,7 @@ class TestRateLimitingPaths:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_rate_limiting_when_available(self, client):
         """Тест rate limiting когда доступен (строки 113-114, 118-119)"""
@@ -96,15 +98,11 @@ class TestErrorHandlingPaths:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def setup_method(self):
-        """Setup для каждого теста"""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
     @pytest.fixture
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_validation_error_paths(self, client):
         """Тест путей валидации (строки 136-140, 153-184)"""
@@ -167,7 +165,7 @@ class TestPremiumEndpoints:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_bmr_endpoint_paths(self, client):
         """Тест BMR endpoint различных путей (строки 1077-1150)"""
@@ -246,7 +244,7 @@ class TestUtilityFunctions:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_health_check_paths(self, client):
         """Тест health check endpoints"""
@@ -281,7 +279,7 @@ class TestSpecificLineCoverage:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_vip_import_error_handling(self, client):
         """Тест обработки ошибок импорта VIP модуля (строки 86-89)"""

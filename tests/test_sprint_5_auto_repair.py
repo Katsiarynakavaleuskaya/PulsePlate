@@ -21,6 +21,23 @@ from core.auto_repair import (
 from core.targets import MicronutrientTargets
 
 
+def default_targets() -> MicronutrientTargets:
+    return MicronutrientTargets(
+        iron_mg=(18.0, 18.0, 18.0),
+        calcium_mg=(1000.0, 1000.0, 1000.0),
+        magnesium_mg=(400.0, 400.0, 400.0),
+        zinc_mg=(11.0, 11.0, 11.0),
+        potassium_mg=(3500.0, 3500.0, 3500.0),
+        iodine_ug=(150.0, 150.0, 150.0),
+        selenium_ug=(55.0, 55.0, 55.0),
+        folate_ug=(400.0, 400.0, 400.0),
+        b12_ug=(2.4, 2.4, 2.4),
+        vitamin_d_iu=(20.0, 20.0, 20.0),
+        vitamin_a_ug=(900.0, 900.0, 900.0),
+        vitamin_c_mg=(90.0, 90.0, 90.0),
+    )
+
+
 class TestRepairStrategy:
     """Тесты для enum RepairStrategy"""
 
@@ -123,20 +140,7 @@ class TestAutoRepairEngine:
             ]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
         gaps = engine._analyze_nutrient_gaps(week_plan, targets)
 
         # В данном случае должны быть дефициты из-за упрощенной логики
@@ -150,20 +154,7 @@ class TestAutoRepairEngine:
             "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
         gaps = engine._analyze_nutrient_gaps(week_plan, targets)
 
         assert isinstance(gaps, dict)
@@ -241,20 +232,7 @@ class TestAutoRepairEngine:
             "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
         suggestions = engine.suggest_manual_fixes(week_plan, targets)
 
         assert isinstance(suggestions, list)
@@ -290,20 +268,7 @@ class TestAutoRepairEngine:
         mock_repair.return_value = {"days": [], "repaired": True}
 
         week_plan = {"days": []}
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
 
@@ -320,20 +285,7 @@ class TestAutoRepairEngine:
         mock_repair.side_effect = Exception("Repair failed")
 
         week_plan = {"days": []}
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
 
@@ -362,20 +314,7 @@ class TestAutoRepairEngine:
             ]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         # Мокаем анализ дефицитов, чтобы вернуть пустой словарь
         with patch.object(engine, "_analyze_nutrient_gaps", return_value={}):
@@ -394,20 +333,7 @@ class TestAutoRepairEngine:
             "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         # Мокаем анализ дефицитов и ремонт
         with patch.object(engine, "_analyze_nutrient_gaps", return_value={"iron": 50.0}):
@@ -541,16 +467,14 @@ class TestIntegration:
         )
 
         # Мокаем анализ дефицитов - сначала есть дефициты, потом нет
+        counter = {"n": 0}
+
         def mock_analyze_gaps(plan, targets):
             # Первый вызов - есть дефициты
-            if not hasattr(mock_analyze_gaps, "call_count"):
-                mock_analyze_gaps.call_count = 0
-            mock_analyze_gaps.call_count += 1
-
-            if mock_analyze_gaps.call_count == 1:
+            counter["n"] += 1
+            if counter["n"] == 1:
                 return {"iron": 50.0}
-            else:
-                return {}  # Нет дефицитов
+            return {}  # Нет дефицитов
 
         with patch.object(engine, "_analyze_nutrient_gaps", side_effect=mock_analyze_gaps):
             # Мокаем попытки ремонта
@@ -581,20 +505,7 @@ class TestIntegration:
             "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         # Мокаем анализ дефицитов
         with patch.object(engine, "_analyze_nutrient_gaps", return_value={"iron": 50.0}):

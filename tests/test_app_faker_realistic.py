@@ -1,33 +1,47 @@
 """
-Realistic tests for app.py using Faker library.
+Realistic tests for main.py using Faker library.
 Focus on covering missing lines with realistic data scenarios.
 """
 
 from faker import Faker
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app import app
+import main  # Import at module level so import errors surface during collection
 
 fake = Faker()
 
 
+def _get_app():
+    """Safely get the FastAPI app instance.
+
+    Ensures `main.app` exists and is a FastAPI instance.
+    """
+    if not hasattr(main, "app"):
+        raise ImportError("Module main does not define 'app'")
+    app_obj = getattr(main, "app")
+    if not isinstance(app_obj, FastAPI):
+        raise RuntimeError("FastAPI app in main.py is not initialized or wrong type")
+    return app_obj
+
+
 class TestAppRealisticData:
-    """Test app.py endpoints with realistic faker data"""
+    """Test main.py endpoints with realistic faker data"""
 
     def setup_method(self):
         """Setup for each test"""
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
         # Seed faker for reproducible tests
         Faker.seed(42)
 
     def test_bmi_calculation_realistic_demographics(self):
         """Test BMI calculation with realistic demographic data"""
-        # Generate realistic person data
+        # Generate realistic person data with controlled ranges
         person_data = {
-            "weight": fake.random_int(min=40, max=150),  # kg
-            "height": fake.random_int(min=140, max=210),  # cm
+            "weight_kg": fake.random_int(min=50, max=100),  # kg - safe range
+            "height_m": fake.random_int(min=150, max=190) / 100,  # convert cm to m - safe range
             "age": fake.random_int(min=18, max=80),
-            "sex": fake.random_element(["M", "F"]),
+            "gender": fake.random_element(["male", "female"]),
             "lang": fake.random_element(["en", "ru", "es"]),
         }
 
@@ -42,22 +56,22 @@ class TestAppRealisticData:
         """Test BMI with extreme but valid edge cases"""
         # Test very low BMI (underweight scenarios)
         low_bmi_data = {
-            "weight": 35,  # Very low weight
-            "height": 180,
+            "weight_kg": 35,  # Very low weight
+            "height_m": 1.8,  # 180 cm in meters
             "age": 25,
-            "sex": "F",
+            "gender": "female",
             "lang": "en",
         }
 
         response = self.client.post("/bmi", json=low_bmi_data)
         assert response.status_code == 200
 
-        # Test very high BMI
+        # Test very high BMI (but within limits)
         high_bmi_data = {
-            "weight": 200,  # Very high weight
-            "height": 150,
+            "weight_kg": 112.5,  # BMI = 50 (at upper limit)
+            "height_m": 1.5,  # 150 cm in meters
             "age": 45,
-            "sex": "M",
+            "gender": "male",
             "lang": "en",
         }
 
@@ -182,7 +196,7 @@ class TestAppDatabaseScenarios:
     """Test database-related scenarios with realistic data"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_database_health_check(self):
         """Test database health check endpoint"""
@@ -192,10 +206,10 @@ class TestAppDatabaseScenarios:
 
 
 class TestAppErrorScenarios:
-    """Test app.py error scenarios with realistic data"""
+    """Test main.py error scenarios with realistic data"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_large_request_handling(self):
         """Test handling of large requests"""
@@ -219,7 +233,7 @@ class TestAppValidationEdgeCases:
     """Test validation edge cases with realistic boundary data"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_boundary_weight_values(self):
         """Test weight validation boundaries"""
@@ -260,10 +274,10 @@ class TestAppValidationEdgeCases:
 
 
 class TestAppAdditionalEndpoints:
-    """Test additional endpoints found in app.py"""
+    """Test additional endpoints found in main.py"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_favicon_endpoint(self):
         """Test favicon endpoint"""
@@ -318,7 +332,7 @@ class TestAppErrorPathsCoverage:
     """Test error paths and exception handling"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_malformed_json_requests(self):
         """Test malformed JSON requests"""
@@ -361,7 +375,7 @@ class TestAppSpecialCases:
     """Test special cases and edge scenarios"""
 
     def setup_method(self):
-        self.client = TestClient(app)
+        self.client = TestClient(_get_app())
 
     def test_concurrent_requests(self):
         """Test concurrent request handling"""

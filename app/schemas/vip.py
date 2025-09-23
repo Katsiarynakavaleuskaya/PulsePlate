@@ -7,9 +7,9 @@ EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settin
 """
 
 from enum import Enum
-from typing import List, Set
+from typing import List, Set, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MicronutrientType(str, Enum):
@@ -181,3 +181,75 @@ class VIPFeatureFlags(BaseModel):
     smart_shoplist_enabled: bool = Field(default=False)
     recipe_generation_enabled: bool = Field(default=False)
     i18n_enabled: bool = Field(default=False)
+
+
+class WeeklyPlanRequest(BaseModel):
+    """
+    RU: Запрос на создание недельного плана питания.
+    EN: Request for creating a weekly meal plan.
+    """
+
+    # Core required fields for full functionality
+    sex: Optional[Literal["female", "male"]] = Field(None, description="Gender (male/female)")
+    age: Optional[int] = Field(None, ge=1, le=120, description="Age in years")
+    height_cm: Optional[float] = Field(None, gt=0, le=300, description="Height in centimeters")
+    weight_kg: Optional[float] = Field(None, gt=0, le=500, description="Weight in kilograms")
+    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = Field(
+        None, description="Activity level"
+    )
+    goal: Optional[Literal["loss", "maintain", "gain"]] = Field(None, description="Nutrition goal")
+
+    # Legacy/alternative fields for backward compatibility
+    calories: Optional[int] = Field(None, ge=100, le=10000, description="Daily calories target")
+    protein: Optional[float] = Field(None, ge=0, le=500, description="Daily protein target (g)")
+    user_id: Optional[str] = Field(None, description="User identifier")
+    preferences: dict = Field(default_factory=dict, description="User preferences")
+    goals: dict = Field(default_factory=dict, description="Nutrition goals")
+    constraints: dict = Field(default_factory=dict, description="Dietary constraints")
+
+    @model_validator(mode="after")
+    def validate_required_fields(self):
+        """Validate that either all core fields are present OR at least one alternative field is provided."""
+        # Core required fields
+        core_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]
+        # Alternative fields
+        alt_fields = ["calories", "protein"]
+
+        # Check if all core fields are present (not None)
+        core_present = all(getattr(self, field) is not None for field in core_fields)
+
+        # Check if at least one alternative field is present
+        alt_present = any(getattr(self, field) is not None for field in alt_fields)
+
+        if not core_present and not alt_present:
+            raise ValueError(
+                "Either all core fields (sex, age, height_cm, weight_kg, activity, goal) "
+                "must be provided, or at least one alternative field (calories or protein) must be provided."
+            )
+
+        return self
+
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+
+
+class WeeklyPlanResponse(BaseModel):
+    """
+    RU: Ответ с недельным планом питания.
+    EN: Response with weekly meal plan.
+    """
+
+    status: str = Field(..., description="Response status")
+    data: dict = Field(default_factory=dict, description="Weekly plan data")
+    message: str = Field(default="", description="Additional message")
+
+
+class ErrorResponse(BaseModel):
+    """
+    RU: Ответ об ошибке.
+    EN: Error response.
+    """
+
+    status: str = Field(default="error", description="Response status")
+    message: str = Field(..., description="Error message")
+    data: dict = Field(default_factory=dict, description="Additional error data")

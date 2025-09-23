@@ -19,7 +19,7 @@ class TestMissingCoverage:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_app_imports(self):
-        """Тест импортов app.py"""
+        """Тест импортов main.py"""
         # Проверяем, что все импорты работают
         import app
 

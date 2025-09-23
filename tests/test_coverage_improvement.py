@@ -30,7 +30,7 @@ class TestCoverageImprovement:
             del os.environ["API_KEY"]
 
     def test_app_py_uncovered_lines(self):
-        """Test uncovered lines in app.py."""
+        """Test uncovered lines in main.py."""
         # Test the dotenv loading condition
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "1"}):
             # This line is covered by the environment setup

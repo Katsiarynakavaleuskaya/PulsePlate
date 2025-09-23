@@ -1,5 +1,5 @@
 """
-Дополнительный тест для покрытия import error paths в app.py
+Дополнительный тест для покрытия import error paths в main.py
 """
 
 import os
@@ -35,7 +35,7 @@ class TestImportErrorPaths:
                     # Если импорт успешен, это нормально
                     assert Counter is not None
                 except ImportError:
-                    # Устанавливаем None как в коде app.py
+                    # Устанавливаем None как в коде main.py
                     Counter = None
                     Histogram = None
                     generate_latest = None
@@ -78,7 +78,7 @@ class TestVIPRouterImportPath:
 
                     vip_available = True
                 except ImportError:
-                    # Обрабатываем ImportError как в app.py
+                    # Обрабатываем ImportError как в main.py
                     vip_available = False
 
                 # Проверяем что ImportError был обработан

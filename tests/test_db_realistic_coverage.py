@@ -4,8 +4,7 @@ Target 85% coverage, missing lines 56-65, 136.
 """
 
 from faker import Faker
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import patch
 import sqlite3
 
 fake = Faker()

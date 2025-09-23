@@ -6,6 +6,8 @@ from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 from sqlalchemy import text
 
 import app
@@ -25,7 +27,7 @@ def _cleanup_users() -> Generator[None, None, None]:
 
 
 def _client() -> TestClient:
-    return TestClient(app.app)
+    return TestClient(cast(ASGIApp, app.app))
 
 
 def test_create_and_get_user() -> None:
@@ -59,9 +61,7 @@ def test_list_users_pagination() -> None:
 def test_create_user_conflict() -> None:
     with _client() as client:
         client.post("/api/v1/users", json={"email": "dup@example.com", "name": "One"})
-        duplicate = client.post(
-            "/api/v1/users", json={"email": "dup@example.com", "name": "Two"}
-        )
+        duplicate = client.post("/api/v1/users", json={"email": "dup@example.com", "name": "Two"})
         assert duplicate.status_code == 409
         assert duplicate.json()["detail"] == "Email already exists"
 

@@ -8,6 +8,7 @@ EN: Specific tests for core modules with low coverage
 
 import tempfile
 import os
+from typing import Any, cast
 import pytest
 from unittest.mock import patch, mock_open
 
@@ -54,7 +55,7 @@ class TestAliasesModule:
             assert result == "unknown"
 
             # Test None input
-            result = map_to_canonical(None)
+            result = map_to_canonical(cast(Any, None))
             assert result == "unknown"
 
             # Test normal input

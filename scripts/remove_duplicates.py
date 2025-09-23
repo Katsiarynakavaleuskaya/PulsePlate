@@ -27,7 +27,16 @@ from typing import Dict, List, Tuple
 
 
 ROOT = Path(".").resolve()
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "htmlcov", "cache", "data", "external"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    "htmlcov",
+    "cache",
+    "data",
+    "external",
+}
 SAFE_SUFFIXES = [".bak", ".broken", ".old", ".orig", ".copy", ".tmp"]
 
 
@@ -123,8 +132,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--execute", action="store_true", help="remove safe backup twins")
     ap.add_argument("--include-tests", action="store_true", help="allow touching tests/")
-    ap.add_argument("--suggest", action="store_true", help="suggest canonical file per identical group")
-    ap.add_argument("--apply-identical", action="store_true", help="remove non-canonical in identical groups")
+    ap.add_argument(
+        "--suggest", action="store_true", help="suggest canonical file per identical group"
+    )
+    ap.add_argument(
+        "--apply-identical", action="store_true", help="remove non-canonical in identical groups"
+    )
     ap.add_argument("--prune-releases", action="store_true", help="allow deleting under releases/")
     args = ap.parse_args()
 
@@ -186,7 +199,9 @@ def main() -> int:
         for p in removed + [str(x) for x in to_remove]:
             print("  ", p)
     else:
-        print("\n(dry-run) pass --execute to apply backup removals; --apply-identical to prune identical duplicates; --suggest to only show canonical picks")
+        print(
+            "\n(dry-run) pass --execute to apply backup removals; --apply-identical to prune identical duplicates; --suggest to only show canonical picks"
+        )
 
     return 0
 

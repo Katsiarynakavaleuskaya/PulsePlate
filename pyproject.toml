@@ -17,6 +17,7 @@ no_implicit_optional = false
 ignore_missing_imports = true
 plugins = []
 explicit_package_bases = true
+namespace_packages = true
 # Exclude files/dirs that cause duplicate module mapping or are heavy/generated.
 # - app.py conflicts with package module "app" (app/__init__.py) for mypy module resolution.
 # - Exclude caches and build artifacts to keep runs stable and fast.
@@ -27,12 +28,38 @@ exclude = '''
   ^test_cache/|
   ^frontend/build/|
   ^htmlcov/|
-  ^releases/|
+  ^releases/.*|
   ^data/|
-  ^external/
+  ^external/|
+  ^providers/.*|
+  ^releases/v0\.1\.0/.*
 )
 '''
 
 [tool.black]
 line-length = 100
 target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F"]
+ignore = [
+    "E402",  # Module level import not at top of file
+    "E501",  # Line too long
+    "F811",  # Redefinition of unused variable
+    "F401",  # Imported but unused
+    "F841",  # Local variable assigned but never used
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E402", "F811", "F401", "F841"]
+"scripts/*.py" = ["E402"]
+"releases/**/*.py" = ["E402"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+reportMissingImports = false
+pythonPath = "."

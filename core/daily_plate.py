@@ -10,7 +10,7 @@ calorie splits, dietary flags, and nutrient coverage optimization.
 
 from __future__ import annotations
 
-from typing import Dict, List, Set, Tuple, Union, Optional
+from typing import Dict, List, Set, Tuple, Optional
 
 from .food_db import FoodItem, parse_food_db, pick_booster_for
 from .recipe_db import Recipe, calculate_recipe_nutrients, parse_recipe_db, scale_recipe_to_kcal

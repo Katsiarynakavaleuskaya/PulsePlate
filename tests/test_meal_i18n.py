@@ -155,19 +155,42 @@ class TestTranslateTip:
 
     def test_translate_tip_russian(self):
         """Test tip translation to Russian."""
-        assert translate_tip("ru", "low_Fe_mg", "spinach") == "Низкий уровень железа → добавлен Шпинат"
-        assert translate_tip("ru", "low_Ca_mg", "greek_yogurt") == "Низкий уровень кальция → добавлен Греческий йогурт"
-        assert translate_tip("ru", "low_VitD_IU", "salmon") == "Низкий уровень витамина D → добавлен Лосось"
-        assert translate_tip("ru", "low_B12_ug", "tofu") == "Низкий уровень витамина B12 → добавлен Тофу"
-        assert translate_tip("ru", "low_Folate_ug", "lentils") == "Низкий уровень фолата → добавлен Чечевица"
-        assert translate_tip("ru", "low_Iodine_ug", "banana") == "Низкий уровень йода → добавлен Банан"
-        assert translate_tip("ru", "low_K_mg", "olive_oil") == "Низкий уровень калия → добавлен Оливковое масло"
-        assert translate_tip("ru", "low_Mg_mg", "oats") == "Низкий уровень магния → добавлен Овсянка"
+        assert (
+            translate_tip("ru", "low_Fe_mg", "spinach") == "Низкий уровень железа → добавлен Шпинат"
+        )
+        assert (
+            translate_tip("ru", "low_Ca_mg", "greek_yogurt")
+            == "Низкий уровень кальция → добавлен Греческий йогурт"
+        )
+        assert (
+            translate_tip("ru", "low_VitD_IU", "salmon")
+            == "Низкий уровень витамина D → добавлен Лосось"
+        )
+        assert (
+            translate_tip("ru", "low_B12_ug", "tofu")
+            == "Низкий уровень витамина B12 → добавлен Тофу"
+        )
+        assert (
+            translate_tip("ru", "low_Folate_ug", "lentils")
+            == "Низкий уровень фолата → добавлен Чечевица"
+        )
+        assert (
+            translate_tip("ru", "low_Iodine_ug", "banana") == "Низкий уровень йода → добавлен Банан"
+        )
+        assert (
+            translate_tip("ru", "low_K_mg", "olive_oil")
+            == "Низкий уровень калия → добавлен Оливковое масло"
+        )
+        assert (
+            translate_tip("ru", "low_Mg_mg", "oats") == "Низкий уровень магния → добавлен Овсянка"
+        )
 
     def test_translate_tip_english(self):
         """Test tip translation to English."""
         assert translate_tip("en", "low_Fe_mg", "spinach") == "Low iron → added Spinach"
-        assert translate_tip("en", "low_Ca_mg", "greek_yogurt") == "Low calcium → added Greek yogurt"
+        assert (
+            translate_tip("en", "low_Ca_mg", "greek_yogurt") == "Low calcium → added Greek yogurt"
+        )
         assert translate_tip("en", "low_VitD_IU", "salmon") == "Low vitamin D → added Salmon"
         assert translate_tip("en", "low_B12_ug", "tofu") == "Low vitamin B12 → added Tofu"
         assert translate_tip("en", "low_Folate_ug", "lentils") == "Low folate → added Lentils"
@@ -178,12 +201,18 @@ class TestTranslateTip:
     def test_translate_tip_spanish(self):
         """Test tip translation to Spanish."""
         assert translate_tip("es", "low_Fe_mg", "spinach") == "Bajo hierro → agregado Espinacas"
-        assert translate_tip("es", "low_Ca_mg", "greek_yogurt") == "Bajo calcio → agregado Yogur griego"
+        assert (
+            translate_tip("es", "low_Ca_mg", "greek_yogurt")
+            == "Bajo calcio → agregado Yogur griego"
+        )
         assert translate_tip("es", "low_VitD_IU", "salmon") == "Bajo vitamina D → agregado Salmón"
         assert translate_tip("es", "low_B12_ug", "tofu") == "Bajo vitamina B12 → agregado Tofu"
         assert translate_tip("es", "low_Folate_ug", "lentils") == "Bajo folato → agregado Lentejas"
         assert translate_tip("es", "low_Iodine_ug", "banana") == "Bajo yodo → agregado Plátano"
-        assert translate_tip("es", "low_K_mg", "olive_oil") == "Bajo potasio → agregado Aceite de oliva"
+        assert (
+            translate_tip("es", "low_K_mg", "olive_oil")
+            == "Bajo potasio → agregado Aceite de oliva"
+        )
         assert translate_tip("es", "low_Mg_mg", "oats") == "Bajo magnesio → agregado Avena"
 
     def test_translate_tip_without_donor_food(self):
@@ -205,9 +234,17 @@ class TestTranslateTip:
 
     def test_translate_tip_unknown_donor_food(self):
         """Test tip translation with unknown donor food."""
-        assert translate_tip("ru", "low_Fe_mg", "unknown_food") == "Низкий уровень железа → добавлен unknown_food"
-        assert translate_tip("en", "low_Ca_mg", "unknown_food") == "Low calcium → added unknown_food"
-        assert translate_tip("es", "low_VitD_IU", "unknown_food") == "Bajo vitamina D → agregado unknown_food"
+        assert (
+            translate_tip("ru", "low_Fe_mg", "unknown_food")
+            == "Низкий уровень железа → добавлен unknown_food"
+        )
+        assert (
+            translate_tip("en", "low_Ca_mg", "unknown_food") == "Low calcium → added unknown_food"
+        )
+        assert (
+            translate_tip("es", "low_VitD_IU", "unknown_food")
+            == "Bajo vitamina D → agregado unknown_food"
+        )
 
     def test_translate_tip_malformed_template(self):
         """Test tip translation with malformed template (lines 240-242)."""

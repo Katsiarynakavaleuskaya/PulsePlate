@@ -7,7 +7,6 @@ EN: Complete tests for sports nutrition module.
 Coverage target: core/sports_nutrition.py major functions and logic paths.
 """
 
-
 from core.sports_nutrition import (
     SportCategory,
     TrainingPhase,

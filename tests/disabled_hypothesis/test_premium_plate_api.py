@@ -1,5 +1,5 @@
 """
-Tests for Premium Plate API endpoint in app.py
+Tests for Premium Plate API endpoint in main.py
 
 Tests cover:
 - API endpoint functionality

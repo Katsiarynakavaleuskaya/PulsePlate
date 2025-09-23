@@ -112,8 +112,9 @@ def build_plate_day(
 
     cov = {k: _percent(micros_sum[k], targets["micro"].get(k, 0.0)) for k in MICRO_KEYS}
 
-    out_meals = [
-        {
+    out_meals = []
+    for m in meals:
+        meal_dict = {
             "title": m.title,
             "title_translated": m.title_translated,
             "grams": m.grams,
@@ -121,11 +122,23 @@ def build_plate_day(
             "macros": m.macros,
             "micros": m.micros,
         }
-        for m in meals
-    ]
+        # Optionally propagate estimated price if provided by recipe scaler
+        price_est = getattr(m, "price_est", None)
+        if price_est is not None:
+            meal_dict["price_est"] = price_est
+        out_meals.append(meal_dict)
 
     # Calculate total cost (simplified - just sum of meal costs)
-    total_cost = sum(meal.get("price_est", 0.0) for meal in out_meals)
+    total_cost = 0.0
+    for meal in out_meals:
+        price_est = meal.get("price_est", 0.0)
+        if isinstance(price_est, (int, float)):
+            total_cost += float(price_est)
+        elif isinstance(price_est, str):
+            try:
+                total_cost += float(price_est)
+            except ValueError:
+                pass  # Skip invalid price strings
 
     return DayPlan(
         meals=out_meals,

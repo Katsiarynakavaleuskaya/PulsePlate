@@ -16,7 +16,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .usda_client import USDAClient, USDAFoodItem
 
@@ -28,17 +28,22 @@ else:
     OFFClientType = Any
     OFFFoodItemType = Any
 
-# Ensure OFFClient symbol exists in module scope for tests to patch
-OFFClient: Any = None  # will be replaced if import succeeds
 
-# Runtime import of Open Food Facts module and expose OFFClient symbol
-try:
-    _off_module = importlib.import_module(f"{__package__}.openfoodfacts_client")
-    OFFClient = getattr(_off_module, "OFFClient", None)  # exposed for tests to patch
-    OFF_AVAILABLE = OFFClient is not None
-except Exception:
-    OFFClient = None  # Fallback when OFF module is unavailable
-    OFF_AVAILABLE = False
+def _resolve_off_client() -> Tuple[Any, bool]:
+    """Resolve OFFClient class and availability safely (import-time or runtime).
+
+    Returns (OFFClient_class_or_None, available_flag)
+    """
+    try:
+        _off_module = importlib.import_module(f"{__package__}.openfoodfacts_client")
+        _cls = getattr(_off_module, "OFFClient", None)
+        return _cls, _cls is not None
+    except Exception:
+        return None, False
+
+
+# Ensure OFFClient symbol exists in module scope for tests to patch and direct calls
+OFFClient, OFF_AVAILABLE = _resolve_off_client()
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +118,15 @@ class UnifiedFoodDatabase:
 
     def __init__(self, cache_dir: Optional[str] = None):
         self.usda_client = USDAClient()
-        # Instantiate runtime OFF client if available
-        # Instantiate OFF client via exposed symbol so tests can patch it
-        runtime_off: Optional[Any] = OFFClient() if callable(OFFClient) else None
+        # Resolve OFF client at runtime (allows tests to patch resolution)
+        global OFFClient, OFF_AVAILABLE
+        # Respect explicit test patch: if OFFClient is None, treat as unavailable
+        if OFFClient is None:
+            OFF_AVAILABLE = False
+            runtime_off = None
+        else:
+            # Only instantiate when explicitly available and callable
+            runtime_off = OFFClient() if (OFF_AVAILABLE and callable(OFFClient)) else None
         self.off_client: Optional[Any] = runtime_off
         self.cache_dir = Path(cache_dir or "cache/food_db")
         self.cache_dir.mkdir(parents=True, exist_ok=True)

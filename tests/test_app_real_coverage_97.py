@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Real functional tests for app.py endpoints without mocks
+Real functional tests for main.py endpoints without mocks
 Targets major uncovered blocks: /bmi, /plan endpoints with real data
 """
 
@@ -12,7 +12,7 @@ client = TestClient(app)
 
 
 class TestAppReal97Coverage:
-    """Real functional tests targeting 97% coverage for app.py"""
+    """Real functional tests targeting 97% coverage for main.py"""
 
     def setup_method(self):
         """Setup test environment"""

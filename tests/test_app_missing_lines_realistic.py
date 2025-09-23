@@ -1,5 +1,5 @@
 """
-Target missing lines in app.py with realistic tests.
+Target missing lines in main.py with realistic tests.
 Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 """
 
@@ -13,7 +13,7 @@ fake = Faker()
 
 
 class TestAppMissingLinesTargeted:
-    """Target specific missing lines in app.py"""
+    """Target specific missing lines in main.py"""
 
     def setup_method(self):
         self.client = TestClient(app)

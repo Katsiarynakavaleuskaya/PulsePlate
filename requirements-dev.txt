@@ -1,10 +1,11 @@
 -r requirements.txt
-pytest==8.4.1
-pytest-cov==6.2.1
-pytest-asyncio==0.24.0
-coverage==7.10.6
-flake8==7.1.1
+pytest==8.4.2
+pytest-cov==7.0.0
+pytest-asyncio==1.2.0
+coverage==7.10.7
+flake8==7.3.0
 bandit==1.8.6
 # safety==3.6.1b0  # Temporarily disabled due to typer compatibility issue
-mypy==1.18.1
-black==25.1.0
+mypy==1.18.2
+black==25.9.0
+asgi-lifespan==2.1.0

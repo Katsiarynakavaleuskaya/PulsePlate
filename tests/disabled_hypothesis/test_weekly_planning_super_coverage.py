@@ -104,7 +104,7 @@ class TestWeeklyPlanningBlocks:
                     data = response.json()
                     print(f"Response keys: {list(data.keys())}")
 
-                    # Проверить структуру ответа согласно коду app.py lines 1381-1501
+                    # Проверить структуру ответа согласно коду main.py lines 1381-1501
                     assert "week_summary" in data
                     assert "daily_menus" in data
                     assert "weekly_coverage" in data

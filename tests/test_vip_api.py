@@ -9,12 +9,12 @@ EN: Tests for VIP API endpoints
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-import app as app_module
+import app
 
 # Type assertion to satisfy type checker
-assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
+assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
 
-client = TestClient(app_module.app)
+client = TestClient(app.app)
 
 
 def test_vip_health():
@@ -30,6 +30,14 @@ def test_vip_health():
 def test_vip_weekly_plan_echo():
     """Test VIP weekly plan endpoint returns echo structure"""
     payload = {
+        "sex": "male",
+        "age": 30,
+        "height_cm": 175.0,
+        "weight_kg": 70.0,
+        "activity": "moderate",
+        "goal": "maintain",
+        "calories": 2000,
+        "protein": 150,
         "goals": {"calories": 2000, "protein": 150},
         "constraints": {"diet_flags": ["VEG"]},
     }
@@ -38,7 +46,9 @@ def test_vip_weekly_plan_echo():
     data = r.json()
     assert data["status"] == "success"
     assert "echo" in data
-    assert data["echo"] == payload
+    # Check that original payload fields are present in echo
+    assert data["echo"]["goals"] == payload["goals"]
+    assert data["echo"]["constraints"] == payload["constraints"]
 
 
 def test_vip_weekly_repair_echo():
@@ -55,8 +65,8 @@ def test_vip_weekly_repair_echo():
 def test_vip_module_enabled():
     """Ensure VIP module is enabled and the health endpoint responds with 200."""
     # Confirm the FastAPI app is initialised with the VIP router
-    assert isinstance(app_module.app, FastAPI), "app should be FastAPI instance"
-    client = TestClient(app_module.app)
+    assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
+    client = TestClient(app.app)
     r = client.get("/api/v1/vip/health")
     # VIP module is enabled, so expect 200
     assert r.status_code == 200

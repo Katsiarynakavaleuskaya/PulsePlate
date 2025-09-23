@@ -1,5 +1,5 @@
 """
-Чистые тесты для покрытия app.py недостающих веток
+Чистые тесты для покрытия main.py недостающих веток
 Фокус: API key режимы, метрики, визуализация, импорт fallbacks
 """
 
@@ -327,7 +327,7 @@ class TestLifespanFallbacks:
 
 
 class TestEdgeCases:
-    """Тесты edge cases для app.py"""
+    """Тесты edge cases для main.py"""
 
     def test_root_endpoint(self):
         """Тест корневого эндпоинта"""

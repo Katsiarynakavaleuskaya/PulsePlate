@@ -1,0 +1,45 @@
+name: Codecov Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install codecov
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "ci-test-key"
+          APP_ENV: ci
+        run: |
+          python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=97 -q
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true

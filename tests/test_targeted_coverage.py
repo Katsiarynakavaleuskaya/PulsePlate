@@ -1,5 +1,5 @@
 """
-Targeted tests to improve coverage for specific missing lines in app.py.
+Targeted tests to improve coverage for specific missing lines in main.py.
 """
 
 import os
@@ -12,7 +12,7 @@ from app import app
 
 
 class TestTargetedCoverage:
-    """Targeted tests to improve coverage for specific missing lines in app.py."""
+    """Targeted tests to improve coverage for specific missing lines in main.py."""
 
     def setup_method(self):
         """Setup test environment"""

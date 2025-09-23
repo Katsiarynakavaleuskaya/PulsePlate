@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 
-
 def _reload_with_root(root: Path):
     # Point PROJECT_ROOT to a temporary directory and reload module
     os.environ["PROJECT_ROOT"] = str(root)
@@ -47,4 +46,3 @@ def test_retrieve_basic_markdown(tmp_path: Path):
     assert out != ""
     assert "# Source: test.md" in out
     assert "banana" in out.lower()
-

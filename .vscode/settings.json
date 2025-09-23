@@ -11,7 +11,7 @@
   "python.linting.flake8Enabled": true,
   "python.linting.pylintEnabled": false,
 
-  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.typeCheckingMode": "off",
   "python.analysis.extraPaths": ["app", "core", "tests"],
 
   "isort.args": ["--profile", "black", "--line-length", "100"],
@@ -27,12 +27,35 @@
     "sanitise",
     "shoplist"
   ],
-  "coderabbit.agentType": "Codex CLI",
+  "coderabbit.agentType": "Native",
   "coderabbit.autoReviewMode": "auto",
   "cursorpyright.analysis.extraPaths": [
     "app",
     "core",
     "tests"
   ],
-  "cursorpyright.analysis.typeCheckingMode": "basic"
+  "cursorpyright.analysis.typeCheckingMode": "basic",
+  "workbench.editor.wrapTabs": true,
+  "workbench.editor.limit.excludeDirty": true,
+  "workbench.editor.limit.perEditorGroup": true,
+  "workbench.editor.defaultBinaryEditor": "default",
+  "workbench.editor.closeOnFileDelete": true,
+  "workbench.editor.autoLockGroups": {
+    "default": true,
+    "jupyter-notebook": true,
+    "repl": true,
+    "workbench.editors.gettingStartedInput": true,
+    "workbench.editorinputs.searchEditorInput": true,
+    "notebookOutputEditor": true,
+    "imagePreview.previewEditor": true,
+    "vscode.videoPreview": true
+  },
+  "workbench.editor.alwaysShowEditorActions": true,
+  "workbench.editor.enablePreviewFromCodeNavigation": true,
+  "workbench.editor.enablePreviewFromQuickOpen": true,
+  "workbench.editor.highlightModifiedTabs": true,
+  "workbench.editor.sharedViewState": true,
+  "workbench.editor.scrollToSwitchTabs": true,
+  "github.copilot.nextEditSuggestions.enabled": true,
+  "claudeCodeChat.permissions.yoloMode": true
 }

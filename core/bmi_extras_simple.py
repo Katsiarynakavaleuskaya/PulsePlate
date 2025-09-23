@@ -11,7 +11,7 @@ This module implements professional-level BMI analysis including:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
 # Import i18n functionality
 from core.i18n import Language, t

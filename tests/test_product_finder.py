@@ -375,7 +375,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.return_value = ProductSearchResult(
                     product_name="test food", found=False
                 )
@@ -404,7 +403,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.return_value = ProductSearchResult(
                     product_name="unknown food", found=False
                 )
@@ -428,7 +426,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.side_effect = Exception("USDA API error")
 
                 mock_off_search.return_value = ProductSearchResult(
@@ -825,7 +822,6 @@ class TestProductFinder:
                 patch.object(finder, "search_product") as mock_search,
                 patch.object(finder, "add_product_to_database") as mock_add,
             ):
-
                 # Setup mock responses
                 mock_search.side_effect = [
                     ProductSearchResult(product_name="banana", found=True, confidence=0.9),
@@ -854,7 +850,6 @@ class TestProductFinder:
                 patch.object(finder, "search_product") as mock_search,
                 patch.object(finder, "add_product_to_database") as mock_add,
             ):
-
                 # Setup mock responses
                 mock_search.return_value = ProductSearchResult(
                     product_name="test", found=True, confidence=0.9

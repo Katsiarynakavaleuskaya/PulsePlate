@@ -116,7 +116,7 @@ class DatabaseUpdateManager:
 
     def __init__(
         self,
-        cache_dir: str = "cache/food_db",
+        cache_dir: str | Path = "cache/food_db",
         update_interval_hours: int = 24,
         max_rollback_versions: int = 5,
     ):

@@ -1,9 +1,7 @@
 """
-Простые тесты для покрытия app.py недостающих веток
+Простые тесты для покрытия main.py недостающих веток
 """
 
-from unittest.mock import patch, MagicMock
-import pytest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 

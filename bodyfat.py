@@ -1,11 +1,11 @@
 import math
-from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Any
 
 
-# ---------- Формулы ----------
+# ---------- Formulas ----------
 def bf_deurenberg(bmi: float, age: int, gender: str) -> float:
     sex = 1 if gender.lower().startswith("male") else 0
     return 1.20 * bmi + 0.23 * age - 10.8 * sex - 5.4
@@ -16,19 +16,18 @@ def bf_us_navy(
     neck_cm: float,
     waist_cm: float,
     gender: str,
-    hip_cm: Optional[float] = None,
+    hip_cm: float | None = None,
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
         return 86.010 * math.log10(waist_cm - neck_cm) - 70.041 * math.log10(height_cm) + 36.76
-    else:
-        if hip_cm is None:
-            raise ValueError("hip_cm required for female")
-        return (
-            163.205 * math.log10(waist_cm + hip_cm - neck_cm)
-            - 97.684 * math.log10(height_cm)
-            - 78.387
-        )
+
+    # Female calculation
+    if hip_cm is None:
+        raise ValueError("hip_cm required for female")
+    return (
+        163.205 * math.log10(waist_cm + hip_cm - neck_cm) - 97.684 * math.log10(height_cm) - 78.387
+    )
 
 
 def bf_ymca(weight_kg: float, waist_cm: float, gender: str) -> float:
@@ -41,29 +40,49 @@ def bf_ymca(weight_kg: float, waist_cm: float, gender: str) -> float:
     return (body_fat / weight_lb) * 100.0
 
 
-# ---------- Агрегатор ----------
-def estimate_all(data: Dict[str, Any]) -> Dict[str, Any]:
-    results: Dict[str, float] = {}
+# ---------- Aggregator ----------
+def estimate_all(data: dict[str, Any]) -> dict[str, object]:
+    results: dict[str, float] = {}
 
     if {"bmi", "age", "gender"} <= data.keys():
-        results["deurenberg"] = bf_deurenberg(data["bmi"], data["age"], data["gender"])
+        try:
+            # Convert inputs directly; allow ValueError/TypeError to skip invalid data
+            bmi = float(data["bmi"])
+            age = int(data["age"])
+            gender = str(data["gender"])
+        except (ValueError, TypeError):
+            pass  # skip calculation on bad input
+        else:
+            results["deurenberg"] = bf_deurenberg(bmi, age, gender)
 
     if {"height_cm", "neck_cm", "waist_cm", "gender"} <= data.keys():
         try:
-            results["us_navy"] = bf_us_navy(
-                data["height_cm"],
-                data["neck_cm"],
-                data["waist_cm"],
-                data["gender"],
-                data.get("hip_cm"),
-            )
-        except ValueError:
-            pass
+            # Convert inputs directly; hip_cm is optional and only converted if present
+            height_cm = float(data["height_cm"])
+            neck_cm = float(data["neck_cm"])
+            waist_cm = float(data["waist_cm"])
+            gender = str(data["gender"])
+            hip_cm = float(data["hip_cm"]) if data.get("hip_cm") is not None else None
+        except (ValueError, TypeError):
+            pass  # skip calculation on bad input
+        else:
+            try:
+                results["us_navy"] = bf_us_navy(height_cm, neck_cm, waist_cm, gender, hip_cm)
+            except (ValueError, TypeError):
+                pass  # skip when required measurements are missing
 
     if {"weight_kg", "waist_cm", "gender"} <= data.keys():
-        results["ymca"] = bf_ymca(data["weight_kg"], data["waist_cm"], data["gender"])
+        try:
+            # Convert inputs directly without unsafe casts
+            weight_kg = float(data["weight_kg"])
+            waist_cm = float(data["waist_cm"])
+            gender = str(data["gender"])
+        except (ValueError, TypeError):
+            pass  # skip calculation on bad input
+        else:
+            results["ymca"] = bf_ymca(weight_kg, waist_cm, gender)
 
-    # округляем до 2 знаков
+    # round to 2 decimal places
     results = {k: round(v, 2) for k, v in results.items()}
     values = list(results.values())
     median = round(sorted(values)[len(values) // 2], 2) if values else None
@@ -72,15 +91,25 @@ def estimate_all(data: Dict[str, Any]) -> Dict[str, Any]:
 
 # ---------- FastAPI ----------
 class BodyFatRequest(BaseModel):
-    height_m: Optional[float] = None
-    weight_kg: Optional[float] = None
-    age: Optional[int] = None
+    height_m: float | None = Field(None, gt=0, description="Height in meters, must be positive")
+    weight_kg: float | None = Field(None, gt=0, description="Weight in kilograms, must be positive")
+    age: int | None = Field(
+        None, ge=1, le=120, description="Age in years, must be between 1 and 120"
+    )
     gender: str
-    bmi: Optional[float] = None
-    neck_cm: Optional[float] = None
-    waist_cm: Optional[float] = None
-    hip_cm: Optional[float] = None
-    language: Optional[str] = "en"  # "en" | "ru"
+    bmi: float | None = Field(
+        None, ge=0, le=100, description="BMI value, must be between 0 and 100"
+    )
+    neck_cm: float | None = Field(
+        None, gt=0, description="Neck circumference in cm, must be positive"
+    )
+    waist_cm: float | None = Field(
+        None, gt=0, description="Waist circumference in cm, must be positive"
+    )
+    hip_cm: float | None = Field(
+        None, gt=0, description="Hip circumference in cm, must be positive"
+    )
+    language: str | None = "en"  # "en" | "ru"
 
 
 def get_router() -> APIRouter:

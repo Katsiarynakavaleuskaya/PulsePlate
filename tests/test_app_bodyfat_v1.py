@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for Bodyfat v1 API endpoint in app.py
+Tests for Bodyfat v1 API endpoint in main.py
 
 RU: Тесты для Bodyfat v1 API эндпоинта
 EN: Tests for Bodyfat v1 API endpoint
@@ -90,18 +90,14 @@ class TestBodyfatv1API:
 
         for payload in bad_payloads:
             response = client.post("/api/v1/bodyfat", json=payload)
-            # API returns 200 with empty methods for invalid/insufficient data
-            assert response.status_code == 200
-            data = response.json()
-            assert "methods" in data
-            # Empty methods dict indicates insufficient/invalid data
-            assert len(data["methods"]) == 0
+            # API returns 422 for invalid data due to validation
+            assert response.status_code == 422
 
     def test_bodyfat_v1_invalid_gender_fallback(self):
         """Test bodyfat v1 API with invalid gender - should have fallback behavior"""
         payload = {"gender": "invalid", "age": 30, "waist_cm": 70, "neck_cm": 34, "height_m": 1.65}
         response = client.post("/api/v1/bodyfat", json=payload)
-        # Based on app.py logic, this should work with fallback
+        # Based on main.py logic, this should work with fallback
         # The actual response depends on the bodyfat router implementation
         assert response.status_code in [
             200,

@@ -52,7 +52,7 @@ class TestVIPCoverageBoost:
 
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
-                json={"user_id": "test", "preferences": {}},
+                json={"user_id": "test", "preferences": {}, "calories": 2000},
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -175,7 +175,6 @@ class TestVIPCoverageBoost:
             patch("app.routers.vip.get_recipe_synthesizer", mock_get_recipe_synthesizer),
             patch("app.routers.vip.get_auto_repair_engine", mock_get_auto_repair_engine),
         ):
-
             if "app" in sys.modules:
                 del sys.modules["app"]
             if "app.routers.vip" in sys.modules:
@@ -188,7 +187,16 @@ class TestVIPCoverageBoost:
             # Тест weekly plan
             response = client.post(
                 "/api/v1/vip/weekly-plan",
-                json={"user_id": "test", "preferences": {}},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175.0,
+                    "weight_kg": 70.0,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                    "user_id": "test",
+                    "preferences": {},
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -237,7 +245,6 @@ class TestVIPCoverageBoost:
             patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
             patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
         ):
-
             if "app" in sys.modules:
                 del sys.modules["app"]
             if "app.routers.vip" in sys.modules:
@@ -250,7 +257,16 @@ class TestVIPCoverageBoost:
             # Тест weekly plan error
             response = client.post(
                 "/api/v1/vip/weekly-plan",
-                json={"user_id": "test", "preferences": {}},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175.0,
+                    "weight_kg": 70.0,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                    "user_id": "test",
+                    "preferences": {},
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200

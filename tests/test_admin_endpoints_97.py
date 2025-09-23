@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 from app import app
 
@@ -22,7 +24,7 @@ from app import app
 @pytest.fixture
 def client():
     """Test client fixture"""
-    return TestClient(app)
+    return TestClient(cast(ASGIApp, app))
 
 
 class TestAdminEndpoints:

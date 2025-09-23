@@ -177,7 +177,7 @@ PRIVACY_DISCLAIMER = {
 
 def get_disclaimer_text(
     disclaimer_type: Literal["medical", "legal", "privacy"],
-    special_population: str = None,
+    special_population: str | None = None,
     language: Literal["en", "ru"] = "en",
 ) -> str:
     """
@@ -191,6 +191,9 @@ def get_disclaimer_text(
 
     Returns:
         Formatted disclaimer text
+
+    Raises:
+        KeyError: If disclaimer_type is not one of the valid types
     """
     disclaimers = []
 
@@ -205,18 +208,20 @@ def get_disclaimer_text(
 
     elif disclaimer_type == "privacy":
         disclaimers.append(PRIVACY_DISCLAIMER[language])
+    else:
+        raise KeyError(f"Invalid disclaimer type: {disclaimer_type}")
 
     return "\n\n".join(disclaimers)
 
 
 def get_comprehensive_disclaimer(
-    special_populations: list = None, language: Literal["en", "ru"] = "en"
+    special_populations: list[str] | None = None, language: Literal["en", "ru"] = "en"
 ) -> str:
     """
     RU: Получить полный отказ от ответственности.
     EN: Get comprehensive disclaimer.
     """
-    disclaimers = [
+    disclaimers: list[str] = [
         MEDICAL_DISCLAIMER[language],
         LEGAL_DISCLAIMER[language],
         PRIVACY_DISCLAIMER[language],
@@ -227,7 +232,7 @@ def get_comprehensive_disclaimer(
             if population in SPECIAL_POPULATION_DISCLAIMERS:
                 disclaimers.append(SPECIAL_POPULATION_DISCLAIMERS[population][language])
 
-    return "\n\n" + "=" * 50 + "\n\n".join(disclaimers) + "\n" + "=" * 50
+    return "\n\n" + "=" * 50 + "\n\n" + "\n\n".join(disclaimers) + "\n" + "=" * 50
 
 
 # Professional referral recommendations

@@ -7,7 +7,6 @@ EN: Tests for modules with zero coverage
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 
 class TestZeroCoverageModules:

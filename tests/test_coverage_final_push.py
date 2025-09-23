@@ -25,7 +25,7 @@ class TestFinalCoveragePush:
             del sys.modules["app.routers.vip"]
 
     def test_app_import_fallbacks(self):
-        """Test app.py import fallback paths."""
+        """Test main.py import fallback paths."""
         # Test that app works correctly with current imports
         import app
 

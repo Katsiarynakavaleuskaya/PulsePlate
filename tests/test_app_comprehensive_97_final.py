@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """
-Comprehensive test coverage for app.py to reach 97% coverage target
+Comprehensive test coverage for main.py to reach 97% coverage target
 Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets endpoints
 """
 
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 from unittest.mock import patch, MagicMock  # noqa: F401 - MagicMock used for testing
 
-from app import app
 
-client = TestClient(app)
+def _get_app():
+    """Safely get the FastAPI app instance from main.py."""
+    import main
+
+    if getattr(main, "app", None) is None:
+        raise RuntimeError("FastAPI app in main.py is not initialized")
+    return main.app
+
+
+client = TestClient(_get_app())  # type: ignore[arg-type]
 
 
 class TestAppComprehensive97:
-    """Test suite targeting 97% coverage for app.py"""
+    """Test suite targeting 97% coverage for main.py"""
 
     def test_bmi_endpoint_with_visualization(self):
         """Test /bmi endpoint with include_chart=True (lines 653-714)"""

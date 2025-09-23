@@ -40,8 +40,13 @@ source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -U pip setuptools wheel
 pip install -r requirements-dev.txt
 pip install -r requirements.txt
+```
 
-# Инструменты автоматизации (cspell, husky, и т.д.)
+**Important**: The `.venv` directory is not tracked in git and should never be committed. Each developer must create their own virtualenv locally using the command above. This ensures that activation scripts contain dynamic paths specific to each developer's environment, avoiding hardcoded absolute paths.
+
+## Инструменты автоматизации (cspell, husky, и т.д.)
+
+```bash
 npm ci
 
 # Быстрый запуск окружения (shell + PYTHONPATH + алиасы)
@@ -67,6 +72,7 @@ source scripts/dev_shell.sh
   2. `uvicorn app:app --reload` — запустить API локально.
   3. `curl -s http://127.0.0.1:8000/health/db` — убедиться, что подключение к БД работает.
 - Примеры запросов к пользовательскому API:
+
   ```bash
   curl -s -X POST http://127.0.0.1:8000/api/v1/users \
        -H 'Content-Type: application/json' \

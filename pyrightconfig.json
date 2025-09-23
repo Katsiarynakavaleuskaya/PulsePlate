@@ -1,0 +1,17 @@
+{
+  "pythonVersion": "3.12",
+  "reportMissingImports": false,
+  "pythonPath": ".",
+  "include": [
+    "**/*.py"
+  ],
+  "exclude": [
+    "cache/**",
+    "test_cache/**",
+    "frontend/build/**",
+    "htmlcov/**",
+    "releases/**",
+    "data/**",
+    "external/**"
+  ]
+}

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for Health, Metrics and Root endpoints in app.py
+Tests for Health, Metrics and Root endpoints in main.py
 
 RU: Тесты для health, metrics и root эндпоинтов
 EN: Tests for health, metrics and root endpoints

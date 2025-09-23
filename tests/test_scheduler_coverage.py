@@ -50,7 +50,6 @@ class TestSchedulerCoverage:
             "core.food_apis.scheduler.now_utc",
             return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
         ):
-
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 
@@ -73,7 +72,6 @@ class TestSchedulerCoverage:
             "core.food_apis.scheduler.now_utc",
             return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
         ):
-
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)
 

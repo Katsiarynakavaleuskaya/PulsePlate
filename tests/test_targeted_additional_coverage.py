@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import cast
 
 import pytest
 
@@ -114,7 +115,7 @@ async def test_update_manager_off_branches(tmp_path, monkeypatch):
         async def close(self):
             return None
 
-    mgr.off_client = StubOFF2()
+    mgr.off_client = cast(OFFClient, StubOFF2())
 
     # Relax validation to avoid requiring all nutrients during test
     async def no_errors(_foods):
@@ -185,7 +186,7 @@ async def test_update_manager_off_conversion_and_backup_warning(tmp_path, monkey
         async def close(self):
             return None
 
-    mgr.off_client = StubOFF3()
+    mgr.off_client = cast(OFFClient, StubOFF3())
 
     # Force from_off_item to raise to trigger logger.warning at conversion
     def _raise_convert(_cls, _off_item):
@@ -255,7 +256,7 @@ async def test_update_manager_off_nochange_branch(tmp_path, monkeypatch):
         async def close(self):
             return None
 
-    mgr.off_client = StubOFF()
+    mgr.off_client = cast(OFFClient, StubOFF())
 
     # Ensure checksum matches current version
     monkeypatch.setattr(mgr, "_calculate_checksum", lambda data: "same")

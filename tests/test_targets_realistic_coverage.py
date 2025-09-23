@@ -5,7 +5,6 @@ Target 93% coverage improvement with realistic nutrition target scenarios.
 
 from faker import Faker
 from faker.providers import BaseProvider
-import random
 
 fake = Faker()
 

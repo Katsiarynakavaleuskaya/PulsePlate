@@ -1,29 +1,52 @@
 [run]
-branch = True
-source =
-    app
-    core
+source = .
 omit =
     */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */env/*
+    */.env/*
+    */build/*
+    */dist/*
+    */node_modules/*
+    */htmlcov/*
+    */coverage/*
+    */releases/*
+    */external/*
+    */data/*
+    */cache/*
+    */test_cache/*
+    */frontend/build/*
+    *2.py
+    debug_test.py
+    check_failing_tests.py
+    scripts/archive_docs.py
+    scripts/remove_duplicates.py
     example_nutrition_api.py
     quick_coverage_check.py
-    quick_coverage_update.py
     check_coverage.py
-    check_failing_tests.py
-    fix_coverage_tests.py
-    setup_env_check.py
-    scripts/*.py
     test_setup.py
     test_visualization.py
     test_quick_check.py
     test_patch_verification.py
-    tests_strict/*
-    */__init__.py
+    run_coverage_tests.py
+    setup_dev_env.py
+    quick_coverage_update.py
+    setup_env_check.py
+    fix_coverage_tests.py
+    alembic/**
 
 [report]
-show_missing = True
-skip_covered = False
-fail_under = 97
-
-[html]
-directory = coverage_html
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod

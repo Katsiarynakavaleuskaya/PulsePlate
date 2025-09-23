@@ -41,9 +41,7 @@ def list_users(
     EN: Return paginated list of users.
     """
 
-    rows = db.execute(
-        select(User).order_by(User.id).offset(offset).limit(limit)
-    ).scalars()
+    rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
     return [UserRead.model_validate(row) for row in rows]
 
 

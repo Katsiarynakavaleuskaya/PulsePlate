@@ -106,7 +106,8 @@ class TestRecipeDBCoverage97:
             mock_nutrition.return_value = {"kcal": 0.0, "macros": {}, "micros": {}}
 
             with patch("core.recipe_db_new.translate_recipe", return_value="Translated Recipe"):
-                result = db.scale_recipe_to_kcal(recipe, 500.0, "en")
+                # Pass an int for kcal_goal to match the function signature
+                result = db.scale_recipe_to_kcal(recipe, 500, "en")
 
                 # Should handle zero kcal case
                 assert result is not None
@@ -146,7 +147,8 @@ class TestRecipeDBCoverage97:
             ]
 
             with patch("core.recipe_db_new.translate_recipe", return_value="Translated Recipe"):
-                result = db.scale_recipe_to_kcal(recipe, 500.0, "en")
+                # Pass an int for kcal_goal to match the function signature
+                result = db.scale_recipe_to_kcal(recipe, 500, "en")
 
                 # Should handle kcal correction
                 assert result is not None
@@ -184,10 +186,11 @@ class TestRecipeDBCoverage97:
             ]
 
             with patch("core.recipe_db_new.translate_recipe", return_value="Translated Recipe"):
-                result = db.scale_recipe_to_kcal(recipe, 500.0, "en")
+                result = db.scale_recipe_to_kcal(recipe, 500, "en")
 
                 # Should apply second alpha correction
                 assert result is not None
+
                 # Verify the correction path was taken
                 assert mock_nutrition.call_count >= 3
 

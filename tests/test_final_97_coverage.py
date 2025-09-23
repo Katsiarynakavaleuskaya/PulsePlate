@@ -1,5 +1,5 @@
 """
-Финальный тест для достижения 97% покрытия app.py
+Финальный тест для достижения 97% покрытия main.py
 Фокус на оставшихся 70 строках: VIP import, rate limiting, scheduler, premium endpoints
 """
 
@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """Test client для app.py"""
+    """Test client для main.py"""
     import app
 
     return TestClient(app.app)

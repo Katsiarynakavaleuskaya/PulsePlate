@@ -1,5 +1,5 @@
 """
-Простой тест для покрытия недостающих строк app.py до 97%
+Простой тест для покрытия недостающих строк main.py до 97%
 Фокус на import errors и error handlers, которые не требуют сложной настройки
 """
 
@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="session")
 def client():
-    """Load app.py once per test session and provide TestClient"""
+    """Load main.py once per test session and provide TestClient"""
     import importlib.util
 
-    app_path = Path(__file__).parent.parent / "app.py"
+    app_path = Path(__file__).parent.parent / "main.py"
     spec = importlib.util.spec_from_file_location("app_module", app_path)
     app_module = importlib.util.module_from_spec(spec)
     sys.modules["app_module"] = app_module

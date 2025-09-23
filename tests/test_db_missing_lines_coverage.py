@@ -4,11 +4,9 @@ Focus on error handling and edge cases.
 """
 
 import os
-import tempfile
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from faker import Faker
 import pytest
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 fake = Faker()
