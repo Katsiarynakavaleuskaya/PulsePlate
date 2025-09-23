@@ -8,7 +8,7 @@ EN: Tests for core database functionality
 
 import os
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -95,7 +95,7 @@ class TestCoreDB:
     @patch("core.db.Base.metadata")
     def test_init_db(self, mock_metadata):
         """Test init_db creates tables."""
-        mock_metadata.create_all = lambda bind: None
+        mock_metadata.create_all = MagicMock(return_value=None)
 
         # Should not raise exception
         init_db()
@@ -139,9 +139,16 @@ class TestCoreDB:
     def test_session_scope_rollback(self):
         """Test session_scope rolls back on exception."""
         try:
+            from sqlalchemy import text as sa_text
+        except Exception:
+
+            def sa_text(s):
+                return s  # fallback for environments without SQLAlchemy types
+
+        try:
             with session_scope() as session:
                 # Force an exception to test rollback
-                session.execute("INVALID SQL")
+                session.execute(sa_text("INVALID SQL"))
         except Exception:
             # Exception is expected
             pass

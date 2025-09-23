@@ -1,6 +1,6 @@
 """
 Additional tests to boost coverage to 96%+.
-Tests for uncovered lines in app.py and other modules.
+Tests for uncovered lines in main.py and other modules.
 """
 
 import os

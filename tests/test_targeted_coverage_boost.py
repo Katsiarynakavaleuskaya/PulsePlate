@@ -30,7 +30,7 @@ class TestTargetedCoverageBoost:
             del os.environ["API_KEY"]
 
     def test_app_py_line_49(self):
-        """Test line 49 in app.py (dotenv loading condition)."""
+        """Test line 49 in main.py (dotenv loading condition)."""
         # Test the dotenv loading condition when PYTEST_CURRENT_TEST is None
         # and APP_ENV is "test" - should not load dotenv
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "", "APP_ENV": "test"}):
@@ -38,7 +38,7 @@ class TestTargetedCoverageBoost:
             pass
 
     def test_app_py_lines_345_350(self):
-        """Test lines 345-350 in app.py (bmi_endpoint with pregnancy)."""
+        """Test lines 345-350 in main.py (bmi_endpoint with pregnancy)."""
         data = {
             "weight_kg": 65.0,
             "height_m": 1.65,
@@ -56,7 +56,7 @@ class TestTargetedCoverageBoost:
         assert "not valid during pregnancy" in result["note"]
 
     def test_app_py_line_383(self):
-        """Test line 383 in app.py (bmi_endpoint with athlete flag)."""
+        """Test line 383 in main.py (bmi_endpoint with athlete flag)."""
         data = {
             "weight_kg": 80.0,
             "height_m": 1.80,
@@ -74,7 +74,7 @@ class TestTargetedCoverageBoost:
         assert result["group"] == "athlete"
 
     def test_app_py_line_545(self):
-        """Test line 545 in app.py (plan_endpoint with premium)."""
+        """Test line 545 in main.py (plan_endpoint with premium)."""
         data = {
             "weight_kg": 70.0,
             "height_m": 1.75,
@@ -93,7 +93,7 @@ class TestTargetedCoverageBoost:
         assert "premium_reco" in result
 
     def test_app_py_lines_758_760(self):
-        """Test lines 758-760 in app.py (api_v1_insight with missing llm module)."""
+        """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
         with patch.dict("sys.modules", {"llm": None}):
             data = {"text": "test"}
             response = self.client.post(
@@ -102,14 +102,14 @@ class TestTargetedCoverageBoost:
             assert response.status_code == 503
 
     def test_app_py_line_914(self):
-        """Test line 914 in app.py (insight endpoint with missing llm module)."""
+        """Test line 914 in main.py (insight endpoint with missing llm module)."""
         with patch.dict("sys.modules", {"llm": None}):
             data = {"text": "test"}
             response = self.client.post("/insight", json=data)
             assert response.status_code == 503
 
     def test_app_py_line_1215(self):
-        """Test line 1215 in app.py (get_database_status with missing scheduler)."""
+        """Test line 1215 in main.py (get_database_status with missing scheduler)."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})

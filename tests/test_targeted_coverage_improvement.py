@@ -1,5 +1,5 @@
 """
-Targeted tests to improve coverage for specific uncovered lines in app.py.
+Targeted tests to improve coverage for specific uncovered lines in main.py.
 """
 
 import os

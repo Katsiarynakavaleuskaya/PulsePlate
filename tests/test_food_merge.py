@@ -7,11 +7,7 @@ EN: Tests for food data merge logic.
 
 from datetime import date
 
-from core.food_merge import (
-    _merge_values,
-    merge_records,
-    _classify_food_group
-)
+from core.food_merge import _merge_values, merge_records, _classify_food_group
 from core.food_sources.base import FoodRecord
 
 
@@ -79,7 +75,7 @@ class TestClassifyFoodGroup:
             "fat_g": 3.6,
             "carbs_g": 0.0,
             "fiber_g": 0.0,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"
@@ -93,7 +89,7 @@ class TestClassifyFoodGroup:
             "fat_g": 49.9,  # High fat
             "carbs_g": 21.6,
             "fiber_g": 12.5,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fat"  # High fat percentage takes priority
@@ -107,7 +103,7 @@ class TestClassifyFoodGroup:
             "fat_g": 100.0,  # ~100% of calories from fat
             "carbs_g": 0.0,
             "fiber_g": 0.0,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fat"
@@ -121,7 +117,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.9,
             "carbs_g": 23.0,  # ~83% of calories from carbs
             "fiber_g": 1.8,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"
@@ -135,7 +131,7 @@ class TestClassifyFoodGroup:
             "fat_g": 4.2,
             "carbs_g": 41.0,  # ~66% of calories from carbs
             "fiber_g": 6.0,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -149,7 +145,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -163,7 +159,7 @@ class TestClassifyFoodGroup:
             "fat_g": 2.6,
             "carbs_g": 27.4,  # ~67% of calories from carbs
             "fiber_g": 7.6,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -178,7 +174,7 @@ class TestClassifyFoodGroup:
             "carbs_g": 22.8,  # ~102% of calories from carbs
             "fiber_g": 2.6,
             "sugar_g": 12.2,  # High sugar
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fruit"
@@ -192,7 +188,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 6.6,
             "fiber_g": 2.6,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -206,7 +202,7 @@ class TestClassifyFoodGroup:
             "fat_g": 1.0,
             "carbs_g": 5.0,
             "fiber_g": 0.0,
-            "flags": ["DAIRY"]
+            "flags": ["DAIRY"],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -220,7 +216,7 @@ class TestClassifyFoodGroup:
             "fat_g": 5.0,
             "carbs_g": 10.0,
             "fiber_g": 1.0,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -234,7 +230,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.0,
             "carbs_g": 0.0,
             "fiber_g": 0.0,
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "other"
@@ -248,7 +244,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -262,7 +258,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.3,
             "carbs_g": 28.0,  # ~86% of calories from carbs
             "fiber_g": 0.4,  # Low fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"
@@ -276,7 +272,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.2,
             "carbs_g": 2.9,
             "fiber_g": 1.3,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -290,7 +286,7 @@ class TestClassifyFoodGroup:
             "fat_g": 9.0,
             "carbs_g": 0.4,
             "fiber_g": 0.0,
-            "flags": ["DAIRY"]
+            "flags": ["DAIRY"],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -304,7 +300,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -318,7 +314,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -332,7 +328,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -347,7 +343,7 @@ class TestClassifyFoodGroup:
             "carbs_g": 25.0,  # ~100% of calories from carbs
             "fiber_g": 2.0,  # Low fiber
             "sugar_g": 15.0,  # High sugar
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fruit"
@@ -361,7 +357,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.1,
             "carbs_g": 4.0,
             "fiber_g": 0.5,  # Low fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -376,7 +372,7 @@ class TestClassifyFoodGroup:
             "carbs_g": 14.0,  # ~108% of calories from carbs
             "fiber_g": 2.4,  # Low fiber
             "sugar_g": 10.0,  # High sugar
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"  # Low fiber, high carb -> grain
@@ -390,7 +386,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 3.6,
             "fiber_g": 0.0,
-            "flags": ["DAIRY", "PROBIOTIC"]
+            "flags": ["DAIRY", "PROBIOTIC"],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -404,7 +400,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -418,7 +414,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -432,7 +428,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # ~69% of calories from carbs
             "fiber_g": 7.9,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -446,7 +442,7 @@ class TestClassifyFoodGroup:
             "fat_g": 0.4,
             "carbs_g": 3.6,
             "fiber_g": 2.2,  # High fiber
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -461,7 +457,7 @@ class TestClassifyFoodGroup:
             "carbs_g": 11.8,  # ~100% of calories from carbs
             "fiber_g": 2.4,  # Low fiber
             "sugar_g": 9.4,  # High sugar
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"  # Low fiber, high carb -> grain
@@ -475,7 +471,7 @@ class TestClassifyFoodGroup:
             "fat_g": 1.0,
             "carbs_g": 5.0,
             "fiber_g": 0.0,
-            "flags": ["DAIRY"]
+            "flags": ["DAIRY"],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -504,16 +500,14 @@ class TestMergeRecords:
             "Folate_ug": 20.0,
             "Iodine_ug": 5.0,
             "K_mg": 200.0,
-            "Mg_mg": 25.0
+            "Mg_mg": 25.0,
         }
         defaults.update(kwargs)
         return FoodRecord(name=name, source=source, **defaults)
 
     def test_merge_records_single_source(self):
         """Test merging records from single source."""
-        records = [
-            self.create_food_record("apple", "USDA", kcal=52.0, protein_g=0.3)
-        ]
+        records = [self.create_food_record("apple", "USDA", kcal=52.0, protein_g=0.3)]
         streams = [records]
 
         result = merge_records(streams)
@@ -577,11 +571,11 @@ class TestMergeRecords:
         """Test merging multiple different foods."""
         records1 = [
             self.create_food_record("apple", "USDA", kcal=52.0),
-            self.create_food_record("banana", "USDA", kcal=89.0)
+            self.create_food_record("banana", "USDA", kcal=89.0),
         ]
         records2 = [
             self.create_food_record("apple", "OFF", kcal=50.0),
-            self.create_food_record("orange", "OFF", kcal=47.0)
+            self.create_food_record("orange", "OFF", kcal=47.0),
         ]
         streams = [records1, records2]
 
@@ -611,8 +605,11 @@ class TestMergeRecords:
 
     def test_merge_records_food_group_classification(self):
         """Test that food group classification is applied."""
-        records = [self.create_food_record("chicken", "USDA",
-                                           kcal=165.0, protein_g=31.0, fat_g=3.6, carbs_g=0.0)]
+        records = [
+            self.create_food_record(
+                "chicken", "USDA", kcal=165.0, protein_g=31.0, fat_g=3.6, carbs_g=0.0
+            )
+        ]
         streams = [records]
 
         result = merge_records(streams)
@@ -622,8 +619,11 @@ class TestMergeRecords:
 
     def test_merge_records_rounding(self):
         """Test that values are properly rounded."""
-        records = [self.create_food_record("apple", "USDA",
-                                           kcal=52.123456, protein_g=0.256789, Fe_mg=1.234567)]
+        records = [
+            self.create_food_record(
+                "apple", "USDA", kcal=52.123456, protein_g=0.256789, Fe_mg=1.234567
+            )
+        ]
         streams = [records]
 
         result = merge_records(streams)
@@ -642,7 +642,7 @@ class TestMergeRecords:
             "fat_g": 0.3,
             "carbs_g": 28.0,  # High carbs > 50%
             "fiber_g": 0.4,  # Low fiber
-            "flags": []
+            "flags": [],
             # No sugar_g field
         }
         result = _classify_food_group(record)
@@ -658,7 +658,7 @@ class TestMergeRecords:
             "carbs_g": 22.8,  # High carbs > 50%
             "fiber_g": 2.6,  # Low fiber
             "sugar_g": 12.2,  # High sugar > 10
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fruit"
@@ -672,7 +672,7 @@ class TestMergeRecords:
             "fat_g": 0.4,
             "carbs_g": 6.6,
             "fiber_g": 2.6,  # High fiber > 2
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -686,7 +686,7 @@ class TestMergeRecords:
             "fat_g": 0.2,
             "carbs_g": 13.8,  # High carbs > 50%
             "fiber_g": 2.4,
-            "flags": []
+            "flags": [],
             # No sugar_g field
         }
         result = _classify_food_group(record)
@@ -701,7 +701,7 @@ class TestMergeRecords:
             "fat_g": 1.0,
             "carbs_g": 5.0,
             "fiber_g": 0.0,
-            "flags": []  # No DAIRY flag
+            "flags": [],  # No DAIRY flag
         }
         result = _classify_food_group(record)
         assert result == "protein"  # High protein percentage takes priority
@@ -715,7 +715,7 @@ class TestMergeRecords:
             "fat_g": 0.2,
             "carbs_g": 2.9,
             "fiber_g": 2.5,  # High fiber > 2
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"  # High carbs without high protein
@@ -730,7 +730,7 @@ class TestMergeRecords:
             "carbs_g": 17.0,
             "fiber_g": 0.9,
             "sugar_g": 16.0,  # High sugar > 5
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "fruit"
@@ -744,7 +744,7 @@ class TestMergeRecords:
             "fat_g": 0.4,
             "carbs_g": 3.6,
             "fiber_g": 0.0,
-            "flags": ["DAIRY"]  # Has DAIRY flag
+            "flags": ["DAIRY"],  # Has DAIRY flag
         }
         result = _classify_food_group(record)
         assert result == "dairy"  # Dairy flags take priority when protein is low
@@ -758,7 +758,7 @@ class TestMergeRecords:
             "fat_g": 0.4,
             "carbs_g": 20.1,  # High carbs > 50%
             "fiber_g": 7.9,  # High fiber > 3
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "legume"  # Should be classified as legume by name
@@ -772,7 +772,7 @@ class TestMergeRecords:
             "fat_g": 0.4,
             "carbs_g": 22.0,  # High carbs > 50%
             "fiber_g": 5.0,  # High fiber > 3
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "grain"  # Should be classified as grain
@@ -786,7 +786,7 @@ class TestMergeRecords:
             "fat_g": 0.4,
             "carbs_g": 1.0,  # Low carbs < 50%
             "fiber_g": 2.2,  # High fiber > 2
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "veg"  # Should be classified as vegetable
@@ -801,7 +801,7 @@ class TestMergeRecords:
             "carbs_g": 1.0,  # Low carbs < 50%
             "fiber_g": 2.0,
             "sugar_g": 4.9,  # High sugar > 5
-            "flags": []
+            "flags": [],
         }
         result = _classify_food_group(record)
         assert result == "other"  # Default classification when conditions don't match

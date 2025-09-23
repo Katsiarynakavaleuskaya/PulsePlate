@@ -1,9 +1,13 @@
 coverage:
   precision: 2
   round: down
-  # We target high coverage but avoid blocking PRs on tiny temporary dips.
-  # Using 95..100 keeps the bar ambitious while allowing incremental work.
-  range: 95..100
+  # We target 97% coverage as required by project standards
+  range: 97..100
+  status:
+    project:
+      default:
+        target: 97%
+        threshold: 1%
 ignore:
   - "example_nutrition_api.py"
   - "quick_coverage_check.py"
@@ -12,5 +16,6 @@ ignore:
   - "test_visualization.py"
   - "test_quick_check.py"
   - "test_patch_verification.py"
+  - "run_coverage_tests.py"
   - "tests_strict/**"
   - "**/__init__.py"

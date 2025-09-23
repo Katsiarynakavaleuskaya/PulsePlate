@@ -6,8 +6,10 @@ across the entire application in a realistic scenario.
 """
 
 import os
+from typing import cast
 
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 from app import app
 
@@ -18,7 +20,7 @@ class TestSpanishEndToEndSmoke:
     def setup_method(self):
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def teardown_method(self):
         """Clean up test environment."""

@@ -1,6 +1,7 @@
 import math
 import sys
 from pathlib import Path
+from typing import Any, Dict, cast
 
 import pytest
 
@@ -66,7 +67,8 @@ def test_estimate_all_smoke():
     res = estimate_all(data)
     assert "methods" in res and isinstance(res["methods"], dict)
     # если хотя бы одна методика дала число — ок
-    vals = list(res["methods"].values())
+    methods: Dict[str, Any] = cast(Dict[str, Any], res["methods"])  # typing help for pyright
+    vals = list(methods.values())
     assert any(isinstance(v, (int, float)) and 0 < v < 100 for v in vals)
     # если есть медиана — тоже должна быть корректным процентом
     if res.get("median") is not None:
@@ -85,11 +87,12 @@ def test_estimate_all_female_no_hip():
     }
     res = estimate_all(data)
     assert "methods" in res
+    methods: Dict[str, Any] = cast(Dict[str, Any], res["methods"])  # ensure Mapping[str, Any]
     # us_navy should not be in methods because hip_cm missing
-    assert "us_navy" not in res["methods"]
+    assert "us_navy" not in methods
     # but deurenberg and ymca should be
-    assert "deurenberg" in res["methods"]
-    assert "ymca" in res["methods"]
+    assert "deurenberg" in methods
+    assert "ymca" in methods
 
 
 # --- TODO: строгие диапазоны ---

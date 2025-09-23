@@ -225,7 +225,7 @@ class TestShoplistGenerator:
         """Тест округления до упаковок"""
         generator = ShoplistGenerator()
 
-        aggregated = {"Морковь": 300, "Молоко": 800}  # 300g  # 800ml
+        aggregated = {"Морковь": 300.0, "Молоко": 800.0}  # 300g  # 800ml
 
         shopping_list = generator.round_to_packages(aggregated)
 
@@ -345,7 +345,7 @@ class TestConvenienceFunctions:
 
     def test_round_to_packages_function(self):
         """Тест функции round_to_packages"""
-        aggregated = {"Морковь": 300}
+        aggregated = {"Морковь": 300.0}
 
         result = round_to_packages(aggregated)
 

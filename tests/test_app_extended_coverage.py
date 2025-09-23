@@ -1,5 +1,5 @@
 """
-Additional comprehensive tests for app.py to achieve 97% coverage.
+Additional comprehensive tests for main.py to achieve 97% coverage.
 
 Tests lifespan events, API endpoints, error handling, and edge cases.
 """

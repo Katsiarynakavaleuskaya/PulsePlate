@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-RU: Тесты для покрытия app.py (группы, insight, debug_env).
-EN: Coverage tests for app.py (groups, insight, debug_env).
+RU: Тесты для покрытия main.py (группы, insight, debug_env).
+EN: Coverage tests for main.py (groups, insight, debug_env).
 """
 
 import pytest

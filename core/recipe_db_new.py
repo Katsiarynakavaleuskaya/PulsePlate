@@ -112,7 +112,7 @@ class RecipeDB:
 
         # Allow numeric lookups by index (string digits or int)
         try:
-            idx = int(recipe_id)  # type: ignore[arg-type]
+            idx = int(recipe_id)
         except (TypeError, ValueError):
             return None
         if 0 <= idx < len(self.recipes):

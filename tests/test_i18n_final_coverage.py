@@ -3,7 +3,6 @@ Final coverage tests for core/i18n.py lines 420 and 427.
 These lines require very specific conditions to execute.
 """
 
-import pytest
 from faker import Faker
 
 fake = Faker()

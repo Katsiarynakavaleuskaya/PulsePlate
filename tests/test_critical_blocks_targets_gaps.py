@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-КРИТИЧНО! Тесты для блоков 1265-1339 и 1437-1503 в app.py
+КРИТИЧНО! Тесты для блоков 1265-1339 и 1437-1503 в main.py
 
 Блок 1265-1339: endpoint /api/v1/premium/targets (WHOTargetsRequest)
 Блок 1437-1503: endpoint /api/v1/premium/gaps (NutrientGapsRequest)

@@ -1,0 +1,318 @@
+"""
+Final VIP coverage tests to achieve 97% coverage with proper isolation.
+"""
+
+import os
+import sys
+
+from fastapi.testclient import TestClient
+
+
+class TestVIPCoverage97Final:
+    """Test class to achieve 97% coverage for VIP router with proper isolation."""
+
+    def setup_method(self):
+        """Set up test fixtures with proper isolation."""
+        # Store original state
+        self.original_api_key = os.environ.get("API_KEY")
+        self.original_modules = {}
+
+        # Store only the modules we might modify
+        modules_to_watch = [
+            "app.routers.vip",
+            "core.auto_repair",
+            "core.menu_engine",
+            "core.recipe_synth",
+            "core.region_catalog",
+            "core.shoplist",
+        ]
+
+        for module_name in modules_to_watch:
+            if module_name in sys.modules:
+                self.original_modules[module_name] = sys.modules[module_name]
+
+        # Set test environment
+        os.environ["API_KEY"] = "test-key"
+
+    def teardown_method(self):
+        """Clean up test fixtures with proper isolation."""
+        # Restore original environment
+        if self.original_api_key is None:
+            os.environ.pop("API_KEY", None)
+        else:
+            os.environ["API_KEY"] = self.original_api_key
+
+        # Restore original modules more carefully
+        # Only restore modules that were modified by our test
+        modules_to_restore = [
+            "app.routers.vip",
+            "core.auto_repair",
+            "core.menu_engine",
+            "core.recipe_synth",
+            "core.region_catalog",
+            "core.shoplist",
+        ]
+
+        for module_name in modules_to_restore:
+            if module_name in self.original_modules:
+                sys.modules[module_name] = self.original_modules[module_name]
+            elif module_name in sys.modules:
+                del sys.modules[module_name]
+
+    def test_vip_import_fallback_coverage_lines_54_73(self):
+        """Test VIP import fallback coverage for lines 54-73."""
+        # Test that VIP module imports successfully and functions are available
+        from app.routers import vip
+
+        # Verify that VIP functions are available (not None)
+        assert vip.make_weekly_menu is not None
+
+    def test_vip_safe_call_coverage_lines_118_125(self):
+        """Test VIP safe_call coverage for lines 118-125."""
+        from app.routers.vip import _safe_call
+
+        # Test with None function
+        result = _safe_call(None, "test")
+        assert result is None  # _safe_call returns None when function is None
+
+        # Test with function that raises exception
+        def failing_func(*args, **kwargs):
+            raise Exception("Test error")
+
+        result = _safe_call(failing_func, "test")
+        assert result == {"status": "error", "message": "Test error"}
+
+    def test_vip_weekly_menu_plan_coverage_lines_188_190(self):
+        """Test VIP weekly menu plan coverage for lines 188-190."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test with invalid request (should get validation error)
+        response = client.post(
+            "/api/v1/vip/menu/weekly/plan",
+            json="invalid",  # Non-dict request
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 422  # Validation error
+
+    def test_vip_shoplist_weekly_coverage_lines_217_254(self):
+        """Test VIP shoplist weekly coverage for lines 217-254."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test weekly shoplist generation
+        response = client.post(
+            "/api/v1/vip/shoplist/weekly",
+            json={"menu": {"days": []}},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "shopping_list" in data
+
+    def test_vip_shoplist_daily_coverage_lines_293_300(self):
+        """Test VIP shoplist daily coverage for lines 293-300."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test daily shoplist generation
+        response = client.post(
+            "/api/v1/vip/shoplist/daily",
+            json={"menu": {"days": []}},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "shopping_list" in data
+
+    def test_vip_shoplist_formats_coverage_lines_304_348(self):
+        """Test VIP shoplist formats coverage for lines 304-348."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test shoplist formats
+        response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "formats" in data
+
+    def test_vip_regions_coverage_lines_355_365(self):
+        """Test VIP regions coverage for lines 355-365."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test regions endpoint
+        response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "regions" in data
+
+    def test_vip_region_search_coverage_lines_391_429(self):
+        """Test VIP region search coverage for lines 391-429."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test region search endpoint
+        response = client.get(
+            "/api/v1/vip/regions/ES/search?query=test", headers={"X-API-Key": "test-key"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "products" in data
+
+    def test_vip_region_categories_coverage_lines_457_469(self):
+        """Test VIP region categories coverage for lines 457-469."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test region categories endpoint
+        response = client.get(
+            "/api/v1/vip/regions/ES/categories", headers={"X-API-Key": "test-key"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "categories" in data
+
+    def test_vip_region_stores_coverage_lines_471_483(self):
+        """Test VIP region stores coverage for lines 471-483."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test region stores endpoint
+        response = client.get("/api/v1/vip/regions/ES/stores", headers={"X-API-Key": "test-key"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "stores" in data
+
+    def test_vip_price_comparison_coverage_lines_489_508(self):
+        """Test VIP price comparison coverage for lines 489-508."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test price comparison endpoint
+        response = client.get(
+            "/api/v1/vip/regions/compare/test-product", headers={"X-API-Key": "test-key"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "comparison" in data
+
+    def test_vip_recipe_templates_coverage_lines_507_508(self):
+        """Test VIP recipe templates coverage for lines 507-508."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test recipe templates endpoint
+        response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "templates" in data
+
+    def test_vip_auto_repair_weekly_coverage_lines_530(self):
+        """Test VIP auto-repair weekly coverage for lines 530."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test auto-repair weekly endpoint
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json={"menu": {"days": []}},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"  # Returns error when auto_repair_menu is None
+        assert "repair_result" in data
+
+    def test_vip_auto_repair_suggestions_coverage_lines_589(self):
+        """Test VIP auto-repair suggestions coverage for lines 589."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test auto-repair suggestions endpoint
+        response = client.post(
+            "/api/v1/vip/auto-repair/suggestions",
+            json={"menu": {"days": []}},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "suggestions" in data
+
+    def test_vip_auto_repair_strategies_coverage_lines_607(self):
+        """Test VIP auto-repair strategies coverage for lines 607."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test auto-repair strategies endpoint
+        response = client.get(
+            "/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test-key"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "strategies" in data
+
+    def test_vip_weekly_recipes_coverage_lines_656_660(self):
+        """Test VIP weekly recipes coverage for lines 656-660."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test weekly recipes endpoint
+        response = client.post(
+            "/api/v1/vip/recipes/weekly",
+            json={"week_plan": {"days": []}},
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "weekly_recipes" in data
+
+    def test_vip_weekly_plan_coverage_lines_873_905(self):
+        """Test VIP weekly plan coverage for lines 873-905."""
+        import app
+
+        client = TestClient(app.app)
+
+        # Test weekly plan endpoint with valid WeeklyPlanRequest
+        valid_request = {
+            "sex": "female",
+            "age": 32,
+            "height_cm": 168.0,
+            "weight_kg": 62.0,
+            "activity": "light",
+            "goal": "maintain",
+        }
+        response = client.post(
+            "/api/v1/vip/menu/weekly/plan",
+            json=valid_request,
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200  # Should work with valid request
+        data = response.json()
+        assert data["status"] == "success"

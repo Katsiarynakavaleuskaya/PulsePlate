@@ -1,3 +1,24 @@
+import os
+import pytest
+
+
+# Автофикстура для форсирования production env и API_KEY
+@pytest.fixture(autouse=True)
+def _force_prod_env():
+    old = {k: os.environ.get(k) for k in ("APP_ENV", "ALLOW_DEV_API_KEY", "API_KEY")}
+    os.environ["APP_ENV"] = "production"
+    os.environ["ALLOW_DEV_API_KEY"] = "false"
+    os.environ["API_KEY"] = "secret-key"
+    try:
+        yield
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 import importlib
 import sys
 
@@ -147,7 +168,7 @@ def test_no_calculate_all_bmr(monkeypatch):
     # Удаляем calculate_all_bmr из sys.modules
     monkeypatch.setitem(sys.modules, "core.menu_engine", None)
     monkeypatch.setitem(sys.modules, "core.targets", None)
-    # Перезагружаем app.py, чтобы сработал except ImportError
+    # Перезагружаем main.py, чтобы сработал except ImportError
     importlib.reload(app_module)
 
     # sourcery skip: no-conditionals-in-tests

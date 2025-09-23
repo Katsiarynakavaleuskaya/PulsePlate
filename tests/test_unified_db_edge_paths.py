@@ -35,12 +35,15 @@ def reload_module_with_off_import_failure():
         return orig_import(name, globals, locals, fromlist, level)
 
     orig_import_module = importlib.import_module
-    with patch("builtins.__import__", side_effect=import_side_effect), patch(
-        "importlib.import_module",
-        side_effect=lambda name, *a, **kw: (
-            (_ for _ in ()).throw(ImportError("OFF module unavailable"))
-            if name.endswith("openfoodfacts_client")
-            else orig_import_module(name, *a, **kw)
+    with (
+        patch("builtins.__import__", side_effect=import_side_effect),
+        patch(
+            "importlib.import_module",
+            side_effect=lambda name, *a, **kw: (
+                (_ for _ in ()).throw(ImportError("OFF module unavailable"))
+                if name.endswith("openfoodfacts_client")
+                else orig_import_module(name, *a, **kw)
+            ),
         ),
     ):
         reloaded = importlib.reload(unified_db)
@@ -89,7 +92,9 @@ class TestUnifiedDbTargetedEdges:
 
         # Make USDA client raise if called (should not be called)
         db.usda_client = AsyncMock()
-        db.usda_client.search_foods.side_effect = AssertionError("Should not be called on cache hit")
+        db.usda_client.search_foods.side_effect = AssertionError(
+            "Should not be called on cache hit"
+        )
 
         results = await db.search_food("CHICKEN")
         assert len(results) == 1
@@ -127,7 +132,9 @@ class TestUnifiedDbTargetedEdges:
 
         # Make clients raise if called (should not be called)
         db.usda_client = AsyncMock()
-        db.usda_client.get_food_details.side_effect = AssertionError("Should not be called on cache hit")
+        db.usda_client.get_food_details.side_effect = AssertionError(
+            "Should not be called on cache hit"
+        )
 
         res = await db.get_food_by_id("usda", "123")
         assert res is cached

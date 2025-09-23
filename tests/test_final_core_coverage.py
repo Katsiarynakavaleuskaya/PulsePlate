@@ -7,7 +7,7 @@ EN: Final tests for maximum core modules coverage
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 
 class TestFinalCoreCoverage:

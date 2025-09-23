@@ -188,7 +188,7 @@ class TestPremiumWeekEndpointSimple96:
                 headers={"X-API-Key": "test_api_key"},
             )
 
-            assert response.status_code == 200  # Mocking doesn't work for app.py endpoint
+            assert response.status_code == 200  # Mocking doesn't work for main.py endpoint
             # The endpoint actually works and returns a response
             data = response.json()
             assert "daily_menus" in data or "week_summary" in data

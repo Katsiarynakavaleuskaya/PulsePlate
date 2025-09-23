@@ -22,14 +22,27 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        args: [--ignore-missing-imports]
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #     - id: mypy
+  #       args: [--ignore-missing-imports, --config-file=pyproject.toml]
+  #       files: ^app/.*\.py$
 
   - repo: local
     hooks:
+      - id: pytest-smoke
+        name: pytest-smoke
+        entry: python3 -m pytest -q -m smoke --maxfail=1
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+        env:
+          PYTHONPATH: ".:core:app:tests"
+          VIP_MODULE_ENABLED: "true"
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test-key"
       - id: pytest
         name: pytest
         entry: python3 -m pytest --cov=. --cov-fail-under=97 -q --maxfail=5

@@ -1,5 +1,5 @@
 """
-Tests for Premium BMR API endpoint in app.py
+Tests for Premium BMR API endpoint in main.py
 
 Tests cover:
 - API endpoint functionality

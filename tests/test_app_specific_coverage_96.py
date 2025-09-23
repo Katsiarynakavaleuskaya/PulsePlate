@@ -1,7 +1,7 @@
 import os
 
 """
-Specific tests to cover exact missing lines in app.py for 96%+ coverage.
+Specific tests to cover exact missing lines in main.py for 96%+ coverage.
 
 This module targets the specific uncovered lines identified in the coverage report.
 """
@@ -14,7 +14,7 @@ from app import app, get_update_scheduler
 
 
 class TestAppSpecificCoverage96:
-    """Tests to cover specific missing lines in app.py."""
+    """Tests to cover specific missing lines in main.py."""
 
     def setup_method(self):
         """Setup test environment"""

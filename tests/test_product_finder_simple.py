@@ -203,7 +203,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.return_value = ProductSearchResult(
                     product_name="unknown food", found=False
                 )
@@ -227,7 +226,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.side_effect = Exception("USDA API error")
 
                 mock_off_search.return_value = ProductSearchResult(
@@ -244,7 +242,6 @@ class TestProductFinder:
                 patch.object(finder, "_search_in_usda") as mock_usda_search,
                 patch.object(finder, "_search_in_off") as mock_off_search,
             ):
-
                 mock_usda_search.side_effect = Exception("USDA API error")
                 mock_off_search.side_effect = Exception("OFF service unavailable")
 
@@ -474,7 +471,6 @@ class TestProductFinder:
                 patch.object(finder, "search_product") as mock_search,
                 patch.object(finder, "add_product_to_database") as mock_add,
             ):
-
                 # Setup mock responses
                 mock_search.return_value = ProductSearchResult(
                     product_name="banana", found=True, confidence=0.9
@@ -525,7 +521,6 @@ class TestProductFinderAdditionalCoverage:
             patch("core.product_finder.OFFAdapter") as mock_off_class,
             patch("core.product_finder.parse_food_db", return_value={}) as mock_parse_db,
         ):
-
             finder = ProductFinder()
 
             # Verify that dependencies were created during initialization

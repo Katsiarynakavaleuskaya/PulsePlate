@@ -12,6 +12,15 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 
+def _get_app():
+    """Safely get the FastAPI app instance."""
+    import app
+
+    if app.app is None:
+        raise RuntimeError("FastAPI app is not initialized")
+    return app.app
+
+
 class TestVIPCoverageBoostFixed:
     """Fixed VIP coverage tests with correct endpoint paths."""
 
@@ -23,13 +32,11 @@ class TestVIPCoverageBoostFixed:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
-                json={"user_id": "test", "preferences": {}},
+                json={"user_id": "test", "preferences": {}, "calories": 2000},
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -42,9 +49,7 @@ class TestVIPCoverageBoostFixed:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
@@ -61,9 +66,7 @@ class TestVIPCoverageBoostFixed:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             response = client.get(
                 "/api/v1/vip/regions",
@@ -79,9 +82,7 @@ class TestVIPCoverageBoostFixed:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             response = client.post(
                 "/api/v1/vip/recipes/synthesize",
@@ -98,9 +99,7 @@ class TestVIPCoverageBoostFixed:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
@@ -142,20 +141,17 @@ class TestVIPCoverageBoostFixed:
             patch("app.routers.vip.get_recipe_synthesizer", mock_get_recipe_synthesizer),
             patch("app.routers.vip.get_auto_repair_engine", mock_get_auto_repair_engine),
         ):
-
             if "app" in sys.modules:
                 del sys.modules["app"]
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             # Тест weekly plan
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
-                json={"user_id": "test", "preferences": {}},
+                json={"user_id": "test", "preferences": {}, "calories": 2000},
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -204,20 +200,17 @@ class TestVIPCoverageBoostFixed:
             patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
             patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
         ):
-
             if "app" in sys.modules:
                 del sys.modules["app"]
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
 
-            import app
-
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             # Тест weekly plan error
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
-                json={"user_id": "test", "preferences": {}},
+                json={"user_id": "test", "preferences": {}, "calories": 2000},
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -232,9 +225,7 @@ class TestVIPCoverageBoostFixed:
 
     def test_vip_health_endpoint(self):
         """Тест VIP health endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/health",

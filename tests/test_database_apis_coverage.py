@@ -7,7 +7,7 @@ EN: Coverage tests for core database and food APIs modules
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 
 class TestCoreDatabaseCoverage:

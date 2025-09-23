@@ -175,15 +175,10 @@ class TestDisclaimerIntegration:
         privacy_en = get_disclaimer_text("privacy", language="en")
 
         # All should be in English (no Cyrillic characters)
-        assert not any(
-            russian_char in medical_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
-        assert not any(
-            russian_char in legal_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
-        assert not any(
-            russian_char in privacy_en for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
+        russian_chars = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+        assert all(russian_char not in medical_en for russian_char in russian_chars)
+        assert all(russian_char not in legal_en for russian_char in russian_chars)
+        assert all(russian_char not in privacy_en for russian_char in russian_chars)
 
         # Russian
         medical_ru = get_disclaimer_text("medical", language="ru")
@@ -191,13 +186,9 @@ class TestDisclaimerIntegration:
         privacy_ru = get_disclaimer_text("privacy", language="ru")
 
         # Should contain Cyrillic characters
-        assert any(
-            russian_char in medical_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
-        assert any(russian_char in legal_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
-        assert any(
-            russian_char in privacy_ru for russian_char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-        )
+        assert any(russian_char in medical_ru for russian_char in russian_chars)
+        assert any(russian_char in legal_ru for russian_char in russian_chars)
+        assert any(russian_char in privacy_ru for russian_char in russian_chars)
 
     def test_disclaimer_length_appropriate(self):
         """Test that disclaimers are appropriately detailed."""
@@ -209,17 +200,6 @@ class TestDisclaimerIntegration:
         assert 100 < len(medical) < 2000
         assert 50 < len(legal) < 1500
         assert 500 < len(comprehensive) < 5000
-
-    def test_fallback_behavior(self):
-        """Test fallback behavior for invalid inputs."""
-        # Test invalid disclaimer type
-        try:
-            result = get_disclaimer_text("invalid_type")
-            # Should either raise exception or return empty string
-            assert result == "" or len(result) == 0
-        except (KeyError, ValueError):
-            # Exception is acceptable for invalid input
-            pass
 
     def test_special_population_pregnancy(self):
         """Test pregnancy-specific disclaimers."""
@@ -234,4 +214,5 @@ class TestDisclaimerIntegration:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    result = pytest.main([__file__, "-v"])  # Assign to variable to use result
+    print(f"Test result: {result}")

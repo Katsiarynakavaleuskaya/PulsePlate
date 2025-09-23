@@ -179,7 +179,7 @@ def test_v1_bodyfat_missing_hip():
 
 
 def test_bodyfat_import_failure():
-    """Test coverage for bodyfat import exception in app.py."""
+    """Test coverage for bodyfat import exception in main.py."""
     import builtins
     import sys
     from unittest.mock import patch
@@ -207,7 +207,7 @@ def test_bodyfat_import_failure():
 
 
 def test_insight_import_failure():
-    """Test coverage for llm import exception in app.py."""
+    """Test coverage for llm import exception in main.py."""
     import sys
     from unittest.mock import MagicMock, patch
 
@@ -363,7 +363,7 @@ def test_v1_insight_invalid_api_key():
 
 
 def test_slowapi_import_failure():
-    """Test coverage for slowapi import exception in app.py."""
+    """Test coverage for slowapi import exception in main.py."""
     import builtins
     import sys
     from unittest.mock import patch
@@ -391,7 +391,7 @@ def test_slowapi_import_failure():
 
 
 def test_prometheus_import_failure():
-    """Test coverage for prometheus_client import exception in app.py."""
+    """Test coverage for prometheus_client import exception in main.py."""
     import builtins
     import sys
     from unittest.mock import patch

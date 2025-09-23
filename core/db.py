@@ -40,7 +40,7 @@ class EngineCompat:
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
-    def __init__(self, engine):  # type: ignore[no-untyped-def]
+    def __init__(self, engine: Any) -> None:
         self._engine = engine
 
     # Delegate unknown attributes to the underlying Engine
@@ -136,7 +136,7 @@ def init_db() -> None:
                 raise AssertionError("create_all was not invoked")
 
         _wrapped_create_all.assert_called_once = _assert_called_once  # type: ignore[attr-defined]
-        metadata.create_all = _wrapped_create_all  # type: ignore[assignment]
+        metadata.create_all = _wrapped_create_all  # type: ignore[method-assign]
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     metadata.create_all(bind=_RAW_ENGINE)

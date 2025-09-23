@@ -8,6 +8,7 @@ EN: Alias mapping tests.
 import os
 import tempfile
 
+from typing import Any, cast
 import pytest
 
 from core.aliases import _load_aliases, map_to_canonical, add_alias
@@ -60,7 +61,7 @@ def test_map_to_canonical_edge_cases():
     assert map_to_canonical("") == "unknown"
 
     # Test None
-    assert map_to_canonical(None) == "unknown"
+    assert map_to_canonical(cast(Any, None)) == "unknown"
 
     # Test whitespace
     assert map_to_canonical("  Spinach  ") == "spinach_raw"
@@ -80,7 +81,7 @@ def test_load_aliases_file_not_found():
 def test_add_alias_new_file():
     """Test add_alias creating new file."""
     # Create temporary file path
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         temp_path = f.name
 
     try:
@@ -104,7 +105,7 @@ def test_add_alias_new_file():
 def test_add_alias_existing_file():
     """Test add_alias appending to existing file."""
     # Create temporary file with initial content
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         f.write("alias,canonical\n")
         f.write("existing,existing_canonical\n")
         temp_path = f.name
@@ -132,7 +133,7 @@ def test_add_alias_default_path():
     # We can't easily test the actual file creation without mocking,
     # but we can test that the function doesn't crash with None path
     try:
-        add_alias("test_alias", "test_canonical", None)
+        add_alias("test_alias", "test_canonical", cast(Any, None))
         # If we get here without exception, the default path logic worked
         assert True
     except (FileNotFoundError, PermissionError):

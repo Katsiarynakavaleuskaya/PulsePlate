@@ -65,7 +65,9 @@ class WeekPlanRequest(BaseModel):
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
     weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = "moderate"
+    activity: Optional[
+        Literal["sedentary", "light", "moderate", "active", "very_active"]
+    ] = "moderate"
     goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
@@ -85,17 +87,17 @@ def estimate_targets_minimal(
     height_cm: float,
     weight_kg: float,
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
-    goal: Literal["loss", "maintain", "gain"]
+    goal: Literal["loss", "maintain", "gain"],
 ) -> dict:
     """Temporary function to estimate targets from user profile."""
     # Create a UserProfile object
     profile = UserProfile(
-        sex=sex,  # type: ignore
+        sex=sex,
         age=age,
         height_cm=height_cm,
         weight_kg=weight_kg,
-        activity=activity,  # type: ignore
-        goal=goal,  # type: ignore
+        activity=activity,
+        goal=goal,
     )
 
     # Build nutrition targets using existing WHO-based system

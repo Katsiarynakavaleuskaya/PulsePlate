@@ -108,7 +108,9 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
     items = _get_index()
     if not items:
         return ""
-    scored = sorted(((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True)
+    scored = sorted(
+        ((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True
+    )
     top = [x for x in scored[: max(1, max_chunks)] if x[2] > 0]
     if not top:
         return ""
@@ -116,4 +118,3 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
     for src, ch, sc in top:
         parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")
     return "\n\n".join(parts)
-

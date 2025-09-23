@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for BMI v1 API endpoint in app.py
+Tests for BMI v1 API endpoint in main.py
 
 RU: Тесты для BMI v1 API эндпоинта
 EN: Tests for BMI v1 API endpoint

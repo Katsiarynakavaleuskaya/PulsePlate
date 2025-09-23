@@ -44,7 +44,6 @@ class TestImportFallbacks:
                     return original_import(name, *args, **kwargs)
 
                 with patch("builtins.__import__", side_effect=side_effect):
-
                     # Перезагружаем модуль llm чтобы активировать except блок
                     if "llm" in sys.modules:
                         reload(llm)

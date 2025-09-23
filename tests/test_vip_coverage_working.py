@@ -9,18 +9,39 @@ EN: VIP module tests with real endpoints (echo mode)
 from fastapi.testclient import TestClient
 
 
+def _get_app():
+    """Safely get the FastAPI app instance."""
+    import app
+
+    if app.app is None:
+        raise RuntimeError("FastAPI app is not initialized")
+    return app.app
+
+
+import pytest
+
+
+@pytest.mark.smoke
 class TestVIPCoverageWorking:
     """VIP coverage tests for echo mode endpoints."""
 
     def test_vip_weekly_plan_endpoint(self):
         """Тест VIP weekly plan endpoint в echo режиме"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
-            json={"user_id": "test", "preferences": {"diet": "balanced"}},
+            json={
+                "sex": "male",
+                "age": 30,
+                "height_cm": 175.0,
+                "weight_kg": 70.0,
+                "activity": "moderate",
+                "goal": "maintain",
+                "user_id": "test",
+                "preferences": {"diet": "balanced"},
+                "calories": 2000,
+            },
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200
@@ -31,9 +52,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_shoplist_endpoint(self):
         """Тест VIP shoplist endpoint в echo режиме"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/shoplist/weekly",
@@ -47,9 +66,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_regions_endpoint(self):
         """Тест VIP regions endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions",
@@ -62,9 +79,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_recipe_synthesis_endpoint(self):
         """Тест VIP recipe synthesis endpoint в echo режиме"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/recipes/synthesize",
@@ -78,9 +93,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_auto_repair_endpoint(self):
         """Тест VIP auto repair endpoint в echo режиме"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -97,9 +110,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_daily_shoplist_endpoint(self):
         """Тест VIP daily shoplist endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/shoplist/daily",
@@ -112,9 +123,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_shoplist_formats_endpoint(self):
         """Тест VIP shoplist formats endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/shoplist/formats",
@@ -126,9 +135,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_region_search_endpoint(self):
         """Тест VIP region search endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/search?query=milk",
@@ -140,9 +147,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_region_categories_endpoint(self):
         """Тест VIP region categories endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/categories",
@@ -154,9 +159,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_region_stores_endpoint(self):
         """Тест VIP region stores endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/stores",
@@ -168,9 +171,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_price_comparison_endpoint(self):
         """Тест VIP price comparison endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/compare/milk",
@@ -182,13 +183,39 @@ class TestVIPCoverageWorking:
 
     def test_vip_weekly_recipes_endpoint(self):
         """Тест VIP weekly recipes endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={"week_plan": {"days": 7}, "preferences": {"cuisine": "mediterranean"}},
+            json={
+                "week_plan": {
+                    "days": [
+                        {
+                            "day": "Monday",
+                            "meals": [
+                                {
+                                    "ingredients": [
+                                        {"name": "chicken", "amount": 200, "unit": "g"},
+                                        {"name": "rice", "amount": 150, "unit": "g"},
+                                    ]
+                                }
+                            ],
+                        },
+                        {
+                            "day": "Tuesday",
+                            "meals": [
+                                {
+                                    "ingredients": [
+                                        {"name": "salmon", "amount": 250, "unit": "g"},
+                                        {"name": "vegetables", "amount": 200, "unit": "g"},
+                                    ]
+                                }
+                            ],
+                        },
+                    ]
+                },
+                "recipes_per_day": 1,
+            },
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200
@@ -197,9 +224,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_recipe_templates_endpoint(self):
         """Тест VIP recipe templates endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/recipes/templates",
@@ -211,9 +236,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_repair_suggestions_endpoint(self):
         """Тест VIP repair suggestions endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/auto-repair/suggestions",
@@ -226,9 +249,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_repair_strategies_endpoint(self):
         """Тест VIP repair strategies endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/auto-repair/strategies",
@@ -240,9 +261,7 @@ class TestVIPCoverageWorking:
 
     def test_vip_health_endpoint(self):
         """Тест VIP health endpoint"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/health",
@@ -254,7 +273,6 @@ class TestVIPCoverageWorking:
 
     def test_vip_endpoints_no_api_key(self):
         """Тест VIP endpoints без API ключа"""
-        import app
         import os
         from unittest.mock import patch
 
@@ -262,7 +280,7 @@ class TestVIPCoverageWorking:
         with patch.dict(
             os.environ, {"APP_ENV": "production", "ALLOW_DEV_API_KEY": "false"}, clear=False
         ):
-            client = TestClient(app.app)
+            client = TestClient(_get_app())
 
             # Должен возвращать 401 без API ключа
             response = client.post(
@@ -274,14 +292,12 @@ class TestVIPCoverageWorking:
 
     def test_vip_endpoints_invalid_json(self):
         """Тест VIP endpoints с невалидным JSON"""
-        import app
-
-        client = TestClient(app.app)
+        client = TestClient(_get_app())
 
         # Тест с невалидными данными
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
-            json={"invalid": None},
+            json={"invalid": None, "calories": 2000},
             headers={"X-API-Key": "test_key"},
         )
         # Echo mode should still work

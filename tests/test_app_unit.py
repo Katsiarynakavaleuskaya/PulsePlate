@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-RU: Точечные юнит-тесты внутренних функций app.py:
+RU: Точечные юнит-тесты внутренних функций main.py:
 - _bmi_category: граничные значения 18.5/25/30
 - _bmi_with_group_note: ветви athlete/pregnant/elderly/teen (ru/en)
 - _normalize_flags: нормализация входных строк к флагам
 - /debug_env: проверяем переключение insight_enabled через FEATURE_INSIGHT
-EN: Unit tests for internal helpers in app.py.
+EN: Unit tests for internal helpers in main.py.
 """
 
 import pytest

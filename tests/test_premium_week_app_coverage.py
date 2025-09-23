@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Simple tests for premium week endpoint coverage in app.py
+Simple tests for premium week endpoint coverage in main.py
 
-RU: Простые тесты для покрытия эндпоинта premium week в app.py
-EN: Simple tests for premium week endpoint coverage in app.py
+RU: Простые тесты для покрытия эндпоинта premium week в main.py
+EN: Simple tests for premium week endpoint coverage in main.py
 """
 
 import os
@@ -16,7 +16,7 @@ from app import app
 
 
 class TestPremiumWeekAppCoverage:
-    """Test suite for premium week endpoint coverage in app.py."""
+    """Test suite for premium week endpoint coverage in main.py."""
 
     def setup_method(self):
         """Setup test environment"""

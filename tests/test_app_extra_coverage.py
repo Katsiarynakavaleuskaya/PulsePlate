@@ -1,4 +1,4 @@
-"""Extra app.py coverage tests focusing on helper functions and common edge cases.
+"""Extra main.py coverage tests focusing on helper functions and common edge cases.
 
 These tests are intentionally lightweight to avoid duplicating logic covered elsewhere,
 but they help stabilize coverage across helper functions and simple endpoints.
@@ -13,7 +13,7 @@ import app as app_module
 
 
 class TestAppHelperFunctions:
-    """Test standalone helper functions in app.py."""
+    """Test standalone helper functions in main.py."""
 
     def setup_method(self):
         os.environ["API_KEY"] = "test-key"
@@ -134,7 +134,7 @@ class TestEndpointsAndValidation:
         assert self.client.post("/bmi", json=bad_enum).status_code == 422
 
     def test_admin_and_debug_endpoints(self):
-        # Debug page is defined in app.py; tolerate environments where it might be restricted
+        # Debug page is defined in main.py; tolerate environments where it might be restricted
         r = self.client.get("/debug_env")
         assert r.status_code in [200, 404, 405]
 

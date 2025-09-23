@@ -337,7 +337,6 @@ class TestMakeDailyMenuBasic:
             patch("core.menu_engine._calculate_total_nutrients") as mock_calc_nutrients,
             patch("core.menu_engine._estimate_daily_cost") as mock_cost,
         ):
-
             mock_enhance.return_value = [
                 {"meal_type": "breakfast", "foods": [{"name": "apple", "amount": 100}]},
                 {"meal_type": "lunch", "foods": [{"name": "chicken", "amount": 150}]},
@@ -381,7 +380,6 @@ class TestMakeDailyMenuBasic:
             patch("core.menu_engine._get_default_food_db") as mock_food_db,
             patch("core.menu_engine._get_default_recipe_db") as mock_recipe_db,
         ):
-
             mock_enhance.return_value = []
             mock_calc_nutrients.return_value = {}
             mock_cost.return_value = 0.0

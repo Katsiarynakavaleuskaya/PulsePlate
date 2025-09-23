@@ -90,7 +90,6 @@ class TestDatabaseUpdateManagerBasics:
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
             patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
         ):
-
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
@@ -109,7 +108,6 @@ class TestDatabaseUpdateManagerBasics:
             patch("core.food_apis.update_manager.OFFClient") as mock_off,
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -153,7 +151,6 @@ class TestDatabaseUpdateManagerBasics:
             patch("core.food_apis.update_manager.OFFClient") as mock_off,
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -177,7 +174,6 @@ class TestDatabaseUpdateManagerBasics:
             patch("core.food_apis.update_manager.OFFClient") as mock_off,
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -304,7 +300,6 @@ class TestDatabaseUpdateManagerAsync:
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
             patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
         ):
-
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
@@ -468,7 +463,6 @@ class TestValidateData:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-
             manager = DatabaseUpdateManager()
             yield manager
 

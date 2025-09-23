@@ -1,3 +1,18 @@
+import os
+import logging
+from typing import Any, Dict, Union, Optional, Callable, Type
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Body,
+    Header,
+)  # pyright: ignore[reportMissingImports]
+from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
+from core.utils import resolve_attr
+from app.schemas.vip import WeeklyPlanRequest, WeeklyPlanResponse, ErrorResponse
+
 # -*- coding: utf-8 -*-
 """
 VIP Module Router
@@ -6,16 +21,28 @@ RU: Роутер для VIP функций - микронутриентные ц
 EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping lists
 """
 
-from typing import Any, Dict, List
-import os
-
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
-from fastapi.security import APIKeyHeader
-
-from core.utils import resolve_attr
+# Type annotations for optional imports
+make_weekly_menu: Optional[Callable[..., Any]] = None
+analyze_nutrient_gaps: Optional[Callable[..., Any]] = None
+ShoplistGenerator: Optional[Type[Any]] = None
+aggregate_ingredients: Optional[Callable[..., Any]] = None
+round_to_packages: Optional[Callable[..., Any]] = None
+format_export: Optional[Callable[..., Any]] = None
+get_region_catalog: Optional[Callable[..., Any]] = None
+search_products: Optional[Callable[..., Any]] = None
+get_available_regions: Optional[Callable[..., Any]] = None
+get_price_comparison: Optional[Callable[..., Any]] = None
+get_recipe_synthesizer: Optional[Callable[..., Any]] = None
+synthesize_recipe_from_ingredients: Optional[Callable[..., Any]] = None
+synthesize_recipes_for_week: Optional[Callable[..., Any]] = None
+get_auto_repair_engine: Optional[Callable[..., Any]] = None
+auto_repair_week_plan: Optional[Callable[..., Any]] = None
+suggest_manual_fixes: Optional[Callable[..., Any]] = None
+RepairStrategy: Optional[Type[Any]] = None
+RepairStatus: Optional[Type[Any]] = None
 
 # Import dependencies from core (will be used in future sprints)
 try:
@@ -71,49 +98,352 @@ router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def _require_api_key(raw_key: str = Depends(_api_key_header)) -> str:
+def _is_production_environment() -> tuple[bool, str]:
+    """Determine if we're in production mode and return environment info.
+
+    Returns:
+        tuple[bool, str]: (is_production, app_env)
+    """
+    app_env = os.getenv("APP_ENV", "local").lower()
+    debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
+    is_production = app_env in ("production", "prod", "staging") or (not debug_mode)
+    return is_production, app_env
+
+
+def _should_allow_anonymous_access(is_production: bool) -> bool:
+    """Check if anonymous access is explicitly allowed.
+
+    Args:
+        is_production: Whether we're in production mode
+
+    Returns:
+        bool: True if anonymous access is allowed
+    """
+    default_value = "false" if is_production else "true"
+    return os.getenv("ALLOW_ANONYMOUS_API_KEYS", default_value).lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    )
+
+
+def _is_dev_mode(app_env: str) -> bool:
+    """Check if we're in development mode.
+
+    Args:
+        app_env: Environment setting
+
+    Returns:
+        bool: True if in development mode
+    """
+    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "true").lower() == "true"
+    return app_env in ("test", "testing", "dev", "development", "local") or allow_dev
+
+
+def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:
+    """Validate API key using app-level get_api_key function.
+
+    Args:
+        raw_key: Raw API key from header
+
+    Returns:
+        str: Validated API key
+
+    Raises:
+        HTTPException: If validation fails
+    """
+    app_get_api_key = resolve_attr("get_api_key", None)
+    if not callable(app_get_api_key):
+        raise HTTPException(status_code=500, detail="get_api_key function not available")
+
+    try:
+        result = app_get_api_key(raw_key)
+        if not isinstance(result, str):
+            raise HTTPException(status_code=500, detail="get_api_key did not return str")
+        return result
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            # Re-raise with proper detail
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
+            ) from exc
+        raise
+
+
+def _log_api_key_event(event: str, is_production: bool, app_env: str) -> None:
+    """Centralize logging decisions for API key events.
+
+    Args:
+        event: Event description
+        is_production: Whether we're in production mode
+        app_env: Environment setting
+    """
+    if "without API key" in event:
+        log_level = logging.error if is_production else logging.warning
+    elif "anonymous API key" in event:
+        log_level = logging.warning if is_production else logging.info
+    else:
+        log_level = logging.info if is_production else logging.debug
+
+    log_level(f"{event} Environment: {app_env}")
+
+
+def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     """RU: Проверка API-ключа для VIP эндпоинтов.
 
     EN: Validate API key for VIP endpoints, respecting app-level logic.
+
+    Configuration:
+    - ALLOW_ANONYMOUS_API_KEYS: Allow anonymous access (default: false in production)
+    - APP_ENV: Environment setting (production, staging, development, local, test)
+    - DEBUG: Debug mode flag (true/false)
     """
+    # Determine environment and production status
+    is_production, app_env = _is_production_environment()
+
+    # Check if anonymous access is explicitly allowed
+    allow_anonymous = _should_allow_anonymous_access(is_production)
+
+    # Check if we're in development mode
+    is_dev_mode = _is_dev_mode(app_env)
 
     # Allow open access in test/dev mode for echo tests
-    app_env = os.getenv("APP_ENV", "local").lower()
-    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "true").lower() == "true"
-    if app_env in ("test", "testing", "dev", "development", "local") or allow_dev:
+    if is_dev_mode and allow_anonymous:
         return str(raw_key or "test_key")
+
+    # Try app-level API key validation first
     app_get_api_key = resolve_attr("get_api_key", None)
     if callable(app_get_api_key):
         try:
-            return app_get_api_key(raw_key)
+            result = app_get_api_key(raw_key)
+            if not isinstance(result, str):
+                raise HTTPException(status_code=500, detail="get_api_key did not return str")
+            return result
         except HTTPException as exc:
             if exc.status_code == 403:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
-                ) from exc
+                # App-level validation failed, but check if we should allow anonymous access
+                if not raw_key:
+                    if not allow_anonymous:
+                        # Anonymous access is disabled
+                        error_msg = (
+                            "API key required in production environment"
+                            if is_production
+                            else "API key required"
+                        )
+                        _log_api_key_event(
+                            f"VIP endpoint accessed without API key in {'production' if is_production else 'development'} mode.",
+                            is_production,
+                            app_env,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg
+                        )
+                    else:
+                        # Anonymous access is explicitly allowed
+                        _log_api_key_event(
+                            "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                            is_production,
+                            app_env,
+                        )
+                        return "anonymous"
+                else:
+                    # Invalid API key provided
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
+                    ) from exc
             raise
-    expected = os.getenv("API_KEY")
-    if expected:
+
+    # Check environment API key
+    if expected := os.getenv("API_KEY"):
         if not raw_key or raw_key != expected:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         return raw_key
+
+    # Handle missing API key based on environment and configuration
     if not raw_key:
-        return "anonymous"
+        if is_production and not allow_anonymous:
+            # Fail fast in production with clear error
+            error_msg = "API key required in production environment"
+            _log_api_key_event(
+                "VIP endpoint accessed without API key in production mode.", is_production, app_env
+            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
+        elif allow_anonymous:
+            # Explicitly allowed anonymous access
+            _log_api_key_event(
+                "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                is_production,
+                app_env,
+            )
+            return "anonymous"
+        else:
+            # Development mode fallback
+            _log_api_key_event(
+                "VIP endpoint accessed without API key in development mode.", is_production, app_env
+            )
+            return "anonymous"
+
     return raw_key
 
 
-def _safe_call(func, *args, **kwargs):
-    """Call helper while tolerating signature mismatches."""
+def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
+    """Create UserProfile from dictionary data with validation."""
+    from core.targets import UserProfile
+
+    # Use default values for missing fields instead of validation
+
+    # Convert diet_flags to set if it's a list
+    diet_flags = profile_data.get("diet_flags", [])
+    if isinstance(diet_flags, list):
+        diet_flags = set(diet_flags)
+
+    # Convert medical_conditions to set if it's a list
+    medical_conditions = profile_data.get("medical_conditions", [])
+    if isinstance(medical_conditions, list):
+        medical_conditions = set(medical_conditions)
+
+    return UserProfile(
+        sex=profile_data.get("sex", "male"),
+        age=profile_data.get("age", 30),
+        height_cm=profile_data.get("height_cm", 175.0),
+        weight_kg=profile_data.get("weight_kg", 70.0),
+        activity=profile_data.get("activity", "moderate"),
+        goal=profile_data.get("goal", "maintain"),
+        deficit_pct=profile_data.get("deficit_pct"),
+        surplus_pct=profile_data.get("surplus_pct"),
+        bodyfat=profile_data.get("bodyfat"),
+        region=profile_data.get("region", "BY"),
+        timezone=profile_data.get("timezone", "UTC"),
+        diet_flags=diet_flags,
+        life_stage=profile_data.get("life_stage", "adult"),
+        medical_conditions=medical_conditions,
+    )
+
+
+def _adapter_make_weekly_menu(*args, **kwargs):
+    """Adapter for make_weekly_menu to handle dict input."""
+    from core.menu_engine import make_weekly_menu
+
+    # Handle different input patterns
+    if args and len(args) == 1 and isinstance(args[0], dict):
+        # Single dict argument - convert to UserProfile
+        profile = _create_user_profile_from_dict(args[0])
+        return make_weekly_menu(profile)
+    elif kwargs and not args:
+        # Keyword arguments - look for profile-like data
+        profile_data = None
+
+        # Check for common profile field names
+        profile_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]
+        if any(field in kwargs for field in profile_fields):
+            # This looks like profile data
+            profile_data = kwargs
+        else:
+            # Check if any value is a dict that could be profile data
+            for key, value in kwargs.items():
+                if isinstance(value, dict) and any(field in value for field in profile_fields):
+                    profile_data = value
+                    break
+
+        if profile_data:
+            profile = _create_user_profile_from_dict(profile_data)
+            # Only pass the profile to make_weekly_menu, ignore other fields
+            return make_weekly_menu(profile)
+        else:
+            # No profile data found - this is likely invalid input
+            # Return None to trigger echo mode in the endpoint
+            return None
+    else:
+        # Direct arguments - pass through
+        return make_weekly_menu(*args, **kwargs)
+
+
+def _adapter_synthesize_recipes_for_week(*args, **kwargs):
+    """Adapter for synthesize_recipes_for_week - already has correct signature."""
+    from core.recipe_synth import synthesize_recipes_for_week
+
+    return synthesize_recipes_for_week(*args, **kwargs)
+
+
+def _safe_call_with_adapter(func_name: str, *args, **kwargs):
+    """Call function with proper adapter and explicit error handling."""
+    import logging
+
+    # Map function names to their adapters
+    adapters = {
+        "make_weekly_menu": _adapter_make_weekly_menu,
+        "synthesize_recipes_for_week": _adapter_synthesize_recipes_for_week,
+    }
+
+    if func_name not in adapters:
+        error_msg = f"No adapter found for function '{func_name}'. Available adapters: {list(adapters.keys())}"
+        logging.error(error_msg)
+        return {"status": "error", "message": error_msg}
 
     try:
+        adapter_func = adapters[func_name]
+        return adapter_func(*args, **kwargs)
+    except HTTPException:
+        # Re-raise HTTPExceptions to preserve FastAPI error handling
+        raise
+    except ValueError as e:
+        # Validation errors - log and return error response
+        error_msg = f"Validation error in {func_name}: {str(e)}"
+        logging.error(error_msg)
+        return {"status": "error", "message": error_msg}
+    except Exception as e:
+        # Log other exceptions and return consistent error response
+        error_msg = f"Unexpected error in {func_name}: {str(e)}"
+        logging.exception(error_msg)
+        return {"status": "error", "message": error_msg}
+
+
+def _safe_call(func, *args, **kwargs):
+    """
+    DEPRECATED: Legacy safe_call function for backward compatibility.
+    Use _safe_call_with_adapter instead for proper signature handling.
+    """
+    import logging
+    import warnings
+
+    warnings.warn(
+        "_safe_call is deprecated and masks signature mismatches. "
+        "Use _safe_call_with_adapter with explicit function names instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # Try to determine function name for adapter lookup
+    func_name = getattr(func, "__name__", "unknown")
+
+    # Map known functions to their names
+    if hasattr(func, "__name__"):
+        if func.__name__ == "make_weekly_menu":
+            func_name = "make_weekly_menu"
+        elif func.__name__ == "synthesize_recipes_for_week":
+            func_name = "synthesize_recipes_for_week"
+
+    # Use the new adapter system if possible
+    if func_name in ["make_weekly_menu", "synthesize_recipes_for_week"]:
+        return _safe_call_with_adapter(func_name, *args, **kwargs)
+
+    # Fallback to old behavior for unknown functions
+    try:
         return func(*args, **kwargs)
+    except HTTPException:
+        raise
     except TypeError:
+        # Handle signature mismatches - try with first argument only
         if args:
             try:
                 return func(args[0])
             except TypeError:
                 return None
         return None
+    except Exception as e:
+        logging.exception("vip safe_call failed")
+        return {"status": "error", "message": str(e)}
 
 
 @router.get("/health")
@@ -131,50 +461,139 @@ def vip_health() -> Dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key)])
-def weekly_menu_plan(request: Dict[str, Any]) -> Dict[str, Any]:
+def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
     EN: Weekly menu planning with VIP features
 
     Args:
-        request: Цели и ограничения для планирования
+        request: WeeklyPlanRequest with user profile and goals
 
     Returns:
         Echo структура с планом меню
     """
+    # Store original data for echo before processing
+    # Filter out None values and default values to match original input
+    original_data = {}
+    for key, value in request.model_dump().items():
+        if value is not None and value != "" and value != [] and value != {} and value != set():
+            original_data[key] = value
+
     if make_weekly_menu is None:
         return {
             "status": "success",
-            "echo": request,
+            "echo": original_data,
             "menu": {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
+    import logging
+
     try:
-        plan = (
-            _safe_call(make_weekly_menu, **request)
-            if isinstance(request, dict)
-            else _safe_call(make_weekly_menu, request)
-        )
+        # Convert WeeklyPlanRequest to dict for the core function
+        request_dict = request.model_dump()
+        plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
+
+        # Check if _safe_call returned an error
+        if isinstance(plan_candidate, dict) and plan_candidate.get("status") == "error":
+            return plan_candidate
+
+        plan = plan_candidate
+        return {
+            "status": "success",
+            "echo": request.model_dump(),
+            "menu": plan if plan is not None else {"mode": "echo"},
+            "message": "Weekly menu plan generated (echo mode)",
+        }
     except Exception as exc:
+        logging.error(f"Exception in weekly_menu_plan: {exc}")
         return {
             "status": "error",
-            "echo": request,
+            "echo": request.model_dump(),
             "menu": {"mode": "echo"},
             "message": f"Weekly menu generation failed: {exc}",
         }
-    return {
-        "status": "success",
-        "echo": request,
-        "menu": plan if plan is not None else {"mode": "echo"},
-        "message": "Weekly menu plan generated (echo mode)",
-    }
 
 
-@router.post("/weekly-plan", dependencies=[Depends(_require_api_key)])
-def weekly_menu_plan_alias(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Alias for legacy weekly plan endpoint used in tests."""
+@router.post(
+    "/weekly-plan",
+    response_model=Union[WeeklyPlanResponse, ErrorResponse],
+    summary="Generate weekly meal plan",
+    description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
+    dependencies=[Depends(_require_api_key)],
+)
+async def weekly_menu_plan_alias(
+    request: WeeklyPlanRequest, x_api_key: str = Header(None)
+) -> Union[WeeklyPlanResponse, ErrorResponse]:
+    """
+    Generate a weekly meal plan based on user profile.
 
-    return weekly_menu_plan(request)
+    Args:
+        request: Weekly plan request with user profile data
+        x_api_key: API key for VIP access
+
+    Returns:
+        WeeklyPlanResponse with generated plan or ErrorResponse on failure
+    """
+    if make_weekly_menu is None:
+        return ErrorResponse(message="Weekly menu generation not available")
+
+    try:
+        # Create UserProfile from request
+        from core.targets import UserProfile
+
+        # Type-safe conversion from WeeklyPlanRequest to UserProfile
+        # The WeeklyPlanRequest and UserProfile use identical Literal types,
+        # Validate required fields are present
+        if not all(
+            [
+                request.sex,
+                request.age,
+                request.height_cm,
+                request.weight_kg,
+                request.activity,
+                request.goal,
+            ]
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
+            )
+
+        # so we can safely convert the values directly
+        profile = UserProfile(
+            sex=request.sex or "male",
+            age=request.age or 30,
+            height_cm=request.height_cm or 175.0,
+            weight_kg=request.weight_kg or 70.0,
+            activity=request.activity or "moderate",
+            goal=request.goal or "maintain",
+        )
+
+        plan = make_weekly_menu(profile=profile)
+        # Convert WeekMenu dataclass to dict for JSON serialization
+        plan_dict = {
+            "week_start": plan.week_start,
+            "daily_menus": [
+                {
+                    "date": menu.date,
+                    "meals": menu.meals,
+                    "total_nutrients": menu.total_nutrients,
+                    "recommendations": menu.recommendations,
+                    "estimated_cost": menu.estimated_cost,
+                }
+                for menu in plan.daily_menus
+            ],
+            "weekly_coverage": plan.weekly_coverage,
+            "shopping_list": plan.shopping_list,
+            "total_cost": plan.total_cost,
+            "adherence_score": plan.adherence_score,
+        }
+        return WeeklyPlanResponse(
+            status="success", data=plan_dict, message="Weekly plan generated successfully"
+        )
+    except Exception as e:
+        logging.exception("weekly-plan generation failed")
+        return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
 
 
 @router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key)])
@@ -374,22 +793,21 @@ def search_region_products(
         search_result = search_products(query, region, category, max_results)
 
         # Конвертируем продукты в словари для JSON
-        products_data = []
-        for product in search_result.products:
-            products_data.append(
-                {
-                    "product_id": product.product_id,
-                    "name_es": product.name_es,
-                    "name_en": product.name_en,
-                    "category": product.category,
-                    "unit": product.unit,
-                    "typical_package_size": product.typical_package_size,
-                    "price_eur": product.price_eur,
-                    "price_usd": product.price_usd,
-                    "store_chain": product.store_chain,
-                    "region": product.region,
-                }
-            )
+        products_data = [
+            {
+                "product_id": product.product_id,
+                "name_es": product.name_es,
+                "name_en": product.name_en,
+                "category": product.category,
+                "unit": product.unit,
+                "typical_package_size": product.typical_package_size,
+                "price_eur": product.price_eur,
+                "price_usd": product.price_usd,
+                "store_chain": product.store_chain,
+                "region": product.region,
+            }
+            for product in search_result.products
+        ]
 
         return {
             "status": "success",
@@ -514,34 +932,23 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         comparison = get_price_comparison(product_name, region_list)
 
         # Форматируем результаты для JSON
-        formatted_comparison = {}
-        for region, data in comparison.items():
-            if data["product"]:
-                formatted_comparison[region] = {
-                    "product_id": data["product"].product_id,
-                    "name_es": data["product"].name_es,
-                    "name_en": data["product"].name_en,
-                    "category": data["product"].category,
-                    "unit": data["product"].unit,
-                    "typical_package_size": data["product"].typical_package_size,
-                    "price_eur": data["price_eur"],
-                    "price_usd": data["price_usd"],
-                    "store_chain": data["store_chain"],
-                    "region": data["region"],
-                }
-            else:
-                formatted_comparison[region] = {
-                    "product_id": None,
-                    "name_es": None,
-                    "name_en": None,
-                    "category": None,
-                    "unit": None,
-                    "typical_package_size": None,
-                    "price_eur": None,
-                    "price_usd": None,
-                    "store_chain": None,
-                    "region": None,
-                }
+        formatted_comparison = {
+            region: {
+                "product_id": data["product"].product_id if data["product"] else None,
+                "name_es": data["product"].name_es if data["product"] else None,
+                "name_en": data["product"].name_en if data["product"] else None,
+                "category": data["product"].category if data["product"] else None,
+                "unit": data["product"].unit if data["product"] else None,
+                "typical_package_size": (
+                    data["product"].typical_package_size if data["product"] else None
+                ),
+                "price_eur": data["price_eur"] if data["product"] else None,
+                "price_usd": data["price_usd"] if data["product"] else None,
+                "store_chain": data["store_chain"] if data["product"] else None,
+                "region": data["region"] if data["product"] else None,
+            }
+            for region, data in comparison.items()
+        }
 
         return {
             "status": "success",
@@ -590,8 +997,8 @@ def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
 @router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key)])
 def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
-
-    return synthesize_recipe(request)
+    result: Dict[str, Any] = synthesize_recipe(request)
+    return result
 
 
 @router.post("/recipes/weekly", dependencies=[Depends(_require_api_key)])
@@ -607,67 +1014,83 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         Рецепты для недели
     """
     if synthesize_recipes_for_week is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Recipe synthesis module not available",
-        )
+        # Log the module unavailability for observability
+        logging.error("Recipe synthesis module not available - synthesize_recipes_for_week is None")
+
+        # Return error response when module is not available
+        return {
+            "status": "error",
+            "message": "Recipe synthesis module not available",
+            "echo": request,
+        }
 
     try:
         week_plan = request.get("week_plan", {})
         recipes_per_day = request.get("recipes_per_day", 1)
-
-        weekly_recipes = _safe_call(synthesize_recipes_for_week, week_plan, recipes_per_day)
-
-        # Конвертируем рецепты в словари для JSON
-        formatted_recipes: Dict[str, List[Dict]] = {}
-        for day, recipes in weekly_recipes.items() if isinstance(weekly_recipes, dict) else []:
-            formatted_recipes[day] = []
-            for recipe in recipes:
-                if isinstance(recipe, dict):
-                    recipe_data = recipe
-                else:
-                    recipe_data = {
-                        "recipe_id": getattr(recipe, "recipe_id", None),
-                        "title": getattr(recipe, "title", None),
-                        "description": getattr(recipe, "description", None),
-                        "cuisine_type": getattr(recipe, "cuisine_type", None),
-                        "difficulty_level": getattr(recipe, "difficulty_level", None),
-                        "prep_time_minutes": getattr(recipe, "prep_time_minutes", None),
-                        "cook_time_minutes": getattr(recipe, "cook_time_minutes", None),
-                        "total_time_minutes": getattr(recipe, "total_time_minutes", None),
-                        "servings": getattr(recipe, "servings", None),
-                        "ingredients": getattr(recipe, "ingredients", []),
-                        "steps": [
-                            {
-                                "step_number": getattr(step, "step_number", None),
-                                "instruction": getattr(step, "instruction", None),
-                                "duration_minutes": getattr(step, "duration_minutes", None),
-                                "temperature": getattr(step, "temperature", None),
-                                "equipment": getattr(step, "equipment", None),
-                            }
-                            for step in getattr(recipe, "steps", [])
-                        ],
-                        "nutrition_per_serving": getattr(recipe, "nutrition_per_serving", {}),
-                        "tags": getattr(recipe, "tags", []),
-                        "image_url": getattr(recipe, "image_url", None),
-                    }
-                formatted_recipes[day].append(recipe_data)
-
-        total_recipes = (
-            sum(len(recipes) for recipes in formatted_recipes.values()) if formatted_recipes else 0
+        weekly_recipes = _safe_call_with_adapter(
+            "synthesize_recipes_for_week", week_plan, recipes_per_day
         )
+        # Check if _safe_call returned an error
+        if isinstance(weekly_recipes, dict) and weekly_recipes.get("status") == "error":
+            return {
+                "status": "error",
+                "message": weekly_recipes.get("message", "Recipe synthesis failed"),
+                "weekly_recipes": {},
+                "echo": request,
+            }
+        if not isinstance(weekly_recipes, dict):
+            return {
+                "status": "error",
+                "message": "Recipe synthesis failed: invalid result",
+                "weekly_recipes": {},
+                "echo": request,
+            }
+
+        # Helper function for recipe serialization
+
+        def serialize_recipe(recipe):
+            """Serialize a recipe for JSON response.
+
+            Returns:
+                - recipe unchanged if it's a dict
+                - recipe.__dict__ if it has __dict__
+                - str(recipe) otherwise
+            """
+            if isinstance(recipe, dict):
+                return recipe
+            elif hasattr(recipe, "__dict__"):
+                return recipe.__dict__
+            else:
+                return str(recipe)
+
+        # Сериализация рецептов для возврата
+        serialized = {}
+        for day, recipes in weekly_recipes.items():
+            # recipes может быть списком или одним рецептом
+            if isinstance(recipes, list):
+                serialized[day] = [serialize_recipe(r) for r in recipes]
+            else:
+                serialized[day] = [serialize_recipe(recipes)]
+        # Calculate total recipes count
+        total_recipes = sum(
+            len(recipes) if isinstance(recipes, list) else 1 for recipes in serialized.values()
+        )
+
         return {
             "status": "success",
-            "weekly_recipes": formatted_recipes or weekly_recipes,
+            "weekly_recipes": serialized,
             "total_recipes": total_recipes,
-            "message": f"Synthesized {total_recipes} recipes for the week",
+            "echo": request,
+            "message": "Weekly recipes synthesized successfully",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Recipe synthesis failed: {str(e)}",
+            "weekly_recipes": {},
+            "total_recipes": 0,
             "echo": request,
         }
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error synthesizing weekly recipes: {exc}",
-        ) from exc
 
 
 @router.get("/recipes/templates")
@@ -816,11 +1239,14 @@ def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[s
     }
 
 
-@router.get("/auto-repair/strategies")
-def get_repair_strategies() -> Dict[str, Any]:
+@router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key)])
+def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта
     EN: Get available repair strategies
+
+    Args:
+        x_api_key: API key for VIP access
 
     Returns:
         Список доступных стратегий

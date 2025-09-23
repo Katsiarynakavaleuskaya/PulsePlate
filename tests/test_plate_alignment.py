@@ -48,4 +48,3 @@ def test_plate_alignment_with_targets(monkeypatch):
         data = r.json()
         # Expect carbs aligned to target value when deviation exceeds threshold
         assert data["macros"]["carbs_g"] == 186
-

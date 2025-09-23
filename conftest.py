@@ -6,6 +6,8 @@ import os
 import sys
 import pytest
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 
 
 @pytest.fixture(autouse=True)
@@ -135,7 +137,7 @@ def test_client():
     import app
 
     # Create TestClient
-    client = TestClient(app.app)
+    client = TestClient(cast(ASGIApp, app.app))
 
     try:
         yield client
@@ -154,7 +156,7 @@ def isolated_test_client():
     importlib.reload(app)
 
     # Create TestClient with fresh app
-    client = TestClient(app.app)
+    client = TestClient(cast(ASGIApp, app.app))
 
     try:
         yield client

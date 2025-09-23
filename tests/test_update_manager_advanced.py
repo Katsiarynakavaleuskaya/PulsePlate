@@ -39,7 +39,6 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
             patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
         ):
-
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
@@ -246,7 +245,6 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
             patch("core.food_apis.update_manager.OFF_AVAILABLE", False),
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -277,7 +275,6 @@ class TestEdgeCasesAndErrorHandling:
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
             patch("core.food_apis.update_manager.OFF_AVAILABLE", False),
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -297,7 +294,6 @@ class TestEdgeCasesAndErrorHandling:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-
             manager = DatabaseUpdateManager(cache_dir=temp_cache_dir)
 
             # Should handle error gracefully and return empty dict
@@ -311,7 +307,6 @@ class TestEdgeCasesAndErrorHandling:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-
             manager = DatabaseUpdateManager()
 
             # Create food with empty source
@@ -343,7 +338,6 @@ class TestAsyncMethods:
             patch("core.food_apis.update_manager.OFFClient") as mock_off,
             patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
         ):
-
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -429,7 +423,6 @@ class TestUtilityMethods:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-
             manager = DatabaseUpdateManager()
             yield manager
 

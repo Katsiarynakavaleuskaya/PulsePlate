@@ -43,7 +43,6 @@ class TestImportFallbacks:
 
             with patch.dict("sys.modules", {"providers.grok": None}):
                 with patch("builtins.__import__", side_effect=side_effect):
-
                     # Перезагружаем модуль llm чтобы активировать except блок
                     if "llm" in sys.modules:
                         reload(llm)
