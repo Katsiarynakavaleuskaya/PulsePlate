@@ -48,7 +48,9 @@ repos:
           PYTHONPATH: ".:core:app:tests"
           VIP_MODULE_ENABLED: "true"
           FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test-key"
+          APP_ENV: "test"
+          API_KEY: "test_key"
+        exclude: '(?:__pycache__|\.pyc$)'
       - id: pytest
         name: pytest
         entry: python3 -m pytest --cov=. --cov-config=.coveragerc --cov-fail-under=97 -q --maxfail=5
@@ -60,4 +62,5 @@ repos:
           PYTHONPATH: ".:core:app:tests"
           VIP_MODULE_ENABLED: "true"
           FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test-key"
+          APP_ENV: "test"
+          API_KEY: "test_key"
