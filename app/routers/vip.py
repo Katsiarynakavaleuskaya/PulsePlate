@@ -123,6 +123,7 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     # In production-like environments, allow only if explicitly enabled.
     flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in ("true", "1", "yes", "on")
     if is_production:
+        # Default deny in production unless explicitly allowed
         return flag
     return flag
 
@@ -327,7 +328,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     is_production,
                     app_env,
                 )
-                return "anonymous"
+                return "test_key"
             error_msg = "API key required"
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 

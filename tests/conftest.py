@@ -25,7 +25,8 @@ os.environ["VIP_MODULE_ENABLED"] = "true"
 # Ensure default test-like environment variables for CI consistency
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
-os.environ.setdefault("ALLOW_ANONYMOUS_API_KEYS", "true")
+# Default to strict: anonymous disabled unless tests explicitly enable
+os.environ.setdefault("ALLOW_ANONYMOUS_API_KEYS", "false")
 os.environ.setdefault("API_KEY", "test_key")
 os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
 
@@ -90,6 +91,16 @@ def _patch_update_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # --- Helper fixtures ---
+
+
+@pytest.fixture(autouse=True)
+def _reset_anonymous_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure ALLOW_ANONYMOUS_API_KEYS doesn't leak between tests.
+
+    RU: Сбрасывает флаг анонимного доступа перед каждым тестом.
+    EN: Clears env so each test opts-in explicitly if needed.
+    """
+    monkeypatch.delenv("ALLOW_ANONYMOUS_API_KEYS", raising=False)
 
 
 @pytest.fixture()
