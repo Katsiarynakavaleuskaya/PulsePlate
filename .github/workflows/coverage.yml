@@ -36,7 +36,8 @@ jobs:
             --cov \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=97
+            --cov-fail-under=97 \
+            --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -52,3 +53,10 @@ jobs:
           fail_ci_if_error: true
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload JUnit test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: junit.xml
+          if-no-files-found: ignore
