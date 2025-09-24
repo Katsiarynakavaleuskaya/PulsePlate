@@ -65,3 +65,4 @@ repos:
           APP_ENV: "test"
           API_KEY: "test_key"
           PYTHONDONTWRITEBYTECODE: "1"
+        verbose: true
