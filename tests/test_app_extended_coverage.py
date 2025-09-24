@@ -5,10 +5,12 @@ Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
 import os
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 from app import app
 
@@ -93,14 +95,10 @@ class TestLifespanEvents:
 class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_root_endpoint_html_content(self):
         """Test root endpoint returns proper HTML."""
@@ -153,14 +151,10 @@ class TestAPIEndpoints:
 class TestBMIEndpoints:
     """Test BMI calculation endpoints."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_bmi_endpoint_pregnancy(self):
         """Test BMI endpoint with pregnancy."""
@@ -278,14 +272,10 @@ class TestBMIEndpoints:
 class TestInsightEndpoints:
     """Test insight endpoints."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_insight_endpoint_disabled_explicitly(self):
         """Test insight endpoint when explicitly disabled."""
@@ -363,14 +353,10 @@ class TestInsightEndpoints:
 class TestPremiumEndpoints:
     """Test premium API endpoints."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_api_v1_bmi_success(self):
         """Test API v1 BMI endpoint."""
@@ -501,14 +487,10 @@ class TestPremiumEndpoints:
 class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_database_status_error(self):
         """Test database status endpoint with error."""
@@ -560,14 +542,10 @@ class TestDatabaseAdminEndpoints:
 class TestDebugEndpoint:
     """Test debug environment endpoint."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_debug_env_endpoint(self):
         """Test debug environment endpoint."""
@@ -591,14 +569,10 @@ class TestDebugEndpoint:
 class TestVisualizationEndpoint:
     """Test BMI visualization endpoint."""
 
-    def setup_method(self):
-        """Setup test environment"""
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.client = TestClient(cast(ASGIApp, app))
 
     def test_bmi_visualize_unavailable_module(self):
         """Test BMI visualization when module not available."""

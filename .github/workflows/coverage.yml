@@ -45,14 +45,28 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
+      - name: Resolve Codecov token
+        id: resolve-codecov-token
+        shell: bash
+        env:
+          CODECOV_TOKEN_CI: ${{ secrets.CODECOV_TOKEN_CI }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [[ -n "$CODECOV_TOKEN_CI" ]]; then
+            echo "token=$CODECOV_TOKEN_CI" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$CODECOV_TOKEN" ]]; then
+            echo "token=$CODECOV_TOKEN" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload coverage to Codecov
+        if: ${{ steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           flags: unittests
           fail_ci_if_error: true
           verbose: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ steps.resolve-codecov-token.outputs.token }}
 
       - name: Upload JUnit test report
         uses: actions/upload-artifact@v4
@@ -62,7 +76,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/test-results-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ steps.resolve-codecov-token.outputs.token }}

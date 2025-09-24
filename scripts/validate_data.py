@@ -9,8 +9,20 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 from pathlib import Path
+
+
+_VERSION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\d{4}-\d{2}-\d{2}$"),  # YYYY-MM-DD
+    re.compile(r"^v?\d+(?:\.\d+){1,2}$"),  # semantic version, optional leading v
+)
+
+
+def _is_valid_version(value: str) -> bool:
+    """Check that the version string matches an allowed pattern."""
+    return any(pattern.match(value) for pattern in _VERSION_PATTERNS)
 
 
 def validate_food_aliases(file_path: Path) -> list[str]:
@@ -55,8 +67,29 @@ def validate_cache_versions(file_path: Path) -> list[str]:
         for k, v in data.items():
             if not isinstance(k, str) or not k:
                 errors.append(f"{file_path}: invalid key {k!r}")
-            if not isinstance(v, (str, int)):
-                errors.append(f"{file_path}: invalid version for {k}: {v!r}")
+                continue
+
+            if isinstance(v, (str, int)):
+                version_value = str(v)
+                if not _is_valid_version(version_value):
+                    errors.append(
+                        f"{file_path}: unsupported version format for {k}: {version_value!r}"
+                    )
+                continue
+
+            if isinstance(v, dict):
+                version_value = v.get("version")
+                if not isinstance(version_value, str):
+                    errors.append(
+                        f"{file_path}: missing or invalid version field for {k}: {version_value!r}"
+                    )
+                elif not _is_valid_version(version_value):
+                    errors.append(
+                        f"{file_path}: unsupported version format for {k}: {version_value!r}"
+                    )
+                continue
+
+            errors.append(f"{file_path}: invalid version entry for {k}: {v!r}")
     except json.JSONDecodeError as e:
         errors.append(f"{file_path}: invalid JSON: {e}")
     except Exception as e:  # pragma: no cover

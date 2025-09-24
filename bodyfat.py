@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import math
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Optional
 
 
 # ---------- Formulas ----------
@@ -16,7 +18,7 @@ def bf_us_navy(
     neck_cm: float,
     waist_cm: float,
     gender: str,
-    hip_cm: float | None = None,
+    hip_cm: Optional[float] = None,
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
@@ -91,25 +93,27 @@ def estimate_all(data: dict[str, Any]) -> dict[str, object]:
 
 # ---------- FastAPI ----------
 class BodyFatRequest(BaseModel):
-    height_m: float | None = Field(None, gt=0, description="Height in meters, must be positive")
-    weight_kg: float | None = Field(None, gt=0, description="Weight in kilograms, must be positive")
-    age: int | None = Field(
+    height_m: Optional[float] = Field(None, gt=0, description="Height in meters, must be positive")
+    weight_kg: Optional[float] = Field(
+        None, gt=0, description="Weight in kilograms, must be positive"
+    )
+    age: Optional[int] = Field(
         None, ge=1, le=120, description="Age in years, must be between 1 and 120"
     )
     gender: str
-    bmi: float | None = Field(
+    bmi: Optional[float] = Field(
         None, ge=0, le=100, description="BMI value, must be between 0 and 100"
     )
-    neck_cm: float | None = Field(
+    neck_cm: Optional[float] = Field(
         None, gt=0, description="Neck circumference in cm, must be positive"
     )
-    waist_cm: float | None = Field(
+    waist_cm: Optional[float] = Field(
         None, gt=0, description="Waist circumference in cm, must be positive"
     )
-    hip_cm: float | None = Field(
+    hip_cm: Optional[float] = Field(
         None, gt=0, description="Hip circumference in cm, must be positive"
     )
-    language: str | None = "en"  # "en" | "ru"
+    language: Optional[str] = "en"  # "en" | "ru"
 
 
 def get_router() -> APIRouter:
