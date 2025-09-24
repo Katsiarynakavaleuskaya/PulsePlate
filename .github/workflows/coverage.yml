@@ -37,7 +37,7 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
             --cov-fail-under=97 \
-            --junitxml=junit.xml -o junit_family=legacy
+            --junitxml=tests/results.xml -o junit_family=legacy
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: junit
-          path: junit.xml
+          path: tests/results.xml
           if-no-files-found: ignore
 
       - name: Upload test results to Codecov

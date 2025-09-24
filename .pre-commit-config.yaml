@@ -50,7 +50,7 @@ repos:
           FEATURE_PREMIUM_NUTRITION: "true"
           APP_ENV: "test"
           API_KEY: "test_key"
-        exclude: '(?:__pycache__|\.pyc$)'
+        exclude: '(?:__pycache__|\.pyc$|tests/__pycache__)'
       - id: pytest
         name: pytest
         entry: python3 -m pytest --cov=. --cov-config=.coveragerc --cov-fail-under=97 -q --maxfail=5
