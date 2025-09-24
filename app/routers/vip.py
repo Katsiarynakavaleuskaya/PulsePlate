@@ -451,15 +451,15 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
         # Re-raise HTTPExceptions to preserve FastAPI error handling
         raise
     except ValueError as e:
-        # Validation errors - log and return error response
+        # Validation errors - log details on server, but do not expose them to user
         error_msg = f"Validation error in {func_name}: {str(e)}"
         logging.error(error_msg)
-        return {"status": "error", "message": error_msg}
+        return {"status": "error", "message": "Validation error"}
     except Exception as e:
-        # Log other exceptions and return consistent error response
+        # Log other exceptions and return consistent error response without details exposed
         error_msg = f"Unexpected error in {func_name}: {str(e)}"
         logging.exception(error_msg)
-        return {"status": "error", "message": error_msg}
+        return {"status": "error", "message": "An unexpected error occurred"}
 
 
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
