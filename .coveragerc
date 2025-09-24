@@ -1,15 +1,9 @@
 [run]
-omit =
+omega =
     alembic/*
     releases/*
     cache/*
     providers/pico.py
-
-[report]
-exclude_lines =
-    pragma: no cover
-    if __name__ == .__main__.:
-[run]
 source = .
 omit =
     */tests/*
@@ -58,6 +52,6 @@ exclude_lines =
     raise AssertionError
     raise NotImplementedError
     if 0:
-    if __name__ == .__main__.:
+    if __name__ == .__main__.
     class .*\bProtocol\):
     @(abc\.)?abstractmethod
