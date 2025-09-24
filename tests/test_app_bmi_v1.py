@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Tests for BMI v1 API endpoint in main.py
+Tests for BMI v1 API endpoint in app module.
 
-RU: Тесты для BMI v1 API эндпоинта
-EN: Tests for BMI v1 API endpoint
+RU: Тесты для BMI v1 API эндпоинта (модуль app), не main.py.
+EN: Tests for BMI v1 API endpoint (app module).
 
 Tests cover:
 - Happy path scenarios
@@ -14,9 +14,11 @@ Tests cover:
 
 import os
 from fastapi.testclient import TestClient
-import app as app_mod  # type: ignore
+import app as app_mod
+from typing import cast
+from starlette.types import ASGIApp
 
-client = TestClient(app_mod.app)
+client = TestClient(cast(ASGIApp, app_mod.app))
 
 
 class TestBMIv1API:

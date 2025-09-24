@@ -53,14 +53,17 @@ class TestAppExceptionHandlersCoverage:
         assert response.status_code == 405
 
     def test_runtime_error_handler(self, client):
-        """Тест покрытия runtime error handler"""
-        # Тестируем runtime error handler через различные сценарии
-        response = client.post(
-            "/api/v1/bmi",
-            json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 422, 500]
+        """Тест покрытия runtime error handler: ожидаем 500 при искусственной ошибке."""
+        from unittest.mock import patch
+
+        # Force runtime error inside endpoint by raising from dependency
+        with patch("app.get_api_key", side_effect=RuntimeError("boom")):
+            response = client.post(
+                "/api/v1/bmi",
+                json={"weight_kg": 70, "height_cm": 170, "group": "general"},
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 500
 
     def test_connection_error_handler(self, client):
         """Тест покрытия connection error handler"""

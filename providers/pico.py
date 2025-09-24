@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 
 import httpx
 
@@ -21,9 +22,10 @@ class PicoProvider(ProviderBase):
             "PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         )
         self.model = model or os.getenv("PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b"))
-        self.client = httpx.Client(base_url=self.endpoint, timeout=30.0)
+        # httpx.Client accepts str for base_url; cast to satisfy strict typing
+        self.client = httpx.Client(base_url=cast(str, self.endpoint), timeout=30.0)
 
-    def generate(self, text: str) -> str:
+    async def generate(self, text: str) -> str:
         try:
             r = self.client.post(
                 "/api/chat",

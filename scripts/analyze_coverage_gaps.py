@@ -70,4 +70,5 @@ def run_coverage_analysis():
 
 
 if __name__ == "__main__":
-    run_coverage_analysis()
+    success = run_coverage_analysis()
+    sys.exit(0 if success else 1)

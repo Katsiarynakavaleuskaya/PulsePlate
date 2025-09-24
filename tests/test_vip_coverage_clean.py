@@ -90,20 +90,12 @@ class TestVIPCoverageClean:
             assert vip.RepairStrategy is not None
             assert vip.RepairStatus is not None
 
-    def test_vip_safe_call_coverage(self):
-        """Test VIP safe_call coverage with proper isolation."""
-        from app.routers.vip import _safe_call
+    def test_vip_safe_call_with_adapter_error(self):
+        """Test VIP _safe_call_with_adapter structured error when adapter missing."""
+        from app.routers.vip import _safe_call_with_adapter
 
-        # Test with None function
-        result = _safe_call(None, "test")
-        assert result is None  # _safe_call returns None when function is None
-
-        # Test with function that raises exception
-        def failing_func(*args, **kwargs):
-            raise Exception("Test error")
-
-        result = _safe_call(failing_func, "test")
-        assert result == {"status": "error", "message": "Test error"}
+        result = _safe_call_with_adapter("unknown", {})
+        assert isinstance(result, dict) and result.get("status") == "error"
 
     def test_vip_weekly_menu_plan_coverage(self):
         """Test VIP weekly menu plan coverage with proper isolation."""

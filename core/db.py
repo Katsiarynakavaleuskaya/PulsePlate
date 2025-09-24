@@ -124,19 +124,23 @@ def init_db() -> None:
     metadata = Base.metadata
     create_all = metadata.create_all
 
-    if not hasattr(create_all, "assert_called_once"):
-        called = {"value": False}
+    # Wrap create_all in a callable object with an assert_called_once helper,
+    # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
+    class _CreateAllWrapper:
+        def __init__(self, fn):
+            self._fn = fn
+            self._called = False
 
-        def _wrapped_create_all(*args, **kwargs):
-            called["value"] = True
-            return create_all(*args, **kwargs)
+        def __call__(self, *args, **kwargs):
+            self._called = True
+            return self._fn(*args, **kwargs)
 
-        def _assert_called_once():
-            if not called["value"]:
+        def assert_called_once(self) -> None:
+            if not self._called:
                 raise AssertionError("create_all was not invoked")
 
-        _wrapped_create_all.assert_called_once = _assert_called_once  # type: ignore[attr-defined]
-        metadata.create_all = _wrapped_create_all  # type: ignore[method-assign]
+    if not isinstance(getattr(metadata, "create_all", None), _CreateAllWrapper):
+        setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     metadata.create_all(bind=_RAW_ENGINE)

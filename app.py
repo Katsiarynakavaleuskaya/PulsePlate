@@ -38,6 +38,7 @@ from app.routers.users import router as users_router
 from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.premium_week import router as premium_week_router
 from app.routers.api_key import api_key_header
+import asyncio
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
@@ -144,7 +145,23 @@ async def lifespan(app: FastAPI):
         if callable(_start):
             result = _start(update_interval_hours=24)
             if _inspect.isawaitable(result):
-                await result
+                # Apply a configurable timeout to avoid hangs on startup
+                _timeout = float(os.getenv("BACKGROUND_START_TIMEOUT_SEC", "10"))
+                _task: Optional[asyncio.Task[Any]] = None
+                try:
+                    # Ensure we have a Task to be able to cancel on timeout
+                    _task = asyncio.ensure_future(result)
+                    await asyncio.wait_for(_task, timeout=_timeout)
+                except asyncio.TimeoutError:
+                    logger.error(
+                        f"Background updates startup timed out after {_timeout:.0f} seconds"
+                    )
+                    if _task is not None:
+                        _task.cancel()
+                        with suppress(Exception):
+                            await _task
+                except Exception as e:
+                    logger.error(f"Failed to start background updates (async): {e}")
         logger.info("Started background database updates")
     except Exception as e:
         logger.error(f"Failed to start background updates: {e}")
@@ -222,11 +239,26 @@ def get_api_key(api_key: str = Depends(api_key_header)):
     return token
 
 
+# Dependency wrapper that resolves get_api_key dynamically at runtime so tests can patch it
+def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
+    import sys as _sys
+
+    _pkg = _sys.modules.get("app")
+    _guard = getattr(_pkg, "get_api_key", get_api_key)
+    try:
+        return _guard(api_key)
+    except Exception as exc:
+        # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=f"auth dependency error: {exc}")
+
+
 # (moved to top with other imports)
 
 
-@app.get("/api/v1/admin/status", dependencies=[Depends(get_api_key)])
-@app.get("/api/v1/admin/status", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
+@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status():
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
@@ -428,12 +460,14 @@ class BMIRequest(BaseModel):
     def validate_realistic_values(self):
         """Validate that weight and height are realistic."""
         # Check for unrealistic BMI values
+        MIN_BMI = 10
+        MAX_BMI = 50
         bmi = self.weight_kg / (self.height_m**2)
 
-        if bmi < 10:  # Unrealistically low BMI
+        if bmi < MIN_BMI:  # Unrealistically low BMI
             raise ValueError("Weight is unrealistically low for the given height")
-        if bmi > 50:  # Unrealistically high BMI (changed from 100 to 50)
-            raise ValueError("Weight is unrealistically high for the given height")
+        if bmi > MAX_BMI:  # Unrealistically high BMI
+            raise ValueError(f"Weight is unrealistically high for the given height (BMI={bmi:.1f})")
 
         return self
 
@@ -949,7 +983,7 @@ async def plan_endpoint(req: BMIRequest):
     return base
 
 
-@app.post("/api/v1/bmi", dependencies=[Depends(get_api_key)])
+@app.post("/api/v1/bmi", dependencies=[Depends(_get_api_key_dynamic)])
 async def bmi_endpoint_v1(req: BMIRequestV1):
     """V1 BMI endpoint with API key authentication."""
     # Convert height_cm to height_m
@@ -991,7 +1025,7 @@ async def bmi_calculate_legacy(req: BMIRequestV1):
     return await bmi_endpoint_v1(req)
 
 
-@app.post("/api/v1/insight", dependencies=[Depends(get_api_key)])
+@app.post("/api/v1/insight", dependencies=[Depends(_get_api_key_dynamic)])
 async def insight_v1(req: InsightRequest):
     """Generate insight using LLM provider (v1 with API key)."""
     if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
@@ -1299,7 +1333,7 @@ class WeeklyPlanFlexibleRequest(BaseModel):
 
 @app.post(
     "/api/v1/premium/plate",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=PlateResponse,
 )
 async def api_premium_plate(req: PlateRequest) -> PlateResponse:
@@ -1561,7 +1595,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 # Premium BMR Endpoint
 @app.post(
     "/api/v1/premium/bmr",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=BMRResponse,
 )
 async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
@@ -1848,7 +1882,7 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
 @app.post(
     "/api/v1/premium/targets",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
 )
 async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
@@ -2009,7 +2043,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
 @app.post(
     "/api/v1/premium/plan/week",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WeeklyMenuResponse,
 )
 async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
@@ -2020,6 +2054,15 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
     try:
+        # Guard VIP feature flag at runtime to support tests that toggle env without full reload
+        if str(os.getenv("VIP_MODULE_ENABLED", "")).strip().lower() not in {
+            "1",
+            "true",
+            "on",
+            "yes",
+        }:
+            raise HTTPException(status_code=503, detail="VIP module is disabled")
+
         import sys as _sys
 
         _module = _sys.modules[__name__]
@@ -2083,7 +2126,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
 
 @app.post(
     "/api/v1/premium/gaps",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=NutrientGapsResponse,
 )
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
@@ -2189,7 +2232,7 @@ async def debug_env():
 # ========================================
 
 
-@app.get("/api/v1/admin/db-status", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/admin/db-status", dependencies=[Depends(_get_api_key_dynamic)])
 async def get_database_status():
     """
     RU: Получить статус всех баз данных и планировщика обновлений.
@@ -2216,7 +2259,7 @@ async def get_database_status():
         ) from e
 
 
-@app.post("/api/v1/admin/force-update", dependencies=[Depends(get_api_key)])
+@app.post("/api/v1/admin/force-update", dependencies=[Depends(_get_api_key_dynamic)])
 async def force_database_update(source: Optional[str] = None):
     """
     RU: Принудительно запустить обновление баз данных.
@@ -2261,7 +2304,7 @@ async def force_database_update(source: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Force update failed: {str(e)}") from e
 
 
-@app.get("/api/v1/admin/check-updates", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/admin/check-updates", dependencies=[Depends(_get_api_key_dynamic)])
 async def check_for_updates():
     """
     RU: Проверить наличие доступных обновлений без их установки.
@@ -2286,7 +2329,7 @@ async def check_for_updates():
         raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
 
 
-@app.post("/api/v1/admin/rollback", dependencies=[Depends(get_api_key)])
+@app.post("/api/v1/admin/rollback", dependencies=[Depends(_get_api_key_dynamic)])
 async def rollback_database(source: str, target_version: str):
     """
     RU: Откатить базу данных к предыдущей версии.
@@ -2323,7 +2366,7 @@ async def rollback_database(source: str, target_version: str):
 # Export Endpoints
 
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
 async def export_daily_plan_csv(plan_id: str):
     """
     RU: Экспортировать дневной план в CSV.
@@ -2440,7 +2483,7 @@ async def export_pdf_generic(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
-@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
 async def export_weekly_plan_csv(plan_id: str):
     """
     RU: Экспортировать недельный план в CSV.
@@ -2538,7 +2581,7 @@ async def export_weekly_plan_csv(plan_id: str):
         raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
 async def export_daily_plan_pdf(plan_id: str):
     # sourcery skip: raise-from-previous-error
     """
@@ -2618,7 +2661,7 @@ async def export_daily_plan_pdf(plan_id: str):
         raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
-@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(get_api_key)])
+@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
 async def export_weekly_plan_pdf(plan_id: str):
     # sourcery skip: raise-from-previous-error
     """

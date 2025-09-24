@@ -87,16 +87,14 @@ def ffmi(
         raise ValueError("Body fat percentage must be between 0 and 100")
 
     # Calculate fat-free mass
+    height_m = height_cm / 100
     if bodyfat_pct is not None:
         ffm = weight_kg * (1 - bodyfat_pct / 100)
     else:
-        # If no body fat percentage provided, estimate using BMI
-        height_m = height_cm / 100
-        # Simplified estimation: assume 15% body fat for average adult
+        # If no body fat percentage provided, estimate using a simple average body fat
         ffm = weight_kg * 0.85
 
     # Calculate FFMI (normalize to height)
-    height_m = height_cm / 100
     ffmi_value = ffm / (height_m**2)
 
     return {"ffm_kg": round(ffm, 1), "ffmi": round(ffmi_value, 1)}
@@ -198,9 +196,7 @@ def stage_obesity(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = (
-            "Consider consulting with a healthcare professional for comprehensive assessment"
-        )
+        recommendation = t(lang, "recommendation_consult_professional")  # type: ignore
     elif risk_factors == 1:
         stage = "moderate_risk"
         recommendation = t(lang, "recommendation_monitor_health")  # type: ignore

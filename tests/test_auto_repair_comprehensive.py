@@ -323,7 +323,9 @@ class TestAutoRepairComprehensive:
         assert isinstance(suggestions, list)
         assert len(suggestions) > 0
         assert isinstance(suggestions[0], str)
-        assert "успешно" in suggestions[0] or "successfully" in suggestions[0].lower()
+        # Language-agnostic semantic check: look for a success marker in any locale
+        normalized = suggestions[0].lower()
+        assert ("success" in normalized) or ("успеш" in normalized)
 
     def test_generate_manual_suggestions(self):
         """Test _generate_manual_suggestions method."""

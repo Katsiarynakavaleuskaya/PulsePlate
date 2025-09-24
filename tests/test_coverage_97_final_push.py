@@ -3,16 +3,18 @@
 """
 
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 
 
 class TestCoverage97FinalPush:
-    """Финальные тесты для достижения 97% покрытия"""
+    """Final behavioral coverage tests (no line numbers)."""
 
-    def test_app_coverage_missing_lines_66_68(self, production_environment):
-        """Тест покрытия app.py строк 66-68"""
+    def test_bmi_invalid_api_key_rejected(self, production_environment):
+        """BMI rejects invalid API key (auth behavior)."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с production окружением и невалидным API ключом
         response = client.post(
@@ -22,11 +24,11 @@ class TestCoverage97FinalPush:
         )
         assert response.status_code in [401, 403]
 
-    def test_app_coverage_missing_lines_98_105_115(self, test_environment):
-        """Тест покрытия app.py строк 98, 105, 115"""
+    def test_health_and_docs_endpoints_available(self, test_environment):
+        """Health and docs available in normal mode."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест различных endpoint'ов с разными методами
         response = client.get("/health")
@@ -38,11 +40,11 @@ class TestCoverage97FinalPush:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_app_coverage_missing_lines_130_132(self, test_environment):
-        """Тест покрытия app.py строк 130-132"""
+    def test_cors_options_supported(self, test_environment):
+        """CORS OPTIONS supported on main routes."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест CORS с различными методами
         response = client.options("/api/v1/bmi")
@@ -51,11 +53,11 @@ class TestCoverage97FinalPush:
         response = client.options("/health")
         assert response.status_code in [200, 405]
 
-    def test_app_coverage_missing_lines_144_148_147(self, test_environment):
-        """Тест покрытия app.py строк 144-148, 147"""
+    def test_middleware_headers_do_not_break_health(self, test_environment):
+        """Middleware headers still return 200 on /health."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware с различными заголовками
         response = client.get("/health", headers={"User-Agent": "test"})
@@ -68,7 +70,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 164-170, 169"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест обработки различных ошибок
         response = client.get("/nonexistent")
@@ -81,7 +83,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 205-208, 210"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест admin endpoints с различными сценариями
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
@@ -94,7 +96,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 242-246, 247"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с отключенными premium функциями
         response = client.post(
@@ -108,7 +110,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 252-256"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест различных статус кодов
         response = client.get("/health")
@@ -121,7 +123,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 504-505"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест BMI endpoint с различными данными
         response = client.post(
@@ -142,7 +144,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 978, 995-996"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест bodyfat endpoint с различными данными
         response = client.post(
@@ -163,7 +165,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1008-1012"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест insight endpoint с различными данными
         response = client.post(
@@ -184,7 +186,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1045-1049"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест metrics endpoint
         response = client.get("/metrics")
@@ -197,7 +199,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1093-1094"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест category endpoint с различными параметрами
         response = client.get("/api/v1/category?bmi=22.5&lang=ru")
@@ -210,7 +212,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1101-1102"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест wht_ratio endpoint с различными параметрами
         response = client.get("/api/v1/wht_ratio?waist=80&height=170")
@@ -223,7 +225,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1109-1112"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест compute_wht_ratio endpoint с различными данными
         response = client.post(
@@ -244,7 +246,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1115-1118"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium targets endpoint с различными данными
         response = client.post(
@@ -265,7 +267,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1121-1124"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium week endpoint с различными данными
         response = client.post(
@@ -286,7 +288,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строки 1197"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium enhanced plate endpoint с различными данными
         response = client.post(
@@ -307,7 +309,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1325-1326, 1328-1329"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест VIP endpoints с различными данными
         response = client.post(
@@ -342,7 +344,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1342-1365"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест VIP recipes endpoint с различными данными
         response = client.post(
@@ -379,7 +381,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1505->exit, 1508->exit"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест lifespan
         response = client.get("/health")
@@ -389,7 +391,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1520-1527"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест startup events
         response = client.get("/health")
@@ -399,7 +401,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1606, 1657-1660"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест shutdown events
         response = client.get("/health")
@@ -409,7 +411,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1732, 1735-1739"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест exception handlers
         response = client.get("/nonexistent")
@@ -419,7 +421,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1869-1870, 1872-1873"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware
         response = client.get("/health")
@@ -429,7 +431,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1904, 1954->1966, 1960->1959"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест CORS middleware
         response = client.options("/api/v1/bmi")
@@ -439,7 +441,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 1987, 2014, 2061, 2064-2065"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware setup
         response = client.get("/health")
@@ -449,7 +451,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 2095, 2118, 2151, 2153"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест router inclusion
         response = client.get("/health")
@@ -459,7 +461,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 2271-2272, 2372, 2400-2426"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест OpenAPI generation
         response = client.get("/openapi.json")
@@ -469,7 +471,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 2513, 2586, 2593, 2600"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест app creation
         response = client.get("/health")
@@ -479,7 +481,7 @@ class TestCoverage97FinalPush:
         """Тест покрытия app.py строк 2693, 2699, 2706, 2718->2722, 2722->exit"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест app initialization
         response = client.get("/health")

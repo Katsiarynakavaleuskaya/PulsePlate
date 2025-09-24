@@ -9,7 +9,12 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from nutrition_core import calculate_all_bmr, calculate_all_tdee
+from nutrition_core import (
+    ActivityLevel,
+    Sex,
+    calculate_all_bmr,
+    calculate_all_tdee,
+)
 
 
 class MacroDistribution(BaseModel):
@@ -46,7 +51,7 @@ class PlateRecommendation(BaseModel):
 
 
 def get_macro_distribution(
-    goal: str = "maintenance", activity_level: str = "moderate"
+    goal: str = "maintenance", activity_level: ActivityLevel = "moderate"
 ) -> MacroDistribution:
     """
     Get recommended macro distribution based on goal and activity level.
@@ -199,8 +204,8 @@ def make_plate(
     weight_kg: float,
     height_cm: float,
     age: int,
-    sex: str,
-    activity: str,
+    sex: Sex,
+    activity: ActivityLevel,
     goal: str = "maintenance",
     bodyfat: Optional[float] = None,
     lang: str = "en",

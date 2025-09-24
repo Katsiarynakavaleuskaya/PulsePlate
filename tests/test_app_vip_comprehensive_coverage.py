@@ -244,7 +244,11 @@ class TestAppVipComprehensiveCoverage:
         client = test_client
 
         # Mock VIP module to be unavailable
-        with patch("app.VIP_MODULE_ENABLED", False):
+        with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
+            import importlib
+            import app as app_module
+
+            importlib.reload(app_module)
             response = client.post(
                 "/api/v1/premium/plan/week",
                 json={
@@ -258,7 +262,7 @@ class TestAppVipComprehensiveCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             # Should be 503 when VIP module is disabled
-            assert response.status_code in [200, 503, 500]
+            assert response.status_code == 503
 
     def test_feature_flag_disabled_paths(self, test_client):
         """Test paths when premium features are disabled."""
@@ -435,8 +439,8 @@ class TestAppVipComprehensiveCoverage:
                 "goal": "maintain",
             },
         )
-        # Should be 401, 403, or 422 for missing API key
-        assert response.status_code in [401, 403, 422, 500]
+        # Should be 401, 403, or 422 for missing API key (no 500 here)
+        assert response.status_code in [401, 403, 422]
 
     def test_health_endpoints(self, test_client):
         """Test health endpoints."""

@@ -27,7 +27,7 @@ Successfully applied test analysis best practices and fixed all identified faili
 **Problem**: Tests expecting 200 but getting 422 due to BMI validation
 **Files Fixed**:
 
-- `tests/test_app_corrected_97.py**`
+- `tests/test_app_corrected_97.py`
 - `tests/test_app_coverage_97_ultimate_boost.py`
 - `tests/test_app_faker_realistic.py`
 
