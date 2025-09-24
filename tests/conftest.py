@@ -25,6 +25,7 @@ os.environ["VIP_MODULE_ENABLED"] = "true"
 # Ensure default test-like environment variables for CI consistency
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+os.environ.setdefault("ALLOW_ANONYMOUS_API_KEYS", "true")
 os.environ.setdefault("API_KEY", "test_key")
 os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
 
@@ -86,3 +87,16 @@ def _patch_update_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
         for name in ("start", "stop", "_update_loop"):
             if hasattr(sched, name):
                 monkeypatch.setattr(sched, name, _noop, raising=False)
+
+
+# --- Helper fixtures ---
+
+
+@pytest.fixture()
+def api_headers() -> dict[str, str]:
+    """Default API headers for authenticated requests in tests.
+
+    RU: Стандартные заголовки с ключом API для тестов.
+    EN: Provides X-API-Key header using env or fallback test_key.
+    """
+    return {"X-API-Key": os.getenv("API_KEY", "test_key")}
