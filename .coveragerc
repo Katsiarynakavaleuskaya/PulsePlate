@@ -1,4 +1,19 @@
 [run]
+omit =
+    alembic/*
+    releases/*
+    cache/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+omit =
+    alembic/*
+    releases/*
+    cache/*
+    providers/pico.py
+[run]
 source = .
 omit =
     */tests/*
