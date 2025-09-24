@@ -55,7 +55,7 @@ jobs:
         with:
           files: ./coverage.xml
           flags: unittests
-          fail_ci_if_error: true
+          fail_ci_if_error: false  # Allow tokenless uploads without failing CI on auth issues
           verbose: true
 
       - name: Upload JUnit test report
