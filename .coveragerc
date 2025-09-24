@@ -1,57 +1,18 @@
 [run]
-omega =
+source = .
+omit =
     alembic/*
     releases/*
     cache/*
+    data/*
+    external/*
+    frontend/build/*
+    htmlcov/*
+    coverage/*
     providers/pico.py
-source = .
-omit =
-    */tests/*
-    */test_*
-    */__pycache__/*
-    */venv/*
-    */.venv/*
-    */env/*
-    */.env/*
-    */build/*
-    */dist/*
-    */node_modules/*
-    */htmlcov/*
-    */coverage/*
-    */releases/*
-    */external/*
-    */data/*
-    */cache/*
-    */test_cache/*
-    */frontend/build/*
-    *2.py
-    debug_test.py
-    check_failing_tests.py
-    scripts/archive_docs.py
-    scripts/remove_duplicates.py
-    example_nutrition_api.py
-    quick_coverage_check.py
-    check_coverage.py
-    test_setup.py
-    test_visualization.py
-    test_quick_check.py
-    test_patch_verification.py
-    run_coverage_tests.py
-    setup_dev_env.py
-    quick_coverage_update.py
-    setup_env_check.py
-    fix_coverage_tests.py
-    alembic/**
+    app/routers/vip.py
 
 [report]
 exclude_lines =
     pragma: no cover
-    def __repr__
-    if self.debug:
-    if settings.DEBUG
-    raise AssertionError
-    raise NotImplementedError
-    if 0:
-    if __name__ == .__main__.
-    class .*\bProtocol\):
-    @(abc\.)?abstractmethod
+    if __name__ == .__main__.:
