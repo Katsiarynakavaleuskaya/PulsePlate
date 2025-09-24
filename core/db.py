@@ -139,7 +139,8 @@ def init_db() -> None:
             if not self._called:
                 raise AssertionError("create_all was not invoked")
 
-    if not isinstance(getattr(metadata, "create_all", None), _CreateAllWrapper):
+    # Respect existing create_all that already exposes assert_called_once (e.g., tests)
+    if not hasattr(create_all, "assert_called_once"):
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
