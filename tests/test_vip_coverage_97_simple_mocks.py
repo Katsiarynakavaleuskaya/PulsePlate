@@ -4,6 +4,8 @@
 
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 
 
 class TestVIPCoverage97Integration:
@@ -15,7 +17,7 @@ class TestVIPCoverage97Integration:
         with patch.dict("sys.modules", {"core.menu_engine": None}):
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
@@ -35,7 +37,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP API key validation с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с невалидным API ключом
         response = client.post(
@@ -56,7 +58,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP environment validation с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест в test окружении
         response = client.post(
@@ -77,7 +79,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP logging с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными заголовками для логирования
         response = client.post(
@@ -98,7 +100,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP resolve_attr с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными данными для resolve_attr
         response = client.post(
@@ -119,7 +121,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _require_api_key с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с валидным API ключом
         response = client.post(
@@ -140,7 +142,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _api_key_header с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными заголовками API ключа
         response = client.post(
@@ -161,7 +163,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _is_production_environment с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест в test окружении
         response = client.post(
@@ -182,7 +184,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _should_allow_anonymous_access с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с API ключом (не анонимный доступ)
         response = client.post(
@@ -203,7 +205,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _log_api_key_event с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными API ключами для логирования
         response = client.post(
@@ -220,32 +222,18 @@ class TestVIPCoverage97Integration:
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_safe_call(self, test_environment):
-        """Тест покрытия VIP _safe_call с простыми моками"""
-        import app
+    def test_vip_coverage_simple_mocks_safe_call_with_adapter_error(self, test_environment):
+        """Тест _safe_call_with_adapter возвращает ошибку для неизвестной функции"""
+        from app.routers.vip import _safe_call_with_adapter
 
-        client = TestClient(app.app)
-
-        # Тест с различными данными для _safe_call
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 404]
+        result = _safe_call_with_adapter("unknown", {})
+        assert isinstance(result, dict) and result.get("status") == "error"
 
     def test_vip_coverage_simple_mocks_create_user_profile(self, test_environment):
         """Тест покрытия VIP _create_user_profile_from_dict с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с полными данными пользователя
         response = client.post(
@@ -274,7 +262,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP _adapter_make_weekly_menu с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными данными для адаптера
         response = client.post(
@@ -295,7 +283,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP weekly_menu_plan endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с различными данными для weekly_menu_plan
         response = client.post(
@@ -316,7 +304,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP shoplist endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест shoplist endpoint
         response = client.post(
@@ -340,7 +328,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP recipes endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест recipes endpoint
         response = client.post(
@@ -364,7 +352,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP auto repair endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест auto repair endpoint
         response = client.post(
@@ -388,7 +376,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP region catalog endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест region catalog endpoint
         response = client.get("/api/v1/vip/region-catalog", headers={"X-API-Key": "test_key"})
@@ -398,7 +386,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP product search endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест product search endpoint
         response = client.get(
@@ -410,7 +398,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP product varieties endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест product varieties endpoint
         response = client.get(
@@ -422,7 +410,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP product details endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест product details endpoint
         response = client.get(
@@ -434,7 +422,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP nutrition analysis endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест nutrition analysis endpoint
         response = client.post(
@@ -448,7 +436,7 @@ class TestVIPCoverage97Integration:
         """Тест покрытия VIP health check endpoint с простыми моками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест health check endpoint
         response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})

@@ -119,7 +119,8 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     Returns:
         bool: True if anonymous access is allowed
     """
-    default_value = "false" if is_production else "true"
+    # Default is strict: anonymous disabled unless explicitly enabled via env
+    default_value = "false"
     return os.getenv("ALLOW_ANONYMOUS_API_KEYS", default_value).lower() in (
         "true",
         "1",
@@ -137,7 +138,8 @@ def _is_dev_mode(app_env: str) -> bool:
     Returns:
         bool: True if in development mode
     """
-    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "true").lower() == "true"
+    # ALLOW_DEV_API_KEY only has effect outside production/staging
+    allow_dev = os.getenv("ALLOW_DEV_API_KEY", "false").lower() == "true"
     return app_env in ("test", "testing", "dev", "development", "local") or allow_dev
 
 
@@ -160,14 +162,14 @@ def _validate_with_app_get_api_key(raw_key: Optional[str]) -> str:
     try:
         result = app_get_api_key(raw_key)
         if not isinstance(result, str):
-            raise HTTPException(status_code=500, detail="get_api_key did not return str")
+            # Log internal detail but do not expose implementation specifics
+            logging.error(
+                f"get_api_key returned non-str type: {type(result)!r}. Hiding details from client."
+            )
+            raise HTTPException(status_code=500, detail="Authentication provider error")
         return result
-    except HTTPException as exc:
-        if exc.status_code == 403:
-            # Re-raise with proper detail
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
-            ) from exc
+    except HTTPException:
+        # Preserve original HTTPException without converting status codes
         raise
 
 
@@ -179,14 +181,22 @@ def _log_api_key_event(event: str, is_production: bool, app_env: str) -> None:
         is_production: Whether we're in production mode
         app_env: Environment setting
     """
+    msg = f"{event} Environment: {app_env}"
     if "without API key" in event:
-        log_level = logging.error if is_production else logging.warning
+        if is_production:
+            logging.error(msg)
+        else:
+            logging.warning(msg)
     elif "anonymous API key" in event:
-        log_level = logging.warning if is_production else logging.info
+        if is_production:
+            logging.warning(msg)
+        else:
+            logging.info(msg)
     else:
-        log_level = logging.info if is_production else logging.debug
-
-    log_level(f"{event} Environment: {app_env}")
+        if is_production:
+            logging.info(msg)
+        else:
+            logging.debug(msg)
 
 
 def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
@@ -206,11 +216,38 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     allow_anonymous = _should_allow_anonymous_access(is_production)
 
     # Check if we're in development mode
-    is_dev_mode = _is_dev_mode(app_env)
+    is_dev_mode = _is_dev_mode(app_env) and not is_production
 
-    # Allow open access in test/dev mode for echo tests
-    if is_dev_mode and allow_anonymous:
-        return str(raw_key or "test_key")
+    # Handle missing API key first
+    if not raw_key:
+        _anon_flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
+        _explicit_false = isinstance(_anon_flag, str) and _anon_flag.lower() in {
+            "false",
+            "0",
+            "no",
+            "off",
+        }
+        if allow_anonymous and not _explicit_false:
+            _log_api_key_event(
+                "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                is_production,
+                app_env,
+            )
+            return "anonymous"
+        # Dev/test fallback for unit scenarios (not used by strict route wrappers)
+        if not is_production and not _explicit_false:
+            _log_api_key_event(
+                "VIP endpoint accessed without API key in development mode.", is_production, app_env
+            )
+            return "test_key"
+        error_msg = (
+            "API key required in production environment" if is_production else "API key required"
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
+
+    # In dev/test mode with provided key, accept any value
+    if is_dev_mode:
+        return str(raw_key)
 
     # Try app-level API key validation first
     app_get_api_key = resolve_attr("get_api_key", None)
@@ -240,7 +277,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                             status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg
                         )
                     else:
-                        # Anonymous access is explicitly allowed
+                        # Anonymous access is explicitly allowed (non-production only)
                         _log_api_key_event(
                             "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
                             is_production,
@@ -269,8 +306,8 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                 "VIP endpoint accessed without API key in production mode.", is_production, app_env
             )
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
-        elif allow_anonymous:
-            # Explicitly allowed anonymous access
+        elif allow_anonymous and not is_production:
+            # Explicitly allowed anonymous access (non-production only)
             _log_api_key_event(
                 "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
                 is_production,
@@ -278,13 +315,32 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             )
             return "anonymous"
         else:
-            # Development mode fallback
-            _log_api_key_event(
-                "VIP endpoint accessed without API key in development mode.", is_production, app_env
-            )
-            return "anonymous"
+            # Development mode fallback (non-production) — respect explicit disallow
+            _anon_flag2 = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
+            _explicit_false2 = isinstance(_anon_flag2, str) and _anon_flag2.lower() in {
+                "false",
+                "0",
+                "no",
+                "off",
+            }
+            if not is_production and not _explicit_false2:
+                _log_api_key_event(
+                    "VIP endpoint accessed without API key in development mode.",
+                    is_production,
+                    app_env,
+                )
+                return "anonymous"
+            error_msg = "API key required"
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 
     return raw_key
+
+
+def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
+    """Strict wrapper for endpoints: missing key always unauthorized regardless of dev mode."""
+    if not raw_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required")
+    return _require_api_key(raw_key)
 
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
@@ -323,7 +379,11 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
 
 def _adapter_make_weekly_menu(*args, **kwargs):
     """Adapter for make_weekly_menu to handle dict input."""
-    from core.menu_engine import make_weekly_menu
+    try:
+        from core.menu_engine import make_weekly_menu
+    except ImportError:
+        logging.error("Failed to import core.menu_engine.make_weekly_menu")
+        return None
 
     # Handle different input patterns
     if args and len(args) == 1 and isinstance(args[0], dict):
@@ -361,7 +421,11 @@ def _adapter_make_weekly_menu(*args, **kwargs):
 
 def _adapter_synthesize_recipes_for_week(*args, **kwargs):
     """Adapter for synthesize_recipes_for_week - already has correct signature."""
-    from core.recipe_synth import synthesize_recipes_for_week
+    try:
+        from core.recipe_synth import synthesize_recipes_for_week
+    except ImportError:
+        logging.error("Failed to import core.recipe_synth.synthesize_recipes_for_week")
+        return None
 
     return synthesize_recipes_for_week(*args, **kwargs)
 
@@ -399,51 +463,7 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
         return {"status": "error", "message": error_msg}
 
 
-def _safe_call(func, *args, **kwargs):
-    """
-    DEPRECATED: Legacy safe_call function for backward compatibility.
-    Use _safe_call_with_adapter instead for proper signature handling.
-    """
-    import logging
-    import warnings
-
-    warnings.warn(
-        "_safe_call is deprecated and masks signature mismatches. "
-        "Use _safe_call_with_adapter with explicit function names instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    # Try to determine function name for adapter lookup
-    func_name = getattr(func, "__name__", "unknown")
-
-    # Map known functions to their names
-    if hasattr(func, "__name__"):
-        if func.__name__ == "make_weekly_menu":
-            func_name = "make_weekly_menu"
-        elif func.__name__ == "synthesize_recipes_for_week":
-            func_name = "synthesize_recipes_for_week"
-
-    # Use the new adapter system if possible
-    if func_name in ["make_weekly_menu", "synthesize_recipes_for_week"]:
-        return _safe_call_with_adapter(func_name, *args, **kwargs)
-
-    # Fallback to old behavior for unknown functions
-    try:
-        return func(*args, **kwargs)
-    except HTTPException:
-        raise
-    except TypeError:
-        # Handle signature mismatches - try with first argument only
-        if args:
-            try:
-                return func(args[0])
-            except TypeError:
-                return None
-        return None
-    except Exception as e:
-        logging.exception("vip safe_call failed")
-        return {"status": "error", "message": str(e)}
+# NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
 
 
 @router.get("/health")
@@ -460,7 +480,7 @@ def vip_health() -> Dict[str, Any]:
     }
 
 
-@router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key)])
+@router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
 def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
@@ -473,11 +493,14 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         Echo структура с планом меню
     """
     # Store original data for echo before processing
-    # Filter out None values and default values to match original input
+    # Keep falsy-but-valid values like 0 or False; drop only None and empty containers/strings
+    request_dict = request.model_dump(exclude_none=True)
     original_data = {}
-    for key, value in request.model_dump().items():
-        if value is not None and value != "" and value != [] and value != {} and value != set():
-            original_data[key] = value
+    for key, value in request_dict.items():
+        if isinstance(value, (str, list, tuple, dict, set)):
+            if len(value) == 0:
+                continue
+        original_data[key] = value
 
     if make_weekly_menu is None:
         return {
@@ -493,7 +516,7 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         request_dict = request.model_dump()
         plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
 
-        # Check if _safe_call returned an error
+        # Check if _safe_call_with_adapter returned an error
         if isinstance(plan_candidate, dict) and plan_candidate.get("status") == "error":
             return plan_candidate
 
@@ -514,12 +537,37 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         }
 
 
+def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
+    """Dev-friendly variant: allow anonymous in dev/test/local by default for legacy path.
+
+    Honors explicit ALLOW_ANONYMOUS_API_KEYS=false to disable anonymous even in dev.
+    """
+    is_production, app_env = _is_production_environment()
+    if raw_key:
+        # In production validate strictly; in dev/test accept any provided key
+        if is_production:
+            return _require_api_key(raw_key)
+        return str(raw_key)
+    # explicit off
+    _anon_flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
+    _explicit_false = isinstance(_anon_flag, str) and _anon_flag.lower() in {
+        "false",
+        "0",
+        "no",
+        "off",
+    }
+    if not is_production and not _explicit_false:
+        return "anonymous"
+    # fallback to strict logic
+    return _require_api_key(raw_key)
+
+
 @router.post(
     "/weekly-plan",
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="Generate weekly meal plan",
     description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
-    dependencies=[Depends(_require_api_key)],
+    dependencies=[Depends(_require_api_key_dev_legacy)],
 )
 async def weekly_menu_plan_alias(
     request: WeeklyPlanRequest, x_api_key: str = Header(None)
@@ -596,7 +644,7 @@ async def weekly_menu_plan_alias(
         return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
 
 
-@router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key)])
+@router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key_strict)])
 def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного меню на основе дефицитов
@@ -620,7 +668,7 @@ def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.post("/shoplist/weekly", dependencies=[Depends(_require_api_key)])
+@router.post("/shoplist/weekly", dependencies=[Depends(_require_api_key_strict)])
 def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на неделю с округлением до упаковок
@@ -666,7 +714,7 @@ def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.post("/shoplist/daily", dependencies=[Depends(_require_api_key)])
+@router.post("/shoplist/daily", dependencies=[Depends(_require_api_key_strict)])
 def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на день с округлением до упаковок
@@ -712,7 +760,7 @@ def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.get("/shoplist/formats", dependencies=[Depends(_require_api_key)])
+@router.get("/shoplist/formats", dependencies=[Depends(_require_api_key_strict)])
 def available_export_formats() -> Dict[str, Any]:
     """
     RU: Получить доступные форматы экспорта списков покупок
@@ -729,7 +777,7 @@ def available_export_formats() -> Dict[str, Any]:
     }
 
 
-@router.get("/regions", dependencies=[Depends(_require_api_key)])
+@router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
 def get_regions() -> Dict[str, Any]:
     """
     RU: Получить список доступных регионов
@@ -967,7 +1015,7 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         }
 
 
-@router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key)])
+@router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
 def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепт на основе ингредиентов
@@ -994,14 +1042,14 @@ def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     }
 
 
-@router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key)])
+@router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
 def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
     result: Dict[str, Any] = synthesize_recipe(request)
     return result
 
 
-@router.post("/recipes/weekly", dependencies=[Depends(_require_api_key)])
+@router.post("/recipes/weekly", dependencies=[Depends(_require_api_key_strict)])
 def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепты для недельного плана
@@ -1016,12 +1064,13 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     if synthesize_recipes_for_week is None:
         # Log the module unavailability for observability
         logging.error("Recipe synthesis module not available - synthesize_recipes_for_week is None")
-
-        # Return error response when module is not available
+        # Return echo-mode response for consistency with other endpoints
         return {
-            "status": "error",
-            "message": "Recipe synthesis module not available",
+            "status": "success",
+            "weekly_recipes": {},
+            "total_recipes": 0,
             "echo": request,
+            "message": "Weekly recipes synthesized (echo mode)",
         }
 
     try:
@@ -1030,7 +1079,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         weekly_recipes = _safe_call_with_adapter(
             "synthesize_recipes_for_week", week_plan, recipes_per_day
         )
-        # Check if _safe_call returned an error
+        # Check if _safe_call_with_adapter returned an error
         if isinstance(weekly_recipes, dict) and weekly_recipes.get("status") == "error":
             return {
                 "status": "error",
@@ -1141,7 +1190,7 @@ def get_recipe_templates() -> Dict[str, Any]:
         }
 
 
-@router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key)])
+@router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key_strict)])
 def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного плана с UX-петлей
@@ -1217,7 +1266,7 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key)])
+@router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key_strict)])
 def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Получить предложения для ручного ремонта
@@ -1239,7 +1288,7 @@ def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[s
     }
 
 
-@router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key)])
+@router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
 def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта

@@ -6,6 +6,8 @@ import os
 import sys
 
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 
 
 class TestVIPCoverage97Final:
@@ -67,26 +69,18 @@ class TestVIPCoverage97Final:
         # Verify that VIP functions are available (not None)
         assert vip.make_weekly_menu is not None
 
-    def test_vip_safe_call_coverage_lines_118_125(self):
-        """Test VIP safe_call coverage for lines 118-125."""
-        from app.routers.vip import _safe_call
+    def test_vip_safe_call_with_adapter_missing(self):
+        """Test VIP _safe_call_with_adapter with unknown function name returns error dict."""
+        from app.routers.vip import _safe_call_with_adapter
 
-        # Test with None function
-        result = _safe_call(None, "test")
-        assert result is None  # _safe_call returns None when function is None
-
-        # Test with function that raises exception
-        def failing_func(*args, **kwargs):
-            raise Exception("Test error")
-
-        result = _safe_call(failing_func, "test")
-        assert result == {"status": "error", "message": "Test error"}
+        result = _safe_call_with_adapter("unknown", {})
+        assert isinstance(result, dict) and result.get("status") == "error"
 
     def test_vip_weekly_menu_plan_coverage_lines_188_190(self):
         """Test VIP weekly menu plan coverage for lines 188-190."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with invalid request (should get validation error)
         response = client.post(
@@ -100,7 +94,7 @@ class TestVIPCoverage97Final:
         """Test VIP shoplist weekly coverage for lines 217-254."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly shoplist generation
         response = client.post(
@@ -117,7 +111,7 @@ class TestVIPCoverage97Final:
         """Test VIP shoplist daily coverage for lines 293-300."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test daily shoplist generation
         response = client.post(
@@ -134,7 +128,7 @@ class TestVIPCoverage97Final:
         """Test VIP shoplist formats coverage for lines 304-348."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test shoplist formats
         response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
@@ -147,7 +141,7 @@ class TestVIPCoverage97Final:
         """Test VIP regions coverage for lines 355-365."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test regions endpoint
         response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
@@ -160,7 +154,7 @@ class TestVIPCoverage97Final:
         """Test VIP region search coverage for lines 391-429."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test region search endpoint
         response = client.get(
@@ -175,7 +169,7 @@ class TestVIPCoverage97Final:
         """Test VIP region categories coverage for lines 457-469."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test region categories endpoint
         response = client.get(
@@ -190,7 +184,7 @@ class TestVIPCoverage97Final:
         """Test VIP region stores coverage for lines 471-483."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test region stores endpoint
         response = client.get("/api/v1/vip/regions/ES/stores", headers={"X-API-Key": "test-key"})
@@ -203,7 +197,7 @@ class TestVIPCoverage97Final:
         """Test VIP price comparison coverage for lines 489-508."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test price comparison endpoint
         response = client.get(
@@ -218,7 +212,7 @@ class TestVIPCoverage97Final:
         """Test VIP recipe templates coverage for lines 507-508."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe templates endpoint
         response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
@@ -231,7 +225,7 @@ class TestVIPCoverage97Final:
         """Test VIP auto-repair weekly coverage for lines 530."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair weekly endpoint
         response = client.post(
@@ -248,7 +242,7 @@ class TestVIPCoverage97Final:
         """Test VIP auto-repair suggestions coverage for lines 589."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair suggestions endpoint
         response = client.post(
@@ -265,7 +259,7 @@ class TestVIPCoverage97Final:
         """Test VIP auto-repair strategies coverage for lines 607."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair strategies endpoint
         response = client.get(
@@ -280,7 +274,7 @@ class TestVIPCoverage97Final:
         """Test VIP weekly recipes coverage for lines 656-660."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly recipes endpoint
         response = client.post(
@@ -297,7 +291,7 @@ class TestVIPCoverage97Final:
         """Test VIP weekly plan coverage for lines 873-905."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly plan endpoint with valid WeeklyPlanRequest
         valid_request = {

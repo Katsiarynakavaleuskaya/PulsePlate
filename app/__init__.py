@@ -14,6 +14,8 @@ from types import ModuleType
 _ROOT_APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 
 _spec = importlib.util.spec_from_file_location("_app_top_module", _ROOT_APP_PATH)
+# Keep a base spec to satisfy importlib expectations when using a proxy
+_BASE_SPEC = importlib.util.spec_from_file_location("app", _ROOT_APP_PATH)
 _mod: ModuleType
 if _spec and _spec.loader:  # pragma: no cover - defensive
     _mod = importlib.util.module_from_spec(_spec)
@@ -74,6 +76,16 @@ try:  # pragma: no cover - defensive; avoid impacting production runtime
             # Ensure sys.modules['app'] points to the same module object being reloaded
             _sys.modules["app"] = self._module
             return "app"
+
+        def __getattr__(self, attr: str):  # best-effort to satisfy importlib attrs
+            # Provide minimal attributes importlib may probe during package imports
+            if attr in {"origin", "loader"} and _BASE_SPEC:
+                return getattr(_BASE_SPEC, attr, None)
+            if attr == "submodule_search_locations":
+                return []
+            if attr == "_uninitialized_submodules":
+                return []
+            return None
 
     # Always attach proxy; importlib.reload() will replace it with a real ModuleSpec immediately
     _self = _sys.modules.get(__name__)

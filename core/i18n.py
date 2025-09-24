@@ -81,6 +81,8 @@ TRANSLATIONS = {
         # Recommendations
         "recommendation_consult_healthcare": "Рассмотрите возможность консультации с "
         "медицинским специалистом для комплексной оценки",
+        "recommendation_consult_professional": "Рассмотрите возможность консультации с "
+        "медицинским специалистом для комплексной оценки",
         "recommendation_monitor_health": "Следите за показателями здоровья и рассмотрите "
         "возможность изменения образа жизни",
         "recommendation_maintain_habits": "Поддерживайте текущие здоровые привычки",
@@ -162,6 +164,8 @@ TRANSLATIONS = {
         # Recommendations
         "recommendation_consult_healthcare": "Consider consulting with a healthcare "
         "professional for comprehensive assessment",
+        "recommendation_consult_professional": "Consider consulting with a healthcare "
+        "professional for comprehensive assessment",
         "recommendation_monitor_health": "Monitor health metrics and consider "
         "lifestyle modifications",
         "recommendation_maintain_habits": "Maintain current healthy habits",
@@ -238,6 +242,8 @@ TRANSLATIONS = {
         "bmi_pro_analysis_complete": "Análisis de IMC Pro completado",
         # Recommendations
         "recommendation_consult_healthcare": "Considera consultar con un profesional "
+        "de la salud para una evaluación completa",
+        "recommendation_consult_professional": "Considera consultar con un profesional "
         "de la salud para una evaluación completa",
         "recommendation_monitor_health": "Monitorea los indicadores de salud y "
         "considera modificaciones en el estilo de vida",

@@ -19,7 +19,7 @@ try:
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    plt = None
+    plt = None  # type: ignore[assignment]
 
 
 class BMIVisualizer:

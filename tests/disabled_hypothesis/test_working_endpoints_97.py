@@ -1,12 +1,15 @@
 """
-Рабочие тесты для покрытия main.py - финальный push к 97%.
+Working tests for app module endpoints – final push to 97%.
 
-Этот файл содержит рабочие тесты с правильными данными для всех эндпоинтов.
+RU: Рабочие тесты для покрытия модуля app, не main.py (докстринг
+скорректирован для一致ности с импортами).
 """
 
 import pytest
 import os
 from fastapi.testclient import TestClient
+from typing import cast
+from starlette.types import ASGIApp
 
 
 class TestWorkingEndpointCoverage:
@@ -16,7 +19,7 @@ class TestWorkingEndpointCoverage:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_bmi_endpoints_working(self, client):
         """Тест BMI endpoints с правильными данными"""
@@ -145,7 +148,7 @@ class TestEdgeCasesAndErrorPaths:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_validation_error_paths(self, client):
         """Тест различных validation errors"""
@@ -247,7 +250,7 @@ class TestSpecialGroups:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_pregnant_group(self, client):
         """Тест pregnant group"""
@@ -302,7 +305,7 @@ class TestComprehensiveParameterCombinations:
     def client(self):
         from app import app
 
-        return TestClient(app)
+        return TestClient(cast(ASGIApp, app))
 
     def test_bmi_with_waist_risk(self, client):
         """Тест BMI с waist risk calculation"""
