@@ -6,7 +6,7 @@ Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets en
 
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from unittest.mock import patch, MagicMock  # noqa: F401 - MagicMock used for testing
+from unittest.mock import patch, MagicMock
 
 
 def _get_app():
