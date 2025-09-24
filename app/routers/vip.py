@@ -1132,9 +1132,10 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
             "message": "Weekly recipes synthesized successfully",
         }
     except Exception as e:
+        logging.exception("Exception during recipe synthesis in /recipes/weekly:")
         return {
             "status": "error",
-            "message": f"Recipe synthesis failed: {str(e)}",
+            "message": "An internal error occurred during recipe synthesis.",
             "weekly_recipes": {},
             "total_recipes": 0,
             "echo": request,
