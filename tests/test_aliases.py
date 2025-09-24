@@ -127,18 +127,21 @@ def test_add_alias_existing_file():
             os.unlink(temp_path)
 
 
-def test_add_alias_default_path():
-    """Test add_alias with default path (line 74)."""
-    # This test covers the default path logic in add_alias
-    # We can't easily test the actual file creation without mocking,
-    # but we can test that the function doesn't crash with None path
-    try:
-        add_alias("test_alias", "test_canonical", cast(Any, None))
-        # If we get here without exception, the default path logic worked
-        assert True
-    except (FileNotFoundError, PermissionError):
-        # Expected if the default path doesn't exist or isn't writable
-        assert True
+def test_add_alias_default_path(monkeypatch, tmp_path):
+    """Test add_alias with default path without mutating real data."""
+    temp_file = tmp_path / "aliases.csv"
+    temp_path_str = temp_file.as_posix()
+
+    # Route default path resolution to a temp file so the repository data stays untouched.
+    from core import aliases as aliases_mod
+
+    monkeypatch.setattr(aliases_mod.os.path, "join", lambda *args: temp_path_str)
+
+    add_alias("test_alias", "test_canonical", cast(Any, None))
+
+    content = temp_file.read_text(encoding="utf-8")
+    assert "alias,canonical" in content
+    assert "test_alias,test_canonical" in content
 
 
 if __name__ == "__main__":

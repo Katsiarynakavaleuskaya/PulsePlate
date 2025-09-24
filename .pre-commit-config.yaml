@@ -39,7 +39,7 @@ repos:
     hooks:
       - id: pytest-smoke
         name: pytest-smoke
-        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -m smoke --maxfail=1'
+        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -q -m smoke --maxfail=1'
         language: system
         pass_filenames: false
         always_run: true
@@ -53,7 +53,7 @@ repos:
           PYTHONDONTWRITEBYTECODE: "1"
       - id: pytest
         name: pytest
-        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python3 -m pytest --cov=. --cov-config=.coveragerc --cov-fail-under=97 -q --maxfail=5'
+        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest --cov=. --cov-config=.coveragerc --cov-fail-under=97 -q --maxfail=5; status=$?; git checkout -- data/food_aliases.csv cache/food_db/database_versions.json >/dev/null 2>&1 || true; exit $status'
         language: system
         pass_filenames: false
         always_run: true

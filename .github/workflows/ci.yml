@@ -89,11 +89,24 @@ jobs:
           path: tests/results.xml
           if-no-files-found: ignore
 
+      - name: Resolve Codecov token
+        id: resolve-codecov-token
+        shell: bash
+        env:
+          CODECOV_TOKEN_CI: ${{ secrets.CODECOV_TOKEN_CI }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [[ -n "$CODECOV_TOKEN_CI" ]]; then
+            echo "token=$CODECOV_TOKEN_CI" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$CODECOV_TOKEN" ]]; then
+            echo "token=$CODECOV_TOKEN" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/test-results-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN_CI || secrets.CODECOV_TOKEN }}
+          token: ${{ steps.resolve-codecov-token.outputs.token }}
 
       - name: Security scan with Bandit (non-blocking)
         if: always()
@@ -110,9 +123,10 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload to Codecov (optional)
+        if: ${{ steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN_CI || secrets.CODECOV_TOKEN }}
+          token: ${{ steps.resolve-codecov-token.outputs.token }}
           fail_ci_if_error: false
         continue-on-error: true
