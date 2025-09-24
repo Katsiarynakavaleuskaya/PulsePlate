@@ -119,14 +119,12 @@ def _should_allow_anonymous_access(is_production: bool) -> bool:
     Returns:
         bool: True if anonymous access is allowed
     """
-    # Default is strict: anonymous disabled unless explicitly enabled via env
-    default_value = "false"
-    return os.getenv("ALLOW_ANONYMOUS_API_KEYS", default_value).lower() in (
-        "true",
-        "1",
-        "yes",
-        "on",
-    )
+    # Default is strict.
+    # In production-like environments, allow only if explicitly enabled.
+    flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in ("true", "1", "yes", "on")
+    if is_production:
+        return flag
+    return flag
 
 
 def _is_dev_mode(app_env: str) -> bool:

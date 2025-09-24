@@ -115,8 +115,10 @@ def test_recipe_db_new_get_by_id_and_search_and_scale(tmp_path: Path):
     assert len(res) == 1 and res[0].name == "Oats"
 
     # scale when kcal computed as zero -> still returns a Meal
+    recipe = db.get_recipe_by_id("Oats")
+    assert recipe is not None
     meal: Meal = db.scale_recipe_to_kcal(
-        db.get_recipe_by_id("Oats"), 500, lang="en"
+        recipe, 500, lang="en"
     )  # pyright: ignore[reportArgumentType]
     assert isinstance(meal, Meal)
 
@@ -201,15 +203,13 @@ def test_recipe_db_parser_and_scaler_with_malformed_entries(tmp_path: Path):
     assert "GoodRow" in db and "BadRow" in db
 
     # Nutrients calc returns zeros with our fake db
-    nutrients = calculate_recipe_nutrients(
-        db["GoodRow"], food_db
-    )  # pyright: ignore[reportArgumentType]
+    nutrients = calculate_recipe_nutrients(db["GoodRow"], food_db)  # type: ignore[arg-type]
     assert isinstance(nutrients, dict)
 
     # Scale with zero calories returns original
     scaled = scale_recipe_to_kcal(
-        db["GoodRow"], kcal_goal=500, food_db=food_db
-    )  # pyright: ignore[reportArgumentType]
+        db["GoodRow"], kcal_goal=500, food_db=food_db  # type: ignore[arg-type]
+    )
     assert isinstance(scaled, OldRecipe) and scaled.name == "GoodRow"
 
 
