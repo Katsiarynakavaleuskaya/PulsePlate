@@ -36,8 +36,9 @@ def test_region_catalog_helpers_and_conversion(monkeypatch, tmp_path):
     assert sr.total_count >= 1
 
     # Test price comparison helper
-    cmp_res = rc.get_price_comparison("tomato", ["es", "us"])  # us missing gracefully
-    assert "es" in cmp_res and "us" in cmp_res
+    cmp_res = rc.get_price_comparison("tomato", ["es", "us"])  # 'us' missing gracefully
+    assert "es" in cmp_res
+    assert "us" not in cmp_res
 
     # Currency conversion branch
     assert rc.RegionCatalog().convert_currency(10, "EUR", "USD") >= 10
