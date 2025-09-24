@@ -93,7 +93,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN_CI || secrets.CODECOV_TOKEN }}
 
       - name: Security scan with Bandit (non-blocking)
         if: always()
@@ -113,6 +113,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN_CI || secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
         continue-on-error: true
