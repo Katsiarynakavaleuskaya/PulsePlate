@@ -63,9 +63,11 @@ jobs:
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
-          APP_ENV: ci
+          # Force test-like environment for deterministic behavior
+          APP_ENV: test
+          ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "ci-test-key"
+          API_KEY: "test_key"
         run: |
           python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 -x --maxfail=5
 

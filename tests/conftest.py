@@ -22,13 +22,15 @@ pytest_plugins = ["pytest_asyncio"]
 
 # Set VIP_MODULE_ENABLED globally for all tests
 os.environ["VIP_MODULE_ENABLED"] = "true"
-# Ensure default test-like environment variables for CI consistency
-os.environ.setdefault("APP_ENV", "test")
-os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+# Ensure deterministic test-like environment variables for CI consistency
+# RU: Жёстко устанавливаем значения, чтобы CI не переопределял их
+# EN: Force values to avoid CI overrides breaking tests
+os.environ["APP_ENV"] = "test"
+os.environ["ALLOW_DEV_API_KEY"] = "true"
 # Default to strict: anonymous disabled unless tests explicitly enable
 os.environ.setdefault("ALLOW_ANONYMOUS_API_KEYS", "false")
-os.environ.setdefault("API_KEY", "test_key")
-os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
+os.environ["API_KEY"] = "test_key"
+os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
 # Ensure PYTHONPATH contains required segments for tests that assert on it
 _pp = os.environ.get("PYTHONPATH", "")
