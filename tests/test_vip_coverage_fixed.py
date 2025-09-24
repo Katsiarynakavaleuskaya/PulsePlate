@@ -196,7 +196,7 @@ class TestVIPCoverageFixed:
         """Test VIP region stores coverage for lines 525-526."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test region stores endpoint
         response = client.get("/api/v1/vip/regions/ES/stores", headers={"X-API-Key": "test-key"})
@@ -209,7 +209,7 @@ class TestVIPCoverageFixed:
         """Test VIP price comparison coverage for line 547."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test price comparison endpoint
         response = client.get(
@@ -224,7 +224,7 @@ class TestVIPCoverageFixed:
         """Test VIP recipe templates coverage for lines 564-565, 587."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe templates endpoint
         response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
@@ -237,7 +237,7 @@ class TestVIPCoverageFixed:
         """Test VIP auto-repair coverage for lines 623-624, 681."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair weekly endpoint
         response = client.post(
@@ -254,7 +254,7 @@ class TestVIPCoverageFixed:
         """Test VIP auto-repair strategies coverage for lines 695, 702, 716."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair strategies endpoint
         response = client.get(
@@ -269,7 +269,7 @@ class TestVIPCoverageFixed:
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly recipes endpoint
         response = client.post(
@@ -286,7 +286,7 @@ class TestVIPCoverageFixed:
         """Test VIP recipe synthesis coverage for lines 788-789, 809."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe synthesis endpoint
         response = client.post(
@@ -303,7 +303,7 @@ class TestVIPCoverageFixed:
         """Test VIP weekly plan coverage for lines 829-832, 835."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly plan endpoint
         response = client.post(
@@ -317,7 +317,7 @@ class TestVIPCoverageFixed:
         """Test VIP menu repair coverage for lines 907, 941-942."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test menu repair endpoint
         response = client.post(

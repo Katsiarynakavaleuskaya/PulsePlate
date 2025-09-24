@@ -12,7 +12,7 @@ def test_get_disclaimer_text_medical_and_privacy_en():
 
 def test_get_disclaimer_text_invalid_type_raises_keyerror():
     with pytest.raises(KeyError):
-        d.get_disclaimer_text("unknown", language="en")
+        d.get_disclaimer_text("unknown", language="en")  # type: ignore[arg-type]
 
 
 def test_get_comprehensive_disclaimer_with_special_populations_ru():

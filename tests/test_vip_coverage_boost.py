@@ -7,6 +7,8 @@ import os
 import sys
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPCoverageBoost:
@@ -31,7 +33,7 @@ class TestVIPCoverageBoost:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 200
@@ -48,7 +50,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
@@ -69,7 +71,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
@@ -90,7 +92,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.get(
                 "/api/v1/vip/regions",
@@ -110,7 +112,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/recipe/synthesize",
@@ -131,7 +133,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
@@ -182,7 +184,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             # Тест weekly plan
             response = client.post(
@@ -252,7 +254,7 @@ class TestVIPCoverageBoost:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             # Тест weekly plan error
             response = client.post(

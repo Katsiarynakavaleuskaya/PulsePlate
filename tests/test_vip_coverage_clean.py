@@ -7,6 +7,8 @@ import sys
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPCoverageClean:
@@ -101,7 +103,7 @@ class TestVIPCoverageClean:
         """Test VIP weekly menu plan coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with invalid request (should get validation error)
         response = client.post(
@@ -135,7 +137,7 @@ class TestVIPCoverageClean:
         """Test VIP shoplist weekly coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly shoplist generation
         response = client.post(
@@ -152,7 +154,7 @@ class TestVIPCoverageClean:
         """Test VIP regions coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test regions endpoint
         response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
@@ -165,7 +167,7 @@ class TestVIPCoverageClean:
         """Test VIP recipe templates coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe templates endpoint
         response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
@@ -178,7 +180,7 @@ class TestVIPCoverageClean:
         """Test VIP auto-repair strategies coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair strategies endpoint
         response = client.get(
@@ -193,7 +195,7 @@ class TestVIPCoverageClean:
         """Test VIP weekly recipes coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly recipes endpoint
         response = client.post(
@@ -210,7 +212,7 @@ class TestVIPCoverageClean:
         """Test VIP weekly plan coverage with proper isolation."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test weekly plan endpoint
         response = client.post(

@@ -10,6 +10,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import app
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestAPIKeyModes:
@@ -166,7 +168,7 @@ class TestMetricsFallbacks:
     def test_metrics_without_prometheus(self):
         """Тест /metrics без prometheus_client"""
         # Test metrics endpoint - it may return error if Prometheus is not available
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/metrics")
         assert response.status_code == 200
         # Должен вернуть Prometheus metrics текст (не JSON)
@@ -181,7 +183,7 @@ class TestMetricsFallbacks:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/metrics")
         assert response.status_code == 200
@@ -198,7 +200,7 @@ class TestVisualizationFallbacks:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
             assert response.status_code == 200
@@ -213,7 +215,7 @@ class TestVisualizationFallbacks:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
             assert response.status_code == 200
@@ -231,7 +233,7 @@ class TestVisualizationFallbacks:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
             assert response.status_code == 200
@@ -336,7 +338,7 @@ class TestEdgeCases:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/")
         assert response.status_code == 200
@@ -348,7 +350,7 @@ class TestEdgeCases:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/health")
         assert response.status_code == 200

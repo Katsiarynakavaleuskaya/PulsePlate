@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 @pytest.fixture
@@ -16,7 +18,7 @@ def client():
     """Test client для main.py"""
     import app
 
-    return TestClient(app.app)
+    return TestClient(cast(ASGIApp, app.app))
 
 
 class TestVIPImportErrorCoverage:

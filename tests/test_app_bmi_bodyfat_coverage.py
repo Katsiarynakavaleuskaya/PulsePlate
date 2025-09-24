@@ -6,7 +6,9 @@
 import pytest
 import logging
 from unittest.mock import patch
+from typing import cast
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 class TestAppBMIBodyfatCoverage:
@@ -33,7 +35,7 @@ class TestAppBMIBodyfatCoverage:
         """Тест покрытия валидных запросов к BMI и bodyfat endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тестируем валидный запрос
         response = client.post(
@@ -71,7 +73,7 @@ class TestAppBMIBodyfatCoverage:
         """Тест покрытия невалидных данных для BMI и bodyfat endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
             endpoint,
@@ -97,7 +99,7 @@ class TestAppBMIBodyfatCoverage:
         """Тест покрытия отсутствия API ключа для BMI и bodyfat endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
             endpoint,
@@ -112,7 +114,7 @@ class TestAppBMIBodyfatCoverage:
         """Тест покрытия BMI logging с проверкой логов"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         with caplog.at_level(logging.INFO):
             response = client.post(
@@ -137,7 +139,7 @@ class TestAppBMIBodyfatCoverage:
         """Тест покрытия BMI metrics с моком метрик"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Мокаем метрики, если они используются в приложении
         with patch("app.metrics"):

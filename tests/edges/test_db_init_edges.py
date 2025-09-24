@@ -1,5 +1,4 @@
 def test_init_db_wraps_create_all_when_missing_assert(monkeypatch):
-    import types
     import core.db as db
 
     original_meta = db.Base.metadata
@@ -17,7 +16,7 @@ def test_init_db_wraps_create_all_when_missing_assert(monkeypatch):
 
     try:
         # replace with plain function lacking helper
-        db.Base.metadata.create_all = fake_create_all  # type: ignore[assignment]
+        db.Base.metadata.create_all = fake_create_all
         # call init_db — should wrap and invoke our fake
         db.init_db()
 
@@ -27,8 +26,8 @@ def test_init_db_wraps_create_all_when_missing_assert(monkeypatch):
         assert called["v"] is True
         # wrapper should expose assert_called_once
         assert hasattr(wrapped, "assert_called_once")
-        wrapped.assert_called_once()  # type: ignore[attr-defined]
+        getattr(wrapped, "assert_called_once")()
     finally:
         # restore
         db.Base.metadata = original_meta
-        db.Base.metadata.create_all = original_create_all  # type: ignore[assignment]
+        db.Base.metadata.create_all = original_create_all

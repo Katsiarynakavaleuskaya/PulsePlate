@@ -3,6 +3,8 @@
 """
 
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPIntegration97Ultimate:
@@ -12,7 +14,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты VIP weekly menu endpoint"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Полные данные пользователя с различными комбинациями
         full_scenarios = [
@@ -187,7 +189,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты VIP recipes endpoint"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Полный week_plan с множественными днями и приемами пищи
         complex_scenarios = [
@@ -404,7 +406,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты VIP auto repair endpoint"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Проблемный week_plan с множественными проблемами
         problems_scenarios = [
@@ -591,7 +593,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты VIP shoplist endpoint"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Полный week_plan для генерации списка покупок
         full_shoplist_scenarios = [
@@ -770,7 +772,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты обработки ошибок VIP endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Невалидные данные
         invalid_payloads = [
@@ -842,7 +844,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты валидации API ключа в production"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Без API ключа
         response = client.post(
@@ -906,7 +908,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты переключения окружений"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест в test окружении
         response = client.post(
@@ -927,7 +929,7 @@ class TestVIPIntegration97Ultimate:
         """Ультимативные интеграционные тесты полного workflow VIP функций"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # 1. Создание недельного плана
         menu_payload = {

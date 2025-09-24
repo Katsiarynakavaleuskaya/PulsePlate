@@ -2,6 +2,8 @@
 
 from fastapi.testclient import TestClient
 import app
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestPremiumWeekCoverage97:
@@ -9,7 +11,7 @@ class TestPremiumWeekCoverage97:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.client = TestClient(app.app)
+        self.client = TestClient(cast(ASGIApp, app.app))
 
     def test_week_plan_missing_profile_data_line_140(self):
         """Test line 140: WeekPlanRequest with missing profile data."""

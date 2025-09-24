@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 import sys
 import os
+from starlette.types import ASGIApp
+from typing import cast
 
 # Add paths for import resolution
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -29,7 +31,7 @@ class TestFinalCoveragePush:
         # Test that app works correctly with current imports
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test basic endpoint still works
         response = client.get("/")
@@ -53,7 +55,7 @@ class TestFinalCoveragePush:
             os.environ["VIP_MODULE_ENABLED"] = "true"
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             # Test VIP endpoints still work with fallbacks
             response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test-key"})
@@ -63,7 +65,7 @@ class TestFinalCoveragePush:
         """Test premium BMR calculator endpoint."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         payload = {
             "weight_kg": 70,
@@ -85,7 +87,7 @@ class TestFinalCoveragePush:
         """Test premium targets error handling paths."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with invalid data to trigger error paths
         payload = {
@@ -101,7 +103,7 @@ class TestFinalCoveragePush:
         """Test food search endpoint edge cases."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test empty query
         response = client.get("/api/v1/foods/search?q=")
@@ -119,7 +121,7 @@ class TestFinalCoveragePush:
         """Test BMI endpoint edge cases."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test extreme values
         payload = {
@@ -136,7 +138,7 @@ class TestFinalCoveragePush:
         """Test plan endpoint error paths."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with missing required fields
         payload = {}
@@ -148,7 +150,7 @@ class TestFinalCoveragePush:
         """Test health endpoint with different scenarios."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Basic health check
         response = client.get("/api/v1/health")
@@ -164,7 +166,7 @@ class TestFinalCoveragePush:
         """Test insight endpoint functionality."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         payload = {"weight_kg": 70, "height_cm": 170, "age_years": 30, "gender": "male"}
 
@@ -179,7 +181,7 @@ class TestFinalCoveragePush:
         """Test Spanish localization paths."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test Spanish BMI calculation
         payload = {"weight_kg": 70, "height_cm": 170, "language": "es"}
@@ -197,7 +199,7 @@ class TestFinalCoveragePush:
         """Test VIP endpoints comprehensively."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         headers = {"X-API-Key": "test-key"}
 
@@ -220,7 +222,7 @@ class TestFinalCoveragePush:
         """Test error middleware and exception handling."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test non-existent endpoint
         response = client.get("/api/v1/nonexistent")
@@ -234,7 +236,7 @@ class TestFinalCoveragePush:
         """Test CORS middleware functionality."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test preflight request
         response = client.get("/api/v1/health")
@@ -244,7 +246,7 @@ class TestFinalCoveragePush:
         """Test malformed JSON handling."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test malformed JSON (handled by FastAPI automatically)
         response = client.post(
@@ -256,7 +258,7 @@ class TestFinalCoveragePush:
         """Test large payload handling."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with large but valid payload
         large_data = {"weight_kg": 70, "height_cm": 170, "notes": "x" * 1000}  # Large notes field

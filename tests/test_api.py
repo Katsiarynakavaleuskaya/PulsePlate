@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 app_module = importlib.import_module("app")
 client = TestClient(app_module.app)
@@ -223,7 +225,7 @@ def test_insight_import_failure():
     with patch.dict("sys.modules", {"llm": None}, clear=False):
 
         def test_assertions(app):
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/insight",

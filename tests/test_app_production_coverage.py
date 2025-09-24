@@ -3,7 +3,9 @@
 Покрывает строки: 66-68
 """
 
+from typing import cast
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 class TestAppProductionCoverage:
@@ -14,7 +16,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production режим
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что production режим работает корректно
         response = client.get("/health")
@@ -28,7 +30,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production API key validation
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что API key validation работает в production режиме
         response = client.post(
@@ -51,7 +53,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production environment variables
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что environment variables работают в production режиме
         response = client.get("/health")
@@ -65,7 +67,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production security
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что security работает в production режиме
         response = client.post(
@@ -80,7 +82,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production logging
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что logging работает в production режиме
         response = client.get("/health")
@@ -94,7 +96,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production error handling
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что error handling работает в production режиме
         response = client.get("/nonexistent")
@@ -108,7 +110,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production middleware
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что middleware работает в production режиме
         response = client.get("/health")
@@ -122,7 +124,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production CORS
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что CORS работает в production режиме
         response = client.options("/api/v1/bmi")
@@ -136,7 +138,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production validation
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что validation работает в production режиме
         response = client.post(
@@ -151,7 +153,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production metrics
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что metrics работает в production режиме
         response = client.get("/metrics")
@@ -162,7 +164,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production health check
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что health check работает в production режиме
         response = client.get("/health")
@@ -176,7 +178,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production OpenAPI
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что OpenAPI работает в production режиме
         response = client.get("/openapi.json")
@@ -192,7 +194,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production docs
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что docs работает в production режиме
         response = client.get("/docs")
@@ -203,7 +205,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production redoc
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что redoc работает в production режиме
         response = client.get("/redoc")
@@ -214,7 +216,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production router
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что router работает в production режиме
         response = client.post(
@@ -229,7 +231,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production lifespan
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что lifespan работает в production режиме
         response = client.get("/health")
@@ -243,7 +245,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production exception handlers
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что exception handlers работают в production режиме
         response = client.get("/nonexistent")
@@ -257,7 +259,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production VIP endpoints
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что VIP endpoints работают в production режиме
         response = client.post(
@@ -279,7 +281,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production admin endpoints
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что admin endpoints работают в production режиме
         response = client.get(
@@ -293,7 +295,7 @@ class TestAppProductionCoverage:
         import app
 
         # Тестируем production root endpoint
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что root endpoint работает в production режиме
         response = client.get("/")

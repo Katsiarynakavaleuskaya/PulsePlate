@@ -7,6 +7,8 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 import os
 import sys
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPRouterWorking:
@@ -44,7 +46,7 @@ class TestVIPRouterWorking:
             ):
                 import app
 
-                client = TestClient(app.app)
+                client = TestClient(cast(ASGIApp, app.app))
 
                 # Тест weekly plan endpoint
                 response = client.post(
@@ -92,7 +94,7 @@ class TestVIPRouterWorking:
 
             import app
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             # VIP endpoints должны возвращать 404 когда модуль отключен
             response = client.post(

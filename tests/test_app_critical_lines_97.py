@@ -5,6 +5,8 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
+from starlette.types import ASGIApp
+from typing import cast
 
 
 # (Removed duplicate class definition for TestAppCriticalLines97)
@@ -132,7 +134,7 @@ class TestAppCriticalLines97:
 
         # Тест создания TestClient - может вызвать error paths
         if app is not None and hasattr(app, "app"):
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
             assert client is not None
         else:
             # Если app не инициализирован или не содержит атрибута 'app', тест считается успешным
@@ -159,4 +161,4 @@ def client():
     """Создает тестового клиента"""
     import app
 
-    return TestClient(app.app)
+    return TestClient(cast(ASGIApp, app.app))
