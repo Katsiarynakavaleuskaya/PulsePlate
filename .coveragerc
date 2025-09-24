@@ -3,16 +3,12 @@ omit =
     alembic/*
     releases/*
     cache/*
+    providers/pico.py
 
 [report]
 exclude_lines =
     pragma: no cover
     if __name__ == .__main__.:
-omit =
-    alembic/*
-    releases/*
-    cache/*
-    providers/pico.py
 [run]
 source = .
 omit =
