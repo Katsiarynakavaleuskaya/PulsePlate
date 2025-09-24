@@ -35,6 +35,10 @@ jobs:
         run: |
           python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -q
 
+      - name: Restore static data fixtures
+        if: always()
+        run: git checkout -- data/food_aliases.csv cache/food_db/database_versions.json
+
       - name: Resolve Codecov token
         if: ${{ github.event_name == 'push' }}
         id: resolve-codecov-token
