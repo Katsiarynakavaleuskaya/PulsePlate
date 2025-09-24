@@ -11,6 +11,18 @@ omit =
     coverage/*
     providers/pico.py
     app/routers/vip.py
+    tests/*
+    debug_test.py
+    example_nutrition_api.py
+    check_coverage.py
+    check_failing_tests.py
+    fix_coverage_tests.py
+    quick_coverage_check.py
+    quick_coverage_update.py
+    run_coverage_tests.py
+    setup_dev_env.py
+    setup_env_check.py
+    test_quick_check.py
 
 [report]
 exclude_lines =
