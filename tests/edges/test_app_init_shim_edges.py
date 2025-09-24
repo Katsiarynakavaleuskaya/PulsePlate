@@ -27,3 +27,26 @@ def test_app_package_spec_proxy_attrs_exist():
     _ = getattr(spec, "loader", None)
     loc = getattr(spec, "submodule_search_locations", [])
     assert isinstance(loc, (list, tuple))
+
+
+def test_app_package_all_and_sysmodules_binding(monkeypatch):
+    import sys
+
+    # Ensure __all__ exposes app
+    exported = getattr(apppkg, "__all__", [])
+    assert "app" in exported
+
+    # Break binding and verify spec.name rebinds sys.modules['app'] to this module
+    monkeypatch.setitem(sys.modules, "app", object())
+    spec = getattr(apppkg, "__spec__")
+    _ = getattr(spec, "name")
+    assert sys.modules.get("app") is apppkg
+
+
+def test_app_getattr_missing_raises_attributeerror():
+    try:
+        getattr(apppkg, "__definitely_missing_attribute__")
+        raised = False
+    except AttributeError:
+        raised = True
+    assert raised is True

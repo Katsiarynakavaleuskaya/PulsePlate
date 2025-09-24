@@ -22,21 +22,23 @@ class PicoProvider(ProviderBase):
             "PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         )
         self.model = model or os.getenv("PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b"))
-        # httpx.Client accepts str for base_url; cast to satisfy strict typing
-        self.client = httpx.Client(base_url=cast(str, self.endpoint), timeout=30.0)
+        # Use AsyncClient to be async-safe
+        self._base_url: str = cast(str, self.endpoint)
+        self.timeout_s: float = 5.0
 
     async def generate(self, text: str) -> str:
         try:
-            r = self.client.post(
-                "/api/chat",
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": text}],
-                    "stream": False,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
+            async with httpx.AsyncClient(base_url=self._base_url, timeout=self.timeout_s) as ac:
+                r = await ac.post(
+                    "/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": text}],
+                        "stream": False,
+                    },
+                )
+                r.raise_for_status()
+                data = r.json()
             if isinstance(data, dict):
                 if "message" in data and isinstance(data["message"], dict):
                     return (data["message"].get("content") or "").strip()
