@@ -39,6 +39,10 @@ jobs:
             --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy
 
+      - name: Restore static data fixtures
+        if: always()
+        run: git checkout -- data/food_aliases.csv cache/food_db/database_versions.json
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
