@@ -4,6 +4,8 @@ RU: Экспорт маршрутов приложения.
 EN: Export FastAPI routers for app package imports.
 """
 
+from typing import TYPE_CHECKING  # noqa: E402
+
 __all__ = [
     "bmi_pro",
     "foods",
@@ -23,8 +25,6 @@ def __getattr__(name: str):  # lazy import submodules to avoid side-effects at p
 
 
 # Help static type checkers know exported names exist without importing at runtime
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from . import bmi_pro as bmi_pro  # noqa: F401
     from . import foods as foods  # noqa: F401

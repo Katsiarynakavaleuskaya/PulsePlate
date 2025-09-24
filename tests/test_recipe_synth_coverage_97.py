@@ -1,7 +1,6 @@
 """Tests to boost coverage for core/recipe_synth.py to 97%."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from core.recipe_synth import RecipeSynthesizer, RecipeTemplate, RecipeStep
 
 
