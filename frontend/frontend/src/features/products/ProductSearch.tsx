@@ -3,9 +3,11 @@ import type { paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 
 // RU: Тип ответа берём из OpenAPI (frontend/src/api/schema.ts).
-// EN: We derive response type from OpenAPI schema.
+// EN: Response type derived from OpenAPI schema.
 type SearchResp =
-  paths["/api/products/search"]["get"]["responses"]["200"]["content"]["application/json"];
+  paths["/api/v1/foods/search"]["get"]["responses"]["200"]["content"]["application/json"];
+
+type FoodHit = SearchResp extends Array<infer Item> ? Item : never;
 
 export default function ProductSearch() {
   const [q, setQ] = useState("");
@@ -32,7 +34,7 @@ export default function ProductSearch() {
 
     debounced(q, async (value) => {
       try {
-        const url = `/api/products/search?q=${encodeURIComponent(value)}&limit=10`;
+        const url = `/api/v1/foods/search?query=${encodeURIComponent(value)}&limit=10`;
         const res = await fetchJson<SearchResp>(url);
         setData(res);
       } catch (e: any) {
@@ -44,7 +46,7 @@ export default function ProductSearch() {
     });
   }, [q, debounced]);
 
-  const items = (data && (data as any).items) || [];
+  const items: FoodHit[] = Array.isArray(data) ? data : [];
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
@@ -58,13 +60,13 @@ export default function ProductSearch() {
       {loading && <div>Ищем…</div>}
       {err && <div className="text-red-600">Ошибка: {err}</div>}
       <ul className="grid gap-3">
-        {items.map((p: any) => (
-          <li key={p.id ?? `${p.name}-${p.brand ?? ""}`} className="border rounded-2xl p-3">
+        {items.map((p) => (
+          <li key={p.id} className="border rounded-2xl p-3">
             <div className="font-medium">{p.name}</div>
-            {p.brand && <div className="text-sm opacity-70">{p.brand}</div>}
-            {p.energy_kcal != null && (
-              <div className="text-sm">Энергия: {p.energy_kcal} ккал / 100 г</div>
-            )}
+            <div className="text-sm opacity-70">Энергия: {p.kcal} ккал / 100 г</div>
+            <div className="text-xs opacity-60">
+              Б / Ж / У: {p.protein_g} / {p.fat_g} / {p.carbs_g} (г на 100 г)
+            </div>
           </li>
         ))}
         {!loading && !err && q && items.length === 0 && (
