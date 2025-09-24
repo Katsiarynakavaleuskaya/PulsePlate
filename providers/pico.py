@@ -30,7 +30,8 @@ class PicoProvider(ProviderBase):
             data = None
             # 1) Prefer sync Client to satisfy existing unit tests that monkeypatch httpx.Client
             try:
-                with httpx.Client(base_url=self._base_url, timeout=self.timeout_s) as c:
+                c = httpx.Client(base_url=self._base_url, timeout=self.timeout_s)
+                try:
                     r = c.post(
                         "/api/chat",
                         json={
@@ -41,6 +42,14 @@ class PicoProvider(ProviderBase):
                     )
                     r.raise_for_status()
                     data = r.json()
+                finally:
+                    # Close client if it supports close(); ignore if stub without it
+                    try:
+                        close_fn = getattr(c, "close", None)
+                        if callable(close_fn):
+                            close_fn()
+                    except Exception:
+                        pass
             except Exception:
                 # 2) Fallback to AsyncClient if sync path not available/monkeypatched
                 async with httpx.AsyncClient(base_url=self._base_url, timeout=self.timeout_s) as ac:
