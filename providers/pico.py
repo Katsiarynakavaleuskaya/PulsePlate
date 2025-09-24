@@ -24,32 +24,24 @@ class PicoProvider(ProviderBase):
         self.model = model or os.getenv("PICO_MODEL", os.getenv("OLLAMA_MODEL", "llama3.1:8b"))
         self._base_url: str = cast(str, self.endpoint)
         self.timeout_s: float = 5.0
+        # Keep a sync client on the instance for test monkeypatch compatibility
+        self.client = httpx.Client(base_url=self._base_url, timeout=self.timeout_s)
 
     async def generate(self, text: str) -> str:
         try:
             data = None
             # 1) Prefer sync Client to satisfy existing unit tests that monkeypatch httpx.Client
             try:
-                c = httpx.Client(base_url=self._base_url, timeout=self.timeout_s)
-                try:
-                    r = c.post(
-                        "/api/chat",
-                        json={
-                            "model": self.model,
-                            "messages": [{"role": "user", "content": text}],
-                            "stream": False,
-                        },
-                    )
-                    r.raise_for_status()
-                    data = r.json()
-                finally:
-                    # Close client if it supports close(); ignore if stub without it
-                    try:
-                        close_fn = getattr(c, "close", None)
-                        if callable(close_fn):
-                            close_fn()
-                    except Exception:
-                        pass
+                r = self.client.post(
+                    "/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": text}],
+                        "stream": False,
+                    },
+                )
+                r.raise_for_status()
+                data = r.json()
             except Exception:
                 # 2) Fallback to AsyncClient if sync path not available/monkeypatched
                 async with httpx.AsyncClient(base_url=self._base_url, timeout=self.timeout_s) as ac:
