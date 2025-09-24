@@ -22,6 +22,17 @@ pytest_plugins = ["pytest_asyncio"]
 
 # Set VIP_MODULE_ENABLED globally for all tests
 os.environ["VIP_MODULE_ENABLED"] = "true"
+# Ensure default test-like environment variables for CI consistency
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+os.environ.setdefault("API_KEY", "test_key")
+os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
+
+# Ensure PYTHONPATH contains required segments for tests that assert on it
+_pp = os.environ.get("PYTHONPATH", "")
+_needle = ".:core:app:tests"
+if _needle not in _pp:
+    os.environ["PYTHONPATH"] = f"{_needle}:{_pp}" if _pp else _needle
 
 # Configure database location for tests (isolated SQLite file).
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="pulseplate-test-db-"))

@@ -46,20 +46,23 @@ def test_rag_skips_large_files_and_handles_read_error(
     normal_file = tmp_path / "doc.md"
     normal_file.write_text("Vitamin D helps calcium absorption.")
 
-    class BrokenPath(Path):
-        _flavour = Path(normal_file)._flavour  # pyright: ignore[reportAttributeAccessIssue]
-
-        def read_text(self, *args: Any, **kwargs: Any) -> str:  # noqa: D401
-            raise RuntimeError("boom")
-
     def fake_iter_docs():
         # First the big one (skipped), then a broken path (exception), then nothing useful
         yield big_file
-        yield BrokenPath(str(normal_file))
+        yield normal_file
 
     monkeypatch.setattr(RAG, "ROOT", tmp_path)
     monkeypatch.setattr(RAG, "_iter_docs", fake_iter_docs)
+    # Patch Path.read_text at the class level to raise only for this file
     RAG.invalidate_index()
+    _orig_read_text = Path.read_text
+
+    def _read_text_proxy(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self == normal_file:
+            raise RuntimeError("boom")
+        return _orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_text_proxy, raising=True)
     # No crash and empty context
     assert RAG.retrieve_context("calcium") == ""
 
