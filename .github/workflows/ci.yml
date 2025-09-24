@@ -89,6 +89,12 @@ jobs:
           path: junit.xml
           if-no-files-found: ignore
 
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Security scan with Bandit (non-blocking)
         if: always()
         run: |
