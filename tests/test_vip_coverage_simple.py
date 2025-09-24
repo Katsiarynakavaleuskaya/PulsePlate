@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 
 
 import pytest
+from starlette.types import ASGIApp
+from typing import cast
 
 
 @pytest.mark.smoke
@@ -106,7 +108,7 @@ class TestVIPCoverageSimple:
         """Test VIP health endpoint coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 200
@@ -118,7 +120,7 @@ class TestVIPCoverageSimple:
         """Test VIP weekly menu plan success coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock make_weekly_menu to return success
         mock_menu = {"monday": {"breakfast": "eggs"}}
@@ -146,7 +148,7 @@ class TestVIPCoverageSimple:
         """Test VIP weekly menu plan _safe_call error coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock make_weekly_menu to return None (from _safe_call)
         with patch("core.menu_engine.make_weekly_menu", return_value=None):
@@ -171,7 +173,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist weekly success coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock ShoplistGenerator to return success
         mock_generator = MagicMock()
@@ -194,7 +196,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist weekly error coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock ShoplistGenerator to raise exception
         mock_generator = MagicMock()
@@ -216,7 +218,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist daily success coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock ShoplistGenerator to return success
         mock_generator = MagicMock()
@@ -237,7 +239,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist daily error coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock ShoplistGenerator to raise exception
         mock_generator = MagicMock()
@@ -259,7 +261,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist formats success coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock format_export to return success
         with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
@@ -273,7 +275,7 @@ class TestVIPCoverageSimple:
         """Test VIP shoplist formats error coverage."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Mock format_export to raise exception
         with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):

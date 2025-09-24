@@ -10,6 +10,8 @@ from contextlib import ExitStack
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestUpdateManagerEndpoints:
@@ -25,7 +27,7 @@ class TestUpdateManagerEndpoints:
         monkeypatch.setenv("API_KEY_MODE", "required")
         monkeypatch.setenv("MPLCONFIGDIR", tempfile.gettempdir())
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         try:
             yield client
         finally:

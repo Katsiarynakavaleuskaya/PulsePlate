@@ -3,6 +3,8 @@
 """
 
 import os
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestCoverage97Simple:
@@ -41,7 +43,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/health")
         assert response.status_code == 200
 
@@ -50,7 +52,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/")
         assert response.status_code == 200
 
@@ -59,7 +61,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/docs")
         assert response.status_code == 200
 
@@ -68,7 +70,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/openapi.json")
         assert response.status_code == 200
 
@@ -77,7 +79,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
@@ -90,7 +92,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
             "/api/v1/bodyfat",
             json={"weight_kg": 70, "height_cm": 170, "waist_cm": 80, "hip_cm": 90},
@@ -103,7 +105,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/metrics")
         assert response.status_code == 200
 
@@ -112,7 +114,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 500, 503]
 
@@ -121,7 +123,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         payload = {
             "sex": "male",
             "age": 30,
@@ -141,7 +143,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         payload = {
             "week_plan": {
                 "days": [
@@ -160,7 +162,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         payload = {
             "week_plan": {
                 "days": [
@@ -179,7 +181,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 404
         response = client.get("/nonexistent")
@@ -196,7 +198,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
 
@@ -205,7 +207,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что middleware работает
         response = client.get("/health")
@@ -216,7 +218,7 @@ class TestCoverage97Simple:
         import app
         from fastapi.testclient import TestClient
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что приложение может быть запущено
         response = client.get("/health")

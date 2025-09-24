@@ -14,6 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestUpdateManagerFixed:
@@ -103,7 +105,7 @@ class TestUpdateManagerFixed:
         """Test update manager endpoints authentication."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test without API key - should get 401 or 403
         response = client.get("/api/v1/admin/check-updates")
@@ -116,7 +118,7 @@ class TestUpdateManagerFixed:
         """Test update manager endpoints with API key."""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test with API key
         response = client.post("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})

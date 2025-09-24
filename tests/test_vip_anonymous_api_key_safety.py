@@ -5,6 +5,8 @@ Tests the new production-safe behavior that prevents anonymous access by default
 
 import os
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPAnonymousAPIKeySafety:
@@ -39,7 +41,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -66,7 +68,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -92,7 +94,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -117,7 +119,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -143,7 +145,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -169,7 +171,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -195,7 +197,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -222,7 +224,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -248,7 +250,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -275,7 +277,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -301,7 +303,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post(
@@ -327,7 +329,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request with valid API key
         response = client.post(
@@ -354,7 +356,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request with invalid API key
         response = client.post(
@@ -381,7 +383,7 @@ class TestVIPAnonymousAPIKeySafety:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key - should allow in default local mode
         response = client.post(

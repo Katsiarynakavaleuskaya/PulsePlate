@@ -7,6 +7,8 @@ Targets lines that are skipped in echo mode (~49 lines, ~1% coverage).
 import os
 from fastapi.testclient import TestClient
 from unittest.mock import patch
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestVIPProductionMode:
@@ -35,7 +37,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request without API key to VIP endpoint
         response = client.post("/api/v1/vip/weekly-plan", json={"test": "data"})
@@ -49,7 +51,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request with wrong API key
         response = client.post(
@@ -65,7 +67,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test request with correct API key
         response = client.post(
@@ -91,7 +93,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
             "/api/v1/vip/weekly-plan",
@@ -109,7 +111,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipes endpoint without API key
         response = client.post("/api/v1/vip/recipes/synthesize", json={"ingredients": []})
@@ -122,7 +124,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test regions endpoint without API key
         response = client.get("/api/v1/vip/regions")
@@ -142,7 +144,7 @@ class TestVIPProductionMode:
 
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Test 1: Invalid API key (lines 88-95)
         response = client.post(
@@ -173,7 +175,7 @@ class TestVIPProductionMode:
         with patch("app.get_api_key") as mock_get_api_key:
             mock_get_api_key.side_effect = HTTPException(status_code=403, detail="Forbidden")
 
-            client = TestClient(app.app)
+            client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
                 "/api/v1/vip/weekly-plan", json={"test": "data"}, headers={"X-API-Key": "some-key"}

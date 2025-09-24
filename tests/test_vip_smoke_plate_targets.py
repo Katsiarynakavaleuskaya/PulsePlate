@@ -1,6 +1,8 @@
 import os
 
+from typing import cast
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 def test_vip_plate_and_targets_smoke(monkeypatch):
@@ -11,7 +13,7 @@ def test_vip_plate_and_targets_smoke(monkeypatch):
     monkeypatch.setenv("API_KEY", "test-key")
     monkeypatch.setenv("APP_ENV", "test")
 
-    client = TestClient(apppkg.app)
+    client = TestClient(cast(ASGIApp, apppkg.app))
 
     headers = {"X-API-Key": os.getenv("API_KEY", "test-key")}
 

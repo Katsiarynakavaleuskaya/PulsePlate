@@ -3,6 +3,8 @@
 """
 
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 class TestCoverage97UltimateBoost:
@@ -21,7 +23,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 66-68 - production режим с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест 1: Production с валидным API ключом
         response = client.post(
@@ -50,7 +52,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 98, 105, 115 - различные методы и endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест различных HTTP методов для health endpoint
         response = client.get("/health")
@@ -82,7 +84,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 130-132 - CORS с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест CORS с различными методами
         response = client.options("/api/v1/bmi")
@@ -109,7 +111,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 144-148, 147 - middleware с различными заголовками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware с различными заголовками
         headers_variants = [
@@ -130,7 +132,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 164-170, 169 - обработка различных ошибок"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест обработки различных ошибок
         for endpoint in self.NONEXISTENT_ENDPOINTS:
@@ -150,7 +152,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 205-208, 210 - admin endpoints с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест admin endpoints с различными сценариями
         admin_scenarios = [
@@ -174,7 +176,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 242-246, 247 - premium disabled с различными endpoints"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест с отключенными premium функциями
         premium_endpoints = [
@@ -195,7 +197,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 252-256 - статус коды с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест различных статус кодов
         endpoints = ["/health", "/metrics", "/docs", "/openapi.json", "/redoc"]
@@ -208,7 +210,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 504-505 - BMI endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест BMI endpoint с различными данными
         bmi_scenarios = [
@@ -231,7 +233,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 978, 995-996 - bodyfat endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест bodyfat endpoint с различными данными
         bodyfat_scenarios = [
@@ -254,7 +256,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1008-1012 - insight endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест insight endpoint с различными данными
         insight_scenarios = [
@@ -277,7 +279,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1045-1049 - metrics endpoint с различными заголовками"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест metrics endpoint с различными заголовками
         headers_variants = [
@@ -296,7 +298,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1093-1094 - category endpoint с различными параметрами"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест category endpoint с различными параметрами
         category_scenarios = [
@@ -315,7 +317,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1101-1102 - wht_ratio endpoint с различными параметрами"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест wht_ratio endpoint с различными параметрами
         wht_scenarios = [
@@ -334,7 +336,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1109-1112 - compute_wht_ratio endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест compute_wht_ratio endpoint с различными данными
         compute_wht_scenarios = [
@@ -357,7 +359,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1115-1118 - premium targets endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium targets endpoint с различными данными
         targets_scenarios = [
@@ -380,7 +382,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1121-1124 - premium week endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium week endpoint с различными данными
         week_scenarios = [
@@ -403,7 +405,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строки 1197 - premium enhanced plate endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест premium enhanced plate endpoint с различными данными
         enhanced_plate_scenarios = [
@@ -426,7 +428,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1325-1326, 1328-1329 - VIP endpoints с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест VIP endpoints с различными данными
         vip_scenarios = [
@@ -484,7 +486,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест VIP recipes endpoint с различными данными
         recipes_scenarios = [
@@ -541,7 +543,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1505->exit, 1508->exit - lifespan с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест lifespan
         response = client.get("/health")
@@ -551,7 +553,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1520-1527 - startup events с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест startup events
         response = client.get("/health")
@@ -561,7 +563,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1606, 1657-1660 - shutdown events с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест shutdown events
         response = client.get("/health")
@@ -571,7 +573,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1732, 1735-1739 - exception handlers с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест exception handlers
         response = client.get("/nonexistent")
@@ -581,7 +583,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1869-1870, 1872-1873 - middleware с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware
         response = client.get("/health")
@@ -593,7 +595,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1904, 1954->1966, 1960->1959 - CORS middleware с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест CORS middleware
         response = client.options("/api/v1/bmi")
@@ -605,7 +607,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 1987, 2014, 2061, 2064-2065 - middleware setup с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест middleware setup
         response = client.get("/health")
@@ -615,7 +617,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 2095, 2118, 2151, 2153 - router inclusion с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест router inclusion
         response = client.get("/health")
@@ -627,7 +629,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 2271-2272, 2372, 2400-2426 - OpenAPI generation с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест OpenAPI generation
         response = client.get("/openapi.json")
@@ -637,7 +639,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 2513, 2586, 2593, 2600 - app creation с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест app creation
         response = client.get("/health")
@@ -649,7 +651,7 @@ class TestCoverage97UltimateBoost:
         """Тест покрытия app.py строк 2693, 2699, 2706, 2718->2722, 2722->exit - app initialization с различными сценариями"""
         import app
 
-        client = TestClient(app.app)
+        client = TestClient(cast(ASGIApp, app.app))
 
         # Тест app initialization
         response = client.get("/health")

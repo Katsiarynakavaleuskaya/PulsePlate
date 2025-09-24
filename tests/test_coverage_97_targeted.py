@@ -5,6 +5,8 @@ Refactored targeted tests for achieving 97% coverage
 import os
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 
 
 @pytest.fixture(scope="session")
@@ -12,7 +14,7 @@ def app_client():
     """Session-scoped TestClient fixture to avoid repeated creation"""
     import app
 
-    return TestClient(app.app)
+    return TestClient(cast(ASGIApp, app.app))
 
 
 class TestCoverage97Targeted:

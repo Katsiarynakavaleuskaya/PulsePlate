@@ -10,11 +10,13 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
 import app
+from starlette.types import ASGIApp
+from typing import cast
 
 # Type assertion to satisfy type checker
 assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
 
-client = TestClient(app.app)
+client = TestClient(cast(ASGIApp, app.app))
 
 
 def test_vip_health():
@@ -68,7 +70,7 @@ def test_vip_module_enabled():
     """Ensure VIP module is enabled and the health endpoint responds with 200."""
     # Confirm the FastAPI app is initialised with the VIP router
     assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
-    client = TestClient(app.app)
+    client = TestClient(cast(ASGIApp, app.app))
     r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
     # VIP module is enabled, so expect 200
     assert r.status_code == 200
