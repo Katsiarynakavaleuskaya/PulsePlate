@@ -36,6 +36,7 @@ jobs:
           python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -q
 
       - name: Resolve Codecov token
+        if: ${{ github.event_name == 'push' }}
         id: resolve-codecov-token
         shell: bash
         env:
@@ -49,7 +50,7 @@ jobs:
           fi
 
       - name: Upload to Codecov
-        if: ${{ steps.resolve-codecov-token.outputs.token != '' }}
+        if: ${{ github.event_name == 'push' && steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -67,7 +68,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() && steps.resolve-codecov-token.outputs.token != '' }}
+        if: ${{ github.event_name == 'push' && !cancelled() && steps.resolve-codecov-token.outputs.token != '' }}
         uses: codecov/test-results-action@v1
         with:
           token: ${{ steps.resolve-codecov-token.outputs.token }}
