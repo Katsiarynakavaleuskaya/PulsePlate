@@ -30,6 +30,10 @@ app = getattr(_mod, "app", None)
 if app is None:  # pragma: no cover
     raise AttributeError("Top-level app.py has no 'app' instance")
 
+# Ensure this package exposes a valid search path for submodules
+if "__path__" not in globals():  # pragma: no cover
+    __path__ = [str(Path(__file__).parent)]
+
 
 def __getattr__(name: str):  # pragma: no cover - passthrough
     return getattr(_mod, name)
@@ -82,7 +86,11 @@ try:  # pragma: no cover - defensive; avoid impacting production runtime
             if attr in {"origin", "loader"} and _BASE_SPEC:
                 return getattr(_BASE_SPEC, attr, None)
             if attr == "submodule_search_locations":
-                return []
+                # Provide a non-empty list so importlib can treat this as a package
+                try:
+                    return [str(Path(__file__).parent)]
+                except Exception:
+                    return [""]
             if attr == "_uninitialized_submodules":
                 return []
             return None
