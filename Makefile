@@ -1,3 +1,11 @@
+validate-data:
+	python3 scripts/validate_data.py
+
+health-check:
+	python3 -m pytest -q tests/test_app_health_and_root.py
+
+unit-fast:
+	python3 -m pytest -q tests
 SHELL := /bin/bash
 PIP ?= . .venv/bin/activate && pip
 
