@@ -37,7 +37,7 @@ from app.routers.recipes import router as recipes_router
 from app.routers.users import router as users_router
 from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.premium_week import router as premium_week_router
-from app.routers.plan_export import plan_router
+from app.routers.plan_export import export_router, plan_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.api_key import api_key_header
 import asyncio
@@ -297,6 +297,7 @@ async def admin_status():
 app.include_router(foods_router)
 app.include_router(recipes_router)
 app.include_router(users_router)
+app.include_router(export_router)
 app.include_router(plan_router)
 app.include_router(shoplist_router)
 

@@ -1,14 +1,16 @@
-"""Weekly plan export endpoints (CSV and PDF)."""
+"""Weekly plan export endpoints (CSV and PDF) with signed-link support."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
+from urllib.parse import urlencode
 import csv
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -16,7 +18,17 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
+from signed_links import sign, verify
+
 plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
+export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
+
+
+class SignRequest(BaseModel):
+    path: str
+    ttl_seconds: Optional[int] = None
+
 
 FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
@@ -105,8 +117,23 @@ def _iter_rows(week: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
                 }
 
 
+def _require_valid_token(request: Request) -> None:
+    if not PRIVATE_EXPORTS_ENABLED:
+        return
+    exp = request.query_params.get("exp")
+    sig = request.query_params.get("sig")
+    if not exp or not sig:
+        raise HTTPException(status_code=403, detail="missing token")
+    try:
+        exp_ts = int(exp)
+    except ValueError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=403, detail="bad token") from exc
+    if not verify(EXPORT_TOKEN_SECRET, request.url.path, exp_ts, sig):
+        raise HTTPException(status_code=403, detail="invalid or expired token")
+
+
 @plan_router.get("/week/export.csv")
-def export_week_csv() -> Response:
+def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
     buffer = StringIO()
     fieldnames = [
@@ -197,7 +224,7 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
 
 
 @plan_router.get("/week/export.pdf")
-def export_week_pdf() -> Response:
+def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
     font = _register_font()
 
@@ -248,4 +275,18 @@ def export_week_pdf() -> Response:
     )
 
 
-__all__ = ["plan_router"]
+@export_router.post("/sign")
+def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
+    path = payload.path
+    if not path.startswith("/api/"):
+        raise HTTPException(status_code=400, detail="path must start with /api/")
+    ttl = int(payload.ttl_seconds or EXPORT_TOKEN_TTL_SECONDS)
+    if ttl <= 0:
+        raise HTTPException(status_code=400, detail="ttl must be positive")
+    exp_ts = int((datetime.now(timezone.utc) + timedelta(seconds=ttl)).timestamp())
+    signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
+    query = urlencode({"exp": exp_ts, "sig": signature})
+    return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}
+
+
+__all__ = ["plan_router", "export_router"]

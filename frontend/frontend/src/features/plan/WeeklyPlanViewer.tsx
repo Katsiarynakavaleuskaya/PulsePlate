@@ -2,12 +2,29 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 
-function getCsvUrl(): string {
-  if (typeof window === "undefined") {
-    return "/api/v1/plan/week/export.csv";
+type SignedLink = {
+  relative: string;
+  absolute: string;
+  ttl: number;
+  exp: number;
+};
+
+async function createSignedLink(path: string, ttlSeconds = 900): Promise<SignedLink> {
+  const res = await fetch("/api/v1/export/sign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, ttl_seconds: ttlSeconds }),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
   }
-  const origin = window.location.origin;
-  return `${origin}/api/v1/plan/week/export.csv`;
+  const data = await res.json();
+  const relative = data.url as string;
+  const absolute =
+    typeof window !== "undefined"
+      ? new URL(relative, window.location.origin).toString()
+      : relative;
+  return { relative, absolute, ttl: data.ttl ?? ttlSeconds, exp: data.exp as number };
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -36,8 +53,8 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-async function downloadFile(path: string, filename: string) {
-  const res = await fetch(path);
+async function downloadSignedFile(url: string, filename: string) {
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
@@ -72,6 +89,7 @@ export default function WeeklyPlanViewer() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -106,7 +124,6 @@ export default function WeeklyPlanViewer() {
   const dailyMenus = Array.isArray(data?.daily_menus)
     ? (data!.daily_menus as UnknownRecord[])
     : [];
-  const csvLink = getCsvUrl();
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
@@ -116,12 +133,40 @@ export default function WeeklyPlanViewer() {
   };
 
   const copyLink = async () => {
-    const ok = await copyToClipboard(csvLink);
-    setHint(
-      ok
-        ? "CSV-ссылка скопирована. В Google Sheets выбери File → Import → Link."
-        : `Не удалось скопировать автоматически. Скопируй вручную: ${csvLink}`
-    );
+    try {
+      const link = await createSignedLink("/api/v1/plan/week/export.csv");
+      const ok = await copyToClipboard(link.absolute);
+      setLastSignedLink(link.absolute);
+      setHint(
+        ok
+          ? "Приватная CSV-ссылка скопирована (действует 15 минут). В Google Sheets выбери File → Import → Link."
+          : `Не удалось скопировать автоматически. Скопируй вручную: ${link.absolute}`
+      );
+    } catch (error: any) {
+      setHint(`Не удалось получить приватную ссылку: ${error?.message || "error"}`);
+    }
+  };
+
+  const handleDownload = async (path: string, filename: string) => {
+    try {
+      const link = await createSignedLink(path);
+      await downloadSignedFile(link.absolute, filename);
+      setLastSignedLink(link.absolute);
+      setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
+    } catch (error: any) {
+      setHint(`Не удалось скачать файл: ${error?.message || "error"}`);
+    }
+  };
+
+  const openPrivateCsv = async () => {
+    try {
+      const link = await createSignedLink("/api/v1/plan/week/export.csv");
+      setLastSignedLink(link.absolute);
+      window.open(link.absolute, "_blank", "noopener,noreferrer");
+      setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
+    } catch (error: any) {
+      setHint(`Не удалось открыть приватную ссылку: ${error?.message || "error"}`);
+    }
   };
 
   return (
@@ -132,14 +177,14 @@ export default function WeeklyPlanViewer() {
           <button
             type="button"
             className="border rounded-xl px-3 py-2 text-sm"
-            onClick={() => downloadFile("/api/v1/plan/week/export.csv", "week_plan.csv")}
+            onClick={() => handleDownload("/api/v1/plan/week/export.csv", "week_plan.csv")}
           >
             Export Week CSV
           </button>
           <button
             type="button"
             className="border rounded-xl px-3 py-2 text-sm"
-            onClick={() => downloadFile("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
+            onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
           >
             Export Week PDF
           </button>
@@ -159,14 +204,23 @@ export default function WeeklyPlanViewer() {
           >
             Copy CSV Link
           </button>
+          <button
+            type="button"
+            className="border rounded-xl px-3 py-2 text-sm"
+            onClick={openPrivateCsv}
+          >
+            Open Private CSV
+          </button>
         </div>
       </div>
       {hint && (
         <div className="text-sm opacity-80">
           {hint}
-          <div>
-            Прямая ссылка: <code>{csvLink}</code>
-          </div>
+          {lastSignedLink && (
+            <div>
+              Приватная ссылка: <code>{lastSignedLink}</code>
+            </div>
+          )}
         </div>
       )}
       {dailyMenus.length === 0 && <div className="opacity-70">Пока пусто.</div>}
