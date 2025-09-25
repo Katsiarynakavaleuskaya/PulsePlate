@@ -16,7 +16,15 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
@@ -26,6 +34,15 @@ export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
 
 MACRO_KEYS = ("energy_kcal", "protein_g", "carbs_g", "fat_g")
+BRAND_NAVY = colors.HexColor("#0F172A")
+BRAND_BLUE = colors.HexColor("#339FFF")
+BRAND_GREEN = colors.HexColor("#20C997")
+BRAND_BLUE_HEX = "#339FFF"
+BRAND_GREEN_HEX = "#20C997"
+LOGO_CANDIDATES = (
+    Path("assets/fitchef.png"),
+    Path("assets/logo.png"),
+)
 
 
 class SignRequest(BaseModel):
@@ -67,6 +84,39 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
         for key in MACRO_KEYS:
             totals[key] = _safe_add(totals[key], day_totals.get(key))
     return totals
+
+
+def _find_logo_path() -> Optional[Path]:
+    for candidate in LOGO_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _branded_header(story: List[Any], styles, font: str, doc_width: float) -> None:
+    logo_path = _find_logo_path()
+    if logo_path is not None:
+        logo = Image(str(logo_path), width=60, height=60, hAlign="LEFT")
+        story.append(logo)
+        story.append(Spacer(1, 6))
+
+    brand_title = Paragraph(
+        f'<font color="{BRAND_BLUE_HEX}"><b>PulsePlate — Weekly Plan</b></font>',
+        styles["Heading1"],
+    )
+    story.append(brand_title)
+
+    brand_subtitle = Paragraph(
+        f'<font color="{BRAND_GREEN_HEX}">Nutrition • Body • Lifestyle</font>',
+        styles["Heading3"],
+    )
+    story.append(brand_subtitle)
+    story.append(Spacer(1, 8))
+
+    divider = Table([[""]], colWidths=[doc_width], rowHeights=[4])
+    divider.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), BRAND_NAVY)]))
+    story.append(divider)
+    story.append(Spacer(1, 12))
 
 
 def _get_week_plan() -> Dict[str, Any]:
@@ -285,13 +335,14 @@ def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_toke
         styles[key].fontName = font
 
     story: List[Any] = []
-    story.append(Paragraph("<b>Недельный план питания / Weekly Plan</b>", styles["Heading2"]))
+    _branded_header(story, styles, font, doc.width)
     story.append(
         Paragraph(
             datetime.now(timezone.utc).strftime("Сгенерировано %Y-%m-%d %H:%M UTC"),
             styles["Normal"],
         )
     )
+    story.append(Spacer(1, 8))
 
     story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
     totals_table = Table(
@@ -311,8 +362,11 @@ def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_toke
             [
                 ("FONTNAME", (0, 0), (-1, -1), font),
                 ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("BACKGROUND", (0, 1), (-1, 1), BRAND_GREEN),
+                ("TEXTCOLOR", (0, 1), (-1, 1), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.white),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ]
         )
