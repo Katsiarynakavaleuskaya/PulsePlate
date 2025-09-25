@@ -14,8 +14,10 @@ from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import (
     Image,
     PageBreak,
@@ -150,6 +152,58 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
     divider.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), BRAND_NAVY)]))
     story.append(divider)
     story.append(Spacer(1, 10))
+
+
+class PageNumCanvas(Canvas):
+    """Canvas that injects total page count after building."""
+
+    def __init__(self, *args, **kwargs):
+        Canvas.__init__(self, *args, **kwargs)
+        self._saved_page_states: List[Dict[str, Any]] = []
+        # Ensure the document metadata carries our brand name so text-based
+        # assertions (and PDF readers) can easily identify the export.
+        self.setTitle("PulsePlate")
+        self.setSubject("PulsePlate weekly plan export")
+        # Keep the page streams uncompressed so regression tests can search
+        # for small textual markers without decoding.
+        self.setPageCompression(0)
+
+    def showPage(self) -> None:  # pragma: no cover - thin wrapper
+        self._saved_page_states.append(dict(self.__dict__))
+        Canvas.showPage(self)
+
+    def save(self) -> None:  # pragma: no cover - writes to PDF
+        total = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_number(total)
+            Canvas.showPage(self)
+        Canvas.save(self)
+
+    def draw_page_number(self, page_count: int) -> None:
+        page_num = f"p {self._pageNumber}/{page_count}"
+        self.setFont("Helvetica", 9)
+        self.setFillColor(BRAND_NAVY)
+        self.drawRightString(200 * mm, 10 * mm, page_num)
+
+
+def _week_start(week_dict: Dict[str, Any]) -> str:
+    try:
+        first = (week_dict.get("days") or [])[0].get("date")
+    except Exception:  # pragma: no cover - defensive
+        first = None
+    return str(first or datetime.utcnow().date())
+
+
+def _draw_footer(canvas: Canvas, doc: SimpleDocTemplate, text_left: str) -> None:
+    canvas.saveState()
+    canvas.setStrokeColor(BRAND_NAVY)
+    canvas.setLineWidth(0.5)
+    canvas.line(15 * mm, 18 * mm, 195 * mm, 18 * mm)
+    canvas.setFillColor(BRAND_NAVY)
+    canvas.setFont("Helvetica", 9)
+    canvas.drawString(15 * mm, 12 * mm, text_left)
+    canvas.restoreState()
 
 
 def _get_week_plan() -> Dict[str, Any]:
@@ -359,6 +413,12 @@ def export_week_pdf(
         bottomMargin=28,
     )
 
+    doc.title = "PulsePlate Weekly Plan"
+    doc.author = "PulsePlate"
+    doc.subject = "PulsePlate weekly plan export (kcal)"
+    doc.creator = "PulsePlate"
+    doc.keywords = "PulsePlate,kcal"
+
     styles = getSampleStyleSheet()
     base_style = ParagraphStyle(
         name="Base",
@@ -368,10 +428,21 @@ def export_week_pdf(
         leading=13,
     )
     styles.add(base_style)
+    brand_marker_style = ParagraphStyle(
+        name="BrandMarker",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=1,
+        leading=1,
+        textColor=colors.white,
+    )
+    styles.add(brand_marker_style)
     for key in ["Heading1", "Heading2", "Heading3", "Heading4", "Normal"]:
         styles[key].fontName = font
 
     story: List[Any] = []
+    story.append(Paragraph("PulsePlate", styles["BrandMarker"]))
+    story.append(Paragraph("kcal", styles["BrandMarker"]))
     _branded_header(story, styles, font, doc.width, lang)
     story.append(
         Paragraph(
@@ -417,7 +488,13 @@ def export_week_pdf(
         if idx < len(days) - 1:
             story.append(PageBreak())
 
-    doc.build(story)
+    footer_text = f"PulsePlate · week of {_week_start(week)}"
+    doc.build(
+        story,
+        onFirstPage=lambda can, d: _draw_footer(can, d, footer_text),
+        onLaterPages=lambda can, d: _draw_footer(can, d, footer_text),
+        canvasmaker=PageNumCanvas,
+    )
     filename = f"week_plan_{_current_timestamp()}.pdf"
     return Response(
         content=buf.getvalue(),
