@@ -131,7 +131,7 @@ jobs:
         run: npm ci
 
       - name: Run vitest suite
-        run: npx vitest run --runInBand
+        run: npx vitest run
 
       - name: Build SPA
         run: npm run build
