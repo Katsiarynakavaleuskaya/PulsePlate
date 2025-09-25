@@ -25,6 +25,9 @@ plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
 
+MACRO_KEYS = ("energy_kcal", "protein_g", "carbs_g", "fat_g")
+
+
 class SignRequest(BaseModel):
     path: str
     ttl_seconds: Optional[int] = None
@@ -37,6 +40,33 @@ FONT_NAME = "DejaVuSans"
 
 def _current_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _safe_add(acc: float, value: Any) -> float:
+    if value is None:
+        return acc
+    try:
+        return acc + float(value)
+    except Exception:  # pragma: no cover - defensive
+        return acc
+
+
+def sum_day_macros(day: Dict[str, Any]) -> Dict[str, float]:
+    totals = {key: 0.0 for key in MACRO_KEYS}
+    for meal in day.get("meals") or []:
+        for item in meal.get("items") or []:
+            for key in MACRO_KEYS:
+                totals[key] = _safe_add(totals[key], item.get(key))
+    return totals
+
+
+def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
+    totals = {key: 0.0 for key in MACRO_KEYS}
+    for day in week.get("days") or []:
+        day_totals = sum_day_macros(day)
+        for key in MACRO_KEYS:
+            totals[key] = _safe_add(totals[key], day_totals.get(key))
+    return totals
 
 
 def _get_week_plan() -> Dict[str, Any]:
@@ -135,7 +165,10 @@ def _require_valid_token(request: Request) -> None:
 @plan_router.get("/week/export.csv")
 def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
+    totals = sum_week_macros(week)
     buffer = StringIO()
+    totals_str = ", ".join(f"{key}={round(value, 2)}" for key, value in totals.items())
+    buffer.write(f"# WEEK_TOTALS: {totals_str}\n")
     fieldnames = [
         "date",
         "day_idx",
@@ -227,6 +260,7 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
 def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
     week = _get_week_plan()
     font = _register_font()
+    totals = sum_week_macros(week)
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
@@ -258,6 +292,32 @@ def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_toke
             styles["Normal"],
         )
     )
+
+    story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
+    totals_table = Table(
+        [
+            ["ккал", "Б", "У", "Ж"],
+            [
+                str(round(totals.get("energy_kcal", 0.0), 0)),
+                str(round(totals.get("protein_g", 0.0), 1)),
+                str(round(totals.get("carbs_g", 0.0), 1)),
+                str(round(totals.get("fat_g", 0.0), 1)),
+            ],
+        ],
+        colWidths=[60, 60, 60, 60],
+    )
+    totals_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), font),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ]
+        )
+    )
+    story.append(totals_table)
     story.append(Spacer(1, 14))
 
     days = week.get("days") or []

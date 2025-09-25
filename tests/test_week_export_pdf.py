@@ -80,3 +80,29 @@ def test_pdf_uses_page_breaks(monkeypatch) -> None:
     response = client.get(url)
     assert response.status_code == 200
     assert response.content.count(b"/Type /Page") >= 2
+
+
+def test_pdf_includes_week_totals_table(monkeypatch) -> None:
+    captured_story: List[Any] = []
+
+    class DummyDoc:
+        def __init__(self, buf, **kwargs):
+            self._buf = buf
+
+        def build(self, story):  # type: ignore[override]
+            captured_story.extend(story)
+            self._buf.write(b"%PDF-Fake")
+
+    monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
+    monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
+
+    url = _signed_pdf_url()
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF")
+
+    from reportlab.platypus import Table
+
+    totals_table = next((node for node in captured_story if isinstance(node, Table)), None)
+    assert totals_table is not None
+    assert totals_table._cellvalues[0] == ["ккал", "Б", "У", "Ж"]
