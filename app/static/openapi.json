@@ -602,6 +602,70 @@
         }
       }
     },
+    "/api/v1/shoplist": {
+      "get": {
+        "tags": [
+          "shoplist"
+        ],
+        "summary": "Get Shoplist",
+        "description": "Return the current shoplist in JSON form.",
+        "operationId": "get_shoplist_api_v1_shoplist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Shoplist Api V1 Shoplist Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shoplist/export.csv": {
+      "get": {
+        "tags": [
+          "shoplist"
+        ],
+        "summary": "Export Shoplist Csv",
+        "description": "Export the current shoplist as a CSV attachment.",
+        "operationId": "export_shoplist_csv_api_v1_shoplist_export_csv_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shoplist/export.pdf": {
+      "get": {
+        "tags": [
+          "shoplist"
+        ],
+        "summary": "Export Shoplist Pdf",
+        "description": "Return a fully rendered PDF attachment for the shoplist.",
+        "operationId": "export_shoplist_pdf_api_v1_shoplist_export_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vip/health": {
       "get": {
         "tags": [
