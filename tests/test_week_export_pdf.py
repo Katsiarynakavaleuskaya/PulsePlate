@@ -82,12 +82,20 @@ def test_pdf_uses_page_breaks(monkeypatch) -> None:
     assert response.content.count(b"/Type /Page") >= 2
 
 
-def test_pdf_includes_week_totals_table(monkeypatch) -> None:
+def test_pdf_includes_brand_header_and_totals(monkeypatch) -> None:
     captured_story: List[Any] = []
 
     class DummyDoc:
         def __init__(self, buf, **kwargs):
             self._buf = buf
+            pagesize = kwargs.get("pagesize", None)
+            if pagesize is not None:
+                width = pagesize[0]
+            else:  # pragma: no cover - fallback
+                width = 595.27  # default A4 width in points
+            left = kwargs.get("leftMargin", 0)
+            right = kwargs.get("rightMargin", 0)
+            self.width = width - left - right
 
         def build(self, story):  # type: ignore[override]
             captured_story.extend(story)
@@ -101,8 +109,26 @@ def test_pdf_includes_week_totals_table(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
 
-    from reportlab.platypus import Table
+    from reportlab.platypus import Paragraph, Table
 
-    totals_table = next((node for node in captured_story if isinstance(node, Table)), None)
+    brand_paragraph = next(
+        (
+            node
+            for node in captured_story
+            if isinstance(node, Paragraph) and "PulsePlate" in node.getPlainText()
+        ),
+        None,
+    )
+    assert brand_paragraph is not None
+
+    totals_table = next(
+        (
+            node
+            for node in captured_story
+            if isinstance(node, Table)
+            and len(getattr(node, "_cellvalues", [])) >= 2
+            and node._cellvalues[0] == ["ккал", "Б", "У", "Ж"]
+        ),
+        None,
+    )
     assert totals_table is not None
-    assert totals_table._cellvalues[0] == ["ккал", "Б", "У", "Ж"]
