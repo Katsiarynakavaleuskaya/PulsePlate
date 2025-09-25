@@ -12,8 +12,15 @@ from app.routers import plan_export as plan
 client = TestClient(app)
 
 
+def _signed_pdf_url() -> str:
+    response = client.post("/api/v1/export/sign", json={"path": "/api/v1/plan/week/export.pdf"})
+    assert response.status_code == 200
+    return response.json()["url"]
+
+
 def test_week_export_pdf_ok() -> None:
-    response = client.get("/api/v1/plan/week/export.pdf")
+    url = _signed_pdf_url()
+    response = client.get(url)
     assert response.status_code == 200
     content_type = response.headers.get("content-type", "")
     assert "application/pdf" in content_type
@@ -69,6 +76,7 @@ def test_pdf_uses_page_breaks(monkeypatch) -> None:
     monkeypatch.setattr(plan, "_get_week_plan", fake_plan)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
 
-    response = client.get("/api/v1/plan/week/export.pdf")
+    url = _signed_pdf_url()
+    response = client.get(url)
     assert response.status_code == 200
     assert response.content.count(b"/Type /Page") >= 2

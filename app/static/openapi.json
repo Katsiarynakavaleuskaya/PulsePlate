@@ -602,6 +602,49 @@
         }
       }
     },
+    "/api/v1/export/sign": {
+      "post": {
+        "tags": [
+          "export"
+        ],
+        "summary": "Sign Export Link",
+        "operationId": "sign_export_link_api_v1_export_sign_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Sign Export Link Api V1 Export Sign Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plan/week/export.csv": {
       "get": {
         "tags": [
@@ -4028,6 +4071,30 @@
           "kcal_per_serv"
         ],
         "title": "RecipeQueryHit"
+      },
+      "SignRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "ttl_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "SignRequest"
       },
       "TargetsIn": {
         "properties": {
