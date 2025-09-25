@@ -405,7 +405,7 @@ make lint
 ## 🧪 CI & Coverage Policy
 
 - GitHub Actions runs on Python 3.12 and 3.13 (matrix).
-- Coverage is enforced at 100% via `--cov-fail-under=100`.
+- Coverage is enforced at 97% via `--cov-fail-under=97`.
 - Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
 - Bandit & Safety run as non-blocking checks (artifacts available in CI logs).
 - Coverage report (`coverage.xml`) is uploaded as an artifact per job.

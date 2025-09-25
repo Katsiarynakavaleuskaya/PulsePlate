@@ -88,7 +88,7 @@ def run_tests():
 def run_coverage():
     """Запустить проверку покрытия"""
     return run_command(
-        "python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=95 -q",
+        "python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q",
         "Проверка покрытия",
     )
 

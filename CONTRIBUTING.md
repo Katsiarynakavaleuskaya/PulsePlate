@@ -21,7 +21,7 @@ This repo uses a simple branch model designed to keep `main` always green.
 
 ```bash
 pytest -q --maxfail=1 --disable-warnings \
-  --cov=. --cov-report=term-missing --cov-fail-under=96
+  --cov=. --cov-report=term-missing --cov-fail-under=97
 ```
 
 ## Auto‑delete merged branches
