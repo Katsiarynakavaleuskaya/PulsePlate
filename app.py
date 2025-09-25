@@ -1339,9 +1339,9 @@ class WeeklyPlanFlexibleRequest(BaseModel):
     surplus_pct: Optional[float] = None
     bodyfat: Optional[float] = None
     diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Optional[
-        Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
-    ] = "adult"
+    life_stage: Optional[Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]] = (
+        "adult"
+    )
     lang: Optional[str] = "en"
 
 
