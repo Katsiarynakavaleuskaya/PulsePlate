@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../../api/client";
+import GlassCard from "../../components/GlassCard";
 
 type ShopItem = {
   id?: string;
@@ -100,65 +101,72 @@ export default function ShoplistPreview() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Список покупок</h2>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="opacity-70">
-            {data.store ? `Магазин: ${data.store}` : ""}
-            {typeof data.total_estimated === "number" && (
-              <>
-                {data.store ? " • " : ""}≈ {data.total_estimated}
-                {data.currency ? ` ${data.currency}` : ""}
-              </>
-            )}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleDownload("csv")}
-              disabled={downloading === "csv"}
-              className="border rounded-xl px-3 py-2 text-sm"
-            >
-              {downloading === "csv" ? "Скачиваем CSV…" : "Export CSV"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownload("pdf")}
-              disabled={downloading === "pdf"}
-              className="border rounded-xl px-3 py-2 text-sm"
-            >
-              {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
-            </button>
+      <GlassCard>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-white drop-shadow-sm">
+          <h2 className="text-xl font-semibold">Список покупок</h2>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="opacity-80">
+              {data.store ? `Магазин: ${data.store}` : ""}
+              {typeof data.total_estimated === "number" && (
+                <>
+                  {data.store ? " • " : ""}≈ {data.total_estimated}
+                  {data.currency ? ` ${data.currency}` : ""}
+                </>
+              )}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleDownload("csv")}
+                disabled={downloading === "csv"}
+                className="border rounded-xl px-3 py-2 text-sm"
+              >
+                {downloading === "csv" ? "Скачиваем CSV…" : "Export CSV"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload("pdf")}
+                disabled={downloading === "pdf"}
+                className="border rounded-xl px-3 py-2 text-sm"
+              >
+                {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      {downloadError && (
-        <div className="text-sm text-red-600">Ошибка загрузки: {downloadError}</div>
-      )}
-      <ul className="space-y-3">
-        {groups.map((group, gi) => (
-          <li key={group.aisle ?? gi} className="border rounded-2xl p-4">
-            <div className="font-medium">{group.aisle ?? "Категория"}</div>
-            <ul className="mt-2 grid gap-1">
-              {(group.items ?? []).map((item, ii) => (
-                <li key={item.id ?? `${item.name}-${ii}`} className="text-sm">
-                  • {item.name ?? "—"}
-                  {typeof item.qty === "number" && (
-                    <span>
-                      {" "}— {item.qty}
-                      {item.unit ? ` ${item.unit}` : ""}
-                    </span>
-                  )}
-                  {item.note && <span className="opacity-60"> ({item.note})</span>}
-                </li>
-              ))}
-              {(!group.items || group.items.length === 0) && (
-                <li className="text-sm opacity-60">Нет позиций</li>
-              )}
-            </ul>
-          </li>
-        ))}
-      </ul>
+        {downloadError && (
+          <div className="mt-3 text-sm text-red-300">Ошибка загрузки: {downloadError}</div>
+        )}
+      </GlassCard>
+      <GlassCard>
+        <ul className="space-y-3">
+          {groups.map((group, gi) => (
+            <li
+              key={group.aisle ?? gi}
+              className="border border-white/15 rounded-2xl bg-white/5 p-4 backdrop-blur-sm"
+            >
+              <div className="font-medium">{group.aisle ?? "Категория"}</div>
+              <ul className="mt-2 grid gap-1">
+                {(group.items ?? []).map((item, ii) => (
+                  <li key={item.id ?? `${item.name}-${ii}`} className="text-sm">
+                    • {item.name ?? "—"}
+                    {typeof item.qty === "number" && (
+                      <span>
+                        {" "}— {item.qty}
+                        {item.unit ? ` ${item.unit}` : ""}
+                      </span>
+                    )}
+                    {item.note && <span className="opacity-60"> ({item.note})</span>}
+                  </li>
+                ))}
+                {(!group.items || group.items.length === 0) && (
+                  <li className="text-sm opacity-60">Нет позиций</li>
+                )}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </GlassCard>
     </div>
   );
 }

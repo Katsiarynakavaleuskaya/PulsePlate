@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
+import GlassCard from "../../components/GlassCard";
 
 type SignedLink = {
   relative: string;
@@ -171,61 +172,66 @@ export default function WeeklyPlanViewer() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Мой недельный план</h2>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="border rounded-xl px-3 py-2 text-sm"
-            onClick={() => handleDownload("/api/v1/plan/week/export.csv", "week_plan.csv")}
-          >
-            Export Week CSV
-          </button>
-          <button
-            type="button"
-            className="border rounded-xl px-3 py-2 text-sm"
-            onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
-          >
-            Export Week PDF
-          </button>
-          <button
-            type="button"
-            className="border rounded-xl px-3 py-2 text-sm"
-            onClick={openSheetsHelp}
-            title="Откроет пустой Google Sheets"
-          >
-            Open in Google Sheets
-          </button>
-          <button
-            type="button"
-            className="border rounded-xl px-3 py-2 text-sm"
-            onClick={copyLink}
-            title="Скопировать прямую CSV-ссылку"
-          >
-            Copy CSV Link
-          </button>
-          <button
-            type="button"
-            className="border rounded-xl px-3 py-2 text-sm"
-            onClick={openPrivateCsv}
-          >
-            Open Private CSV
-          </button>
+      <GlassCard>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-white drop-shadow-sm">
+          <h2 className="text-xl font-semibold">Мой недельный план</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              onClick={() => handleDownload("/api/v1/plan/week/export.csv", "week_plan.csv")}
+            >
+              Export Week CSV
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
+            >
+              Export Week PDF
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              onClick={openSheetsHelp}
+              title="Откроет пустой Google Sheets"
+            >
+              Open in Google Sheets
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              onClick={copyLink}
+              title="Скопировать прямую CSV-ссылку"
+            >
+              Copy CSV Link
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              onClick={openPrivateCsv}
+            >
+              Open Private CSV
+            </button>
+          </div>
         </div>
-      </div>
-      {hint && (
-        <div className="text-sm opacity-80">
-          {hint}
-          {lastSignedLink && (
-            <div>
-              Приватная ссылка: <code>{lastSignedLink}</code>
-            </div>
-          )}
-        </div>
-      )}
-      {dailyMenus.length === 0 && <div className="opacity-70">Пока пусто.</div>}
-      <ul className="space-y-4">
-        {dailyMenus.map((menu, idx) => {
+        {hint && (
+          <div className="mt-3 text-sm text-white/80">
+            {hint}
+            {lastSignedLink && (
+              <div>
+                Приватная ссылка: <code>{lastSignedLink}</code>
+              </div>
+            )}
+          </div>
+        )}
+      </GlassCard>
+      <GlassCard>
+        {dailyMenus.length === 0 ? (
+          <div className="opacity-80">Пока пусто.</div>
+        ) : (
+          <ul className="space-y-4">
+            {dailyMenus.map((menu, idx) => {
           const day = menu as UnknownRecord;
           const dayTitle =
             typeof day.date === "string"
@@ -245,7 +251,7 @@ export default function WeeklyPlanViewer() {
             : [];
 
           return (
-            <li key={dayTitle} className="border rounded-2xl p-4 space-y-2">
+            <li key={dayTitle} className="border border-white/15 rounded-2xl bg-white/5 p-4 space-y-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <div className="font-medium">{dayTitle}</div>
                 {typeof dayEnergy === "number" && (
@@ -290,7 +296,10 @@ export default function WeeklyPlanViewer() {
                   const items = rawItems.length > 0 ? rawItems : fallbackItem;
 
                   return (
-                    <li key={`${mealName}-${mi}`} className="rounded-xl border p-3">
+                    <li
+                      key={`${mealName}-${mi}`}
+                      className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="font-medium">{mealName}</div>
                         {typeof mealEnergy === "number" && (
@@ -335,7 +344,9 @@ export default function WeeklyPlanViewer() {
             </li>
           );
         })}
-      </ul>
+          </ul>
+        )}
+      </GlassCard>
     </div>
   );
 }
