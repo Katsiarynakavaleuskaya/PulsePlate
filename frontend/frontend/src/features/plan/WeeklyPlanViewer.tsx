@@ -2,6 +2,40 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 
+function getCsvUrl(): string {
+  if (typeof window === "undefined") {
+    return "/api/v1/plan/week/export.csv";
+  }
+  const origin = window.location.origin;
+  return `${origin}/api/v1/plan/week/export.csv`;
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (error) {
+    // Will fall back to the legacy approach below
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 async function downloadFile(path: string, filename: string) {
   const res = await fetch(path);
   if (!res.ok) {
@@ -37,6 +71,7 @@ export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -71,6 +106,23 @@ export default function WeeklyPlanViewer() {
   const dailyMenus = Array.isArray(data?.daily_menus)
     ? (data!.daily_menus as UnknownRecord[])
     : [];
+  const csvLink = getCsvUrl();
+
+  const openSheetsHelp = () => {
+    window.open("https://sheets.new", "_blank", "noopener,noreferrer");
+    setHint(
+      "В новой вкладке Google Sheets: File → Import → Insert link и вставь CSV-ссылку ниже."
+    );
+  };
+
+  const copyLink = async () => {
+    const ok = await copyToClipboard(csvLink);
+    setHint(
+      ok
+        ? "CSV-ссылка скопирована. В Google Sheets выбери File → Import → Link."
+        : `Не удалось скопировать автоматически. Скопируй вручную: ${csvLink}`
+    );
+  };
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
@@ -91,8 +143,32 @@ export default function WeeklyPlanViewer() {
           >
             Export Week PDF
           </button>
+          <button
+            type="button"
+            className="border rounded-xl px-3 py-2 text-sm"
+            onClick={openSheetsHelp}
+            title="Откроет пустой Google Sheets"
+          >
+            Open in Google Sheets
+          </button>
+          <button
+            type="button"
+            className="border rounded-xl px-3 py-2 text-sm"
+            onClick={copyLink}
+            title="Скопировать прямую CSV-ссылку"
+          >
+            Copy CSV Link
+          </button>
         </div>
       </div>
+      {hint && (
+        <div className="text-sm opacity-80">
+          {hint}
+          <div>
+            Прямая ссылка: <code>{csvLink}</code>
+          </div>
+        </div>
+      )}
       {dailyMenus.length === 0 && <div className="opacity-70">Пока пусто.</div>}
       <ul className="space-y-4">
         {dailyMenus.map((menu, idx) => {
