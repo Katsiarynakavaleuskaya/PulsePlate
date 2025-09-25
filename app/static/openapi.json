@@ -621,6 +621,25 @@
         }
       }
     },
+    "/api/v1/plan/week/export.pdf": {
+      "get": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Export Week Pdf",
+        "operationId": "export_week_pdf_api_v1_plan_week_export_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/shoplist": {
       "get": {
         "tags": [

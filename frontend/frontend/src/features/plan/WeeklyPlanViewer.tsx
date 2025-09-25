@@ -84,6 +84,13 @@ export default function WeeklyPlanViewer() {
           >
             Export Week CSV
           </button>
+          <button
+            type="button"
+            className="border rounded-xl px-3 py-2 text-sm"
+            onClick={() => downloadFile("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
+          >
+            Export Week PDF
+          </button>
         </div>
       </div>
       {dailyMenus.length === 0 && <div className="opacity-70">Пока пусто.</div>}
