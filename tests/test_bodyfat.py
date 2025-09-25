@@ -95,6 +95,33 @@ def test_estimate_all_female_no_hip():
     assert "ymca" in methods
 
 
+# --- error handling branches ---
+
+
+def test_estimate_all_skips_non_numeric_bmi_inputs():
+    """Ensure invalid BMI data is ignored instead of crashing calculations."""
+    data = {"bmi": "oops", "age": "thirty", "gender": "male"}
+    res = estimate_all(data)
+    assert res["methods"] == {}
+    assert res["median"] is None
+
+
+def test_estimate_all_skips_bad_dimension_inputs():
+    """Invalid anthropometric numbers should be skipped gracefully."""
+    data = {"height_cm": "bad", "neck_cm": 34, "waist_cm": 74, "gender": "male"}
+    res = estimate_all(data)
+    assert res["methods"] == {}
+    assert res["median"] is None
+
+
+def test_estimate_all_skips_invalid_weight_data():
+    """Invalid weight inputs should trigger the final guard clause."""
+    data = {"weight_kg": object(), "waist_cm": 82, "gender": "female"}
+    res = estimate_all(data)
+    assert res["methods"] == {}
+    assert res["median"] is None
+
+
 # --- TODO: строгие диапазоны ---
 # Перенести в отдельный файл и включать в CI позже:
 #  - Deurenberg: сверить с первоисточником (Deurenberg et al., 1991)

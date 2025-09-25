@@ -26,7 +26,4 @@ def verify(
     if now > exp_ts:
         return False
     expected = sign(secret, path, exp_ts)
-    try:
-        return hmac.compare_digest(expected, signature)
-    except Exception:
-        return False
+    return hmac.compare_digest(expected, signature if isinstance(signature, str) else "")
