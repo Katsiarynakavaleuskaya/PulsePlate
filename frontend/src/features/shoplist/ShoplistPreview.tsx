@@ -100,7 +100,12 @@ export default function ShoplistPreview() {
             : link.url;
         await shareFile(absolute, filename, "PulsePlate — Shopping List");
       } catch (error: any) {
-        setDownloadError(error?.message || "Share failed");
+        // Sanitize error message before displaying to user
+        const rawMessage = error?.message || "";
+        // Simple sanitization: only show generic message if error contains technical details
+        const isTechnical = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i.test(rawMessage);
+        const userMessage = isTechnical ? "Не удалось поделиться файлом. Попробуйте ещё раз." : rawMessage || "Share failed";
+        setDownloadError(userMessage);
       }
     },
     [],
