@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 import csv
 from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -39,10 +39,15 @@ BRAND_BLUE = colors.HexColor("#339FFF")
 BRAND_GREEN = colors.HexColor("#20C997")
 BRAND_BLUE_HEX = "#339FFF"
 BRAND_GREEN_HEX = "#20C997"
-LOGO_CANDIDATES = (
-    Path("assets/fitchef.png"),
-    Path("assets/logo.png"),
-)
+LOGO_PATH = Path("assets/logo.png")
+MASCOT_PATH = Path("assets/fitchef.png")
+LOGO_CANDIDATES = (MASCOT_PATH, LOGO_PATH)
+SLOGAN = {
+    "en": "Always on your Pulse",
+    "ru": "Всегда на твоём пульсе",
+    "de": "Immer am Puls von dir",
+}
+DEFAULT_LANG = "en"
 
 
 class SignRequest(BaseModel):
@@ -86,6 +91,12 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
     return totals
 
 
+def _slogan(lang: Optional[str]) -> str:
+    if not lang:
+        return SLOGAN[DEFAULT_LANG]
+    return SLOGAN.get(lang.lower(), SLOGAN[DEFAULT_LANG])
+
+
 def _find_logo_path() -> Optional[Path]:
     for candidate in LOGO_CANDIDATES:
         if candidate.exists():
@@ -93,30 +104,52 @@ def _find_logo_path() -> Optional[Path]:
     return None
 
 
-def _branded_header(story: List[Any], styles, font: str, doc_width: float) -> None:
+def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang: str) -> None:
     logo_path = _find_logo_path()
     if logo_path is not None:
-        logo = Image(str(logo_path), width=60, height=60, hAlign="LEFT")
-        story.append(logo)
-        story.append(Spacer(1, 6))
+        try:
+            image_flowable: Any = Image(str(logo_path), width=64, height=64)
+        except Exception:  # pragma: no cover - defensive
+            image_flowable = Spacer(1, 1)
+    else:
+        image_flowable = Spacer(1, 1)
 
-    brand_title = Paragraph(
+    title = Paragraph(
         f'<font color="{BRAND_BLUE_HEX}"><b>PulsePlate — Weekly Plan</b></font>',
         styles["Heading1"],
     )
-    story.append(brand_title)
-
-    brand_subtitle = Paragraph(
-        f'<font color="{BRAND_GREEN_HEX}">Nutrition • Body • Lifestyle</font>',
+    subtitle = Paragraph(
+        f'<font color="{BRAND_GREEN_HEX}">{_slogan(lang)}</font>',
         styles["Heading3"],
     )
-    story.append(brand_subtitle)
+
+    header_table = Table(
+        [
+            [image_flowable, title],
+            ["", subtitle],
+        ],
+        colWidths=[70, max(doc_width - 70, 0)],
+        hAlign="LEFT",
+    )
+    header_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("SPAN", (0, 0), (0, 1)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]
+        )
+    )
+    story.append(header_table)
     story.append(Spacer(1, 8))
 
     divider = Table([[""]], colWidths=[doc_width], rowHeights=[4])
     divider.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), BRAND_NAVY)]))
     story.append(divider)
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 10))
 
 
 def _get_week_plan() -> Dict[str, Any]:
@@ -307,7 +340,11 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
 
 
 @plan_router.get("/week/export.pdf")
-def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
+def export_week_pdf(
+    request: Request,
+    lang: str = Query(DEFAULT_LANG, pattern="^(en|ru|de)$"),
+    _guard: None = Depends(_require_valid_token),
+) -> Response:
     week = _get_week_plan()
     font = _register_font()
     totals = sum_week_macros(week)
@@ -335,7 +372,7 @@ def export_week_pdf(request: Request, _guard: None = Depends(_require_valid_toke
         styles[key].fontName = font
 
     story: List[Any] = []
-    _branded_header(story, styles, font, doc.width)
+    _branded_header(story, styles, font, doc.width, lang)
     story.append(
         Paragraph(
             datetime.now(timezone.utc).strftime("Сгенерировано %Y-%m-%d %H:%M UTC"),

@@ -15,10 +15,14 @@ from app.routers import plan_export as plan
 client = TestClient(app)
 
 
-def _signed_pdf_url() -> str:
+def _signed_pdf_url(lang: str = "en") -> str:
     response = client.post("/api/v1/export/sign", json={"path": "/api/v1/plan/week/export.pdf"})
     assert response.status_code == 200
-    return response.json()["url"]
+    url = response.json()["url"]
+    if lang:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}lang={lang}"
+    return url
 
 
 def test_week_export_pdf_ok() -> None:
@@ -112,15 +116,20 @@ def test_pdf_includes_brand_header_and_totals(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
 
-    brand_paragraph = next(
+    header_table = next(
         (
             node
             for node in captured_story
-            if isinstance(node, Paragraph) and "PulsePlate" in node.getPlainText()
+            if isinstance(node, Table)
+            and len(node._cellvalues) >= 2
+            and len(node._cellvalues[0]) >= 2
+            and hasattr(node._cellvalues[0][1], "getPlainText")
+            and "PulsePlate" in node._cellvalues[0][1].getPlainText()
         ),
         None,
     )
-    assert brand_paragraph is not None
+    assert header_table is not None
+    assert plan.SLOGAN["en"] in header_table._cellvalues[1][1].getPlainText()
 
     totals_table = next(
         (
@@ -160,7 +169,7 @@ def test_branded_header_without_logo(monkeypatch) -> None:
         styles[key].fontName = "Helvetica"
 
     story: List[Any] = []
-    plan._branded_header(story, styles, "Helvetica", doc_width=500)
+    plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="en")
 
     assert story
     assert any(isinstance(node, plan.Table) for node in story)
@@ -185,6 +194,66 @@ def test_branded_header_with_logo(monkeypatch, tmp_path) -> None:
         styles[key].fontName = "Helvetica"
 
     story: List[Any] = []
-    plan._branded_header(story, styles, "Helvetica", doc_width=500)
+    plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="en")
 
     assert captured["path"] == str(logo)
+
+
+def test_branded_header_localizes_slogan() -> None:
+    styles = plan.getSampleStyleSheet()
+    for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
+        styles[key].fontName = "Helvetica"
+
+    story: List[Any] = []
+    plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="de")
+
+    header_table = next(
+        node
+        for node in story
+        if isinstance(node, plan.Table)
+        and len(node._cellvalues) >= 2
+        and len(node._cellvalues[0]) >= 2
+        and hasattr(node._cellvalues[0][1], "getPlainText")
+        and "PulsePlate" in node._cellvalues[0][1].getPlainText()
+    )
+    assert plan.SLOGAN["de"] in header_table._cellvalues[1][1].getPlainText()
+
+
+def test_slogan_fallback_to_default() -> None:
+    assert plan._slogan("ru") == plan.SLOGAN["ru"]
+    assert plan._slogan("de") == plan.SLOGAN["de"]
+    assert plan._slogan("unknown") == plan.SLOGAN[plan.DEFAULT_LANG]
+
+
+def test_pdf_honors_lang_query(monkeypatch) -> None:
+    captured_story: List[Any] = []
+
+    class DummyDoc:
+        def __init__(self, buf, **kwargs):
+            self._buf = buf
+            width = kwargs.get("pagesize", (595.27,))[0]
+            left = kwargs.get("leftMargin", 0)
+            right = kwargs.get("rightMargin", 0)
+            self.width = width - left - right
+
+        def build(self, story):  # type: ignore[override]
+            captured_story.extend(story)
+            self._buf.write(b"%PDF-Fake")
+
+    monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
+    monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
+
+    url = _signed_pdf_url("ru")
+    response = client.get(url)
+    assert response.status_code == 200
+
+    header_table = next(
+        node
+        for node in captured_story
+        if isinstance(node, plan.Table)
+        and len(node._cellvalues) >= 2
+        and len(node._cellvalues[0]) >= 2
+        and hasattr(node._cellvalues[0][1], "getPlainText")
+        and "PulsePlate" in node._cellvalues[0][1].getPlainText()
+    )
+    assert plan.SLOGAN["ru"] in header_table._cellvalues[1][1].getPlainText()
