@@ -161,8 +161,8 @@ export default function WeeklyPlanViewer() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard>
-        <div className="flex flex-wrap items-center justify-between gap-3 text-white drop-shadow-sm">
+      <GlassCard tone="light" className="drop-shadow-lg" ariaLabel="Действия для недельного плана" role="region">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Мой недельный план</h2>
           <div className="flex flex-wrap gap-2">
             <button
@@ -219,7 +219,7 @@ export default function WeeklyPlanViewer() {
           </div>
         </div>
         {hint && (
-          <div className="mt-3 text-sm text-white/80">
+          <div className="mt-3 text-sm text-slate-600">
             {hint}
             {lastSignedLink && (
               <div>
@@ -229,7 +229,7 @@ export default function WeeklyPlanViewer() {
           </div>
         )}
       </GlassCard>
-      <GlassCard>
+      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Сводка недельного плана">
         {dailyMenus.length === 0 ? (
           <div className="opacity-80">Пока пусто.</div>
         ) : (
@@ -254,7 +254,10 @@ export default function WeeklyPlanViewer() {
             : [];
 
           return (
-            <li key={dayTitle} className="border border-white/15 rounded-2xl bg-white/5 p-4 space-y-2 backdrop-blur-sm">
+            <li
+              key={dayTitle}
+              className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
+            >
               <div className="flex items-center justify-between">
                 <div className="font-medium">{dayTitle}</div>
                 {typeof dayEnergy === "number" && (
@@ -301,7 +304,7 @@ export default function WeeklyPlanViewer() {
                   return (
                     <li
                       key={`${mealName}-${mi}`}
-                      className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm"
+                      className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm"
                     >
                       <div className="flex items-center justify-between">
                         <div className="font-medium">{mealName}</div>

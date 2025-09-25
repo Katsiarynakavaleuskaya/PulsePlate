@@ -115,11 +115,11 @@ export default function ShoplistPreview() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard>
-        <div className="flex flex-wrap items-center justify-between gap-3 text-white drop-shadow-sm">
+      <GlassCard tone="light" className="drop-shadow-lg" role="region" ariaLabel="Действия для списка покупок">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Список покупок</h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="opacity-80">
+            <span className="opacity-80 text-slate-700">
               {data.store ? `Магазин: ${data.store}` : ""}
               {typeof data.total_estimated === "number" && (
                 <>
@@ -157,10 +157,10 @@ export default function ShoplistPreview() {
           </div>
         </div>
         {downloadError && (
-          <div className="mt-3 text-sm text-red-300">Ошибка загрузки: {downloadError}</div>
+          <div className="mt-3 text-sm text-red-500">Ошибка загрузки: {downloadError}</div>
         )}
       </GlassCard>
-      <GlassCard>
+      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Содержимое списка покупок">
         <ul className="space-y-3">
           {groups.map((group, gi) => (
             <li
