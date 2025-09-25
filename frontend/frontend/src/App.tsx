@@ -1,9 +1,10 @@
 import { useState } from "react";
 import ProductSearch from "./features/products/ProductSearch";
 import WeeklyPlanViewer from "./features/plan/WeeklyPlanViewer";
+import ShoplistPreview from "./features/shoplist/ShoplistPreview";
 
 export default function App() {
-  const [tab, setTab] = useState<"week" | "search">("week");
+  const [tab, setTab] = useState<"week" | "search" | "shoplist">("shoplist");
 
   return (
     <div style={{ maxWidth: 980, margin: "40px auto", padding: 16 }}>
@@ -37,8 +38,24 @@ export default function App() {
         >
           Product Search
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("shoplist")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 16,
+            border: tab === "shoplist" ? "2px solid #2563eb" : "1px solid #cbd5f5",
+            background: tab === "shoplist" ? "#2563eb" : "transparent",
+            color: tab === "shoplist" ? "#fff" : "inherit",
+            cursor: "pointer",
+          }}
+        >
+          Shoplist
+        </button>
       </div>
-      {tab === "week" ? <WeeklyPlanViewer /> : <ProductSearch />}
+      {tab === "week" && <WeeklyPlanViewer />}
+      {tab === "search" && <ProductSearch />}
+      {tab === "shoplist" && <ShoplistPreview />}
     </div>
   );
 }
