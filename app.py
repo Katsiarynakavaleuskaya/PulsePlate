@@ -525,9 +525,18 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
     if not req.include_chart:
         return
 
-    # Resolve visualization function dynamically to respect test patches
     import sys as _sys
 
+    pkg_flag = getattr(_sys.modules.get("app"), "MATPLOTLIB_AVAILABLE", MATPLOTLIB_AVAILABLE)
+
+    if not pkg_flag or not MATPLOTLIB_AVAILABLE:
+        result["visualization"] = {
+            "error": "Visualization not available - matplotlib not installed",
+            "available": False,
+        }
+        return
+
+    # Resolve visualization function dynamically to respect test patches
     _candidates = [
         _sys.modules.get("_app_top_module"),  # allow tests to patch here first
         _sys.modules.get("app"),

@@ -23,3 +23,10 @@ def test_hmac_verify_wrong_signature() -> None:
     exp = 200
     sig = sign(secret, path, exp)
     assert not verify(secret, path, exp, "invalid", now_ts=0)
+
+
+def test_hmac_verify_type_error_handled() -> None:
+    secret = "secret"
+    path = "/api/z"
+    exp = 300
+    assert not verify(secret, path, exp, None)  # type: ignore[arg-type]
