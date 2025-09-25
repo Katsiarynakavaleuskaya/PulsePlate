@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 
+async function downloadFile(path: string, filename: string) {
+  const res = await fetch(path);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const anchor = document.createElement("a");
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(anchor.href);
+}
+
 type WeekPlanResponse =
   paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
@@ -59,7 +74,18 @@ export default function WeeklyPlanViewer() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <h2 className="text-xl font-semibold">Мой недельный план</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold">Мой недельный план</h2>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="border rounded-xl px-3 py-2 text-sm"
+            onClick={() => downloadFile("/api/v1/plan/week/export.csv", "week_plan.csv")}
+          >
+            Export Week CSV
+          </button>
+        </div>
+      </div>
       {dailyMenus.length === 0 && <div className="opacity-70">Пока пусто.</div>}
       <ul className="space-y-4">
         {dailyMenus.map((menu, idx) => {
