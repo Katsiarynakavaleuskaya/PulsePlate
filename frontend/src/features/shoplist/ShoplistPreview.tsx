@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../../api/client";
-import { shareFile } from "../../lib/shareFile";
+import { shareFile, formatShareErrorMessage } from "../../lib/shareFile";
+import { requestSignedLink } from "../../lib/sharedLinks";
 import GlassCard from "../../components/GlassCard";
 
 type ShopItem = {
@@ -72,7 +73,7 @@ export default function ShoplistPreview() {
         setDownloading(kind);
         await downloadFile(kind);
       } catch (error: any) {
-        setDownloadError(error?.message || "Download failed");
+        setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
       } finally {
         setDownloading(null);
       }
@@ -85,27 +86,10 @@ export default function ShoplistPreview() {
       try {
         setDownloadError(null);
         const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
-        const link = await fetchJson<{ url: string; ttl: number; exp: number }>(
-          "/api/v1/export/sign",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path: `/api/v1/shoplist/export.${kind}` }),
-          }
-        );
-        // API returns relative path; convert to absolute for shareFile
-        const absolute =
-          typeof window !== "undefined"
-            ? new URL(link.url, window.location.origin).toString()
-            : link.url;
-        await shareFile(absolute, filename, "PulsePlate — Shopping List");
+        const link = await requestSignedLink(`/api/v1/shoplist/export.${kind}`);
+        await shareFile(link.absolute, filename, "PulsePlate — Shopping List");
       } catch (error: any) {
-        // Sanitize error message before displaying to user
-        const rawMessage = error?.message || "";
-        // Simple sanitization: only show generic message if error contains technical details
-        const isTechnical = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i.test(rawMessage);
-        const userMessage = isTechnical ? "Не удалось поделиться файлом. Попробуйте ещё раз." : rawMessage || "Share failed";
-        setDownloadError(userMessage);
+        setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
       }
     },
     [],
