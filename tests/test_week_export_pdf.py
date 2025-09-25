@@ -1,9 +1,12 @@
 """Tests for weekly plan PDF export."""
 
+from pathlib import Path
 from typing import List, Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+from reportlab.platypus import Paragraph, Table
 
 from app import app
 from app.routers import plan_export as plan
@@ -109,8 +112,6 @@ def test_pdf_includes_brand_header_and_totals(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
 
-    from reportlab.platypus import Paragraph, Table
-
     brand_paragraph = next(
         (
             node
@@ -132,3 +133,58 @@ def test_pdf_includes_brand_header_and_totals(monkeypatch) -> None:
         None,
     )
     assert totals_table is not None
+
+
+def test_find_logo_path_prefers_existing(tmp_path, monkeypatch) -> None:
+    missing = tmp_path / "missing.png"
+    present = tmp_path / "fitchef.png"
+    present.write_bytes(b"fake")
+
+    monkeypatch.setattr(plan, "LOGO_CANDIDATES", (missing, present))
+
+    assert plan._find_logo_path() == present
+
+
+def test_find_logo_path_returns_none_when_absent(monkeypatch) -> None:
+    monkeypatch.setattr(plan, "LOGO_CANDIDATES", (Path("no_such_logo.png"),))
+    assert plan._find_logo_path() is None
+
+
+def test_branded_header_without_logo(monkeypatch) -> None:
+    monkeypatch.setattr(plan, "_find_logo_path", lambda: None)
+    monkeypatch.setattr(plan, "Image", lambda *args, **kwargs: None)
+
+    styles = plan.getSampleStyleSheet()
+    styles.add(plan.ParagraphStyle(name="BaseTest", fontName="Helvetica"))
+    for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
+        styles[key].fontName = "Helvetica"
+
+    story: List[Any] = []
+    plan._branded_header(story, styles, "Helvetica", doc_width=500)
+
+    assert story
+    assert any(isinstance(node, plan.Table) for node in story)
+
+
+def test_branded_header_with_logo(monkeypatch, tmp_path) -> None:
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(b"fake")
+
+    captured: dict[str, str] = {}
+
+    def fake_image(path, *args, **kwargs):
+        captured["path"] = path
+        return "IMAGE"
+
+    monkeypatch.setattr(plan, "_find_logo_path", lambda: logo)
+    monkeypatch.setattr(plan, "Image", fake_image)
+
+    styles = plan.getSampleStyleSheet()
+    styles.add(plan.ParagraphStyle(name="BaseTestWithLogo", fontName="Helvetica"))
+    for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
+        styles[key].fontName = "Helvetica"
+
+    story: List[Any] = []
+    plan._branded_header(story, styles, "Helvetica", doc_width=500)
+
+    assert captured["path"] == str(logo)
