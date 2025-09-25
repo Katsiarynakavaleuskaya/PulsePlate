@@ -3,6 +3,7 @@
 from fastapi.testclient import TestClient
 
 from app import app
+from app.routers import plan_export as plan
 
 
 client = TestClient(app)
@@ -26,4 +27,42 @@ def test_week_export_csv_ok() -> None:
 
     lines = response.text.splitlines()
     assert lines
-    assert lines[0] == "date,day_idx,meal,item,qty,unit,energy_kcal,protein_g,carbs_g,fat_g,note"
+    assert lines[0].startswith("# WEEK_TOTALS:")
+    assert "energy_kcal=" in lines[0]
+    assert "protein_g=" in lines[0]
+    assert "carbs_g=" in lines[0]
+    assert "fat_g=" in lines[0]
+    assert lines[1] == "date,day_idx,meal,item,qty,unit,energy_kcal,protein_g,carbs_g,fat_g,note"
+
+
+def test_sum_week_macros_handles_types() -> None:
+    week = {
+        "days": [
+            {
+                "meals": [
+                    {
+                        "items": [
+                            {
+                                "energy_kcal": "100",
+                                "protein_g": 10,
+                                "carbs_g": 20.5,
+                                "fat_g": None,
+                            },
+                            {
+                                "energy_kcal": 50,
+                                "protein_g": "5",
+                                "carbs_g": "bad",
+                                "fat_g": 1,
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    totals = plan.sum_week_macros(week)
+    assert totals["energy_kcal"] == 150.0
+    assert totals["protein_g"] == 15.0
+    assert totals["carbs_g"] == 20.5
+    assert totals["fat_g"] == 1.0
