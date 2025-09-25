@@ -167,7 +167,7 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
     } catch (error: any) {
-      setHint(`Не удалось поделиться: ${error?.message || "error"}`);
+      setHint("Не удалось поделиться: произошла ошибка. Попробуйте еще раз.");
     }
   };
 
