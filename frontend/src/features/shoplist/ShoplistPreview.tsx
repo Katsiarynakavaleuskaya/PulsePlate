@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../../api/client";
+import { shareFile } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
 type ShopItem = {
@@ -79,6 +80,32 @@ export default function ShoplistPreview() {
     [downloadFile],
   );
 
+  const handleShare = useCallback(
+    async (kind: "csv" | "pdf") => {
+      try {
+        setDownloadError(null);
+        const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
+        const link = await fetchJson<{ url: string; ttl: number; exp: number }>(
+          "/api/v1/export/sign",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: `/api/v1/shoplist/export.${kind}` }),
+          }
+        );
+        // API returns relative path; convert to absolute for shareFile
+        const absolute =
+          typeof window !== "undefined"
+            ? new URL(link.url, window.location.origin).toString()
+            : link.url;
+        await shareFile(absolute, filename, "PulsePlate — Shopping List");
+      } catch (error: any) {
+        setDownloadError(error?.message || "Share failed");
+      }
+    },
+    [],
+  );
+
   if (loading) {
     return <div className="max-w-3xl mx-auto p-6">Загружаем список…</div>;
   }
@@ -130,6 +157,14 @@ export default function ShoplistPreview() {
                 className="border rounded-xl px-3 py-2 text-sm"
               >
                 {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShare("pdf")}
+                className="border rounded-xl px-3 py-2 text-sm"
+                aria-label="Share shopping list PDF"
+              >
+                Share…
               </button>
             </div>
           </div>

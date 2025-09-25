@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
+import { shareFile } from "../../lib/shareFile";
 
 type SignedLink = {
   relative: string;
@@ -159,6 +160,17 @@ export default function WeeklyPlanViewer() {
     }
   };
 
+  const handleShare = async (path: string, filename: string, title: string) => {
+    try {
+      const link = await createSignedLink(path);
+      await shareFile(link.absolute, filename, title);
+      setLastSignedLink(link.absolute);
+      setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
+    } catch (error: any) {
+      setHint(`Не удалось поделиться: ${error?.message || "error"}`);
+    }
+  };
+
   const openPrivateCsv = async () => {
     try {
       const link = await createSignedLink("/api/v1/plan/week/export.csv");
@@ -189,6 +201,20 @@ export default function WeeklyPlanViewer() {
               onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
             >
               Export Week PDF
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              aria-label="Share week plan (PDF)"
+              onClick={() =>
+                handleShare(
+                  "/api/v1/plan/week/export.pdf",
+                  "week_plan.pdf",
+                  "PulsePlate — Weekly Plan"
+                )
+              }
+            >
+              Share…
             </button>
             <button
               type="button"
