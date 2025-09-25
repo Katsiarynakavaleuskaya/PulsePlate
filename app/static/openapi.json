@@ -602,6 +602,25 @@
         }
       }
     },
+    "/api/v1/plan/week/export.csv": {
+      "get": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Export Week Csv",
+        "operationId": "export_week_csv_api_v1_plan_week_export_csv_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/shoplist": {
       "get": {
         "tags": [
