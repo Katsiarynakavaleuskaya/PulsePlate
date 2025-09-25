@@ -25,6 +25,14 @@ type Shoplist = {
   items?: ShopItem[];
 };
 
+/**
+ * Renders a preview of a shopping list with grouping, metadata, and export controls.
+ *
+ * Fetches the shoplist on mount, shows loading / error / empty states, displays groups and items
+ * (including quantity, unit, and note), and provides CSV/PDF export buttons that trigger file downloads.
+ *
+ * @returns The Shoplist preview UI as a JSX element
+ */
 export default function ShoplistPreview() {
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);

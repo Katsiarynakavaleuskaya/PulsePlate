@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 
 /**
- * RU: Универсальная «стеклянная» карточка под iOS Liquid Glass.
- * EN: Reusable glass-like card (Liquid Glass style).
+ * Renders a reusable glass-like container that wraps and visually frames its children.
+ *
+ * @param children - Content to be rendered inside the card
+ * @param className - Optional additional CSS classes to extend or override the card's styling
+ * @returns A JSX element: a styled container that frames the provided `children`
  */
 export default function GlassCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (

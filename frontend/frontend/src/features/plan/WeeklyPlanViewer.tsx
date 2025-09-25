@@ -85,6 +85,13 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
+/**
+ * Render a weekly meal plan viewer with controls to export, download, and share the plan.
+ *
+ * Displays loading and error states, fetches the weekly plan on mount, renders days/meals/items with fallbacks, and exposes actions to create signed CSV/PDF links, copy them to the clipboard, or open them in a new tab.
+ *
+ * @returns A React element that shows the weekly plan UI, including export/download buttons, hints, and the nested list of days, meals, and items.
+ */
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);
