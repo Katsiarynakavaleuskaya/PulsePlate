@@ -16,6 +16,8 @@ vi.mock("@capacitor/share", () => ({
 vi.mock("@capacitor/filesystem", () => ({
   Filesystem: {
     writeFile: vi.fn(() => Promise.resolve({ uri: "file://cache/pulseplate/test" })),
+    getUri: vi.fn(() => Promise.resolve({ uri: "file://cache/pulseplate/test" })),
+    deleteFile: vi.fn(() => Promise.resolve()),
   },
   Directory: {
     Cache: "cache",
@@ -43,11 +45,15 @@ describe("shareFile", () => {
       href: "",
       download: "",
       click: vi.fn(),
+      remove: vi.fn(),
     } as unknown as HTMLAnchorElement;
 
     createElementMock = vi.fn().mockReturnValue(anchorMock);
     globalThis.document = {
       createElement: createElementMock,
+      body: {
+        appendChild: vi.fn(),
+      },
     } as unknown as Document;
 
     global.fetch = vi.fn();
@@ -96,7 +102,7 @@ describe("shareFile", () => {
 
     expect(shareMock).toHaveBeenCalledWith({
       title: "PulsePlate export",
-      url: "file://cache/pulseplate/test",
+      files: ["file://cache/pulseplate/test"],
       dialogTitle: "Share",
     });
   });
@@ -114,18 +120,21 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(arrayBuffer),
     });
 
+    // Freeze time to make the cache path deterministic
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234567890);
     await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
+    nowSpy.mockRestore();
 
     expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.bin");
     expect(writeFileMock).toHaveBeenCalledWith({
-      path: "pulseplate/export.bin",
+      path: "pulseplate/1234567890-export.bin",
       data: expect.any(String),
       directory: Directory.Cache,
       recursive: true,
     });
     expect(shareMock).toHaveBeenCalledWith({
       title: "Native Share",
-      url: "file://cache/pulseplate/test",
+      files: ["file://cache/pulseplate/test"],
       dialogTitle: "Share",
     });
 
