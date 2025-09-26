@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../../api/client";
+import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
 type ShopItem = {
@@ -71,12 +72,25 @@ export default function ShoplistPreview() {
         setDownloading(kind);
         await downloadFile(kind);
       } catch (error: any) {
-        setDownloadError(error?.message || "Download failed");
+        setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
       } finally {
         setDownloading(null);
       }
     },
     [downloadFile],
+  );
+
+  const handleShare = useCallback(
+    async (kind: "csv" | "pdf") => {
+      try {
+        setDownloadError(null);
+        const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
+        await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
+      } catch (error: any) {
+        setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
+      }
+    },
+    [],
   );
 
   if (loading) {
@@ -130,6 +144,14 @@ export default function ShoplistPreview() {
                 className="border rounded-xl px-3 py-2 text-sm"
               >
                 {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShare("pdf")}
+                className="border rounded-xl px-3 py-2 text-sm"
+                aria-label="Share shopping list PDF"
+              >
+                Share…
               </button>
             </div>
           </div>

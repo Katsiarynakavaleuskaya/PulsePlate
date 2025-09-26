@@ -2,31 +2,10 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
+import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
+import { requestSignedLink } from "../../lib/sharedLinks";
 
-type SignedLink = {
-  relative: string;
-  absolute: string;
-  ttl: number;
-  exp: number;
-};
-
-async function createSignedLink(path: string, ttlSeconds = 900): Promise<SignedLink> {
-  const res = await fetch("/api/v1/export/sign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, ttl_seconds: ttlSeconds }),
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  const relative = data.url as string;
-  const absolute =
-    typeof window !== "undefined"
-      ? new URL(relative, window.location.origin).toString()
-      : relative;
-  return { relative, absolute, ttl: data.ttl ?? ttlSeconds, exp: data.exp as number };
-}
+const DEFAULT_TTL_SECONDS = 900;
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -135,7 +114,7 @@ export default function WeeklyPlanViewer() {
 
   const copyLink = async () => {
     try {
-      const link = await createSignedLink("/api/v1/plan/week/export.csv");
+      const link = await requestSignedLink("/api/v1/plan/week/export.csv", { ttlSeconds: DEFAULT_TTL_SECONDS });
       const ok = await copyToClipboard(link.absolute);
       setLastSignedLink(link.absolute);
       setHint(
@@ -150,23 +129,33 @@ export default function WeeklyPlanViewer() {
 
   const handleDownload = async (path: string, filename: string) => {
     try {
-      const link = await createSignedLink(path);
+      const link = await requestSignedLink(path, { ttlSeconds: DEFAULT_TTL_SECONDS });
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
       setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
     } catch (error: any) {
-      setHint(`Не удалось скачать файл: ${error?.message || "error"}`);
+      setHint("Не удалось скачать файл. Попробуйте ещё раз.");
+    }
+  };
+
+  const handleShare = async (path: string, filename: string, title: string) => {
+    try {
+      const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
+      setLastSignedLink(link.absolute);
+      setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
+    } catch (error: any) {
+      setHint(formatShareErrorMessage(error, "Не удалось поделиться: произошла ошибка. Попробуйте ещё раз."));
     }
   };
 
   const openPrivateCsv = async () => {
     try {
-      const link = await createSignedLink("/api/v1/plan/week/export.csv");
+      const link = await requestSignedLink("/api/v1/plan/week/export.csv", { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
     } catch (error: any) {
-      setHint(`Не удалось открыть приватную ссылку: ${error?.message || "error"}`);
+      setHint("Не удалось открыть приватную ссылку. Попробуйте ещё раз.");
     }
   };
 
@@ -189,6 +178,20 @@ export default function WeeklyPlanViewer() {
               onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
             >
               Export Week PDF
+            </button>
+            <button
+              type="button"
+              className="border rounded-xl px-3 py-2 text-sm"
+              aria-label="Share week plan (PDF)"
+              onClick={() =>
+                handleShare(
+                  "/api/v1/plan/week/export.pdf",
+                  "week_plan.pdf",
+                  "PulsePlate — Weekly Plan"
+                )
+              }
+            >
+              Share…
             </button>
             <button
               type="button"
