@@ -52,6 +52,12 @@ jobs:
           SKIP: no-commit-to-branch
         continue-on-error: true
 
+      - name: Clean npm install (workaround for rollup native module issue)
+        working-directory: frontend
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+
       - name: Validate data
         run: |
           make validate-data

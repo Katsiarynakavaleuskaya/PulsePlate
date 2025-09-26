@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../../api/client";
-import { shareFile, formatShareErrorMessage } from "../../lib/shareFile";
-import { requestSignedLink } from "../../lib/sharedLinks";
+import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
 type ShopItem = {
@@ -86,8 +85,7 @@ export default function ShoplistPreview() {
       try {
         setDownloadError(null);
         const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
-        const link = await requestSignedLink(`/api/v1/shoplist/export.${kind}`);
-        await shareFile(link.absolute, filename, "PulsePlate — Shopping List");
+        await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
       } catch (error: any) {
         setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
       }
