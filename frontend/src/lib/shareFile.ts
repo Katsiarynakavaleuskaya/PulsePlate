@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import type { SignedLink, SignedLinkOptions } from "./sharedLinks";
+import { requestSignedLink } from "./sharedLinks";
 
 const TECH_ERROR_PATTERN = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i;
 
@@ -77,7 +79,6 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
   const buf = await res.arrayBuffer();
   const base64Data = await arrayBufferToBase64(buf);
   const cachePath = `pulseplate/${Date.now()}-${filename}`;
-  let fileUri: string | undefined;
 
   try {
     const writeResult = await Filesystem.writeFile({
@@ -86,9 +87,15 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
       directory: Directory.Cache,
       recursive: true,
     });
-    fileUri = writeResult.uri;
+    const uriResult = await Filesystem.getUri({ directory: Directory.Cache, path: cachePath }).catch(() => null);
+    const candidateUri = uriResult?.uri ?? writeResult.uri;
+    const resolvedUri = typeof candidateUri === "string" ? candidateUri.trim() : "";
 
-    const files = fileUri?.startsWith("file://") ? [fileUri] : fileUri ? [`file://${fileUri}`] : [];
+    if (!resolvedUri) {
+      throw new Error("Share unavailable: unable to resolve file URI");
+    }
+
+    const files = [resolvedUri];
     await Share.share({ title, files, dialogTitle: "Share" });
   } finally {
     try {
@@ -97,6 +104,17 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
       // ignore cleanup failures
     }
   }
+}
+
+export async function shareSignedExport(
+  path: string,
+  filename: string,
+  title = "PulsePlate export",
+  options: SignedLinkOptions = {}
+): Promise<SignedLink> {
+  const link = await requestSignedLink(path, options);
+  await shareFile(link.absolute, filename, title);
+  return link;
 }
 
 export function formatShareErrorMessage(error: unknown, fallback = "Не удалось поделиться файлом. Попробуйте ещё раз."): string {

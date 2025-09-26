@@ -30,14 +30,19 @@ export async function requestSignedLink(
 
   const data = await response.json();
   const relative = data.url as string;
-  const absolute =
-    typeof window !== "undefined"
-      ? new URL(relative, window.location.origin).toString()
-      : relative;
+  let absolute: string | undefined;
+
+  if (relative) {
+    try {
+      absolute = new URL(relative, response?.url ?? window?.location?.origin ?? undefined).toString();
+    } catch {
+      absolute = undefined;
+    }
+  }
 
   return {
     relative,
-    absolute,
+    absolute: absolute ?? relative,
     ttl: data.ttl ?? options.ttlSeconds,
     exp: data.exp,
   };

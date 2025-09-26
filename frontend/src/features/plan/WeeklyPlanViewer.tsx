@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
-import { shareFile, formatShareErrorMessage } from "../../lib/shareFile";
+import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
 
 const DEFAULT_TTL_SECONDS = 900;
@@ -140,8 +140,7 @@ export default function WeeklyPlanViewer() {
 
   const handleShare = async (path: string, filename: string, title: string) => {
     try {
-      const link = await requestSignedLink(path, { ttlSeconds: DEFAULT_TTL_SECONDS });
-      await shareFile(link.absolute, filename, title);
+      const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
     } catch (error: any) {
