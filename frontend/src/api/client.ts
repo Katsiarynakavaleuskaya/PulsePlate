@@ -9,21 +9,43 @@ if (!API_BASE) {
   console.warn("[API] VITE_API_BASE is not set. Create frontend/.env from .env.example");
 }
 
+function mergeHeaders(init?: RequestInit): Headers {
+  const defaults = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "Accept-Language": navigator.language || "en",
+  } satisfies Record<string, string>;
+
+  const headers = new Headers(defaults);
+
+  if (!init?.headers) {
+    return headers;
+  }
+
+  const incoming = init.headers instanceof Headers
+    ? init.headers
+    : new Headers(init.headers as HeadersInit);
+
+  incoming.forEach((value, key) => {
+    headers.set(key, value);
+  });
+
+  return headers;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Accept-Language": navigator.language || "en",
-    },
     ...init,
+    headers: mergeHeaders(init),
   });
   if (!res.ok) {
-    const errorBody = await res.text();
+    const errorBody = await res.text().catch(() => "<response body unavailable>");
     throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
   }
   return res.json() as Promise<T>;
 }
+
+export const fetchJson = api;
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
 export type BmrRequest = {
