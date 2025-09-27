@@ -4,6 +4,7 @@ import WeeklyPlanViewer from "./features/plan/WeeklyPlanViewer";
 import ShoplistPreview from "./features/shoplist/ShoplistPreview";
 import "./styles/tokens.css";
 import "./index.css";
+import "./i18n";
 
 const rootElement = document.getElementById("root");
 
