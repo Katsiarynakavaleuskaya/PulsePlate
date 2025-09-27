@@ -1,14 +1,47 @@
+---
+name: General PR
+about: Default template for most pull requests
+labels: []
+---
+
+# Title
+<!-- Conventional commit: feat|fix|chore|docs|refactor|test|perf(scope): ... -->
+
 ## Summary
+- Что изменилось?
+- Почему / ссылка на задачу.
 
-Briefly describe the change and motivation.
+## Scope & Files
+- Основные изменения (файлы, модули).
+- Out of scope / TODO (кратко).
 
-## Checklist
+## Acceptance Criteria
+- Перечисли ключевые критерии завершенности.
 
-- [ ] Tests pass locally: `pytest -q` (no new failures)
-- [ ] Lint passes: `flake8 .` (or fixes applied)
-- [ ] Updated docs/comments if behavior changed
-- [ ] No unrelated changes mixed into this PR
+## Tests
+- [ ] Unit / logic
+- [ ] Integration / e2e
+- [ ] Manual / QA steps (ниже)
 
-## Notes
+```bash
+# команды для локальной проверки
+npm run lint
+npm test
+npm run build
+```
 
-Link related issue(s), PR(s), or context.
+## QA Checklist
+- [ ] Happy-path сценарии
+- [ ] Ошибки / таймауты / фоллбек
+- [ ] Доступность / UX проверены
+
+## Risks & Next Steps
+- Риски / фичефлаги / мониторинг
+- Следующие шаги после мержа
+
+<details>
+<summary>Optional: a11y / Security / Performance / Marketing / Docs</summary>
+
+См. [docs/pr-checks.md](../docs/pr-checks.md) — общие требования и подсказки.
+
+</details>
