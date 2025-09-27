@@ -1,0 +1,6 @@
+{
+  "days": [
+    { "date": "2025-09-28", "meals": [{ "name": "Oats & Yogurt", "kcal": 420 }] },
+    { "date": "2025-09-29", "meals": [{ "name": "Chicken & Rice", "kcal": 650 }] }
+  ]
+}
