@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import WeeklyPlanViewer from "./features/plan/WeeklyPlanViewer";
 import ShoplistPreview from "./features/shoplist/ShoplistPreview";
+import "./styles/tokens.css";
 import "./index.css";
 
 const rootElement = document.getElementById("root");
