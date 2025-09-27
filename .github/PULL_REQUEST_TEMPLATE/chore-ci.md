@@ -1,24 +1,27 @@
 ---
-name: Tooling / CI chore
+name: Tooling / CI
 about: Linting, formatting, workflows, build scripts
-title: "chore(frontend): "
 labels: [chore, ci]
 ---
 
+# chore(frontend): <scope>
+
 ## Summary
-- Что меняем / зачем (линт, формат, workflow).
+- Что меняем (скрипты, конфиги, workflow) и зачем.
 
 ## Scope
-- Ключевые файлы (package.json, конфиги, workflows).
-- Что не трогали (optional).
+- package.json / конфиги / workflows.
+- Out of scope (если есть).
 
-## Testing
+## Tests
 - [ ] `npm ci`
 - [ ] `npm run lint`
 - [ ] `npm test -- --ci`
 - [ ] `npm run build`
-- Логи GitHub Actions приложены / ожидаемый результат.
+- Логи GitHub Actions приложены / проверены.
 
 ## Notes
-- Кэш / окружение (npm cache, Node version, matrix).
-- Правила защиты ветки / требуемые статусы.
+- Кэш npm / Node version / matrix.
+- Правила защиты ветки, требуемые статусы.
+
+👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)
