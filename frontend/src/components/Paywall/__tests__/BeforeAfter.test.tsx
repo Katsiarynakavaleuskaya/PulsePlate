@@ -8,6 +8,9 @@ import BeforeAfter from "../BeforeAfter";
 // Initialize i18n so t() returns strings
 import "../../../i18n";
 
+// Import test setup for jest-dom matchers
+import "../../../test/setup";
+
 // Mock analytics to verify calls
 vi.mock("../../../lib/analytics", () => {
   return {
