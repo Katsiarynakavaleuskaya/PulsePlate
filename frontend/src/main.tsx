@@ -18,6 +18,13 @@ const root = ReactDOM.createRoot(rootElement);
 i18nSmoke();
 apiSmoke();
 
+if (import.meta.env.DEV) {
+  // лениво импортируем, чтобы не тащить в прод
+  import("./mocks/browser").then(({ worker }) => {
+    worker.start({ onUnhandledRequest: "bypass" });
+  });
+}
+
 root.render(
   <React.StrictMode>
     <App />
