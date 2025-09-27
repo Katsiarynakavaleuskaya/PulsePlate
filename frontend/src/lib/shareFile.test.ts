@@ -123,14 +123,13 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(arrayBuffer),
     });
 
-    // Freeze time to make the cache path deterministic
-    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234567890);
+    const expectedPath = "pulseplate/1758958372976-export.bin";
+
     await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
-    nowSpy.mockRestore();
 
     expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.bin");
     expect(writeFileMock).toHaveBeenCalledWith({
-
+      path: expectedPath,
       data: expect.any(String),
       directory: Directory.Cache,
       recursive: true,
