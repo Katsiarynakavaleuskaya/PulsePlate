@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import Paywall from "./Paywall/BeforeAfter";
 import { log, Events } from "../lib/analytics";
@@ -17,7 +17,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
   return (
     <>
-      <div aria-label="Premium gated content" className="opacity-60 pointer-events-none" inert>
+      <div aria-label="Premium gated content" className="opacity-60 pointer-events-none" aria-hidden="true">
         {children}
       </div>
       <button
