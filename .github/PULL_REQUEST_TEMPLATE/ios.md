@@ -1,25 +1,34 @@
-# feat(iOS): <scope>
+---
+name: iOS Feature
+about: SwiftUI / StoreKit / HealthKit changes
+title: "feat(iOS): "
+labels: [iOS, feat]
+---
 
-## Goal
-SwiftUI/StoreKit/HealthKit. Что реализовано.
+## Summary
+- Что реализовано и для кого (ссылка на задачу).
 
-## Files
-- Приложи ключевые файлы (Views, Managers).
+## Scope
+- Основные экраны/модули (Views, Managers).
+- Out-of-scope / TODO.
 
-## Acceptance Criteria
-- Сборка Xcode OK, SwiftUI Previews
-- Dynamic Type, VO-лейблы
-- StoreKitTest сценарии / HealthKit разрешения
+## iOS Notes
+- Dynamic Type / VoiceOver / доступность.
+- StoreKit / HealthKit взаимодействия, разрешения.
+- Инструменты (StoreKitTest, Mock data).
 
-## Tests
-- Unit (StoreKitTest)
-- UI Tests (VO, доступность кнопок)
+## Testing
+- [ ] Xcode build / SwiftUI previews
+- [ ] Unit (StoreKitTest / бизнес-логика)
+- [ ] UI / интеграция (если есть)
+- Ручные проверки (устройств/симуляторов).
 
-## Run locally
-1) Открой `.xcworkspace`/`.xcodeproj`
-2) Выбери схему и устройство
-3) Запусти
+```bash
+# Быстрый старт
+open ios/PulsePlate.xcodeproj
+# выбери схему и устройство, запусти ✅
+```
 
-## Security
-- HealthKit — read-only (раскрытие в UI)
-- StoreKit — без тестовых ключей в коде
+## Security & Privacy
+- HealthKit — только чтение? пояснение в UI.
+- StoreKit — без тестовых ключей в коде.
