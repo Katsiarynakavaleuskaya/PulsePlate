@@ -18,6 +18,7 @@ export default function TabBar() {
         <NavLink
           key={to}
           to={to}
+          end={to === "/"}
           role="tab"
           aria-selected={pathname === to}
           className={({ isActive }) =>
