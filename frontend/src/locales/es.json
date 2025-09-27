@@ -1,1 +1,36 @@
-{ "common": { "ok": "OK", "cancel": "Cancelar" } }
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar"
+  },
+  "paywall": {
+    "title": "Desbloquear Premium",
+    "subtitle": "Plato personal, microequilibrio, plan semanal.",
+    "cta": "Continuar",
+    "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
+    "before": {
+      "label": "Antes",
+      "randomPlate": "Plato aleatorio",
+      "macrosOnly": "Solo macros",
+      "manualShopping": "Lista manual"
+    },
+    "after": {
+      "label": "Después",
+      "personalPlate": "Plato personal",
+      "microBalance": "Microequilibrio",
+      "autoShoppingList": "Lista automática"
+    },
+    "items": {
+      "before": {
+        "random_plate": "Plato aleatorio",
+        "macros_only": "Solo macros",
+        "manual_shopping": "Lista manual"
+      },
+      "after": {
+        "personal_plate": "Plato personal",
+        "micro_balance": "Microequilibrio",
+        "auto_shopping_list": "Lista automática"
+      }
+    }
+  }
+}
