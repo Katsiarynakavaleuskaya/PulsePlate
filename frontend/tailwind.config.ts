@@ -1,8 +1,13 @@
 // RU: Подхватываем CSS-переменные как Tailwind-цвета и радиусы.
 // EN: Map CSS variables into Tailwind theme.
 
-export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./index.html", // actual Vite entry HTML
+    "./src/**/*.{ts,tsx}",
+  ],
   theme: {
     extend: {
       colors: {
@@ -20,3 +25,5 @@ export default {
   },
   plugins: [],
 };
+
+export default config;
