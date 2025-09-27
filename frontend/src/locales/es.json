@@ -19,6 +19,18 @@
       "personalPlate": "Plato personal",
       "microBalance": "Microequilibrio",
       "autoShoppingList": "Lista automática"
+    },
+    "items": {
+      "before": {
+        "random_plate": "Plato aleatorio",
+        "macros_only": "Solo macros",
+        "manual_shopping": "Lista manual"
+      },
+      "after": {
+        "personal_plate": "Plato personal",
+        "micro_balance": "Microequilibrio",
+        "auto_shopping_list": "Lista automática"
+      }
     }
   }
 }

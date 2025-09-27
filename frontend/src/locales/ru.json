@@ -19,6 +19,18 @@
       "personalPlate": "Персональная тарелка",
       "microBalance": "Микро-баланс",
       "autoShoppingList": "Авто список покупок"
+    },
+    "items": {
+      "before": {
+        "random_plate": "Случайная тарелка",
+        "macros_only": "Только макро",
+        "manual_shopping": "Список покупок вручную"
+      },
+      "after": {
+        "personal_plate": "Персональная тарелка",
+        "micro_balance": "Микро-баланс",
+        "auto_shopping_list": "Авто список покупок"
+      }
     }
   }
 }
