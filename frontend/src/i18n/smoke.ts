@@ -3,15 +3,26 @@
 import i18n from "./index";
 
 export function i18nSmoke(): void {
-  try {
-    // Дождёмся инициализации, но не тормозим UI:
-    setTimeout(() => {
+  const logOk = () => {
+    try {
       const ok = i18n.t("common.ok");
       // eslint-disable-next-line no-console
       console.log(`[i18n] OK => ${ok}`);
-    }, 0);
-  } catch {
-    // eslint-disable-next-line no-console
-    console.warn("[i18n] smoke failed");
+    } catch {
+      // eslint-disable-next-line no-console
+      console.warn("[i18n] smoke failed");
+    }
+  };
+
+  if (i18n.isInitialized) {
+    logOk();
+    return;
   }
+
+  const handler = () => {
+    logOk();
+    i18n.off("initialized", handler);
+  };
+
+  i18n.on("initialized", handler);
 }

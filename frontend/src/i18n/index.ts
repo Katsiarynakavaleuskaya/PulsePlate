@@ -7,7 +7,10 @@ import en from "../locales/en.json";
 import ru from "../locales/ru.json";
 import es from "../locales/es.json";
 
-const urlLang = new URLSearchParams(location.search).get("lang") ?? "en";
+const urlLang =
+  typeof location !== "undefined" && typeof location.search === "string"
+    ? new URLSearchParams(location.search).get("lang") ?? "en"
+    : "en";
 
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, ru: { translation: ru }, es: { translation: es } },
