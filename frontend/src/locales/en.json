@@ -1,1 +1,14 @@
-{ "common": { "ok": "OK", "cancel": "Cancel" } }
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel"
+  },
+  "paywall": {
+    "title": "Unlock Premium",
+    "subtitle": "Personalized plate, micro-balance, weekly plan.",
+    "cta": "Continue",
+    "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
+    "before": "Before",
+    "after": "After"
+  }
+}
