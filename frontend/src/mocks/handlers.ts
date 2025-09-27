@@ -2,11 +2,11 @@ import { http, HttpResponse, delay } from "msw";
 
 export const handlers = [
   // Работает на любом origin: */api/purchase
-  http.post("*/api/purchase", async ({ request }) => {
+  http.post("*/api/purchase", async ({ request: _request }) => {
     await delay(300);
 
     // Simulate error scenarios for testing
-    const url = new URL(request.url);
+    const url = new URL(_request.url);
     const errorParam = url.searchParams.get('error');
 
     if (errorParam === 'network') {
@@ -25,11 +25,11 @@ export const handlers = [
     return HttpResponse.json({ status: "ok", entitlement: "premium" }, { status: 200 });
   }),
 
-  http.post("*/api/restore", async ({ request }) => {
+  http.post("*/api/restore", async ({ request: _request }) => {
     await delay(200);
 
     // Simulate error scenarios for testing
-    const url = new URL(request.url);
+    const url = new URL(_request.url);
     const errorParam = url.searchParams.get('error');
 
     if (errorParam === 'network') {
