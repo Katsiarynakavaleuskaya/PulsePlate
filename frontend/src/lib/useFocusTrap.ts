@@ -1,11 +1,12 @@
 import { useCallback } from "react";
+import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 
 /**
  * Creates a keyboard handler that keeps focus trapped inside the provided container.
  */
-export function useFocusTrap(ref: React.RefObject<HTMLElement>) {
+export function useFocusTrap(ref: RefObject<HTMLElement>) {
   return useCallback(
-    (event: React.KeyboardEvent) => {
+    (event: ReactKeyboardEvent) => {
       if (event.key !== "Tab") {
         return;
       }
