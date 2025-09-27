@@ -1,41 +1,31 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Events, log } from "../../lib/analytics";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 
 type Props = {
   onClose: () => void;
   onPurchase?: () => void;
 };
 
-function useFocusTrap() {
-  return (container: HTMLElement | null, event: React.KeyboardEvent) => {
-    if (!container || event.key !== "Tab") {
-      return;
-    }
-    const focusables = container.querySelectorAll<HTMLElement>(
-      'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusables.length === 0) {
-      return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-}
-
 export default function BeforeAfter({ onClose, onPurchase }: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
-  const trap = useFocusTrap();
+  const trap = useFocusTrap(dialogRef);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      trap(event);
+    },
+    [onClose, trap]
+  );
 
   useEffect(() => {
     log(Events.PAYWALL_VIEW);
@@ -48,7 +38,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
       aria-modal="true"
       aria-labelledby="paywall-title"
       className="fixed inset-0 grid place-items-center bg-black/60 p-4"
-      onKeyDown={(event) => trap(dialogRef.current, event)}
+      onKeyDown={handleKeyDown}
     >
       <div ref={dialogRef} className="w-full max-w-md rounded-xl bg-white text-black p-5">
         <h2 id="paywall-title" className="text-2xl mb-1">
@@ -58,27 +48,35 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="border rounded-lg p-3">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.before")}</div>
+            <div className="text-xs uppercase text-gray-500">{t("paywall.before.label")}</div>
             <ul className="text-sm list-disc list-inside">
-              <li>Random plate</li>
-              <li>Macros only</li>
-              <li>Manual shopping</li>
+              {[
+                "paywall.before.randomPlate",
+                "paywall.before.macrosOnly",
+                "paywall.before.manualShopping",
+              ].map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
             </ul>
           </div>
           <div className="border rounded-lg p-3 border-[var(--pp-gold)]">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.after")}</div>
+            <div className="text-xs uppercase text-gray-500">{t("paywall.after.label")}</div>
             <ul className="text-sm list-disc list-inside">
-              <li>Personal plate</li>
-              <li>Micro-balance</li>
-              <li>Auto shopping list</li>
+              {[
+                "paywall.after.personalPlate",
+                "paywall.after.microBalance",
+                "paywall.after.autoShoppingList",
+              ].map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
             </ul>
           </div>
         </div>
 
         <button
           ref={primaryButtonRef}
-          className="w-full py-3 rounded-xl"
-          style={{ background: "var(--pp-primary)", color: "white", minHeight: 44 }}
+          className="w-full py-3 rounded-xl bg-[var(--pp-primary)] text-white"
+          style={{ minHeight: 44 }}
           onClick={() => {
             log(Events.PURCHASE_ATTEMPT);
             onPurchase?.();

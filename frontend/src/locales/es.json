@@ -8,7 +8,17 @@
     "subtitle": "Plato personal, microequilibrio, plan semanal.",
     "cta": "Continuar",
     "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
-    "before": "Antes",
-    "after": "Después"
+    "before": {
+      "label": "Antes",
+      "randomPlate": "Plato aleatorio",
+      "macrosOnly": "Solo macros",
+      "manualShopping": "Lista manual"
+    },
+    "after": {
+      "label": "Después",
+      "personalPlate": "Plato personal",
+      "microBalance": "Microequilibrio",
+      "autoShoppingList": "Lista automática"
+    }
   }
 }
