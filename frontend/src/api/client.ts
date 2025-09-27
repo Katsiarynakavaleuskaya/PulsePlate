@@ -29,7 +29,8 @@ function mergeHeaders(init?: RequestInit): Headers {
   const defaults = {
     Accept: "application/json",
     "Content-Type": "application/json",
-    "Accept-Language": navigator.language || "en",
+    "Accept-Language":
+      (typeof navigator !== "undefined" && navigator.language) || "en",
   } satisfies Record<string, string>;
 
   const headers = new Headers(defaults);
