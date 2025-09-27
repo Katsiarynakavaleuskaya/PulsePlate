@@ -47,7 +47,9 @@ describe("Paywall BeforeAfter", () => {
     const ctas = screen.getAllByTestId("paywall-cta");
     fireEvent.click(ctas[0]);
     expect(onPurchase).toHaveBeenCalled();
-    // Accept optional analytics payload
+    // Should have PAYWALL_VIEW (on mount) + PURCHASE_ATTEMPT (on click)
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
     expect(log).toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT, expect.anything());
   });
 
@@ -58,7 +60,9 @@ describe("Paywall BeforeAfter", () => {
     const cancelBtns = screen.getAllByTestId("paywall-cancel");
     fireEvent.click(cancelBtns[0]);
     expect(onClose).toHaveBeenCalled();
-    // Accept optional analytics payload
+    // Should have PAYWALL_VIEW (on mount) + PURCHASE_CANCEL (on click)
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
     expect(log).toHaveBeenCalledWith(Events.PURCHASE_CANCEL, expect.anything());
   });
 });
