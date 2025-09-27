@@ -1,14 +1,18 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Plate from "./pages/Plate";
+import Progress from "./pages/Progress";
+import Profile from "./pages/Profile";
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-dvh bg-navy text-text">
+      <div className="min-h-dvh bg-navy text-text pb-14">
         <Routes>
-          <Route path="/" element={<div />} />
-          <Route path="/plate" element={<div />} />
-          <Route path="/progress" element={<div />} />
-          <Route path="/profile" element={<div />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/plate" element={<Plate />} />
+          <Route path="/progress" element={<Progress />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </div>
     </BrowserRouter>
