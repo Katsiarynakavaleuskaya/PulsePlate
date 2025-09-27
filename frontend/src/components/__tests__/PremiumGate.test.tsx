@@ -1,6 +1,8 @@
 /* @vitest-environment jsdom */
 import { render, screen, fireEvent } from "@testing-library/react";
 import PremiumGate from "../PremiumGate";
+// Initialize i18n so t() resolves labels
+import "../../i18n";
 import { vi, describe, test, expect } from "vitest";
 
 vi.mock("../Paywall/BeforeAfter", () => {

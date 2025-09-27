@@ -7,9 +7,11 @@ import { useFocusTrap } from "../../lib/useFocusTrap";
 type Props = {
   onClose: () => void;
   onPurchase?: () => void;
+  source?: string;
+  via?: string;
 };
 
-export default function BeforeAfter({ onClose, onPurchase }: Props) {
+export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -84,6 +86,10 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
           style={{ minHeight: 44 }}
           data-testid="paywall-cta"
           onClick={() => {
+            // Fire-and-forget analytics before invoking callback
+            try {
+              log(Events.PURCHASE_ATTEMPT, { source, via });
+            } catch {}
             onPurchase?.();
           }}
         >
@@ -96,6 +102,9 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
           style={{ minHeight: 44 }}
           data-testid="paywall-cancel"
           onClick={() => {
+            try {
+              log(Events.PURCHASE_CANCEL, { source, via });
+            } catch {}
             onClose();
           }}
         >

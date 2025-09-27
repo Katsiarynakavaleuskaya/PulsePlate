@@ -1,4 +1,5 @@
 /* @vitest-environment jsdom */
+import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { vi, describe, test, expect, afterEach } from "vitest";
 import BeforeAfter from "../BeforeAfter";
@@ -24,6 +25,7 @@ import { log, Events } from "../../../lib/analytics";
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 describe("Paywall BeforeAfter", () => {
@@ -34,33 +36,25 @@ describe("Paywall BeforeAfter", () => {
     expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW);
   });
 
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { vi, describe, test, expect, afterEach } from "vitest";
+  test("fires purchase_attempt on CTA click", () => {
+    const onPurchase = vi.fn();
+    render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
 
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
+    const ctas = screen.getAllByTestId("paywall-cta");
+    fireEvent.click(ctas[0]);
+    expect(onPurchase).toHaveBeenCalled();
+    // Accept optional analytics payload
+    expect(log).toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT, expect.anything());
+  });
 
-test("fires purchase_attempt on CTA click", () => {
-  const onPurchase = vi.fn();
-  render(<BeforeAfter onClose={() => {}} onPurchase={onPurchase} />);
+  test("fires purchase_cancel on Cancel click", () => {
+    const onClose = vi.fn();
+    render(<BeforeAfter onClose={onClose} />);
 
-  fireEvent.click(screen.getByTestId("paywall-cta"));
-  expect(onPurchase).toHaveBeenCalled();
-  expect(log).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW);
-  expect(log).not.toHaveBeenCalledWith(Events.PURCHASE_ATTEMPT);
-});
-
-test("fires purchase_cancel on Cancel click", () => {
-  const onClose = vi.fn();
-  render(<BeforeAfter onClose={onClose} />);
-
-  fireEvent.click(screen.getByTestId("paywall-cancel"));
-  expect(onClose).toHaveBeenCalled();
-  expect(log).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW);
-  expect(log).not.toHaveBeenCalledWith(Events.PURCHASE_CANCEL);
-});
+    const cancelBtns = screen.getAllByTestId("paywall-cancel");
+    fireEvent.click(cancelBtns[0]);
+    expect(onClose).toHaveBeenCalled();
+    // Accept optional analytics payload
+    expect(log).toHaveBeenCalledWith(Events.PURCHASE_CANCEL, expect.anything());
+  });
 });
