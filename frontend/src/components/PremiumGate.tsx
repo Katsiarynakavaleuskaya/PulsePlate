@@ -23,8 +23,8 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
       <button
         type="button"
         className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
+        aria-label={t("paywall.title")}
         onClick={() => {
-          log(Events.PURCHASE_ATTEMPT, { source });
           setOpen(true);
         }}
         aria-haspopup="dialog"
@@ -35,14 +35,13 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       {open && (
         <Paywall
+          source={source}
+          via="paywall_cta"
           onClose={() => {
-            log(Events.PURCHASE_CANCEL, { source });
             setOpen(false);
           }}
           onPurchase={() => {
-            // RU: здесь будет платёж/бридж; пока — лог.
-            // EN: hook for purchase/bridge; for now — log only.
-            log(Events.PURCHASE_ATTEMPT, { source, via: "paywall_cta" });
+            // hook for purchase flow
           }}
         />
       )}
