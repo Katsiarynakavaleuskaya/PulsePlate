@@ -19,7 +19,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    throw new Error(`API ${path} failed: HTTP ${res.status}`);
+    const errorBody = await res.text();
+    throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
   }
   return res.json() as Promise<T>;
 }
