@@ -1,3 +1,4 @@
+import React from "react";
 import PremiumGate from "../components/PremiumGate";
 
 export default function Plate() {
