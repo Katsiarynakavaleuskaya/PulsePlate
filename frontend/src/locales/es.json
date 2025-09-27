@@ -1,1 +1,14 @@
-{ "common": { "ok": "OK", "cancel": "Cancelar" } }
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar"
+  },
+  "paywall": {
+    "title": "Desbloquear Premium",
+    "subtitle": "Plato personal, microequilibrio, plan semanal.",
+    "cta": "Continuar",
+    "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
+    "before": "Antes",
+    "after": "Después"
+  }
+}
