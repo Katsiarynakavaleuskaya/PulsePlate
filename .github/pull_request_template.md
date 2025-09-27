@@ -1,61 +1,60 @@
-# Title
-<!-- Используй conventional commits: feat|fix|chore|docs|refactor|test|perf(scope): ... -->
+---
+name: General PR
+about: Default template for most pull requests
+title: ''
+labels: []
+---
 
 ## Summary
-Коротко: что и зачем. Ссылка на задачу/issue.
+- Что изменилось?
+- Почему? (ссылка на задачу / issue)
 
-## Plan / Scope
-- [ ] Основные изменения (bullet list)
-- [ ] Что НЕ входит в PR
+## Scope
+- ✅ Ключевые изменения
+- ⛔️ Out-of-scope / TODO (кратко)
 
-## Changes
-- Папки/файлы: перечисли ключевые.
-- UI: скриншоты/видео (если есть).
-- API/контракты: эндпоинты, схемы запрос/ответ.
+## Testing
+- [ ] Unit / logic
+- [ ] Integration / e2e
+- [ ] Manual / QA steps (укажи результат ниже)
 
-## Accessibility (a11y)
-- Контраст ≥4.5:1
-- Навигация клавиатурой / VO-лейблы
-- Размеры тача ≥44×44pt
-
-## Tests
-- [ ] Unit
-- [ ] Integration/e2e
-- [ ] Snapshot (если UI)
-Команда локально:
 ```bash
+# команды для локальной проверки
 npm run lint && npm test && npm run build
-# или для iOS: Xcode build + StoreKitTest/UITests
+# или Xcode build + нужные тесты
 ```
 
-## Security Notes
-- Секреты отсутствуют в коде (используем .env.example)
-- Личные данные не логируются
-- Для HealthKit/StoreKit — раскрытие и явные разрешения
+## Checklist
+- [ ] Docs/README обновлены (если нужно)
+- [ ] A11y / UX (контраст, клавиатура, VO)
+- [ ] Security / privacy review (если применимо)
+- [ ] Performance / monitoring учтены
 
-## Performance
-- Оценка влияния (бандл/рендеры/память)
-- Веб: tree-shaking/кэширование; iOS: измеримые регрессии
+<details>
+<summary>Optional notes</summary>
 
-## Marketing & GTM
-- Тексты/локали готовы (EN/RU/ES)
-- События аналитики (например, paywall_*)
+### Accessibility
+- Контраст ≥4.5:1, `aria-*` / VO-лейблы, touch ≥44×44pt.
 
-## Documentation
-- README/Docs обновлены (если нужно)
-- Комментарии в коде там, где нетривиальная логика
+### Security & Privacy
+- Нет секретов в коде; личные данные не логируются.
+- HealthKit/StoreKit — явные разрешения и copy в UI.
 
-## QA Checklist
-- Happy-path сценарии
-- Ошибки/таймауты
-- Моки/фоллбеки
+### Performance
+- Веб: bundle/рендер/кэширование.
+- iOS: размер билда, память, FPS (если релевантно).
 
-## Risks & Rollout
-- Риски/миграции/фичефлаги
-- Мониторинг/алертинг после мержа
+### Marketing & GTM
+- Тексты/локали (EN/RU/ES) готовы.
+- События аналитики (paywall_*, purchase_*, и т.д.).
 
-## Decision Log
-Ключевые решения и почему.
+### Risks & Rollout
+- Риски, миграции, Feature Flags, мониторинг после релиза.
 
-## Next Actions
-Следующие маленькие шаги после мержа.
+### Decision Log
+- Ключевые решения / компромиссы.
+
+</details>
+
+## Next Steps
+- Что делать после мержа / связанные задачи.

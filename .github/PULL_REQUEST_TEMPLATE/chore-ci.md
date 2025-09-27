@@ -1,16 +1,24 @@
-# chore(frontend): tooling/CI
+---
+name: Tooling / CI chore
+about: Linting, formatting, workflows, build scripts
+title: "chore(frontend): "
+labels: [chore, ci]
+---
 
-## Goal
-Единые скрипты, линт, тесты, сборка в GitHub Actions.
+## Summary
+- Что меняем / зачем (линт, формат, workflow).
 
-## Changes
-- package.json scripts
-- ESLint/Prettier конфиги
-- .github/workflows/frontend-ci.yml
+## Scope
+- Ключевые файлы (package.json, конфиги, workflows).
+- Что не трогали (optional).
 
-## Acceptance Criteria
-- CI: `npm ci`, `npm run lint`, `npm test -- --ci`, `npm run build` — зелёные
+## Testing
+- [ ] `npm ci`
+- [ ] `npm run lint`
+- [ ] `npm test -- --ci`
+- [ ] `npm run build`
+- Логи GitHub Actions приложены / ожидаемый результат.
 
 ## Notes
-- Кэш npm включён
-- Ветка защищена правилом на успешный workflow
+- Кэш / окружение (npm cache, Node version, matrix).
+- Правила защиты ветки / требуемые статусы.

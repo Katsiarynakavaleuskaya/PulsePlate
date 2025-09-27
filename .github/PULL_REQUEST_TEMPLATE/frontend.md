@@ -1,32 +1,38 @@
-# feat(frontend): <scope>
+---
+name: Frontend Feature
+about: Web / SPA changes
+title: "feat(frontend): "
+labels: [frontend, feat]
+---
 
-## Goal
-Что даёт пользователю/разработчику. Ссылка на задачу.
+## Summary
+- Что меняем и зачем (ссылка на задачу).
 
-## Files
-Ключевые файлы/папки, в т.ч. стили/tokens, роутер, компоненты.
+## Scope
+- Основные экраны/компоненты.
+- Что осталось вне PR (коротко).
 
-## Acceptance Criteria
-- Роуты/состояния/видимость
-- a11y: `role`, `aria-*`, контраст ≥4.5:1
-- MSW-фоллбек (если API)
+## Frontend Notes
+- Маршруты / состояния / API вызовы.
+- Доступность: `role`, `aria-*`, контраст ≥4.5:1.
+- MSW / fallback (если затрагивали сеть).
 
-## Tests
-- Vitest + @testing-library/react
-- MSW: 500/timeout → фоллбек
-- axe a11y проверки
+## Testing
+- [ ] `npm run lint`
+- [ ] `npm test`
+- [ ] `npm run build`
+- Ручное тестирование / скриншоты (ниже).
 
-## Run locally
 ```bash
 cd frontend
-cp .env.example .env # заполни VITE_API_BASE при необходимости
+cp .env.example .env   # если нужен VITE_API_BASE
 npm ci
 npm run dev
 ```
 
-## Security
-- Нет секретов в репо
-- Аналитика — только агрегаты
+<details>
+<summary>Assets / screenshots</summary>
 
-## Screenshots
-(вставь)
+_Вставь актуальные скрины/видео UI._
+
+</details>
