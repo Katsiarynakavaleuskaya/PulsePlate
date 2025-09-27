@@ -1,27 +1,29 @@
 ---
 name: Frontend Feature
-about: Web / SPA changes
-title: "feat(frontend): "
+about: SPA / web UI changes
 labels: [frontend, feat]
 ---
 
+# feat(frontend): <scope>
+
 ## Summary
 - Что меняем и зачем (ссылка на задачу).
+- Связанные экраны/компоненты.
 
 ## Scope
-- Основные экраны/компоненты.
-- Что осталось вне PR (коротко).
+- Основные файлы/папки.
+- Out of scope / TODO.
 
-## Frontend Notes
-- Маршруты / состояния / API вызовы.
-- Доступность: `role`, `aria-*`, контраст ≥4.5:1.
-- MSW / fallback (если затрагивали сеть).
+## Acceptance Criteria
+- Роуты / состояния / API вызовы.
+- a11y: `role`, `aria-*`, контраст ≥4.5:1, клавиатура.
+- MSW / fallback (если изменяли API).
 
-## Testing
+## Tests
 - [ ] `npm run lint`
 - [ ] `npm test`
 - [ ] `npm run build`
-- Ручное тестирование / скриншоты (ниже).
+- [ ] Vitest / @testing-library / axe (укажи основные сценарии)
 
 ```bash
 cd frontend
@@ -30,9 +32,8 @@ npm ci
 npm run dev
 ```
 
-<details>
-<summary>Assets / screenshots</summary>
+## QA Notes
+- Скриншоты / видео (если UI).
+- Проверка ручных сценариев.
 
-_Вставь актуальные скрины/видео UI._
-
-</details>
+👉 Доп. чек-листы: [docs/pr-checks.md](../../docs/pr-checks.md)

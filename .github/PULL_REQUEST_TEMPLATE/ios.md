@@ -1,34 +1,33 @@
 ---
 name: iOS Feature
-about: SwiftUI / StoreKit / HealthKit changes
-title: "feat(iOS): "
+about: SwiftUI / StoreKit / HealthKit
 labels: [iOS, feat]
 ---
 
+# feat(iOS): <scope>
+
 ## Summary
-- Что реализовано и для кого (ссылка на задачу).
+- Что реализовано (экраны, менеджеры).
+- Ссылка на задачу / issue.
 
 ## Scope
-- Основные экраны/модули (Views, Managers).
-- Out-of-scope / TODO.
+- Основные файлы (Views, Managers, StoreKit, HealthKit).
+- Что осталось вне PR.
 
-## iOS Notes
-- Dynamic Type / VoiceOver / доступность.
-- StoreKit / HealthKit взаимодействия, разрешения.
-- Инструменты (StoreKitTest, Mock data).
+## Acceptance Criteria
+- Сборка Xcode успешна, SwiftUI Previews.
+- Dynamic Type, VoiceOver, доступность кнопок.
+- StoreKitTest / HealthKit разрешения (если применимо).
 
-## Testing
-- [ ] Xcode build / SwiftUI previews
+## Tests
+- [ ] Xcode build
 - [ ] Unit (StoreKitTest / бизнес-логика)
 - [ ] UI / интеграция (если есть)
-- Ручные проверки (устройств/симуляторов).
+- [ ] Ручные проверки на устройстве/симуляторе
 
 ```bash
-# Быстрый старт
 open ios/PulsePlate.xcodeproj
-# выбери схему и устройство, запусти ✅
+# выбери схему и устройство, запусти
 ```
 
-## Security & Privacy
-- HealthKit — только чтение? пояснение в UI.
-- StoreKit — без тестовых ключей в коде.
+👉 Общие проверки: [docs/pr-checks.md](../../docs/pr-checks.md)

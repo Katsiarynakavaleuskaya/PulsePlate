@@ -1,60 +1,47 @@
 ---
 name: General PR
 about: Default template for most pull requests
-title: ''
 labels: []
 ---
 
+# Title
+<!-- Conventional commit: feat|fix|chore|docs|refactor|test|perf(scope): ... -->
+
 ## Summary
 - Что изменилось?
-- Почему? (ссылка на задачу / issue)
+- Почему / ссылка на задачу.
 
-## Scope
-- ✅ Ключевые изменения
-- ⛔️ Out-of-scope / TODO (кратко)
+## Scope & Files
+- Основные изменения (файлы, модули).
+- Out of scope / TODO (кратко).
 
-## Testing
+## Acceptance Criteria
+- Перечисли ключевые критерии завершенности.
+
+## Tests
 - [ ] Unit / logic
 - [ ] Integration / e2e
-- [ ] Manual / QA steps (укажи результат ниже)
+- [ ] Manual / QA steps (ниже)
 
 ```bash
 # команды для локальной проверки
-npm run lint && npm test && npm run build
-# или Xcode build + нужные тесты
+npm run lint
+npm test
+npm run build
 ```
 
-## Checklist
-- [ ] Docs/README обновлены (если нужно)
-- [ ] A11y / UX (контраст, клавиатура, VO)
-- [ ] Security / privacy review (если применимо)
-- [ ] Performance / monitoring учтены
+## QA Checklist
+- [ ] Happy-path сценарии
+- [ ] Ошибки / таймауты / фоллбек
+- [ ] Доступность / UX проверены
+
+## Risks & Next Steps
+- Риски / фичефлаги / мониторинг
+- Следующие шаги после мержа
 
 <details>
-<summary>Optional notes</summary>
+<summary>Optional: a11y / Security / Performance / Marketing / Docs</summary>
 
-### Accessibility
-- Контраст ≥4.5:1, `aria-*` / VO-лейблы, touch ≥44×44pt.
-
-### Security & Privacy
-- Нет секретов в коде; личные данные не логируются.
-- HealthKit/StoreKit — явные разрешения и copy в UI.
-
-### Performance
-- Веб: bundle/рендер/кэширование.
-- iOS: размер билда, память, FPS (если релевантно).
-
-### Marketing & GTM
-- Тексты/локали (EN/RU/ES) готовы.
-- События аналитики (paywall_*, purchase_*, и т.д.).
-
-### Risks & Rollout
-- Риски, миграции, Feature Flags, мониторинг после релиза.
-
-### Decision Log
-- Ключевые решения / компромиссы.
+См. [docs/pr-checks.md](../docs/pr-checks.md) — общие требования и подсказки.
 
 </details>
-
-## Next Steps
-- Что делать после мержа / связанные задачи.
