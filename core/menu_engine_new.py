@@ -46,6 +46,7 @@ def build_plate_day(
     kcal_split = [int(targets["kcal"] * s) for s in splits]
 
     meals: List[RMeal] = []
+    total_kcal = 0.0
     macros_sum = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
     micros_sum = {k: 0.0 for k in MICRO_KEYS}
 
@@ -55,6 +56,7 @@ def build_plate_day(
             continue
         m = recipedb.scale_recipe_to_kcal(r, kcal_goal, lang, prefer_fiber=True)
         meals.append(m)
+        total_kcal += m.kcal
         for k in macros_sum:
             macros_sum[k] += m.macros[k]
         for mk in MICRO_KEYS:
@@ -66,6 +68,7 @@ def build_plate_day(
 
     # бустеры для провалов <80%
     kcal_limit = int(0.05 * targets["kcal"])
+    tolerance = int(round(0.15 * targets["kcal"]))
     for mk, pct in cov.items():
         if pct < 80.0:
             donor = fooddb.pick_booster_for(mk, diet_flags)
@@ -80,15 +83,33 @@ def build_plate_day(
                 continue
             grams = min(200.0, max(30.0, (kcal_limit / kcal_100) * 100.0))
             # собираем "мини-блюдо"
-            m_macros = {
+            raw_macros = {
                 "protein_g": fi.protein_g * (grams / fi.per_g),
                 "fat_g": fi.fat_g * (grams / fi.per_g),
                 "carbs_g": fi.carbs_g * (grams / fi.per_g),
                 "fiber_g": fi.fiber_g * (grams / fi.per_g),
             }
-            m_kcal = int(
-                round(m_macros["protein_g"] * 4 + m_macros["carbs_g"] * 4 + m_macros["fat_g"] * 9)
+            raw_kcal = (
+                raw_macros["protein_g"] * 4 + raw_macros["carbs_g"] * 4 + raw_macros["fat_g"] * 9
             )
+            if raw_kcal <= 0:
+                continue
+
+            allowed_above = tolerance - max(0.0, total_kcal - targets["kcal"])
+            if allowed_above <= 0:
+                continue
+
+            if raw_kcal > allowed_above:
+                ratio = allowed_above / raw_kcal
+                if ratio <= 0:
+                    continue
+                grams *= ratio
+                raw_macros = {k: v * ratio for k, v in raw_macros.items()}
+                raw_kcal *= ratio
+            m_kcal = int(round(raw_kcal))
+            if m_kcal <= 0 or grams < 5.0:
+                continue
+
             m_micros = {k: fi.micros.get(k, 0.0) * (grams / fi.per_g) for k in MICRO_KEYS}
             # Get translated booster food name
             translated_donor = fooddb.get_translated_food_name(donor, lang)
@@ -98,12 +119,13 @@ def build_plate_day(
                     title_translated=f"booster_{translated_donor}",
                     grams={donor: round(grams, 1)},
                     kcal=m_kcal,
-                    macros={k: round(v, 1) for k, v in m_macros.items()},
+                    macros={k: round(v, 1) for k, v in raw_macros.items()},
                     micros={k: round(v, 1) for k, v in m_micros.items()},
                 )
             )
+            total_kcal += m_kcal
             for k in macros_sum:
-                macros_sum[k] += m_macros[k]
+                macros_sum[k] += raw_macros[k]
             for k in MICRO_KEYS:
                 micros_sum[k] += m_micros.get(k, 0.0)
             # Use translated tip
