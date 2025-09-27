@@ -33,7 +33,7 @@ describe("Paywall BeforeAfter", () => {
     render(<BeforeAfter onClose={() => {}} />);
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeInTheDocument();
-    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW);
+    expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
   });
 
   test("fires purchase_attempt on CTA click", () => {
