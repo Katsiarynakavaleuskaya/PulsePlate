@@ -32,6 +32,19 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
     primaryButtonRef.current?.focus();
   }, []);
 
+  // RU: Закрытие по Escape с аналитикой.
+  // EN: Close on Escape with analytics logging.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        log(Events.PURCHASE_CANCEL, { via: "escape" });
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [onClose]);
+
   return (
     <div
       role="dialog"
@@ -51,9 +64,9 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
             <div className="text-xs uppercase text-gray-500">{t("paywall.before.label")}</div>
             <ul className="text-sm list-disc list-inside">
               {[
-                "paywall.before.randomPlate",
-                "paywall.before.macrosOnly",
-                "paywall.before.manualShopping",
+                "paywall.items.before.random_plate",
+                "paywall.items.before.macros_only",
+                "paywall.items.before.manual_shopping",
               ].map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
@@ -63,9 +76,9 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
             <div className="text-xs uppercase text-gray-500">{t("paywall.after.label")}</div>
             <ul className="text-sm list-disc list-inside">
               {[
-                "paywall.after.personalPlate",
-                "paywall.after.microBalance",
-                "paywall.after.autoShoppingList",
+                "paywall.items.after.personal_plate",
+                "paywall.items.after.micro_balance",
+                "paywall.items.after.auto_shopping_list",
               ].map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
@@ -74,6 +87,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
         </div>
 
         <button
+          type="button"
           ref={primaryButtonRef}
           className="w-full py-3 rounded-xl bg-[var(--pp-primary)] text-white"
           style={{ minHeight: 44 }}
@@ -86,6 +100,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
         </button>
 
         <button
+          type="button"
           className="w-full py-2 mt-2 rounded-xl"
           style={{ minHeight: 44 }}
           onClick={() => {
