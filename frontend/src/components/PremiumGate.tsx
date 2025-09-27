@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import Paywall from "./Paywall/BeforeAfter";
 import { log, Events } from "../lib/analytics";
 
@@ -10,15 +11,17 @@ type Props = {
 
 export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
 
   if (isPremium) return <>{children}</>;
 
   return (
     <>
-      <div aria-label="Premium gated content" className="opacity-60 pointer-events-none">
+      <div aria-label="Premium gated content" className="opacity-60 pointer-events-none" inert>
         {children}
       </div>
       <button
+        type="button"
         className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
         onClick={() => {
           log(Events.PURCHASE_ATTEMPT, { source });
@@ -27,7 +30,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         aria-haspopup="dialog"
         style={{ minHeight: 44 }}
       >
-        Unlock Premium
+        {t("paywall.cta")}
       </button>
 
       {open && (

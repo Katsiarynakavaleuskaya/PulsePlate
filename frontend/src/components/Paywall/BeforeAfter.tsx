@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Events, log } from "../../lib/analytics";
 import { useFocusTrap } from "../../lib/useFocusTrap";
@@ -15,9 +16,10 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
   const trap = useFocusTrap(dialogRef);
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         onClose();
         return;
       }
@@ -32,18 +34,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
     primaryButtonRef.current?.focus();
   }, []);
 
-  // RU: Закрытие по Escape с аналитикой.
-  // EN: Close on Escape with analytics logging.
-  useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        log(Events.PURCHASE_CANCEL, { via: "escape" });
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [onClose]);
+  // Note: Escape handling is confined to the dialog's keydown handler.
 
   return (
     <div
@@ -89,11 +80,10 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
         <button
           type="button"
           ref={primaryButtonRef}
-          className="w-full py-3 rounded-xl bg-[var(--pp-primary)] text-white"
+          className="w-full py-3 rounded-xl bg-pp-primary text-white"
           style={{ minHeight: 44 }}
           data-testid="paywall-cta"
           onClick={() => {
-            log(Events.PURCHASE_ATTEMPT);
             onPurchase?.();
           }}
         >
@@ -106,7 +96,6 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
           style={{ minHeight: 44 }}
           data-testid="paywall-cancel"
           onClick={() => {
-            log(Events.PURCHASE_CANCEL);
             onClose();
           }}
         >
