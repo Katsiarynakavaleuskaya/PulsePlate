@@ -65,9 +65,9 @@ class WeekPlanRequest(BaseModel):
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
     weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Optional[
-        Literal["sedentary", "light", "moderate", "active", "very_active"]
-    ] = "moderate"
+    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = (
+        "moderate"
+    )
     goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
