@@ -9,6 +9,22 @@ if (!API_BASE) {
   console.warn("[API] VITE_API_BASE is not set. Create frontend/.env from .env.example");
 }
 
+const searchParams = (() => {
+  if (typeof window === "undefined" || typeof window.location?.search !== "string") {
+    return new URLSearchParams();
+  }
+  return new URLSearchParams(window.location.search);
+})();
+
+const forceMock = searchParams.get("mock") === "1";
+
+function mockUrl(path: string): string | null {
+  if (path.includes("/premium/bmr")) return "/mock/bmr.json";
+  if (path.includes("/premium/plate")) return "/mock/plate.json";
+  if (path.includes("/plan/week")) return "/mock/week.json";
+  return null;
+}
+
 function mergeHeaders(init?: RequestInit): Headers {
   const defaults = {
     Accept: "application/json",
@@ -34,15 +50,45 @@ function mergeHeaders(init?: RequestInit): Headers {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: mergeHeaders(init),
-  });
-  if (!res.ok) {
-    const errorBody = await res.text().catch(() => "<response body unavailable>");
-    throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
+  const tryNetwork = async (): Promise<T> => {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: mergeHeaders(init),
+    });
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "<response body unavailable>");
+      throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
+    }
+    return res.json() as Promise<T>;
+  };
+
+  const tryMock = async (): Promise<T> => {
+    const url = mockUrl(path);
+    if (!url) {
+      throw new Error(`No mock mapped for ${path}`);
+    }
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
+    }
+    // eslint-disable-next-line no-console
+    console.info(`[API] MOCK fallback ON → ${url}`);
+    return res.json() as Promise<T>;
+  };
+
+  if (forceMock) {
+    return tryMock();
   }
-  return res.json() as Promise<T>;
+
+  try {
+    return await tryNetwork();
+  } catch (networkError) {
+    try {
+      return await tryMock();
+    } catch (mockError) {
+      throw networkError instanceof Error ? networkError : mockError;
+    }
+  }
 }
 
 export const fetchJson = api;
