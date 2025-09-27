@@ -91,6 +91,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
           ref={primaryButtonRef}
           className="w-full py-3 rounded-xl bg-[var(--pp-primary)] text-white"
           style={{ minHeight: 44 }}
+          data-testid="paywall-cta"
           onClick={() => {
             log(Events.PURCHASE_ATTEMPT);
             onPurchase?.();
@@ -103,6 +104,7 @@ export default function BeforeAfter({ onClose, onPurchase }: Props) {
           type="button"
           className="w-full py-2 mt-2 rounded-xl"
           style={{ minHeight: 44 }}
+          data-testid="paywall-cancel"
           onClick={() => {
             log(Events.PURCHASE_CANCEL);
             onClose();
