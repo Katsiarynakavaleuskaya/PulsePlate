@@ -2,6 +2,7 @@
 import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { vi, describe, test, expect, afterEach } from "vitest";
+import "@testing-library/jest-dom";
 import BeforeAfter from "../BeforeAfter";
 
 // Initialize i18n so t() returns strings
