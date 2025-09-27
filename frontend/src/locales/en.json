@@ -8,7 +8,17 @@
     "subtitle": "Personalized plate, micro-balance, weekly plan.",
     "cta": "Continue",
     "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
-    "before": "Before",
-    "after": "After"
+    "before": {
+      "label": "Before",
+      "randomPlate": "Random plate",
+      "macrosOnly": "Macros only",
+      "manualShopping": "Manual shopping"
+    },
+    "after": {
+      "label": "After",
+      "personalPlate": "Personal plate",
+      "microBalance": "Micro-balance",
+      "autoShoppingList": "Auto shopping list"
+    }
   }
 }
