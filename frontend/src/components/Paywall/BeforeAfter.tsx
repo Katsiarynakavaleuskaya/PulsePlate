@@ -32,7 +32,13 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
   );
 
   useEffect(() => {
-    log(Events.PAYWALL_VIEW);
+    try {
+      // Ensure analytics errors never break the paywall rendering
+      log(Events.PAYWALL_VIEW, { source: "paywall", via: "before-after" });
+    } catch {
+      // swallow analytics SDK errors
+    }
+    // Always focus the primary button regardless of analytics outcome
     primaryButtonRef.current?.focus();
   }, []);
 

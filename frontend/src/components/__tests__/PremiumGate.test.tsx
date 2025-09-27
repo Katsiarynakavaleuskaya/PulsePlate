@@ -36,7 +36,7 @@ describe("PremiumGate", () => {
 
     expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
 
-    const unlock = screen.getByRole("button", { name: /unlock premium/i });
+    const unlock = screen.getByRole("button", { name: /continue/i });
     fireEvent.click(unlock);
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
