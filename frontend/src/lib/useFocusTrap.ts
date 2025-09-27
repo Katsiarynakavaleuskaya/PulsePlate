@@ -19,9 +19,26 @@ export function useFocusTrap(ref: React.RefObject<HTMLElement>) {
         return;
       }
 
-      const focusables = container.querySelectorAll<HTMLElement>(
+      const candidates = container.querySelectorAll<HTMLElement>(
         'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
       );
+
+      const isTrulyFocusable = (el: HTMLElement): boolean => {
+        // Skip aria-hidden elements
+        if (el.getAttribute("aria-hidden") === "true") return false;
+        // Skip explicitly non-tabbable
+        if (el.tabIndex === -1) return false;
+        // Skip disabled form controls
+        if ((el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled === true)
+          return false;
+        // Skip hidden elements (no layout box)
+        if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) return false;
+        // Another visibility signal
+        if ((el as HTMLElement).offsetParent === null && getComputedStyle(el).position !== "fixed") return false;
+        return true;
+      };
+
+      const focusables = Array.from(candidates).filter(isTrulyFocusable);
 
       if (focusables.length === 0) {
         return;
