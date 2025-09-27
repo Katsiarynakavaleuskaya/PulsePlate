@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import Plate from "./pages/Plate";
 import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
+import TabBar from "./components/TabBar";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/progress" element={<Progress />} />
           <Route path="/profile" element={<Profile />} />
         </Routes>
+        <TabBar />
       </div>
     </BrowserRouter>
   );
