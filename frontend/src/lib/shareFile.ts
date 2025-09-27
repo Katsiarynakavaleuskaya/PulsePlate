@@ -7,13 +7,31 @@ import { requestSignedLink } from "./sharedLinks";
 const TECH_ERROR_PATTERN = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i;
 
 function downloadInBrowser(url: string, filename: string) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   anchor.rel = "noopener";
-  document.body.appendChild(anchor);
+
+  const container = document.body ?? document.documentElement ?? null;
+  if (container && typeof container.appendChild === "function") {
+    container.appendChild(anchor);
+  }
+
   anchor.click();
-  anchor.remove();
+
+  if (typeof anchor.remove === "function") {
+    anchor.remove();
+  } else if (container && typeof container.removeChild === "function") {
+    try {
+      container.removeChild(anchor);
+    } catch {
+      // ignore DOM cleanup failures in non-browser environments
+    }
+  }
 }
 
 async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
@@ -87,7 +105,10 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
       directory: Directory.Cache,
       recursive: true,
     });
-    const uriResult = await Filesystem.getUri({ directory: Directory.Cache, path: cachePath }).catch(() => null);
+    const uriResult =
+      typeof Filesystem.getUri === "function"
+        ? await Filesystem.getUri({ directory: Directory.Cache, path: cachePath }).catch(() => null)
+        : null;
     const candidateUri = uriResult?.uri ?? writeResult.uri;
     const resolvedUri = typeof candidateUri === "string" ? candidateUri.trim() : "";
 

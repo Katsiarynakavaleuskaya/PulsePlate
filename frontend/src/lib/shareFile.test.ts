@@ -39,6 +39,7 @@ const shareMock = Share.share as unknown as vi.Mock;
 describe("shareFile", () => {
   let anchorMock: HTMLAnchorElement;
   let createElementMock: vi.Mock;
+  let nowSpy: vi.SpyInstance;
 
   beforeEach(() => {
     anchorMock = {
@@ -57,6 +58,7 @@ describe("shareFile", () => {
     } as unknown as Document;
 
     global.fetch = vi.fn();
+    nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_758_958_372_976);
 
     isNativePlatformMock.mockReturnValue(false);
     writeFileMock.mockResolvedValue({ uri: "file://cache/pulseplate/test" });
@@ -66,6 +68,7 @@ describe("shareFile", () => {
   afterEach(() => {
     vi.clearAllMocks();
     global.fetch = originalFetch;
+    nowSpy.mockRestore();
 
     if (originalDocument) {
       globalThis.document = originalDocument;
@@ -120,14 +123,13 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(arrayBuffer),
     });
 
-    // Freeze time to make the cache path deterministic
-    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234567890);
+    const expectedPath = "pulseplate/1758958372976-export.bin";
+
     await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
-    nowSpy.mockRestore();
 
     expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.bin");
     expect(writeFileMock).toHaveBeenCalledWith({
-      path: "pulseplate/1234567890-export.bin",
+      path: expectedPath,
       data: expect.any(String),
       directory: Directory.Cache,
       recursive: true,
