@@ -1,0 +1,18 @@
+/* Design tokens — shared across the app
+   RU: Базовые токены бренда (цвета/радиусы/отступы).
+   EN: Brand base tokens (colors/radius/spacing). */
+
+:root {
+  /* Colors */
+  --pp-navy:   #0F172A; /* background navy */
+  --pp-primary:#339FFF; /* primary blue (CTA) */
+  --pp-gold:   #D4AF37; /* accent gold (pulse ring) */
+  --pp-accent: #20C997; /* nutrition/positive */
+  --pp-text:   #FFFFFF; /* primary text on navy */
+  --pp-muted:  #94A3B8; /* secondary text */
+
+  /* Surface */
+  --pp-radius-xl: 20px;
+  --pp-space-2: 8px;
+  --pp-space-3: 12px;
+}
