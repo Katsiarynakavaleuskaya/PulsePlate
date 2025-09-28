@@ -476,12 +476,22 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
+            # Get actual record count from existing database
+            actual_record_count = await self._get_actual_record_count(source)
+
+            # Validation: ensure record_count > 0 for non-empty ingestions
+            if actual_record_count == 0:
+                logger.warning(
+                    f"No records found in {source} database. This may indicate an empty cache."
+                )
+                logger.warning("Consider running the ingestion pipeline to populate the database.")
+
             # Update version tracking
             new_db_version = DatabaseVersion(
                 source=source,
                 version=new_version,
                 last_updated=isoformat_utc(),
-                record_count=len(unified_foods),
+                record_count=actual_record_count,
                 checksum=checksum,
                 metadata={
                     "update_type": "forced" if force else "scheduled",
@@ -523,6 +533,48 @@ class DatabaseUpdateManager:
                 errors=[str(e)],
                 duration_seconds=0.0,
             )
+
+    async def _get_actual_record_count(self, source: str) -> int:
+        """Get the actual record count from the existing database."""
+        try:
+            # Try to count from cache files
+            cache_dir = Path(self.cache_dir)
+            if source == "openfoodfacts":
+                # Check for SQLite database first
+                sqlite_file = cache_dir / "off.sqlite"
+                if sqlite_file.exists():
+                    import sqlite3
+
+                    conn = sqlite3.connect(str(sqlite_file))
+                    try:
+                        cur = conn.execute("SELECT COUNT(*) FROM products")
+                        (count,) = cur.fetchone()
+                        return int(count or 0)
+                    finally:
+                        conn.close()
+
+                # Check for JSONL files
+                for pattern in ["off.jsonl", "off.ndjson", "products.jsonl", "products.csv"]:
+                    file_path = cache_dir / pattern
+                    if file_path.exists():
+                        if pattern.endswith(".csv"):
+                            # For CSV, subtract header
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                count = sum(1 for _ in f)
+                                return max(0, count - 1)
+                        else:
+                            # For JSONL/NDJSON, count lines
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                count = sum(1 for _ in f)
+                                return int(count)
+
+            # If no database files found, return 0
+            logger.warning(f"No database files found for {source}")
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error getting record count for {source}: {e}")
+            return 0
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""

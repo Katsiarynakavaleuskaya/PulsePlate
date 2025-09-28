@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import sys
 import sqlite3
+import hashlib
 
 ROOT = Path("cache/food_db")
 VERS = ROOT / "database_versions.json"
@@ -52,19 +53,67 @@ def compute_total() -> int:
     return 0
 
 
+def calculate_checksum(data: dict) -> str:
+    """Calculate checksum for data integrity."""
+    # Convert to sorted JSON string for consistent hashing
+    json_str = json.dumps(data, sort_keys=True)
+    return hashlib.sha256(json_str.encode()).hexdigest()
+
+
 def main() -> int:
     if not VERS.exists():
         print(f"ERROR: {VERS} missing", file=sys.stderr)
         return 1
+
     total = compute_total()
-    meta = json.loads(VERS.read_text(encoding="utf-8"))
-    off = meta.get("openfoodfacts") or {}
-    off["record_count"] = int(total)
-    meta["openfoodfacts"] = off
-    VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"OFF record_count set to {total}")
-    # код 0 — всё ок; 2 — данных не найдено (пусть валидатор потом уронит джоб)
-    return 0 if total > 0 else 2
+
+    # Validation: ensure record_count > 0 for non-empty ingestions
+    if total == 0:
+        print(
+            "WARNING: No records found in database. This may indicate an empty cache.",
+            file=sys.stderr,
+        )
+        print("Consider running the ingestion pipeline to populate the database.", file=sys.stderr)
+        return 2
+
+    try:
+        meta = json.loads(VERS.read_text(encoding="utf-8"))
+        off = meta.get("openfoodfacts") or {}
+
+        # Store original values for comparison
+        original_record_count = off.get("record_count", 0)
+        original_sample_size = off.get("metadata", {}).get("sample_size", 0)
+
+        # Update record count
+        off["record_count"] = int(total)
+
+        # Update sample_size to match record_count if it was inconsistent
+        if "metadata" not in off:
+            off["metadata"] = {}
+
+        # If sample_size is much larger than record_count, adjust it
+        if original_sample_size > total * 2:
+            off["metadata"]["sample_size"] = total
+            print(
+                f"WARNING: Adjusted sample_size from {original_sample_size} to {total} to match record_count"
+            )
+        elif "sample_size" not in off["metadata"]:
+            off["metadata"]["sample_size"] = total
+
+        # Recalculate checksum after updating counts
+        off["checksum"] = calculate_checksum(off)
+
+        meta["openfoodfacts"] = off
+        VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        print(f"OFF record_count updated from {original_record_count} to {total}")
+        print(f"Checksum recalculated: {off['checksum'][:16]}...")
+
+        return 0
+
+    except Exception as e:
+        print(f"ERROR: Failed to update database_versions.json: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

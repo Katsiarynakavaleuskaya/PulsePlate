@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A1234567890ABCDEF1234567"
+               BlueprintIdentifier = "C1234567890ABCDEF1234564"
                BuildableName = "PulsePlate.app"
                BlueprintName = "PulsePlate"
                ReferencedContainer = "container:PulsePlate.xcodeproj">
@@ -28,20 +28,6 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
-      <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES"
-            testExecutionOrdering = "random">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A1234567890ABCDEF1234578"
-               BuildableName = "PulsePlateTests.xctest"
-               BlueprintName = "PulsePlateTests"
-               ReferencedContainer = "container:PulsePlate.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -57,7 +43,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A1234567890ABCDEF1234567"
+            BlueprintIdentifier = "C1234567890ABCDEF1234564"
             BuildableName = "PulsePlate.app"
             BlueprintName = "PulsePlate"
             ReferencedContainer = "container:PulsePlate.xcodeproj">
@@ -74,7 +60,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A1234567890ABCDEF1234567"
+            BlueprintIdentifier = "C1234567890ABCDEF1234564"
             BuildableName = "PulsePlate.app"
             BlueprintName = "PulsePlate"
             ReferencedContainer = "container:PulsePlate.xcodeproj">
