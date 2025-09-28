@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Paywall from "./Paywall/BeforeAfter";
 import { log, Events } from "../lib/analytics";
@@ -12,14 +12,81 @@ type Props = {
 export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const describedById = useId();
+
+  useEffect(() => {
+    const root = previewRef.current;
+    if (!root) return;
+
+    // Prefer native inert when available for full keyboard/AT inertness
+    const prevInert = (root as any).inert;
+    try {
+      (root as any).inert = true;
+    } catch {
+      // Fallback: set aria-hidden and remove tabindex from descendants
+      root.setAttribute("aria-hidden", "true");
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a, button, input, textarea, select, details, [tabindex]'
+      );
+      focusables.forEach((el) => {
+        if (el.hasAttribute("tabindex")) {
+          el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
+        }
+        el.setAttribute("tabindex", "-1");
+        if ("disabled" in el) {
+          (el as HTMLButtonElement).disabled = true;
+          el.setAttribute("data-pp-disabled", "true");
+        }
+      });
+      return () => {
+        root.removeAttribute("aria-hidden");
+        const restore = root.querySelectorAll<HTMLElement>(
+          '[data-pp-prev-tabindex], [tabindex="-1"], [data-pp-disabled]'
+        );
+        restore.forEach((el) => {
+          const prev = el.getAttribute("data-pp-prev-tabindex");
+          if (prev !== null) {
+            if (prev === "") el.removeAttribute("tabindex");
+            else el.setAttribute("tabindex", prev);
+            el.removeAttribute("data-pp-prev-tabindex");
+          } else if (el.getAttribute("tabindex") === "-1") {
+            el.removeAttribute("tabindex");
+          }
+          if (el.getAttribute("data-pp-disabled") === "true") {
+            (el as HTMLButtonElement).disabled = false;
+            el.removeAttribute("data-pp-disabled");
+          }
+        });
+      };
+    }
+
+    return () => {
+      try {
+        (root as any).inert = prevInert;
+      } catch {
+        // ignore
+      }
+    };
+  }, [previewRef.current]);
 
   if (isPremium) return <>{children}</>;
 
   return (
     <>
-      <div aria-label="Premium gated content" className="opacity-60 pointer-events-none" aria-hidden="true">
+      <div
+        ref={previewRef}
+        className="opacity-60 pointer-events-none"
+        aria-label="Premium gated content"
+      >
         {children}
       </div>
+
+      {/* Offscreen description to give AT context while preview remains aria-hidden/inert */}
+      <p id={describedById} className="sr-only">
+        {t("paywall.title")} — {t("paywall.subtitle")}
+      </p>
+
       <button
         type="button"
         className="mt-3 px-4 py-2 rounded-xl bg-[var(--pp-primary)] text-white"
@@ -27,6 +94,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
           setOpen(true);
         }}
         aria-haspopup="dialog"
+        aria-describedby={describedById}
         style={{ minHeight: 44 }}
       >
         {t("paywall.cta")}

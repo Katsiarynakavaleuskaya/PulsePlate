@@ -1,4 +1,5 @@
 /* @vitest-environment jsdom */
+import "../../test/setup";
 import { expect, test } from "vitest";
 
 test("msw /api/purchase responds ok", async () => {
