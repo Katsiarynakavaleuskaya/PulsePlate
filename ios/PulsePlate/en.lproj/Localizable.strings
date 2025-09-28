@@ -5,3 +5,29 @@
 
 /* Accessibility */
 "Home Screen" = "Home Screen";
+
+/* Weekly Progress */
+"week_no_data" = "No data for this week";
+"axis_day" = "Day";
+"week_chart_accessibility" = "Weekly energy chart";
+"weight_label" = "Weight";
+"unit_kg" = "kg";
+"health_permission_message" = "Allow access to Health to display nutrition and progress.";
+"week_refresh" = "Refresh week";
+"health_request" = "Request HealthKit access";
+"week_title" = "Weekly Progress";
+"healthkit_alert_title" = "HealthKit Access";
+"ok_button" = "OK";
+"weekly_progress_accessibility_line" = "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@";
+
+/* Language Names */
+"language_name_en" = "English";
+"language_name_ru" = "Russian";
+"language_name_es" = "Spanish";
+
+/* Nutrient Units/Abbreviations */
+"unit_kcal" = "kcal";
+"abbr_protein" = "P";
+"abbr_fat" = "F";
+"abbr_carbs" = "C";
+"unit_gram" = "g";
