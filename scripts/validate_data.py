@@ -79,7 +79,7 @@ def validate_cache_versions(file_path: Path) -> list[str]:
                 continue
 
             if isinstance(v, dict):
-                version_value = v.get("version")
+                version_value = v.get("version", "")
                 if not isinstance(version_value, str):
                     errors.append(
                         f"{file_path}: missing or invalid version field for {k}: {version_value!r}"
