@@ -34,6 +34,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
     [onClose, trap, source, via]
   );
 
+  // Analytics effect - separate from focus management
   useEffect(() => {
     try {
       // Ensure analytics errors never break the paywall rendering
@@ -41,9 +42,12 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
     } catch {
       // swallow analytics SDK errors
     }
-    // Always focus the primary button regardless of analytics outcome
-    primaryButtonRef.current?.focus();
   }, [source, via]);
+
+  // Focus effect - only on mount to avoid stealing focus on prop changes
+  useEffect(() => {
+    primaryButtonRef.current?.focus();
+  }, []);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
 

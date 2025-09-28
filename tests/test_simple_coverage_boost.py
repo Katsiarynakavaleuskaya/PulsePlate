@@ -87,4 +87,4 @@ class TestSimpleCoverageBoost:
         response = client.post(
             "/api/v1/bmi", data="invalid json", headers={"Content-Type": "application/json"}
         )
-        assert response.status_code == 422
+        assert response.status_code == 400

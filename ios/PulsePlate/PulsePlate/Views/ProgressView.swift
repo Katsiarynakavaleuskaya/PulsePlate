@@ -7,6 +7,5 @@ struct ProgressViewPP: View {
       Text("Charts coming…").foregroundStyle(.secondary)
     }.padding()
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("Progress Screen")
   }
 }

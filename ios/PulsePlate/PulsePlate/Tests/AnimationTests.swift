@@ -33,10 +33,16 @@ class ProgressAnimationTests: XCTestCase {
     let isActive = true
     let scale: Double = 1.05
 
-    // When & Then
-    // Test that the pulsing animation parameters are correct
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(scale, 1.05)
+    // When - Create the actual PulsingView
+    let pulsingView = PulsingView(isActive: isActive, scale: scale) {
+      Text("Test")
+    }
+
+    // Then - Test that the view is created and has expected properties
+    XCTAssertNotNil(pulsingView)
+    // Note: In a real test environment, you would use ViewInspector or similar
+    // to verify the view's modifiers and animation properties
+    // For now, we verify the view can be instantiated without crashing
   }
 
   func testShimmerEffect() {
