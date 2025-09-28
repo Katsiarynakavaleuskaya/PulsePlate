@@ -2,7 +2,7 @@ import XCTest
 import SwiftUI
 @testable import PulsePlate
 
-class AnimationTests: XCTestCase {
+class ProgressAnimationTests: XCTestCase {
 
   func testAnimatedProgressRing() {
     // Given
