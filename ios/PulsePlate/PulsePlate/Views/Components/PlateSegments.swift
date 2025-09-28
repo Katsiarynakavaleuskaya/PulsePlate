@@ -86,42 +86,41 @@ struct SegmentView: View {
     )
     .scaleEffect(isSelected ? 1.1 : 1.0)
     .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSelected)
-    .overlay(
-      // Add shimmer effect when selected
-      isSelected ?
-      Rectangle()
-        .fill(
-          LinearGradient(
-            colors: [
-              Color.white.opacity(0),
-              Color.white.opacity(0.3),
-              Color.white.opacity(0)
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-          )
-        )
-        .mask(
-          Path { path in
-            let center = CGPoint(x: 140, y: 140)
-            let radius: CGFloat = 100
-            let startAngle = Angle.degrees(segment.startAngle)
-            let endAngle = Angle.degrees(segment.endAngle)
-
-            path.move(to: center)
-            path.addArc(
-              center: center,
-              radius: radius,
-              startAngle: startAngle,
-              endAngle: endAngle,
-              clockwise: false
+    .overlay {
+      if isSelected {
+        Rectangle()
+          .fill(
+            LinearGradient(
+              colors: [
+                Color.white.opacity(0),
+                Color.white.opacity(0.3),
+                Color.white.opacity(0)
+              ],
+              startPoint: .leading,
+              endPoint: .trailing
             )
-            path.closeSubpath()
-          }
-        )
-        .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isSelected)
-        : nil
-    )
+          )
+          .mask(
+            Path { path in
+              let center = CGPoint(x: 140, y: 140)
+              let radius: CGFloat = 100
+              let startAngle = Angle.degrees(segment.startAngle)
+              let endAngle = Angle.degrees(segment.endAngle)
+
+              path.move(to: center)
+              path.addArc(
+                center: center,
+                radius: radius,
+                startAngle: startAngle,
+                endAngle: endAngle,
+                clockwise: false
+              )
+              path.closeSubpath()
+            }
+          )
+          .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isSelected)
+      }
+    }
     .onTapGesture {
       withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
         onTap()

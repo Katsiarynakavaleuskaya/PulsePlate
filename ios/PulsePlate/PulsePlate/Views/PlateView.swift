@@ -1,8 +1,40 @@
 import SwiftUI
 
+struct MealEntryView: View {
+    var body: some View {
+        VStack {
+            Text("Meal Entry")
+                .font(.largeTitle)
+                .bold()
+                .padding()
+            Text("Here you can add a new meal.")
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("Navy").ignoresSafeArea())
+    }
+}
+
+struct NutritionDetailsView: View {
+    var body: some View {
+        VStack {
+            Text("Nutrition Details")
+                .font(.largeTitle)
+                .bold()
+                .padding()
+            Text("Detailed nutrition breakdown will appear here.")
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("Navy").ignoresSafeArea())
+    }
+}
+
 struct PlateViewPP: View {
   @StateObject private var nutritionService = NutritionService()
   @State private var selectedSegment: Int? = nil
+  @State private var showMealEntry = false
+  @State private var showNutritionDetails = false
 
   private var segments: [NutritionSegment] {
     guard let nutritionData = nutritionService.nutritionData else {
@@ -35,97 +67,105 @@ struct PlateViewPP: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(spacing: 24) {
-        // Header
-        VStack(alignment: .leading, spacing: 8) {
-          Text("My Plate")
-            .font(.largeTitle)
-            .bold()
-            .foregroundStyle(.white)
-          Text("Tap segments to customize your nutrition")
-            .foregroundStyle(.white.opacity(0.8))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal)
+    NavigationStack {
+      ScrollView {
+        VStack(spacing: 24) {
+          // Header
+          VStack(alignment: .leading, spacing: 8) {
+            Text("My Plate")
+              .font(.largeTitle)
+              .bold()
+              .foregroundStyle(.white)
+            Text("Tap segments to customize your nutrition")
+              .foregroundStyle(.white.opacity(0.8))
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal)
 
-        // Loading state
-        if nutritionService.isLoading {
-          ProgressView("Loading nutrition data...")
-            .foregroundStyle(.white)
-            .padding()
-        } else if let error = nutritionService.error {
-          VStack(spacing: 12) {
-            Text("Error loading data")
-              .foregroundStyle(.red)
-            Text(error)
-              .font(.caption)
-              .foregroundStyle(.red.opacity(0.8))
-            Button("Retry") {
-              Task {
-                await nutritionService.fetchNutritionData()
+          // Loading state
+          if nutritionService.isLoading {
+            ProgressView("Loading nutrition data...")
+              .foregroundStyle(.white)
+              .padding()
+          } else if let error = nutritionService.error {
+            VStack(spacing: 12) {
+              Text("Error loading data")
+                .foregroundStyle(.red)
+              Text(error)
+                .font(.caption)
+                .foregroundStyle(.red.opacity(0.8))
+              Button("Retry") {
+                Task {
+                  await nutritionService.fetchNutritionData()
+                }
               }
+              .buttonStyle(.bordered)
+              .foregroundStyle(.white)
+            }
+            .padding()
+          } else {
+          // Interactive Plate Segments with animations
+          VStack(spacing: 16) {
+            PlateSegments(segments: segments) { index in
+              withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                selectedSegment = selectedSegment == index ? nil : index
+              }
+            }
+            .slideIn(isActive: !nutritionService.isLoading, delay: 0.2)
+
+            // Overall progress ring with shimmer effect
+            PlateRing(progress: progress)
+              .scaleOnAppear(isActive: !nutritionService.isLoading, scale: 1.05)
+              .shimmer()
+          }
+          .padding()
+
+            // Selected segment details with animation
+            if let selected = selectedSegment, selected < segments.count {
+              SegmentDetailView(segment: segments[selected])
+                .padding(.horizontal)
+                .slideIn(isActive: selectedSegment != nil, delay: 0.1)
+                .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
+            }
+          }
+
+          // Mascot hint with pulsing animation
+          MascotBubble(textKey: "mascot.plate.hint")
+            .padding(.horizontal)
+            .pulsing(isActive: selectedSegment == nil, scale: 1.02)
+            .fadeIn(isActive: !nutritionService.isLoading, delay: 0.5)
+
+          // Quick actions with staggered animation
+          HStack(spacing: 16) {
+            Button("Add Meal") {
+              showMealEntry = true
             }
             .buttonStyle(.bordered)
             .foregroundStyle(.white)
-          }
-          .padding()
-        } else {
-        // Interactive Plate Segments with animations
-        VStack(spacing: 16) {
-          PlateSegments(segments: segments) { index in
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-              selectedSegment = selectedSegment == index ? nil : index
+            .slideIn(isActive: !nutritionService.isLoading, delay: 0.6)
+            .navigationDestination(isPresented: $showMealEntry) {
+              MealEntryView()
+            }
+
+            Button("View Details") {
+              showNutritionDetails = true
+            }
+            .buttonStyle(.borderedProminent)
+            .slideIn(isActive: !nutritionService.isLoading, delay: 0.7)
+            .navigationDestination(isPresented: $showNutritionDetails) {
+              NutritionDetailsView()
             }
           }
-          .slideIn(isActive: !nutritionService.isLoading, delay: 0.2)
-
-          // Overall progress ring with shimmer effect
-          PlateRing(progress: progress)
-            .scaleOnAppear(isActive: !nutritionService.isLoading, scale: 1.05)
-            .shimmer()
+          .padding()
         }
-        .padding()
-
-          // Selected segment details with animation
-          if let selected = selectedSegment, selected < segments.count {
-            SegmentDetailView(segment: segments[selected])
-              .padding(.horizontal)
-              .slideIn(isActive: selectedSegment != nil, delay: 0.1)
-              .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
-          }
-        }
-
-        // Mascot hint with pulsing animation
-        MascotBubble(textKey: "mascot.plate.hint")
-          .padding(.horizontal)
-          .pulsing(isActive: selectedSegment == nil, scale: 1.02)
-          .fadeIn(isActive: !nutritionService.isLoading, delay: 0.5)
-
-        // Quick actions with staggered animation
-        HStack(spacing: 16) {
-          Button("Add Meal") {
-            // TODO: Navigate to meal entry
-          }
-          .buttonStyle(.bordered)
-          .foregroundStyle(.white)
-          .slideIn(isActive: !nutritionService.isLoading, delay: 0.6)
-
-          Button("View Details") {
-            // TODO: Show detailed nutrition breakdown
-          }
-          .buttonStyle(.borderedProminent)
-          .slideIn(isActive: !nutritionService.isLoading, delay: 0.7)
-        }
-        .padding()
       }
-    }
-    .background(Color("Navy"))
-    .accessibilityLabel("Plate Screen")
-    .onAppear {
-      // Load real nutrition data
-      Task {
-        await nutritionService.fetchNutritionData(for: Date())
+      .background(Color("Navy"))
+      .accessibilityLabel("Plate Screen")
+      .onAppear {
+        // Load real nutrition data
+        Task {
+          await nutritionService.fetchNutritionData(for: Date())
+        }
       }
     }
   }
