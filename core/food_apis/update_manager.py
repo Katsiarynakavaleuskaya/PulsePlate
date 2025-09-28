@@ -616,22 +616,30 @@ class DatabaseUpdateManager:
                 sqlite_file = cache_dir / "off.sqlite"
                 if sqlite_file.exists():
                     import sqlite3
+                    import hashlib
 
                     conn = sqlite3.connect(str(sqlite_file))
                     try:
                         cur = conn.execute("SELECT name, data FROM products")
                         cache_data = {}
-                        for name, data in cur.fetchall():
+                        for name, data in cur:
                             try:
-                                cache_data[name] = json.loads(data)
-                            except json.JSONDecodeError:
+                                # For checksum purposes, we can hash the raw data without parsing JSON
+                                # This avoids the memory overhead of json.loads() for every row
+                                # If we only need checksums, hash the raw data string
+                                checksum = hashlib.sha256(data.encode("utf-8")).hexdigest()
+                                cache_data[name] = {"checksum": checksum}
+                            except (json.JSONDecodeError, UnicodeEncodeError):
                                 continue
                         return cache_data
                     finally:
                         conn.close()
 
                 # Fallback to JSON/CSV files
-                patterns = [
+                import hashlib
+
+                # Check for JSONL/NDJSON files first
+                jsonl_patterns = [
                     "*.openfoodfacts.org.products.jsonl",
                     "*.openfoodfacts.org.products.ndjson",
                     "*off*.jsonl",
@@ -640,7 +648,17 @@ class DatabaseUpdateManager:
                     "*products*.ndjson",
                 ]
 
-                for pattern in patterns:
+                # Check for CSV files
+                csv_patterns = [
+                    "*.csv",
+                    "*.tsv",
+                    "*_export.csv",
+                    "*off*.csv",
+                    "*products*.csv",
+                ]
+
+                # Try JSONL/NDJSON files first
+                for pattern in jsonl_patterns:
                     matching_files = list(cache_dir.glob(pattern))
                     if matching_files:
                         file_path = matching_files[0]
@@ -653,6 +671,21 @@ class DatabaseUpdateManager:
                                         cache_data[data["name"]] = data
                                 except json.JSONDecodeError:
                                     continue
+                        return cache_data
+
+                # Try CSV files
+                for pattern in csv_patterns:
+                    matching_files = list(cache_dir.glob(pattern))
+                    if matching_files:
+                        file_path = matching_files[0]
+                        cache_data = {}
+                        with file_path.open("r", encoding="utf-8") as f:
+                            import csv
+
+                            reader = csv.DictReader(f)
+                            for row in reader:
+                                if "name" in row:
+                                    cache_data[row["name"]] = row
                         return cache_data
         except Exception as e:
             logger.warning(f"Could not get cache data for checksum for {source}: {e}")
