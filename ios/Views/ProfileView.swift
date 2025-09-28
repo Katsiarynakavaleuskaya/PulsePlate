@@ -5,10 +5,10 @@ struct ProfileView: View {
     Form {
       Section("Language") { Text("EN / RU / ES (later)") }
       Section("Legal") {
-        if let privacyURL = URL(string: "https://example.com/privacy") {
+        if let privacyURL = URL(string: "https://pulseplate.app/privacy") {
           Link("Privacy Policy", destination: privacyURL)
         }
-        if let termsURL = URL(string: "https://example.com/terms") {
+        if let termsURL = URL(string: "https://pulseplate.app/terms") {
           Link("Terms of Use", destination: termsURL)
         }
       }
