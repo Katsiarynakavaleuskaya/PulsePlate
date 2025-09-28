@@ -33,3 +33,11 @@
 "abbr_fat" = "Ж";
 "abbr_carbs" = "У";
 "unit_gram" = "г";
+
+/* Profile View */
+"profile_language_section" = "Язык";
+"profile_language_value" = "Русский / Английский / Испанский (скоро)";
+"profile_legal_section" = "Правовая информация";
+"profile_privacy_policy" = "Политика конфиденциальности";
+"profile_terms_of_use" = "Условия использования";
+"profile_screen_accessibility_label" = "Экран профиля";

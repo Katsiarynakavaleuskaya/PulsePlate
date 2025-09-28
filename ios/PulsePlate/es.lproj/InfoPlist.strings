@@ -1,12 +1,20 @@
-NSHealthShareUsageDescription = "Usamos tus datos de nutrición y peso de Health para calcular tu dieta según tus objetivos y mostrar el progreso.";
-NSHealthUpdateUsageDescription = "En el futuro, la app podrá guardar tus datos de nutrición en Health.";
-NSCameraUsageDescription = "PulsePlate utiliza la cámara для escanear los códigos de barras de los productos e identificarlos.";
-NSPhotoLibraryUsageDescription = "PulsePlate utiliza la galería para guardar y compartir tu progreso nutricional.";
-NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
-NSHealthUpdateUsageDescription = "In future, the app may save your nutrition data to Health.";
-NSCameraUsageDescription = "PulsePlate uses the camera to scan product barcodes and identify them.";
-NSPhotoLibraryUsageDescription = "PulsePlate uses the photo library to save and share your nutrition progress.";
-NSHealthShareUsageDescription = "Мы используем данные о питании и весе из Health, чтобы рассчитать ваше питание в соответствии с целями и показать прогресс.";
-NSHealthUpdateUsageDescription = "В будущем приложение сможет сохранять ваши данные о питании в Health.";
-NSCameraUsageDescription = "PulsePlate использует камеру для сканирования штрих-кодов продуктов и их идентификации.";
-NSPhotoLibraryUsageDescription = "PulsePlate использует фотоальбом для сохранения и обмена вашим прогрессом питания.";
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>development</string>
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array/>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+        <string>CloudKit</string>
+    </array>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+</dict>
+</plist>

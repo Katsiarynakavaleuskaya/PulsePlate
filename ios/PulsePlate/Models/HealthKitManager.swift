@@ -104,7 +104,7 @@ final class HealthKitManager: ObservableObject {
                     case .dietaryEnergyConsumed: val = qty.doubleValue(for: .kilocalorie())
                     case .dietaryProtein, .dietaryCarbohydrates, .dietaryFatTotal, .dietaryFiber, .dietarySugar:
                         val = qty.doubleValue(for: .gram())
-                    case .dietarySodium: val = qty.doubleValue(for: .milligram())
+                    case .dietarySodium: val = qty.doubleValue(for: .gramUnit(with: .milli))
                     default: val = 0
                     }
                     cont.resume(returning: val)
