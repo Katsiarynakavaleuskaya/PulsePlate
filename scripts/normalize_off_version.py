@@ -17,7 +17,29 @@ CANDIDATES = [
 
 
 def set_version(v: str) -> None:
-    meta = json.loads(VERS.read_text(encoding="utf-8"))
+    if not VERS.exists():
+        print(f"WARNING: {VERS} missing, creating default", file=sys.stderr)
+        # Create default database_versions.json if it doesn't exist
+        VERS.parent.mkdir(parents=True, exist_ok=True)
+        default_meta = {
+            "openfoodfacts": {
+                "source": "openfoodfacts",
+                "version": "unknown",
+                "last_updated": "1970-01-01T00:00:00.000000+00:00",
+                "record_count": 0,
+                "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                "metadata": {
+                    "update_type": "default",
+                    "api_source": "Open Food Facts",
+                    "sample_size": 0,
+                },
+            }
+        }
+        VERS.write_text(json.dumps(default_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        meta = default_meta
+    else:
+        meta = json.loads(VERS.read_text(encoding="utf-8"))
+
     off = dict(meta.get("openfoodfacts") or {})
     off["version"] = v
     meta["openfoodfacts"] = off

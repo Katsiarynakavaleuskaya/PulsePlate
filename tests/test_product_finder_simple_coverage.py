@@ -18,9 +18,6 @@ class TestProductFinderSimpleCoverage:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Настройка для каждого теста"""
         self.finder = ProductFinder()
         # Мокаем адаптеры
         self.finder.usda_adapter = Mock()

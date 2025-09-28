@@ -214,7 +214,7 @@ class DatabaseUpdateManager:
 
         # Check if enough time has passed for an update
         last_update = parse_iso8601(current_version.last_updated)
-        return now_utc() - last_update >= self.update_interval
+        return bool(now_utc() - last_update >= self.update_interval)
 
     async def _check_off_updates(self) -> bool:
         """Check if Open Food Facts database has updates."""
@@ -226,7 +226,7 @@ class DatabaseUpdateManager:
 
         # Check if enough time has passed for an update
         last_update = parse_iso8601(current_version.last_updated)
-        return now_utc() - last_update >= self.update_interval
+        return bool(now_utc() - last_update >= self.update_interval)
 
     async def update_database(self, source: str, force: bool = False) -> UpdateResult:
         """
@@ -431,12 +431,14 @@ class DatabaseUpdateManager:
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
-            checksum = self._calculate_checksum(
+
+            # Calculate checksum for change detection
+            temp_checksum = self._calculate_checksum(
                 {name: self._food_to_dict(food) for name, food in unified_foods.items()}
             )
 
             # Check if data actually changed (unless forced)
-            if not force and current_version and current_version.checksum == checksum:
+            if not force and current_version and current_version.checksum == temp_checksum:
                 return UpdateResult(
                     success=True,
                     source=source,
@@ -476,12 +478,38 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
+            # Use consistent data source for both record_count and checksum
+            # Get the actual record count from the cache-backed database
+            actual_record_count = await self._get_actual_record_count(source)
+            # Fall back to sample size if helper returns 0 or None
+            if actual_record_count == 0:
+                actual_record_count = len(unified_foods)
+
+            # Calculate checksum from the same data used for record_count
+            # Use the cache-backed data if available, otherwise use unified_foods
+            if actual_record_count == len(unified_foods):
+                # Use unified_foods for both count and checksum
+                checksum = self._calculate_checksum(
+                    {name: self._food_to_dict(food) for name, food in unified_foods.items()}
+                )
+            else:
+                # Use cache-backed data for both count and checksum
+                cache_data = await self._get_cache_data_for_checksum(source)
+                checksum = self._calculate_checksum(cache_data)
+
+            # Validation: ensure record_count > 0 for non-empty ingestions
+            if actual_record_count == 0:
+                logger.warning(
+                    f"No records found in {source} database. This may indicate an empty cache."
+                )
+                logger.warning("Consider running the ingestion pipeline to populate the database.")
+
             # Update version tracking
             new_db_version = DatabaseVersion(
                 source=source,
                 version=new_version,
                 last_updated=isoformat_utc(),
-                record_count=len(unified_foods),
+                record_count=actual_record_count,
                 checksum=checksum,
                 metadata={
                     "update_type": "forced" if force else "scheduled",
@@ -523,6 +551,113 @@ class DatabaseUpdateManager:
                 errors=[str(e)],
                 duration_seconds=0.0,
             )
+
+    async def _get_actual_record_count(self, source: str) -> int:
+        """Get the actual record count from the existing database."""
+        try:
+            # Try to count from cache files
+            cache_dir = Path(self.cache_dir)
+            if source == "openfoodfacts":
+                # Check for SQLite database first
+                sqlite_file = cache_dir / "off.sqlite"
+                if sqlite_file.exists():
+                    import sqlite3
+
+                    conn = sqlite3.connect(str(sqlite_file))
+                    try:
+                        cur = conn.execute("SELECT COUNT(*) FROM products")
+                        (count,) = cur.fetchone()
+                        return int(count or 0)
+                    finally:
+                        conn.close()
+
+                # Check for OFF export files using glob patterns
+                patterns = [
+                    "*.openfoodfacts.org.products.csv",
+                    "*.openfoodfacts.org.products.jsonl",
+                    "*.openfoodfacts.org.products.ndjson",
+                    "*off*.jsonl",
+                    "*off*.ndjson",
+                    "*products*.csv",
+                    "*products*.jsonl",
+                    "*products*.ndjson",
+                ]
+
+                for pattern in patterns:
+                    matching_files = list(cache_dir.glob(pattern))
+                    if matching_files:
+                        # Use the first matching file
+                        file_path = matching_files[0]
+                        if file_path.suffix == ".csv":
+                            # For CSV, subtract header
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                count = sum(1 for _ in f)
+                                return int(max(0, count - 1))
+                        else:
+                            # For JSONL/NDJSON, count lines
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                count = sum(1 for _ in f)
+                                return int(count)
+
+            # If no database files found, return 0
+            logger.warning(f"No database files found for {source}")
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error getting record count for {source}: {e}")
+            return 0
+
+    async def _get_cache_data_for_checksum(self, source: str) -> dict:
+        """Get cache data for checksum calculation."""
+        try:
+            cache_dir = Path(self.cache_dir)
+            if source == "openfoodfacts":
+                # Try to get data from SQLite cache
+                sqlite_file = cache_dir / "off.sqlite"
+                if sqlite_file.exists():
+                    import sqlite3
+
+                    conn = sqlite3.connect(str(sqlite_file))
+                    try:
+                        cur = conn.execute("SELECT name, data FROM products")
+                        cache_data = {}
+                        for name, data in cur.fetchall():
+                            try:
+                                cache_data[name] = json.loads(data)
+                            except json.JSONDecodeError:
+                                continue
+                        return cache_data
+                    finally:
+                        conn.close()
+
+                # Fallback to JSON/CSV files
+                patterns = [
+                    "*.openfoodfacts.org.products.jsonl",
+                    "*.openfoodfacts.org.products.ndjson",
+                    "*off*.jsonl",
+                    "*off*.ndjson",
+                    "*products*.jsonl",
+                    "*products*.ndjson",
+                ]
+
+                for pattern in patterns:
+                    matching_files = list(cache_dir.glob(pattern))
+                    if matching_files:
+                        file_path = matching_files[0]
+                        cache_data = {}
+                        with file_path.open("r", encoding="utf-8") as f:
+                            for line in f:
+                                try:
+                                    data = json.loads(line.strip())
+                                    if "name" in data:
+                                        cache_data[data["name"]] = data
+                                except json.JSONDecodeError:
+                                    continue
+                        return cache_data
+        except Exception as e:
+            logger.warning(f"Could not get cache data for checksum for {source}: {e}")
+
+        return {}
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""
