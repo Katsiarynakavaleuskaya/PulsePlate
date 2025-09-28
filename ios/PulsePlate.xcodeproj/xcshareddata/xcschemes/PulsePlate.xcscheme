@@ -44,7 +44,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B6169A432E893CF200B218D8"
+               BlueprintIdentifier = "B6169A4B2E893CF200B218D8"
                BuildableName = "PulsePlateUITests.xctest"
                BlueprintName = "PulsePlateUITests"
                ReferencedContainer = "container:PulsePlate.xcodeproj">
