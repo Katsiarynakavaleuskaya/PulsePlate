@@ -3,5 +3,18 @@
 "mascot.home.welcome" = "Добро пожаловать в PulsePlate!";
 "mascot.progress.great" = "Отличный прогресс сегодня!";
 
+/* Settings */
+"settings_title" = "Настройки";
+"language_settings" = "Язык";
+
+/* Weekly Progress */
+"weekly_progress_title" = "Недельный прогресс";
+"weekly_progress_no_data" = "Данных за неделю нет";
+"weekly_progress_weight" = "Вес: %.1f кг";
+"weekly_progress_update" = "Обновить неделю";
+"weekly_progress_request_access" = "Запросить доступ HealthKit";
+"weekly_progress_health_permission" = "Разреши доступ к Health для отображения питания и прогресса.";
+"weekly_progress_chart_accessibility" = "График энергии за неделю";
+
 /* Accessibility */
 "Home Screen" = "Главный экран";
