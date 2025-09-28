@@ -6,6 +6,7 @@ EN: Tests for Premium Targets (P1) implementation.
 """
 
 import pytest
+from typing import Literal
 
 from core.recommendations import build_nutrition_targets
 from core.targets import NutritionTargets, UserProfile
@@ -201,7 +202,7 @@ class TestPremiumTargets:
 
     @pytest.mark.parametrize("sex", ["female", "male"])
     @pytest.mark.parametrize("lang", ["ru", "en", "es"])
-    def test_premium_targets_invariance(self, sex: str, lang: str):
+    def test_premium_targets_invariance(self, sex: Literal["female", "male"], lang: str):
         """Test invariance properties of premium targets."""
         profile = UserProfile(
             sex=sex,
