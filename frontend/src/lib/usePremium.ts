@@ -6,7 +6,7 @@ export function usePremium(): boolean | undefined {
   const [isPremium, setIsPremium] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    function read(): boolean {
+    const read = (): boolean => {
       try {
         const raw = localStorage.getItem("pp_premium");
         if (raw === null) return false;
@@ -14,18 +14,31 @@ export function usePremium(): boolean | undefined {
       } catch {
         return false;
       }
-    }
+    };
 
-    setIsPremium(read());
+    const sync = () => {
+      setIsPremium(read());
+    };
 
+    // Initial read
+    sync();
+
+    // Cross-document updates
     const onStorage = (e: StorageEvent) => {
       if (e.key === "pp_premium") {
         setIsPremium(e.newValue === "true");
       }
     };
 
+    // Same-document updates via custom event
+    const onCustom = () => sync();
+
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("pp-premium-change", onCustom as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pp-premium-change", onCustom as EventListener);
+    };
   }, []);
 
   return isPremium;
