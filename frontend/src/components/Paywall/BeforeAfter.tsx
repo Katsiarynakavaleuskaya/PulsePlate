@@ -34,13 +34,13 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
   useEffect(() => {
     try {
       // Ensure analytics errors never break the paywall rendering
-      log(Events.PAYWALL_VIEW, { source: "paywall", via: "before-after" });
+      log(Events.PAYWALL_VIEW, { source, via });
     } catch {
       // swallow analytics SDK errors
     }
     // Always focus the primary button regardless of analytics outcome
     primaryButtonRef.current?.focus();
-  }, []);
+  }, [source, via]);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
 
