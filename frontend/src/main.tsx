@@ -18,6 +18,14 @@ const root = ReactDOM.createRoot(rootElement);
 
 i18nSmoke();
 
+const renderApp = () => {
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+};
+
 if (import.meta.env.DEV) {
   // лениво импортируем, чтобы не тащить в прод
   import("./mocks/browser")
@@ -25,21 +33,16 @@ if (import.meta.env.DEV) {
       return worker.start({ onUnhandledRequest: "bypass" });
     })
     .then(() => {
-      // Run smoke tests after MSW worker is started
       apiSmoke();
+      renderApp();
     })
     .catch((error) => {
       console.error("Failed to start MSW worker:", error);
-      // Fallback: run smoke tests even if MSW fails
       apiSmoke();
+      renderApp();
     });
 } else {
   // For non-DEV builds, run smoke tests immediately
   apiSmoke();
+  renderApp();
 }
-
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
