@@ -214,7 +214,7 @@ class DatabaseUpdateManager:
 
         # Check if enough time has passed for an update
         last_update = parse_iso8601(current_version.last_updated)
-        return now_utc() - last_update >= self.update_interval
+        return bool(now_utc() - last_update >= self.update_interval)
 
     async def _check_off_updates(self) -> bool:
         """Check if Open Food Facts database has updates."""
@@ -226,7 +226,7 @@ class DatabaseUpdateManager:
 
         # Check if enough time has passed for an update
         last_update = parse_iso8601(current_version.last_updated)
-        return now_utc() - last_update >= self.update_interval
+        return bool(now_utc() - last_update >= self.update_interval)
 
     async def update_database(self, source: str, force: bool = False) -> UpdateResult:
         """
@@ -582,7 +582,7 @@ class DatabaseUpdateManager:
                             # For CSV, subtract header
                             with open(file_path, "r", encoding="utf-8") as f:
                                 count = sum(1 for _ in f)
-                                return max(0, count - 1)
+                                return int(max(0, count - 1))
                         else:
                             # For JSONL/NDJSON, count lines
                             with open(file_path, "r", encoding="utf-8") as f:
