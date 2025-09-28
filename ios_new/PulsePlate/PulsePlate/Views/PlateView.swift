@@ -121,7 +121,7 @@ struct PlateViewPP: View {
     }
   }
 
-  private func colorFromString(_ colorString: String) -> Color {
+  func colorFromString(_ colorString: String) -> Color {
     switch colorString.lowercased() {
     case "green":
       return .green

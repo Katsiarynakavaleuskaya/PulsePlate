@@ -113,7 +113,6 @@ class APIErrorTests: XCTestCase {
 }
 
 // MARK: - Data Model Tests
-@MainActor
 class DataModelTests: XCTestCase {
 
   func testNutritionDataCodable() {
