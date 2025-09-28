@@ -1,1 +1,4 @@
-"mascot.plate.hint" = "Protein is low today — add eggs or fish to hit your goal.";
+/* Mascot messages */
+"mascot.plate.hint" = "Tap to customize your nutrition goals!";
+"mascot.home.welcome" = "Welcome to PulsePlate!";
+"mascot.progress.great" = "Great progress today!";
