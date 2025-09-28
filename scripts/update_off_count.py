@@ -79,13 +79,13 @@ def update_sample_size(off: dict, total: int) -> tuple[int, int]:
 
     original_sample_size = off.get("metadata", {}).get("sample_size", 0)
 
-    # If sample_size is much larger than record_count, adjust it
+    # Update sample_size whenever it no longer equals the freshly computed total
     if original_sample_size > total * SAMPLE_SIZE_MULTIPLIER_THRESHOLD:
         off["metadata"]["sample_size"] = total
         print(
             f"WARNING: Adjusted sample_size from {original_sample_size} to {total} to match record_count"
         )
-    elif "sample_size" not in off["metadata"]:
+    elif original_sample_size != total:
         off["metadata"]["sample_size"] = total
 
     return original_sample_size, off["metadata"]["sample_size"]

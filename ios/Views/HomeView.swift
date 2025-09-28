@@ -9,6 +9,6 @@ struct HomeView: View {
       }.padding()
     }
     .accessibilityElement(children: .contain)
-    .accessibilityLabel("Home Screen")
+    .accessibilityLabel(Text("Home Screen"))
   }
 }

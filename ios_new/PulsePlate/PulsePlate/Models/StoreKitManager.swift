@@ -61,7 +61,13 @@ final class StoreKitManager: ObservableObject {
     }
 
     func restorePurchases() async {
-        try? await AppStore.sync()
-        await updatePurchaseStatus()
+        do {
+            try await AppStore.sync()
+            await updatePurchaseStatus()
+        } catch {
+            await MainActor.run {
+                self.error = error
+            }
+        }
     }
 }

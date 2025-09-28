@@ -479,8 +479,11 @@ class DatabaseUpdateManager:
             records_removed = len(old_foods) - len(unified_foods)
 
             # Use consistent data source for both record_count and checksum
-            # Use the actual unified_foods data that was processed
-            actual_record_count = len(unified_foods)
+            # Get the actual record count from the cache-backed database
+            actual_record_count = await self._get_actual_record_count(source)
+            # Fall back to sample size if helper returns 0 or None
+            if actual_record_count == 0:
+                actual_record_count = len(unified_foods)
 
             # Recalculate checksum from the same data used for record_count
             checksum = self._calculate_checksum(

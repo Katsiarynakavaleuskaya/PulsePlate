@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// RU: Облачко маскота c локализуемой репликой.
 /// EN: Mascot speech bubble with localized line.
@@ -7,15 +8,19 @@ struct MascotBubble: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
-      Group {
-        if let mascotImage = UIImage(named: "Mascot") {
-          Image(uiImage: mascotImage)
-        } else {
-          Image(systemName: "person.crop.circle.fill")
-        }
+      if let mascotImage = UIImage(named: "Mascot") {
+        Image(uiImage: mascotImage)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 48, height: 48)
+          .accessibilityHidden(true)
+      } else {
+        Image(systemName: "person.crop.circle.fill")
+          .resizable()
+          .scaledToFit()
+          .frame(width: 48, height: 48)
+          .accessibilityHidden(true)
       }
-      .resizable().scaledToFit().frame(width: 48, height: 48)
-      .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 6) {
         Text(textKey).foregroundStyle(.white)
         Text("FitChef").font(.caption).foregroundStyle(.white.opacity(0.7))

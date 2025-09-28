@@ -70,7 +70,7 @@
 			children = (
 				C1234567890ABCDEF1234566 /* PulsePlateApp.swift */,
 				C1234567890ABCDEF1234573 /* ContentView.swift */,
-				C1234567890ABCDEF1234573 /* Views */,
+				C1234567890ABCDEF1234580 /* Views */,
 				C1234567890ABCDEF1234574 /* Models */,
 				C1234567890ABCDEF1234568 /* Assets.xcassets */,
 				C1234567890ABCDEF1234571 /* LaunchScreen.storyboard */,
@@ -78,7 +78,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		C1234567890ABCDEF1234573 /* Views */ = {
+		C1234567890ABCDEF1234580 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				C1234567890ABCDEF1234569 /* RootTabs.swift */,

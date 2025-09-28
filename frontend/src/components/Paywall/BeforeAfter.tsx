@@ -22,13 +22,16 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        try {
+          log(Events.PURCHASE_CANCEL, { source, via });
+        } catch {}
         onClose();
         return;
       }
 
       trap(event);
     },
-    [onClose, trap]
+    [onClose, trap, source, via]
   );
 
   useEffect(() => {

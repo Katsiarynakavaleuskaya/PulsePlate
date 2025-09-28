@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import Combine
 
 class HealthKitManager: ObservableObject {
     private let healthStore = HKHealthStore()
@@ -25,7 +26,7 @@ class HealthKitManager: ObservableObject {
         healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
             DispatchQueue.main.async {
                 self?.isAuthorized = success
-                self?.error = error
+                self?.error = error ?? (success ? nil : HealthKitError.authorizationDenied)
             }
         }
     }
