@@ -34,7 +34,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
           el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
         }
         el.setAttribute("tabindex", "-1");
-        if ("disabled" in el) {
+        if ("disabled" in el && !(el as HTMLButtonElement).disabled) {
           (el as HTMLButtonElement).disabled = true;
           el.setAttribute("data-pp-disabled", "true");
         }
