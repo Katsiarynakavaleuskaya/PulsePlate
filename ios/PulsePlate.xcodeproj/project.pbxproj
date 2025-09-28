@@ -21,16 +21,16 @@
 		A1234567890ABCDEF1234572 /* MascotBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234571 /* MascotBubble.swift */; };
 		A1234567890ABCDEF1234573 /* AnimatedTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234572 /* AnimatedTransition.swift */; };
 		A1234567890ABCDEF1234574 /* NutritionData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234573 /* NutritionData.swift */; };
-		A1234567890ABCDEF1234575 /* PlateViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234574 /* PlateViewTests.swift */; };
-		A1234567890ABCDEF1234576 /* AnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234575 /* AnimationTests.swift */; };
-		A1234567890ABCDEF1234577 /* APITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234576 /* APITests.swift */; };
-		A1234567890ABCDEF1234581 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234581 /* LaunchScreen.storyboard */; };
-		A1234567890ABCDEF1234582 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234582 /* HealthKitManager.swift */; };
-		A1234567890ABCDEF1234583 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234583 /* StoreKitManager.swift */; };
+		A1234567890ABCDEF1234575 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234574 /* HealthKitManager.swift */; };
+		A1234567890ABCDEF1234576 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234575 /* StoreKitManager.swift */; };
+		A1234567890ABCDEF1234577 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234576 /* LaunchScreen.storyboard */; };
+		A1234567890ABCDEF1234578 /* PlateViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234577 /* PlateViewTests.swift */; };
+		A1234567890ABCDEF1234579 /* AnimationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234578 /* AnimationTests.swift */; };
+		A1234567890ABCDEF1234580 /* APITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234579 /* APITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		A1234567890ABCDEF1234578 /* PBXContainerItemProxy */ = {
+		A1234567890ABCDEF1234581 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A1234567890ABCDEF1234565 /* Project object */;
 			proxyType = 1;
@@ -54,16 +54,16 @@
 		A1234567890ABCDEF1234571 /* MascotBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MascotBubble.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF1234572 /* AnimatedTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedTransition.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF1234573 /* NutritionData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionData.swift; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234574 /* PlateViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateViewTests.swift; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234575 /* AnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationTests.swift; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234576 /* APITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITests.swift; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234577 /* PulsePlate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulsePlate.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1234567890ABCDEF1234578 /* PulsePlateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsePlateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1234567890ABCDEF1234579 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234580 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234581 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234582 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
-		A1234567890ABCDEF1234583 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234574 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234575 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234576 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234577 /* PlateViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateViewTests.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234578 /* AnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationTests.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234579 /* APITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITests.swift; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234580 /* PulsePlate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulsePlate.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1234567890ABCDEF1234581 /* PulsePlateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsePlateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1234567890ABCDEF1234582 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234583 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,7 +104,7 @@
 				A1234567890ABCDEF123456D /* Resources */,
 				A1234567890ABCDEF123456E /* Localization */,
 				A1234567890ABCDEF123456F /* Info.plist */,
-		A1234567890ABCDEF1234581 /* LaunchScreen.storyboard */,
+				A1234567890ABCDEF1234570 /* LaunchScreen.storyboard */,
 			);
 			sourceTree = "<group>";
 		};
@@ -124,8 +124,8 @@
 			isa = PBXGroup;
 			children = (
 				A1234567890ABCDEF1234573 /* NutritionData.swift */,
-		A1234567890ABCDEF1234582 /* HealthKitManager.swift */,
-		A1234567890ABCDEF1234583 /* StoreKitManager.swift */,
+				A1234567890ABCDEF1234574 /* HealthKitManager.swift */,
+				A1234567890ABCDEF1234575 /* StoreKitManager.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -153,19 +153,33 @@
 		A1234567890ABCDEF123456E /* Localization */ = {
 			isa = PBXGroup;
 			children = (
-				A1234567890ABCDEF1234574 /* en.lproj */,
-				A1234567890ABCDEF1234575 /* ru.lproj */,
+				A1234567890ABCDEF1234571 /* en.lproj */,
+				A1234567890ABCDEF1234572 /* ru.lproj */,
 			);
 			path = Localization;
+			sourceTree = "<group>";
+		};
+		A1234567890ABCDEF123456F /* Info.plist */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890ABCDEF123456F /* Info.plist */,
+			);
+			sourceTree = "<group>";
+		};
+		A1234567890ABCDEF1234570 /* LaunchScreen.storyboard */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890ABCDEF1234570 /* LaunchScreen.storyboard */,
+			);
 			sourceTree = "<group>";
 		};
 		A1234567890ABCDEF1234577 /* PulsePlateTests */ = {
 			isa = PBXGroup;
 			children = (
-				A1234567890ABCDEF1234574 /* PlateViewTests.swift */,
-				A1234567890ABCDEF1234575 /* AnimationTests.swift */,
-				A1234567890ABCDEF1234576 /* APITests.swift */,
-				A1234567890ABCDEF1234580 /* Info.plist */,
+				A1234567890ABCDEF1234577 /* PlateViewTests.swift */,
+				A1234567890ABCDEF1234578 /* AnimationTests.swift */,
+				A1234567890ABCDEF1234579 /* APITests.swift */,
+				A1234567890ABCDEF1234583 /* Info.plist */,
 			);
 			path = PulsePlateTests;
 			sourceTree = "<group>";
@@ -173,8 +187,8 @@
 		A1234567890ABCDEF1234578 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1234567890ABCDEF1234577 /* PulsePlate.app */,
-				A1234567890ABCDEF1234578 /* PulsePlateTests.xctest */,
+				A1234567890ABCDEF1234580 /* PulsePlate.app */,
+				A1234567890ABCDEF1234581 /* PulsePlateTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -196,7 +210,7 @@
 			);
 			name = PulsePlate;
 			productName = PulsePlate;
-			productReference = A1234567890ABCDEF1234577 /* PulsePlate.app */;
+			productReference = A1234567890ABCDEF1234580 /* PulsePlate.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A1234567890ABCDEF1234578 /* PulsePlateTests */ = {
@@ -210,11 +224,11 @@
 			buildRules = (
 			);
 			dependencies = (
-				A1234567890ABCDEF1234578 /* PBXTargetDependency */,
+				A1234567890ABCDEF1234581 /* PBXTargetDependency */,
 			);
 			name = PulsePlateTests;
 			productName = PulsePlateTests;
-			productReference = A1234567890ABCDEF1234578 /* PulsePlateTests.xctest */;
+			productReference = A1234567890ABCDEF1234581 /* PulsePlateTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -262,7 +276,7 @@
 			files = (
 				A1234567890ABCDEF1234569 /* Assets.xcassets in Resources */,
 				A1234567890ABCDEF123456A /* Preview Assets.xcassets in Resources */,
-				A1234567890ABCDEF1234581 /* LaunchScreen.storyboard in Resources */,
+				A1234567890ABCDEF1234577 /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,8 +306,8 @@
 				A1234567890ABCDEF1234572 /* MascotBubble.swift in Sources */,
 				A1234567890ABCDEF1234573 /* AnimatedTransition.swift in Sources */,
 				A1234567890ABCDEF1234574 /* NutritionData.swift in Sources */,
-				A1234567890ABCDEF1234582 /* HealthKitManager.swift in Sources */,
-				A1234567890ABCDEF1234583 /* StoreKitManager.swift in Sources */,
+				A1234567890ABCDEF1234575 /* HealthKitManager.swift in Sources */,
+				A1234567890ABCDEF1234576 /* StoreKitManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,19 +315,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1234567890ABCDEF1234575 /* PlateViewTests.swift in Sources */,
-				A1234567890ABCDEF1234576 /* AnimationTests.swift in Sources */,
-				A1234567890ABCDEF1234577 /* APITests.swift in Sources */,
+				A1234567890ABCDEF1234578 /* PlateViewTests.swift in Sources */,
+				A1234567890ABCDEF1234579 /* AnimationTests.swift in Sources */,
+				A1234567890ABCDEF1234580 /* APITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		A1234567890ABCDEF1234578 /* PBXTargetDependency */ = {
+		A1234567890ABCDEF1234581 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A1234567890ABCDEF1234567 /* PulsePlate */;
-			targetProxy = A1234567890ABCDEF1234578 /* PBXContainerItemProxy */;
+			targetProxy = A1234567890ABCDEF1234581 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -502,8 +516,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pulseplate.app.PulsePlateTests;
@@ -522,8 +535,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pulseplate.app.PulsePlateTests;
