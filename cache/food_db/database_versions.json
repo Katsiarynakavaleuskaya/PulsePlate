@@ -1,14 +1,14 @@
 {
   "openfoodfacts": {
     "source": "openfoodfacts",
-    "version": "1.0.0",
+    "version": "20250928_080933",
     "last_updated": "2025-01-27T12:00:00.000000+00:00",
-    "record_count": 2847392,
-    "checksum": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+    "record_count": 5,
+    "checksum": "55a25265ec86cd494a18713c7ae14acc7e0503a808123ba4175a9877226d5dcf",
     "metadata": {
       "update_type": "forced",
       "api_source": "Open Food Facts",
-      "sample_size": 10000
+      "sample_size": 5
     }
   }
 }
