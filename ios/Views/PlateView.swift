@@ -3,6 +3,49 @@ import SwiftUI
 struct PlateViewPP: View {
   @State private var progress: Double = 0.68
   @State private var isAnimating = false
+  @State private var selectedSegment: Int? = nil
+  @State private var segments = [
+    NutritionSegment(
+      name: "Vegetables",
+      color: .green,
+      startAngle: 0,
+      endAngle: 90,
+      percentage: 40,
+      icon: "leaf.fill",
+      currentValue: 3.2,
+      targetValue: 4.0
+    ),
+    NutritionSegment(
+      name: "Protein",
+      color: .red,
+      startAngle: 90,
+      endAngle: 180,
+      percentage: 25,
+      icon: "fish.fill",
+      currentValue: 1.8,
+      targetValue: 2.0
+    ),
+    NutritionSegment(
+      name: "Carbs",
+      color: .orange,
+      startAngle: 180,
+      endAngle: 270,
+      percentage: 25,
+      icon: "grain.fill",
+      currentValue: 1.2,
+      targetValue: 1.5
+    ),
+    NutritionSegment(
+      name: "Fats",
+      color: .yellow,
+      startAngle: 270,
+      endAngle: 360,
+      percentage: 10,
+      icon: "drop.fill",
+      currentValue: 0.6,
+      targetValue: 0.8
+    )
+  ]
 
   var body: some View {
     ScrollView {
@@ -13,14 +56,19 @@ struct PlateViewPP: View {
             .font(.largeTitle)
             .bold()
             .foregroundStyle(.white)
-          Text("Track your daily nutrition goals")
+          Text("Tap segments to customize your nutrition")
             .foregroundStyle(.white.opacity(0.8))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
 
-        // Interactive Plate Ring
+        // Interactive Plate Segments
         VStack(spacing: 16) {
+          PlateSegments(segments: segments) { index in
+            selectedSegment = selectedSegment == index ? nil : index
+          }
+
+          // Overall progress ring
           PlateRing(progress: progress)
             .onTapGesture {
               withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
@@ -28,24 +76,14 @@ struct PlateViewPP: View {
                 isAnimating = true
               }
             }
-
-          // Progress details
-          VStack(spacing: 8) {
-            Text("Daily Progress")
-              .font(.headline)
-              .foregroundStyle(.white)
-
-            HStack(spacing: 20) {
-              ProgressItem(title: "Protein", value: 0.8, color: .red)
-              ProgressItem(title: "Carbs", value: 0.6, color: .orange)
-              ProgressItem(title: "Fats", value: 0.4, color: .yellow)
-            }
-          }
-          .padding()
-          .background(Color.white.opacity(0.1))
-          .cornerRadius(12)
         }
         .padding()
+
+        // Selected segment details
+        if let selected = selectedSegment {
+          SegmentDetailView(segment: segments[selected])
+            .padding(.horizontal)
+        }
 
         // Mascot hint
         MascotBubble(textKey: "mascot.plate.hint")
@@ -69,6 +107,83 @@ struct PlateViewPP: View {
     }
     .background(Color("Navy"))
     .accessibilityLabel("Plate Screen")
+  }
+}
+
+struct SegmentDetailView: View {
+  let segment: NutritionSegment
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Image(systemName: segment.icon)
+          .foregroundColor(segment.color)
+          .font(.title2)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(segment.name)
+            .font(.title2)
+            .bold()
+            .foregroundStyle(.white)
+
+          Text("\(Int(segment.percentage))% of your plate")
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.8))
+        }
+
+        Spacer()
+      }
+
+      // Progress bar
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Text("Progress")
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.8))
+          Spacer()
+          Text("\(Int((segment.currentValue / segment.targetValue) * 100))%")
+            .font(.caption)
+            .bold()
+            .foregroundStyle(.white)
+        }
+
+        ProgressView(value: segment.currentValue, total: segment.targetValue)
+          .progressViewStyle(LinearProgressViewStyle(tint: segment.color))
+          .scaleEffect(y: 2)
+      }
+
+      // Values
+      HStack {
+        VStack(alignment: .leading) {
+          Text("Current")
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.6))
+          Text("\(segment.currentValue, specifier: "%.1f") servings")
+            .font(.caption)
+            .bold()
+            .foregroundStyle(.white)
+        }
+
+        Spacer()
+
+        VStack(alignment: .trailing) {
+          Text("Target")
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.6))
+          Text("\(segment.targetValue, specifier: "%.1f") servings")
+            .font(.caption)
+            .bold()
+            .foregroundStyle(.white)
+        }
+      }
+    }
+    .padding()
+    .background(Color.white.opacity(0.1))
+    .cornerRadius(12)
+    .overlay(
+      RoundedRectangle(cornerRadius: 12)
+        .stroke(segment.color.opacity(0.3), lineWidth: 1)
+    )
   }
 }
 
