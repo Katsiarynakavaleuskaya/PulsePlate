@@ -16,6 +16,9 @@ CANDIDATES = [
     ROOT / "products.csv",
 ]
 
+# Configuration constants
+SAMPLE_SIZE_MULTIPLIER_THRESHOLD = 2  # Adjust sample_size if it's more than 2x record_count
+
 
 def count_sqlite(db: Path) -> int:
     if not db.exists():
@@ -60,6 +63,39 @@ def calculate_checksum(data: dict) -> str:
     return hashlib.sha256(json_str.encode()).hexdigest()
 
 
+def update_record_count(off: dict, total: int) -> tuple[int, int]:
+    """Update record_count and return original values for comparison."""
+    original_record_count = off.get("record_count", 0)
+    off["record_count"] = int(total)
+    return original_record_count, total
+
+
+def update_sample_size(off: dict, total: int) -> tuple[int, int]:
+    """Update sample_size if needed and return original values for comparison."""
+    if "metadata" not in off:
+        off["metadata"] = {}
+
+    original_sample_size = off.get("metadata", {}).get("sample_size", 0)
+
+    # If sample_size is much larger than record_count, adjust it
+    if original_sample_size > total * SAMPLE_SIZE_MULTIPLIER_THRESHOLD:
+        off["metadata"]["sample_size"] = total
+        print(
+            f"WARNING: Adjusted sample_size from {original_sample_size} to {total} to match record_count"
+        )
+    elif "sample_size" not in off["metadata"]:
+        off["metadata"]["sample_size"] = total
+
+    return original_sample_size, off["metadata"]["sample_size"]
+
+
+def update_json_file(meta: dict, off: dict) -> None:
+    """Update the JSON file with new metadata."""
+    off["checksum"] = calculate_checksum(off)
+    meta["openfoodfacts"] = off
+    VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     if not VERS.exists():
         print(f"ERROR: {VERS} missing", file=sys.stderr)
@@ -80,33 +116,14 @@ def main() -> int:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
         off = meta.get("openfoodfacts") or {}
 
-        # Store original values for comparison
-        original_record_count = off.get("record_count", 0)
-        original_sample_size = off.get("metadata", {}).get("sample_size", 0)
+        # Update record count and sample size using helper functions
+        original_record_count, new_record_count = update_record_count(off, total)
+        original_sample_size, new_sample_size = update_sample_size(off, total)
 
-        # Update record count
-        off["record_count"] = int(total)
+        # Update JSON file with new metadata
+        update_json_file(meta, off)
 
-        # Update sample_size to match record_count if it was inconsistent
-        if "metadata" not in off:
-            off["metadata"] = {}
-
-        # If sample_size is much larger than record_count, adjust it
-        if original_sample_size > total * 2:
-            off["metadata"]["sample_size"] = total
-            print(
-                f"WARNING: Adjusted sample_size from {original_sample_size} to {total} to match record_count"
-            )
-        elif "sample_size" not in off["metadata"]:
-            off["metadata"]["sample_size"] = total
-
-        # Recalculate checksum after updating counts
-        off["checksum"] = calculate_checksum(off)
-
-        meta["openfoodfacts"] = off
-        VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        print(f"OFF record_count updated from {original_record_count} to {total}")
+        print(f"OFF record_count updated from {original_record_count} to {new_record_count}")
         print(f"Checksum recalculated: {off['checksum'][:16]}...")
 
         return 0
