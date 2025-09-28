@@ -1,51 +1,31 @@
 import SwiftUI
 
 struct PlateViewPP: View {
-  @State private var progress: Double = 0.68
-  @State private var isAnimating = false
+  @StateObject private var nutritionService = NutritionService()
   @State private var selectedSegment: Int? = nil
-  @State private var segments = [
-    NutritionSegment(
-      name: "Vegetables",
-      color: .green,
-      startAngle: 0,
-      endAngle: 90,
-      percentage: 40,
-      icon: "leaf.fill",
-      currentValue: 3.2,
-      targetValue: 4.0
-    ),
-    NutritionSegment(
-      name: "Protein",
-      color: .red,
-      startAngle: 90,
-      endAngle: 180,
-      percentage: 25,
-      icon: "fish.fill",
-      currentValue: 1.8,
-      targetValue: 2.0
-    ),
-    NutritionSegment(
-      name: "Carbs",
-      color: .orange,
-      startAngle: 180,
-      endAngle: 270,
-      percentage: 25,
-      icon: "grain.fill",
-      currentValue: 1.2,
-      targetValue: 1.5
-    ),
-    NutritionSegment(
-      name: "Fats",
-      color: .yellow,
-      startAngle: 270,
-      endAngle: 360,
-      percentage: 10,
-      icon: "drop.fill",
-      currentValue: 0.6,
-      targetValue: 0.8
-    )
-  ]
+
+  private var segments: [NutritionSegment] {
+    guard let nutritionData = nutritionService.nutritionData else {
+      return []
+    }
+
+    return nutritionData.segments.enumerated().map { index, segmentData in
+      NutritionSegment(
+        name: segmentData.name,
+        color: colorFromString(segmentData.color),
+        startAngle: Double(index * 90),
+        endAngle: Double((index + 1) * 90),
+        percentage: segmentData.percentage,
+        icon: segmentData.icon,
+        currentValue: segmentData.currentValue,
+        targetValue: segmentData.targetValue
+      )
+    }
+  }
+
+  private var progress: Double {
+    nutritionService.nutritionData?.totalProgress ?? 0.0
+  }
 
   var body: some View {
     ScrollView {
@@ -62,27 +42,44 @@ struct PlateViewPP: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
 
-        // Interactive Plate Segments
-        VStack(spacing: 16) {
-          PlateSegments(segments: segments) { index in
-            selectedSegment = selectedSegment == index ? nil : index
-          }
-
-          // Overall progress ring
-          PlateRing(progress: progress)
-            .onTapGesture {
-              withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                progress = min(1.0, progress + 0.1)
-                isAnimating = true
+        // Loading state
+        if nutritionService.isLoading {
+          ProgressView("Loading nutrition data...")
+            .foregroundStyle(.white)
+            .padding()
+        } else if let error = nutritionService.error {
+          VStack(spacing: 12) {
+            Text("Error loading data")
+              .foregroundStyle(.red)
+            Text(error)
+              .font(.caption)
+              .foregroundStyle(.red.opacity(0.8))
+            Button("Retry") {
+              Task {
+                await nutritionService.fetchNutritionData()
               }
             }
-        }
-        .padding()
+            .buttonStyle(.bordered)
+            .foregroundStyle(.white)
+          }
+          .padding()
+        } else {
+          // Interactive Plate Segments
+          VStack(spacing: 16) {
+            PlateSegments(segments: segments) { index in
+              selectedSegment = selectedSegment == index ? nil : index
+            }
 
-        // Selected segment details
-        if let selected = selectedSegment {
-          SegmentDetailView(segment: segments[selected])
-            .padding(.horizontal)
+            // Overall progress ring
+            PlateRing(progress: progress)
+          }
+          .padding()
+
+          // Selected segment details
+          if let selected = selectedSegment, selected < segments.count {
+            SegmentDetailView(segment: segments[selected])
+              .padding(.horizontal)
+          }
         }
 
         // Mascot hint
@@ -107,6 +104,29 @@ struct PlateViewPP: View {
     }
     .background(Color("Navy"))
     .accessibilityLabel("Plate Screen")
+    .onAppear {
+      // Load mock data for development
+      nutritionService.loadMockData()
+    }
+  }
+
+  private func colorFromString(_ colorString: String) -> Color {
+    switch colorString.lowercased() {
+    case "green":
+      return .green
+    case "red":
+      return .red
+    case "orange":
+      return .orange
+    case "yellow":
+      return .yellow
+    case "blue":
+      return .blue
+    case "purple":
+      return .purple
+    default:
+      return .gray
+    }
   }
 }
 
