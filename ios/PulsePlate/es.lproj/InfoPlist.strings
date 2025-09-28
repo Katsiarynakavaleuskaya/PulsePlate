@@ -1,12 +1,14 @@
-NSHealthShareUsageDescription = "Usamos tus datos de nutrición y peso de Health para calcular tu dieta según tus objetivos y mostrar el progreso.";
-NSHealthUpdateUsageDescription = "En el futuro, la app podrá guardar tus datos de nutrición en Health.";
-NSCameraUsageDescription = "PulsePlate utiliza la cámara для escanear los códigos de barras de los productos e identificarlos.";
-NSPhotoLibraryUsageDescription = "PulsePlate utiliza la galería para guardar y compartir tu progreso nutricional.";
-NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
-NSHealthUpdateUsageDescription = "In future, the app may save your nutrition data to Health.";
-NSCameraUsageDescription = "PulsePlate uses the camera to scan product barcodes and identify them.";
-NSPhotoLibraryUsageDescription = "PulsePlate uses the photo library to save and share your nutrition progress.";
-NSHealthShareUsageDescription = "Мы используем данные о питании и весе из Health, чтобы рассчитать ваше питание в соответствии с целями и показать прогресс.";
-NSHealthUpdateUsageDescription = "В будущем приложение сможет сохранять ваши данные о питании в Health.";
-NSCameraUsageDescription = "PulsePlate использует камеру для сканирования штрих-кодов продуктов и их идентификации.";
-NSPhotoLibraryUsageDescription = "PulsePlate использует фотоальбом для сохранения и обмена вашим прогрессом питания.";
+/* Spanish Info.plist Localization */
+"NSHealthShareUsageDescription" = "PulsePlate necesita acceso a los datos de salud para mostrar tu progreso nutricional y calcular tu IMC.";
+"NSHealthUpdateUsageDescription" = "PulsePlate necesita acceso para actualizar tus datos de salud con información nutricional.";
+"NSCameraUsageDescription" = "PulsePlate necesita acceso a la cámara para escanear códigos de barras de productos alimenticios.";
+"NSLocationWhenInUseUsageDescription" = "PulsePlate necesita acceso a la ubicación para encontrar tiendas cercanas y productos locales.";
+"NSPhotoLibraryUsageDescription" = "PulsePlate necesita acceso a la biblioteca de fotos para guardar y compartir tus planes de comidas.";
+"NSMicrophoneUsageDescription" = "PulsePlate necesita acceso al micrófono para comandos de voz y notas de audio.";
+"NSContactsUsageDescription" = "PulsePlate necesita acceso a los contactos para compartir planes de comidas con familiares y amigos.";
+"NSFaceIDUsageDescription" = "PulsePlate usa Face ID para autenticación segura y acceso rápido a tu información de salud.";
+"NSUserTrackingUsageDescription" = "PulsePlate puede usar datos de seguimiento para personalizar tu experiencia nutricional y recomendaciones.";
+"CFBundleDisplayName" = "PulsePlate";
+"CFBundleName" = "PulsePlate";
+"CFBundleShortVersionString" = "1.0";
+"CFBundleVersion" = "1";
