@@ -1,0 +1,24 @@
+import Foundation
+import SwiftUI
+
+class LocalizationManager: ObservableObject {
+    static let shared = LocalizationManager()
+    @Published var currentLanguage: String {
+        didSet {
+            UserDefaults.standard.set(currentLanguage, forKey: "AppLanguage")
+        }
+    }
+    let supportedLanguages = ["en", "ru", "es"]
+
+    private init() {
+        let saved = UserDefaults.standard.string(forKey: "AppLanguage")
+        currentLanguage = saved ?? Locale.current.languageCode ?? "en"
+    }
+
+    func localized(_ key: String) -> String {
+        let lang = currentLanguage
+        let path = Bundle.main.path(forResource: lang, ofType: "lproj") ?? Bundle.main.path(forResource: "en", ofType: "lproj")!
+        let bundle = Bundle(path: path)!
+        return NSLocalizedString(key, bundle: bundle, comment: "")
+    }
+}
