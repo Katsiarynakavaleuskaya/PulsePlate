@@ -1,4 +1,5 @@
 import Foundation
+import HealthKit
 
 // MARK: - Nutrition Models
 struct NutritionData: Codable {
@@ -31,6 +32,7 @@ class NutritionService: ObservableObject {
   @Published var error: String?
 
   private let baseURL = "https://api.pulseplate.app" // Replace with actual API URL
+  private let healthKitManager = HealthKitManager()
 
   func fetchNutritionData(for date: Date = Date()) async {
     await MainActor.run {
@@ -138,5 +140,27 @@ extension NutritionService {
         fats: 0.8
       )
     )
+  }
+
+  func loadFromHealthKit(for date: Date = Date()) async {
+    await MainActor.run {
+      isLoading = true
+      error = nil
+    }
+
+    do {
+      let samples = try await healthKitManager.fetchNutritionData(for: date)
+      // Process HealthKit samples and convert to NutritionData
+      // This would integrate with your backend API
+      await MainActor.run {
+        self.nutritionData = self.mockData // For now, use mock data
+        self.isLoading = false
+      }
+    } catch {
+      await MainActor.run {
+        self.error = error.localizedDescription
+        self.isLoading = false
+      }
+    }
   }
 }
