@@ -3,10 +3,10 @@ import SwiftUI
 struct RootTabs: View {
   var body: some View {
     TabView {
-      Text("Home").tabItem { Label("Home", systemImage: "house") }.accessibilityLabel("Home")
-      Text("Plate").tabItem { Label("Plate", systemImage: "fork.knife") }.accessibilityLabel("Plate")
-      Text("Progress").tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }.accessibilityLabel("Progress")
-      Text("Profile").tabItem { Label("Profile", systemImage: "person") }.accessibilityLabel("Profile")
+      HomeView().tabItem { Label("Home", systemImage: "house") }
+      PlateViewPP().tabItem { Label("Plate", systemImage: "fork.knife") }
+      ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+      ProfileView().tabItem { Label("Profile", systemImage: "person") }
     }
     .dynamicTypeSize(.large ... .accessibility5)
   }
