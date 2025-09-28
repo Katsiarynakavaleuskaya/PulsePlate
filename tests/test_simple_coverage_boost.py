@@ -1,47 +1,90 @@
+#!/usr/bin/env python3
 """
-Простые тесты для поднятия покрытия до 97%
+Simple coverage boost tests.
 """
-
 import pytest
+from unittest.mock import patch, MagicMock
+from fastapi.testclient import TestClient
+
+from app import app
 
 
 class TestSimpleCoverageBoost:
-    def test_core_modules_import_coverage(self):
-        """Тест импорта core модулей"""
-        modules = [
-            "core.menu_engine",
-            "core.plate",
-            "core.product_finder",
-            "core.recipe_synth",
-            "core.targets",
-            "core.time_utils",
-            "core.region_catalog",
-            "core.rules_who",
-            "core.food_db",
-            "core.food_merge",
-        ]
+    """Simple tests to boost coverage."""
 
-        for module_name in modules:
-            __import__(module_name)  # Let ImportError propagate to fail the test
+    def test_health_endpoint(self):
+        """Test health endpoint."""
+        client = TestClient(app)
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
 
-    def test_additional_imports_coverage(self):
-        """Тест дополнительных импортов"""
-        try:
-            import core.rag.simple_rag
-        except ImportError:
+    def test_root_endpoint(self):
+        """Test root endpoint."""
+        client = TestClient(app)
+        response = client.get("/")
+        assert response.status_code == 200
+
+    def test_docs_endpoint(self):
+        """Test docs endpoint."""
+        client = TestClient(app)
+        response = client.get("/docs")
+        assert response.status_code == 200
+
+    def test_openapi_endpoint(self):
+        """Test OpenAPI endpoint."""
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+        data = response.json()
+        assert "openapi" in data
+
+    def test_foods_search_endpoint(self):
+        """Test foods search endpoint."""
+        client = TestClient(app)
+        response = client.get("/api/v1/foods/search?q=apple")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_recipes_endpoint(self):
+        """Test recipes endpoint."""
+        client = TestClient(app)
+        response = client.get("/api/v1/recipes")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_users_endpoint(self):
+        """Test users endpoint."""
+        client = TestClient(app)
+        response = client.get("/api/v1/users")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_error_handling(self):
+        """Test error handling."""
+        client = TestClient(app)
+
+        # Test invalid endpoint
+        response = client.get("/invalid-endpoint")
+        assert response.status_code == 404
+
+    def test_lifespan_events(self):
+        """Test lifespan events."""
+        # This tests the lifespan context manager
+        with TestClient(app) as client:
+            # App startup and shutdown should be handled automatically
             pass
 
-    def test_food_apis_imports_coverage(self):
-        """Тест импортов food_apis"""
-        pytest.importorskip("core.food_apis")
+    def test_exception_handlers(self):
+        """Test exception handlers."""
+        client = TestClient(app)
 
-    def test_recipe_db_imports_coverage(self):
-        """Тест импортов recipe_db"""
-        try:
-            import core.recipe_db
-            import core.recipe_db_new
-
-            assert core.recipe_db is not None
-            assert core.recipe_db_new is not None
-        except ImportError:
-            pass
+        # Test with invalid JSON
+        response = client.post(
+            "/api/v1/bmi", data="invalid json", headers={"Content-Type": "application/json"}
+        )
+        assert response.status_code == 422
