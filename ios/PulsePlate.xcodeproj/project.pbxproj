@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C1234567890ABCDEF1234567 /* PulsePlateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF1234566 /* PulsePlateApp.swift */; };
-		C1234567890ABCDEF1234568 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF1234567 /* ContentView.swift */; };
+		C1234567890ABCDEF1234568 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF1234573 /* ContentView.swift */; };
 		C1234567890ABCDEF1234569 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF1234568 /* Assets.xcassets */; };
 		C1234567890ABCDEF123456A /* RootTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF1234569 /* RootTabs.swift */; };
 		C1234567890ABCDEF123456B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1234567890ABCDEF123456A /* HomeView.swift */; };
@@ -24,7 +24,7 @@
 /* Begin PBXFileReference section */
 		C1234567890ABCDEF1234565 /* PulsePlate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulsePlate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1234567890ABCDEF1234566 /* PulsePlateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateApp.swift; sourceTree = "<group>"; };
-		C1234567890ABCDEF1234567 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C1234567890ABCDEF1234573 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C1234567890ABCDEF1234568 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C1234567890ABCDEF1234569 /* RootTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabs.swift; sourceTree = "<group>"; };
 		C1234567890ABCDEF123456A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -69,7 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				C1234567890ABCDEF1234566 /* PulsePlateApp.swift */,
-				C1234567890ABCDEF1234567 /* ContentView.swift */,
+				C1234567890ABCDEF1234573 /* ContentView.swift */,
 				C1234567890ABCDEF1234573 /* Views */,
 				C1234567890ABCDEF1234574 /* Models */,
 				C1234567890ABCDEF1234568 /* Assets.xcassets */,
