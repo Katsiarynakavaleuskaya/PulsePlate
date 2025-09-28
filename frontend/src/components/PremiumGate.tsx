@@ -19,11 +19,18 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     const root = previewRef.current;
     if (!root) return;
 
-    // Prefer native inert when available for full keyboard/AT inertness
-    const prevInert = (root as any).inert;
-    try {
+    // Feature-detect inert support explicitly
+    const hasInertSupport = 'inert' in HTMLElement.prototype ||
+                           ('inert' in root && typeof (root as any).inert === 'boolean');
+
+    if (hasInertSupport) {
+      // Use native inert when supported
+      const prevInert = (root as any).inert;
       (root as any).inert = true;
-    } catch {
+      return () => {
+        (root as any).inert = prevInert;
+      };
+    } else {
       // Fallback: set aria-hidden and remove tabindex from descendants
       root.setAttribute("aria-hidden", "true");
       const focusables = root.querySelectorAll<HTMLElement>(
@@ -60,14 +67,6 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         });
       };
     }
-
-    return () => {
-      try {
-        (root as any).inert = prevInert;
-      } catch {
-        // ignore
-      }
-    };
   }, [previewRef.current]);
 
   if (isPremium) return <>{children}</>;
@@ -76,7 +75,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     <>
       <div
         ref={previewRef}
-        inert
+        {...({ inert: true } as any)}
         className="opacity-60 pointer-events-none"
         aria-label="Premium gated content"
       >

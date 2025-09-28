@@ -79,6 +79,10 @@ def validate_cache_versions(file_path: Path) -> list[str]:
             json.dumps(default_meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         print(f"Created default {file_path}", file=sys.stderr)
+        # Fail CI after creating default file to surface missing cache condition
+        raise ValueError(
+            f"Missing cache file {file_path} - created default but validation should fail"
+        )
     try:
         data = json.loads(file_path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):

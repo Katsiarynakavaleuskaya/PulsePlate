@@ -181,11 +181,18 @@ class AnimationTests: XCTestCase {
     let isActive = true
     let delay = 0.2
 
-    // When & Then
-    // Note: In a real test environment, you would test the animation behavior
-    // For now, we're just testing that the modifiers exist and can be applied
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(delay, 0.2)
+    // When - Create a view with slide transition
+    let view = Text("Test")
+      .transition(.asymmetric(
+        insertion: .move(edge: .trailing).combined(with: .opacity),
+        removal: .move(edge: .leading).combined(with: .opacity)
+      ))
+      .animation(.easeInOut(duration: 0.3).delay(delay), value: isActive)
+
+    // Then - Verify the view can be created with transition
+    XCTAssertNotNil(view)
+    // Note: In a real test environment, you would use ViewInspector to verify
+    // the transition and animation modifiers are properly applied
   }
 
   func testScaleTransition() {
@@ -193,9 +200,13 @@ class AnimationTests: XCTestCase {
     let isActive = true
     let scale = 1.1
 
-    // When & Then
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(scale, 1.1)
+    // When - Create a view with scale transition
+    let view = Text("Test")
+      .scaleEffect(isActive ? scale : 1.0)
+      .animation(.easeInOut(duration: 0.3), value: isActive)
+
+    // Then - Verify the view can be created with scale effect
+    XCTAssertNotNil(view)
   }
 
   func testFadeTransition() {
@@ -203,8 +214,12 @@ class AnimationTests: XCTestCase {
     let isActive = true
     let delay = 0.1
 
-    // When & Then
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(delay, 0.1)
+    // When - Create a view with fade transition
+    let view = Text("Test")
+      .opacity(isActive ? 1.0 : 0.0)
+      .animation(.easeInOut(duration: 0.3).delay(delay), value: isActive)
+
+    // Then - Verify the view can be created with opacity animation
+    XCTAssertNotNil(view)
   }
 }

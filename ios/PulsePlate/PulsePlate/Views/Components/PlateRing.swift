@@ -4,6 +4,11 @@ struct PlateRing: View {
   let progress: Double
   @State private var animatedProgress: Double = 0
 
+  // Clamp progress to valid range
+  private var clampedProgress: Double {
+    min(max(progress, 0), 1)
+  }
+
   var body: some View {
     ZStack {
       // Background circle
@@ -24,28 +29,28 @@ struct PlateRing: View {
         )
         .frame(width: 200, height: 200)
         .rotationEffect(.degrees(-90))
-        .animation(.easeInOut(duration: 1.5), value: animatedProgress)
 
       // Center content
       VStack(spacing: 4) {
-        Text("\(Int(progress * 100))%")
+        Text(animatedProgress, format: .percent)
           .font(.title)
           .bold()
           .foregroundStyle(.white)
-        Text("Complete")
+        Text(LocalizedStringKey("progress.complete"))
           .font(.caption)
           .foregroundStyle(.white.opacity(0.8))
       }
     }
     .onAppear {
-      animatedProgress = progress
+      animatedProgress = clampedProgress
     }
-    .onChange(of: progress) { newValue in
+    .onChange(of: clampedProgress) { newValue in
       withAnimation(.easeInOut(duration: 0.8)) {
         animatedProgress = newValue
       }
     }
-    .accessibilityLabel("Nutrition progress: \(Int(progress * 100)) percent complete")
+    .accessibilityLabel(LocalizedStringKey("progress.label"))
+    .accessibilityValue(Text(animatedProgress, format: .percent))
   }
 }
 

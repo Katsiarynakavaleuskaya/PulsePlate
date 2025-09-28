@@ -43,6 +43,8 @@ class NutritionService: ObservableObject {
 
     do {
       let dateFormatter = ISO8601DateFormatter()
+      dateFormatter.formatOptions = [.withFullDate]
+      dateFormatter.timeZone = TimeZone(identifier: "UTC")
       let dateString = dateFormatter.string(from: date)
 
       guard let url = URL(string: "\(baseURL)/api/nutrition/\(dateString)") else {
