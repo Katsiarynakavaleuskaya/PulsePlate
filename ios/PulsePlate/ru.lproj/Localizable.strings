@@ -8,13 +8,28 @@
 "language_settings" = "Язык";
 
 /* Weekly Progress */
-"weekly_progress_title" = "Недельный прогресс";
-"weekly_progress_no_data" = "Данных за неделю нет";
-"weekly_progress_weight" = "Вес: %.1f кг";
-"weekly_progress_update" = "Обновить неделю";
-"weekly_progress_request_access" = "Запросить доступ HealthKit";
-"weekly_progress_health_permission" = "Разреши доступ к Health для отображения питания и прогресса.";
-"weekly_progress_chart_accessibility" = "График энергии за неделю";
+"week_no_data" = "Данных за неделю нет";
+"axis_day" = "День";
+"week_chart_accessibility" = "График энергии за неделю";
+"weight_label" = "Вес";
+"unit_kg" = "кг";
+"health_permission_message" = "Разрешите доступ к Health для отображения питания и прогресса.";
+"week_refresh" = "Обновить неделю";
+"health_request" = "Запросить доступ к HealthKit";
+"week_title" = "Недельный прогресс";
+"healthkit_alert_title" = "Доступ к HealthKit";
+"ok_button" = "ОК";
+"weekly_progress_accessibility_line" = "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@";
 
 /* Accessibility */
 "Home Screen" = "Главный экран";
+
+/* Language and Unit Localization */
+"language_name_en" = "Английский";
+"language_name_ru" = "Русский";
+"language_name_es" = "Испанский";
+"unit_kcal" = "ккал";
+"abbr_protein" = "Б";
+"abbr_fat" = "Ж";
+"abbr_carbs" = "У";
+"unit_gram" = "г";
