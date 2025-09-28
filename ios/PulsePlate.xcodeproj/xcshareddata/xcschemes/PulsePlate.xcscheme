@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "1230"
-   version = "2.0">
+   version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES">
@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "PulsePlate"
+               BlueprintIdentifier = "B6169A322E893CF100B218D8"
                BuildableName = "PulsePlate.app"
                BlueprintName = "PulsePlate"
                ReferencedContainer = "container:PulsePlate.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "PulsePlateTests"
+               BlueprintIdentifier = "B6169A412E893CF200B218D8"
                BuildableName = "PulsePlateTests.xctest"
                BlueprintName = "PulsePlateTests"
                ReferencedContainer = "container:PulsePlate.xcodeproj">
@@ -40,13 +40,14 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "NO"
       shouldAutocreateTestPlan = "YES">
       <Testables>
          <TestableReference
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "PulsePlateTests"
+               BlueprintIdentifier = "B6169A412E893CF200B218D8"
                BuildableName = "PulsePlateTests.xctest"
                BlueprintName = "PulsePlateTests"
                ReferencedContainer = "container:PulsePlate.xcodeproj">
@@ -62,28 +63,30 @@
       useCustomWorkingDirectory = "NO"
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
-      <BuildableProductRunnable>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "PulsePlate"
+            BlueprintIdentifier = "B6169A322E893CF100B218D8"
             BuildableName = "PulsePlate.app"
             BlueprintName = "PulsePlate"
             ReferencedContainer = "container:PulsePlate.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <AdditionalOptions>
-      </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
       shouldUseLaunchSchemeArgsEnv = "YES"
       savedToolIdentifier = ""
-      useCustomWorkingDirectory = "NO">
-      <BuildableProductRunnable>
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "PulsePlate"
+            BlueprintIdentifier = "B6169A322E893CF100B218D8"
             BuildableName = "PulsePlate.app"
             BlueprintName = "PulsePlate"
             ReferencedContainer = "container:PulsePlate.xcodeproj">
