@@ -5,8 +5,12 @@ struct ProfileView: View {
     Form {
       Section("Language") { Text("EN / RU / ES (later)") }
       Section("Legal") {
-        Link("Privacy Policy", destination: URL(string:"https://example.com/privacy")!)
-        Link("Terms of Use", destination: URL(string:"https://example.com/terms")!)
+        if let privacyURL = URL(string: "https://example.com/privacy") {
+          Link("Privacy Policy", destination: privacyURL)
+        }
+        if let termsURL = URL(string: "https://example.com/terms") {
+          Link("Terms of Use", destination: termsURL)
+        }
       }
     }
     .accessibilityLabel("Profile Screen")
