@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleSignature</key>
+	<string></string>
+	<key>LSApplicationCategoryType</key>
+	<string></string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -45,9 +49,15 @@
 	<key>UIUserInterfaceStyle</key>
 	<string>Automatic</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>PulsePlate needs access to your health data to provide personalized nutrition recommendations.</string>
+	<string>&lt;key&gt;NSHealthShareUsageDescription&lt;/key&gt;
+&lt;string&gt;We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.&lt;/string&gt;
+</string>
+	<key>CFBundleGetInfoString</key>
+	<string></string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>PulsePlate needs to update your health data to track your nutrition progress.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string></string>
 	<key>NSCameraUsageDescription</key>
 	<string>PulsePlate needs camera access to scan food barcodes and identify products.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
