@@ -1,5 +1,13 @@
 """Tests to boost coverage for core/recipe_db_new.py to 97%."""
 
+import sys
+import os
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from unittest.mock import patch, MagicMock, mock_open
 from core.recipe_db_new import RecipeDB, Recipe
 
@@ -259,3 +267,112 @@ class TestRecipeDBCoverage97:
         assert results[0].name == "Test Recipe"
         # Should return a copy, not the original list
         assert results is not db.recipes
+
+    def test_pick_base_recipe_fallback_line_70_71(self):
+        """Test pick_base_recipe fallback logic lines 70-71."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nVeggie Salad,lunch,lettuce:100.0,VEG\nChicken Salad,dinner,chicken:200.0,OMNI"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test fallback when no candidates for target meal
+        result = db.pick_base_recipe(["VEG"], 1)  # lunch index, but only VEG available
+        assert result is not None
+        assert "VEG" in result.tags
+
+    def test_nutrition_calculation_line_84_97(self):
+        """Test _nutrition_for method lines 84-97."""
+        mock_fooddb = MagicMock()
+        mock_food = MagicMock()
+        mock_food.per_g = 100.0
+        mock_food.protein_g = 10.0
+        mock_food.carbs_g = 20.0
+        mock_food.fat_g = 5.0
+        mock_food.fiber_g = 3.0
+        mock_food.micros = {"Fe_mg": 50.0, "Ca_mg": 2.0}
+        mock_fooddb.get_food.return_value = mock_food
+
+        csv_content = "name,meal,ingredients,tags\nTest Recipe,breakfast,food1:100.0,VEG"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        nutrition = db._nutrition_for({"test_food": 200.0})
+        assert nutrition["kcal"] > 0
+        assert nutrition["macros"]["protein_g"] > 0
+        assert nutrition["micros"]["Fe_mg"] > 0
+
+    def test_get_recipe_by_id_valid_index_line_118_119(self):
+        """Test get_recipe_by_id with valid index lines 118-119."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nTest Recipe,breakfast,food1:100.0,VEG"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        result = db.get_recipe_by_id(0)
+        assert result is not None
+        assert result.name == "Test Recipe"
+
+    def test_search_recipes_query_filter_line_135(self):
+        """Test search_recipes with query filter line 135."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nApple Pie,dessert,apple:100.0,SWEET\nBanana Bread,breakfast,banana:100.0,SWEET"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test query filter
+        results = db.search_recipes("Apple")
+        assert len(results) == 1
+        assert results[0].name == "Apple Pie"
+
+    def test_search_recipes_tag_filter_line_139(self):
+        """Test search_recipes with tag filter line 139."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nVeggie Salad,lunch,lettuce:100.0,VEG\nChicken Salad,lunch,chicken:100.0,OMNI"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test tag filter
+        results = db.search_recipes(tags=["VEG"])
+        assert len(results) == 1
+        assert results[0].name == "Veggie Salad"
+
+    def test_search_recipes_no_matches_line_136(self):
+        """Test search_recipes with no matches line 136."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nApple Pie,dessert,apple:100.0,SWEET"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test no matches
+        results = db.search_recipes("Orange")
+        assert len(results) == 0
+
+    def test_pick_base_recipe_no_candidates_line_71(self):
+        """Test pick_base_recipe when no candidates available line 71."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nChicken Salad,lunch,chicken:100.0,OMNI"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test when no compatible recipes exist
+        result = db.pick_base_recipe(["VEG"], 0)  # breakfast index, but only OMNI available
+        assert result is None
+
+    def test_get_recipe_by_id_out_of_bounds_line_120(self):
+        """Test get_recipe_by_id with out of bounds index line 120."""
+        mock_fooddb = MagicMock()
+        csv_content = "name,meal,ingredients,tags\nTest Recipe,breakfast,food1:100.0,VEG"
+
+        with patch("builtins.open", mock_open(read_data=csv_content)):
+            db = RecipeDB("test.csv", mock_fooddb)
+
+        # Test out of bounds index
+        result = db.get_recipe_by_id(5)  # Only 1 recipe (index 0), so 5 is out of bounds
+        assert result is None
