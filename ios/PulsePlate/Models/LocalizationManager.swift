@@ -1,18 +1,21 @@
 import Foundation
 import SwiftUI
+import Combine
 
 class LocalizationManager: ObservableObject {
     static let shared = LocalizationManager()
     @Published var currentLanguage: String {
         didSet {
             UserDefaults.standard.set(currentLanguage, forKey: "AppLanguage")
+            // Force UI update
+            objectWillChange.send()
         }
     }
     let supportedLanguages = ["en", "ru", "es"]
 
     private init() {
         let saved = UserDefaults.standard.string(forKey: "AppLanguage")
-        currentLanguage = saved ?? Locale.current.languageCode ?? "en"
+        currentLanguage = saved ?? Locale.current.language.languageCode?.identifier ?? "en"
     }
 
     func localized(_ key: String) -> String {
