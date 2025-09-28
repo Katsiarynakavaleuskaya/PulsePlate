@@ -93,6 +93,9 @@ def update_sample_size(off: dict, total: int) -> tuple[int, int]:
 
 def update_json_file(meta: dict, off: dict) -> None:
     """Update the JSON file with new metadata."""
+    # Remove old checksum before computing new one
+    if "checksum" in off:
+        del off["checksum"]
     off["checksum"] = calculate_checksum(off)
     meta["openfoodfacts"] = off
     VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
