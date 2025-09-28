@@ -3,18 +3,31 @@
 "mascot.home.welcome" = "Welcome to PulsePlate!";
 "mascot.progress.great" = "Great progress today!";
 
-/* Settings */
-"settings_title" = "Settings";
-"language_settings" = "Language";
-
-/* Weekly Progress */
-"weekly_progress_title" = "Weekly Progress";
-"weekly_progress_no_data" = "No data for this week";
-"weekly_progress_weight" = "Weight: %.1f kg";
-"weekly_progress_update" = "Update Week";
-"weekly_progress_request_access" = "Request HealthKit Access";
-"weekly_progress_health_permission" = "Allow access to Health to display nutrition and progress.";
-"weekly_progress_chart_accessibility" = "Weekly energy chart";
-
 /* Accessibility */
 "Home Screen" = "Home Screen";
+
+/* Weekly Progress */
+"week_no_data" = "No data for this week";
+"axis_day" = "Day";
+"week_chart_accessibility" = "Weekly energy chart";
+"weight_label" = "Weight";
+"unit_kg" = "kg";
+"health_permission_message" = "Allow access to Health to display nutrition and progress.";
+"week_refresh" = "Refresh week";
+"health_request" = "Request HealthKit access";
+"week_title" = "Weekly Progress";
+"healthkit_alert_title" = "HealthKit Access";
+"ok_button" = "OK";
+"weekly_progress_accessibility_line" = "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@";
+
+/* Language Names */
+"language_name_en" = "English";
+"language_name_ru" = "Russian";
+"language_name_es" = "Spanish";
+
+/* Nutrient Units/Abbreviations */
+"unit_kcal" = "kcal";
+"abbr_protein" = "P";
+"abbr_fat" = "F";
+"abbr_carbs" = "C";
+"unit_gram" = "g";

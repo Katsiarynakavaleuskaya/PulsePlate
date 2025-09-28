@@ -1,7 +1,35 @@
 /* Mascot messages */
-"mascot.plate.hint" = "Нажмите, чтобы настроить цели питания!";
-"mascot.home.welcome" = "Добро пожаловать в PulsePlate!";
-"mascot.progress.great" = "Отличный прогресс сегодня!";
+"mascot.plate.hint" = "¡Toca para configurar objetivos de nutrición!";
+"mascot.home.welcome" = "¡Bienvenido a PulsePlate!";
+"mascot.progress.great" = "¡Gran progreso hoy!";
+
+/* Settings */
+"settings_title" = "Configuración";
+"language_settings" = "Idioma";
+
+/* Weekly Progress */
+"week_no_data" = "No hay datos para esta semana";
+"axis_day" = "Día";
+"week_chart_accessibility" = "Gráfico de energía semanal";
+"weight_label" = "Peso";
+"unit_kg" = "kg";
+"health_permission_message" = "Permitir acceso a Health para mostrar nutrición y progreso.";
+"week_refresh" = "Actualizar semana";
+"health_request" = "Solicitar acceso a HealthKit";
+"week_title" = "Progreso Semanal";
+"healthkit_alert_title" = "Acceso a HealthKit";
+"ok_button" = "OK";
+"weekly_progress_accessibility_line" = "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@";
 
 /* Accessibility */
-"Home Screen" = "Главный экран";
+"Home Screen" = "Pantalla Principal";
+
+/* Language and Unit Abbreviations */
+"language_name_en" = "Inglés";
+"language_name_ru" = "Ruso";
+"language_name_es" = "Español";
+"unit_kcal" = "kcal";
+"abbr_protein" = "P";
+"abbr_fat" = "G";
+"abbr_carbs" = "C";
+"unit_gram" = "g";
