@@ -431,12 +431,14 @@ class DatabaseUpdateManager:
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
-            checksum = self._calculate_checksum(
+
+            # Calculate checksum for change detection
+            temp_checksum = self._calculate_checksum(
                 {name: self._food_to_dict(food) for name, food in unified_foods.items()}
             )
 
             # Check if data actually changed (unless forced)
-            if not force and current_version and current_version.checksum == checksum:
+            if not force and current_version and current_version.checksum == temp_checksum:
                 return UpdateResult(
                     success=True,
                     source=source,
@@ -476,8 +478,14 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
-            # Get actual record count from existing database
-            actual_record_count = await self._get_actual_record_count(source)
+            # Use consistent data source for both record_count and checksum
+            # Use the actual unified_foods data that was processed
+            actual_record_count = len(unified_foods)
+
+            # Recalculate checksum from the same data used for record_count
+            checksum = self._calculate_checksum(
+                {name: self._food_to_dict(food) for name, food in unified_foods.items()}
+            )
 
             # Validation: ensure record_count > 0 for non-empty ingestions
             if actual_record_count == 0:
