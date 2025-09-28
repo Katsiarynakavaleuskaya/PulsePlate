@@ -1,20 +1,14 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>aps-environment</key>
-    <string>development</string>
-    <key>com.apple.developer.icloud-container-identifiers</key>
-    <array/>
-    <key>com.apple.developer.icloud-services</key>
-    <array>
-        <string>CloudKit</string>
-    </array>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.files.user-selected.read-only</key>
-    <true/>
-    <key>com.apple.developer.healthkit</key>
-    <true/>
-</dict>
-</plist>
+/* Spanish Info.plist Localization */
+"NSHealthShareUsageDescription" = "PulsePlate necesita acceso a los datos de salud para mostrar tu progreso nutricional y calcular tu IMC.";
+"NSHealthUpdateUsageDescription" = "PulsePlate necesita acceso para actualizar tus datos de salud con información nutricional.";
+"NSCameraUsageDescription" = "PulsePlate necesita acceso a la cámara para escanear códigos de barras de productos alimenticios.";
+"NSLocationWhenInUseUsageDescription" = "PulsePlate necesita acceso a la ubicación para encontrar tiendas cercanas y productos locales.";
+"NSPhotoLibraryUsageDescription" = "PulsePlate necesita acceso a la biblioteca de fotos para guardar y compartir tus planes de comidas.";
+"NSMicrophoneUsageDescription" = "PulsePlate necesita acceso al micrófono para comandos de voz y notas de audio.";
+"NSContactsUsageDescription" = "PulsePlate necesita acceso a los contactos para compartir planes de comidas con familiares y amigos.";
+"NSFaceIDUsageDescription" = "PulsePlate usa Face ID para autenticación segura y acceso rápido a tu información de salud.";
+"NSUserTrackingUsageDescription" = "PulsePlate puede usar datos de seguimiento para personalizar tu experiencia nutricional y recomendaciones.";
+"CFBundleDisplayName" = "PulsePlate";
+"CFBundleName" = "PulsePlate";
+"CFBundleShortVersionString" = "1.0";
+"CFBundleVersion" = "1";
