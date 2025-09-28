@@ -17,13 +17,25 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 
 i18nSmoke();
-apiSmoke();
 
 if (import.meta.env.DEV) {
   // лениво импортируем, чтобы не тащить в прод
-  import("./mocks/browser").then(({ worker }) => {
-    worker.start({ onUnhandledRequest: "bypass" });
-  });
+  import("./mocks/browser")
+    .then(({ worker }) => {
+      return worker.start({ onUnhandledRequest: "bypass" });
+    })
+    .then(() => {
+      // Run smoke tests after MSW worker is started
+      apiSmoke();
+    })
+    .catch((error) => {
+      console.error("Failed to start MSW worker:", error);
+      // Fallback: run smoke tests even if MSW fails
+      apiSmoke();
+    });
+} else {
+  // For non-DEV builds, run smoke tests immediately
+  apiSmoke();
 }
 
 root.render(

@@ -7,9 +7,15 @@ struct MascotBubble: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
-      Image("Mascot") // add to Assets.xcassets later
-        .resizable().scaledToFit().frame(width: 48, height: 48)
-        .accessibilityHidden(true)
+      Group {
+        if let mascotImage = UIImage(named: "Mascot") {
+          Image(uiImage: mascotImage)
+        } else {
+          Image(systemName: "person.crop.circle.fill")
+        }
+      }
+      .resizable().scaledToFit().frame(width: 48, height: 48)
+      .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 6) {
         Text(textKey).foregroundStyle(.white)
         Text("FitChef").font(.caption).foregroundStyle(.white.opacity(0.7))

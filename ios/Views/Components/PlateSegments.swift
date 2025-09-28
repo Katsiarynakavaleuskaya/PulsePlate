@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlateSegments: View {
   @State private var selectedSegment: Int? = nil
-  @State private var segments: [NutritionSegment]
+  private let segments: [NutritionSegment]
   let onSegmentTap: (Int) -> Void
 
   init(segments: [NutritionSegment], onSegmentTap: @escaping (Int) -> Void) {
