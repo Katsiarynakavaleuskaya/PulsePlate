@@ -152,7 +152,7 @@ extension NutritionService {
     }
 
     do {
-      let samples = try await healthKitManager.fetchNutritionData(for: date)
+      let samples = try await healthKitManager.fetchDailyTotals(for: date)
       // Process HealthKit samples and convert to NutritionData
       // This would integrate with your backend API
       _ = samples // Placeholder to silence unused variable warning for now

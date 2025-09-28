@@ -1,12 +1,6 @@
-/* Mascot messages */
-"mascot.plate.hint" = "Tap to customize your nutrition goals!";
-"mascot.home.welcome" = "Welcome to PulsePlate!";
-"mascot.progress.great" = "Great progress today!";
-
-/* Accessibility */
-"Home Screen" = "Home Screen";
-
-/* Weekly Progress */
+/* English Localization */
+"chart.day" = "Day";
+"chart.kcal" = "kcal";
 "week_no_data" = "No data for this week";
 "axis_day" = "Day";
 "week_chart_accessibility" = "Weekly energy chart";
@@ -19,15 +13,12 @@
 "healthkit_alert_title" = "HealthKit Access";
 "ok_button" = "OK";
 "weekly_progress_accessibility_line" = "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@";
-
-/* Language Names */
 "language_name_en" = "English";
 "language_name_ru" = "Russian";
 "language_name_es" = "Spanish";
-
-/* Nutrient Units/Abbreviations */
 "unit_kcal" = "kcal";
 "abbr_protein" = "P";
 "abbr_fat" = "F";
 "abbr_carbs" = "C";
 "unit_gram" = "g";
+"language_settings" = "Language";
