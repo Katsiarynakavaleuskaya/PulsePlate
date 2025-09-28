@@ -8,11 +8,33 @@ class StoreKitManager: ObservableObject {
 
     private var productIds = ["com.pulseplate.premium.monthly", "com.pulseplate.premium.yearly"]
 
+    private var transactionUpdatesTask: Task<Void, Never>?
+
     init() {
         Task {
             await loadProducts()
             await updatePurchaseStatus()
         }
+
+        // Subscribe to Transaction.updates to stay in sync with live changes
+        transactionUpdatesTask = Task {
+            for await result in Transaction.updates {
+                do {
+                    let transaction = try result.get()
+                    await transaction.finish()
+                    await updatePurchaseStatus()
+                } catch {
+                    // Handle transaction update errors
+                    await MainActor.run {
+                        self.error = error
+                    }
+                }
+            }
+        }
+    }
+
+    deinit {
+        transactionUpdatesTask?.cancel()
     }
 
     @MainActor

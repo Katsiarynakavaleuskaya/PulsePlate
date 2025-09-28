@@ -105,15 +105,24 @@ struct AnimatedProgressRing: View {
 struct PulsingView: ViewModifier {
   let isActive: Bool
   let scale: Double
+  @State private var animate = false
 
   func body(content: Content) -> some View {
     content
-      .scaleEffect(isActive ? scale : 1.0)
+      .scaleEffect(animate ? scale : 1.0)
       .animation(
         .easeInOut(duration: 0.6)
         .repeatForever(autoreverses: true),
-        value: isActive
+        value: animate
       )
+      .onAppear {
+        if isActive {
+          animate = true
+        }
+      }
+      .onChange(of: isActive) { newValue in
+        animate = newValue
+      }
   }
 }
 

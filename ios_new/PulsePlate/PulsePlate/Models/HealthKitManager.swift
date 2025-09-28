@@ -1,8 +1,18 @@
 import Foundation
 import HealthKit
 
-enum HealthKitError: Error {
+enum HealthKitError: Error, LocalizedError {
+    case notAvailable
     case authorizationDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .notAvailable:
+            return "HealthKit is not available on this device"
+        case .authorizationDenied:
+            return "HealthKit authorization was denied"
+        }
+    }
 }
 
 class HealthKitManager: ObservableObject {
@@ -55,20 +65,6 @@ class HealthKitManager: ObservableObject {
                 }
             }
             healthStore.execute(query)
-        }
-    }
-}
-
-enum HealthKitError: Error, LocalizedError {
-    case notAvailable
-    case authorizationDenied
-
-    var errorDescription: String? {
-        switch self {
-        case .notAvailable:
-            return "HealthKit is not available on this device"
-        case .authorizationDenied:
-            return "HealthKit authorization was denied"
         }
     }
 }

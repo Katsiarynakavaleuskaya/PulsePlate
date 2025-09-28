@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import Combine
 
 // MARK: - Nutrition Models
 struct NutritionData: Codable {

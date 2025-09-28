@@ -2,3 +2,6 @@
 "mascot.plate.hint" = "Tap to customize your nutrition goals!";
 "mascot.home.welcome" = "Welcome to PulsePlate!";
 "mascot.progress.great" = "Great progress today!";
+
+/* Accessibility */
+"Home Screen" = "Home Screen";

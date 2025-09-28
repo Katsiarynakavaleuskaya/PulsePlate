@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import UIKit
 @testable import PulsePlate
 
 class ProgressAnimationTests: XCTestCase {
@@ -22,7 +23,7 @@ class ProgressAnimationTests: XCTestCase {
     // Then
     XCTAssertNotNil(ring)
     XCTAssertEqual(ring.progress, progress)
-    XCTAssertEqual(ring.color, color)
+    XCTAssertEqual(UIColor(ring.color), UIColor(color))
     XCTAssertEqual(ring.lineWidth, lineWidth)
     XCTAssertEqual(ring.size, size)
   }
