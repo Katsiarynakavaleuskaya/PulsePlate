@@ -9,12 +9,19 @@ struct PlateViewPP: View {
       return []
     }
 
-    return nutritionData.segments.enumerated().map { index, segmentData in
-      NutritionSegment(
+    var runningAngle: Double = 0
+
+    return nutritionData.segments.map { segmentData in
+      let sweep = (segmentData.percentage / 100.0) * 360.0
+      let startAngle = runningAngle
+      let endAngle = startAngle + sweep
+      runningAngle = endAngle
+
+      return NutritionSegment(
         name: segmentData.name,
         color: colorFromString(segmentData.color),
-        startAngle: Double(index * 90),
-        endAngle: Double((index + 1) * 90),
+        startAngle: startAngle,
+        endAngle: endAngle,
         percentage: segmentData.percentage,
         icon: segmentData.icon,
         currentValue: segmentData.currentValue,
@@ -116,8 +123,10 @@ struct PlateViewPP: View {
     .background(Color("Navy"))
     .accessibilityLabel("Plate Screen")
     .onAppear {
-      // Load mock data for development
-      nutritionService.loadMockData()
+      // Load real nutrition data
+      Task {
+        await nutritionService.fetchNutritionData(for: Date())
+      }
     }
   }
 
@@ -172,13 +181,13 @@ struct SegmentDetailView: View {
             .font(.caption)
             .foregroundStyle(.white.opacity(0.8))
           Spacer()
-          Text("\(Int((segment.currentValue / segment.targetValue) * 100))%")
+          Text("\(segment.targetValue > 0 ? Int((segment.currentValue / segment.targetValue) * 100) : 0)%")
             .font(.caption)
             .bold()
             .foregroundStyle(.white)
         }
 
-        ProgressView(value: segment.currentValue, total: segment.targetValue)
+        ProgressView(value: max(0, min(segment.currentValue, segment.targetValue)), total: segment.targetValue > 0 ? segment.targetValue : 1)
           .progressViewStyle(LinearProgressViewStyle(tint: segment.color))
           .scaleEffect(y: 2)
       }

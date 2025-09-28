@@ -58,8 +58,10 @@ def compute_total() -> int:
 
 def calculate_checksum(data: dict) -> str:
     """Calculate checksum for data integrity."""
+    # Create a copy without the checksum field to avoid circular dependency
+    data_copy = {k: v for k, v in data.items() if k != "checksum"}
     # Convert to sorted JSON string for consistent hashing
-    json_str = json.dumps(data, sort_keys=True)
+    json_str = json.dumps(data_copy, sort_keys=True)
     return hashlib.sha256(json_str.encode()).hexdigest()
 
 

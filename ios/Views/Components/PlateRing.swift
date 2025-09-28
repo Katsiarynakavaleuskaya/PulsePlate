@@ -4,6 +4,10 @@ struct PlateRing: View {
   let progress: Double
   @State private var animatedProgress: Double = 0
 
+  private var clampedProgress: Double {
+    max(0, min(progress, 1))
+  }
+
   var body: some View {
     ZStack {
       // Background circle
@@ -28,7 +32,7 @@ struct PlateRing: View {
 
       // Center content
       VStack(spacing: 4) {
-        Text("\(Int(progress * 100))%")
+        Text("\(Int(clampedProgress * 100))%")
           .font(.title)
           .bold()
           .foregroundStyle(.white)
@@ -38,14 +42,14 @@ struct PlateRing: View {
       }
     }
     .onAppear {
-      animatedProgress = progress
+      animatedProgress = clampedProgress
     }
     .onChange(of: progress) { newValue in
       withAnimation(.easeInOut(duration: 0.8)) {
-        animatedProgress = newValue
+        animatedProgress = clampedProgress
       }
     }
-    .accessibilityLabel("Nutrition progress: \(Int(progress * 100)) percent complete")
+    .accessibilityLabel("Nutrition progress: \(Int(clampedProgress * 100)) percent complete")
   }
 }
 

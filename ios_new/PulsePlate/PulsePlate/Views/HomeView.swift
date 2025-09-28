@@ -8,7 +8,7 @@ struct HomeView: View {
         Text("Coming soon…").foregroundStyle(.secondary)
       }.padding()
     }
-    .accessibilityElement(children: .contain)
+    .accessibilityElement(children: .combine)
     .accessibilityLabel("Home Screen")
   }
 }

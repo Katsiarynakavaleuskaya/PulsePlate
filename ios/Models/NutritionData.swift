@@ -153,7 +153,7 @@ extension NutritionService {
       // Process HealthKit samples and convert to NutritionData
       // This would integrate with your backend API
       await MainActor.run {
-        self.nutritionData = self.mockData // For now, use mock data
+        self.loadMockData() // For now, use mock data
         self.isLoading = false
       }
     } catch {

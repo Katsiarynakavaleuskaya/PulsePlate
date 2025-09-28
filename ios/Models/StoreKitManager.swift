@@ -26,14 +26,16 @@ class StoreKitManager: ObservableObject {
 
     @MainActor
     func updatePurchaseStatus() async {
+        var foundPremium = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result {
                 if transaction.productID.contains("premium") {
-                    isPremium = true
+                    foundPremium = true
                     break
                 }
             }
         }
+        isPremium = foundPremium
     }
 
     func purchase(_ product: Product) async {

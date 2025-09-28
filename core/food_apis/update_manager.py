@@ -553,11 +553,24 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                # Check for JSONL files
-                for pattern in ["off.jsonl", "off.ndjson", "products.jsonl", "products.csv"]:
-                    file_path = cache_dir / pattern
-                    if file_path.exists():
-                        if pattern.endswith(".csv"):
+                # Check for OFF export files using glob patterns
+                patterns = [
+                    "*.openfoodfacts.org.products.csv",
+                    "*.openfoodfacts.org.products.jsonl",
+                    "*.openfoodfacts.org.products.ndjson",
+                    "*off*.jsonl",
+                    "*off*.ndjson",
+                    "*products*.csv",
+                    "*products*.jsonl",
+                    "*products*.ndjson",
+                ]
+
+                for pattern in patterns:
+                    matching_files = list(cache_dir.glob(pattern))
+                    if matching_files:
+                        # Use the first matching file
+                        file_path = matching_files[0]
+                        if file_path.suffix == ".csv":
                             # For CSV, subtract header
                             with open(file_path, "r", encoding="utf-8") as f:
                                 count = sum(1 for _ in f)

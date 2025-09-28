@@ -23,6 +23,6 @@ struct MascotBubble: View {
       )
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(Text(textKey))
+    .accessibilityLabel("FitChef, \(textKey)")
   }
 }

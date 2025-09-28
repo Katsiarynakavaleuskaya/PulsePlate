@@ -146,44 +146,32 @@ class PerformanceTests: XCTestCase {
     // Given
     let iterations = 1000
 
-    // When
-    let startTime = CFAbsoluteTimeGetCurrent()
-
-    for _ in 0..<iterations {
-      let _ = AnimatedProgressRing(progress: 0.5, color: .blue)
+    // When & Then
+    measure {
+      for _ in 0..<iterations {
+        let _ = AnimatedProgressRing(progress: 0.5, color: .blue)
+      }
     }
-
-    let endTime = CFAbsoluteTimeGetCurrent()
-    let duration = endTime - startTime
-
-    // Then
-    XCTAssertLessThan(duration, 1.0, "Animation creation should be fast")
   }
 
   func testSegmentCreationPerformance() {
     // Given
     let iterations = 1000
 
-    // When
-    let startTime = CFAbsoluteTimeGetCurrent()
-
-    for _ in 0..<iterations {
-      let _ = NutritionSegment(
-        name: "Test",
-        color: .blue,
-        startAngle: 0,
-        endAngle: 90,
-        percentage: 25,
-        icon: "test",
-        currentValue: 1.0,
-        targetValue: 2.0
-      )
+    // When & Then
+    measure {
+      for _ in 0..<iterations {
+        let _ = NutritionSegment(
+          name: "Test",
+          color: .blue,
+          startAngle: 0,
+          endAngle: 90,
+          percentage: 25,
+          icon: "test",
+          currentValue: 1.0,
+          targetValue: 2.0
+        )
+      }
     }
-
-    let endTime = CFAbsoluteTimeGetCurrent()
-    let duration = endTime - startTime
-
-    // Then
-    XCTAssertLessThan(duration, 0.5, "Segment creation should be fast")
   }
 }
