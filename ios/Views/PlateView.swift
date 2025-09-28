@@ -64,40 +64,51 @@ struct PlateViewPP: View {
           }
           .padding()
         } else {
-          // Interactive Plate Segments
-          VStack(spacing: 16) {
-            PlateSegments(segments: segments) { index in
+        // Interactive Plate Segments with animations
+        VStack(spacing: 16) {
+          PlateSegments(segments: segments) { index in
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
               selectedSegment = selectedSegment == index ? nil : index
             }
-
-            // Overall progress ring
-            PlateRing(progress: progress)
           }
-          .padding()
+          .slideIn(isActive: !nutritionService.isLoading, delay: 0.2)
 
-          // Selected segment details
+          // Overall progress ring with shimmer effect
+          PlateRing(progress: progress)
+            .scaleOnAppear(isActive: !nutritionService.isLoading, scale: 1.05)
+            .shimmer()
+        }
+        .padding()
+
+          // Selected segment details with animation
           if let selected = selectedSegment, selected < segments.count {
             SegmentDetailView(segment: segments[selected])
               .padding(.horizontal)
+              .slideIn(isActive: selectedSegment != nil, delay: 0.1)
+              .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
           }
         }
 
-        // Mascot hint
+        // Mascot hint with pulsing animation
         MascotBubble(textKey: "mascot.plate.hint")
           .padding(.horizontal)
+          .pulsing(isActive: selectedSegment == nil, scale: 1.02)
+          .fadeIn(isActive: !nutritionService.isLoading, delay: 0.5)
 
-        // Quick actions
+        // Quick actions with staggered animation
         HStack(spacing: 16) {
           Button("Add Meal") {
             // TODO: Navigate to meal entry
           }
           .buttonStyle(.bordered)
           .foregroundStyle(.white)
+          .slideIn(isActive: !nutritionService.isLoading, delay: 0.6)
 
           Button("View Details") {
             // TODO: Show detailed nutrition breakdown
           }
           .buttonStyle(.borderedProminent)
+          .slideIn(isActive: !nutritionService.isLoading, delay: 0.7)
         }
         .padding()
       }
