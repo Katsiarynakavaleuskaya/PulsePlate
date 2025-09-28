@@ -8,6 +8,5 @@ struct RootTabs: View {
       ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
       ProfileView().tabItem { Label("Profile", systemImage: "person") }
     }
-    .dynamicTypeSize(.large ... .accessibility5)
   }
 }
