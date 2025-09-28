@@ -6,6 +6,7 @@ struct PlateViewPP: View {
       Text("Plate").font(.title).bold()
       Text("SVG ring / Canvas later").foregroundStyle(.secondary)
     }.padding()
-    .accessibilityLabel("Plate Screen")
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(Text("Plate. SVG ring / Canvas later"))
   }
 }
