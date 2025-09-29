@@ -1,0 +1,104 @@
+#!/bin/bash
+# Настройка CLI алиасов для PulsePlate проекта
+# Использование: source setup_cli_aliases.sh
+
+PROJECT_ROOT="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean"
+
+echo "🚀 Настройка CLI алиасов для PulsePlate..."
+
+# Функция для создания алиаса
+create_alias() {
+    local alias_name="$1"
+    local command="$2"
+    alias "$alias_name"="$command"
+    echo "✅ Алиас '$alias_name' создан"
+}
+
+# Переход в директорию проекта
+create_alias "pp" "cd $PROJECT_ROOT"
+
+# Тестирование
+create_alias "pptest" "cd $PROJECT_ROOT && python -m pytest tests/ -v"
+create_alias "pptest-quick" "cd $PROJECT_ROOT && python -m pytest tests/ -q --tb=short"
+create_alias "pptest-failed" "cd $PROJECT_ROOT && python -m pytest tests/ --lf --maxfail=3 -q"
+create_alias "pptest-file" "cd $PROJECT_ROOT && python -m pytest tests/\$1 -v"
+create_alias "pptest-class" "cd $PROJECT_ROOT && python -m pytest tests/\$1::\$2 -v"
+create_alias "pptest-method" "cd $PROJECT_ROOT && python -m pytest tests/\$1::\$2::\$3 -v"
+
+# Покрытие кода
+create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
+create_alias "ppcov-html" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=html && open htmlcov/index.html"
+create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97"
+
+# Линтинг и форматирование
+create_alias "pplint" "cd $PROJECT_ROOT && flake8 ."
+create_alias "ppformat" "cd $PROJECT_ROOT && black . && isort ."
+create_alias "ppformat-check" "cd $PROJECT_ROOT && black --check --diff . && isort --check-only --diff ."
+
+# Полная проверка
+create_alias "ppcheck" "cd $PROJECT_ROOT && echo '🧪 Тесты...' && python -m pytest tests/ -q && echo '📊 Покрытие...' && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97 && echo '🔍 Линтинг...' && flake8 . && echo '🎨 Форматирование...' && black --check . && isort --check-only . && echo '✅ Все проверки пройдены!'"
+
+# Сервер
+create_alias "ppserver" "cd $PROJECT_ROOT && uvicorn app:app --reload --host 0.0.0.0 --port 8001"
+create_alias "ppserver-8000" "cd $PROJECT_ROOT && uvicorn app:app --reload --host 0.0.0.0 --port 8000"
+
+# Python с настройками проекта
+create_alias "pppython" "cd $PROJECT_ROOT && python"
+
+# Make команды
+create_alias "ppmake" "cd $PROJECT_ROOT && make"
+create_alias "pphelp" "cd $PROJECT_ROOT && make help"
+
+# Git команды
+create_alias "ppgit" "cd $PROJECT_ROOT && git"
+create_alias "ppstatus" "cd $PROJECT_ROOT && git status"
+create_alias "pppush" "cd $PROJECT_ROOT && git push origin \$(git rev-parse --abbrev-ref HEAD)"
+create_alias "pppull" "cd $PROJECT_ROOT && git pull origin \$(git rev-parse --abbrev-ref HEAD)"
+
+# Безопасные команды
+create_alias "ppsafe-push" "cd $PROJECT_ROOT && make safe-push"
+create_alias "ppauto-push" "cd $PROJECT_ROOT && make auto-push"
+
+# Очистка
+create_alias "ppclean" "cd $PROJECT_ROOT && make clean"
+
+# Smoke тесты
+create_alias "ppsmoke" "cd $PROJECT_ROOT && make smoke-auto"
+create_alias "ppsmoke-8000" "cd $PROJECT_ROOT && make smoke-8000"
+create_alias "ppsmoke-8001" "cd $PROJECT_ROOT && make smoke-8001"
+
+# Docker команды
+create_alias "ppdocker-build" "cd $PROJECT_ROOT && make docker-build"
+create_alias "ppdocker-run" "cd $PROJECT_ROOT && make docker-run"
+create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
+
+echo ""
+echo "🎯 CLI алиасы настроены!"
+echo ""
+echo "📋 Основные команды:"
+echo "  pp                    - Переход в директорию проекта"
+echo "  pptest               - Запуск всех тестов"
+echo "  ppcov                - Покрытие кода"
+echo "  pplint               - Линтинг"
+echo "  ppformat             - Форматирование кода"
+echo "  ppcheck              - Полная проверка (тесты + покрытие + линтинг + форматирование)"
+echo "  ppserver             - Запуск сервера на порту 8001"
+echo "  ppsafe-push          - Безопасный push"
+echo "  ppauto-push          - Автоматизированный push с проверками"
+echo "  pphelp               - Показать все доступные make команды"
+echo ""
+echo "🔧 Дополнительные команды:"
+echo "  pptest-quick         - Быстрые тесты"
+echo "  pptest-failed        - Только упавшие тесты"
+echo "  ppcov-html           - HTML отчет покрытия"
+echo "  ppformat-check       - Проверка форматирования"
+echo "  ppsmoke              - Smoke тесты"
+echo "  ppclean              - Очистка временных файлов"
+echo ""
+echo "💡 Примеры использования:"
+echo "  pp && pptest && ppcov && pplint && ppsafe-push"
+echo "  pp && ppcheck && ppauto-push"
+echo ""
+echo "✅ Готово! Все алиасы активны в текущей сессии."
+echo "💾 Для постоянного использования добавьте в ~/.zshrc:"
+echo "   source $PROJECT_ROOT/setup_cli_aliases.sh"
