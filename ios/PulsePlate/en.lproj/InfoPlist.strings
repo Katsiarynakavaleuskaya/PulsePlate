@@ -1,12 +1,12 @@
-/* Spanish Info.plist Localization */
-"NSHealthShareUsageDescription" = "PulsePlate necesita acceso a los datos de salud para mostrar tu progreso nutricional y calcular tu IMC.";
-"NSHealthUpdateUsageDescription" = "PulsePlate necesita acceso para actualizar tus datos de salud con información nutricional.";
-"NSCameraUsageDescription" = "PulsePlate necesita acceso a la cámara para escanear códigos de barras de productos alimenticios.";
-"NSLocationWhenInUseUsageDescription" = "PulsePlate necesita acceso a la ubicación para encontrar tiendas cercanas y productos locales.";
-"NSPhotoLibraryUsageDescription" = "PulsePlate necesita acceso a la biblioteca de fotos para guardar y compartir tus planes de comidas.";
-"NSMicrophoneUsageDescription" = "PulsePlate necesita acceso al micrófono para comandos de voz y notas de audio.";
-"NSContactsUsageDescription" = "PulsePlate necesita acceso a los contactos para compartir planes de comidas con familiares y amigos.";
-"NSFaceIDUsageDescription" = "PulsePlate usa Face ID para autenticación segura y acceso rápido a tu información de salud.";
-"NSUserTrackingUsageDescription" = "PulsePlate puede usar datos de seguimiento para personalizar tu experiencia nutricional y recomendaciones.";
+/* English Info.plist Localization */
+"NSHealthShareUsageDescription" = "PulsePlate needs access to health data to display your nutritional progress and calculate your BMI.";
+"NSHealthUpdateUsageDescription" = "PulsePlate needs access to update your health data with nutritional information.";
+"NSCameraUsageDescription" = "PulsePlate needs camera access to scan product barcodes for food identification.";
+"NSLocationWhenInUseUsageDescription" = "PulsePlate needs location access to find nearby stores and local products.";
+"NSPhotoLibraryUsageDescription" = "PulsePlate needs photo library access to save and share your meal plans.";
+"NSMicrophoneUsageDescription" = "PulsePlate needs microphone access for voice commands and audio notes.";
+"NSContactsUsageDescription" = "PulsePlate needs contacts access to share meal plans with family and friends.";
+"NSFaceIDUsageDescription" = "PulsePlate uses Face ID for secure authentication and quick access to your health information.";
+"NSUserTrackingUsageDescription" = "PulsePlate may use tracking data to personalize your nutritional experience and recommendations.";
 "CFBundleDisplayName" = "PulsePlate";
 "CFBundleName" = "PulsePlate";

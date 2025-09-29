@@ -7,7 +7,7 @@ struct MascotBubble: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
-      Image("Mascot") // add to Assets.xcassets later
+      Image("FitChef")
         .resizable().scaledToFit().frame(width: 48, height: 48)
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 6) {

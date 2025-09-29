@@ -57,5 +57,8 @@
   "workbench.editor.sharedViewState": true,
   "workbench.editor.scrollToSwitchTabs": true,
   "github.copilot.nextEditSuggestions.enabled": true,
-  "claudeCodeChat.permissions.yoloMode": true
+  "claudeCodeChat.permissions.yoloMode": true,
+  "editor.tabCompletion": "on",
+  "diffEditor.codeLens": true,
+  "MutableAI.upsell": true
 }
