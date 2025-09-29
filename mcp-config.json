@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "chatgpt": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-chatgpt", "stdio"],
+      "env": {
+        "CHATGPT_API_KEY": "your_openai_api_key_here"
+      }
+    },
+    "openai": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-openai", "stdio"],
+      "env": {
+        "OPENAI_API_KEY": "your_openai_api_key_here"
+      }
+    },
+    "pulseplate": {
+      "command": "python",
+      "args": ["mcp_pulseplate_server.py"],
+      "env": {
+        "OPENAI_API_KEY": "your_openai_api_key_here"
+      }
+    }
+  }
+}
