@@ -10,5 +10,3 @@
 "NSUserTrackingUsageDescription" = "PulsePlate может использовать данные отслеживания для персонализации вашего опыта питания и рекомендаций.";
 "CFBundleDisplayName" = "PulsePlate";
 "CFBundleName" = "PulsePlate";
-"CFBundleShortVersionString" = "1.0";
-"CFBundleVersion" = "1";

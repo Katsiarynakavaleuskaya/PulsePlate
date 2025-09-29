@@ -152,10 +152,10 @@ extension NutritionService {
     }
 
     do {
-      let samples = try await healthKitManager.fetchDailyTotals(for: date)
-      // Process HealthKit samples and convert to NutritionData
+      let totals = try await healthKitManager.fetchDailyTotals(for: date)
+      // Process HealthKit totals and convert to NutritionData
       // This would integrate with your backend API
-      _ = samples // Placeholder to silence unused variable warning for now
+      _ = totals // Placeholder to silence unused variable warning for now
       await MainActor.run {
         self.loadMockData() // For now, use mock data
         self.isLoading = false
