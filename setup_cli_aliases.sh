@@ -2,7 +2,17 @@
 # Настройка CLI алиасов для PulsePlate проекта
 # Использование: source setup_cli_aliases.sh
 
-PROJECT_ROOT="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean"
+# Установка PROJECT_ROOT через переменную окружения или интерактивный ввод
+if [ -z "$PROJECT_ROOT" ]; then
+    # Попробуем автоматически определить путь к проекту
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$SCRIPT_DIR/pyproject.toml" ] && [ -f "$SCRIPT_DIR/app.py" ]; then
+        PROJECT_ROOT="$SCRIPT_DIR"
+        echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
+    else
+        read -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
+    fi
+fi
 
 echo "🚀 Настройка CLI алиасов для PulsePlate..."
 

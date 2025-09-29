@@ -60,11 +60,27 @@ install_animation() {
 
     echo "✅ Все файлы анимации найдены!"
 
-    # Копируем файлы
+    # Копируем файлы с защитой от перезаписи
     echo "📁 Копируем файлы анимации..."
     for file in "${frame_files[@]}"; do
-        echo "   📄 Копируем $file"
-        cp "$TEMP_DIR/$file" "$ANIMATION_DIR/"
+        dest_file="$ANIMATION_DIR/$file"
+        src_file="$TEMP_DIR/$file"
+        if [ -f "$dest_file" ]; then
+            echo "⚠️  Файл $file уже существует в папке назначения."
+            read -p "Хотите создать резервную копию и перезаписать файл? [y/N]: " overwrite_choice
+            if [[ "$overwrite_choice" =~ ^[Yy]$ ]]; then
+                backup_file="${dest_file}.bak_$(date +%s)"
+                echo "   🗄️  Создаю резервную копию: $(basename "$backup_file")"
+                mv "$dest_file" "$backup_file"
+                echo "   📄 Копирую $file"
+                cp "$src_file" "$dest_file"
+            else
+                echo "   ⏭️  Пропускаю копирование $file"
+            fi
+        else
+            echo "   📄 Копирую $file"
+            cp "$src_file" "$dest_file"
+        fi
     done
 
     echo "✅ Анимация FitChef установлена!"

@@ -10,17 +10,23 @@ from PIL import Image
 import argparse
 
 
+def _process_image_for_icon(img, size):
+    """Обрабатывает изображение для создания иконки"""
+    # Конвертируем в RGBA если нужно
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+
+    # Изменяем размер с сохранением качества
+    return img.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def resize_icon(source_path, output_dir, filename, size):
     """Создает иконку нужного размера из исходного изображения"""
     try:
         # Загружаем исходное изображение
         with Image.open(source_path) as img:
-            # Конвертируем в RGBA если нужно
-            if img.mode != "RGBA":
-                img = img.convert("RGBA")
-
-            # Изменяем размер с сохранением качества
-            resized = img.resize((size, size), Image.Resampling.LANCZOS)
+            # Обрабатываем изображение
+            resized = _process_image_for_icon(img, size)
 
             # Сохраняем
             output_path = os.path.join(output_dir, filename)
@@ -73,12 +79,12 @@ def generate_all_icons_from_source(source_path):
     print(f"🎨 Создаем иконки из {source_path}...")
     print(f"📁 Сохраняем в {icons_dir}")
 
-    success_count = 0
     total_count = len(icon_sizes)
-
-    for filename, size in icon_sizes.items():
-        if resize_icon(source_path, icons_dir, filename, size):
-            success_count += 1
+    success_count = sum(
+        1
+        for filename, size in icon_sizes.items()
+        if resize_icon(source_path, icons_dir, filename, size)
+    )
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")
     return success_count == total_count
