@@ -5,8 +5,9 @@
 
 echo "📦 Устанавливаем иконки из ZIP файла..."
 
-# Пути
-PROJECT_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios"
+# Пути (относительно скрипта)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 TEMP_DIR="$PROJECT_DIR/temp_icons"
 ICONS_DIR="$PROJECT_DIR/PulsePlate/Assets.xcassets/AppIcon.appiconset"
 

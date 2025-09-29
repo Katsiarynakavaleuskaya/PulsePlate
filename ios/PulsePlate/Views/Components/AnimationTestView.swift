@@ -6,6 +6,7 @@ import AVKit
 struct AnimationTestView: View {
     @State private var currentVideo = 0
     @State private var isPlaying = false
+    @StateObject private var player = AVPlayer()
 
     private let videos = [
         "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
@@ -21,11 +22,27 @@ struct AnimationTestView: View {
 
             // Video Player
             if let url = Bundle.main.url(forResource: videos[currentVideo], withExtension: "mp4") {
-                VideoPlayer(player: AVPlayer(url: url))
+                VideoPlayer(player: player)
                     .frame(width: 200, height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .onAppear {
-                        isPlaying = true
+                        setupPlayer(with: url)
+                        if isPlaying {
+                            player.play()
+                        }
+                    }
+                    .onChange(of: currentVideo) { _ in
+                        setupPlayer(with: url)
+                        if isPlaying {
+                            player.play()
+                        }
+                    }
+                    .onChange(of: isPlaying) { playing in
+                        if playing {
+                            player.play()
+                        } else {
+                            player.pause()
+                        }
                     }
             } else {
                 VStack {
@@ -85,6 +102,11 @@ struct AnimationTestView: View {
         .background(.navy)
         .navigationTitle("Animation Test")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func setupPlayer(with url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+        player.replaceCurrentItem(with: playerItem)
     }
 }
 

@@ -94,7 +94,11 @@ def generate_all_icons():
         "AppIcon-40@3x.png": 120,  # 40x40 @3x
         "AppIcon-60@2x.png": 120,  # 60x60 @2x
         "AppIcon-60@3x.png": 180,  # 60x60 @3x
-        # iPad (duplicate sizes removed - already defined above)
+        # iPad 1x sizes (missing entries)
+        "AppIcon-20@1x.png": 20,  # 20x20 @1x
+        "AppIcon-29@1x.png": 29,  # 29x29 @1x
+        "AppIcon-40@1x.png": 40,  # 40x40 @1x
+        # iPad
         "AppIcon-76@1x.png": 76,  # 76x76 @1x
         "AppIcon-76@2x.png": 152,  # 76x76 @2x
         "AppIcon-83.5@2x.png": 167,  # 83.5x83.5 @2x

@@ -10,8 +10,10 @@
 2. **Запустите скрипт генерации:**
    ```bash
    cd ios/
-   python quick_icon_generator.py my_icon.png
+   python3 quick_icon_generator.py my_icon.png
    ```
+
+   **Примечание:** На macOS 12.3+ команда `python` недоступна. Убедитесь, что Python 3 установлен и доступен как `python3`.
 
 3. **Проверьте результат:**
    - Все иконки будут созданы в `PulsePlate/Assets.xcassets/AppIcon.appiconset/`
@@ -45,5 +47,5 @@ ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/
 ## 🚀 Быстрый старт:
 
 1. Скопируйте вашу иконку в `ios/` папку
-2. Запустите: `python quick_icon_generator.py ваша_иконка.png`
+2. Запустите: `python3 quick_icon_generator.py ваша_иконка.png`
 3. Откройте проект в Xcode
