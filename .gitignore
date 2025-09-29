@@ -212,12 +212,3 @@ reproduce_*.py
 xcuserdata/
 *.xcuserstate
 *.xcuserdatad/
-
-# Large iOS media files (over 500KB)
-ios/PulsePlate/Assets.xcassets/FitChefAnimation.imageset/*.mp4
-ios/PulsePlate/Assets.xcassets/FitChef.imageset/fitchef@*.png
-ios/PulsePlate/Resources/MP4/*.mp4
-ios/PulsePlate/Resources/*.mp4
-ios/PulsePlate/Assets.xcassets/*/20250913_1212_FitChef*.mp4
-ios/20250913_1212_FitChef*
-ios/temp_animation/
