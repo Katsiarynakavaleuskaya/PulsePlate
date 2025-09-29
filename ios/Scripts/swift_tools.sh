@@ -10,8 +10,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Project paths
-PROJECT_ROOT="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios"
+# Project paths - configurable via environment variable
+PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 SWIFT_FILES="PulsePlate/**/*.swift"
 
 echo -e "${BLUE}🚀 PulsePlate Swift Tools${NC}"
