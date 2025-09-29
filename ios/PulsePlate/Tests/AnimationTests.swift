@@ -1,6 +1,8 @@
 import XCTest
 import SwiftUI
-@testable import PulsePlate
+#if canImport(UIKit)
+import UIKit
+#endif
 
 class ProgressAnimationTests: XCTestCase {
 
@@ -22,7 +24,9 @@ class ProgressAnimationTests: XCTestCase {
     // Then
     XCTAssertNotNil(ring)
     XCTAssertEqual(ring.progress, progress)
-    XCTAssertEqual(ring.color, color)
+    #if canImport(UIKit)
+    XCTAssertEqual(UIColor(ring.color), UIColor(color))
+    #endif
     XCTAssertEqual(ring.lineWidth, lineWidth)
     XCTAssertEqual(ring.size, size)
   }
@@ -32,10 +36,9 @@ class ProgressAnimationTests: XCTestCase {
     let isActive = true
     let scale: Double = 1.05
 
-    // When - Create the actual PulsingView
-    let pulsingView = PulsingView(isActive: isActive, scale: scale) {
-      Text("Test")
-    }
+    // When - Apply the pulsing extension method to a Text view
+    let pulsingView = Text("Test")
+      .pulsing(isActive: isActive, scale: scale)
 
     // Then - Test that the view is created and has expected properties
     XCTAssertNotNil(pulsingView)
@@ -153,7 +156,7 @@ class PerformanceTests: XCTestCase {
     let iterations = 1000
 
     // When & Then
-    measure {
+    measure(metrics: [XCTClockMetric()]) {
       for _ in 0..<iterations {
         let _ = AnimatedProgressRing(progress: 0.5, color: .blue)
       }
@@ -165,7 +168,7 @@ class PerformanceTests: XCTestCase {
     let iterations = 1000
 
     // When & Then
-    measure {
+    measure(metrics: [XCTClockMetric()]) {
       for _ in 0..<iterations {
         let _ = NutritionSegment(
           name: "Test",
