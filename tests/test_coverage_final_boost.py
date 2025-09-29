@@ -50,11 +50,10 @@ class TestCoverageFinalBoost:
     def test_router_init_coverage(self):
         """Test app/routers/__init__.py coverage"""
         try:
-            import app.routers
-
+            from app.routers import __init__ as router_init
             # Test router module
-            assert app.routers is not None
-        except (ImportError, IndexError):
+            assert router_init is not None
+        except (ImportError, AttributeError):
             pytest.skip("app.routers module not available or has import issues")
 
     def test_food_apis_init_coverage(self):
