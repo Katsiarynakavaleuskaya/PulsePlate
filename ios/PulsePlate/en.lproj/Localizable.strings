@@ -22,3 +22,9 @@
 "abbr_carbs" = "C";
 "unit_gram" = "g";
 "language_settings" = "Language";
+"profile_language_section" = "Language";
+"profile_language_value" = "English / Russian / Spanish";
+"profile_legal_section" = "Legal";
+"profile_privacy_policy" = "Privacy Policy";
+"profile_terms_of_use" = "Terms of Use";
+"profile_screen_accessibility_label" = "Profile screen";
