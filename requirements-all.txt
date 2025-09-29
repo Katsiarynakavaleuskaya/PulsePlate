@@ -10,7 +10,7 @@ prometheus-client==0.22.1
 python-multipart==0.0.20
 slowapi==0.1.9
 sqlalchemy==2.0.36
-alembic==1.14.0
+alembic==1.16.5
 # 3.2.1 is not published; update to a valid patch release to satisfy installation
 psycopg[binary]==3.2.10
 email-validator==2.2.0
