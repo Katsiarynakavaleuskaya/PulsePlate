@@ -20,6 +20,11 @@ let package = Package(
             name: "PulsePlate",
             dependencies: [
                 .product(name: "Lottie", package: "lottie-ios")
+            ],
+            path: "PulsePlate",
+            resources: [
+                .process("Assets.xcassets"),
+                .process("Resources")
             ]
         ),
     ]

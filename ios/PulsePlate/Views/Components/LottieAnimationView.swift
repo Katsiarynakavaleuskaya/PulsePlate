@@ -29,6 +29,9 @@ struct LottieAnimationView: View {
         .onAppear {
             loadAnimation()
         }
+        .onChange(of: animationName) { _ in
+            loadAnimation()
+        }
     }
 
     private func loadAnimation() {
@@ -46,6 +49,7 @@ struct LottieAnimationView: View {
 /// EN: Animated FitChef with Lottie animation
 struct AnimatedFitChefLottie: View {
     @State private var currentAnimation = 0
+    @State private var animationTimer: Timer?
 
     private let animations = [
         "fitchef_blink",      // Моргание
@@ -57,13 +61,27 @@ struct AnimatedFitChefLottie: View {
     var body: some View {
         LottieAnimationView(animationName: animations[currentAnimation])
             .onAppear {
-                // Switch between animations every 2 seconds
-                Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        currentAnimation = (currentAnimation + 1) % animations.count
-                    }
-                }
+                startAnimation()
             }
+            .onDisappear {
+                stopAnimation()
+            }
+    }
+
+    private func startAnimation() {
+        // Stop any existing timer first
+        stopAnimation()
+
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                currentAnimation = (currentAnimation + 1) % animations.count
+            }
+        }
+    }
+
+    private func stopAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 }
 

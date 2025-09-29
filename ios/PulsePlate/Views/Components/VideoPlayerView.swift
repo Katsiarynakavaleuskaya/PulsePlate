@@ -30,6 +30,9 @@ struct VideoPlayerView: View {
         .onAppear {
             setupPlayer()
         }
+        .onChange(of: videoName) { _ in
+            setupPlayer()
+        }
     }
 
     private func setupPlayer() {
@@ -47,6 +50,7 @@ struct VideoPlayerView: View {
 
         player = AVPlayer(url: url)
         setupPlayerLoop()
+        player.play()
     }
 
     private func setupPlayerLoop() {
@@ -68,6 +72,7 @@ struct VideoPlayerView: View {
 /// EN: Animated FitChef with MP4 animation
 struct AnimatedFitChefVideo: View {
     @State private var currentVideo = 0
+    @State private var rotationTimer: Timer?
 
     private let videos = [
         "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
@@ -77,13 +82,27 @@ struct AnimatedFitChefVideo: View {
     var body: some View {
         VideoPlayerView(videoName: videos[currentVideo])
             .onAppear {
-                // Switch between videos every 3 seconds
-                Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        currentVideo = (currentVideo + 1) % videos.count
-                    }
-                }
+                startRotation()
             }
+            .onDisappear {
+                stopRotation()
+            }
+    }
+
+    private func startRotation() {
+        // Stop any existing timer first
+        stopRotation()
+
+        rotationTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                currentVideo = (currentVideo + 1) % videos.count
+            }
+        }
+    }
+
+    private func stopRotation() {
+        rotationTimer?.invalidate()
+        rotationTimer = nil
     }
 }
 

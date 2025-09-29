@@ -4,7 +4,10 @@
 
 echo "🎬 Открываем Xcode с инструкциями по добавлению MP4..."
 
-# Открываем Xcode проект
+# Переходим в директорию скрипта и открываем Xcode проект
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || { echo "❌ Не удалось перейти в директорию скрипта"; exit 1; }
+
 echo "📱 Открываем PulsePlate.xcodeproj..."
 open PulsePlate.xcodeproj
 

@@ -4,9 +4,10 @@
 
 echo "🎬 Устанавливаем анимацию FitChef..."
 
-# Пути
-ANIMATION_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios/PulsePlate/Assets.xcassets/FitChefAnimation.imageset"
-TEMP_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios/temp_animation"
+# Пути (относительно скрипта)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ANIMATION_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/FitChefAnimation.imageset"
+TEMP_DIR="$SCRIPT_DIR/temp_animation"
 
 # Создаем временную папку
 mkdir -p "$TEMP_DIR"
