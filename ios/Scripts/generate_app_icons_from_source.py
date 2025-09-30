@@ -106,7 +106,7 @@ def generate_all_icons_from_source(source_path: str) -> bool:
 def main() -> None:
     # Check Pillow availability
     try:
-        import PIL
+        import PIL  # noqa: F401
     except ImportError:
         print("❌ Требуется библиотека Pillow:")
         print("   pip install Pillow")
