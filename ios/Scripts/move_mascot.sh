@@ -30,12 +30,26 @@ if [ ! -d "$MASCOT_DIR" ]; then
 fi
 
 echo "📋 Найденные файлы в AppIcon:"
-if ls "$ICONS_DIR"/*.png >/dev/null 2>&1; then
-    ls -la "$ICONS_DIR"/*.png | head -5
-else
-    echo "⚠️  PNG файлы не найдены в $ICONS_DIR"
+shopt -s nullglob
+pngs=("$ICONS_DIR"/*.png)
+if (( ${#pngs[@]} == 0 )); then
+    echo "❌ PNG-файлы не найдены в $ICONS_DIR"
     exit 1
 fi
+
+# Show first 5 PNG files
+count=0
+for png in "${pngs[@]}"; do
+    echo "  - $(basename "$png")"
+    ((count++))
+    if (( count >= 5 )); then
+        if (( ${#pngs[@]} > 5 )); then
+            echo "  ... и ещё $((${#pngs[@]} - 5)) файлов"
+        fi
+        break
+    fi
+done
+shopt -u nullglob
 
 echo ""
 echo "🤔 Какой файл является маскотом FitChef?"

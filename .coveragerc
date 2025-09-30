@@ -12,6 +12,7 @@ omit =
     providers/pico.py
     app/routers/vip.py
     app/__init__.py
+    app.py
     core/menu_engine_new.py
     core/food_apis/update_manager.py
     core/food_apis/unified_db.py

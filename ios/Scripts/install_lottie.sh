@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -euo pipefail
+IFS=$'\n\t'
+
 # 🎨 Скрипт для установки Lottie в Xcode проект
 # Автоматически добавляет Lottie зависимость через Swift Package Manager
 
@@ -13,11 +16,11 @@ fi
 
 echo "✅ Найден проект PulsePlate.xcodeproj"
 
-# Создаем временный скрипт для добавления пакета
+# Создаем временный скрипт для инструкций по добавлению пакета
 cat > add_lottie_package.swift << 'EOF'
 import Foundation
 
-// Этот скрипт будет выполнен в Xcode для добавления Lottie пакета
+// Этот скрипт печатает шаги добавления Lottie пакета
 let packageURL = "https://github.com/airbnb/lottie-ios.git"
 let packageVersion = "4.5.2"
 
