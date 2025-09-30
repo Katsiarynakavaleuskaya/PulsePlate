@@ -5,9 +5,10 @@ App module initialization
 
 import importlib.util
 import os
+import sys
+from importlib.machinery import ModuleSpec
 
 # Import FastAPI app and functions from the main module
-import sys
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,8 +43,6 @@ else:
     _mod = _app_module
 
 # Create a module spec for this package
-from importlib.machinery import ModuleSpec
-
 # Capture reference to this module BEFORE any potential monkeypatching
 _this_module = sys.modules[__name__]
 
@@ -80,10 +79,10 @@ if _base_spec is not None:
         owner_module=_this_module,
     )
     _spec.submodule_search_locations = [os.path.dirname(__file__)]
-    __spec__ = _spec
+    __spec__ = _spec  # type: ignore[misc]
 else:
     # Fallback if spec creation fails
-    __spec__ = None  # type: ignore[assignment]
+    __spec__ = None  # type: ignore[misc]
 
 # Export the app and key functions for easy importing
 __all__ = [
