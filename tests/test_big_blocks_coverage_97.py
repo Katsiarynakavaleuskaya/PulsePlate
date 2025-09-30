@@ -3,6 +3,7 @@
 Цель: покрыть блоки 668-677, 698-709, 750-760 (~33 строки).
 """
 
+import os
 import pytest
 from fastapi.testclient import TestClient
 
@@ -17,7 +18,20 @@ def client(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    from app import app
+    import sys
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    # Import the FastAPI app from app.py file
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load app.py")
+
+    app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(app_module)
+    app = app_module.app
 
     return TestClient(app)
 

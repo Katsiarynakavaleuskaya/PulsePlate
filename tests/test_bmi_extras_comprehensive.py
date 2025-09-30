@@ -152,10 +152,10 @@ class TestBmiExtrasComprehensive:
 
         # Test edge cases
         result = interpret_wht_ratio(0.4)
-        assert result["category"] == "healthy" or result["category"] == "overweight"
+        assert result["category"] in ["healthy", "overweight"]
 
         result = interpret_wht_ratio(0.5)
-        assert result["category"] == "overweight" or result["category"] == "obese"
+        assert result["category"] in ["overweight", "obese"]
 
         result = interpret_wht_ratio(0.6)
         assert result["category"] == "obese"

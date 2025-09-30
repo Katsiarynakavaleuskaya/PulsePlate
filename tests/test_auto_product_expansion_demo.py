@@ -17,6 +17,16 @@ from core.recipe_db import parse_recipe_db
 class TestAutoProductExpansionDemo:
     """Demo test for automatic product expansion."""
 
+    def _is_product_in_db(self, product: str, food_name: str, finder) -> bool:
+        """Check if product matches a food name in the database."""
+        product_lower = product.lower()
+        food_lower = food_name.lower()
+        return (
+            product_lower in food_lower
+            or food_lower in product_lower
+            or finder._similar_names(product, food_name)
+        )
+
     def test_auto_expansion_demo(self):
         """Demo test showing automatic product expansion workflow."""
         # Создаем временную копию базы данных для тестирования
@@ -24,7 +34,12 @@ class TestAutoProductExpansionDemo:
         temp_db_path = Path("data/food_db_temp.csv")
 
         # Копируем оригинальную базу
-        shutil.copy2(original_db_path, temp_db_path)
+        try:
+            shutil.copy2(original_db_path, temp_db_path)
+        except (FileNotFoundError, PermissionError) as e:
+            import pytest
+
+            pytest.fail(f"Failed to copy database file: {e}")
 
         try:
             # Создаем поисковик продуктов
@@ -91,7 +106,7 @@ class TestAutoProductExpansionDemo:
             print(f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено")
 
             # Проверяем, что система работает корректно
-            assert len(unique_ingredients) > 0
+            assert unique_ingredients
             assert len(missing_products) > 0
             assert len(finder.food_db) > 0
 
@@ -124,16 +139,14 @@ class TestAutoProductExpansionDemo:
         food_names = {food.name.lower() for food in finder.food_db.values()}
 
         for missing_product in missing_products:
-            found_in_db = False
-            for food_name in food_names:
-                if (
+            found_in_db = any(
+                (
                     missing_product.lower() in food_name
                     or food_name in missing_product.lower()
                     or finder._similar_names(missing_product, food_name)
-                ):
-                    found_in_db = True
-                    break
-
+                )
+                for food_name in food_names
+            )
             # Продукт должен быть действительно отсутствующим
             assert (
                 not found_in_db

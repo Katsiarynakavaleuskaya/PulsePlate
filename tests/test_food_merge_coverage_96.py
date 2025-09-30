@@ -42,8 +42,7 @@ class TestFoodMergeCoverage96:
             "price": 0.0,
             "source": "USDA",
             "version_date": "2024-01-01",
-        }
-        defaults.update(kwargs)
+        } | kwargs
         return FoodRecord(name=name, **defaults)
 
     def test_merge_values_empty_list(self):

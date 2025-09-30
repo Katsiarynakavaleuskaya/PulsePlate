@@ -64,10 +64,9 @@ def test_pick_base_recipe():
     # Test with vegetarian flag
     veg_recipe = recipe_db.pick_base_recipe(["VEG"], 0)  # 0 = breakfast
     assert veg_recipe is not None
-    assert (
-        "VEG" in veg_recipe.tags
-        or len([t for t in veg_recipe.tags if t in ["VEG", "GF", "DAIRY_FREE"]]) > 0
-    )
+    assert "VEG" in veg_recipe.tags or [
+        t for t in veg_recipe.tags if t in ["VEG", "GF", "DAIRY_FREE"]
+    ]
 
 
 def test_scale_recipe_to_kcal():

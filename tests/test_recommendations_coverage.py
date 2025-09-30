@@ -73,7 +73,7 @@ class TestDeficiencyRecommendations:
         # Should have recommendations for deficient nutrients
         assert len(recommendations) > 0
         iron_rec = [r for r in recommendations if "iron_mg" in r]
-        assert len(iron_rec) > 0
+        assert iron_rec
 
     def test_recommendations_with_vegetarian_diet(self):
         """Test recommendations adapted for vegetarian diet."""
@@ -908,9 +908,7 @@ class TestMacroCalculation:
 
         macros = _calculate_macro_targets(1600, profile)
 
-        # Weight loss should have higher protein percentage
-        protein_percent = (macros.protein_g * 4) / 1600 * 100
-        assert protein_percent >= 20  # Should be at least 20% protein
+        assert (macros.protein_g * 4) / 1600 >= 20 / 100
 
 
 class TestMicroAndActivityCalculation:

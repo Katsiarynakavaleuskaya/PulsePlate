@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flake8: noqa: W503,W504
+# flake8: noqa
 """
 RU: Hypothesis тесты для системы сортов продуктов.
 EN: Hypothesis tests for product varieties system.
@@ -60,21 +60,17 @@ class TestProductVarietiesHypothesis:
     @settings(deadline=None)
     def test_get_best_variety_hypothesis(self, product_name: str, criteria: str):
         """Test getting best variety with Hypothesis."""
-        best_variety = self.manager.get_best_variety(product_name, criteria)
-
-        if best_variety:
+        if best_variety := self.manager.get_best_variety(product_name, criteria):
             assert isinstance(best_variety, ProductVariety)
             assert best_variety.name == product_name
 
             # Проверяем, что выбранный сорт соответствует критериям
             if criteria == "low_sugar":
-                varieties = self.manager.get_varieties(product_name)
-                if varieties:
+                if varieties := self.manager.get_varieties(product_name):
                     min_sugar = min(v.sugar_g for v in varieties)
                     assert best_variety.sugar_g == min_sugar
             elif criteria == "high_protein":
-                varieties = self.manager.get_varieties(product_name)
-                if varieties:
+                if varieties := self.manager.get_varieties(product_name):
                     max_protein = max(v.protein_g for v in varieties)
                     assert best_variety.protein_g == max_protein
 
@@ -107,10 +103,7 @@ class TestProductVarietiesHypothesis:
 
     def test_nutritional_comparison(self):
         """Test nutritional comparison functionality."""
-        # Тестируем с продуктом, который должен быть в базе
-        comparison = self.manager.get_nutritional_comparison("Молоко")
-
-        if comparison:
+        if comparison := self.manager.get_nutritional_comparison("Молоко"):
             # Проверяем структуру сравнения
             assert isinstance(comparison, dict)
             assert len(comparison) > 0
@@ -158,9 +151,7 @@ class TestProductVarietiesHypothesis:
             "gluten_free": gluten_free,
         }
 
-        recommended = self.manager.recommend_variety(product_name, preferences)
-
-        if recommended:
+        if recommended := self.manager.recommend_variety(product_name, preferences):
             assert isinstance(recommended, ProductVariety)
             assert recommended.name == product_name
 
@@ -168,40 +159,33 @@ class TestProductVarietiesHypothesis:
             # (если есть подходящие варианты)
             # Система может вернуть лучший доступный вариант, если точного соответствия нет
             if low_sugar:
-                # Проверяем, что если есть низкосахарные варианты,
-                # то выбран один из них
-                low_sugar_varieties = [
+                if low_sugar_varieties := [
                     v for v in self.manager.get_varieties(product_name) if v.is_low_sugar()
-                ]
-                if low_sugar_varieties:
+                ]:
                     assert recommended.is_low_sugar()
 
             if low_fat:
-                low_fat_varieties = [
+                if low_fat_varieties := [
                     v for v in self.manager.get_varieties(product_name) if v.is_low_fat()
-                ]
-                if low_fat_varieties:
+                ]:
                     assert recommended.is_low_fat()
 
             if high_protein:
-                high_protein_varieties = [
+                if high_protein_varieties := [
                     v for v in self.manager.get_varieties(product_name) if v.is_high_protein()
-                ]
-                if high_protein_varieties:
+                ]:
                     assert recommended.is_high_protein()
 
             if vegetarian:
-                veg_varieties = [
+                if veg_varieties := [
                     v for v in self.manager.get_varieties(product_name) if "VEG" in v.flags
-                ]
-                if veg_varieties:
+                ]:
                     assert "VEG" in recommended.flags
 
             if gluten_free:
-                gf_varieties = [
+                if gf_varieties := [
                     v for v in self.manager.get_varieties(product_name) if "GF" in v.flags
-                ]
-                if gf_varieties:
+                ]:
                     assert "GF" in recommended.flags
 
     def test_product_variety_methods(self):

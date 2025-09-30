@@ -19,8 +19,6 @@ class TestVIPCoveragePrecise:
         """Set up test fixtures with proper isolation."""
         # Store original state
         self.original_api_key = os.environ.get("API_KEY")
-        self.original_modules = {}
-
         # Store only the modules we might modify
         modules_to_watch = [
             "app.routers.vip",
@@ -31,10 +29,11 @@ class TestVIPCoveragePrecise:
             "core.shoplist",
         ]
 
-        for module_name in modules_to_watch:
-            if module_name in sys.modules:
-                self.original_modules[module_name] = sys.modules[module_name]
-
+        self.original_modules = {
+            module_name: sys.modules[module_name]
+            for module_name in modules_to_watch
+            if module_name in sys.modules
+        }
         # Set test environment
         os.environ["API_KEY"] = "test-key"
 
@@ -118,7 +117,7 @@ class TestVIPCoveragePrecise:
         # Test with callable app_get_api_key that raises 403 (lines 99-104)
         with patch(
             "app.routers.vip.resolve_attr",
-            return_value=lambda x: (_ for _ in ()).throw(
+            return_value=lambda x: iter(()).throw(
                 HTTPException(status_code=403, detail="Forbidden")
             ),
         ):

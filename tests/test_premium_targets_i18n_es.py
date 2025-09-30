@@ -117,9 +117,7 @@ def test_premium_targets_es_life_stage_warnings():
 
         # Find the expected warning
         expected_code = case["life_stage"]
-        warning = next((w for w in warnings if w.get("code") == expected_code), None)
-
-        if warning:
+        if warning := next((w for w in warnings if w.get("code") == expected_code), None):
             message = warning["message"].lower()
             for keyword in case["expected_keywords"]:
                 assert (
@@ -238,7 +236,7 @@ def test_premium_targets_es_special_cases():
 
     # Should have pregnancy warning in Spanish
     pregnancy_warnings = [w for w in data["warnings"] if w.get("code") == "pregnant"]
-    assert len(pregnancy_warnings) > 0
+    assert pregnancy_warnings
 
     pregnancy_warning = pregnancy_warnings[0]
     message = pregnancy_warning["message"].lower()
@@ -263,7 +261,7 @@ def test_premium_targets_es_special_cases():
 
     # Should have elderly warning in Spanish
     elderly_warnings = [w for w in data["warnings"] if w.get("code") == "elderly"]
-    assert len(elderly_warnings) > 0
+    assert elderly_warnings
 
     elderly_warning = elderly_warnings[0]
     message = elderly_warning["message"].lower()

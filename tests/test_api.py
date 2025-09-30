@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import importlib
 import os
 import sys
 from unittest.mock import patch
@@ -9,8 +8,11 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 from typing import cast
 
-app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tests.test_helpers import load_app
+
+client = TestClient(load_app())
 
 
 def _cleanup_app_module(original_app):

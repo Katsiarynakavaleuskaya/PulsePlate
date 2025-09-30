@@ -393,13 +393,11 @@ def test_menu_engine_default_strategy_and_boosters_branch():
 class _StubFood:
     def __init__(self, kcal_zero: bool = False) -> None:
         self.per_g = 100.0
-        self.protein_g = 0.0
         self.fat_g = 0.0
         self.carbs_g = 0.0
         self.fiber_g = 0.0
         self.micros: Dict[str, float] = {}
-        if not kcal_zero:
-            self.protein_g = 1.0  # to allow positive kcal if needed
+        self.protein_g = 0.0 if kcal_zero else 1.0
 
 
 class _StubFoodDB:

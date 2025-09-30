@@ -84,14 +84,14 @@ class TestFoodDbNewRealisticCoverage:
                 fake.food_name(),
                 fake.food_name().lower(),
                 fake.food_name().upper(),
-                fake.word() + " " + fake.food_name(),
+                f"{fake.word()} {fake.food_name()}",
                 "",
                 "   ",
                 None,
-                fake.sentence()[:50],  # Long search term
-                "12345",  # Numeric search
-                "café",  # Non-ASCII characters
-                fake.food_name() + "xyz",  # Partial match
+                fake.sentence()[:50],
+                "12345",
+                "café",
+                f"{fake.food_name()}xyz",
             ]
 
             for term in search_terms:
@@ -394,7 +394,7 @@ class TestFoodDbNewRealisticCoverage:
 
             # Verify some searches completed
             completed = [r for r in results if r["duration"] > 0]
-            assert len(completed) >= 0  # Should handle gracefully
+            assert len(completed) > 0, "Expected at least one search to complete successfully"
 
         except ImportError:
             pass

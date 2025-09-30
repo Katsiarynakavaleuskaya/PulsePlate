@@ -1,7 +1,8 @@
 import XCTest
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
-@testable import PulsePlate
+#endif
 
 class ProgressAnimationTests: XCTestCase {
 
@@ -23,7 +24,9 @@ class ProgressAnimationTests: XCTestCase {
     // Then
     XCTAssertNotNil(ring)
     XCTAssertEqual(ring.progress, progress)
+    #if canImport(UIKit)
     XCTAssertEqual(UIColor(ring.color), UIColor(color))
+    #endif
     XCTAssertEqual(ring.lineWidth, lineWidth)
     XCTAssertEqual(ring.size, size)
   }
@@ -33,16 +36,15 @@ class ProgressAnimationTests: XCTestCase {
     let isActive = true
     let scale: Double = 1.05
 
-    // When - Create the actual PulsingView
-    let pulsingView = PulsingView(isActive: isActive, scale: scale) {
-      Text("Test")
-    }
+    // When - Create the modifier and verify properties
+    let modifier = PulsingView(isActive: isActive, scale: scale)
+    XCTAssertEqual(modifier.isActive, isActive)
+    XCTAssertEqual(modifier.scale, scale)
 
-    // Then - Test that the view is created and has expected properties
+    // Also test the extension method
+    let pulsingView = Text("Test")
+      .pulsing(isActive: isActive, scale: scale)
     XCTAssertNotNil(pulsingView)
-    // Note: In a real test environment, you would use ViewInspector or similar
-    // to verify the view's modifiers and animation properties
-    // For now, we verify the view can be instantiated without crashing
   }
 
   func testShimmerEffect() {
@@ -98,51 +100,67 @@ class ViewExtensionTests: XCTestCase {
 
   func testSlideInModifier() {
     // Given
+    let testView = Text("Test")
     let isActive = true
     let delay = 0.2
 
-    // When & Then
-    // Test that the modifier parameters are correct
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(delay, 0.2)
+    // When - Apply the slideIn modifier
+    let modifiedView = testView.slideIn(isActive: isActive, delay: delay)
+
+    // Then - Verify the view is created without crashing
+    // Note: In a real test environment, you would use ViewInspector to verify
+    // that the SlideInTransition modifier is correctly applied with the expected properties
+    XCTAssertNotNil(modifiedView)
   }
 
   func testScaleOnAppearModifier() {
     // Given
+    let testView = Text("Test")
     let isActive = true
     let scale = 1.1
 
-    // When & Then
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(scale, 1.1)
+    // When - Apply the scaleOnAppear modifier
+    let modifiedView = testView.scaleOnAppear(isActive: isActive, scale: scale)
+
+    // Then - Verify the view is created without crashing
+    XCTAssertNotNil(modifiedView)
   }
 
   func testFadeInModifier() {
     // Given
+    let testView = Text("Test")
     let isActive = true
     let delay = 0.1
 
-    // When & Then
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(delay, 0.1)
+    // When - Apply the fadeIn modifier
+    let modifiedView = testView.fadeIn(isActive: isActive, delay: delay)
+
+    // Then - Verify the view is created without crashing
+    XCTAssertNotNil(modifiedView)
   }
 
   func testPulsingModifier() {
     // Given
+    let testView = Text("Test")
     let isActive = true
     let scale = 1.05
 
-    // When & Then
-    XCTAssertTrue(isActive)
-    XCTAssertEqual(scale, 1.05)
+    // When - Apply the pulsing modifier
+    let modifiedView = testView.pulsing(isActive: isActive, scale: scale)
+
+    // Then - Verify the view is created without crashing
+    XCTAssertNotNil(modifiedView)
   }
 
   func testShimmerModifier() {
     // Given
-    let shimmerEffect = ShimmerEffect()
+    let testView = Text("Test")
 
-    // When & Then
-    XCTAssertNotNil(shimmerEffect)
+    // When - Apply the shimmer modifier
+    let modifiedView = testView.shimmer()
+
+    // Then - Verify the view is created without crashing
+    XCTAssertNotNil(modifiedView)
   }
 }
 
@@ -154,7 +172,7 @@ class PerformanceTests: XCTestCase {
     let iterations = 1000
 
     // When & Then
-    measure {
+    measure(metrics: [XCTClockMetric()]) {
       for _ in 0..<iterations {
         let _ = AnimatedProgressRing(progress: 0.5, color: .blue)
       }
@@ -166,7 +184,7 @@ class PerformanceTests: XCTestCase {
     let iterations = 1000
 
     // When & Then
-    measure {
+    measure(metrics: [XCTClockMetric()]) {
       for _ in 0..<iterations {
         let _ = NutritionSegment(
           name: "Test",

@@ -165,10 +165,7 @@ class TestCoverage97Targeted:
         # Validate response body structure for successful responses
         if expected_status == 200:
             response_data = response.json()
-            if endpoint == "/api/v1/premium/targets":
-                assert "kcal_daily" in response_data
-                assert "macros" in response_data
-            elif endpoint == "/premium_targets":
+            if endpoint in ["/api/v1/premium/targets", "/premium_targets"]:
                 assert "kcal_daily" in response_data
                 assert "macros" in response_data
             elif endpoint == "/premium_bmr":

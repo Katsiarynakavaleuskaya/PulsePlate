@@ -34,17 +34,17 @@ class TestRecipesDatabaseExpansionHypothesis:
         for recipe in self.recipes.values():
             total_calories = 0
             for ingredient, amount in recipe.ingredients.items():
-                # Find food item
-                food_item = None
-                for food in self.foods.values():
-                    if (
-                        food.name.lower() in ingredient.lower()
-                        or ingredient.lower() in food.name.lower()
-                    ):
-                        food_item = food
-                        break
-
-                if food_item:
+                if food_item := next(
+                    (
+                        food
+                        for food in self.foods.values()
+                        if (
+                            food.name.lower() in ingredient.lower()
+                            or ingredient.lower() in food.name.lower()
+                        )
+                    ),
+                    None,
+                ):
                     # Calculate calories for this ingredient
                     # (4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat)
                     calories_per_100g = (
@@ -72,15 +72,14 @@ class TestRecipesDatabaseExpansionHypothesis:
     @settings(deadline=None)
     def test_recipe_flags_hypothesis(self, flag_combination):
         """Test recipes with specific flag combinations."""
-        matching_recipes = []
-
-        for recipe in self.recipes.values():
-            if all(flag in recipe.flags for flag in flag_combination):
-                matching_recipes.append(recipe)
-
+        matching_recipes = [
+            recipe
+            for recipe in self.recipes.values()
+            if all(flag in recipe.flags for flag in flag_combination)
+        ]
         # Should have some recipes with common flag combinations
         if len(flag_combination) <= 1:  # Single flags should exist
-            assert len(matching_recipes) > 0
+            assert matching_recipes
 
     @given(
         min_protein=st.floats(min_value=10.0, max_value=50.0),
@@ -97,17 +96,17 @@ class TestRecipesDatabaseExpansionHypothesis:
 
             total_protein = 0
             for ingredient, amount in recipe.ingredients.items():
-                # Find food item
-                food_item = None
-                for food in self.foods.values():
-                    if (
-                        food.name.lower() in ingredient.lower()
-                        or ingredient.lower() in food.name.lower()
-                    ):
-                        food_item = food
-                        break
-
-                if food_item:
+                if food_item := next(
+                    (
+                        food
+                        for food in self.foods.values()
+                        if (
+                            food.name.lower() in ingredient.lower()
+                            or ingredient.lower() in food.name.lower()
+                        )
+                    ),
+                    None,
+                ):
                     # Calculate protein for this ingredient
                     protein_per_100g = food_item.protein_g
                     protein_for_amount = (protein_per_100g * amount) / 100
@@ -118,7 +117,7 @@ class TestRecipesDatabaseExpansionHypothesis:
 
         # Should have some high-protein recipes
         if min_protein <= 30 and min_ingredients <= 4:  # Reasonable criteria
-            assert len(high_protein_recipes) > 0
+            assert high_protein_recipes
 
     @given(
         ingredient_name=st.sampled_from(
@@ -151,7 +150,7 @@ class TestRecipesDatabaseExpansionHypothesis:
                     break
 
         # Should have some recipes with common ingredients
-        assert len(recipes_with_ingredient) > 0
+        assert recipes_with_ingredient
 
     def test_recipe_database_integrity(self):
         """Test recipe database integrity and completeness."""
@@ -185,17 +184,17 @@ class TestRecipesDatabaseExpansionHypothesis:
             total_protein = 0
 
             for ingredient, amount in recipe.ingredients.items():
-                # Find food item
-                food_item = None
-                for food in self.foods.values():
-                    if (
-                        food.name.lower() in ingredient.lower()
-                        or ingredient.lower() in food.name.lower()
-                    ):
-                        food_item = food
-                        break
-
-                if food_item:
+                if food_item := next(
+                    (
+                        food
+                        for food in self.foods.values()
+                        if (
+                            food.name.lower() in ingredient.lower()
+                            or ingredient.lower() in food.name.lower()
+                        )
+                    ),
+                    None,
+                ):
                     # Calculate nutrients
                     calories_per_100g = (
                         (food_item.protein_g * 4) + (food_item.carbs_g * 4) + (food_item.fat_g * 9)

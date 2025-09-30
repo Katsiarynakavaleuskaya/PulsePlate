@@ -94,9 +94,7 @@ class TestWHOTargets:
         # Should be below maintenance calories
         assert targets.kcal_daily >= 1200  # Safety minimum
 
-        # Should have higher protein for muscle preservation
-        protein_ratio = targets.macros.protein_g / targets.kcal_daily * 4 * 100
-        assert protein_ratio >= 20  # At least 20% protein for weight loss
+        assert targets.macros.protein_g / targets.kcal_daily * 4 >= 20 / 100
 
     def test_weight_gain_goals(self):
         """Test targets for weight gain goals."""

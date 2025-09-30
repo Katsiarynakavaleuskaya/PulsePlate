@@ -1014,11 +1014,9 @@ class TestDatabaseUpdateManagerComprehensive:
 
             # Mock the first few files to have an old timestamp and the unlink method
             # to raise an exception
-            for i, bf in enumerate(backup_files[:3]):
+            for _ in backup_files[:3]:
                 # Mock stat to return an old timestamp
                 _ = datetime.now() - timedelta(days=365)  # Old timestamp
-                # We can't easily mock stat, so we'll just test the exception handling differently
-
             # Just test that the function doesn't crash when there are files to clean up
             # We'll mock the unlink method on one of the files to raise an exception
             with patch("pathlib.Path.unlink", side_effect=Exception("Test error")):

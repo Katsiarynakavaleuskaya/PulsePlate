@@ -133,7 +133,7 @@ class TestAppBMIBodyfatCoverage:
             for msg in log_messages
             if any(keyword in msg.lower() for keyword in ["bmi", "calculated", "group"])
         ]
-        assert len(bmi_logs) > 0, f"Expected BMI-related logs, got: {log_messages}"
+        assert bmi_logs, f"Expected BMI-related logs, got: {log_messages}"
 
     def test_bmi_metrics_coverage(self, test_environment):
         """Тест покрытия BMI metrics с моком метрик"""

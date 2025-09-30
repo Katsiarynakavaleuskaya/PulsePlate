@@ -40,7 +40,7 @@ def reload_module_with_off_import_failure():
         patch(
             "importlib.import_module",
             side_effect=lambda name, *a, **kw: (
-                (_ for _ in ()).throw(ImportError("OFF module unavailable"))
+                iter(()).throw(ImportError("OFF module unavailable"))
                 if name.endswith("openfoodfacts_client")
                 else orig_import_module(name, *a, **kw)
             ),

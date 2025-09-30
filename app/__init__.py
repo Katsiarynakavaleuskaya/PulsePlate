@@ -1,105 +1,32 @@
+#!/usr/bin/env python3
 """
-Compatibility package shim to expose the FastAPI `app` from the
-top-level `app.py` module while preserving attribute access for tests
-that patch functions like `app.make_weekly_menu`.
+App module initialization
 """
 
-from __future__ import annotations
-
+# Import FastAPI app and functions from the main module
+import sys
+import os
 import importlib.util
-import sys as _sys
-from pathlib import Path
-from types import ModuleType
 
-_ROOT_APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-_spec = importlib.util.spec_from_file_location("_app_top_module", _ROOT_APP_PATH)
-# Keep a base spec to satisfy importlib expectations when using a proxy
-_BASE_SPEC = importlib.util.spec_from_file_location("app", _ROOT_APP_PATH)
-_mod: ModuleType
-if _spec and _spec.loader:  # pragma: no cover - defensive
-    _mod = importlib.util.module_from_spec(_spec)
-    # Ensure module is visible in sys.modules under its name before exec
-    _sys.modules["_app_top_module"] = _mod
-    _spec.loader.exec_module(_mod)
-else:  # pragma: no cover
-    raise ImportError("Failed to load top-level app.py module")
+# Import from the main app.py file directly
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    app = None
+    get_api_key = None
+    get_update_scheduler = None
+    HTTPException = None
+    admin_status = None
+else:
+    app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(app_module)
+    app = app_module.app
+    get_api_key = app_module.get_api_key
+    get_update_scheduler = app_module.get_update_scheduler
+    HTTPException = app_module.HTTPException
+    admin_status = app_module.admin_status
 
-# Public FastAPI instance
-app = getattr(_mod, "app", None)
-if app is None:  # pragma: no cover
-    raise AttributeError("Top-level app.py has no 'app' instance")
-
-# Ensure this package exposes a valid search path for submodules
-if "__path__" not in globals():  # pragma: no cover
-    __path__ = [str(Path(__file__).parent)]
-
-
-def __getattr__(name: str):  # pragma: no cover - passthrough
-    return getattr(_mod, name)
-
-
-__all__ = ["app"]
-
-# Pre-expose commonly patched symbols so unittest.mock.patch finds them
-for _name in (
-    "make_weekly_menu",
-    "make_daily_menu",
-    "build_nutrition_targets",
-    "analyze_nutrient_gaps",
-    "make_plate",
-    "get_api_key",
-    "WHOTargetsRequest",
-):
-    try:  # pragma: no cover
-        globals()[_name] = getattr(_mod, _name)
-    except Exception:
-        pass
-
-# Ensure sys.modules['app'] points to this package module for reliable reloads
-try:  # pragma: no cover
-    if _sys.modules.get("app") is not _sys.modules.get(__name__):
-        _sys.modules["app"] = _sys.modules[__name__]
-except Exception:
-    pass
-
-# However, some test modules temporarily replace sys.modules['app'] with a different
-# module instance, which makes importlib.reload(app_module) raise "module app not in sys.modules".
-# To make reload robust, expose a lightweight __spec__ proxy that rebinds sys.modules['app']
-# to this module when reload reads __spec__.name. Reload will then proceed and immediately
-# replace __spec__ with a real ModuleSpec found by importlib. This keeps normal behavior intact.
-try:  # pragma: no cover - defensive; avoid impacting production runtime
-    import types as _types
-
-    class _ReloadSpecProxy:
-        def __init__(self, module: _types.ModuleType):
-            self._module = module
-
-        @property
-        def name(self) -> str:
-            # Ensure sys.modules['app'] points to the same module object being reloaded
-            _sys.modules["app"] = self._module
-            return "app"
-
-        def __getattr__(self, attr: str):  # best-effort to satisfy importlib attrs
-            # Provide minimal attributes importlib may probe during package imports
-            if attr in {"origin", "loader"} and _BASE_SPEC:
-                return getattr(_BASE_SPEC, attr, None)
-            if attr == "submodule_search_locations":
-                # Provide a non-empty list so importlib can treat this as a package
-                try:
-                    return [str(Path(__file__).parent)]
-                except Exception:
-                    return [""]
-            if attr == "_uninitialized_submodules":
-                return []
-            return None
-
-    # Always attach proxy; importlib.reload() will replace it with a real ModuleSpec immediately
-    _self = _sys.modules.get(__name__)
-    if _self is not None:
-        _self.__spec__ = _ReloadSpecProxy(_self)  # type: ignore[assignment]
-except Exception:
-    pass
-# Note: We intentionally avoid custom aliasing beyond this stabilization. Standard
-# importlib.reload(app) should work for typical flows.
+# Export the app and key functions for easy importing
+__all__ = ["app", "get_api_key", "get_update_scheduler", "HTTPException", "admin_status"]

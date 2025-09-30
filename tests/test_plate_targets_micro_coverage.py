@@ -67,8 +67,8 @@ class TestPlateTargetsMicroCoverage:
             target_micros = set(targets_data["priority_micros"].keys())
             plate_micros = set(plate_data["day_micros"].keys())
             # Note: They may not be exactly the same due to different implementations
-            assert len(target_micros) > 0, "Targets should have micronutrients"
-            assert len(plate_micros) > 0, "Plate should have micronutrients"
+            assert target_micros, "Targets should have micronutrients"
+            assert plate_micros, "Plate should have micronutrients"
         else:
             # day_micros not implemented yet - skip consistency check
             pytest.skip("day_micros not implemented in plate endpoint yet")
@@ -454,10 +454,8 @@ class TestPlateTargetsMicroCoverage:
             plate_micros = set(plate_data["day_micros"].keys())
 
             # Note: They may not be exactly the same due to different implementations
-            assert (
-                len(target_micros) > 0
-            ), f"Targets should have micronutrients for profile {profile}"
-            assert len(plate_micros) > 0, f"Plate should have micronutrients for profile {profile}"
+            assert target_micros, f"Targets should have micronutrients for profile {profile}"
+            assert plate_micros, f"Plate should have micronutrients for profile {profile}"
 
             # Verify all micronutrients are non-negative
             for nutrient in target_micros:

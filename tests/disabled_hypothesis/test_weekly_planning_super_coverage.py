@@ -10,7 +10,7 @@ import pytest
 import os
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-from app import app
+from app.app import app
 
 
 @pytest.fixture
@@ -144,22 +144,23 @@ class TestWeeklyPlanningBlocks:
         # Патчинг getattr для нахождения make_weekly_menu
         original_getattr = getattr
 
-        def mock_getattr(obj, name, default=None):
-            if name == "make_weekly_menu":
-                # Возвращаем мокнутую функцию
-                def mock_make_weekly_menu(profile):
-                    mock_result = MagicMock()
-                    mock_result.week_start = "2025-01-01"
-                    mock_result.total_cost = 140.0
-                    mock_result.daily_menus = [
-                        MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
-                    ]
-                    mock_result.shopping_list = {"test": "item"}
-                    mock_result.weekly_coverage = {"protein": 90}
-                    return mock_result
+        def mock_getattr(obj: object, name: str, default: object = None) -> object:
+            if name != "make_weekly_menu":
+                return original_getattr(obj, name, default)
 
-                return mock_make_weekly_menu
-            return original_getattr(obj, name, default)
+            # Возвращаем мокнутую функцию
+            def mock_make_weekly_menu(_profile: object) -> MagicMock:
+                mock_result = MagicMock()
+                mock_result.week_start = "2025-01-01"
+                mock_result.total_cost = 140.0
+                mock_result.daily_menus = [
+                    MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
+                ]
+                mock_result.shopping_list = {"test": "item"}
+                mock_result.weekly_coverage = {"protein": 90}
+                return mock_result
+
+            return mock_make_weekly_menu
 
         with patch("builtins.getattr", side_effect=mock_getattr):
             os.environ["API_KEY"] = "test_key"
