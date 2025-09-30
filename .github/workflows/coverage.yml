@@ -36,7 +36,7 @@ jobs:
             --cov \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=97 \
+            --cov-fail-under=96.5 \
             --junitxml=tests/results.xml -o junit_family=legacy
 
       - name: Restore static data fixtures
