@@ -3,16 +3,67 @@
 Custom MCP setup for PulsePlate with ChatGPT integration
 """
 import json
+import os
+import sys
+import time
 from pathlib import Path
 
 
 def setup_custom_mcp() -> None:
     """Setup custom MCP configuration for PulsePlate"""
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Setup custom MCP configuration for PulsePlate")
+    parser.add_argument(
+        "--force", action="store_true", help="Force overwrite existing files without prompting"
+    )
+    args = parser.parse_args()
 
     # Get home directory
     home = Path.home()
     cursor_dir = home / ".cursor"
     cursor_dir.mkdir(exist_ok=True)
+
+    # Check for existing files
+    files_to_check = [
+        (cursor_dir / "mcp.json", "MCP configuration"),
+        (cursor_dir / ".env", "Environment file"),
+        (cursor_dir / "settings.json", "Cursor settings"),
+    ]
+
+    existing_files = []
+    for file_path, description in files_to_check:
+        if file_path.exists():
+            existing_files.append((file_path, description))
+
+    if existing_files and not args.force:
+        print("⚠️  The following files already exist:")
+        for file_path, description in existing_files:
+            print(f"   - {file_path} ({description})")
+        print()
+
+        response = (
+            input("Do you want to create backups and overwrite these files? (y/N): ")
+            .strip()
+            .lower()
+        )
+        if response not in ["y", "yes"]:
+            print("❌ Setup cancelled. Use --force to overwrite without prompting.")
+            return False
+
+        # Create backups
+        for file_path, description in existing_files:
+            backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{int(time.time())}")
+            file_path.rename(backup_path)
+            print(f"💾 Backup created: {backup_path}")
+
+    elif existing_files and args.force:
+        # Create backups when using --force
+        for file_path, description in existing_files:
+            backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{int(time.time())}")
+            file_path.rename(backup_path)
+            print(f"💾 Backup created: {backup_path}")
 
     # Create MCP configuration
     mcp_config = {
@@ -64,6 +115,8 @@ MCP_ENABLED=true
     print("3. Restart Cursor")
     print("4. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
+    return True
+
 
 def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
     """Write JSON configuration to a file and print success message.
@@ -82,4 +135,6 @@ def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_mess
 
 
 if __name__ == "__main__":
-    setup_custom_mcp()
+    success = setup_custom_mcp()
+    if not success:
+        sys.exit(1)

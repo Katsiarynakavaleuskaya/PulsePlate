@@ -3,8 +3,6 @@
 Update API key in MCP configuration
 """
 import json
-
-# import os  # noqa: F401
 from pathlib import Path
 
 
@@ -23,9 +21,13 @@ def update_api_key(api_key: str):
         with open(mcp_file, "r") as f:
             config = json.load(f)
 
+        # Ensure nested structure exists
+        config.setdefault("mcpServers", {})
+        config["mcpServers"].setdefault("pulseplate-chatgpt", {})
+        config["mcpServers"]["pulseplate-chatgpt"].setdefault("env", {})
+
         # Update API key in MCP config
-        if "pulseplate-chatgpt" in config["mcpServers"]:
-            config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"] = api_key
+        config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"] = api_key
 
         with open(mcp_file, "w") as f:
             json.dump(config, f, indent=2)
@@ -40,10 +42,16 @@ def update_api_key(api_key: str):
 
         # Replace API key
         lines = content.split("\n")
+        key_replaced = False
         for i, line in enumerate(lines):
             if line.startswith("OPENAI_API_KEY="):
                 lines[i] = f"OPENAI_API_KEY={api_key}"
+                key_replaced = True
                 break
+
+        # If no existing key found, append it
+        if not key_replaced:
+            lines.append(f"OPENAI_API_KEY={api_key}")
 
         with open(env_file, "w") as f:
             f.write("\n".join(lines))

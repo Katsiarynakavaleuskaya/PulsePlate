@@ -5,8 +5,9 @@
 
 echo "🎨 Обновляем иконки PulsePlate..."
 
-# Путь к проекту
-PROJECT_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios"
+# Путь к проекту (относительно скрипта)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 ICONS_DIR="$PROJECT_DIR/PulsePlate/Assets.xcassets/AppIcon.appiconset"
 
 # Проверяем, что папка существует
@@ -52,7 +53,7 @@ if [ ${#missing_icons[@]} -gt 0 ]; then
     done
     echo ""
     echo "🔄 Генерируем недостающие иконки..."
-    python3 generate_app_icons.py
+    python3 generate_app_icons.py || { echo "❌ Ошибка при генерации иконок"; exit 1; }
 else
     echo "✅ Все иконки на месте!"
 fi

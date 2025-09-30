@@ -28,6 +28,9 @@ struct AnimatedFitChef: View {
     }
 
     private func startAnimation() {
+        // Stop any existing timer first
+        stopAnimation()
+
         animationTimer = Timer.scheduledTimer(withTimeInterval: frameDuration, repeats: true) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 currentFrame = (currentFrame + 1) % frames.count
