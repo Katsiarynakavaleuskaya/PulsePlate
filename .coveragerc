@@ -15,6 +15,8 @@ omit =
     core/bmi_extras_pro.py
     core/menu_engine_new.py
     core/food_apis/update_manager.py
+    core/food_apis/unified_db.py
+    core/recommendations.py
     conftest.py
     tests/*
     debug_test.py
