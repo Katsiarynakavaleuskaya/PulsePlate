@@ -36,6 +36,10 @@ else:
     export_pdf_generic = getattr(app_module, "export_pdf_generic", None)
     _mod = app_module
 
+# Create a module spec for this package
+__spec__ = importlib.util.spec_from_loader(__name__, loader=None)
+__spec__.name = __name__
+
 # Export the app and key functions for easy importing
 __all__ = [
     "app",
