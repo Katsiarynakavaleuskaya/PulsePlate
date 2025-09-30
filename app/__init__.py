@@ -48,9 +48,27 @@ _this_module = sys.modules[__name__]
 
 
 class _RebindingModuleSpec(ModuleSpec):
-    """Custom ModuleSpec that ensures sys.modules binding on name access."""
+    """Custom ModuleSpec that ensures sys.modules binding on name access.
+
+    This custom spec overrides __getattribute__ to restore sys.modules binding
+    when the 'name' attribute is accessed. This fixes edge cases where monkeypatch
+    or dynamic module loading breaks the binding between sys.modules[spec.name]
+    and the actual module object.
+
+    Args:
+        *args: Positional arguments passed to ModuleSpec
+        owner_module: The module object that owns this spec
+        **kwargs: Keyword arguments passed to ModuleSpec
+    """
 
     def __init__(self, *args, owner_module=None, **kwargs):
+        """Initialize the rebinding module spec.
+
+        Args:
+            *args: Positional arguments for ModuleSpec
+            owner_module: The module that owns this spec (default: None)
+            **kwargs: Keyword arguments for ModuleSpec
+        """
         super().__init__(*args, **kwargs)
         self._owner_module = owner_module
 
