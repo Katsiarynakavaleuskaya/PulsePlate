@@ -7,6 +7,10 @@ from faker import Faker
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
+from types import ModuleType
+from typing import Any
+from fastapi import FastAPI
+
 import sys
 import os
 
@@ -16,16 +20,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import importlib.util
 import pathlib
 
-repo_root = pathlib.Path(__file__).parent.parent
-app_path = repo_root / "app.py"
+repo_root: pathlib.Path = pathlib.Path(__file__).parent.parent
+app_path: pathlib.Path = repo_root / "app.py"
 
-spec = importlib.util.spec_from_file_location("app_module", str(app_path))
+spec: Any = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
     raise ImportError(f"Cannot load app.py from {app_path}")
 
-app_module = importlib.util.module_from_spec(spec)
+app_module: ModuleType = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
-app = app_module.app
+app: FastAPI = app_module.app
 
 fake = Faker()
 

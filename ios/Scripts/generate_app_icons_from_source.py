@@ -46,7 +46,7 @@ def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> 
 def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
     try:
-        from PIL import Image  # noqa: F401
+        from PIL import Image
     except ImportError:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
@@ -106,7 +106,7 @@ def generate_all_icons_from_source(source_path: str) -> bool:
 def main() -> None:
     # Check Pillow availability
     try:
-        import PIL  # noqa: F401
+        import PIL
     except ImportError:
         print("❌ Требуется библиотека Pillow:")
         print("   pip install Pillow")

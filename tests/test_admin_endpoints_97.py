@@ -14,28 +14,14 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 from typing import cast
 
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
 
 @pytest.fixture
-def client():
+def client(app: FastAPI):
     """Test client fixture"""
     return TestClient(cast(ASGIApp, app))
 

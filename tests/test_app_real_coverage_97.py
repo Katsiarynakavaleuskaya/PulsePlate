@@ -4,24 +4,15 @@ Real functional tests for main.py endpoints without mocks
 Targets major uncovered blocks: /bmi, /plan endpoints with real data
 """
 
-from fastapi.testclient import TestClient
-import sys
 import os
+import pytest
+from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
-client = TestClient(app)
+@pytest.fixture
+def client(app):
+    """Test client fixture using app from conftest"""
+    return TestClient(app)
 
 
 class TestAppReal97Coverage:
@@ -32,7 +23,7 @@ class TestAppReal97Coverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_bmi_endpoint_pregnant_with_chart_visualization(self):
+    def test_bmi_endpoint_pregnant_with_chart_visualization(self, client):
         """Test /bmi endpoint for pregnant user with visualization request (lines 653-680)"""
         response = client.post(
             "/bmi",
@@ -61,7 +52,7 @@ class TestAppReal97Coverage:
         # Check visualization handling (lines 666-677)
         # Either visualization is added or skipped based on availability
 
-    def test_bmi_endpoint_athlete_with_chart_and_waist_risk(self):
+    def test_bmi_endpoint_athlete_with_chart_and_waist_risk(self, client):
         """Test /bmi endpoint for athlete with visualization and waist risk (lines 680-714)"""
         response = client.post(
             "/bmi",
@@ -92,7 +83,7 @@ class TestAppReal97Coverage:
         # Check visualization handling (lines 695-714)
         # Either visualization is added or error message about matplotlib
 
-    def test_bmi_endpoint_regular_user_high_waist_risk(self):
+    def test_bmi_endpoint_regular_user_high_waist_risk(self, client):
         """Test /bmi endpoint for regular user with high waist risk"""
         response = client.post(
             "/bmi",
@@ -116,7 +107,7 @@ class TestAppReal97Coverage:
         assert data["group"] == "general"
         assert "note" in data
 
-    def test_plan_endpoint_russian_language_basic(self):
+    def test_plan_endpoint_russian_language_basic(self, client):
         """Test /plan endpoint with Russian language (lines 720-752)"""
         response = client.post(
             "/plan",
@@ -143,7 +134,7 @@ class TestAppReal97Coverage:
         assert data["premium"] is False
         assert "premium_reco" not in data  # No premium in basic plan
 
-    def test_plan_endpoint_russian_language_premium(self):
+    def test_plan_endpoint_russian_language_premium(self, client):
         """Test /plan endpoint with Russian language and premium (lines 743-752)"""
         response = client.post(
             "/plan",
@@ -167,7 +158,7 @@ class TestAppReal97Coverage:
         assert "Дефицит" in data["premium_reco"][0]
         assert "силовые" in data["premium_reco"][1]
 
-    def test_plan_endpoint_english_language_basic(self):
+    def test_plan_endpoint_english_language_basic(self, client):
         """Test /plan endpoint with English language (lines 753-765)"""
         response = client.post(
             "/plan",
@@ -193,7 +184,7 @@ class TestAppReal97Coverage:
         assert "walk" in data["action"]
         assert data["premium"] is False
 
-    def test_plan_endpoint_english_language_premium(self):
+    def test_plan_endpoint_english_language_premium(self, client):
         """Test /plan endpoint with English language and premium (lines 758-765)"""
         response = client.post(
             "/plan",
@@ -217,7 +208,7 @@ class TestAppReal97Coverage:
         assert "deficit" in data["premium_reco"][0].lower()
         assert "strength" in data["premium_reco"][1].lower()
 
-    def test_plan_endpoint_pregnant_user_category_none(self):
+    def test_plan_endpoint_pregnant_user_category_none(self, client):
         """Test /plan endpoint for pregnant user (category = None case)"""
         response = client.post(
             "/plan",
@@ -240,7 +231,7 @@ class TestAppReal97Coverage:
         assert "bmi" in data
         assert "healthy_bmi" in data
 
-    def test_plan_endpoint_athlete_user_category(self):
+    def test_plan_endpoint_athlete_user_category(self, client):
         """Test /plan endpoint for athlete user"""
         response = client.post(
             "/plan",
@@ -262,7 +253,7 @@ class TestAppReal97Coverage:
         assert "category" in data
         assert data["premium"] is True
 
-    def test_multiple_bmi_scenarios_for_coverage(self):
+    def test_multiple_bmi_scenarios_for_coverage(self, client):
         """Test multiple BMI scenarios to cover different paths"""
 
         # Test underweight scenario
@@ -313,7 +304,7 @@ class TestAppReal97Coverage:
         )
         assert response3.status_code == 200
 
-    def test_bmi_different_languages_and_ages(self):
+    def test_bmi_different_languages_and_ages(self, client):
         """Test BMI with different languages and age groups"""
 
         # Young adult in Russian
@@ -346,7 +337,7 @@ class TestAppReal97Coverage:
         )
         assert response2.status_code == 200
 
-    def test_plan_different_bmi_categories(self):
+    def test_plan_different_bmi_categories(self, client):
         """Test plan endpoint with different BMI categories"""
 
         # Plan for underweight person
@@ -381,7 +372,7 @@ class TestAppReal97Coverage:
         )
         assert response2.status_code == 200
 
-    def test_bmi_edge_cases_and_boundary_conditions(self):
+    def test_bmi_edge_cases_and_boundary_conditions(self, client):
         """Test BMI endpoint with edge cases to maximize coverage"""
 
         # Very low BMI
@@ -417,7 +408,7 @@ class TestAppReal97Coverage:
         )
         assert response2.status_code == 200
 
-    def test_combined_scenarios_for_maximum_coverage(self):
+    def test_combined_scenarios_for_maximum_coverage(self, client):
         """Test combinations to hit as many code paths as possible"""
 
         # Pregnant athlete (edge case)

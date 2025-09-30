@@ -6,16 +6,17 @@
 if [ -z "$PROJECT_ROOT" ]; then
     # Попробуем автоматически определить путь к проекту
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$SCRIPT_DIR/pyproject.toml" ] && [ -f "$SCRIPT_DIR/app.py" ]; then
+    # Проверяем наличие pyproject.toml и либо app.py, либо app/ директории
+    if [ -f "$SCRIPT_DIR/pyproject.toml" ] && { [ -f "$SCRIPT_DIR/app.py" ] || [ -d "$SCRIPT_DIR/app" ]; }; then
         PROJECT_ROOT="$SCRIPT_DIR"
         echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
     else
         while true; do
             read -r -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
-            if [ -n "$PROJECT_ROOT" ] && [ -d "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/pyproject.toml" ] && [ -f "$PROJECT_ROOT/app.py" ]; then
+            if [ -n "$PROJECT_ROOT" ] && [ -d "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/pyproject.toml" ] && { [ -f "$PROJECT_ROOT/app.py" ] || [ -d "$PROJECT_ROOT/app" ]; }; then
                 break
             else
-                echo "❌ Неверный путь. Убедитесь, что директория существует и содержит pyproject.toml и app.py"
+                echo "❌ Неверный путь. Убедитесь, что директория существует и содержит pyproject.toml и app.py (или app/ директорию)"
             fi
         done
     fi
@@ -56,7 +57,21 @@ echo "✅ Функция 'pptest-method' создана"
 
 # Покрытие кода
 create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
-create_alias "ppcov-html" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=html && if command -v open >/dev/null 2>&1; then open htmlcov/index.html; elif command -v xdg-open >/dev/null 2>&1; then xdg-open htmlcov/index.html; else echo 'Откройте htmlcov/index.html в браузере'; fi"
+
+# Функция для покрытия с HTML и автооткрытием браузера
+ppcov-html() {
+  cd "$PROJECT_ROOT" || return 1
+  python -m pytest tests/ --cov=. --cov-report=html || return 1
+  if command -v open >/dev/null 2>&1; then
+    open htmlcov/index.html
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open htmlcov/index.html
+  else
+    echo 'Откройте htmlcov/index.html в браузере'
+  fi
+}
+echo "✅ Функция 'ppcov-html' создана"
+
 create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97"
 
 # Линтинг и форматирование
@@ -149,5 +164,5 @@ echo "  pp && pptest && ppcov && pplint && ppsafe-push"
 echo "  pp && ppcheck && ppauto-push"
 echo ""
 echo "✅ Готово! Все алиасы активны в текущей сессии."
-echo "💾 Для постоянного использования добавьте в ~/.zshrc:"
+echo "💾 Для постоянного использования добавьте в ~/.zshrc (или ~/.bashrc):"
 echo "   source $PROJECT_ROOT/setup_cli_aliases.sh"

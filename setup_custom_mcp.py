@@ -7,6 +7,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 
 def setup_custom_mcp() -> None:
@@ -131,13 +132,15 @@ MCP_ENABLED=true
     return True
 
 
-def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
+def _write_json_config(
+    cursor_dir: Path, filename: str, data: dict[str, Any], success_message: str
+) -> None:
     """Write JSON configuration to a file and print success message.
 
     Args:
         cursor_dir: Directory where the config file will be written
         filename: Name of the config file
-        data: Dictionary to serialize as JSON
+        data: Dictionary with string keys to serialize as JSON
         success_message: Message prefix for success output
     """
     config_file = cursor_dir / filename

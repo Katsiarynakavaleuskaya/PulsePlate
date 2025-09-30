@@ -155,7 +155,7 @@ def generate_all_icons() -> bool:
             print(f"✅ {filename} ({size}x{size})")
             success_count += 1
 
-        except (OSError, ValueError, TypeError) as e:
+        except (OSError, ValueError, TypeError, KeyError) as e:
             print(f"❌ Ошибка при создании {filename}: {e}")
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")
@@ -163,8 +163,6 @@ def generate_all_icons() -> bool:
 
 
 if __name__ == "__main__":
-    # PIL уже импортирован в начале файла
-
     # Генерируем иконки
     if generate_all_icons():
         print("\n🎉 Все иконки успешно созданы!")

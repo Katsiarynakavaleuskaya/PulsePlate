@@ -103,7 +103,7 @@ EOF
 echo "📋 Создана подробная инструкция: LOTTIE_INSTALL_STEPS.md"
 
 # Создаем тестовые Lottie файлы (заглушки)
-mkdir -p PulsePlate/Resources/Lottie
+mkdir -p PulsePlate/Resources/Lottie || { echo "❌ Не удалось создать директорию Resources/Lottie"; exit 1; }
 cat > PulsePlate/Resources/Lottie/fitchef_blink.json << 'EOF'
 {
   "v": "5.7.4",
@@ -237,6 +237,7 @@ cat > PulsePlate/Resources/Lottie/fitchef_blink.json << 'EOF'
   "markers": []
 }
 EOF
+[ $? -eq 0 ] || { echo "❌ Не удалось создать fitchef_blink.json"; exit 1; }
 
 echo "🎬 Создан тестовый Lottie файл: fitchef_blink.json"
 

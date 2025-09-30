@@ -122,7 +122,10 @@ install_animation() {
                 mv "$dest_file" "$backup_file"
                 echo "   📄 Копирую $file"
                 if ! cp "$src_file" "$dest_file"; then
-                    echo "❌ Failed to copy $src_file to $dest_file" >&2
+                    echo "❌ Ошибка копирования:" >&2
+                    echo "   Источник: $src_file" >&2
+                    echo "   Назначение: $dest_file" >&2
+                    echo "   Проверьте права доступа и свободное место на диске" >&2
                     return 1
                 fi
             else
@@ -131,7 +134,10 @@ install_animation() {
         else
             echo "   📄 Копирую $file"
             if ! cp "$src_file" "$dest_file"; then
-                echo "❌ Failed to copy $src_file to $dest_file" >&2
+                echo "❌ Ошибка копирования:" >&2
+                echo "   Источник: $src_file" >&2
+                echo "   Назначение: $dest_file" >&2
+                echo "   Проверьте права доступа и свободное место на диске" >&2
                 return 1
             fi
         fi

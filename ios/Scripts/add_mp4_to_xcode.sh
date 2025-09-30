@@ -96,6 +96,9 @@ else
     MP4_FILES='        "no_files_found"'
 fi
 
+# Создаем папку для Views/Components
+mkdir -p PulsePlate/Views/Components
+
 # Создаем простой тест для проверки Bundle
 cat > PulsePlate/Views/Components/BundleTestView.swift << EOF
 import SwiftUI
