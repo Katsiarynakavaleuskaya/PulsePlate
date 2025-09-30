@@ -30,7 +30,7 @@ class TestAppMissingLinesCoverage:
         assert _is_truthy("") is False
         assert _is_truthy(None) is False
 
-    def test_get_api_key_with_valid_key(self, test_client):
+    def test_get_api_key_with_valid_key(self, client):
         """Test get_api_key with valid API key."""
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
             from app import get_api_key
@@ -41,7 +41,7 @@ class TestAppMissingLinesCoverage:
                 result = get_api_key("valid_key")
                 assert result == "valid_key"
 
-    def test_get_api_key_with_invalid_key(self, test_client):
+    def test_get_api_key_with_invalid_key(self, client):
         """Test get_api_key with invalid API key."""
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
             from app import get_api_key
@@ -50,7 +50,7 @@ class TestAppMissingLinesCoverage:
             with pytest.raises(Exception):
                 get_api_key("invalid_key")
 
-    def test_get_api_key_required_mode(self, test_client):
+    def test_get_api_key_required_mode(self, client):
         """Test get_api_key in required mode."""
         with patch.dict(os.environ, {"API_KEY_REQUIRED": "true"}):
             from app import get_api_key
@@ -59,7 +59,7 @@ class TestAppMissingLinesCoverage:
             with pytest.raises(Exception):
                 get_api_key("any_key")
 
-    def test_get_api_key_dev_mode(self, test_client):
+    def test_get_api_key_dev_mode(self, client):
         """Test get_api_key in development mode."""
         with patch.dict(os.environ, {"APP_ENV": "dev", "API_KEY": ""}):
             from app import get_api_key
@@ -68,7 +68,7 @@ class TestAppMissingLinesCoverage:
             result = get_api_key("test_token")
             assert result == "test_token"
 
-    def test_get_api_key_invalid_tokens(self, test_client):
+    def test_get_api_key_invalid_tokens(self, client):
         """Test get_api_key with invalid tokens."""
         with patch.dict(os.environ, {"APP_ENV": "dev", "API_KEY": ""}):
             from app import get_api_key
@@ -80,9 +80,9 @@ class TestAppMissingLinesCoverage:
                 with pytest.raises(Exception):
                     get_api_key(token)
 
-    def test_admin_status_endpoint_success(self, test_client):
+    def test_admin_status_endpoint_success(self, client):
         """Test admin status endpoint success path."""
-        client = test_client
+        client = client
 
         # Mock the scheduler to return a valid scheduler
         with patch("app.get_update_scheduler") as mock_scheduler_getter:
@@ -94,9 +94,9 @@ class TestAppMissingLinesCoverage:
             # Should be 200 when scheduler is available
             assert response.status_code in [200, 500, 503]
 
-    def test_admin_status_endpoint_error(self, test_client):
+    def test_admin_status_endpoint_error(self, client):
         """Test admin status endpoint error handling."""
-        client = test_client
+        client = client
 
         # Mock the scheduler getter to raise an exception
         with patch("app.get_update_scheduler", side_effect=Exception("Scheduler error")):
@@ -105,25 +105,25 @@ class TestAppMissingLinesCoverage:
             # Should be 503 when scheduler is unavailable
             assert response.status_code in [200, 500, 503]
 
-    def test_log_requests_middleware(self, test_client):
+    def test_log_requests_middleware(self, client):
         """Test the logging middleware."""
-        client = test_client
+        client = client
 
         # Test a simple endpoint to trigger the middleware
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_database_health_success(self, test_client):
+    def test_database_health_success(self, client):
         """Test database health endpoint success."""
-        client = test_client
+        client = client
 
         response = client.get("/health/db")
         # Should be 200 or 503 depending on database availability
         assert response.status_code in [200, 500, 503]
 
-    def test_database_health_error(self, test_client):
+    def test_database_health_error(self, client):
         """Test database health endpoint error handling."""
-        client = test_client
+        client = client
 
         # Mock the database session to raise an exception
         with patch("app.get_session") as mock_get_session:
@@ -149,24 +149,24 @@ class TestAppMissingLinesCoverage:
         assert legacy_category_label("Other category", "en") == "Other category"
         assert legacy_category_label("Normal weight", "ru") == "Normal weight"
 
-    def test_favicon_endpoint(self, test_client):
+    def test_favicon_endpoint(self, client):
         """Test the favicon endpoint."""
-        client = test_client
+        client = client
 
         response = client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_metrics_endpoint(self, test_client):
+    def test_metrics_endpoint(self, client):
         """Test the metrics endpoint."""
-        client = test_client
+        client = client
 
         response = client.get("/metrics")
         assert response.status_code == 200
         assert "error" in response.json()
 
-    def test_privacy_endpoint(self, test_client):
+    def test_privacy_endpoint(self, client):
         """Test the privacy endpoint."""
-        client = test_client
+        client = client
 
         response = client.get("/privacy")
         assert response.status_code == 200
@@ -202,17 +202,17 @@ class TestAppMissingLinesCoverage:
         # Check that the Premium Week router inclusion logic is covered
         assert hasattr(app, "premium_week_router")
 
-    def test_root_endpoint(self, test_client):
+    def test_root_endpoint(self, client):
         """Test the root endpoint."""
-        client = test_client
+        client = client
 
         response = client.get("/")
         assert response.status_code == 200
         assert "BMI Calculator" in response.text
 
-    def test_health_endpoints(self, test_client):
+    def test_health_endpoints(self, client):
         """Test health endpoints."""
-        client = test_client
+        client = client
 
         # Test basic health endpoint
         response = client.get("/health")
@@ -222,17 +222,17 @@ class TestAppMissingLinesCoverage:
         response = client.get("/api/v1/health")
         assert response.status_code == 200
 
-    def test_debug_env_endpoint(self, test_client):
+    def test_debug_env_endpoint(self, client):
         """Test debug environment endpoint."""
-        client = test_client
+        client = client
 
         response = client.get("/debug_env")
         assert response.status_code == 200
         assert isinstance(response.json(), dict)
 
-    def test_database_status_endpoint(self, test_client):
+    def test_database_status_endpoint(self, client):
         """Test database status endpoint."""
-        client = test_client
+        client = client
 
         response = client.get(
             "/api/v1/admin/db-status",
@@ -243,9 +243,9 @@ class TestAppMissingLinesCoverage:
             f"Unexpected status code: {response.status_code}\n" f"Response: {response.json()}"
         )
 
-    def test_force_database_update_endpoint(self, test_client):
+    def test_force_database_update_endpoint(self, client):
         """Test force database update endpoint."""
-        client = test_client
+        client = client
 
         response = client.post(
             "/api/v1/admin/force-update",
@@ -254,9 +254,9 @@ class TestAppMissingLinesCoverage:
         # May be 200, 500, or 503 depending on scheduler availability
         assert response.status_code in [200, 500, 503]
 
-    def test_check_for_updates_endpoint(self, test_client):
+    def test_check_for_updates_endpoint(self, client):
         """Test check for updates endpoint."""
-        client = test_client
+        client = client
 
         response = client.get(
             "/api/v1/admin/check-updates",
@@ -265,9 +265,9 @@ class TestAppMissingLinesCoverage:
         # May be 200 or 503 depending on scheduler availability
         assert response.status_code in [200, 500, 503]
 
-    def test_rollback_database_endpoint(self, test_client):
+    def test_rollback_database_endpoint(self, client):
         """Test rollback database endpoint."""
-        client = test_client
+        client = client
 
         response = client.post(
             "/api/v1/admin/rollback?source=test&target_version=1.0",
@@ -276,18 +276,18 @@ class TestAppMissingLinesCoverage:
         # May be 200, 400, 500, or 503 depending on scheduler availability
         assert response.status_code in [200, 400, 500, 503]
 
-    def test_export_pdf_generic_endpoint(self, test_client):
+    def test_export_pdf_generic_endpoint(self, client):
         """Test generic PDF export endpoint."""
-        client = test_client
+        client = client
 
         # Test with valid payload
         response = client.post("/api/v1/export/pdf", json={"test": "data"})
         # May be 200, 503, or 500 depending on PDF availability
         assert response.status_code in [200, 503, 500]
 
-    def test_export_pdf_generic_empty_payload(self, test_client):
+    def test_export_pdf_generic_empty_payload(self, client):
         """Test generic PDF export endpoint with empty payload."""
-        client = test_client
+        client = client
 
         # Test with empty payload
         response = client.post("/api/v1/export/pdf", json={})
