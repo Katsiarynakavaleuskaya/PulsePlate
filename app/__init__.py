@@ -79,10 +79,10 @@ if _base_spec is not None:
         owner_module=_this_module,
     )
     _spec.submodule_search_locations = [os.path.dirname(__file__)]
-    __spec__ = _spec  # type: ignore[misc]
+    __spec__ = _spec  # sourcery skip: avoid-builtin-shadow
 else:
     # Fallback if spec creation fails
-    __spec__ = None  # type: ignore[misc]
+    __spec__ = None  # sourcery skip: avoid-builtin-shadow
 
 # Export the app and key functions for easy importing
 __all__ = [
