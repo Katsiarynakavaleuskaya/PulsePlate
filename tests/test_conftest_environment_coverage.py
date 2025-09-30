@@ -95,7 +95,7 @@ class TestConftestEnvironmentCoverage:
             "PYTHONPATH",
         ]
 
-        for var in required_vars:
+        for var in required_vars:  # sourcery skip: no-loop-in-tests
             assert var in os.environ, f"Environment variable {var} not set"
 
     def test_conftest_environment_values_coverage(self):
@@ -116,7 +116,7 @@ class TestConftestEnvironmentCoverage:
         # Verify that key directories are included
         required_dirs = ["core", "app", "tests"]
         path_segments = pythonpath.split(os.pathsep)
-        for dir_name in required_dirs:
+        for dir_name in required_dirs:  # sourcery skip: no-loop-in-tests
             assert any(
                 dir_name in segment for segment in path_segments
             ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
