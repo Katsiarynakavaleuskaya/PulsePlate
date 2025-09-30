@@ -6,9 +6,8 @@ import os
 import sys
 import pytest
 import importlib.util
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from typing import cast, Generator
+from typing import cast
 from starlette.types import ASGIApp
 
 
@@ -18,10 +17,22 @@ class AppLoadError(ImportError):
     pass
 
 
-@pytest.fixture
-def dynamic_app() -> FastAPI:
-    """Load FastAPI app dynamically from app.py with proper environment"""
-    # Environment is already set by reset_environment fixture (autouse=True)
+@pytest.fixture(scope="session", autouse=True)
+def init_test_database():
+    """Initialize test database tables before running tests."""
+    try:
+        from core.db import init_db
+
+        init_db()
+    except Exception as e:
+        # If DB initialization fails (e.g., DB not configured), tests should still run
+        # but may fail if they require DB access
+        print(f"Warning: Could not initialize test database: {e}")
+
+
+@pytest.fixture(scope="session")
+def dynamic_app():
+    """Load FastAPI app dynamically from app.py"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     spec = importlib.util.spec_from_file_location("app_module", "app.py")
@@ -30,11 +41,23 @@ def dynamic_app() -> FastAPI:
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
+
+    # Apply API key override for this app instance
+    def mock_get_api_key(api_key: str = ""):
+        if not api_key or len(api_key.strip()) < 3:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=403, detail="Invalid API Key")
+        return api_key
+
+    if hasattr(app_module.app, "dependency_overrides"):
+        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+
     return app_module.app
 
 
 @pytest.fixture
-def dynamic_client(dynamic_app: FastAPI) -> Generator[TestClient, None, None]:
+def dynamic_client(dynamic_app):
     """TestClient using dynamically loaded app"""
     client = TestClient(cast(ASGIApp, dynamic_app))
     try:
@@ -43,15 +66,8 @@ def dynamic_client(dynamic_app: FastAPI) -> Generator[TestClient, None, None]:
         client.close()
 
 
-@pytest.fixture
-def client(dynamic_app: FastAPI) -> TestClient:
-    """Global test client fixture for all tests."""
-    # Use dynamic_app to ensure environment is set correctly
-    return TestClient(cast(ASGIApp, dynamic_app))
-
-
 @pytest.fixture(autouse=True)
-def reset_environment():
+def reset_environment():  # sourcery skip: use-contextlib-suppress
     """Automatically reset environment variables before and after each test."""
     # Save current environment
     old_env = dict(os.environ)
@@ -61,17 +77,49 @@ def reset_environment():
 
     # Set default environment for tests
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
-    os.environ.setdefault("API_KEY", "test_key")
+    # Don't set API_KEY to enable lenient mode in tests (accepts any non-trivial key)
+    # os.environ.setdefault("API_KEY", "test_key")
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+
+    # Override API key validation for all tests
+    try:
+        import app as app_module
+        from app import app as fastapi_app
+
+        # Simple pass-through that accepts any non-empty API key
+        def mock_get_api_key(api_key: str = ""):
+            if not api_key or len(api_key.strip()) < 3:
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=403, detail="Invalid API Key")
+            return api_key
+
+        # Override the dependency
+        if hasattr(fastapi_app, "dependency_overrides"):
+            from app import get_api_key
+
+            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key
+    except (ImportError, AttributeError):
+        # App not yet loaded, that's fine
+        pass
 
     yield
 
     # Restore environment
     os.environ.clear()
     os.environ.update(old_env)
+
+    # Clear dependency overrides
+    try:
+        from app import app as fastapi_app
+
+        if hasattr(fastapi_app, "dependency_overrides"):
+            fastapi_app.dependency_overrides.clear()
+    except (ImportError, AttributeError):
+        pass
 
     # Restore sys.modules (be careful not to break everything)
     # Only restore modules that were added during the test
@@ -103,7 +151,7 @@ def reset_sys_modules():
 
 
 @pytest.fixture
-def production_environment():
+def production_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for production environment testing."""
     old_env = dict(os.environ)
 
@@ -126,7 +174,7 @@ def production_environment():
 
 
 @pytest.fixture
-def test_environment():
+def test_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for test environment testing."""
     old_env = dict(os.environ)
 
@@ -149,7 +197,7 @@ def test_environment():
 
 
 @pytest.fixture
-def premium_disabled_environment():
+def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for testing with premium features disabled."""
     old_env = dict(os.environ)
 

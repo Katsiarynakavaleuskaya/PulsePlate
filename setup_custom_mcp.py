@@ -7,17 +7,14 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 
-def setup_custom_mcp(argv: list[str] | None = None) -> bool:
+def setup_custom_mcp(argv: list[str] | None = None) -> None:
     """Setup custom MCP configuration for PulsePlate
 
     Args:
-        argv: Command line arguments (defaults to sys.argv if None)
-
-    Returns:
-        True if setup was successful, False if cancelled
+        argv: Command line arguments to parse. If None, uses sys.argv.
+              This allows tests to pass empty list to avoid pytest arg conflicts.
     """
     import argparse
 
@@ -100,7 +97,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 MCP_ENABLED=true
 """
 
-    with open(env_file, "w", encoding="utf-8") as f:
+    with open(env_file, "w") as f:
         f.write(env_content)
 
     print(f"✅ Environment file created at {env_file}")
@@ -139,19 +136,17 @@ MCP_ENABLED=true
     return True
 
 
-def _write_json_config(
-    cursor_dir: Path, filename: str, data: dict[str, Any], success_message: str
-) -> None:
+def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
     """Write JSON configuration to a file and print success message.
 
     Args:
         cursor_dir: Directory where the config file will be written
         filename: Name of the config file
-        data: Dictionary with string keys to serialize as JSON
+        data: Dictionary to serialize as JSON
         success_message: Message prefix for success output
     """
     config_file = cursor_dir / filename
-    with open(config_file, "w", encoding="utf-8") as f:
+    with open(config_file, "w") as f:
         json.dump(data, f, indent=2)
 
     print(f"{success_message}{config_file}")

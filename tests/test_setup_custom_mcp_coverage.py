@@ -2,15 +2,13 @@
 Test coverage for setup_custom_mcp.py
 """
 
+import pytest
+import tempfile
 import json
 import os
-import tempfile
-from contextlib import suppress
+from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
-
-import pytest
-
+from contextlib import suppress
 import setup_custom_mcp
 
 
@@ -29,6 +27,7 @@ class TestSetupCustomMcpCoverage:
 
                             # Mock Path.cwd()
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
+                                # Pass empty argv to avoid pytest argument conflicts
                                 setup_custom_mcp.setup_custom_mcp(argv=[])
 
                                 # Verify directory creation
@@ -151,9 +150,10 @@ class TestSetupCustomMcpCoverage:
         # Test that the function exists and is callable
         assert callable(setup_custom_mcp.setup_custom_mcp)
 
-        # Test that the function can be called (it will create files, but that's expected)
+        # Test that the function can be called with --force to avoid input() prompts
         try:
-            setup_custom_mcp.setup_custom_mcp(argv=[])
+            # Use --force to skip user prompts in test environment
+            setup_custom_mcp.setup_custom_mcp(argv=["--force"])
         except OSError as e:
             pytest.skip(f"insufficient permissions or filesystem error: {e}")
         except Exception as e:

@@ -8,11 +8,10 @@ import json
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
 import pytest
 
-from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
+from core.food_apis.unified_db import UnifiedFoodDatabase
 
 
 class TestFoodAPIsUpdatePipelineBasic:
@@ -152,8 +151,8 @@ class TestFoodAPIsUpdatePipelineBasic:
         assert isinstance(versions, dict)
 
 
-from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
+from core.food_apis.unified_db import UnifiedFoodDatabase
 
 
 class TestFoodAPIsUpdatePipeline:
@@ -294,10 +293,12 @@ class TestFoodAPIsUpdatePipeline:
 
                     result = await update_manager._update_usda_database(force=False)
 
-                    # May fail due to API rate limits or missing nutrients
-                    # Check that result is returned (even if not successful)
+                    # Should skip update due to same checksum (or fail gracefully if API rate limited)
                     assert result is not None
                     assert isinstance(result.success, bool)
+                    # If successful, should have 0 records updated (same checksum)
+                    if result.success:
+                        assert result.records_updated == 0
 
     @pytest.mark.skip(
         reason="Error injection doesn't trigger expected warning - robust error handling"
