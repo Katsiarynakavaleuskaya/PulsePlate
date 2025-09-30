@@ -23,6 +23,10 @@ omit =
     setup_dev_env.py
     setup_env_check.py
     test_quick_check.py
+    fix_failing_tests.py
+    setup_custom_mcp.py
+    mcp_pulseplate_server.py
+    test_pro_access.py
 
 [report]
 exclude_lines =
