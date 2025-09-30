@@ -29,7 +29,8 @@ create_alias() {
     local alias_name="$1"
     local command="$2"
     # shellcheck disable=SC2139
-    # SC2139 is safe here because we only use static paths like $PROJECT_ROOT
+    # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
+    # Note: Command substitutions in aliases also freeze at definition time
     alias "$alias_name"="$command"
     echo "✅ Алиас '$alias_name' создан"
 }

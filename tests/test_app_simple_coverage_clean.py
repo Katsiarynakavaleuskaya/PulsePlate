@@ -201,10 +201,8 @@ class TestImportCoverage:
         assert app is not None
 
         # Проверим что основные функции доступны
-        # get_api_key это функция на уровне модуля, не метод app
-        import app as app_module
-
-        assert hasattr(app_module, "get_api_key")
+        # get_api_key loaded at module level (line 26)
+        assert get_api_key is not None
         assert callable(get_api_key)
 
 

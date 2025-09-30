@@ -93,7 +93,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 MCP_ENABLED=true
 """
 
-    with open(env_file, "w") as f:
+    with open(env_file, "w", encoding="utf-8") as f:
         f.write(env_content)
 
     print(f"✅ Environment file created at {env_file}")
@@ -144,7 +144,7 @@ def _write_json_config(
         success_message: Message prefix for success output
     """
     config_file = cursor_dir / filename
-    with open(config_file, "w") as f:
+    with open(config_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     print(f"{success_message}{config_file}")
