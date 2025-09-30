@@ -3,10 +3,11 @@
 App module initialization
 """
 
+import importlib.util
+import os
+
 # Import FastAPI app and functions from the main module
 import sys
-import os
-import importlib.util
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,22 +25,29 @@ if spec is None or spec.loader is None:
     export_pdf_generic = None
     _mod = None
 else:
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
-    app = app_module.app
-    get_api_key = app_module.get_api_key
-    get_update_scheduler = app_module.get_update_scheduler
-    HTTPException = app_module.HTTPException
-    admin_status = app_module.admin_status
-    add_visualization_if_requested = getattr(app_module, "add_visualization_if_requested", None)
-    to_pdf_day = getattr(app_module, "to_pdf_day", None)
-    export_pdf_generic = getattr(app_module, "export_pdf_generic", None)
-    _mod = app_module
+    _app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_app_module)
+    app = _app_module.app
+    get_api_key = _app_module.get_api_key
+    get_update_scheduler = _app_module.get_update_scheduler
+    HTTPException = _app_module.HTTPException
+    admin_status = _app_module.admin_status
+    add_visualization_if_requested = getattr(_app_module, "add_visualization_if_requested", None)
+    to_pdf_day = getattr(_app_module, "to_pdf_day", None)
+    export_pdf_generic = getattr(_app_module, "export_pdf_generic", None)
+    _mod = _app_module
 
 # Create a module spec for this package
-__spec__ = importlib.util.spec_from_loader(__name__, loader=None)
-__spec__.name = __name__
-__spec__.submodule_search_locations = [os.path.dirname(__file__)]
+from importlib.machinery import ModuleSpec
+
+_spec: ModuleSpec | None = importlib.util.spec_from_loader(__name__, loader=None)
+if _spec is not None:
+    _spec.name = __name__
+    _spec.submodule_search_locations = [os.path.dirname(__file__)]
+    __spec__ = _spec
+else:
+    # Fallback if spec creation fails
+    __spec__ = None  # type: ignore[assignment]
 
 # Export the app and key functions for easy importing
 __all__ = [
@@ -52,7 +60,11 @@ __all__ = [
     "to_pdf_day",
     "export_pdf_generic",
     "_mod",
+    "app_module",
 ]
+
+# Alias for backward compatibility
+app_module = _mod
 
 
 def __getattr__(name):
