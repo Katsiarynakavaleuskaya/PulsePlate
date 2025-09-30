@@ -54,7 +54,7 @@ def test_make_weekly_menu_smoke():
 
 
 def test_weekly_menu_endpoint_smoke():
-    # Ensure API key is optional if not set; if set, pass header
+    # Ensure API key is passed (lenient mode accepts any non-trivial key)
     client = TestClient(app)
     payload = {
         "sex": "male",
@@ -64,9 +64,8 @@ def test_weekly_menu_endpoint_smoke():
         "activity": "moderate",
         "goal": "maintain",
     }
-    headers = {}
-    if os.getenv("API_KEY"):
-        headers["X-API-Key"] = os.getenv("API_KEY")
+    # Always pass an API key for lenient mode (accepts any key with len >= 4)
+    headers = {"X-API-Key": os.getenv("API_KEY", "test_key")}
     r = client.post("/api/v1/premium/plan/week", json=payload, headers=headers)
     assert r.status_code in (200, 503)
     if r.status_code == 200:

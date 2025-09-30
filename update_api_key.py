@@ -9,9 +9,10 @@ from pathlib import Path
 def update_api_key(api_key: str):
     """Update API key in MCP configuration"""
 
-    if not api_key or not api_key.startswith("sk-") or len(api_key) > 256:
+    # Validate API key: must start with 'sk-', be at least 20 chars, and max 256 chars
+    if not api_key or not api_key.startswith("sk-") or len(api_key) < 20 or len(api_key) > 256:
         print(
-            "❌ Invalid API key format. Should start with 'sk-' and be no longer than 256 characters"
+            "❌ Invalid API key format. Should start with 'sk-', be at least 20 characters, and no longer than 256 characters"
         )
         return False
 
