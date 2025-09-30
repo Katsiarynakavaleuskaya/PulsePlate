@@ -17,6 +17,19 @@ class AppLoadError(ImportError):
     pass
 
 
+@pytest.fixture(scope="session", autouse=True)
+def init_test_database():
+    """Initialize test database tables before running tests."""
+    try:
+        from core.db import init_db
+
+        init_db()
+    except Exception as e:
+        # If DB initialization fails (e.g., DB not configured), tests should still run
+        # but may fail if they require DB access
+        print(f"Warning: Could not initialize test database: {e}")
+
+
 @pytest.fixture(scope="session")
 def dynamic_app():
     """Load FastAPI app dynamically from app.py"""
