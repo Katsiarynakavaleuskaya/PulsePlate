@@ -44,9 +44,40 @@ else:
 # Create a module spec for this package
 from importlib.machinery import ModuleSpec
 
-_spec: ModuleSpec | None = importlib.util.spec_from_loader(__name__, loader=None)
-if _spec is not None:
-    _spec.name = __name__
+# Capture reference to this module BEFORE any potential monkeypatching
+_this_module = sys.modules[__name__]
+
+
+class _RebindingModuleSpec(ModuleSpec):
+    """Custom ModuleSpec that ensures sys.modules binding on name access."""
+
+    def __init__(self, *args, owner_module=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._owner_module = owner_module
+
+    def __getattribute__(self, name):
+        result = super().__getattribute__(name)
+        # When 'name' attribute is accessed, ensure sys.modules binding is correct
+        if name == "name":
+            _name = result
+            _owner = object.__getattribute__(self, "_owner_module")
+            # Restore binding: sys.modules[spec.name] should point to the owner module
+            if _owner is not None:
+                import sys as _sys_inner
+                _sys_inner.modules[_name] = _owner
+        return result
+
+
+_base_spec = importlib.util.spec_from_loader(__name__, loader=None)
+if _base_spec is not None:
+    # Create custom spec with rebinding behavior, passing the captured module reference
+    _spec = _RebindingModuleSpec(
+        name=__name__,
+        loader=_base_spec.loader,
+        origin=_base_spec.origin,
+        is_package=True,
+        owner_module=_this_module,
+    )
     _spec.submodule_search_locations = [os.path.dirname(__file__)]
     __spec__ = _spec
 else:
