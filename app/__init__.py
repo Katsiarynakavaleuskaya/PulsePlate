@@ -45,6 +45,8 @@ if _spec is not None:
     _spec.name = __name__
     _spec.submodule_search_locations = [os.path.dirname(__file__)]
     __spec__ = _spec
+    # Ensure sys.modules binding for edge case tests
+    sys.modules[__name__] = sys.modules.get(__name__, sys.modules[__name__])
 else:
     # Fallback if spec creation fails
     __spec__ = None  # type: ignore[assignment]
