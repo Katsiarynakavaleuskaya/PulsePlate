@@ -71,11 +71,43 @@ def reset_environment():
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
 
+    # Override API key validation for all tests
+    try:
+        import app as app_module
+        from app import app as fastapi_app
+
+        # Simple pass-through that accepts any non-empty API key
+        def mock_get_api_key(api_key: str = None):
+            if not api_key or len(api_key.strip()) < 3:
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=403, detail="Invalid API Key")
+            return api_key
+
+        # Override the dependency
+        if hasattr(fastapi_app, "dependency_overrides"):
+            from app import get_api_key
+
+            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key
+    except (ImportError, AttributeError):
+        # App not yet loaded, that's fine
+        pass
+
     yield
 
     # Restore environment
     os.environ.clear()
     os.environ.update(old_env)
+
+    # Clear dependency overrides
+    try:
+        import app as app_module
+        from app import app as fastapi_app
+
+        if hasattr(fastapi_app, "dependency_overrides"):
+            fastapi_app.dependency_overrides.clear()
+    except (ImportError, AttributeError):
+        pass
 
     # Restore sys.modules (be careful not to break everything)
     # Only restore modules that were added during the test
