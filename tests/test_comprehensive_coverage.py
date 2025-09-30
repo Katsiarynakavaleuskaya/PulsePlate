@@ -54,7 +54,7 @@ class TestComprehensiveCoverage:
     def test_database_status_endpoint_success(self):
         """Test database status endpoint success case."""
         # Mock the update manager to return valid status
-        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.get_status = MagicMock(
                 return_value={

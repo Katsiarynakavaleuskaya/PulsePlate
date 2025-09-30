@@ -45,16 +45,15 @@ class TestUpdateManagerEndpoints:
 
         import app
 
-        target_module = sys.modules.get("_app_top_module")
-
+        # Patch both app module and the underlying app_module
         with ExitStack() as stack:
             stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
-            if target_module is not None:
+            if hasattr(app, "app_module") and app.app_module is not None:
                 stack.enter_context(
-                    patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
+                    patch.object(app.app_module, "get_update_scheduler", new=mock_get_scheduler)
                 )
                 stack.enter_context(
-                    patch.object(target_module, "_scheduler_getter", new=mock_get_scheduler)
+                    patch.object(app.app_module, "_scheduler_getter", new=mock_get_scheduler)
                 )
             response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
 
@@ -85,16 +84,15 @@ class TestUpdateManagerEndpoints:
 
         import app
 
-        target_module = sys.modules.get("_app_top_module")
-
+        # Patch both app module and the underlying app_module
         with ExitStack() as stack:
             stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
-            if target_module is not None:
+            if hasattr(app, "app_module") and app.app_module is not None:
                 stack.enter_context(
-                    patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
+                    patch.object(app.app_module, "get_update_scheduler", new=mock_get_scheduler)
                 )
                 stack.enter_context(
-                    patch.object(target_module, "_scheduler_getter", new=mock_get_scheduler)
+                    patch.object(app.app_module, "_scheduler_getter", new=mock_get_scheduler)
                 )
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
@@ -118,16 +116,15 @@ class TestUpdateManagerEndpoints:
 
         import app
 
-        target_module = sys.modules.get("_app_top_module")
-
+        # Patch both app module and the underlying app_module
         with ExitStack() as stack:
             stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
-            if target_module is not None:
+            if hasattr(app, "app_module") and app.app_module is not None:
                 stack.enter_context(
-                    patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
+                    patch.object(app.app_module, "get_update_scheduler", new=mock_get_scheduler)
                 )
                 stack.enter_context(
-                    patch.object(target_module, "_scheduler_getter", new=mock_get_scheduler)
+                    patch.object(app.app_module, "_scheduler_getter", new=mock_get_scheduler)
                 )
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
@@ -150,16 +147,15 @@ class TestUpdateManagerEndpoints:
 
         import app
 
-        target_module = sys.modules.get("_app_top_module")
-
+        # Patch both app module and the underlying app_module
         with ExitStack() as stack:
             stack.enter_context(patch.object(app, "get_update_scheduler", new=mock_get_scheduler))
-            if target_module is not None:
+            if hasattr(app, "app_module") and app.app_module is not None:
                 stack.enter_context(
-                    patch.object(target_module, "get_update_scheduler", new=mock_get_scheduler)
+                    patch.object(app.app_module, "get_update_scheduler", new=mock_get_scheduler)
                 )
                 stack.enter_context(
-                    patch.object(target_module, "_scheduler_getter", new=mock_get_scheduler)
+                    patch.object(app.app_module, "_scheduler_getter", new=mock_get_scheduler)
                 )
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=invalid",
