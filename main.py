@@ -1,2 +1,4 @@
 # Minimal FastAPI app entrypoint for legacy tests
-from app import app  # noqa: F401
+import app
+
+app = app.app  # noqa: F401

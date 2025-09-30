@@ -67,19 +67,25 @@ def setup_custom_mcp() -> None:
 
     # Create MCP configuration
     mcp_config = {
+        "$schema": "https://modelcontextprotocol.io/schemas/mcp.json",
+        "_warning": "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace 'your_openai_api_key_here' with your actual API key and DO NOT commit this file to version control!",
         "mcpServers": {
             "pulseplate-chatgpt": {
                 "command": "python",
                 "args": [str(Path.cwd() / "mcp_pulseplate_server.py")],
                 "env": {"OPENAI_API_KEY": "your_openai_api_key_here"},
             }
-        }
+        },
     }
 
     _write_json_config(cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at ")
     # Create environment file
     env_file = cursor_dir / ".env"
-    env_content = """# OpenAI API Configuration
+    env_content = """# ⚠️ WARNING: This file contains sensitive API keys!
+# DO NOT commit this file to version control.
+# Replace placeholder values before use.
+
+# OpenAI API Configuration
 OPENAI_API_KEY=your_openai_api_key_here
 
 # MCP Configuration
@@ -93,6 +99,7 @@ MCP_ENABLED=true
 
     # Create Cursor settings
     cursor_settings = {
+        "_warning": "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace 'your_openai_api_key_here' with your actual API key and DO NOT commit this file to version control!",
         "cursor.ai.enabled": True,
         "cursor.ai.primaryModel": "gpt-4",
         "cursor.ai.secondaryModel": "gpt-3.5-turbo",
@@ -109,11 +116,17 @@ MCP_ENABLED=true
         "✅ Cursor settings created at ",
     )
     print("\n🎉 Custom MCP setup complete!")
+    print("\n⚠️  SECURITY WARNING:")
+    print("   - All generated files contain PLACEHOLDER API keys")
+    print("   - DO NOT commit these files with real API keys to version control")
+    print("   - Add ~/.cursor/.env to your global .gitignore")
     print("\nNext steps:")
-    print("1. Edit ~/.cursor/.env and add your OpenAI API key")
-    print("2. Edit ~/.cursor/mcp.json and update the API key")
-    print("3. Restart Cursor")
-    print("4. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
+    print(
+        "1. 🔑 Edit ~/.cursor/.env and replace 'your_openai_api_key_here' with your actual API key"
+    )
+    print("2. 🔑 Edit ~/.cursor/mcp.json and update the API key")
+    print("3. 🔄 Restart Cursor")
+    print("4. ✅ Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
     return True
 
