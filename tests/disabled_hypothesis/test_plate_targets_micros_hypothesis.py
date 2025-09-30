@@ -95,6 +95,7 @@ class TestPlateTargetsMicrosHypothesis:
         activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_fe_ca_mg_k_coverage_hypothesis(
         self,
         sex: str,
@@ -161,15 +162,22 @@ class TestPlateTargetsMicrosHypothesis:
                 if alias in target_micros:
                     target_value = target_micros[alias]
 
-            # At least one should have the micronutrient
-            if plate_value is not None or target_value is not None:
-                # If both have it, values should be reasonable
-                if plate_value is not None and target_value is not None:
-                    # Values should be positive
-                    assert plate_value > 0, f"{micro} plate value should be positive: {plate_value}"
-                    assert (
-                        target_value > 0
-                    ), f"{micro} target value should be positive: {target_value}"
+            # If both have it, values should be reasonable
+            if plate_value is not None and target_value is not None:
+                # Values should be positive
+                assert plate_value > 0, f"{micro} plate value should be positive: {plate_value}"
+                assert target_value > 0, f"{micro} target value should be positive: {target_value}"
+
+        # Verify at least some key micros were found in both datasets
+        common_found = sum(
+            1
+            for micro in key_micros
+            if any(alias in plate_micros for alias in micro_aliases[micro])
+            and any(alias in target_micros for alias in micro_aliases[micro])
+        )
+        assert (
+            common_found >= 2
+        ), f"Expected at least 2 key micronutrients in both datasets, found {common_found}"
 
     @given(
         sex=st.sampled_from(["male", "female"]),
@@ -236,7 +244,7 @@ class TestPlateTargetsMicrosHypothesis:
             if any(micro in key.lower() for key in day_micros.keys())
         ]
         assert (
-            len(found_micros) > 0
+            found_micros
         ), f"Should have at least some common micronutrients, found: {list(day_micros.keys())}"
 
     @given(

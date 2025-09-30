@@ -1,13 +1,13 @@
-fastapi==0.117.1
+fastapi==0.118.0
 uvicorn==0.37.0
 pydantic==2.11.9
-openai==1.108.1
+openai==1.109.1
 httpx==0.28.1
 python-dotenv==1.1.1
 prometheus-client==0.23.1
 python-multipart==0.0.20
 slowapi==0.1.9
-hypothesis==6.140.0
+hypothesis==6.140.2
 tenacity==9.1.2
 matplotlib==3.10.6
 reportlab==4.4.4

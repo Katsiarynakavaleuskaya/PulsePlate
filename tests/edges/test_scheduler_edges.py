@@ -13,7 +13,9 @@ async def test_scheduler_update_loop_error_branch(monkeypatch: pytest.MonkeyPatc
 
     # Make _should_check_for_updates raise to hit except in _update_loop
     monkeypatch.setattr(
-        sched, "_should_check_for_updates", lambda _: (_ for _ in ()).throw(RuntimeError("boom"))
+        sched,
+        "_should_check_for_updates",
+        lambda _: iter(()).throw(RuntimeError("boom")),
     )
 
     # Make asyncio.sleep return immediately

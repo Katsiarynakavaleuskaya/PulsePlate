@@ -14,7 +14,9 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, AsyncMock
-from app import app
+from tests.test_helpers import load_app
+
+app = load_app()
 
 
 @pytest.fixture
@@ -306,8 +308,6 @@ class TestLifespanAndStartup:
                 with TestClient(app) as client:
                     response = client.get("/")
                     assert response.status_code in [200, 404]
-                    # Просто проверяем что получили ответ
-                    assert True
 
 
 class TestAdditionalCoverageBoosts:

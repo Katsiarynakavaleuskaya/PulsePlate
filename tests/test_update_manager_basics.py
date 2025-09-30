@@ -95,11 +95,11 @@ class TestDatabaseUpdateManagerBasics:
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     def test_manager_initialization(self, temp_cache_dir):
         """Test manager initialization."""
@@ -305,11 +305,11 @@ class TestDatabaseUpdateManagerAsync:
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     @pytest.mark.asyncio
     async def test_check_usda_updates_no_current_version(self, mock_manager):
@@ -463,8 +463,7 @@ class TestValidateData:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-            manager = DatabaseUpdateManager()
-            yield manager
+            yield DatabaseUpdateManager()
 
     @pytest.mark.asyncio
     async def test_validate_food_data_valid(self, mock_manager):

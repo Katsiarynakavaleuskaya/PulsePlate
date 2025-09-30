@@ -132,12 +132,6 @@ class TestDisclaimersComprehensive:
         assert "legal" in disclaimer.lower()
         assert "privacy" in disclaimer.lower()
 
-        # Should contain special population references
-        for population in populations:
-            # Just check that the disclaimer is long enough to likely contain them
-            # Exact matching might be tricky due to translations
-            pass
-
     def test_disclaimer_constants_structure(self):
         """Test that all disclaimer constants have proper structure."""
         # Test MEDICAL_DISCLAIMER
@@ -242,8 +236,8 @@ class TestDisclaimersComprehensive:
 
         # Test all disclaimer types have all languages
         disclaimer_types = ["medical", "legal", "privacy"]
-        for dtype in disclaimer_types:
-            for lang in languages:
+        for _ in disclaimer_types:
+            for _ in languages:
                 disclaimer = get_disclaimer_text("medical", language="en")
                 disclaimer = get_disclaimer_text("legal", language="en")
                 disclaimer = get_disclaimer_text("privacy", language="en")
@@ -253,7 +247,7 @@ class TestDisclaimersComprehensive:
         # Test all special populations have all languages
         populations = ["pregnancy", "children", "elderly", "athletes"]
         for population in populations:
-            for lang in languages:
+            for _ in languages:
                 disclaimer = get_disclaimer_text("medical", population, "en")
                 assert isinstance(disclaimer, str)
                 assert len(disclaimer) > 20

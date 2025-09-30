@@ -1,0 +1,39 @@
+# SwiftFormat Configuration for PulsePlate
+# Apple HIG compliant formatting
+
+# Version
+--swiftversion 5.9
+
+# Basic formatting
+--indent 4
+--tabwidth 4
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--indentcase true
+--trimwhitespace always
+--commas always
+--semicolons never
+--operatorfunc spaced
+--ranges spaced
+--spacelines 2
+--importgrouping testable-bottom
+--extensionacl on-extension
+--patternlet hoist
+--stripunusedargs always
+--self insert
+--selfrequired init,subscript
+--header strip
+--ifdef no-indent
+--experimental
+--fragment false
+--conflictmarkers reject
+--symlinks ignore
+
+# Exclude directories
+--exclude Pods
+--exclude .build
+--exclude DerivedData
+--exclude build

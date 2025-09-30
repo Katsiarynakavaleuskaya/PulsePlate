@@ -95,13 +95,7 @@ class TestRateLimitingCoverage:
                 assert isinstance(rate_enabled, bool)
 
                 # Дополнительная логика для строк 118-119
-                if rate_enabled:
-                    # Когда rate limiting включен
-                    limiter_available = True
-                else:
-                    # Когда rate limiting выключен
-                    limiter_available = False
-
+                limiter_available = rate_enabled
                 assert isinstance(limiter_available, bool)
 
         finally:

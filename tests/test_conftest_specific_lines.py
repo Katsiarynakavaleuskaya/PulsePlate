@@ -49,5 +49,3 @@ class TestConftestSpecificLines:
 
     def test_last_line_coverage(self):
         """Test to ensure the last line of conftest.py is covered."""
-        # Simple test to cover the last line
-        assert True

@@ -44,11 +44,11 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     def test_save_versions_with_error(self, mock_manager):
         """Test saving versions when file write fails."""
@@ -342,8 +342,7 @@ class TestAsyncMethods:
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager()
-            yield manager
+            yield DatabaseUpdateManager()
 
     @pytest.mark.asyncio
     async def test_check_off_updates_recent_update(self, mock_manager):
@@ -423,8 +422,7 @@ class TestUtilityMethods:
             patch("core.food_apis.update_manager.OFFClient"),
             patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
         ):
-            manager = DatabaseUpdateManager()
-            yield manager
+            yield DatabaseUpdateManager()
 
     def test_generate_food_key_edge_cases(self, mock_manager):
         """Test food key generation with edge cases."""

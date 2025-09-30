@@ -3,7 +3,7 @@ from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 
 
 def assert_soft(x: float) -> None:
-    assert 0 < float(x) < 100
+    assert 0 < x < 100
 
 
 def test_deurenberg_soft() -> None:

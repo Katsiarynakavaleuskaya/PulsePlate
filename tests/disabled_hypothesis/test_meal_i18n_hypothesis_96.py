@@ -229,12 +229,12 @@ class TestMealI18nHypothesis96:
     def test_translate_functions_special_characters(self, name1, name2):
         """Test translation functions with special characters."""
         special_names = [
-            name1 + "!@#$%^&*()",
-            name1 + "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",  # Cyrillic
-            name1 + "áéíóúñü",  # Spanish accents
-            name1 + "1234567890",
-            name1 + "   spaces   ",
-            name1 + "\n\t\r",
+            f"{name1}!@#$%^&*()",
+            f"{name1}абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+            f"{name1}áéíóúñü",
+            f"{name1}1234567890",
+            f"{name1}   spaces   ",
+            f"{name1}\n\t\r",
         ]
 
         for lang in ["en", "ru", "es"]:
@@ -255,11 +255,11 @@ class TestMealI18nHypothesis96:
     def test_translate_functions_unicode(self, name1, name2):
         """Test translation functions with unicode characters."""
         unicode_names = [
-            name1 + "🍎🍌🥕",  # Emojis
-            name1 + "αβγδε",  # Greek
-            name1 + "中文",  # Chinese
-            name1 + "日本語",  # Japanese
-            name1 + "العربية",  # Arabic
+            f"{name1}🍎🍌🥕",
+            f"{name1}αβγδε",
+            f"{name1}中文",
+            f"{name1}日本語",
+            f"{name1}العربية",
         ]
 
         for lang in ["en", "ru", "es"]:

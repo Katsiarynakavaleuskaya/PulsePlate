@@ -5,9 +5,40 @@ Global test configuration and fixtures for the project.
 import os
 import sys
 import pytest
+import importlib.util
 from fastapi.testclient import TestClient
 from typing import cast
 from starlette.types import ASGIApp
+
+
+class AppLoadError(ImportError):
+    """Raised when app.py cannot be loaded."""
+
+    pass
+
+
+@pytest.fixture(scope="session")
+def dynamic_app():
+    """Load FastAPI app dynamically from app.py"""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    if spec is None or spec.loader is None:
+        raise AppLoadError()
+
+    app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(app_module)
+    return app_module.app
+
+
+@pytest.fixture
+def dynamic_client(dynamic_app):
+    """TestClient using dynamically loaded app"""
+    client = TestClient(cast(ASGIApp, dynamic_app))
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 @pytest.fixture(autouse=True)

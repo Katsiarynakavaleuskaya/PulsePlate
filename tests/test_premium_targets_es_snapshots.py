@@ -395,7 +395,7 @@ class TestPremiumTargetsESSnapshots:
             "potassium_mg",
         }
 
-        for profile_key, micros in micro_values.items():
+        for micros in micro_values.values():
             assert all(micro in micros for micro in expected_micros)
 
     def test_ui_labels_spanish_consistency(self):
@@ -447,7 +447,7 @@ class TestPremiumTargetsESSnapshots:
 
             # At least some Spanish indicators should be present
             found_indicators = [ind for ind in spanish_indicators if ind in all_labels_text]
-            assert len(found_indicators) > 0, f"No Spanish indicators found in: {all_labels_text}"
+            assert found_indicators, f"No Spanish indicators found in: {all_labels_text}"
         else:
             # Skip test if ui_labels is not present in current API
             pytest.skip("ui_labels not present in current API response")

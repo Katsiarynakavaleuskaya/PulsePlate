@@ -472,9 +472,7 @@ class TestIntegration:
         def mock_analyze_gaps(plan, targets):
             # Первый вызов - есть дефициты
             counter["n"] += 1
-            if counter["n"] == 1:
-                return {"iron": 50.0}
-            return {}  # Нет дефицитов
+            return {"iron": 50.0} if counter["n"] == 1 else {}
 
         with patch.object(engine, "_analyze_nutrient_gaps", side_effect=mock_analyze_gaps):
             # Мокаем попытки ремонта

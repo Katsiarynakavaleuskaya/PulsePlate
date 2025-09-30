@@ -247,7 +247,7 @@ class TestMakeDailyMenuBasic:
     @pytest.fixture
     def mock_profile(self):
         """Create a mock user profile."""
-        profile = UserProfile(
+        return UserProfile(
             weight_kg=70.0,
             height_cm=175.0,
             age=30,
@@ -258,7 +258,6 @@ class TestMakeDailyMenuBasic:
             surplus_pct=20,
             diet_flags=set(),
         )
-        return profile
 
     @pytest.fixture
     def simple_food_db(self):

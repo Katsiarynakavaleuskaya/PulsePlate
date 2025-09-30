@@ -25,7 +25,7 @@ def _reload_with_root(root: Path):
 def test_retrieve_empty_returns_empty(tmp_path: Path):
     rag = _reload_with_root(tmp_path)
     # ensure no docs
-    assert list(tmp_path.glob("*.md")) == []
+    assert not list(tmp_path.glob("*.md"))
     out = rag.retrieve_context("anything", max_chunks=3)
     assert out == ""
 

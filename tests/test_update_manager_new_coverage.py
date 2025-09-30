@@ -41,10 +41,11 @@ class TestUpdateManagerNewCoverage:
             mock_off.return_value = MagicMock()
             mock_db.return_value = MagicMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-            yield manager
 
     @pytest.mark.asyncio
     async def test_sqlite_checksum_calculation(self, mock_manager, temp_cache_dir):

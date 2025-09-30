@@ -501,8 +501,7 @@ class TestMergeRecords:
             "Iodine_ug": 5.0,
             "K_mg": 200.0,
             "Mg_mg": 25.0,
-        }
-        defaults.update(kwargs)
+        } | kwargs
         return FoodRecord(name=name, source=source, **defaults)
 
     def test_merge_records_single_source(self):
