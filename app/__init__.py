@@ -64,6 +64,7 @@ class _RebindingModuleSpec(ModuleSpec):
             # Restore binding: sys.modules[spec.name] should point to the owner module
             if _owner is not None:
                 import sys as _sys_inner
+
                 _sys_inner.modules[_name] = _owner
         return result
 
