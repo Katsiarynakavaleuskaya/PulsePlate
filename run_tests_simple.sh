@@ -1,7 +1,12 @@
 #!/bin/bash
 # Простой скрипт для запуска тестов
 
-set -e
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}" && pwd)"
+cd "${REPO_ROOT}" || { echo "❌ Не удалось перейти в каталог репозитория"; exit 1; }
 
 echo "🚀 Запуск тестов PulsePlate..."
 
@@ -26,5 +31,7 @@ echo "📋 Переменные окружения установлены"
 # Запускаем только основные тесты
 echo "🧪 Запуск основных тестов..."
 python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97 -q
+status=$?
 
-echo "✅ Тесты завершены"
+echo "✅ Тесты завершены (код: ${status})"
+exit "${status}"

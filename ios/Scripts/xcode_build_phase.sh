@@ -20,12 +20,12 @@ fi
 
 # Check if tools are available
 if ! command -v swiftlint &> /dev/null; then
-    echo "❌ SwiftLint not found. Please run: ./install_swift_tools.sh"
+    echo "❌ SwiftLint not found. Run: ./install_swift_tools.sh (or: brew install swiftlint)"
     exit 1
 fi
 
 if ! command -v swiftformat &> /dev/null; then
-    echo "❌ SwiftFormat not found. Please run: ./install_swift_tools.sh"
+    echo "❌ SwiftFormat not found. Run: ./install_swift_tools.sh (or: brew install swiftformat)"
     exit 1
 fi
 
