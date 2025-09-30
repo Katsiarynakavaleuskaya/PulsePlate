@@ -26,11 +26,11 @@ try:
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app)
+# client fixture is provided by conftest.py
 
 
 @pytest.mark.parametrize("group", ["athlete", "pregnant", "elderly", "teen"])
-def test_bmi_groups_exercise_branches(group: str):
+def test_bmi_groups_exercise_branches(client, group: str):
     payload = {"weight_kg": 70, "height_cm": 170, "group": group}
     res = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
     assert res.status_code == 200
@@ -39,7 +39,7 @@ def test_bmi_groups_exercise_branches(group: str):
     assert "category" in data
 
 
-def test_insight_route_or_skip():
+def test_insight_route_or_skip(client):
     """Если /insight не поднят (404) — скипаем, иначе ждём 503."""
     res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"})
     if res.status_code == 404:
@@ -47,7 +47,7 @@ def test_insight_route_or_skip():
     assert res.status_code == 503
 
 
-def test_debug_env_keys_or_skip():
+def test_debug_env_keys_or_skip(client):
     res = client.get("/debug_env")
     if res.status_code == 404:
         pytest.skip("No /debug_env route (skipping)")
@@ -58,7 +58,7 @@ def test_debug_env_keys_or_skip():
     assert "insight_enabled" in data
 
 
-def test_bmi_endpoint_lang_en_athlete():
+def test_bmi_endpoint_lang_en_athlete(client):
     payload = {
         "weight_kg": 70,
         "height_m": 1.7,

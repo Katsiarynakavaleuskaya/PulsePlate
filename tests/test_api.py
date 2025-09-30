@@ -12,12 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.test_helpers import load_app
 
-
-@pytest.fixture
-def client(dynamic_app):
-    """Test client fixture that respects environment setup."""
-    # Use conftest's dynamic_app which loads with correct env
-    return TestClient(cast(ASGIApp, dynamic_app))
+# client fixture is provided by conftest.py
 
 
 def _cleanup_app_module(original_app):

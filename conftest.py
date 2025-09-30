@@ -2,13 +2,12 @@
 Global test configuration and fixtures for the project.
 """
 
-import importlib.util
 import os
 import sys
-from typing import cast
-
 import pytest
+import importlib.util
 from fastapi.testclient import TestClient
+from typing import cast
 from starlette.types import ASGIApp
 
 
@@ -40,6 +39,13 @@ def dynamic_client(dynamic_app):
         yield client
     finally:
         client.close()
+
+
+@pytest.fixture
+def client(dynamic_app):
+    """Global test client fixture for all tests."""
+    # Use dynamic_app to ensure environment is set correctly
+    return TestClient(cast(ASGIApp, dynamic_app))
 
 
 @pytest.fixture(autouse=True)
@@ -182,7 +188,6 @@ def test_client():
 def isolated_test_client():
     """Fixture for creating isolated TestClient instances with clean app state."""
     import importlib
-
     import app
 
     # Reload app module to get fresh state
