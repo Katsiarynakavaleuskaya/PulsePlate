@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flake8: noqa: W503,W504
+# flake8: noqa
 """
 RU: Hypothesis тесты для системы сортов продуктов.
 EN: Hypothesis tests for product varieties system.
@@ -151,9 +151,7 @@ class TestProductVarietiesHypothesis:
             "gluten_free": gluten_free,
         }
 
-        if recommended := self.manager.recommend_variety(
-            product_name, preferences
-        ):
+        if recommended := self.manager.recommend_variety(product_name, preferences):
             assert isinstance(recommended, ProductVariety)
             assert recommended.name == product_name
 
@@ -162,41 +160,31 @@ class TestProductVarietiesHypothesis:
             # Система может вернуть лучший доступный вариант, если точного соответствия нет
             if low_sugar:
                 if low_sugar_varieties := [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_low_sugar()
+                    v for v in self.manager.get_varieties(product_name) if v.is_low_sugar()
                 ]:
                     assert recommended.is_low_sugar()
 
             if low_fat:
                 if low_fat_varieties := [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_low_fat()
+                    v for v in self.manager.get_varieties(product_name) if v.is_low_fat()
                 ]:
                     assert recommended.is_low_fat()
 
             if high_protein:
                 if high_protein_varieties := [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if v.is_high_protein()
+                    v for v in self.manager.get_varieties(product_name) if v.is_high_protein()
                 ]:
                     assert recommended.is_high_protein()
 
             if vegetarian:
                 if veg_varieties := [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if "VEG" in v.flags
+                    v for v in self.manager.get_varieties(product_name) if "VEG" in v.flags
                 ]:
                     assert "VEG" in recommended.flags
 
             if gluten_free:
                 if gf_varieties := [
-                    v
-                    for v in self.manager.get_varieties(product_name)
-                    if "GF" in v.flags
+                    v for v in self.manager.get_varieties(product_name) if "GF" in v.flags
                 ]:
                     assert "GF" in recommended.flags
 

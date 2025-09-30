@@ -1,25 +1,31 @@
 #!/bin/bash
 # SwiftLint Setup Script for PulsePlate
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 echo "🔧 Setting up SwiftLint for PulsePlate..."
 
-# Check if SwiftLint is available via Package.swift
-if [ -f "Package.swift" ]; then
-    echo "📦 Building SwiftLint from Package.swift..."
-    swift build --product SwiftLint
-    if [ ! -f ".build/debug/SwiftLint" ]; then
-        echo "❌ SwiftLint build failed or executable not found"
-        exit 1
-    fi
-    SWIFTLINT_PATH="$(pwd)/.build/debug/SwiftLint"
-    echo "export SWIFTLINT_PATH=\"$SWIFTLINT_PATH\"" > .swiftlint_env.sh
-    echo "✅ SwiftLint path exported to .swiftlint_env.sh"
-    echo "   Source it with: source .swiftlint_env.sh"
-else
-    echo "❌ Package.swift not found. Please run this from the iOS project root."
+# Resolve iOS root relative to this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IOS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$IOS_ROOT" || { echo "❌ Failed to cd to $IOS_ROOT"; exit 1; }
+
+# Check for Package.swift in iOS root
+if [[ -f "Package.swift" ]]; then
+  echo "📦 Building SwiftLint from Package.swift..."
+  swift build -c release --product swiftlint
+  SWIFTLINT_PATH="$IOS_ROOT/.build/release/swiftlint"
+  if [[ ! -f "$SWIFTLINT_PATH" ]]; then
+    echo "❌ SwiftLint build failed or executable not found at $SWIFTLINT_PATH"
     exit 1
+  fi
+  echo "export SWIFTLINT_PATH=\"$SWIFTLINT_PATH\"" > .swiftlint_env.sh
+  echo "✅ SwiftLint path exported to .swiftlint_env.sh"
+  echo "   Source it with: source .swiftlint_env.sh"
+else
+  echo "❌ Package.swift not found at $IOS_ROOT. Ensure you run/setup from the iOS project."
+  exit 1
 fi
 
 # Create SwiftLint configuration if it doesn't exist

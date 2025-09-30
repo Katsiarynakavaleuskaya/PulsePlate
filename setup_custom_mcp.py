@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 
-def setup_custom_mcp():
+def setup_custom_mcp() -> None:
     """Setup custom MCP configuration for PulsePlate"""
 
     # Get home directory
@@ -25,9 +25,7 @@ def setup_custom_mcp():
         }
     }
 
-    _extracted_from_setup_custom_mcp_21(
-        cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at "
-    )
+    _write_json_config(cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at ")
     # Create environment file
     env_file = cursor_dir / ".env"
     env_content = """# OpenAI API Configuration
@@ -53,7 +51,7 @@ MCP_ENABLED=true
         "mcp.servers": ["pulseplate-chatgpt"],
     }
 
-    _extracted_from_setup_custom_mcp_21(
+    _write_json_config(
         cursor_dir,
         "settings.json",
         cursor_settings,
@@ -67,14 +65,20 @@ MCP_ENABLED=true
     print("4. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
 
-# TODO Rename this here and in `setup_custom_mcp`
-def _extracted_from_setup_custom_mcp_21(cursor_dir, arg1, arg2, arg3):
-    # Write MCP configuration
-    mcp_file = cursor_dir / arg1
-    with open(mcp_file, "w") as f:
-        json.dump(arg2, f, indent=2)
+def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
+    """Write JSON configuration to a file and print success message.
 
-    print(f"{arg3}{mcp_file}")
+    Args:
+        cursor_dir: Directory where the config file will be written
+        filename: Name of the config file
+        data: Dictionary to serialize as JSON
+        success_message: Message prefix for success output
+    """
+    config_file = cursor_dir / filename
+    with open(config_file, "w") as f:
+        json.dump(data, f, indent=2)
+
+    print(f"{success_message}{config_file}")
 
 
 if __name__ == "__main__":

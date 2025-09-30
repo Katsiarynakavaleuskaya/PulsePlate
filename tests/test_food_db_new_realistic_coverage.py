@@ -394,7 +394,7 @@ class TestFoodDbNewRealisticCoverage:
 
             # Verify some searches completed
             completed = [r for r in results if r["duration"] > 0]
-            assert True
+            assert len(completed) > 0, "Expected at least one search to complete successfully"
 
         except ImportError:
             pass

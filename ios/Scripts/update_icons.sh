@@ -17,7 +17,7 @@ if [ ! -d "$ICONS_DIR" ]; then
 fi
 
 # Переходим в папку проекта
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || { echo "❌ Не удалось перейти в $PROJECT_DIR"; exit 1; }
 
 # Проверяем наличие всех иконок
 echo "📋 Проверяем наличие иконок..."
@@ -30,7 +30,7 @@ if [ ! -f "$CONTENTS_JSON" ]; then
 fi
 
 # Извлекаем имена файлов из Contents.json
-required_icons=($(python3 -c "
+mapfile -t required_icons < <(python3 -c "
 import json
 import sys
 
@@ -44,11 +44,12 @@ try:
         if filename:
             filenames.append(filename)
 
-    print(' '.join(filenames))
+    for fn in filenames:
+        print(fn)
 except Exception as e:
     print(f'Error reading Contents.json: {e}', file=sys.stderr)
     sys.exit(1)
-"))
+")
 
 missing_icons=()
 for icon in "${required_icons[@]}"; do

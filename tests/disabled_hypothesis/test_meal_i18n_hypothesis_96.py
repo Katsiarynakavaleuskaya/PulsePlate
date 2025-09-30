@@ -234,7 +234,7 @@ class TestMealI18nHypothesis96:
             f"{name1}áéíóúñü",
             f"{name1}1234567890",
             f"{name1}   spaces   ",
-            name1 + "\n\t\r",
+            f"{name1}\n\t\r",
         ]
 
         for lang in ["en", "ru", "es"]:

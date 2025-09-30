@@ -105,15 +105,12 @@ async def test_update_manager_off_branches(tmp_path, monkeypatch):
     updates = await mgr.check_for_updates()
     assert "openfoodfacts" in updates and updates["openfoodfacts"] is False
 
-
-
     class StubOFF2:
         async def search_products(self, term, page_size=5):
             return [make_off_item("Banana Bar")] if term == "banana" else []
 
         async def close(self):
             return None
-
 
     mgr.off_client = cast(OFFClient, StubOFF2())
 

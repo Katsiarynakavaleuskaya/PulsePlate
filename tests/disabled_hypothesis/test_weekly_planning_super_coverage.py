@@ -10,7 +10,7 @@ import pytest
 import os
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-from app import app
+from app.app import app
 
 
 @pytest.fixture
@@ -144,12 +144,12 @@ class TestWeeklyPlanningBlocks:
         # Патчинг getattr для нахождения make_weekly_menu
         original_getattr = getattr
 
-        def mock_getattr(obj, name, default=None):
+        def mock_getattr(obj: object, name: str, default: object = None) -> object:
             if name != "make_weekly_menu":
                 return original_getattr(obj, name, default)
 
             # Возвращаем мокнутую функцию
-            def mock_make_weekly_menu(profile):
+            def mock_make_weekly_menu(_profile: object) -> MagicMock:
                 mock_result = MagicMock()
                 mock_result.week_start = "2025-01-01"
                 mock_result.total_cost = 140.0

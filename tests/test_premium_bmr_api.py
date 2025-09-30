@@ -10,17 +10,13 @@ Tests cover:
 """
 
 import sys
+import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the FastAPI app from app.py file
 import importlib.util

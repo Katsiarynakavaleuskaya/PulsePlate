@@ -26,7 +26,8 @@ echo ""
 
 # Функция для поиска ZIP файла
 find_zip_file() {
-    local zip_file=$(find "$TEMP_DIR" -name "*.zip" -type f | head -1)
+    local zip_file
+    zip_file="$(find "$TEMP_DIR" -name "*.zip" -type f | head -1)"
     if [ -z "$zip_file" ]; then
         echo "❌ ZIP файл не найден в папке $TEMP_DIR"
         echo "📁 Содержимое папки:"
@@ -44,16 +45,13 @@ extract_icons() {
     fi
 
     echo "📦 Найден ZIP файл: $(basename "$zip_file")"
-     echo "📦 Найден ZIP файл: $(basename "$zip_file")"
-     echo "🔄 Извлекаем иконки..."
-
- # Извлекаем в подпапку
+    echo "🔄 Извлекаем иконки..."
 
 # Извлекаем в подпапку
 ORIGINAL_DIR="$PWD"
-cd "$TEMP_DIR"
+cd "$TEMP_DIR" || { echo "❌ Не удалось перейти в $TEMP_DIR"; return 1; }
 unzip -q "$zip_file" -d "extracted"
-cd "$ORIGINAL_DIR"
+cd "$ORIGINAL_DIR" || { echo "❌ Не удалось вернуться в $ORIGINAL_DIR"; return 1; }
 
     if [ $? -ne 0 ]; then
         echo "❌ Ошибка при извлечении ZIP файла"
@@ -64,7 +62,7 @@ cd "$ORIGINAL_DIR"
 
     # Ищем PNG файлы
     echo "🔍 Ищем PNG файлы..."
-    find extracted -name "*.png" -type f | while read -r file; do
+    find "$TEMP_DIR/extracted" -name "*.png" -type f | while IFS= read -r file; do
         echo "   📄 $(basename "$file")"
     done
 
@@ -83,10 +81,10 @@ copy_icons() {
 
     # Копируем новые иконки
     echo "📁 Копируем PNG файлы..."
-    find "$TEMP_DIR/extracted" -name "*.png" -type f | while read -r file; do
-        filename=$(basename "$file")
+    find "$TEMP_DIR/extracted" -name "*.png" -type f | while IFS= read -r file; do
+        filename="$(basename "$file")"
         echo "   📄 Копируем $filename"
-        cp "$file" "$ICONS_DIR/"
+        cp "$file" "$ICONS_DIR/" || echo "⚠️ Ошибка копирования $filename"
     done
 
     # Обновляем Contents.json, если он есть в архиве
@@ -104,7 +102,7 @@ copy_icons() {
 
     # Показываем список установленных иконок
     echo "📋 Установленные иконки:"
-    find "$ICONS_DIR" -name "*.png" -type f | sort | while read -r file; do
+    find "$ICONS_DIR" -name "*.png" -type f | sort | while IFS= read -r file; do
         size=$(file "$file" | grep -o '[0-9]* x [0-9]*' | head -1)
         echo "   📄 $(basename "$file"): $size"
     done
@@ -121,7 +119,6 @@ cleanup() {
     rm -rf "$TEMP_DIR/extracted"
     echo "✅ Временные файлы удалены"
 }
- }
 
 # Основная логика
 case "${1:-help}" in

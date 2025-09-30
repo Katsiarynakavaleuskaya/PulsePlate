@@ -115,7 +115,12 @@ class TestVIPCoveragePrecise:
         from app.routers.vip import _require_api_key
 
         # Test with callable app_get_api_key that raises 403 (lines 99-104)
-        with patch("app.routers.vip.resolve_attr", return_value=lambda x: iter(()).throw(HTTPException(status_code=403, detail="Forbidden"))):
+        with patch(
+            "app.routers.vip.resolve_attr",
+            return_value=lambda x: iter(()).throw(
+                HTTPException(status_code=403, detail="Forbidden")
+            ),
+        ):
             result = _require_api_key("test-key")
             assert result == "test-key"  # Returns key as-is when API_KEY is not set
 

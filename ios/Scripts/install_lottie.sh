@@ -36,6 +36,7 @@ print("6. Выберите Target 'PulsePlate'")
 print("7. Нажмите Add Package")
 print("\n✅ Готово! Lottie будет добавлен в проект")
 EOF
+[ $? -eq 0 ] || { echo "❌ Не удалось создать add_lottie_package.swift"; exit 1; }
 
 echo "📝 Создан скрипт для добавления Lottie пакета"
 echo "📋 Инструкции сохранены в add_lottie_package.swift"
@@ -97,6 +98,7 @@ open PulsePlate.xcodeproj
 3. **Проверьте версию iOS** (минимум 17.0)
 4. **Убедитесь, что Lottie добавлен в Target**
 EOF
+[ $? -eq 0 ] || { echo "❌ Не удалось создать LOTTIE_INSTALL_STEPS.md"; exit 1; }
 
 echo "📋 Создана подробная инструкция: LOTTIE_INSTALL_STEPS.md"
 

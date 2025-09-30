@@ -45,7 +45,7 @@ swift build
 1. Откройте `PulsePlate.xcodeproj`
 2. Выберите проект → Target "PulsePlate"
 3. Build Phases → + → New Run Script Phase
-4. Вставьте содержимое `xcode_build_phase.sh`
+4. Вставьте содержимое `ios/Scripts/xcode_build_phase.sh`
 5. Переместите скрипт перед "Compile Sources"
 
 #### Ручная интеграция

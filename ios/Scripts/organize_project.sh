@@ -1,7 +1,9 @@
 #!/bin/bash
 # Project Organization Script for PulsePlate iOS
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
+shopt -s nullglob dotglob
 
 # Validate execution context - must be run from ios/ directory
 if [ "$(basename "$PWD")" != "ios" ] || [ ! -f "Podfile" ]; then
@@ -10,6 +12,9 @@ if [ "$(basename "$PWD")" != "ios" ] || [ ! -f "Podfile" ]; then
 fi
 
 echo "🗂️  Organizing PulsePlate iOS project structure..."
+echo "Working directory: $PWD"
+read -r -p "Proceed with moving files in this directory? (y/N) " REPLY
+[[ "$REPLY" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 
 # Create directories
 mkdir -p scripts docs assets tools config

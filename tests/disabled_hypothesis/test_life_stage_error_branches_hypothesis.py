@@ -17,7 +17,7 @@ import app as app_mod
 class TestLifeStageErrorBranchesHypothesis:
     """Hypothesis tests for life_stage error and warning branches."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment."""
         os.environ["API_KEY"] = "test_key"
 

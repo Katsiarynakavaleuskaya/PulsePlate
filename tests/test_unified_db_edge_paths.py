@@ -35,7 +35,17 @@ def reload_module_with_off_import_failure():
         return orig_import(name, globals, locals, fromlist, level)
 
     orig_import_module = importlib.import_module
-    with (patch("builtins.__import__", side_effect=import_side_effect), patch("importlib.import_module", side_effect=lambda name, *a, **kw: iter(()).throw(ImportError("OFF module unavailable")) if name.endswith("openfoodfacts_client") else orig_import_module(name, *a, **kw))):
+    with (
+        patch("builtins.__import__", side_effect=import_side_effect),
+        patch(
+            "importlib.import_module",
+            side_effect=lambda name, *a, **kw: (
+                iter(()).throw(ImportError("OFF module unavailable"))
+                if name.endswith("openfoodfacts_client")
+                else orig_import_module(name, *a, **kw)
+            ),
+        ),
+    ):
         reloaded = importlib.reload(unified_db)
         try:
             yield reloaded

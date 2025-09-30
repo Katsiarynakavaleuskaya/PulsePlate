@@ -7,6 +7,7 @@ import argparse
 import os
 import re
 import sys
+from pathlib import Path
 
 
 def fix_test_file(file_path: str) -> bool:
@@ -21,7 +22,7 @@ def fix_test_file(file_path: str) -> bool:
     except PermissionError:
         print(f"❌ Ошибка: Нет доступа к файлу {file_path}", file=sys.stderr)
         return False
-    except Exception as e:
+    except OSError as e:
         print(f"❌ Неожиданная ошибка при чтении файла {file_path}: {e}", file=sys.stderr)
         return False
 
@@ -91,26 +92,27 @@ def fix_test_file(file_path: str) -> bool:
     try:
         with open(file_path, "w") as f:
             _ = f.write(content)
-        print(
-            "✅ Fixed all non-existent FastAPI method checks by mapping to actual FastAPI methods"
-        )
-        return True
     except PermissionError:
         print(f"❌ Ошибка: Нет доступа для записи в файл {file_path}", file=sys.stderr)
         return False
     except Exception as e:
         print(f"❌ Неожиданная ошибка при записи файла {file_path}: {e}", file=sys.stderr)
         return False
+    else:
+        print(
+            "✅ Fixed all non-existent FastAPI method checks by mapping to actual FastAPI methods"
+        )
+        return True
 
 
-def main():
+def main() -> None:
     """Main function with CLI argument parsing"""
     parser = argparse.ArgumentParser(
         description="Fix failing tests by mapping non-existent FastAPI method checks to actual FastAPI methods"
     )
     _ = parser.add_argument(
         "--file-path",
-        default="tests/test_missing_coverage_97.py",
+        default=str(Path(__file__).resolve().parent / "tests" / "test_missing_coverage_97.py"),
         help="Path to the test file to fix (default: tests/test_missing_coverage_97.py)",
     )
 
