@@ -67,7 +67,7 @@ def dynamic_client(dynamic_app):
 
 
 @pytest.fixture(autouse=True)
-def reset_environment():
+def reset_environment():  # sourcery skip: use-contextlib-suppress
     """Automatically reset environment variables before and after each test."""
     # Save current environment
     old_env = dict(os.environ)
@@ -77,7 +77,8 @@ def reset_environment():
 
     # Set default environment for tests
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
-    os.environ.setdefault("API_KEY", "test_key")
+    # Don't set API_KEY to enable lenient mode in tests (accepts any non-trivial key)
+    # os.environ.setdefault("API_KEY", "test_key")
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
@@ -151,7 +152,7 @@ def reset_sys_modules():
 
 
 @pytest.fixture
-def production_environment():
+def production_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for production environment testing."""
     old_env = dict(os.environ)
 
@@ -174,7 +175,7 @@ def production_environment():
 
 
 @pytest.fixture
-def test_environment():
+def test_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for test environment testing."""
     old_env = dict(os.environ)
 
@@ -197,7 +198,7 @@ def test_environment():
 
 
 @pytest.fixture
-def premium_disabled_environment():
+def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for testing with premium features disabled."""
     old_env = dict(os.environ)
 

@@ -13,7 +13,8 @@ class TestConftestEnvironmentCoverage:
         # Тестируем, что фикстура reset_environment работает
         # Это автоматически применяется к каждому тесту
         assert "FEATURE_PREMIUM_NUTRITION" in os.environ
-        assert "API_KEY" in os.environ
+        # API_KEY is not set by default to enable lenient mode in tests
+        # assert "API_KEY" in os.environ
         assert "VIP_MODULE_ENABLED" in os.environ
         assert "APP_ENV" in os.environ
         assert "ALLOW_DEV_API_KEY" in os.environ
@@ -47,7 +48,8 @@ class TestConftestEnvironmentCoverage:
         # Тестируем test environment fixture
         assert os.environ.get("APP_ENV") == "test"
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
-        assert os.environ.get("API_KEY") == "test_key"
+        # API_KEY is not set by default to enable lenient mode
+        # assert os.environ.get("API_KEY") == "test_key"
         assert os.environ.get("FEATURE_PREMIUM_NUTRITION") == "true"
         assert os.environ.get("VIP_MODULE_ENABLED") == "true"
 
@@ -58,7 +60,8 @@ class TestConftestEnvironmentCoverage:
         # Тестируем premium disabled environment fixture
         assert os.environ.get("APP_ENV") == "test"
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
-        assert os.environ.get("API_KEY") == "test_key"
+        # API_KEY is not set by default to enable lenient mode
+        # assert os.environ.get("API_KEY") == "test_key"
         assert os.environ.get("FEATURE_PREMIUM_NUTRITION") == "false"
         assert os.environ.get("VIP_MODULE_ENABLED") == "false"
 
@@ -85,7 +88,7 @@ class TestConftestEnvironmentCoverage:
         # Тестируем, что все необходимые переменные окружения установлены
         required_vars = [
             "FEATURE_PREMIUM_NUTRITION",
-            "API_KEY",
+            # "API_KEY",  # Not set by default to enable lenient mode
             "VIP_MODULE_ENABLED",
             "APP_ENV",
             "ALLOW_DEV_API_KEY",
@@ -99,12 +102,13 @@ class TestConftestEnvironmentCoverage:
         """Тест покрытия conftest.py environment values"""
         # Тестируем значения переменных окружения
         assert os.environ.get("FEATURE_PREMIUM_NUTRITION") == "true"
-        assert os.environ.get("API_KEY") == "test_key"
+        # API_KEY is not set by default to enable lenient mode
+        # assert os.environ.get("API_KEY") == "test_key"
         assert os.environ.get("VIP_MODULE_ENABLED") == "true"
         # APP_ENV can be "test" (local) or "ci" (GitHub Actions)
         assert os.environ.get("APP_ENV") in ["test", "ci"]
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
-        
+
         # PYTHONPATH can be relative (.:core:app:tests) or absolute (CI)
         pythonpath = os.environ.get("PYTHONPATH", "")
         # Check that required directories are present (either as relative or absolute paths)
@@ -113,8 +117,9 @@ class TestConftestEnvironmentCoverage:
         required_dirs = ["core", "app", "tests"]
         path_segments = pythonpath.split(os.pathsep)
         for dir_name in required_dirs:
-            assert any(dir_name in segment for segment in path_segments), \
-                f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
+            assert any(
+                dir_name in segment for segment in path_segments
+            ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""
@@ -127,7 +132,8 @@ class TestConftestEnvironmentCoverage:
         # Тестируем, что autouse фикстуры работают автоматически
         # reset_environment и reset_sys_modules должны быть применены
         assert "FEATURE_PREMIUM_NUTRITION" in os.environ
-        assert "API_KEY" in os.environ
+        # API_KEY is not set by default to enable lenient mode
+        # assert "API_KEY" in os.environ
 
     def test_conftest_fixture_yield_coverage(self, test_environment):
         """Тест покрытия conftest.py fixture yield"""
