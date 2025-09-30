@@ -383,9 +383,7 @@ class TestFoodMergeHypothesis96:
             # Check that micronutrients match USDA values (or median of USDA values)
             for micro in MICROS:
                 usda_values = [getattr(r, micro) for r in usda_records]
-                if usda_values := [
-                    v for v in usda_values if v is not None and v >= 0
-                ]:
+                if usda_values := [v for v in usda_values if v is not None and v >= 0]:
                     # Should use USDA values, not all values
                     assert merged_record[micro] in usda_values
 

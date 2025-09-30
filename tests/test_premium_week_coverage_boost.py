@@ -25,7 +25,6 @@ try:
     spec.loader.exec_module(app_module)
     fastapi_app = app_module.app
 
-from app.routers.premium_week import (
     from app.routers.premium_week import (
         TargetsIn,
         WeekPlanRequest,

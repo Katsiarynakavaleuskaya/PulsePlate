@@ -63,14 +63,23 @@ class TestAppCriticalLines97:
             if app_instance is not None:
                 client = TestClient(app_instance)
                 response = client.get("/api/v1/vip/status")
-                # Должен вернуть ошибку или 404
-                assert response.status_code in [404, 503, 500]
+                # Should return 404 when VIP module is disabled
+                assert response.status_code == 404
+                response_data = response.json()
+                assert "detail" in response_data
+                assert (
+                    "VIP" in response_data["detail"]
+                    or "not found" in response_data["detail"].lower()
+                )
 
     def test_admin_endpoints_missing_scheduler(self, client):
         """Тест admin endpoints когда scheduler недоступен"""
         with patch("app.get_update_scheduler", return_value=None):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test-key"})
-            assert response.status_code in [500, 503, 403]
+            # Should return 500 when scheduler is unavailable
+            assert response.status_code == 500
+            response_data = response.json()
+            assert "detail" in response_data
 
     def test_error_handling_edge_paths(self, client):
         """Тест различных error handling путей"""
@@ -90,11 +99,14 @@ class TestAppCriticalLines97:
         """Тест путей когда зависимости недоступны"""
         # Имитируем отсутствие модулей
         with patch.dict("sys.modules", {"core.auto_repair": None}):
-            with contextlib.suppress(ImportError):
+            try:
                 import app
 
                 # Проверяем что app загружается с заглушками
                 assert app is not None
+            except ImportError:
+                # Expected when dependencies are missing - graceful degradation working
+                pass
 
     def test_premium_endpoints_error_paths(self, client):
         """Тест error paths в premium endpoints"""
@@ -108,9 +120,11 @@ class TestAppCriticalLines97:
 
     def test_recipes_endpoints_error_handling(self, client):
         """Тест error handling в recipes endpoints"""
-        # Тест с невалидными параметрами
+        # Тест с пустым запросом - должен возвращать пустой результат
         response = client.get("/api/v1/recipes/search?query=")
-        assert response.status_code in [422, 400, 200]  # Может быть успешным с пустым результатом
+        assert response.status_code == 200
+        response_data = response.json()
+        assert isinstance(response_data, (list, dict))
 
     def test_foods_endpoints_error_handling(self, client):
         """Тест error handling в foods endpoints"""
@@ -176,7 +190,7 @@ class TestAppCriticalLines97:
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Создает тестового клиента"""
     import app
 

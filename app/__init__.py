@@ -3,6 +3,26 @@
 Test script to verify OpenAI Pro access and available models
 """
 
+# Import FastAPI app from the main module
+try:
+    from ..app import app
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    import os
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Import from the main app.py file directly
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    if spec is None or spec.loader is None:
+        app = None
+    else:
+        app_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(app_module)
+        app = app_module.app
+
 import contextlib
 import openai
 import os
@@ -46,7 +66,10 @@ def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
         # Check for Pro models
         pro_models = {
             "gpt-5": "gpt-5" in available_models,
-            "codex": any("codex" in model for model in available_models),
+            "codex": any(
+                model.startswith("code-davinci") or model.startswith("codex")
+                for model in available_models
+            ),
             "gpt-4": "gpt-4" in available_models,
             "gpt-3.5-turbo": "gpt-3.5-turbo" in available_models,
         }
@@ -92,7 +115,7 @@ def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
 
 def _is_valid_api_key(api_key: str) -> bool:
     """Validate the format of an API key."""
-    return api_key.startswith("sk-") and len(api_key) > 10
+    return api_key.startswith("sk-") and 48 <= len(api_key) <= 51
 
 
 def main():

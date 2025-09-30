@@ -117,9 +117,7 @@ def test_premium_targets_es_life_stage_warnings():
 
         # Find the expected warning
         expected_code = case["life_stage"]
-        if warning := next(
-            (w for w in warnings if w.get("code") == expected_code), None
-        ):
+        if warning := next((w for w in warnings if w.get("code") == expected_code), None):
             message = warning["message"].lower()
             for keyword in case["expected_keywords"]:
                 assert (

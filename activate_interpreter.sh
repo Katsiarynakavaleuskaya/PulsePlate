@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 
 # Переходим в директорию проекта
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || { echo "❌ Ошибка: не удалось перейти в директорию $PROJECT_DIR" >&2; return 1 2>/dev/null || exit 1; }
 
 # Проверяем существование и читаемость файла активации виртуального окружения
 if [ -r ".venv/bin/activate" ]; then
@@ -39,9 +39,9 @@ echo "   ppformat: code formatting"
 echo "   ppcheck: full checks (tests, coverage, linting, formatting)"
 echo "   ppserver: start FastAPI server"
 echo "   pppython: launch Python with project settings"
-echo "   pptest_file <file>: run a specific test file"
-echo "   pptest_class <file> <class>: run a specific test class"
-echo "   pptest_method <file> <class> <method>: run a specific test method"
+echo "   pptest-file <file>: run a specific test file"
+echo "   pptest-class <file> <class>: run a specific test class"
+echo "   pptest-method <file> <class> <method>: run a specific test method"
 
 echo ""
 echo "🎯 Готово! Интерпретатор активирован."

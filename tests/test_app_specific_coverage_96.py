@@ -1,5 +1,3 @@
-import os
-
 """
 Specific tests to cover exact missing lines in main.py for 96%+ coverage.
 
@@ -32,15 +30,12 @@ class TestAppSpecificCoverage96:
     """Tests to cover specific missing lines in main.py."""
 
     def setup_method(self):
-        """Setup test environment"""
+        """Set up test environment and client."""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
         self.client = TestClient(app)
 
-    @patch("app._scheduler_getter", None)
+    @patch.object(app_module, "_scheduler_getter", None)
     async def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler when _scheduler_getter is None (lines 115-119)."""
         # This should trigger the late import path

@@ -8,8 +8,6 @@ import os
 import sys
 from PIL import Image, ImageDraw
 
-# import math  # noqa: F401
-
 
 def create_pulseplate_icon(size):
     """Создает иконку PulsePlate с заданным размером"""
@@ -137,7 +135,7 @@ def generate_all_icons():
 if __name__ == "__main__":
     # Проверяем наличие PIL
     try:
-        from PIL import Image, ImageDraw  # noqa: F401
+        import PIL
     except ImportError:
         print("❌ Требуется библиотека Pillow:")
         print("pip install Pillow")

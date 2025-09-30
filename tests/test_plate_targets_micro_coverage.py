@@ -454,9 +454,7 @@ class TestPlateTargetsMicroCoverage:
             plate_micros = set(plate_data["day_micros"].keys())
 
             # Note: They may not be exactly the same due to different implementations
-            assert (
-                target_micros
-            ), f"Targets should have micronutrients for profile {profile}"
+            assert target_micros, f"Targets should have micronutrients for profile {profile}"
             assert plate_micros, f"Plate should have micronutrients for profile {profile}"
 
             # Verify all micronutrients are non-negative

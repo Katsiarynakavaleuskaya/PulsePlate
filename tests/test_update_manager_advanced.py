@@ -34,11 +34,11 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
     def mock_manager(self, temp_cache_dir):
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
-                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-                patch("core.food_apis.update_manager.OFFClient") as mock_off,
-                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-                patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
-            ):
+            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+            patch("core.food_apis.update_manager.OFFClient") as mock_off,
+            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+        ):
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
@@ -334,10 +334,10 @@ class TestAsyncMethods:
     def mock_manager(self):
         """Create manager with mocked dependencies."""
         with (
-                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-                patch("core.food_apis.update_manager.OFFClient") as mock_off,
-                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-            ):
+            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+            patch("core.food_apis.update_manager.OFFClient") as mock_off,
+            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+        ):
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
@@ -418,10 +418,10 @@ class TestUtilityMethods:
     def mock_manager(self):
         """Create manager with mocked dependencies."""
         with (
-                patch("core.food_apis.update_manager.USDAClient"),
-                patch("core.food_apis.update_manager.OFFClient"),
-                patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
-            ):
+            patch("core.food_apis.update_manager.USDAClient"),
+            patch("core.food_apis.update_manager.OFFClient"),
+            patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
+        ):
             yield DatabaseUpdateManager()
 
     def test_generate_food_key_edge_cases(self, mock_manager):

@@ -18,7 +18,9 @@ mkdir -p PulsePlate/Resources/MP4
 # Проверяем наличие исходной папки и MP4 файлов
 if [ -d "temp_animation" ] && compgen -G "temp_animation/*.mp4" > /dev/null; then
     echo "📁 Копируем MP4 файлы из temp_animation..."
-    cp temp_animation/*.mp4 PulsePlate/Resources/MP4/
+    if ! cp temp_animation/*.mp4 PulsePlate/Resources/MP4/; then
+        echo "⚠️  Не удалось скопировать некоторые файлы"
+    fi
 else
     echo "⚠️  Папка temp_animation не найдена или не содержит MP4 файлов"
 fi
@@ -88,8 +90,8 @@ echo "📋 Создана инструкция: ADD_MP4_TO_XCODE.md"
 # Генерируем список MP4 файлов динамически
 MP4_FILES=""
 if [ -d "PulsePlate/Resources/MP4" ] && [ "$(ls -A PulsePlate/Resources/MP4/*.mp4 2>/dev/null)" ]; then
-    # Используем awk для создания списка без trailing comma
-    MP4_FILES=$(ls PulsePlate/Resources/MP4/*.mp4 2>/dev/null | xargs -I {} basename {} .mp4 | awk 'BEGIN{ORS=""} {if(NR>1) print ", "; print "        \"" $0 "\""}')
+    # Используем find для безопасной обработки файлов
+    MP4_FILES=$(find PulsePlate/Resources/MP4 -maxdepth 1 -name "*.mp4" -print0 2>/dev/null | xargs -0 -I {} basename {} .mp4 | awk 'BEGIN{ORS=""} {if(NR>1) print ", "; print "        \"" $0 "\""}')
 else
     MP4_FILES='        "no_files_found"'
 fi

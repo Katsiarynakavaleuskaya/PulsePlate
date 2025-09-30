@@ -95,6 +95,7 @@ class TestPlateTargetsMicrosHypothesis:
         activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_fe_ca_mg_k_coverage_hypothesis(
         self,
         sex: str,
@@ -165,9 +166,18 @@ class TestPlateTargetsMicrosHypothesis:
             if plate_value is not None and target_value is not None:
                 # Values should be positive
                 assert plate_value > 0, f"{micro} plate value should be positive: {plate_value}"
-                assert (
-                    target_value > 0
-                ), f"{micro} target value should be positive: {target_value}"
+                assert target_value > 0, f"{micro} target value should be positive: {target_value}"
+
+        # Verify at least some key micros were found in both datasets
+        common_found = sum(
+            1
+            for micro in key_micros
+            if any(alias in plate_micros for alias in micro_aliases[micro])
+            and any(alias in target_micros for alias in micro_aliases[micro])
+        )
+        assert (
+            common_found >= 2
+        ), f"Expected at least 2 key micronutrients in both datasets, found {common_found}"
 
     @given(
         sex=st.sampled_from(["male", "female"]),

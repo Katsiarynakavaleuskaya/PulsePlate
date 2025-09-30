@@ -24,7 +24,7 @@
 --patternlet hoist
 --stripunusedargs always
 --self insert
---selfrequired ["init", "subscript"]
+--selfrequired init,subscript
 --header strip
 --ifdef no-indent
 --experimental

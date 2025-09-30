@@ -220,8 +220,7 @@ class TestI18nMissingLines:
                     fake.locale(),
                     f"{fake.language_code()}-{fake.country_code()}",
                     f"{fake.language_code().upper()}-{fake.country_code().lower()}",
-                    f"{fake.language_code().lower()}_"
-                    + fake.country_code().upper(),
+                    f"{fake.language_code().lower()}_" + fake.country_code().upper(),
                 ]
 
                 for locale in locale_variants:

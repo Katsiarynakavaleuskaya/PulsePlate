@@ -10,7 +10,7 @@ from typing import cast
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.test_helpers import load_app  # noqa: E402
+from tests.test_helpers import load_app
 
 client = TestClient(load_app())
 

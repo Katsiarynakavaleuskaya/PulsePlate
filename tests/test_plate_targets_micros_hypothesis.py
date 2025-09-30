@@ -165,9 +165,7 @@ class TestPlateTargetsMicrosHypothesis:
             if plate_value is not None and target_value is not None:
                 # Values should be positive
                 assert plate_value > 0, f"{micro} plate value should be positive: {plate_value}"
-                assert (
-                    target_value > 0
-                ), f"{micro} target value should be positive: {target_value}"
+                assert target_value > 0, f"{micro} target value should be positive: {target_value}"
 
     @given(
         sex=st.sampled_from(["male", "female"]),

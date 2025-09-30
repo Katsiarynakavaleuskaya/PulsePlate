@@ -472,8 +472,7 @@ class TestDailyPlateComprehensive:
             )
 
             lunch_or_dinner_boosted = any(
-                meal["name"] in ["lunch", "dinner"] and "boosters" in meal
-                for meal in result_meals
+                meal["name"] in ["lunch", "dinner"] and "boosters" in meal for meal in result_meals
             )
             assert lunch_or_dinner_boosted
 

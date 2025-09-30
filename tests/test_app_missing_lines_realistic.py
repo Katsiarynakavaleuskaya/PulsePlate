@@ -33,11 +33,11 @@ fake = Faker()
 class TestAppMissingLinesTargeted:
     """Target specific missing lines in main.py"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
         Faker.seed(42)
 
-    def test_api_v1_bmi_calculate_endpoint(self):
+    def test_api_v1_bmi_calculate_endpoint(self) -> None:
         """Test the legacy BMI calculation endpoint that doesn't require API key"""
         test_data = {
             "weight": fake.random_int(min=50, max=100),

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # 🎬 Скрипт для открытия Xcode с инструкциями по добавлению MP4
 
@@ -8,8 +9,14 @@ echo "🎬 Открываем Xcode с инструкциями по добав�
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR" || { echo "❌ Не удалось перейти в директорию скрипта"; exit 1; }
 
+PROJECT_PATH="../PulsePlate.xcodeproj"
+if [ ! -d "$PROJECT_PATH" ]; then
+    echo "❌ Проект не найден: $PROJECT_PATH" >&2
+    exit 1
+fi
+
 echo "📱 Открываем PulsePlate.xcodeproj..."
-open ../PulsePlate.xcodeproj
+open "$PROJECT_PATH"
 
 # Ждем немного, чтобы Xcode загрузился
 echo "⏳ Ждем загрузки Xcode..."

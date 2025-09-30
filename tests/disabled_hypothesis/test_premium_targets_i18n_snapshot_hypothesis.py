@@ -130,9 +130,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Check that we have the expected warning
         warnings = data["warnings"]
-        if life_stage_warnings := [
-            w for w in warnings if w.get("code") == life_stage
-        ]:
+        if life_stage_warnings := [w for w in warnings if w.get("code") == life_stage]:
             warning = life_stage_warnings[0]
             message = warning["message"].lower()
 

@@ -27,6 +27,8 @@ echo "🚀 Настройка CLI алиасов для PulsePlate..."
 create_alias() {
     local alias_name="$1"
     local command="$2"
+    # shellcheck disable=SC2139
+    # SC2139 is safe here because we only use static paths like $PROJECT_ROOT
     alias "$alias_name"="$command"
     echo "✅ Алиас '$alias_name' создан"
 }
@@ -79,8 +81,28 @@ create_alias "pphelp" "cd $PROJECT_ROOT && make help"
 # Git команды
 create_alias "ppgit" "cd $PROJECT_ROOT && git"
 create_alias "ppstatus" "cd $PROJECT_ROOT && git status"
-create_alias "pppush" "cd $PROJECT_ROOT && BRANCH=\$(git rev-parse --abbrev-ref HEAD) && [ \"\$BRANCH\" != \"HEAD\" ] && git push origin \$BRANCH || echo '❌ Not on a branch (detached HEAD)'"
-create_alias "pppull" "cd $PROJECT_ROOT && BRANCH=\$(git rev-parse --abbrev-ref HEAD) && [ \"\$BRANCH\" != \"HEAD\" ] && git pull origin \$BRANCH || echo '❌ Not on a branch (detached HEAD)'"
+pppush() {
+  cd "$PROJECT_ROOT" || return 1
+  local BRANCH
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$BRANCH" = "HEAD" ]; then
+    echo "❌ Not on a branch (detached HEAD)"
+    return 1
+  fi
+  git push origin "$BRANCH"
+}
+pppull() {
+  cd "$PROJECT_ROOT" || return 1
+  local BRANCH
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$BRANCH" = "HEAD" ]; then
+    echo "❌ Not on a branch (detached HEAD)"
+    return 1
+  fi
+  git pull origin "$BRANCH"
+}
+echo "✅ Функция 'pppush' создана"
+echo "✅ Функция 'pppull' создана"
 
 # Безопасные команды
 create_alias "ppsafe-push" "cd $PROJECT_ROOT && make safe-push"

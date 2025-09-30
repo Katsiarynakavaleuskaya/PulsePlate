@@ -6,10 +6,14 @@
 
 import os
 import sys
-from PIL import Image
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 
-def create_icons_from_source(source_path):
+def create_icons_from_source(source_path: str) -> bool:
     """Создает все иконки из исходного изображения"""
 
     # Проверяем исходный файл
@@ -24,23 +28,29 @@ def create_icons_from_source(source_path):
         print(f"❌ Папка {icons_dir} не найдена!")
         return False
 
-    # Размеры иконок
+    # Размеры иконок - соответствует Contents.json
     sizes = {
-        "AppIcon-20@1x.png": 20,
-        "AppIcon-20@2x.png": 40,
-        "AppIcon-20@3x.png": 60,
-        "AppIcon-29@1x.png": 29,
-        "AppIcon-29@2x.png": 58,
-        "AppIcon-29@3x.png": 87,
-        "AppIcon-40@1x.png": 40,
-        "AppIcon-40@2x.png": 80,
-        "AppIcon-40@3x.png": 120,
-        "AppIcon-60@2x.png": 120,
-        "AppIcon-60@3x.png": 180,
-        "AppIcon-76@1x.png": 76,
-        "AppIcon-76@2x.png": 152,
-        "AppIcon-83.5@2x.png": 167,
-        "AppIcon-1024.png": 1024,
+        # iPhone
+        "icon_iphone_20pt@2x.png": 40,
+        "icon_iphone_20pt@3x.png": 60,
+        "icon_iphone_29pt@2x.png": 58,
+        "icon_iphone_29pt@3x.png": 87,
+        "icon_iphone_40pt@2x.png": 80,
+        "icon_iphone_40pt@3x.png": 120,
+        "icon_iphone_60pt@2x.png": 120,
+        "icon_iphone_60pt@3x.png": 180,
+        # iPad
+        "icon_ipad_20pt.png": 20,
+        "icon_ipad_20pt@2x.png": 40,
+        "icon_ipad_29pt.png": 29,
+        "icon_ipad_29pt@2x.png": 58,
+        "icon_ipad_40pt.png": 40,
+        "icon_ipad_40pt@2x.png": 80,
+        "icon_ipad_76pt.png": 76,
+        "icon_ipad_76pt@2x.png": 152,
+        "icon_ipad_83_5pt@2x.png": 167,
+        # App Store
+        "icon_marketing_1024.png": 1024,
     }
 
     print(f"🎨 Создаем иконки из {source_path}")
@@ -64,7 +74,7 @@ def create_icons_from_source(source_path):
                 print(f"✅ {filename} ({size}x{size})")
                 success += 1
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"❌ Ошибка {filename}: {e}")
 
     print(f"\n🎯 Создано {success}/{len(sizes)} иконок")
@@ -78,6 +88,10 @@ if __name__ == "__main__":
         sys.exit(1)
 
     source_path = sys.argv[1]
+
+    if Image is None:
+        print("❌ Установите Pillow: pip install Pillow")
+        sys.exit(1)
 
     if create_icons_from_source(source_path):
         print("\n🎉 Готово! Теперь можно открыть проект в Xcode")

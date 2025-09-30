@@ -23,10 +23,9 @@ def create_pulseplate_icon(size: int) -> Image.Image:
     для слишком маленьких, отрицательных и нецелочисленных значений.
     """
     # Early validation for size to avoid malformed drawing or ZeroDivision errors
-    try:
-        size = size
-    except (TypeError, ValueError) as exc:  # noqa: F841 - exc kept for clarity
-        raise ValueError("size must be an integer number of pixels (received non-integer)") from exc
+    # Early validation for size to avoid malformed drawing or ZeroDivision errors
+    if not isinstance(size, int):
+        raise TypeError(f"size must be an integer (received {type(size).__name__})")
 
     MIN_SIZE = 16
     if size < MIN_SIZE:
@@ -154,7 +153,7 @@ def generate_all_icons() -> bool:
             print(f"✅ {filename} ({size}x{size})")
             success_count += 1
 
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             print(f"❌ Ошибка при создании {filename}: {e}")
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")

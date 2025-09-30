@@ -17,7 +17,7 @@ source .venv/bin/activate
 export PYTHONPATH=".:core:app:tests"
 export VIP_MODULE_ENABLED="true"
 export FEATURE_PREMIUM_NUTRITION="true"
-export API_KEY="test-key"
+export API_KEY="test_key"
 export APP_ENV="test"
 export ENVIRONMENT="test"
 

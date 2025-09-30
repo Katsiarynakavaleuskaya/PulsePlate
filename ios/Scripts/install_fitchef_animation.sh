@@ -1,6 +1,36 @@
 #!/bin/bash
+set -euo pipefail
 
 # Скрипт для установки анимации FitChef (4 кадра)
+
+# Обработка аргументов командной строки
+FORCE_MODE="false"
+NON_INTERACTIVE="false"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_MODE="true"
+            shift
+            ;;
+        --non-interactive)
+            NON_INTERACTIVE="true"
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--force] [--non-interactive]"
+            echo "  --force           Overwrite existing files without prompting"
+            echo "  --non-interactive Skip all interactive prompts (fails on conflicts)"
+            echo "  -h, --help        Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Use --help for usage information" >&2
+            exit 1
+            ;;
+    esac
+done
 
 echo "🎬 Устанавливаем анимацию FitChef..."
 
