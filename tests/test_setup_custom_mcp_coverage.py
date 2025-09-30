@@ -150,9 +150,10 @@ class TestSetupCustomMcpCoverage:
         # Test that the function exists and is callable
         assert callable(setup_custom_mcp.setup_custom_mcp)
 
-        # Test that the function can be called (it will create files, but that's expected)
+        # Test that the function can be called with --force to avoid input() prompts
         try:
-            setup_custom_mcp.setup_custom_mcp(argv=[])
+            # Use --force to skip user prompts in test environment
+            setup_custom_mcp.setup_custom_mcp(argv=["--force"])
         except OSError as e:
             pytest.skip(f"insufficient permissions or filesystem error: {e}")
         except Exception as e:
