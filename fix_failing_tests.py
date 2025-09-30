@@ -6,15 +6,20 @@ Script to fix failing tests by mapping non-existent FastAPI method checks to act
 import argparse
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
 
 def fix_test_file(file_path: str) -> bool:
-    """Fix the test file by mapping non-existent method checks to actual FastAPI methods"""
+    """Fix the test file by mapping non-existent method checks to actual FastAPI methods.
+
+    Returns True if changes were made, False otherwise.
+    Creates a backup with .bak extension before making changes.
+    """
 
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
         print(f"❌ Ошибка: Файл {file_path} не найден", file=sys.stderr)
@@ -86,22 +91,37 @@ def fix_test_file(file_path: str) -> bool:
         ),
     ]
 
+    original = content
+    changes = 0
+
     for pattern, replacement in patterns_to_replace:
-        content = re.sub(pattern, replacement, content)
+        new_text, count = re.subn(pattern, replacement, content)
+        if count:
+            changes += count
+            content = new_text
+
+    if changes == 0:
+        print(f"ℹ️  No changes needed in {file_path}")
+        return True
+
+    # Create backup before modifying
+    try:
+        backup_path = f"{file_path}.bak"
+        shutil.copyfile(file_path, backup_path)
+    except (OSError, PermissionError) as e:
+        print(f"⚠️  Warning: Could not create backup: {e}", file=sys.stderr)
 
     try:
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             _ = f.write(content)
     except PermissionError:
         print(f"❌ Ошибка: Нет доступа для записи в файл {file_path}", file=sys.stderr)
         return False
-    except Exception as e:
+    except OSError as e:
         print(f"❌ Неожиданная ошибка при записи файла {file_path}: {e}", file=sys.stderr)
         return False
     else:
-        print(
-            "✅ Fixed all non-existent FastAPI method checks by mapping to actual FastAPI methods"
-        )
+        print(f"✅ Applied {changes} replacement(s) in {file_path}")
         return True
 
 

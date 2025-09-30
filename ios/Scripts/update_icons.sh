@@ -19,8 +19,8 @@ fi
 # Переходим в папку проекта
 cd "$PROJECT_DIR" || { echo "❌ Не удалось перейти в $PROJECT_DIR"; exit 1; }
 
-# Проверяем наличие всех иконок
-echo "📋 Проверяем наличие иконок..."
+# Проверяем наличие всех иконок согласно Contents.json
+echo "📋 Проверяем наличие иконок (из Contents.json)..."
 
 # Читаем имена файлов из Contents.json
 CONTENTS_JSON="$ICONS_DIR/Contents.json"
@@ -29,13 +29,13 @@ if [ ! -f "$CONTENTS_JSON" ]; then
     exit 1
 fi
 
-# Извлекаем имена файлов из Contents.json
+# Извлекаем имена файлов из Contents.json (единственный источник истины)
 mapfile -t required_icons < <(python3 -c "
 import json
 import sys
 
 try:
-    with open('$CONTENTS_JSON', 'r') as f:
+    with open('$CONTENTS_JSON', 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     filenames = []
@@ -44,12 +44,22 @@ try:
         if filename:
             filenames.append(filename)
 
+    if not filenames:
+        print('Warning: No filenames found in Contents.json', file=sys.stderr)
+
     for fn in filenames:
         print(fn)
 except Exception as e:
     print(f'Error reading Contents.json: {e}', file=sys.stderr)
     sys.exit(1)
 ")
+
+if [ ${#required_icons[@]} -eq 0 ]; then
+    echo "❌ Не удалось получить список иконок из Contents.json"
+    exit 1
+fi
+
+echo "📊 Найдено ${#required_icons[@]} иконок в Contents.json"
 
 missing_icons=()
 for icon in "${required_icons[@]}"; do
