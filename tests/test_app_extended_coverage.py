@@ -13,8 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Import the FastAPI app from app.py file
 import importlib.util
 
