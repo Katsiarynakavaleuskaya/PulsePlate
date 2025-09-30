@@ -53,7 +53,7 @@ repos:
           PYTHONDONTWRITEBYTECODE: "1"
       - id: pytest
         name: pytest
-        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/ --ignore=tests/edges --cov=. --cov-config=.coveragerc --cov-fail-under=95 -q --maxfail=5; status=$?; git checkout -- data/food_aliases.csv cache/food_db/database_versions.json >/dev/null 2>&1 || true; exit $status'
+        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/ --ignore=tests/edges --cov=. --cov-config=.coveragerc --cov-fail-under=97 -q --maxfail=5; status=$?; git checkout -- data/food_aliases.csv cache/food_db/database_versions.json >/dev/null 2>&1 || true; exit $status'
         language: system
         pass_filenames: false
         always_run: true

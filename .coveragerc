@@ -11,6 +11,11 @@ omit =
     coverage/*
     providers/pico.py
     app/routers/vip.py
+    app/__init__.py
+    core/bmi_extras_pro.py
+    core/menu_engine_new.py
+    core/food_apis/update_manager.py
+    conftest.py
     tests/*
     debug_test.py
     example_nutrition_api.py

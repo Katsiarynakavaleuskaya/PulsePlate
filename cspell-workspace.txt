@@ -26,6 +26,7 @@
 авторизацией
 авторизации
 авторизацию
+Автофикстура
 Автоформатирование
 агрегации
 агрегировалась
@@ -1275,6 +1276,7 @@
 линия
 линтинг
 Линтинг
+линтинга
 листовая
 листовые
 личной
@@ -3572,6 +3574,7 @@
 эндпоинта
 эндпоинтам
 эндпоинтами
+эндпоинте
 эндпоинтов
 эндпоинты
 энергетическим
@@ -3811,6 +3814,7 @@ getattr
 getattribute
 getcwd
 getenv
+gettempdir
 GITHUB
 grasa
 Grasa
@@ -3924,6 +3928,7 @@ monday
 Monitorea
 monkeypatched
 monkeypatching
+MPLCONFIGDIR
 mujer
 Mujer
 mult
@@ -3966,6 +3971,7 @@ pathlib
 pathsep
 pbxproj
 pcpu
+pdfgen
 Pechuga
 pediátricas
 PEFT
