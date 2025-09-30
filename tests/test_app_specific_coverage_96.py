@@ -29,11 +29,10 @@ get_update_scheduler = app_module.get_update_scheduler
 class TestAppSpecificCoverage96:
     """Tests to cover specific missing lines in main.py."""
 
-    def setup_method(self):
-        """Set up test environment and client."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app)
+    @pytest.fixture(autouse=True)
+    def setup_client(self, client):
+        """Set up test client from conftest fixture."""
+        self.client = client
 
     @patch.object(app_module, "_scheduler_getter", None)
     async def test_get_update_scheduler_late_import(self):
