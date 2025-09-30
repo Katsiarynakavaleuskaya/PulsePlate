@@ -19,6 +19,10 @@ if spec is None or spec.loader is None:
     get_update_scheduler = None
     HTTPException = None
     admin_status = None
+    add_visualization_if_requested = None
+    to_pdf_day = None
+    export_pdf_generic = None
+    _mod = None
 else:
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
@@ -27,6 +31,27 @@ else:
     get_update_scheduler = app_module.get_update_scheduler
     HTTPException = app_module.HTTPException
     admin_status = app_module.admin_status
+    add_visualization_if_requested = getattr(app_module, "add_visualization_if_requested", None)
+    to_pdf_day = getattr(app_module, "to_pdf_day", None)
+    export_pdf_generic = getattr(app_module, "export_pdf_generic", None)
+    _mod = app_module
 
 # Export the app and key functions for easy importing
-__all__ = ["app", "get_api_key", "get_update_scheduler", "HTTPException", "admin_status"]
+__all__ = [
+    "app",
+    "get_api_key",
+    "get_update_scheduler",
+    "HTTPException",
+    "admin_status",
+    "add_visualization_if_requested",
+    "to_pdf_day",
+    "export_pdf_generic",
+    "_mod",
+]
+
+
+def __getattr__(name):
+    """Allow access to attributes from the underlying module"""
+    if _mod is not None and hasattr(_mod, name):
+        return getattr(_mod, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
