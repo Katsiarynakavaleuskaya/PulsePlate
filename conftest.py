@@ -41,6 +41,18 @@ def dynamic_app():
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
+
+    # Apply API key override for this app instance
+    def mock_get_api_key(api_key: str = ""):
+        if not api_key or len(api_key.strip()) < 3:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=403, detail="Invalid API Key")
+        return api_key
+
+    if hasattr(app_module.app, "dependency_overrides"):
+        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+
     return app_module.app
 
 
@@ -77,7 +89,7 @@ def reset_environment():
         from app import app as fastapi_app
 
         # Simple pass-through that accepts any non-empty API key
-        def mock_get_api_key(api_key: str = None):
+        def mock_get_api_key(api_key: str = ""):
             if not api_key or len(api_key.strip()) < 3:
                 from fastapi import HTTPException
 
