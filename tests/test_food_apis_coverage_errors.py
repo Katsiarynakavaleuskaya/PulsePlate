@@ -8,10 +8,11 @@ import json
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
 
-from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 from core.food_apis.unified_db import UnifiedFoodDatabase
+from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 
 
 class TestFoodAPIsUpdatePipelineBasic:
@@ -151,8 +152,8 @@ class TestFoodAPIsUpdatePipelineBasic:
         assert isinstance(versions, dict)
 
 
-from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 from core.food_apis.unified_db import UnifiedFoodDatabase
+from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 
 
 class TestFoodAPIsUpdatePipeline:

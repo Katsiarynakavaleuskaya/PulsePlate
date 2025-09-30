@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 import app
 from core import db as db_module
-from starlette.types import ASGIApp
-from typing import cast
 
 
 def test_health_db_ok() -> None:

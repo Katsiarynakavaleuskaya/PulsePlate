@@ -5,8 +5,9 @@ RU: Тесты для реализации Премиум Таргетов (P1).
 EN: Tests for Premium Targets (P1) implementation.
 """
 
-import pytest
 from typing import Literal
+
+import pytest
 
 from core.recommendations import build_nutrition_targets
 from core.targets import NutritionTargets, UserProfile

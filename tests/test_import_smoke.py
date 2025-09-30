@@ -4,8 +4,9 @@ This file exists solely to import modules that might not be tested elsewhere,
 so they show up in coverage calculations with their actual coverage percentages.
 """
 
-import pytest
 import importlib
+
+import pytest
 
 # Define core modules as a constant list for parametrized testing
 CORE_MODULES = [

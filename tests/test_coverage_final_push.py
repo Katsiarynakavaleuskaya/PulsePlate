@@ -3,13 +3,14 @@ Final coverage push tests - target specific uncovered lines for maximum coverage
 Focus on easy endpoints and error paths to reach 97% coverage.
 """
 
+import os
+import sys
+from typing import cast
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
-import sys
-import os
 from starlette.types import ASGIApp
-from typing import cast
 
 # Add paths for import resolution
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

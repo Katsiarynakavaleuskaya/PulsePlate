@@ -7,7 +7,7 @@ EN: Additional tests for recipe synthesis module - utility functions.
 
 import pytest
 
-from core.recipe_synth import RecipeTemplate, RecipeSynthesizer
+from core.recipe_synth import RecipeSynthesizer, RecipeTemplate
 
 
 class TestRecipeSynthesizerUtilities:

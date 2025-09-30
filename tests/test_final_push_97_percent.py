@@ -15,12 +15,12 @@
 Всего: 142 + 47 + ~68 = 257+ строк = ДОСТИГАЕМ 97%!
 """
 
-import pytest
 import os
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock  # noqa: F401 - MagicMock used for testing
 import sys
-import os
+from unittest.mock import MagicMock, patch  # noqa: F401 - MagicMock used for testing
+
+import pytest
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -3,13 +3,14 @@
 """
 
 import os
-from unittest.mock import patch, MagicMock
-import pytest
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
 
 # Импортируем app на уровне модуля
 import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -5,14 +5,15 @@ RU: Базовые тесты для модуля движка генераци�
 EN: Basic tests for menu generation engine module.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from dataclasses import asdict
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from core.menu_engine import (
+    DayMenu,
     FoodItem,
     Recipe,
-    DayMenu,
     WeekMenu,
     _get_default_food_db,
     _get_default_recipe_db,

@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 from core.auto_repair import (
     AutoRepairEngine,
-    RepairStrategy,
-    RepairStatus,
-    RepairResult,
     RepairIteration,
-    get_auto_repair_engine,
+    RepairResult,
+    RepairStatus,
+    RepairStrategy,
     auto_repair_week_plan,
+    get_auto_repair_engine,
     suggest_manual_fixes,
 )
 from core.targets import MicronutrientTargets

@@ -1,7 +1,8 @@
 """Tests to boost coverage for core/recipe_synth.py to 97%."""
 
 import pytest
-from core.recipe_synth import RecipeSynthesizer, RecipeTemplate, RecipeStep
+
+from core.recipe_synth import RecipeStep, RecipeSynthesizer, RecipeTemplate
 
 
 class TestRecipeSynthCoverage97:

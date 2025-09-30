@@ -6,8 +6,9 @@ RU: Тесты покрытия для core database и food APIs модулей
 EN: Coverage tests for core database and food APIs modules
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestCoreDatabaseCoverage:
@@ -17,9 +18,9 @@ class TestCoreDatabaseCoverage:
         """Test database models functionality."""
         try:
             from core.db import (
+                create_tables,
                 get_session,
                 get_unified_food_db,
-                create_tables,
                 init_database,
             )
 
@@ -121,8 +122,8 @@ class TestCoreDatabaseCoverage:
         """Test update manager functionality."""
         try:
             from core.food_apis.update_manager import (
-                UpdateManager,
                 DatabaseVersion,
+                UpdateManager,
                 check_for_updates,
             )
 
@@ -154,8 +155,8 @@ class TestCoreModulesAdvanced:
             from core.auto_repair import (
                 RepairEngine,
                 analyze_nutrition_gaps,
-                suggest_food_replacements,
                 calculate_repair_score,
+                suggest_food_replacements,
             )
 
             # Test repair engine
@@ -242,8 +243,8 @@ class TestCoreModulesAdvanced:
         try:
             from core.targets import (
                 TargetCalculator,
-                get_who_recommendations,
                 adjust_targets_for_activity,
+                get_who_recommendations,
                 validate_target_ranges,
             )
 
@@ -273,9 +274,9 @@ class TestCoreModulesAdvanced:
         try:
             from core.i18n import (
                 TranslationManager,
-                load_translations,
-                get_locale_info,
                 format_number_locale,
+                get_locale_info,
+                load_translations,
             )
 
             # Test translation manager

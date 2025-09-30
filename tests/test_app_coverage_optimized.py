@@ -1,9 +1,10 @@
 """Final optimized app.py coverage tests - fast and reliable."""
 
 import os
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 
 
 @pytest.fixture(scope="class")
@@ -16,6 +17,7 @@ def app_client():
     os.environ["VIP_MODULE_ENABLED"] = "true"
 
     from typing import cast
+
     from starlette.types import ASGIApp
 
     client = TestClient(cast(ASGIApp, app.app))

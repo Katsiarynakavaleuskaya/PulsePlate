@@ -2,8 +2,9 @@
 Comprehensive test coverage for app.py VIP functionality to improve coverage to 97%.
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestAppVipComprehensiveCoverage:
@@ -246,6 +247,7 @@ class TestAppVipComprehensiveCoverage:
         # Mock VIP module to be unavailable
         with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
             import importlib
+
             import app as app_module
 
             importlib.reload(app_module)

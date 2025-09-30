@@ -2,9 +2,10 @@
 Test coverage for specific missing lines in app.py to improve coverage to 97%.
 """
 
-import pytest
-from unittest.mock import patch
 import os
+from unittest.mock import patch
+
+import pytest
 
 
 class TestAppSpecificMissingLines:
@@ -22,6 +23,7 @@ class TestAppSpecificMissingLines:
 
             # Reload app module to trigger import error handling
             import importlib
+
             import app
 
             importlib.reload(app)
@@ -48,6 +50,7 @@ class TestAppSpecificMissingLines:
             with patch("importlib.import_module", side_effect=ImportError("VIP module not found")):
                 # Reload app module to trigger import error handling
                 import importlib
+
                 import app
 
                 importlib.reload(app)
@@ -64,6 +67,7 @@ class TestAppSpecificMissingLines:
         with patch("importlib.import_module", side_effect=ImportError("Bodyfat module not found")):
             # Reload app module to trigger import error handling
             import importlib
+
             import app
 
             importlib.reload(app)
@@ -73,6 +77,7 @@ class TestAppSpecificMissingLines:
         # Test with sanitized environment
         with patch.dict(os.environ, {"PATH": "test"}, clear=True):
             import importlib
+
             import app
 
             importlib.reload(app)
@@ -80,6 +85,7 @@ class TestAppSpecificMissingLines:
         # Test with local environment
         with patch.dict(os.environ, {"APP_ENV": "local"}):
             import importlib
+
             import app
 
             importlib.reload(app)
@@ -87,6 +93,7 @@ class TestAppSpecificMissingLines:
         # Test with pytest environment
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}):
             import importlib
+
             import app
 
             importlib.reload(app)

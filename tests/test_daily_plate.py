@@ -8,13 +8,13 @@ EN: Tests for daily plate formation algorithm.
 from unittest.mock import Mock, patch
 
 from core.daily_plate import (
+    apply_boosters_if_needed,
+    calculate_micro_coverage,
     create_daily_plate,
+    create_fallback_meal,
     create_meal,
     find_recipe_for_meal,
     is_compatible_with_flags,
-    calculate_micro_coverage,
-    create_fallback_meal,
-    apply_boosters_if_needed,
 )
 
 

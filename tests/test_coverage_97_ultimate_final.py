@@ -1,11 +1,13 @@
 """Ultimate final coverage tests to reach 97% coverage."""
 
 import os
+from typing import cast
+
 import pytest
 from fastapi.testclient import TestClient
-import app
 from starlette.types import ASGIApp
-from typing import cast
+
+import app
 
 
 class TestCoverage97UltimateFinal:

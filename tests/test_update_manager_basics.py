@@ -5,21 +5,22 @@ RU: Базовые тесты для модуля менеджера обнов�
 EN: Basic tests for database update manager module.
 """
 
-import pytest
 import json
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from core.food_apis.unified_db import UnifiedFoodItem
 from core.food_apis.update_manager import (
     DatabaseUpdateManager,
     DatabaseVersion,
     UpdateResult,
     run_scheduled_update,
 )
-from core.food_apis.unified_db import UnifiedFoodItem
 
 
 class TestDatabaseVersion:

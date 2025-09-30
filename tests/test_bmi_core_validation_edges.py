@@ -4,6 +4,7 @@ Tests for missing coverage lines in bmi_core.py - specifically lines 293 and 295
 """
 
 import pytest
+
 from bmi_core import build_premium_plan
 
 

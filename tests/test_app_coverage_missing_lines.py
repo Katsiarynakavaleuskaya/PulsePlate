@@ -2,9 +2,10 @@
 Test coverage for missing lines in app.py to improve coverage to 97%.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestAppMissingLinesCoverage:

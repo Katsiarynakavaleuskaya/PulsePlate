@@ -3,11 +3,11 @@
 """
 
 from core.meal_i18n import (
-    translate_food,
-    translate_recipe,
-    translate_meal_type,
-    translate_tip,
     TIP_TRANSLATIONS,
+    translate_food,
+    translate_meal_type,
+    translate_recipe,
+    translate_tip,
 )
 
 

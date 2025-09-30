@@ -4,6 +4,7 @@ Test to exactly trigger the KeyError exception path in reset_environment fixture
 
 import sys
 from types import ModuleType
+
 import pytest
 
 

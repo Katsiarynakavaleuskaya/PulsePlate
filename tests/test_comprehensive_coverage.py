@@ -3,12 +3,11 @@ Comprehensive tests to improve coverage to 97%+.
 """
 
 import os
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -3,10 +3,11 @@
 Покрывает строки: 504-505, 978, 995-996, 1008-1012, 1045-1049, 1093-1094, 1101-1102, 1109-1112, 1115-1118, 1121-1124, 1197
 """
 
-import pytest
 import logging
-from unittest.mock import patch
 from typing import cast
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 

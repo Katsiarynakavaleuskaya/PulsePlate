@@ -3,10 +3,11 @@
 App module initialization
 """
 
+import importlib.util
+import os
+
 # Import FastAPI app and functions from the main module
 import sys
-import os
-import importlib.util
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

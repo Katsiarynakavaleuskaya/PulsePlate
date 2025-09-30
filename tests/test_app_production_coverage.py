@@ -4,6 +4,7 @@
 """
 
 from typing import cast
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 

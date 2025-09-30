@@ -3,9 +3,10 @@ Realistic tests for core/food_db_new.py using Faker library.
 Target 86% coverage improvement with realistic food data scenarios.
 """
 
+import random
+
 from faker import Faker
 from faker.providers import BaseProvider
-import random
 
 fake = Faker()
 
@@ -77,7 +78,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_search_edge_cases_realistic(self):
         """Test food search with realistic edge cases"""
         try:
-            from core.food_db_new import search_foods, search_by_barcode
+            from core.food_db_new import search_by_barcode, search_foods
 
             # Test with realistic but challenging search terms
             search_terms = [
@@ -118,7 +119,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_data_validation_realistic(self):
         """Test food data validation with realistic scenarios"""
         try:
-            from core.food_db_new import validate_food_data, normalize_food_data
+            from core.food_db_new import normalize_food_data, validate_food_data
 
             # Generate realistic food data
             food_samples = []
@@ -164,7 +165,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_database_updates_realistic(self):
         """Test food database updates with realistic scenarios"""
         try:
-            from core.food_db_new import update_food_database, sync_external_sources
+            from core.food_db_new import sync_external_sources, update_food_database
 
             # Test database updates
             try:
@@ -199,7 +200,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_caching_realistic(self):
         """Test food data caching with realistic access patterns"""
         try:
-            from core.food_db_new import get_cached_food, cache_food_data, clear_cache
+            from core.food_db_new import cache_food_data, clear_cache, get_cached_food
 
             # Generate realistic cache scenarios
             food_ids = [fake.random_int(min=1, max=10000) for _ in range(20)]
@@ -239,7 +240,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_api_integration_realistic(self):
         """Test food API integration with realistic response scenarios"""
         try:
-            from core.food_db_new import fetch_from_usda, fetch_from_openfood
+            from core.food_db_new import fetch_from_openfood, fetch_from_usda
 
             # Test USDA API calls
             usda_queries = [
@@ -338,7 +339,7 @@ class TestFoodDbNewRealisticCoverage:
     def test_food_search_algorithms_realistic(self):
         """Test different food search algorithms with realistic data"""
         try:
-            from core.food_db_new import fuzzy_search, exact_search, category_search
+            from core.food_db_new import category_search, exact_search, fuzzy_search
 
             # Test fuzzy search with typos and variations
             search_variations = [
@@ -367,11 +368,11 @@ class TestFoodDbNewRealisticCoverage:
 
     def test_food_database_performance_realistic(self):
         """Test food database performance with realistic load"""
-        import time
         import concurrent.futures
+        import time
 
         try:
-            from core.food_db_new import search_foods, get_food_by_id
+            from core.food_db_new import get_food_by_id, search_foods
 
             def search_task():
                 query = fake.food_name()

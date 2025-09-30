@@ -4,12 +4,12 @@ Specific tests to cover exact missing lines in main.py for 96%+ coverage.
 This module targets the specific uncovered lines identified in the coverage report.
 """
 
+import os
+import sys
 from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

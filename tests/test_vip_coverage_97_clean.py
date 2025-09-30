@@ -3,10 +3,10 @@ Clean VIP coverage tests to achieve 97% coverage with proper isolation.
 """
 
 import os
-from unittest.mock import patch, MagicMock
+from typing import cast
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from typing import cast
 from starlette.types import ASGIApp
 
 
@@ -32,11 +32,11 @@ class TestVIPCoverage97Clean:
 
         # Test helper functions for coverage
         from app.routers.vip import (
-            _is_production_environment,
-            _should_allow_anonymous_access,
             _is_dev_mode,
-            _validate_with_app_get_api_key,
+            _is_production_environment,
             _log_api_key_event,
+            _should_allow_anonymous_access,
+            _validate_with_app_get_api_key,
         )
 
         # Test _is_production_environment

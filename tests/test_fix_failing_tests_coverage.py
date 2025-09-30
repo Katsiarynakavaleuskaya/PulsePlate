@@ -3,8 +3,10 @@ Test coverage for fix_failing_tests.py
 """
 
 import contextlib
+from unittest.mock import mock_open, patch
+
 import pytest  # noqa: F401
-from unittest.mock import patch, mock_open
+
 import fix_failing_tests
 
 

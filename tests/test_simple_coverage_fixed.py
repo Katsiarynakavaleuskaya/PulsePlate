@@ -3,8 +3,9 @@
 Фокус: безопасные импорты и тестирование реально существующих функций
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestSimpleCoverageBoost:

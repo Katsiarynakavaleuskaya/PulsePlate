@@ -3,8 +3,9 @@ Direct test to cover line 58 in conftest.py (the yield statement in reset_sys_mo
 """
 
 import sys
-import pytest
 from types import ModuleType
+
+import pytest
 
 
 def test_reset_sys_modules_yield_coverage(reset_sys_modules):

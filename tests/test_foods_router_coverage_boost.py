@@ -4,15 +4,15 @@ RU: Тесты для повышения покрытия app/routers/foods.py
 EN: Coverage boost tests for app/routers/foods.py
 """
 
+import os
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-import os
 
 try:
-    import sys
     import os
+    import sys
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

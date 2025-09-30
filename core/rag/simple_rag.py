@@ -15,7 +15,6 @@ import re
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
-
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
 MAX_FILE_SIZE = 256 * 1024  # bytes, skip very large files

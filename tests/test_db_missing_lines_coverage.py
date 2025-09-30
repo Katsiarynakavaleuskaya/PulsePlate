@@ -5,8 +5,9 @@ Focus on error handling and edge cases.
 
 import os
 from unittest.mock import Mock, patch
-from faker import Faker
+
 import pytest
+from faker import Faker
 from sqlalchemy.exc import SQLAlchemyError
 
 fake = Faker()
@@ -288,7 +289,7 @@ class TestDbMissingLinesCoverage:
     def test_comprehensive_database_edge_cases(self):
         """Test comprehensive database edge cases with faker data"""
         try:
-            from core.db import EngineCompat, session_scope, get_session
+            from core.db import EngineCompat, get_session, session_scope
 
             # Test session_scope with exception handling
             mock_session_class = Mock()

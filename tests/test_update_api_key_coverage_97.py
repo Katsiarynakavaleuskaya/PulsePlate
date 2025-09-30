@@ -2,11 +2,13 @@
 Test coverage for update_api_key.py to reach 97%
 """
 
-import pytest
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import MagicMock, mock_open, patch
+
+import pytest
+
 import update_api_key
 
 

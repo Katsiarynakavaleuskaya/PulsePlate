@@ -6,10 +6,12 @@
 Стратегия: создать функцию make_weekly_menu и заставить код выполниться
 """
 
-import pytest
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+
 from app import app
 
 

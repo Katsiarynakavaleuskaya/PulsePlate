@@ -69,8 +69,9 @@ class TestAppCriticalLines97:
 @pytest.fixture
 def client():
     """Создает тестового клиента"""
-    import app
     from fastapi import FastAPI
+
+    import app
 
     # Ensure app.app is a FastAPI (ASGIApp) instance and not None
     app_instance = getattr(app, "app", None)

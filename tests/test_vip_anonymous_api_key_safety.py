@@ -4,9 +4,10 @@ Tests the new production-safe behavior that prevents anonymous access by default
 """
 
 import os
+from typing import cast
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestVIPAnonymousAPIKeySafety:

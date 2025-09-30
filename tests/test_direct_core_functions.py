@@ -16,12 +16,12 @@ class TestDirectCoreFunctions:
         """Direct tests of targets functions."""
         try:
             from core.targets import (
-                calculate_daily_targets,
-                get_who_recommendations,
                 adjust_for_activity_level,
                 calculate_bmr,
+                calculate_daily_targets,
                 calculate_tdee,
                 get_nutrient_dri,
+                get_who_recommendations,
                 validate_user_data,
             )
 
@@ -51,9 +51,9 @@ class TestDirectCoreFunctions:
         try:
             from core.auto_repair import (
                 analyze_deficiencies,
-                get_repair_suggestions,
                 calculate_repair_priority,
                 find_suitable_foods,
+                get_repair_suggestions,
                 optimize_meal_plan,
             )
 
@@ -102,12 +102,12 @@ class TestDirectCoreFunctions:
         """Direct tests of menu engine functions."""
         try:
             from core.menu_engine import (
-                make_weekly_menu,
                 calculate_nutrition_totals,
-                suggest_meal_improvements,
-                optimize_meals,
-                validate_meal_plan,
                 generate_shopping_list,
+                make_weekly_menu,
+                optimize_meals,
+                suggest_meal_improvements,
+                validate_meal_plan,
             )
 
             # Test meal plan data
@@ -146,10 +146,10 @@ class TestDirectCoreFunctions:
         """Direct tests of plate functions."""
         try:
             from core.plate import (
-                create_nutrition_plate,
                 analyze_plate_balance,
-                get_plate_recommendations,
                 calculate_plate_score,
+                create_nutrition_plate,
+                get_plate_recommendations,
                 visualize_plate_data,
             )
 
@@ -190,12 +190,12 @@ class TestDirectCoreFunctions:
         """Direct tests of i18n functions."""
         try:
             from core.i18n import (
-                get_available_languages,
-                translate,
-                t,
-                set_default_language,
                 format_number_locale,
+                get_available_languages,
                 get_locale_info,
+                set_default_language,
+                t,
+                translate,
             )
 
             # Test available languages
@@ -240,9 +240,9 @@ class TestDirectCoreFunctions:
         try:
             from core.food_sources.base import (
                 FoodSourceBase,
+                merge_food_entries,
                 normalize_food_data,
                 validate_food_entry,
-                merge_food_entries,
             )
 
             # Test base class
@@ -281,11 +281,11 @@ class TestDirectCoreFunctions:
         """Direct tests of RAG functions."""
         try:
             from core.rag.simple_rag import (
-                _tokenize,
                 _chunk,
                 _score_chunk,
-                search_knowledge,
+                _tokenize,
                 add_knowledge,
+                search_knowledge,
             )
 
             # Test tokenization with various inputs
@@ -325,12 +325,12 @@ class TestDirectCoreFunctions:
         """Direct tests of database functions."""
         try:
             from core.db import (
-                get_session,
-                get_unified_food_db,
-                create_tables,
-                init_database,
                 _build_engine_url,
                 _sqlite_connect_args,
+                create_tables,
+                get_session,
+                get_unified_food_db,
+                init_database,
             )
 
             # Test engine URL building
@@ -358,12 +358,12 @@ class TestDirectCoreFunctions:
         """Direct tests of region catalog functions."""
         try:
             from core.region_catalog import (
-                get_region_info,
-                list_regions,
-                validate_region,
                 get_default_region,
                 get_region_foods,
+                get_region_info,
+                list_regions,
                 update_region_data,
+                validate_region,
             )
 
             # Test listing regions
@@ -401,12 +401,12 @@ class TestDirectCoreFunctions:
         """Direct tests of utils functions."""
         try:
             from core.utils import (
+                generate_id,
                 safe_float,
                 safe_int,
-                slugify,
-                generate_id,
-                validate_email,
                 sanitize_html,
+                slugify,
+                validate_email,
             )
 
             # Test safe conversions

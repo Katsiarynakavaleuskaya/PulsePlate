@@ -6,6 +6,7 @@ App Icon Generator for PulsePlate
 
 import os
 import sys
+
 from PIL import Image, ImageDraw
 
 

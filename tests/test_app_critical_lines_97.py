@@ -3,12 +3,12 @@
 """
 
 import contextlib
+from typing import cast
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 from starlette.types import ASGIApp
-from typing import cast
-
 
 # (Removed duplicate class definition for TestAppCriticalLines97)
 
@@ -140,8 +140,8 @@ class TestAppCriticalLines97:
 
     def test_middleware_error_paths(self):
         """Тест middleware error paths"""
-        import sys
         import os
+        import sys
 
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

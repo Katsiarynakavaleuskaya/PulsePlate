@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+from typing import cast
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

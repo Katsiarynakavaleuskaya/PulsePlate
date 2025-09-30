@@ -4,6 +4,7 @@ Targeted tests to achieve 97% coverage in conftest.py.
 
 import sys
 from types import ModuleType
+
 import pytest
 
 

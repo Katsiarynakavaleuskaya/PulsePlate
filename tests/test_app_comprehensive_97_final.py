@@ -4,9 +4,10 @@ Comprehensive test coverage for main.py to reach 97% coverage target
 Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets endpoints
 """
 
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from unittest.mock import patch, MagicMock
 
 
 def _get_app():

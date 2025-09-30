@@ -4,6 +4,7 @@ VIP auth and adapter edge tests to raise coverage for app/routers/vip.py.
 """
 
 import os
+
 import pytest
 from fastapi import HTTPException
 

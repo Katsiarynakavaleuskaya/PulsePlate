@@ -8,12 +8,12 @@ Coverage target: core/sports_nutrition.py major functions and logic paths.
 """
 
 from core.sports_nutrition import (
-    SportCategory,
-    TrainingPhase,
-    SportsNutritionTargets,
-    SportsNutritionCalculator,
-    get_sport_recommendations,
     SPORT_MAPPING,
+    SportCategory,
+    SportsNutritionCalculator,
+    SportsNutritionTargets,
+    TrainingPhase,
+    get_sport_recommendations,
 )
 from core.targets import UserProfile
 

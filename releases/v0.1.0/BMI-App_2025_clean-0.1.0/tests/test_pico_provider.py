@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for PicoProvider."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 # Mock httpx to avoid dependency issues
 with patch.dict("sys.modules", {"httpx": MagicMock()}):

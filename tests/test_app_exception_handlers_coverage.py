@@ -13,10 +13,11 @@ class TestAppExceptionHandlersCoverage:
     @pytest.fixture
     def client(self, test_environment):
         """Фикстура для создания TestClient"""
-        import app
-
         from typing import cast
+
         from starlette.types import ASGIApp
+
+        import app
 
         return TestClient(cast(ASGIApp, app.app))
 

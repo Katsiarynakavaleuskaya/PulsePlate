@@ -5,6 +5,7 @@ Focus on covering the missing lines 68-69, 78-80.
 
 import types
 from unittest.mock import Mock
+
 from core.utils import resolve_attr
 
 

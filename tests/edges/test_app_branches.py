@@ -1,11 +1,14 @@
 from typing import cast
+
 from starlette.types import ASGIApp
 
 
 def test_api_key_strict_production_requires_config(monkeypatch):
     import os
-    import app
+
     from fastapi.testclient import TestClient
+
+    import app
 
     # RU: Прод режиме без ключа и без dev-режима → 403
     # EN: Production, no configured key and no dev mode → 403
@@ -28,10 +31,12 @@ def test_api_key_strict_production_requires_config(monkeypatch):
 
 
 def test_insight_feature_disabled_and_import_error(monkeypatch):
-    import types
     import sys
-    import app
+    import types
+
     from fastapi.testclient import TestClient
+
+    import app
 
     client = TestClient(cast(ASGIApp, app.app))
 
@@ -55,8 +60,9 @@ def test_insight_feature_disabled_and_import_error(monkeypatch):
 
 
 def test_admin_status_scheduler_error_paths(monkeypatch):
-    import app
     from fastapi.testclient import TestClient
+
+    import app
 
     client = TestClient(cast(ASGIApp, app.app))
 
@@ -80,8 +86,9 @@ def test_admin_status_scheduler_error_paths(monkeypatch):
 
 
 def test_export_pdf_generic_error_branches(monkeypatch):
-    import app
     from fastapi.testclient import TestClient
+
+    import app
 
     client = TestClient(cast(ASGIApp, app.app))
 

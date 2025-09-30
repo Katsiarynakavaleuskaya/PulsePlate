@@ -2,9 +2,10 @@
 Ультимативные тесты для достижения 97% покрытия - финальный буст
 """
 
+from typing import cast
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestCoverage97UltimateBoost:

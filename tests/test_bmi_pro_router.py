@@ -5,10 +5,11 @@ RU: Тесты для роутера BMI Pro.
 EN: Tests for BMI Pro router.
 """
 
-from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from app.routers.bmi_pro import router, BMIProRequest, BMIProResponse
+from fastapi.testclient import TestClient
+
+from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
 
 
 class TestBMIProRouter:

@@ -2,15 +2,15 @@
 Test coverage for test_pro_access.py
 """
 
-import pytest
+import importlib.util
 import os
-from unittest.mock import patch, MagicMock, mock_open
-
-from typing import Any
 
 # Import the module under test
 import sys
-import importlib.util
+from typing import Any
+from unittest.mock import MagicMock, mock_open, patch
+
+import pytest
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

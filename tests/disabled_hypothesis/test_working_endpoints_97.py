@@ -5,10 +5,11 @@ RU: Рабочие тесты для покрытия модуля app, не mai
 скорректирован для一致ности с импортами).
 """
 
-import pytest
 import os
-from fastapi.testclient import TestClient
 from typing import cast
+
+import pytest
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 

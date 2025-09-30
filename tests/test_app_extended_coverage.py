@@ -5,15 +5,13 @@ Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
 import os
+import sys
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -1,7 +1,7 @@
 from typing import Any, cast
 
-from core.menu_engine_new import build_plate_day, DayPlan
 from core.food_db_new import FoodDB
+from core.menu_engine_new import DayPlan, build_plate_day
 from core.recipe_db_new import RecipeDB
 
 

@@ -5,8 +5,8 @@ RU: Роутер для генерации недельного плана пи�
 EN: Router for generating weekly meal plans.
 """
 
-from typing import Dict, List, Optional, Literal
 import math
+from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator

@@ -1,8 +1,9 @@
-import pytest
-from unittest.mock import patch, MagicMock
 import os
 import sys
 from types import ModuleType  # noqa: F401
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestAppVIPComprehensive97:

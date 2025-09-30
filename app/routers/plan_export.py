@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
-from urllib.parse import urlencode
-import csv
 from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel

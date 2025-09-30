@@ -1,4 +1,5 @@
 import pytest
+
 from core.i18n import normalize_lang
 
 

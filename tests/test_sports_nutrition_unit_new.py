@@ -4,8 +4,10 @@ Designed for maximum coverage of 350+ lines with minimal test code
 """
 
 import math
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 import core.sports_nutrition as sn
 
 

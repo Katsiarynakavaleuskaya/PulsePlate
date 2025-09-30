@@ -3,12 +3,10 @@ Simple tests for premium week endpoint to reach 96% coverage.
 """
 
 import os
+import sys
 from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -13,10 +13,12 @@ Tests cover:
 """
 
 import os
-from fastapi.testclient import TestClient
-import app as app_mod
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+import app as app_mod
 
 client = TestClient(cast(ASGIApp, app_mod.app))
 

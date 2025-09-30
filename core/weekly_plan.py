@@ -1,4 +1,4 @@
-from typing import Dict, Set, List
+from typing import Dict, List, Set
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db

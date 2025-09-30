@@ -2,9 +2,10 @@
 Test coverage for remaining missing lines in app.py to improve coverage to 97%.
 """
 
-import pytest
-from unittest.mock import patch
 import os
+from unittest.mock import patch
+
+import pytest
 
 
 class TestAppRemainingCoverage:
@@ -77,8 +78,7 @@ class TestAppRemainingCoverage:
 
     def test_add_visualization_if_requested_function(self, test_client):
         """Test the add_visualization_if_requested function."""
-        from app import add_visualization_if_requested
-        from app import BMIRequest
+        from app import BMIRequest, add_visualization_if_requested
 
         # Test when include_chart is False
         result = {"bmi": 22.5}

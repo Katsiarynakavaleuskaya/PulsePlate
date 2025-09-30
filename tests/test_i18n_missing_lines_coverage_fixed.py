@@ -239,6 +239,7 @@ class TestI18nMissingLines:
         """Test concurrent locale normalization for thread safety"""
         try:
             import concurrent.futures
+
             from core.i18n import normalize_lang
 
             def normalize_random_locale():

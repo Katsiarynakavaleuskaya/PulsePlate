@@ -3,8 +3,9 @@
 Покрывает строки: 1869-1870, 1872-1873, 1904, 1954→1966, 1960→1959, 1987, 2014, 2061, 2064-2065
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 

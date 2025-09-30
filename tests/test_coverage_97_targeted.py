@@ -3,10 +3,11 @@ Refactored targeted tests for achieving 97% coverage
 """
 
 import os
+from typing import cast
+
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 @pytest.fixture(scope="session")

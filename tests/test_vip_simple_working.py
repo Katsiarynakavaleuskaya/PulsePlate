@@ -2,13 +2,14 @@
 Простые рабочие тесты для VIP router
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
 import os
 import sys
-from starlette.types import ASGIApp
 from typing import cast
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 class TestVIPRouterWorking:

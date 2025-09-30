@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 
@@ -222,6 +223,7 @@ def test_health_endpoint(client):
 def test_vip_module_disabled(monkeypatch):
     monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
     from importlib import reload
+
     import app as app_module
 
     reload(app_module)
@@ -238,6 +240,7 @@ def test_vip_module_disabled(monkeypatch):
 def test_vip_module_enabled(monkeypatch):
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     from importlib import reload
+
     import app as app_module
 
     reload(app_module)

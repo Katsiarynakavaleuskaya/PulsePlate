@@ -2,10 +2,10 @@
 """
 Test script to verify OpenAI Pro access and available models
 """
-import openai
 import os
-
 from typing import Any, Dict
+
+import openai
 
 
 def test_openai_pro_access(api_key: str) -> Dict[str, Any]:

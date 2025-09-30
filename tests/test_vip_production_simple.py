@@ -5,10 +5,11 @@ Targets lines that are skipped in echo mode (~49 lines, ~1% coverage).
 """
 
 import os
-from fastapi.testclient import TestClient
-from unittest.mock import patch
-from starlette.types import ASGIApp
 from typing import cast
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 class TestVIPProductionMode:
@@ -168,8 +169,9 @@ class TestVIPProductionMode:
         # Set API_KEY to enable production mode
         os.environ["API_KEY"] = "secret-key"
 
-        import app
         from fastapi import HTTPException
+
+        import app
 
         # Mock app.get_api_key to raise 403
         with patch("app.get_api_key") as mock_get_api_key:

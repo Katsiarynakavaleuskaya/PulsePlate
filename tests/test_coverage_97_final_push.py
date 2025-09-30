@@ -2,8 +2,9 @@
 Финальные тесты для достижения 97% покрытия
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
