@@ -2,12 +2,18 @@
 
 # Скрипт для перемещения маскота FitChef из AppIcon в правильное место
 
+# Включаем строгий режим для обработки ошибок
+set -euo pipefail
+
+# Функция для обработки ошибок
+trap 'echo "❌ Ошибка в строке $LINENO: $BASH_COMMAND" >&2; exit 1' ERR
+
 echo "🐱 Перемещаем маскота FitChef..."
 
 # Пути (относительно скрипта)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ICONS_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/AppIcon.appiconset"
-MASCOT_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/FitChef.imageset"
+ICONS_DIR="$SCRIPT_DIR/../PulsePlate/Assets.xcassets/AppIcon.appiconset"
+MASCOT_DIR="$SCRIPT_DIR/../PulsePlate/Assets.xcassets/FitChef.imageset"
 
 # Проверяем, что папки существуют
 if [ ! -d "$ICONS_DIR" ]; then
@@ -15,18 +21,32 @@ if [ ! -d "$ICONS_DIR" ]; then
     exit 1
 fi
 
+# Создаем папку для маскота если её нет
+mkdir -p "$MASCOT_DIR"
+
 if [ ! -d "$MASCOT_DIR" ]; then
     echo "❌ Папка для маскота не найдена: $MASCOT_DIR"
     exit 1
 fi
 
 echo "📋 Найденные файлы в AppIcon:"
-ls -la "$ICONS_DIR"/*.png | head -5
+if ls "$ICONS_DIR"/*.png >/dev/null 2>&1; then
+    ls -la "$ICONS_DIR"/*.png | head -5
+else
+    echo "⚠️  PNG файлы не найдены в $ICONS_DIR"
+    exit 1
+fi
 
 echo ""
 echo "🤔 Какой файл является маскотом FitChef?"
 echo "Пожалуйста, укажите имя файла (например: AppIcon-1024.png):"
 read -r mascot_file
+
+# Validate that filename doesn't contain path separators
+if [[ "$mascot_file" == *"/"* ]] || [[ "$mascot_file" == *".."* ]]; then
+    echo "❌ Недопустимое имя файла. Используйте только имя файла без пути."
+    exit 1
+fi
 
 if [ ! -f "$ICONS_DIR/$mascot_file" ]; then
     echo "❌ Файл $mascot_file не найден в $ICONS_DIR"

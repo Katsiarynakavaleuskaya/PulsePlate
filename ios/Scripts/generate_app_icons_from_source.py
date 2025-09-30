@@ -65,8 +65,12 @@ def generate_all_icons_from_source(source_path):
         "AppIcon-1024.png": 1024,  # 1024x1024
     }
 
-    # Путь к папке с иконками
-    icons_dir = "PulsePlate/Assets.xcassets/AppIcon.appiconset"
+    # Путь к папке с иконками (относительно расположения скрипта)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icons_dir = os.path.join(
+        script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
+    )
+    icons_dir = os.path.normpath(icons_dir)
 
     if not os.path.exists(icons_dir):
         print(f"❌ Папка {icons_dir} не найдена!")
@@ -81,9 +85,7 @@ def generate_all_icons_from_source(source_path):
 
     total_count = len(icon_sizes)
     success_count = sum(
-        1
-        for filename, size in icon_sizes.items()
-        if resize_icon(source_path, icons_dir, filename, size)
+        resize_icon(source_path, icons_dir, filename, size) for filename, size in icon_sizes.items()
     )
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")
@@ -95,14 +97,6 @@ def main():
     parser.add_argument("source", help="Путь к исходному изображению (PNG, JPG)")
 
     args = parser.parse_args()
-
-    # Проверяем наличие PIL
-    try:
-        from PIL import Image
-    except ImportError:
-        print("❌ Требуется библиотека Pillow:")
-        print("pip install Pillow")
-        sys.exit(1)
 
     # Генерируем иконки
     if generate_all_icons_from_source(args.source):

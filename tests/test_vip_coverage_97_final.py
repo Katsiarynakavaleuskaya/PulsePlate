@@ -17,8 +17,6 @@ class TestVIPCoverage97Final:
         """Set up test fixtures with proper isolation."""
         # Store original state
         self.original_api_key = os.environ.get("API_KEY")
-        self.original_modules = {}
-
         # Store only the modules we might modify
         modules_to_watch = [
             "app.routers.vip",
@@ -29,10 +27,11 @@ class TestVIPCoverage97Final:
             "core.shoplist",
         ]
 
-        for module_name in modules_to_watch:
-            if module_name in sys.modules:
-                self.original_modules[module_name] = sys.modules[module_name]
-
+        self.original_modules = {
+            module_name: sys.modules[module_name]
+            for module_name in modules_to_watch
+            if module_name in sys.modules
+        }
         # Set test environment
         os.environ["API_KEY"] = "test-key"
 

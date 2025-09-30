@@ -119,7 +119,19 @@ class TestPremiumWeekCoverageFinal:
         mock_build_week.return_value = mock_week_result
 
         # Создаем тестовый клиент
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         client = TestClient(app)
 
@@ -199,7 +211,19 @@ class TestPremiumWeekCoverageFinal:
         mock_build_week.return_value = mock_week_result
 
         # Создаем тестовый клиент
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         client = TestClient(app)
 
@@ -239,7 +263,19 @@ class TestPremiumWeekCoverageFinal:
 
     def test_generate_week_plan_missing_profile_data(self):
         """Тест generate_week_plan с отсутствующими данными профиля"""
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         client = TestClient(app)
 

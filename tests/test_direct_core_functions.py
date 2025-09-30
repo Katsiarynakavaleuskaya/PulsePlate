@@ -341,9 +341,7 @@ class TestDirectCoreFunctions:
             args = _sqlite_connect_args()
             assert isinstance(args, (dict, type(None)))
 
-            # Test session
-            session = get_session()
-            if session:
+            if session := get_session():
                 assert hasattr(session, "close")
                 session.close()
 

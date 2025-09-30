@@ -15,7 +15,19 @@ class TestWorkingEndpointCoverage:
 
     @pytest.fixture
     def client(self):
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         return TestClient(app)
 
@@ -146,7 +158,19 @@ class TestEdgeCasesAndErrorPaths:
 
     @pytest.fixture
     def client(self):
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         return TestClient(app)
 
@@ -252,7 +276,19 @@ class TestSpecialGroups:
 
     @pytest.fixture
     def client(self):
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         return TestClient(app)
 
@@ -307,7 +343,19 @@ class TestComprehensiveParameterCombinations:
 
     @pytest.fixture
     def client(self):
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         return TestClient(app)
 
@@ -411,7 +459,19 @@ class TestAdditionalWorkingEndpoints:
 
     @pytest.fixture
     def client(self):
-        from app import app
+        import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
         return TestClient(app)
 

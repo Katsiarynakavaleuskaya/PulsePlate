@@ -9,7 +9,20 @@ us from reaching 96% coverage.
 
 from fastapi.testclient import TestClient
 
-from app import app
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
 
 class TestAppMissingCoverage96:
@@ -368,8 +381,7 @@ class TestAppMissingCoverage96:
         response = self.client.post("/api/v1/premium/plan/week", json=payload)
         if response.status_code == 200:
             data = response.json()
-            plan_id = data.get("plan_id")
-            if plan_id:
+            if plan_id := data.get("plan_id"):
                 # Test CSV export
                 response = self.client.get(f"/api/v1/premium/exports/day/{plan_id}.csv")
                 assert response.status_code in [200, 404]  # 404 if plan not found

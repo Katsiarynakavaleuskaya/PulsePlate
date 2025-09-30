@@ -14,10 +14,6 @@ def test_reset_environment_keyerror_handling(reset_environment):
     test_module_name = "app.test_module"
     sys.modules[test_module_name] = MagicMock()
 
-    # The KeyError handling will be triggered automatically when the fixture tears down
-    # and tries to delete our mock module
-    assert True
-
 
 def test_reset_environment_keyerror_on_module_deletion():
     """Test KeyError handling when module deletion fails - targets lines 44-45.
@@ -78,19 +74,11 @@ def test_reset_environment_keyerror_direct_execution():
 
 def test_reset_sys_modules_line_60_execution(reset_sys_modules):
     """Test execution of line 60 in reset_sys_modules fixture."""
-    # The reset_sys_modules fixture is automatically applied
-    # We need to add a VIP module during the test so it gets deleted
-
-    # Make sure there's no original VIP module
-    original_vip_module = sys.modules.get("app.routers.vip")
-    if original_vip_module:
+    if original_vip_module := sys.modules.get("app.routers.vip"):
         del sys.modules["app.routers.vip"]
 
     # Add a VIP module during the test
     sys.modules["app.routers.vip"] = MagicMock()
-
-    # The fixture teardown will delete this module via the elif branch, covering line 60
-    assert True
 
 
 def test_reset_sys_modules_with_original_vip(reset_sys_modules):
@@ -105,15 +93,9 @@ def test_reset_sys_modules_with_original_vip(reset_sys_modules):
         test_vip_module = ModuleType("app.routers.vip")
         sys.modules["app.routers.vip"] = test_vip_module
 
-    # The fixture teardown will restore the original module, covering the if branch
-    assert True
-
 
 def test_reset_sys_modules_yield_coverage(reset_sys_modules):
     """Test yield statement coverage in reset_sys_modules fixture."""
-    # The fixture is automatically applied, so we just need to exist
-    # during the yield to cover that line
-    assert True  # The yield statement will be covered by the fixture execution
 
 
 def test_production_environment_fixture(production_environment):

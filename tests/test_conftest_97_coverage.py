@@ -53,7 +53,6 @@ class TestConftest97Coverage:
 # Additional test to ensure the last lines are covered
 def test_conftest_final_lines():
     """Test to ensure the final lines of conftest.py are covered."""
-    assert True
 
 
 if __name__ == "__main__":

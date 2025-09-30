@@ -12,15 +12,13 @@ class TestCoverage97Simple:
 
     def setup_method(self):
         """Настройка тестового окружения"""
-        os.environ.update(
-            {
-                "API_KEY": "test_key",
-                "FEATURE_PREMIUM_NUTRITION": "true",
-                "VIP_MODULE_ENABLED": "true",
-                "APP_ENV": "test",
-                "ALLOW_DEV_API_KEY": "true",
-            }
-        )
+        os.environ |= {
+            "API_KEY": "test_key",
+            "FEATURE_PREMIUM_NUTRITION": "true",
+            "VIP_MODULE_ENABLED": "true",
+            "APP_ENV": "test",
+            "ALLOW_DEV_API_KEY": "true",
+        }
 
     def test_conftest_fixture_coverage(self):
         """Тест покрытия conftest.py фикстур"""

@@ -68,6 +68,7 @@
 Алгоритм
 алгоритма
 Алиас
+алиаса
 алиасами
 алиасов
 алиасом
@@ -89,6 +90,7 @@
 английского
 английском
 андроид
+анимациями
 апельсин
 аргументами
 аргументы
@@ -2127,6 +2129,7 @@
 поднимают
 поднят
 подойдет
+подпапку
 подправим
 подростк
 подростков
@@ -3637,6 +3640,8 @@ Análisis
 androide
 años
 Años
+appicon
+appiconset
 apropiadas
 Ardle
 argparse
@@ -3644,6 +3649,7 @@ arroz
 Arroz
 ascii
 asdict
+ASGI
 asian
 astimezone
 asynccontextmanager
@@ -3692,6 +3698,7 @@ carbohidratos
 celsius
 Cena
 centimetres
+checkmark
 Choco
 cintura
 Cintura
@@ -3720,6 +3727,7 @@ csvfile
 Databonsai
 dataclass
 dataclasses
+davinci
 debe
 Deberías
 delenv
@@ -3779,6 +3787,7 @@ filterwarnings
 findall
 finetune
 física
+fitchef
 FNDDS
 folate
 Folate
@@ -3821,11 +3830,13 @@ htmlcov
 httpx
 IFPA
 iloc
+imageset
 importlib
 importorskip
 indicadores
 infantil
 ings
+inplace
 Intermedio
 isalnum
 isawaitable
@@ -3850,6 +3861,7 @@ kwargs
 lactancia
 Lactancia
 lactat
+LANCZOS
 latt
 Latté
 Leche
@@ -3929,6 +3941,7 @@ noqa
 NOTSET
 Novato
 nullable
+nullglob
 número
 nutricional
 nutrientes
@@ -3951,6 +3964,7 @@ pagesizes
 passдулей
 pathlib
 pathsep
+pbxproj
 pcpu
 Pechuga
 pediátricas
@@ -3967,6 +3981,7 @@ Pico
 plátano
 Plátano
 pmem
+Podfile
 pollo
 Pollo
 poolclass
@@ -3978,13 +3993,24 @@ postgresql
 potasio
 powerlifting
 Powerlifting
+ppauto
 ppcheck
+ppclean
 ppcov
+ppdocker
 ppformat
+ppgit
+pphelp
 pplint
+ppmake
+pppush
 pppython
+ppsafe
 ppserver
+ppsmoke
+ppstatus
 pptest
+Predeclare
 prefs
 preg
 Principiante
@@ -4004,6 +4030,7 @@ Pydantic
 pyenv
 pylint
 pyplot
+pyproject
 pyright
 pytest
 pythonpath
@@ -4070,10 +4097,14 @@ sourcery
 spanish
 sqlalchemy
 sqlite
+SRCROOT
+starlette
 staticmethod
 strftime
 subestimar
 suptitle
+swiftformat
+swiftlint
 syncmain
 tdee
 TDEE
@@ -4109,6 +4140,8 @@ wpdf
 writeheader
 writerow
 writerows
+xcassets
+xcodeproj
 xfail
 xfailed
 xlabel

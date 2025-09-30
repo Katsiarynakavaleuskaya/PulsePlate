@@ -34,21 +34,21 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
     def mock_manager(self, temp_cache_dir):
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-            patch("core.food_apis.update_manager.OFFClient") as mock_off,
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
-        ):
+                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+                patch("core.food_apis.update_manager.OFFClient") as mock_off,
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+                patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+            ):
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     def test_save_versions_with_error(self, mock_manager):
         """Test saving versions when file write fails."""
@@ -334,16 +334,15 @@ class TestAsyncMethods:
     def mock_manager(self):
         """Create manager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-            patch("core.food_apis.update_manager.OFFClient") as mock_off,
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-        ):
+                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+                patch("core.food_apis.update_manager.OFFClient") as mock_off,
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+            ):
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager()
-            yield manager
+            yield DatabaseUpdateManager()
 
     @pytest.mark.asyncio
     async def test_check_off_updates_recent_update(self, mock_manager):
@@ -419,12 +418,11 @@ class TestUtilityMethods:
     def mock_manager(self):
         """Create manager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient"),
-            patch("core.food_apis.update_manager.OFFClient"),
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
-        ):
-            manager = DatabaseUpdateManager()
-            yield manager
+                patch("core.food_apis.update_manager.USDAClient"),
+                patch("core.food_apis.update_manager.OFFClient"),
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
+            ):
+            yield DatabaseUpdateManager()
 
     def test_generate_food_key_edge_cases(self, mock_manager):
         """Test food key generation with edge cases."""

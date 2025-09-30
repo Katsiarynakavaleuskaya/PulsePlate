@@ -10,7 +10,14 @@ if [ -z "$PROJECT_ROOT" ]; then
         PROJECT_ROOT="$SCRIPT_DIR"
         echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
     else
-        read -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
+        while true; do
+            read -r -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
+            if [ -n "$PROJECT_ROOT" ] && [ -d "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/pyproject.toml" ] && [ -f "$PROJECT_ROOT/app.py" ]; then
+                break
+            else
+                echo "❌ Неверный путь. Убедитесь, что директория существует и содержит pyproject.toml и app.py"
+            fi
+        done
     fi
 fi
 
@@ -31,13 +38,23 @@ create_alias "pp" "cd $PROJECT_ROOT"
 create_alias "pptest" "cd $PROJECT_ROOT && python -m pytest tests/ -v"
 create_alias "pptest-quick" "cd $PROJECT_ROOT && python -m pytest tests/ -q --tb=short"
 create_alias "pptest-failed" "cd $PROJECT_ROOT && python -m pytest tests/ --lf --maxfail=3 -q"
-create_alias "pptest-file" "cd $PROJECT_ROOT && python -m pytest tests/\$1 -v"
-create_alias "pptest-class" "cd $PROJECT_ROOT && python -m pytest tests/\$1::\$2 -v"
-create_alias "pptest-method" "cd $PROJECT_ROOT && python -m pytest tests/\$1::\$2::\$3 -v"
+# Functions for parameterized test commands
+pptest-file() {
+  cd "$PROJECT_ROOT" && python -m pytest "tests/$1" -v
+}
+pptest-class() {
+  cd "$PROJECT_ROOT" && python -m pytest "tests/$1::$2" -v
+}
+pptest-method() {
+  cd "$PROJECT_ROOT" && python -m pytest "tests/$1::$2::$3" -v
+}
+echo "✅ Функция 'pptest-file' создана"
+echo "✅ Функция 'pptest-class' создана"
+echo "✅ Функция 'pptest-method' создана"
 
 # Покрытие кода
 create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
-create_alias "ppcov-html" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=html && open htmlcov/index.html"
+create_alias "ppcov-html" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=html && if command -v open >/dev/null 2>&1; then open htmlcov/index.html; elif command -v xdg-open >/dev/null 2>&1; then xdg-open htmlcov/index.html; else echo 'Откройте htmlcov/index.html в браузере'; fi"
 create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97"
 
 # Линтинг и форматирование
@@ -62,8 +79,8 @@ create_alias "pphelp" "cd $PROJECT_ROOT && make help"
 # Git команды
 create_alias "ppgit" "cd $PROJECT_ROOT && git"
 create_alias "ppstatus" "cd $PROJECT_ROOT && git status"
-create_alias "pppush" "cd $PROJECT_ROOT && git push origin \$(git rev-parse --abbrev-ref HEAD)"
-create_alias "pppull" "cd $PROJECT_ROOT && git pull origin \$(git rev-parse --abbrev-ref HEAD)"
+create_alias "pppush" "cd $PROJECT_ROOT && BRANCH=\$(git rev-parse --abbrev-ref HEAD) && [ \"\$BRANCH\" != \"HEAD\" ] && git push origin \$BRANCH || echo '❌ Not on a branch (detached HEAD)'"
+create_alias "pppull" "cd $PROJECT_ROOT && BRANCH=\$(git rev-parse --abbrev-ref HEAD) && [ \"\$BRANCH\" != \"HEAD\" ] && git pull origin \$BRANCH || echo '❌ Not on a branch (detached HEAD)'"
 
 # Безопасные команды
 create_alias "ppsafe-push" "cd $PROJECT_ROOT && make safe-push"

@@ -103,7 +103,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
         # Validate age matches life stage
         if life_stage == "teen" and not (13 <= age <= 17):
             return
-        if life_stage in ["pregnant", "lactating"] and not (18 <= age <= 45):
+        if life_stage in {"pregnant", "lactating"} and not (18 <= age <= 45):
             return
         if life_stage == "elderly" and not (65 <= age <= 85):
             return
@@ -111,7 +111,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
             return
 
         payload = {
-            "sex": "female" if life_stage in ["pregnant", "lactating"] else "male",
+            "sex": "female" if life_stage in {"pregnant", "lactating"} else "male",
             "age": age,
             "height_cm": 165.0,
             "weight_kg": 60.0,
@@ -130,9 +130,9 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Check that we have the expected warning
         warnings = data["warnings"]
-        life_stage_warnings = [w for w in warnings if w.get("code") == life_stage]
-
-        if life_stage_warnings:
+        if life_stage_warnings := [
+            w for w in warnings if w.get("code") == life_stage
+        ]:
             warning = life_stage_warnings[0]
             message = warning["message"].lower()
 
@@ -315,7 +315,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Snapshot test - check specific ES pregnancy warning
         pregnancy_warnings = [w for w in data["warnings"] if w.get("code") == "pregnant"]
-        assert len(pregnancy_warnings) > 0
+        assert pregnancy_warnings
 
         pregnancy_warning = pregnancy_warnings[0]
         message = pregnancy_warning["message"].lower()
@@ -349,7 +349,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Snapshot test - check specific RU elderly warning
         elderly_warnings = [w for w in data["warnings"] if w.get("code") == "elderly"]
-        assert len(elderly_warnings) > 0
+        assert elderly_warnings
 
         elderly_warning = elderly_warnings[0]
         message = elderly_warning["message"].lower()

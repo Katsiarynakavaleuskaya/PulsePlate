@@ -3,6 +3,7 @@
 ## 🚀 Быстрый старт
 
 ### 1. Установка зависимостей
+
 ```bash
 cd ios
 swift package resolve
@@ -10,34 +11,36 @@ swift build
 ```
 
 ### 2. Первый запуск
+
 ```bash
-./swift_tools.sh build
-./swift_tools.sh all
+./Scripts/swift_tools.sh build
+./Scripts/swift_tools.sh all
 ```
 
 ## 📋 Доступные команды
 
 ### Основные команды
+
 ```bash
 # Проверить качество кода
-./swift_tools.sh lint
+./Scripts/swift_tools.sh lint
 
 # Отформатировать код
-./swift_tools.sh format
+./Scripts/swift_tools.sh format
 
 # Проверить форматирование (без изменений)
-./swift_tools.sh check
+./Scripts/swift_tools.sh check
 
 # Запустить все инструменты
-./swift_tools.sh all
+./Scripts/swift_tools.sh all
 
 # Собрать инструменты
-./swift_tools.sh build
+./Scripts/swift_tools.sh build
 ```
 
 ### Интеграция с Xcode
 
-#### Автоматическая интеграция через Build Phase:
+#### Автоматическая интеграция через Build Phase
 
 1. Откройте `PulsePlate.xcodeproj`
 2. Выберите проект → Target "PulsePlate"
@@ -45,9 +48,10 @@ swift build
 4. Вставьте содержимое `xcode_build_phase.sh`
 5. Переместите скрипт перед "Compile Sources"
 
-#### Ручная интеграция:
+#### Ручная интеграция
 
 1. **Pre-commit hook:**
+
 ```bash
 # В корне проекта
 cp ios/xcode_build_phase.sh .git/hooks/pre-commit
@@ -55,6 +59,7 @@ chmod +x .git/hooks/pre-commit
 ```
 
 2. **VS Code integration:**
+
 ```json
 // .vscode/tasks.json
 {
@@ -63,15 +68,21 @@ chmod +x .git/hooks/pre-commit
         {
             "label": "Swift Lint",
             "type": "shell",
-            "command": "./swift_tools.sh",
+            "command": "${workspaceFolder}/ios/Scripts/swift_tools.sh",
             "args": ["lint"],
+            "options": {
+                "cwd": "${workspaceFolder}/ios"
+            },
             "group": "build"
         },
         {
             "label": "Swift Format",
             "type": "shell",
-            "command": "./swift_tools.sh",
+            "command": "${workspaceFolder}/ios/Scripts/swift_tools.sh",
             "args": ["format"],
+            "options": {
+                "cwd": "${workspaceFolder}/ios"
+            },
             "group": "build"
         }
     ]
@@ -81,12 +92,14 @@ chmod +x .git/hooks/pre-commit
 ## ⚙️ Конфигурация
 
 ### SwiftLint (.swiftlint.yml)
+
 - Настроен для health-приложений
 - Специальные правила для HealthKit и StoreKit
 - Apple HIG compliance
 - Максимальная длина строки: 120 символов
 
 ### SwiftFormat (.swiftformat)
+
 - Apple HIG стиль форматирования
 - Автоматическое удаление неиспользуемого кода
 - Сортировка импортов
@@ -95,16 +108,19 @@ chmod +x .git/hooks/pre-commit
 ## 🔧 Troubleshooting
 
 ### Проблема: "SwiftLint not found"
+
 ```bash
 swift build --product SwiftLint
 ```
 
 ### Проблема: "SwiftFormat not found"
+
 ```bash
 swift build --product SwiftFormat
 ```
 
 ### Проблема: "Permission denied"
+
 ```bash
 chmod +x swift_tools.sh
 chmod +x xcode_build_phase.sh
@@ -113,6 +129,7 @@ chmod +x xcode_build_phase.sh
 ## 📊 CI/CD Integration
 
 ### GitHub Actions
+
 ```yaml
 - name: Swift Lint
   run: |
@@ -130,13 +147,15 @@ chmod +x xcode_build_phase.sh
 ## 🎯 Best Practices
 
 1. **Всегда форматируйте перед коммитом:**
+
 ```bash
-./swift_tools.sh format
+./Scripts/swift_tools.sh format
 ```
 
 2. **Проверяйте качество кода:**
+
 ```bash
-./swift_tools.sh lint
+./Scripts/swift_tools.sh lint
 ```
 
 3. **Используйте в Xcode Build Phase для автоматизации**

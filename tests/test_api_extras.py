@@ -3,7 +3,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    from app import app as fastapi_app  # type: ignore
+    import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app as fastapi_app  # type: ignore
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 

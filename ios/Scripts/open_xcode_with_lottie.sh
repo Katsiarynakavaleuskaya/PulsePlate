@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR" || { echo "❌ Не удалось перейти в директорию скрипта"; exit 1; }
 
 echo "📱 Открываем PulsePlate.xcodeproj..."
+cd "$SCRIPT_DIR/.." || { echo "❌ Не удалось перейти в директорию ios/"; exit 1; }
 open PulsePlate.xcodeproj
 
 # Ждем немного, чтобы Xcode загрузился

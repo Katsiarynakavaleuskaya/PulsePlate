@@ -3,6 +3,9 @@
 
 set -e
 
+# Enable globstar for recursive glob patterns
+shopt -s globstar
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,7 +14,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Project paths - configurable via environment variable
-PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+IOS_DIR="${IOS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+cd "$IOS_DIR" || exit 1
 SWIFT_FILES="PulsePlate/**/*.swift"
 
 echo -e "${BLUE}🚀 PulsePlate Swift Tools${NC}"
@@ -48,16 +52,16 @@ run_lint() {
 # Function to run SwiftFormat
 run_format() {
     echo -e "${BLUE}🎨 Running SwiftFormat...${NC}"
+    # shellcheck disable=SC2086
     swiftformat --config .swiftformat --inplace $SWIFT_FILES
     echo -e "${GREEN}✅ SwiftFormat complete!${NC}"
 }
 
 # Function to run SwiftFormat in check mode
 check_format() {
-    echo -e "${BLUE}🔍 Checking SwiftFormat...${NC}"
+    # shellcheck disable=SC2086
     swiftformat --config .swiftformat --lint $SWIFT_FILES
     local exit_code=$?
-
     if [ $exit_code -eq 0 ]; then
         echo -e "${GREEN}✅ SwiftFormat check passed!${NC}"
     else
@@ -116,7 +120,12 @@ case "${1:-help}" in
         run_all
         ;;
     "install")
-        ./install_swift_tools.sh
+        if [ -x "./install_swift_tools.sh" ]; then
+            ./install_swift_tools.sh
+        else
+            echo -e "${RED}❌ install_swift_tools.sh not found or not executable${NC}"
+            exit 1
+        fi
         ;;
     "help"|*)
         show_help

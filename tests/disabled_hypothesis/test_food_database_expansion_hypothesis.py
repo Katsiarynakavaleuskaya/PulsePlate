@@ -34,8 +34,8 @@ class TestFoodDatabaseExpansionHypothesis:
         off_foods = list(self.off_adapter.normalize())
 
         # Test that we have foods
-        assert len(usda_foods) > 0
-        assert len(off_foods) > 0
+        assert usda_foods
+        assert off_foods
 
         # Test filtering
         filtered_usda = [
@@ -52,7 +52,7 @@ class TestFoodDatabaseExpansionHypothesis:
 
         # Should have some results for reasonable criteria
         if min_protein <= 10 and min_calcium <= 50 and max_calories >= 100:
-            assert len(filtered_usda) > 0 or len(filtered_off) > 0
+            assert filtered_usda or filtered_off
 
     @given(
         nutrient_name=st.sampled_from(["protein_g", "Ca_mg", "Fe_mg", "kcal", "fiber_g"]),
@@ -75,7 +75,7 @@ class TestFoodDatabaseExpansionHypothesis:
 
         # Should have some foods with reasonable nutrient levels
         if min_value <= 3.0:  # Reasonable threshold based on our data
-            assert len(foods_with_nutrient) > 0
+            assert foods_with_nutrient
 
     @given(food_group=st.sampled_from(["protein", "grain", "vegetable", "fruit", "fat"]))
     @settings(deadline=None)
@@ -116,7 +116,7 @@ class TestFoodDatabaseExpansionHypothesis:
 
         # Should have some foods in reasonable ranges
         if max_cal - min_cal >= 50:  # Reasonable range
-            assert len(foods_in_range) > 0
+            assert foods_in_range
 
     def test_merge_functionality(self):
         """Test merging of food sources."""

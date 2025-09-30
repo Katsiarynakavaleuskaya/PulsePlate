@@ -10,41 +10,35 @@ class TestCoverage97SuperFinal:
 
     def test_super_final_1(self):
         """Супер финальный тест 1"""
-        modules = [
+        self._import_modules(
             "core.exports_simple",
             "core.food_apis.unified_db",
             "core.food_apis.update_manager",
-        ]
-        for module in modules:
-            pytest.importorskip(module)
+        )
 
     def test_super_final_2(self):
         """Супер финальный тест 2"""
-        modules = ["core.food_db", "core.food_merge", "core.menu_engine"]
-        for module in modules:
-            pytest.importorskip(module)
+        self._import_modules("core.food_db", "core.food_merge", "core.menu_engine")
 
     def test_super_final_3(self):
         """Супер финальный тест 3"""
-        modules = ["core.menu_engine_new", "core.plate", "core.product_finder"]
-        for module in modules:
-            pytest.importorskip(module)
+        self._import_modules("core.menu_engine_new", "core.plate", "core.product_finder")
 
     def test_super_final_4(self):
         """Супер финальный тест 4"""
-        modules = ["core.product_varieties", "core.rag.simple_rag", "core.recipe_db"]
-        for module in modules:
-            pytest.importorskip(module)
+        self._import_modules("core.product_varieties", "core.rag.simple_rag", "core.recipe_db")
 
     def test_super_final_5(self):
         """Супер финальный тест 5"""
-        modules = ["core.recipe_db_new", "core.recipe_synth", "core.recommendations"]
-        for module in modules:
-            pytest.importorskip(module)
+        self._import_modules("core.recipe_db_new", "core.recipe_synth", "core.recommendations")
 
     def test_super_final_6(self):
         """Супер финальный тест 6"""
-        modules = ["core.region_catalog", "core.rules_who", "core.targets", "core.time_utils"]
+        self._import_modules("core.region_catalog", "core.rules_who", "core.targets")
+        pytest.importorskip("core.time_utils")
+
+    def _import_modules(self, *modules):
+        """Helper method to import multiple modules"""
         for module in modules:
             pytest.importorskip(module)
 

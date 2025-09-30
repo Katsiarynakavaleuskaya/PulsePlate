@@ -82,7 +82,7 @@ class TestVIPRouterImportPath:
                     vip_available = False
 
                 # Проверяем что ImportError был обработан
-                assert vip_available in [True, False]
+                assert vip_available in {True, False}
 
         finally:
             # Восстанавливаем оригинальное значение
@@ -120,10 +120,10 @@ class TestRateLimitingPath:
                 # Эти строки должны покрыть условия rate limiting
                 if rate_enabled:
                     # Некоторая логика для enabled rate limiting
-                    assert rate_enabled is True
+                    assert rate_enabled
                 else:
                     # Некоторая логика для disabled rate limiting
-                    assert rate_enabled is False
+                    assert not rate_enabled
 
         finally:
             if original_rate is not None:
@@ -144,13 +144,9 @@ class TestEnvironmentVariablePaths:
         """Тест покрытия environment variables"""
         import os
 
-        # Сохраняем оригинальные значения
-        original_vars = {}
         test_vars = ["VIP_MODULE_ENABLED", "RATE_LIMITING_ENABLED", "DEBUG"]
 
-        for var in test_vars:
-            original_vars[var] = os.environ.get(var)
-
+        original_vars = {var: os.environ.get(var) for var in test_vars}
         try:
             # Тестируем различные комбинации environment variables
             combinations = [
@@ -220,4 +216,4 @@ class TestApplicationStartupPaths:
             pass
 
         # Middleware мог быть добавлен или нет, оба варианта валидны
-        assert middleware_added in [True, False]
+        assert middleware_added in {True, False}

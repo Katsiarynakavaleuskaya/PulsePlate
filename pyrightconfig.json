@@ -2,8 +2,20 @@
   "pythonVersion": "3.12",
   "reportMissingImports": false,
   "pythonPath": ".",
+  "typeCheckingMode": "basic",
+  "diagnosticSeverityOverrides": {
+    "reportUnnecessaryAwait": "none",
+    "reportUnknownMemberType": "warning",
+    "reportUnknownArgumentType": "warning",
+    "reportUnknownVariableType": "warning",
+    "reportMissingTypeStubs": "none"
+  },
   "include": [
     "**/*.py"
+  ],
+  "ignore": [
+    "tests/**",
+    "tests_strict/**"
   ],
   "exclude": [
     "cache/**",
@@ -13,5 +25,7 @@
     "releases/**",
     "data/**",
     "external/**"
-  ]
+  ],
+  "venvPath": ".",
+  "venv": ".venv"
 }

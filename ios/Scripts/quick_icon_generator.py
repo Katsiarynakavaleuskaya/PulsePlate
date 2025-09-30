@@ -71,18 +71,13 @@ def create_icons_from_source(source_path):
     return success == len(sizes)
 
 
+# Main guard — remove the redundant Pillow check
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Использование: python quick_icon_generator.py path/to/your/icon.png")
         sys.exit(1)
 
     source_path = sys.argv[1]
-
-    try:
-        from PIL import Image
-    except ImportError:
-        print("❌ Установите Pillow: pip install Pillow")
-        sys.exit(1)
 
     if create_icons_from_source(source_path):
         print("\n🎉 Готово! Теперь можно открыть проект в Xcode")

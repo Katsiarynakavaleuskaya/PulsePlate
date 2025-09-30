@@ -9,7 +9,7 @@ echo "🔧 Setting up SwiftFormat for PulsePlate..."
 if [ -f "Package.swift" ]; then
     echo "📦 Building SwiftFormat from Package.swift..."
     swift build --product SwiftFormat
-    SWIFTFORMAT_PATH=".build/debug/SwiftFormat"
+    export SWIFTFORMAT_PATH=".build/debug/SwiftFormat"
 else
     echo "❌ Package.swift not found. Please run this from the iOS project root."
     exit 1

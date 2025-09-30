@@ -66,7 +66,7 @@ class TestSchedulerMissingCoverage:
         # Should not crash and should return immediately
         await scheduler.stop()
         # is_running should still be False
-        assert scheduler.is_running is False
+        assert not scheduler.is_running
 
     @pytest.mark.asyncio
     async def test_stop_with_running_task(self):

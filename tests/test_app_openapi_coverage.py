@@ -158,10 +158,6 @@ class TestAppOpenAPICoverage:
 
         # Проверяем теги для основных endpoints
         bmi_path = paths["/api/v1/bmi"]
-        if "post" in bmi_path:
-            # tags могут отсутствовать в реальной схеме
-            # assert "tags" in bmi_path["post"]
-            pass
 
     def test_app_openapi_summary_coverage(self, client):
         """Тест покрытия app.py OpenAPI summary"""
