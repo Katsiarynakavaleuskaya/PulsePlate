@@ -103,7 +103,7 @@ xcodebuild test -scheme PulsePlate -destination 'platform=iOS Simulator,name=iPh
 ### Проблема: "Permission denied"
 ```bash
 chmod +x *.sh
-chmod +x ios/scripts/*.sh
+chmod +x ios/Scripts/*.sh
 ```
 
 ### Проблема: "Module not found"
