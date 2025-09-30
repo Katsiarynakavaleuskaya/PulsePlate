@@ -39,8 +39,7 @@ class TestFoodMergeHypothesis96:
             "price": 1.0,
             "source": "TEST",
             "version_date": "2024-01-01",
-        }
-        defaults.update(kwargs)
+        } | kwargs
         return FoodRecord(name=name, **defaults)
 
     @given(st.lists(st.floats(min_value=0, max_value=1000), min_size=0, max_size=10))
@@ -52,9 +51,7 @@ class TestFoodMergeHypothesis96:
         assert isinstance(result, float)
         assert result >= 0.0
 
-        # If all values are valid, result should be in range
-        valid_values = [v for v in values if v is not None and v >= 0]
-        if valid_values:
+        if valid_values := [v for v in values if v is not None and v >= 0]:
             assert min(valid_values) <= result <= max(valid_values)
         else:
             assert result == 0.0
@@ -75,9 +72,7 @@ class TestFoodMergeHypothesis96:
         """Test first strategy property."""
         result = _merge_values(values, strategy="first")
 
-        # Should return the first valid value
-        valid_values = [v for v in values if v is not None and v >= 0]
-        if valid_values:
+        if valid_values := [v for v in values if v is not None and v >= 0]:
             assert result == valid_values[0]
 
     @given(
@@ -384,14 +379,13 @@ class TestFoodMergeHypothesis96:
         assert len(result) == 1
         merged_record = result[0]
 
-        # If any record has USDA source, micronutrients should prioritize USDA
-        usda_records = [r for r in records if r.source == "USDA"]
-        if usda_records:
+        if usda_records := [r for r in records if r.source == "USDA"]:
             # Check that micronutrients match USDA values (or median of USDA values)
             for micro in MICROS:
                 usda_values = [getattr(r, micro) for r in usda_records]
-                usda_values = [v for v in usda_values if v is not None and v >= 0]
-                if usda_values:
+                if usda_values := [
+                    v for v in usda_values if v is not None and v >= 0
+                ]:
                     # Should use USDA values, not all values
                     assert merged_record[micro] in usda_values
 

@@ -15,9 +15,15 @@ echo "✅ Найден проект PulsePlate.xcodeproj"
 # Создаем папку для MP4 файлов
 mkdir -p PulsePlate/Resources/MP4
 
-# Копируем MP4 файлы в правильную папку
-echo "📁 Копируем MP4 файлы..."
-cp temp_animation/*.mp4 PulsePlate/Resources/MP4/
+# Проверяем наличие исходной папки и MP4 файлов
+if [ -d "temp_animation" ] && compgen -G "temp_animation/*.mp4" > /dev/null; then
+    echo "📁 Копируем MP4 файлы из temp_animation..."
+    cp temp_animation/*.mp4 PulsePlate/Resources/MP4/
+else
+    echo "⚠️  Папка temp_animation не найдена или не содержит MP4 файлов"
+fi
+
+# Дополнительная копия из корневой папки Resources (если есть)
 cp PulsePlate/Resources/*.mp4 PulsePlate/Resources/MP4/ 2>/dev/null || true
 
 # Проверяем, что файлы скопированы
@@ -79,16 +85,24 @@ EOF
 
 echo "📋 Создана инструкция: ADD_MP4_TO_XCODE.md"
 
+# Генерируем список MP4 файлов динамически
+MP4_FILES=""
+if [ -d "PulsePlate/Resources/MP4" ] && [ "$(ls -A PulsePlate/Resources/MP4/*.mp4 2>/dev/null)" ]; then
+    # Используем awk для создания списка без trailing comma
+    MP4_FILES=$(ls PulsePlate/Resources/MP4/*.mp4 2>/dev/null | xargs -I {} basename {} .mp4 | awk 'BEGIN{ORS=""} {if(NR>1) print ", "; print "        \"" $0 "\""}')
+else
+    MP4_FILES='        "no_files_found"'
+fi
+
 # Создаем простой тест для проверки Bundle
-cat > PulsePlate/Views/Components/BundleTestView.swift << 'EOF'
+cat > PulsePlate/Views/Components/BundleTestView.swift << EOF
 import SwiftUI
 
 /// RU: Тест для проверки файлов в Bundle
 /// EN: Test for checking files in Bundle
 struct BundleTestView: View {
     private let mp4Files = [
-        "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
-        "20250913_1212_FitChef Cat Animation_simple_compose_01k515hnxhea6tx4wrkxxt4kd5"
+$MP4_FILES
     ]
 
     var body: some View {

@@ -266,7 +266,7 @@ class TestLifeStageErrorBranchesHypothesis:
         # Check that no life_stage warnings are present
         life_stage_warning_codes = ["teen", "pregnant", "lactating", "elderly", "child"]
         life_stage_warnings = [w for w in data["warnings"] if w["code"] in life_stage_warning_codes]
-        assert len(life_stage_warnings) == 0
+        assert not life_stage_warnings
 
     @given(
         age=st.integers(min_value=18, max_value=50),

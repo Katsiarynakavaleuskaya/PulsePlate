@@ -3,8 +3,6 @@
 Custom MCP setup for PulsePlate with ChatGPT integration
 """
 import json
-import os
-import sys
 from pathlib import Path
 
 
@@ -27,13 +25,9 @@ def setup_custom_mcp():
         }
     }
 
-    # Write MCP configuration
-    mcp_file = cursor_dir / "mcp.json"
-    with open(mcp_file, "w") as f:
-        json.dump(mcp_config, f, indent=2)
-
-    print(f"✅ MCP configuration created at {mcp_file}")
-
+    _extracted_from_setup_custom_mcp_21(
+        cursor_dir, "mcp.json", mcp_config, "✅ MCP configuration created at "
+    )
     # Create environment file
     env_file = cursor_dir / ".env"
     env_content = """# OpenAI API Configuration
@@ -59,18 +53,28 @@ MCP_ENABLED=true
         "mcp.servers": ["pulseplate-chatgpt"],
     }
 
-    settings_file = cursor_dir / "settings.json"
-    with open(settings_file, "w") as f:
-        json.dump(cursor_settings, f, indent=2)
-
-    print(f"✅ Cursor settings created at {settings_file}")
-
+    _extracted_from_setup_custom_mcp_21(
+        cursor_dir,
+        "settings.json",
+        cursor_settings,
+        "✅ Cursor settings created at ",
+    )
     print("\n🎉 Custom MCP setup complete!")
     print("\nNext steps:")
     print("1. Edit ~/.cursor/.env and add your OpenAI API key")
     print("2. Edit ~/.cursor/mcp.json and update the API key")
     print("3. Restart Cursor")
     print("4. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
+
+
+# TODO Rename this here and in `setup_custom_mcp`
+def _extracted_from_setup_custom_mcp_21(cursor_dir, arg1, arg2, arg3):
+    # Write MCP configuration
+    mcp_file = cursor_dir / arg1
+    with open(mcp_file, "w") as f:
+        json.dump(arg2, f, indent=2)
+
+    print(f"{arg3}{mcp_file}")
 
 
 if __name__ == "__main__":

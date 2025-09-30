@@ -32,19 +32,20 @@ class TestUpdateManagerNewCoverage:
     def mock_manager(self, temp_cache_dir):
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-            patch("core.food_apis.update_manager.OFFClient") as mock_off,
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
-        ):
+                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+                patch("core.food_apis.update_manager.OFFClient") as mock_off,
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+                patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+            ):
             mock_usda.return_value = MagicMock()
             mock_off.return_value = MagicMock()
             mock_db.return_value = MagicMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-            yield manager
 
     @pytest.mark.asyncio
     async def test_sqlite_checksum_calculation(self, mock_manager, temp_cache_dir):

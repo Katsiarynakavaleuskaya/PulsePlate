@@ -25,15 +25,14 @@ class TestDbRealisticCoverage:
             invalid_paths = [
                 fake.file_path(extension="db"),
                 "/nonexistent/path/" + fake.file_name(extension="db"),
-                fake.url() + ".db",
+                f"{fake.url()}.db",
                 "",
             ]
 
             for path in invalid_paths:
                 try:
                     with patch("core.db.DB_PATH", path):
-                        conn = get_db_connection()
-                        if conn:
+                        if conn := get_db_connection():
                             conn.close()
                 except Exception:
                     # Expected for invalid paths
@@ -51,7 +50,7 @@ class TestDbRealisticCoverage:
             problematic_queries = [
                 f"INSERT INTO users VALUES ('{fake.name()}', '{fake.email()}')",
                 f"SELECT * FROM nonexistent_table WHERE id = {fake.random_int()}",
-                "INVALID SQL SYNTAX " + fake.sentence(),
+                f"INVALID SQL SYNTAX {fake.sentence()}",
                 "",
                 None,
             ]
@@ -172,7 +171,7 @@ class TestDbRealisticCoverage:
             backup_paths = [
                 fake.file_path(extension="bak"),
                 "/tmp/" + fake.file_name(extension="backup"),
-                fake.file_name() + ".sql",
+                f"{fake.file_name()}.sql",
             ]
 
             for path in backup_paths:
@@ -220,8 +219,7 @@ class TestDbRealisticCoverage:
             connections = []
             for _ in range(fake.random_int(min=5, max=15)):
                 try:
-                    conn = get_db_connection()
-                    if conn:
+                    if conn := get_db_connection():
                         connections.append(conn)
                 except Exception:
                     pass
@@ -249,7 +247,7 @@ class TestDbRealisticCoverage:
 
             # Test schema validation
             fake_tables = [
-                fake.word() + "_table",
+                f"{fake.word()}_table",
                 "users",
                 "foods",
                 "recipes",

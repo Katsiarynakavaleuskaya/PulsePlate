@@ -6,12 +6,32 @@ App Icon Generator for PulsePlate
 
 import os
 import sys
-from PIL import Image, ImageDraw, ImageFont
-import math
+
+try:
+    from PIL import Image, ImageDraw
+except ImportError:
+    print("❌ Pillow (PIL) is not installed!")
+    print("📦 Please install it with: pip install Pillow")
+    print("   or: brew install pillow (on macOS)")
+    sys.exit(1)
 
 
-def create_pulseplate_icon(size):
-    """Создает иконку PulsePlate с заданным размером"""
+def create_pulseplate_icon(size: int) -> Image.Image:
+    """Создает иконку PulsePlate с заданным размером
+
+    Валидация размера предотвращает деление на ноль и некорректные расчеты
+    для слишком маленьких, отрицательных и нецелочисленных значений.
+    """
+    # Early validation for size to avoid malformed drawing or ZeroDivision errors
+    try:
+        size = size
+    except (TypeError, ValueError) as exc:  # noqa: F841 - exc kept for clarity
+        raise ValueError("size must be an integer number of pixels (received non-integer)") from exc
+
+    MIN_SIZE = 16
+    if size < MIN_SIZE:
+        raise ValueError(f"size must be >= {MIN_SIZE} pixels to render properly (got {size})")
+
     # Создаем изображение с прозрачным фоном
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -80,7 +100,7 @@ def create_pulseplate_icon(size):
     return img
 
 
-def generate_all_icons():
+def generate_all_icons() -> bool:
     """Генерирует все необходимые размеры иконок"""
 
     # Размеры для iOS (в пикселях)
@@ -106,8 +126,12 @@ def generate_all_icons():
         "AppIcon-1024.png": 1024,  # 1024x1024
     }
 
-    # Путь к папке с иконками
-    icons_dir = "PulsePlate/Assets.xcassets/AppIcon.appiconset"
+    # Путь к папке с иконками (относительно расположения скрипта)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icons_dir = os.path.join(
+        script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
+    )
+    icons_dir = os.path.normpath(icons_dir)
 
     if not os.path.exists(icons_dir):
         print(f"❌ Папка {icons_dir} не найдена!")
@@ -138,13 +162,7 @@ def generate_all_icons():
 
 
 if __name__ == "__main__":
-    # Проверяем наличие PIL
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError:
-        print("❌ Требуется библиотека Pillow:")
-        print("pip install Pillow")
-        sys.exit(1)
+    # PIL уже импортирован в начале файла
 
     # Генерируем иконки
     if generate_all_icons():

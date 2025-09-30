@@ -81,7 +81,7 @@ class TestAPIKeyModes:
         finally:
             # Восстанавливаем окружение
             os.environ.clear()
-            os.environ.update(original_env)
+            os.environ |= original_env
             # Переимпортируем модуль с восстановленным окружением
             if "app" in sys.modules:
                 del sys.modules["app"]
@@ -156,7 +156,7 @@ class TestAPIKeyModes:
         finally:
             # Восстанавливаем окружение
             os.environ.clear()
-            os.environ.update(original_env)
+            os.environ |= original_env
             # Переимпортируем модуль с восстановленным окружением
             if "app" in sys.modules:
                 del sys.modules["app"]

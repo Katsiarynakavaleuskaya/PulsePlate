@@ -85,21 +85,21 @@ class TestDatabaseUpdateManagerBasics:
     def mock_manager(self, temp_cache_dir):
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-            patch("core.food_apis.update_manager.OFFClient") as mock_off,
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
-        ):
+                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+                patch("core.food_apis.update_manager.OFFClient") as mock_off,
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+                patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+            ):
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     def test_manager_initialization(self, temp_cache_dir):
         """Test manager initialization."""
@@ -295,21 +295,21 @@ class TestDatabaseUpdateManagerAsync:
     def mock_manager(self, temp_cache_dir):
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
-            patch("core.food_apis.update_manager.USDAClient") as mock_usda,
-            patch("core.food_apis.update_manager.OFFClient") as mock_off,
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
-            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
-        ):
+                patch("core.food_apis.update_manager.USDAClient") as mock_usda,
+                patch("core.food_apis.update_manager.OFFClient") as mock_off,
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_db,
+                patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+            ):
             # Mock the clients
             mock_usda.return_value = AsyncMock()
             mock_off.return_value = AsyncMock()
             mock_db.return_value = AsyncMock()
 
-            manager = DatabaseUpdateManager(
-                cache_dir=temp_cache_dir, update_interval_hours=24, max_rollback_versions=5
+            yield DatabaseUpdateManager(
+                cache_dir=temp_cache_dir,
+                update_interval_hours=24,
+                max_rollback_versions=5,
             )
-
-            yield manager
 
     @pytest.mark.asyncio
     async def test_check_usda_updates_no_current_version(self, mock_manager):
@@ -459,12 +459,11 @@ class TestValidateData:
     def mock_manager(self):
         """Create a minimal manager for testing validation."""
         with (
-            patch("core.food_apis.update_manager.USDAClient"),
-            patch("core.food_apis.update_manager.OFFClient"),
-            patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
-        ):
-            manager = DatabaseUpdateManager()
-            yield manager
+                patch("core.food_apis.update_manager.USDAClient"),
+                patch("core.food_apis.update_manager.OFFClient"),
+                patch("core.food_apis.update_manager.UnifiedFoodDatabase"),
+            ):
+            yield DatabaseUpdateManager()
 
     @pytest.mark.asyncio
     async def test_validate_food_data_valid(self, mock_manager):

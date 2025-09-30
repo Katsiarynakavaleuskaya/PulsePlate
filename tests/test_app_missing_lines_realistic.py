@@ -7,7 +7,25 @@ from faker import Faker
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from app import app
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+import pathlib
+
+repo_root = pathlib.Path(__file__).parent.parent
+app_path = repo_root / "app.py"
+
+spec = importlib.util.spec_from_file_location("app_module", str(app_path))
+if spec is None or spec.loader is None:
+    raise ImportError(f"Cannot load app.py from {app_path}")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
 fake = Faker()
 
@@ -147,7 +165,7 @@ class TestAppMissingLinesTargeted:
             results = [future.result() for future in futures]
 
         # At least some should succeed
-        success_count = sum(1 for r in results if r.status_code == 200)
+        success_count = sum(r.status_code == 200 for r in results)
         assert success_count > 0
 
 

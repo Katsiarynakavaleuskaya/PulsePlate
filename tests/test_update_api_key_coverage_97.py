@@ -58,7 +58,7 @@ class TestUpdateApiKeyCoverage97:
                     json.dump(test_settings, f)
 
                 # Test update_api_key
-                result = update_api_key.update_api_key("sk-test123")
+                result = update_api_key.update_api_key("sk-test12345678901234567890")
 
                 # Verify result
                 assert result is True
@@ -68,18 +68,18 @@ class TestUpdateApiKeyCoverage97:
                     updated_config = json.load(f)
                 assert (
                     updated_config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"]
-                    == "sk-test123"
+                    == "sk-test12345678901234567890"
                 )
 
                 # Verify .env file was updated
                 with open(env_file, "r") as f:
                     env_content = f.read()
-                assert "OPENAI_API_KEY=sk-test123" in env_content
+                assert "OPENAI_API_KEY=sk-test12345678901234567890" in env_content
 
                 # Verify settings file was updated
                 with open(settings_file, "r") as f:
                     updated_settings = json.load(f)
-                assert updated_settings["cursor.ai.openaiApiKey"] == "sk-test123"
+                assert updated_settings["cursor.ai.openaiApiKey"] == "sk-test12345678901234567890"
 
     def test_update_api_key_missing_files(self):
         """Test update_api_key when files don't exist"""
@@ -90,7 +90,7 @@ class TestUpdateApiKeyCoverage97:
                 mock_home.return_value = temp_path
 
                 # Don't create any files - test when files don't exist
-                result = update_api_key.update_api_key("sk-test123")
+                result = update_api_key.update_api_key("sk-test12345678901234567890")
 
                 # Should still return True even if files don't exist
                 assert result is True
@@ -112,7 +112,7 @@ class TestUpdateApiKeyCoverage97:
                 with open(mcp_file, "w") as f:
                     json.dump(test_config, f)
 
-                result = update_api_key.update_api_key("sk-test123")
+                result = update_api_key.update_api_key("sk-test12345678901234567890")
                 assert result is True
 
     def test_update_api_key_env_file_no_openai_key(self):
@@ -132,7 +132,7 @@ class TestUpdateApiKeyCoverage97:
                 with open(env_file, "w") as f:
                     f.write("OTHER_VAR=value\nANOTHER_VAR=another_value")
 
-                result = update_api_key.update_api_key("sk-test123")
+                result = update_api_key.update_api_key("sk-test12345678901234567890")
                 assert result is True
 
     def test_main_function_with_valid_input(self):
@@ -188,7 +188,12 @@ class TestUpdateApiKeyCoverage97:
         """Test additional coverage scenarios"""
         # Test with different API key formats
         result = update_api_key.update_api_key("sk-")
-        # This should return True because "sk-" is a valid format
+        # This should return False because "sk-" is too short
+        assert result is False
+
+        # Test with valid API key format
+        result = update_api_key.update_api_key("sk-12345678901234567890")
+        # This should return True because it's a valid format
         assert result is True
 
         # Test with valid API key but no files exist
@@ -197,5 +202,5 @@ class TestUpdateApiKeyCoverage97:
                 temp_path = Path(temp_dir)
                 mock_home.return_value = temp_path
 
-                result = update_api_key.update_api_key("sk-valid123")
+                result = update_api_key.update_api_key("sk-valid12345678901234567890")
                 assert result is True

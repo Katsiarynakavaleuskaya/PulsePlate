@@ -11,10 +11,28 @@
 Всего: 282 lines. Нам нужно только 223 lines для 97%!
 """
 
-import os
 import pytest
 from fastapi.testclient import TestClient
-from app import app
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import importlib.util
+import pathlib
+
+# Get the repository root directory
+repo_root = pathlib.Path(__file__).parent.parent
+app_path = repo_root / "app.py"
+
+spec = importlib.util.spec_from_file_location("app_module", str(app_path))
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
 
 @pytest.fixture

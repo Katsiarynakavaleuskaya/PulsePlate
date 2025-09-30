@@ -17,4 +17,4 @@ def test_app_vip_integration_success():
 
     # VIP routes should be present since VIP module is enabled
     vip_paths = {p for p in paths if "/vip/" in p}
-    assert len(vip_paths) > 0, "VIP routes should be registered when the module is enabled"
+    assert vip_paths, "VIP routes should be registered when the module is enabled"

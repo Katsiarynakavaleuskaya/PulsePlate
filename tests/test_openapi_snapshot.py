@@ -6,7 +6,19 @@ import json
 
 try:
     # Пытаемся импортировать приложение (поддержим два варианта именования)
-    from app import app  # type: ignore
+    import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app  # type: ignore
 except Exception:  # pragma: no cover - fallback only for alternate entrypoint
     from main import app  # type: ignore
 
@@ -23,8 +35,6 @@ def test_openapi_schema_snapshot():
     if not snap_path.exists():
         # Первый прогон — зафиксировали эталон (сознательный шаг).
         snap_path.write_text(json.dumps(schema, ensure_ascii=False, indent=2), encoding="utf-8")
-        # Подсказываем обновить снапшот намеренно, если так и должно быть.
-        assert True
     else:
         baseline = json.loads(snap_path.read_text(encoding="utf-8"))
         assert schema == baseline, (

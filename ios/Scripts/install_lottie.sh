@@ -16,11 +16,10 @@ echo "✅ Найден проект PulsePlate.xcodeproj"
 # Создаем временный скрипт для добавления пакета
 cat > add_lottie_package.swift << 'EOF'
 import Foundation
-import XcodeKit
 
 // Этот скрипт будет выполнен в Xcode для добавления Lottie пакета
 let packageURL = "https://github.com/airbnb/lottie-ios.git"
-let packageVersion = "4.4.0"
+let packageVersion = "4.5.2"
 
 print("📦 Добавляем Lottie пакет...")
 print("URL: \(packageURL)")
@@ -62,7 +61,7 @@ open PulsePlate.xcodeproj
 
 3. **Выберите версию:**
    - Version: Up to Next Major
-   - From: 4.4.0
+   - From: 4.5.2
 
 4. **Добавьте в Target:**
    - Выберите Target "PulsePlate"

@@ -105,15 +105,15 @@ async def test_update_manager_off_branches(tmp_path, monkeypatch):
     updates = await mgr.check_for_updates()
     assert "openfoodfacts" in updates and updates["openfoodfacts"] is False
 
-    # Prepare OFF client stub for _update_off_database, including one good result
+
+
     class StubOFF2:
         async def search_products(self, term, page_size=5):
-            if term == "banana":
-                return [make_off_item("Banana Bar")]
-            return []
+            return [make_off_item("Banana Bar")] if term == "banana" else []
 
         async def close(self):
             return None
+
 
     mgr.off_client = cast(OFFClient, StubOFF2())
 
@@ -338,7 +338,9 @@ async def test_update_manager_off_exception_final(tmp_path, monkeypatch):
     monkeypatch.setattr(mgr.unified_db, "get_common_foods_database", lambda: {})
     # Raise when saving versions to land in final except
     monkeypatch.setattr(
-        mgr, "_save_versions", lambda: (_ for _ in ()).throw(RuntimeError("save fail"))
+        mgr,
+        "_save_versions",
+        lambda: iter(()).throw(RuntimeError("save fail")),
     )
 
     result = await mgr._update_off_database(force=False)

@@ -8,7 +8,19 @@ EN: Tests for the weekly plan API.
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the FastAPI app from app.py file
+import importlib.util
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load app.py")
+
+app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app_module)
+app = app_module.app
 
 # Set up test client
 client = TestClient(app)
@@ -49,13 +61,10 @@ def test_week_plan_with_targets():
     # Check that we have an error message (could be API key or validation error)
     if response.status_code == 403:
         assert "API Key" in data["detail"]
+        assert "API Key" in data["detail"]
     elif response.status_code == 422:
         assert "detail" in data
 
-        # Check that we have an error message (could be API key or validation error)
-    if response.status_code == 403:
-        assert "API Key" in data["detail"]
-    elif response.status_code == 422:
         assert "detail" in data
 
 

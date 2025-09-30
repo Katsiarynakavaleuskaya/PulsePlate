@@ -91,7 +91,7 @@ class TestAutoProductExpansionDemo:
             print(f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено")
 
             # Проверяем, что система работает корректно
-            assert len(unique_ingredients) > 0
+            assert unique_ingredients
             assert len(missing_products) > 0
             assert len(finder.food_db) > 0
 
@@ -124,16 +124,14 @@ class TestAutoProductExpansionDemo:
         food_names = {food.name.lower() for food in finder.food_db.values()}
 
         for missing_product in missing_products:
-            found_in_db = False
-            for food_name in food_names:
-                if (
+            found_in_db = any(
+                (
                     missing_product.lower() in food_name
                     or food_name in missing_product.lower()
                     or finder._similar_names(missing_product, food_name)
-                ):
-                    found_in_db = True
-                    break
-
+                )
+                for food_name in food_names
+            )
             # Продукт должен быть действительно отсутствующим
             assert (
                 not found_in_db

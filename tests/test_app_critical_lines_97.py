@@ -2,6 +2,7 @@
 Критичные тесты для main.py - финальный пуш к 97%
 """
 
+import contextlib
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
@@ -64,9 +65,6 @@ class TestAppCriticalLines97:
                 response = client.get("/api/v1/vip/status")
                 # Должен вернуть ошибку или 404
                 assert response.status_code in [404, 503, 500]
-            else:
-                # Если app.app не инициализирован, тест считается успешным (ожидаемое поведение)
-                assert True
 
     def test_admin_endpoints_missing_scheduler(self, client):
         """Тест admin endpoints когда scheduler недоступен"""
@@ -92,13 +90,11 @@ class TestAppCriticalLines97:
         """Тест путей когда зависимости недоступны"""
         # Имитируем отсутствие модулей
         with patch.dict("sys.modules", {"core.auto_repair": None}):
-            try:
+            with contextlib.suppress(ImportError):
                 import app
 
                 # Проверяем что app загружается с заглушками
                 assert app is not None
-            except ImportError:
-                pass  # Ожидаемо
 
     def test_premium_endpoints_error_paths(self, client):
         """Тест error paths в premium endpoints"""
@@ -130,30 +126,53 @@ class TestAppCriticalLines97:
 
     def test_middleware_error_paths(self):
         """Тест middleware error paths"""
-        from app import app
+        import sys
+        import os
+
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # Import the FastAPI app from app.py file
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("app_module", "app.py")
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load app.py")
+
+        app_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(app_module)
+        app = app_module.app
 
         # Тест создания TestClient - может вызвать error paths
         if app is not None and hasattr(app, "app"):
             client = TestClient(cast(ASGIApp, app.app))
             assert client is not None
-        else:
-            # Если app не инициализирован или не содержит атрибута 'app', тест считается успешным
-            assert True
 
     def test_startup_shutdown_events(self):
         """Тест startup/shutdown events"""
-        from app import app
+        import sys
+        import os
+
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # Import the FastAPI app from app.py file
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("app_module", "app.py")
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load app.py")
+
+        app_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(app_module)
+        app = app_module.app
 
         # Проверяем что events зарегистрированы
         assert hasattr(app, "router")
 
         # Имитируем startup/shutdown
-        try:
+        with contextlib.suppress(Exception):
             # Вызываем startup events если есть
             if app is not None and hasattr(app, "startup"):
                 app.startup()
-        except Exception:
-            pass  # Ожидаемо
 
 
 @pytest.fixture

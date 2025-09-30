@@ -6,6 +6,11 @@ set -e
 echo "🚀 Запуск тестов PulsePlate..."
 
 # Активируем виртуальное окружение
+# Активируем виртуальное окружение
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "❌ Виртуальное окружение не найдено. Создайте его командой: python -m venv .venv"
+    exit 1
+fi
 source .venv/bin/activate
 
 # Устанавливаем переменные окружения
@@ -20,6 +25,6 @@ echo "📋 Переменные окружения установлены"
 
 # Запускаем только основные тесты
 echo "🧪 Запуск основных тестов..."
-python -m pytest tests/test_app_health_and_root.py tests/test_api_smoke.py tests/test_bmi_core.py tests/test_bmi_visualization.py tests/test_bodyfat.py tests/test_daily_plate.py tests/test_exports.py tests/test_food_apis.py tests/test_llm.py tests/test_nutrition_core.py tests/test_nutrition_plate.py tests/test_premium_targets.py tests/test_premium_week_api.py tests/test_product_finder.py tests/test_recipe_db.py tests/test_shoplist_basics.py tests/test_targets.py tests/test_time_utils.py tests/test_units.py tests/test_utils_extra.py tests/test_weekly_plan.py --cov=. --cov-report=term-missing --cov-fail-under=97 -q
+python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97 -q
 
 echo "✅ Тесты завершены"

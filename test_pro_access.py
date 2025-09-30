@@ -4,10 +4,11 @@ Test script to verify OpenAI Pro access and available models
 """
 import openai
 import os
-from typing import List, Dict
+
+from typing import Any, Dict
 
 
-def test_openai_pro_access(api_key: str) -> Dict:
+def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
     """Test OpenAI Pro access and list available models"""
     try:
         client = openai.OpenAI(api_key=api_key)

@@ -1,15 +1,26 @@
 #!/bin/bash
 
-# Активация интерпретатора для проекта BMI-App_2025_clean
+# Активация интерпретатора для проекта PulsePlate
 # Использование: source activate_interpreter.sh
 
-echo "🚀 Активация интерпретатора для BMI-App_2025_clean..."
+echo "🚀 Активация интерпретатора для PulsePlate..."
+
+# Получаем директорию проекта динамически на основе расположения скрипта
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 
 # Переходим в директорию проекта
-cd /Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean
+cd "$PROJECT_DIR"
 
-# Активируем виртуальное окружение
-source .venv/bin/activate
+# Проверяем существование и читаемость файла активации виртуального окружения
+if [ -r ".venv/bin/activate" ]; then
+    # Активируем виртуальное окружение
+    source .venv/bin/activate
+else
+    echo "❌ Ошибка: Файл .venv/bin/activate не найден или недоступен для чтения" >&2
+    echo "   Убедитесь, что виртуальное окружение создано в директории: $PROJECT_DIR" >&2
+    return 1 2>/dev/null || exit 1
+fi
 
 # Проверяем интерпретатор
 echo "✅ Интерпретатор активирован:"

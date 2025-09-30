@@ -31,7 +31,23 @@ fi
 
 # Run SwiftFormat first (format code)
 echo "🎨 Running SwiftFormat..."
-swiftformat --config .swiftformat --inplace PulsePlate/**/*.swift
+
+# Enable globstar and nullglob for proper glob pattern handling
+shopt -s globstar nullglob
+
+# Find Swift files and format them
+swift_files=(PulsePlate/**/*.swift)
+
+if [ ${#swift_files[@]} -eq 0 ]; then
+    echo "⚠️  No Swift files found in PulsePlate directory"
+    echo "   Skipping SwiftFormat"
+else
+    echo "📁 Found ${#swift_files[@]} Swift files to format"
+    swiftformat --config .swiftformat --inplace -- "${swift_files[@]}"
+fi
+
+# Disable globstar and nullglob
+shopt -u globstar nullglob
 
 # Run SwiftLint (check code quality)
 echo "🔍 Running SwiftLint..."

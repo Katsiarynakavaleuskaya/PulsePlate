@@ -17,8 +17,6 @@ excluded:
 # Rules configuration
 disabled_rules:
   - trailing_whitespace
-  - todo
-  - line_length
 
 opt_in_rules:
   - array_init

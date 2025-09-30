@@ -3,6 +3,12 @@
 
 set -e
 
+# Validate execution context - must be run from ios/ directory
+if [ "$(basename "$PWD")" != "ios" ] || [ ! -f "Podfile" ]; then
+    echo "❌ Error: Must be run from the ios/ directory" >&2
+    exit 1
+fi
+
 echo "🗂️  Organizing PulsePlate iOS project structure..."
 
 # Create directories
@@ -12,6 +18,10 @@ mkdir -p scripts docs assets tools config
 echo "📁 Moving shell scripts..."
 for file in *.sh; do
     if [ -f "$file" ] && [[ "$file" =~ ^(setup_|install_|generate_|organize_).*\.sh$ ]]; then
+        # Skip the currently executing script to avoid moving itself
+        if [ "$file" = "$(basename "$0")" ]; then
+            continue
+        fi
         echo "   Moving $file to scripts/"
         mv "$file" scripts/
     fi
@@ -37,12 +47,16 @@ done
 
 # Move media files (only project-specific ones)
 echo "📁 Moving media assets..."
-for file in *.mp4 *.png; do
-    if [ -f "$file" ] && [[ "$file" =~ ^(fitchef_|pulseplate_|app_icon).*\.(mp4|png)$ ]]; then
-        echo "   Moving $file to assets/"
-        mv "$file" assets/
-    fi
+shopt -s nullglob
+for ext in mp4 png; do
+    for file in *.$ext; do
+        if [[ "$file" =~ ^(fitchef_|pulseplate_|app_icon).*\.(mp4|png)$ ]]; then
+            echo "   Moving $file to assets/"
+            mv "$file" assets/
+        fi
+    done
 done
+shopt -u nullglob
 
 # Move config files (only project-specific ones)
 echo "📁 Moving configuration files..."

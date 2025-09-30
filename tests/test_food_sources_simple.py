@@ -148,7 +148,7 @@ class TestOFFAdapter:
             names = [food.name for food in results]
             # Should use fallback names - check if canonical names include fallback content
             assert len(names[0]) > 0 and len(names[1]) > 0  # Both should have names
-            assert any(name for name in names)  # Should have valid names
+            assert any(names)
 
         os.unlink(f.name)
 
@@ -258,7 +258,7 @@ class TestFoodSourcesIntegration:
             results = list(adapter.normalize())
 
             # Should handle empty data gracefully
-            assert len(results) == 0
+            assert not results
 
         os.unlink(f.name)
 
@@ -300,4 +300,4 @@ class TestFoodSourcesIntegration:
             results = list(adapter.fetch())
 
             # Should return empty results when no CSV files found
-            assert len(results) == 0
+            assert not results

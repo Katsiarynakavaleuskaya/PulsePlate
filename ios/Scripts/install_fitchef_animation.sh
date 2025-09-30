@@ -6,11 +6,21 @@ echo "🎬 Устанавливаем анимацию FitChef..."
 
 # Пути (относительно скрипта)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ANIMATION_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/FitChefAnimation.imageset"
+ANIMATION_DIR="$SCRIPT_DIR/../PulsePlate/Assets.xcassets/FitChefAnimation.imageset"
 TEMP_DIR="$SCRIPT_DIR/temp_animation"
 
 # Создаем временную папку
-mkdir -p "$TEMP_DIR"
+if ! mkdir -p "$TEMP_DIR"; then
+    echo "❌ Ошибка: Не удалось создать временную папку $TEMP_DIR" >&2
+    echo "   Проверьте права доступа к родительской директории" >&2
+    exit 1
+fi
+
+# Проверяем, что папка создана и доступна для записи
+if [ ! -d "$TEMP_DIR" ] || [ ! -w "$TEMP_DIR" ]; then
+    echo "❌ Ошибка: Временная папка $TEMP_DIR недоступна для записи" >&2
+    exit 1
+fi
 
 echo "📁 Временная папка для анимации: $TEMP_DIR"
 echo ""
@@ -31,6 +41,14 @@ echo ""
 # Функция для установки анимации
 install_animation() {
     echo "🎬 Устанавливаем анимацию FitChef..."
+
+    # Создаем директорию анимации и проверяем её создание
+    if ! mkdir -p "$ANIMATION_DIR"; then
+        echo "❌ Ошибка: Не удалось создать директорию $ANIMATION_DIR" >&2
+        echo "   Проверьте права доступа к родительской директории" >&2
+        ls -la "$(dirname "$ANIMATION_DIR")" >&2
+        return 1
+    fi
 
     # Проверяем наличие файлов
     local frame_files=(
@@ -73,13 +91,19 @@ install_animation() {
                 echo "   🗄️  Создаю резервную копию: $(basename "$backup_file")"
                 mv "$dest_file" "$backup_file"
                 echo "   📄 Копирую $file"
-                cp "$src_file" "$dest_file"
+                if ! cp "$src_file" "$dest_file"; then
+                    echo "❌ Failed to copy $src_file to $dest_file" >&2
+                    return 1
+                fi
             else
                 echo "   ⏭️  Пропускаю копирование $file"
             fi
         else
             echo "   📄 Копирую $file"
-            cp "$src_file" "$dest_file"
+            if ! cp "$src_file" "$dest_file"; then
+                echo "❌ Failed to copy $src_file to $dest_file" >&2
+                return 1
+            fi
         fi
     done
 
@@ -97,6 +121,7 @@ install_animation() {
 case "${1:-help}" in
     "install")
         install_animation
+        exit $?
         ;;
     "cleanup")
         echo "🧹 Очищаем временные файлы..."

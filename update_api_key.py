@@ -3,15 +3,18 @@
 Update API key in MCP configuration
 """
 import json
-import os
+
+# import os  # noqa: F401
 from pathlib import Path
 
 
 def update_api_key(api_key: str):
     """Update API key in MCP configuration"""
 
-    if not api_key or not api_key.startswith("sk-"):
-        print("❌ Invalid API key format. Should start with 'sk-'")
+    if not api_key or not api_key.startswith("sk-") or len(api_key) > 256:
+        print(
+            "❌ Invalid API key format. Should start with 'sk-' and be no longer than 256 characters"
+        )
         return False
 
     # Update MCP configuration
@@ -81,10 +84,7 @@ def main():
         print("❌ No API key provided")
         return
 
-    # Update configuration
-    success = update_api_key(api_key)
-
-    if success:
+    if success := update_api_key(api_key):
         print("\n✅ Configuration updated successfully!")
     else:
         print("\n❌ Failed to update configuration")

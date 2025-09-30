@@ -48,5 +48,5 @@ fi
 echo -e "${GREEN}🎉 Swift Tools installation completed successfully!${NC}"
 echo ""
 echo "Next steps:"
-echo "1. Run: ./swift_tools.sh build"
-echo "2. Run: ./swift_tools.sh all"
+echo "1. Run: cd .. && ./swift_tools.sh build"
+echo "2. Run: cd .. && ./swift_tools.sh all"

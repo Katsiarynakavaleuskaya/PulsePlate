@@ -471,13 +471,10 @@ class TestDailyPlateComprehensive:
                 meals, total_micro_coverage, {"VEG"}, self.food_db
             )
 
-            # Booster should be added to lunch or dinner (first one found)
-            lunch_or_dinner_boosted = False
-            for meal in result_meals:
-                if meal["name"] in ["lunch", "dinner"] and "boosters" in meal:
-                    lunch_or_dinner_boosted = True
-                    break
-
+            lunch_or_dinner_boosted = any(
+                meal["name"] in ["lunch", "dinner"] and "boosters" in meal
+                for meal in result_meals
+            )
             assert lunch_or_dinner_boosted
 
     def test_apply_boosters_if_needed_multiple_insufficiencies(self):

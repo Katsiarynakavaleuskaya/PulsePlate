@@ -10,40 +10,49 @@ class TestCoverage97Final:
 
     def test_final_coverage_1(self):
         """Финальное покрытие 1"""
-        modules = [
-            "core.exports_simple",
-            "core.food_apis.unified_db",
-            "core.food_apis.update_manager",
-        ]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.exports_simple")
+
+        pytest.importorskip("core.food_apis.unified_db")
+        pytest.importorskip("core.food_apis.update_manager")
 
     def test_final_coverage_2(self):
         """Финальное покрытие 2"""
-        modules = ["core.food_db", "core.food_merge", "core.menu_engine"]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.food_db")
+
+        pytest.importorskip("core.food_merge")
+
+        pytest.importorskip("core.menu_engine")
 
     def test_final_coverage_3(self):
         """Финальное покрытие 3"""
-        modules = ["core.menu_engine_new", "core.plate", "core.product_finder"]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.menu_engine_new")
+
+        pytest.importorskip("core.plate")
+
+        pytest.importorskip("core.product_finder")
 
     def test_final_coverage_4(self):
         """Финальное покрытие 4"""
-        modules = ["core.product_varieties", "core.rag.simple_rag", "core.recipe_db"]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.product_varieties")
+
+        pytest.importorskip("core.rag.simple_rag")
+
+        pytest.importorskip("core.recipe_db")
 
     def test_final_coverage_5(self):
         """Финальное покрытие 5"""
-        modules = ["core.recipe_db_new", "core.recipe_synth", "core.recommendations"]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.recipe_db_new")
+
+        pytest.importorskip("core.recipe_synth")
+
+        pytest.importorskip("core.recommendations")
 
     def test_final_coverage_6(self):
         """Финальное покрытие 6"""
-        modules = ["core.region_catalog", "core.rules_who", "core.targets", "core.time_utils"]
-        for module in modules:
-            pytest.importorskip(module)
+        pytest.importorskip("core.region_catalog")
+
+        pytest.importorskip("core.rules_who")
+
+        pytest.importorskip("core.targets")
+
+        pytest.importorskip("core.time_utils")

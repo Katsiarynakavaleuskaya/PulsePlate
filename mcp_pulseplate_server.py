@@ -6,7 +6,7 @@ Integrates ChatGPT with project-specific context
 import json
 import sys
 import os
-from typing import Dict, List, Any
+from typing import Dict, Any
 import asyncio
 import openai
 

@@ -1,105 +1,135 @@
+#!/usr/bin/env python3
 """
-Compatibility package shim to expose the FastAPI `app` from the
-top-level `app.py` module while preserving attribute access for tests
-that patch functions like `app.make_weekly_menu`.
+Test script to verify OpenAI Pro access and available models
 """
 
-from __future__ import annotations
+import contextlib
+import openai
+import os
+from typing import Any, Dict
 
-import importlib.util
-import sys as _sys
-from pathlib import Path
-from types import ModuleType
+# Define exception class aliases compatible with type checking
+# Predeclare temporary holders with explicit types for static checkers
+_TMP_AUTH_ERROR_CLS: type[BaseException]
+_TMP_API_ERROR_CLS: type[BaseException]
+try:
+    # Prefer importing specific OpenAI exceptions if available
+    from openai import AuthenticationError as _AuthenticationError, APIError as _APIError
 
-_ROOT_APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
-
-_spec = importlib.util.spec_from_file_location("_app_top_module", _ROOT_APP_PATH)
-# Keep a base spec to satisfy importlib expectations when using a proxy
-_BASE_SPEC = importlib.util.spec_from_file_location("app", _ROOT_APP_PATH)
-_mod: ModuleType
-if _spec and _spec.loader:  # pragma: no cover - defensive
-    _mod = importlib.util.module_from_spec(_spec)
-    # Ensure module is visible in sys.modules under its name before exec
-    _sys.modules["_app_top_module"] = _mod
-    _spec.loader.exec_module(_mod)
-else:  # pragma: no cover
-    raise ImportError("Failed to load top-level app.py module")
-
-# Public FastAPI instance
-app = getattr(_mod, "app", None)
-if app is None:  # pragma: no cover
-    raise AttributeError("Top-level app.py has no 'app' instance")
-
-# Ensure this package exposes a valid search path for submodules
-if "__path__" not in globals():  # pragma: no cover
-    __path__ = [str(Path(__file__).parent)]
-
-
-def __getattr__(name: str):  # pragma: no cover - passthrough
-    return getattr(_mod, name)
-
-
-__all__ = ["app"]
-
-# Pre-expose commonly patched symbols so unittest.mock.patch finds them
-for _name in (
-    "make_weekly_menu",
-    "make_daily_menu",
-    "build_nutrition_targets",
-    "analyze_nutrient_gaps",
-    "make_plate",
-    "get_api_key",
-    "WHOTargetsRequest",
-):
-    try:  # pragma: no cover
-        globals()[_name] = getattr(_mod, _name)
-    except Exception:
+    _TMP_AUTH_ERROR_CLS = _AuthenticationError
+    _TMP_API_ERROR_CLS = _APIError
+except ImportError:  # pragma: no cover - fallback for older clients
+    # Define fallback classes to keep static types consistent
+    class _AuthenticationErrorFallback(Exception):
         pass
 
-# Ensure sys.modules['app'] points to this package module for reliable reloads
-try:  # pragma: no cover
-    if _sys.modules.get("app") is not _sys.modules.get(__name__):
-        _sys.modules["app"] = _sys.modules[__name__]
-except Exception:
-    pass
+    class _APIErrorFallback(Exception):
+        pass
 
-# However, some test modules temporarily replace sys.modules['app'] with a different
-# module instance, which makes importlib.reload(app_module) raise "module app not in sys.modules".
-# To make reload robust, expose a lightweight __spec__ proxy that rebinds sys.modules['app']
-# to this module when reload reads __spec__.name. Reload will then proceed and immediately
-# replace __spec__ with a real ModuleSpec found by importlib. This keeps normal behavior intact.
-try:  # pragma: no cover - defensive; avoid impacting production runtime
-    import types as _types
+    _TMP_AUTH_ERROR_CLS = _AuthenticationErrorFallback
+    _TMP_API_ERROR_CLS = _APIErrorFallback
 
-    class _ReloadSpecProxy:
-        def __init__(self, module: _types.ModuleType):
-            self._module = module
+# Final, single assignments (avoid redefinition warnings)
+AUTH_ERROR_CLS: type[BaseException] = _TMP_AUTH_ERROR_CLS
+API_ERROR_CLS: type[BaseException] = _TMP_API_ERROR_CLS
 
-        @property
-        def name(self) -> str:
-            # Ensure sys.modules['app'] points to the same module object being reloaded
-            _sys.modules["app"] = self._module
-            return "app"
 
-        def __getattr__(self, attr: str):  # best-effort to satisfy importlib attrs
-            # Provide minimal attributes importlib may probe during package imports
-            if attr in {"origin", "loader"} and _BASE_SPEC:
-                return getattr(_BASE_SPEC, attr, None)
-            if attr == "submodule_search_locations":
-                # Provide a non-empty list so importlib can treat this as a package
-                try:
-                    return [str(Path(__file__).parent)]
-                except Exception:
-                    return [""]
-            if attr == "_uninitialized_submodules":
-                return []
-            return None
+def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
+    """Test OpenAI Pro access and list available models"""
+    try:
+        client = openai.OpenAI(api_key=api_key)
 
-    # Always attach proxy; importlib.reload() will replace it with a real ModuleSpec immediately
-    _self = _sys.modules.get(__name__)
-    if _self is not None:
-        _self.__spec__ = _ReloadSpecProxy(_self)  # type: ignore[assignment]
-except Exception:
-    pass
-# Note: We intentionally avoid custom aliasing beyond this stabilization. Standard
-# importlib.reload(app) should work for typical flows.
+        # Test API access
+        models = client.models.list()
+        available_models = [model.id for model in models.data]
+
+        # Check for Pro models
+        pro_models = {
+            "gpt-5": "gpt-5" in available_models,
+            "codex": any("codex" in model for model in available_models),
+            "gpt-4": "gpt-4" in available_models,
+            "gpt-3.5-turbo": "gpt-3.5-turbo" in available_models,
+        }
+
+        return {
+            "status": "success",
+            "available_models": available_models,
+            "pro_models": pro_models,
+            "total_models": len(available_models),
+        }
+
+    except AUTH_ERROR_CLS as e:  # auth-related failures
+        return {
+            "status": "error",
+            "error": f"Authentication error: {e}",
+            "available_models": [],
+            "pro_models": {},
+            "total_models": 0,
+        }
+    except API_ERROR_CLS as e:  # API failures (rate limits, server errors, etc.)
+        return {
+            "status": "error",
+            "error": f"API error: {e}",
+            "available_models": [],
+            "pro_models": {},
+            "total_models": 0,
+        }
+    except Exception as e:
+        # Unexpected failure — log and return minimal safe payload
+        # Note: logging module may not be configured in this context
+        with contextlib.suppress(Exception):
+            import logging
+
+            logging.getLogger(__name__).exception("Unexpected OpenAI error")
+        return {
+            "status": "error",
+            "error": f"Unexpected error: {e}",
+            "available_models": [],
+            "pro_models": {},
+            "total_models": 0,
+        }
+
+
+def _is_valid_api_key(api_key: str) -> bool:
+    """Validate the format of an API key."""
+    return api_key.startswith("sk-") and len(api_key) > 10
+
+
+def main():
+    """Main function to test OpenAI Pro access"""
+    print("🔍 Testing OpenAI Pro Access...")
+    print("=" * 50)
+
+    # Get API key from environment or input
+    api_key = os.getenv("OPENAI_API_KEY") or input("Enter your OpenAI API key: ").strip()
+
+    if not api_key:
+        print("❌ No API key provided")
+        return
+
+    # Validate API key format
+    if not _is_valid_api_key(api_key):
+        print("❌ Invalid API key format")
+        return
+
+    # Test access
+    result = test_openai_pro_access(api_key)
+
+    print(f"Status: {result['status']}")
+    print(f"Total models available: {result['total_models']}")
+
+    if result["status"] == "success":
+        print("\n✅ Pro Models Status:")
+        for model, available in result["pro_models"].items():
+            status = "✅ Available" if available else "❌ Not Available"
+            print(f"  {model}: {status}")
+
+        print(f"\n📋 All available models ({len(result['available_models'])}):")
+        for model in sorted(result["available_models"]):
+            print(f"  - {model}")
+    else:
+        print(f"❌ Error: {result['error']}")
+
+
+if __name__ == "__main__":
+    main()

@@ -49,4 +49,4 @@ def test_app_getattr_missing_raises_attributeerror():
         raised = False
     except AttributeError:
         raised = True
-    assert raised is True
+    assert raised
