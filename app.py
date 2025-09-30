@@ -2077,10 +2077,9 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         }:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
-        import sys as _sys
-
-        _module = _sys.modules[__name__]
-        _make_weekly_menu = getattr(_module, "make_weekly_menu", None)
+        # Use globals() instead of sys.modules to access module-level make_weekly_menu
+        # This works correctly when app.py is loaded dynamically by app/__init__.py
+        _make_weekly_menu = globals().get("make_weekly_menu", None)
         if _make_weekly_menu is None:
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"

@@ -10,8 +10,15 @@ from pathlib import Path
 from typing import Any
 
 
-def setup_custom_mcp() -> None:
-    """Setup custom MCP configuration for PulsePlate"""
+def setup_custom_mcp(argv: list[str] | None = None) -> bool:
+    """Setup custom MCP configuration for PulsePlate
+
+    Args:
+        argv: Command line arguments (defaults to sys.argv if None)
+
+    Returns:
+        True if setup was successful, False if cancelled
+    """
     import argparse
 
     # Parse command line arguments
@@ -19,7 +26,7 @@ def setup_custom_mcp() -> None:
     parser.add_argument(
         "--force", action="store_true", help="Force overwrite existing files without prompting"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Get home directory
     home = Path.home()
