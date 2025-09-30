@@ -17,9 +17,10 @@ class AppLoadError(ImportError):
     pass
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def dynamic_app():
-    """Load FastAPI app dynamically from app.py"""
+    """Load FastAPI app dynamically from app.py with proper environment"""
+    # Environment is already set by reset_environment fixture (autouse=True)
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     spec = importlib.util.spec_from_file_location("app_module", "app.py")
