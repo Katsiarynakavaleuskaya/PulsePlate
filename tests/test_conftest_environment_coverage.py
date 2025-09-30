@@ -104,7 +104,16 @@ class TestConftestEnvironmentCoverage:
         # APP_ENV can be "test" (local) or "ci" (GitHub Actions)
         assert os.environ.get("APP_ENV") in ["test", "ci"]
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
-        assert ".:core:app:tests" in os.environ.get("PYTHONPATH", "")
+        
+        # PYTHONPATH can be relative (.:core:app:tests) or absolute (CI)
+        pythonpath = os.environ.get("PYTHONPATH", "")
+        # Check that required directories are present (either as relative or absolute paths)
+        assert pythonpath, "PYTHONPATH must be set"
+        # Verify that key directories are included
+        required_dirs = ["core", "app", "tests"]
+        for dir_name in required_dirs:
+            assert any(dir_name in path_part for path_part in pythonpath.split(":")), \
+                f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""
