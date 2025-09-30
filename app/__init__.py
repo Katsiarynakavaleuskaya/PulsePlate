@@ -23,9 +23,12 @@ if spec is None or spec.loader is None:
     add_visualization_if_requested = None
     to_pdf_day = None
     export_pdf_generic = None
+    make_weekly_menu = None
     _mod = None
 else:
     _app_module = importlib.util.module_from_spec(spec)
+    # Register module in sys.modules BEFORE executing to handle circular refs
+    sys.modules["app_module"] = _app_module
     spec.loader.exec_module(_app_module)
     app = _app_module.app
     get_api_key = _app_module.get_api_key
@@ -35,6 +38,7 @@ else:
     add_visualization_if_requested = getattr(_app_module, "add_visualization_if_requested", None)
     to_pdf_day = getattr(_app_module, "to_pdf_day", None)
     export_pdf_generic = getattr(_app_module, "export_pdf_generic", None)
+    make_weekly_menu = getattr(_app_module, "make_weekly_menu", None)
     _mod = _app_module
 
 # Create a module spec for this package
@@ -59,6 +63,7 @@ __all__ = [
     "add_visualization_if_requested",
     "to_pdf_day",
     "export_pdf_generic",
+    "make_weekly_menu",
     "_mod",
     "app_module",
 ]
