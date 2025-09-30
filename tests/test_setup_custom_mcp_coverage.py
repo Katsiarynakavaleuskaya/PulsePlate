@@ -27,7 +27,8 @@ class TestSetupCustomMcpCoverage:
 
                             # Mock Path.cwd()
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                setup_custom_mcp.setup_custom_mcp()
+                                # Pass empty argv to avoid pytest argument conflicts
+                                setup_custom_mcp.setup_custom_mcp(argv=[])
 
                                 # Verify directory creation
                                 mock_mkdir.assert_called_with(exist_ok=True)
@@ -51,7 +52,7 @@ class TestSetupCustomMcpCoverage:
                     self._run_setup_and_verify_files(temp_path)
 
     def _run_setup_and_verify_files(self, temp_path):
-        setup_custom_mcp.setup_custom_mcp()
+        setup_custom_mcp.setup_custom_mcp(argv=[])
 
         # Check that files were created
         cursor_dir = temp_path / ".cursor"
@@ -132,7 +133,7 @@ class TestSetupCustomMcpCoverage:
 
     # TODO Rename this here and in `_extracted_from_test_mcp_configuration_structure_11` and `_extracted_from_test_cursor_settings_structure_11`
     def _get_json_dump_config_with_key(self, mock_json_dump, config_key):
-        setup_custom_mcp.setup_custom_mcp()
+        setup_custom_mcp.setup_custom_mcp(argv=[])
         result = next(
             (
                 call[0][0]
@@ -149,9 +150,10 @@ class TestSetupCustomMcpCoverage:
         # Test that the function exists and is callable
         assert callable(setup_custom_mcp.setup_custom_mcp)
 
-        # Test that the function can be called (it will create files, but that's expected)
+        # Test that the function can be called with --force to avoid input() prompts
         try:
-            setup_custom_mcp.setup_custom_mcp()
+            # Use --force to skip user prompts in test environment
+            setup_custom_mcp.setup_custom_mcp(argv=["--force"])
         except OSError as e:
             pytest.skip(f"insufficient permissions or filesystem error: {e}")
         except Exception as e:
@@ -170,7 +172,7 @@ class TestSetupCustomMcpCoverage:
                             mock_home.return_value = Path("/fake/home")
 
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                setup_custom_mcp.setup_custom_mcp()
+                                setup_custom_mcp.setup_custom_mcp(argv=[])
 
                                 # Verify that open was called multiple times
                                 assert mock_file.call_count >= 3
@@ -185,7 +187,7 @@ class TestSetupCustomMcpCoverage:
                     with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
                         # This should raise an exception
                         with pytest.raises(OSError):
-                            setup_custom_mcp.setup_custom_mcp()
+                            setup_custom_mcp.setup_custom_mcp(argv=[])
 
     def test_path_operations(self):
         """Test path operations"""
@@ -198,7 +200,7 @@ class TestSetupCustomMcpCoverage:
                                 mock_home.return_value = Path("/fake/home")
                                 mock_cwd.return_value = Path("/fake/cwd")
 
-                                setup_custom_mcp.setup_custom_mcp()
+                                setup_custom_mcp.setup_custom_mcp(argv=[])
 
                                 # Verify home directory was accessed
                                 mock_home.assert_called_once()
@@ -216,7 +218,7 @@ class TestSetupCustomMcpCoverage:
                             mock_home.return_value = Path("/fake/home")
 
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                setup_custom_mcp.setup_custom_mcp()
+                                setup_custom_mcp.setup_custom_mcp(argv=[])
 
                                 # Verify json.dump was called with proper arguments
                                 assert mock_json_dump.call_count >= 2
