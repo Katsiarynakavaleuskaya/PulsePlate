@@ -6,8 +6,9 @@ import os
 import sys
 import pytest
 import importlib.util
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from typing import cast
+from typing import cast, Generator
 from starlette.types import ASGIApp
 
 
@@ -18,7 +19,7 @@ class AppLoadError(ImportError):
 
 
 @pytest.fixture
-def dynamic_app():
+def dynamic_app() -> FastAPI:
     """Load FastAPI app dynamically from app.py with proper environment"""
     # Environment is already set by reset_environment fixture (autouse=True)
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,7 +34,7 @@ def dynamic_app():
 
 
 @pytest.fixture
-def dynamic_client(dynamic_app):
+def dynamic_client(dynamic_app: FastAPI) -> Generator[TestClient, None, None]:
     """TestClient using dynamically loaded app"""
     client = TestClient(cast(ASGIApp, dynamic_app))
     try:
@@ -43,7 +44,7 @@ def dynamic_client(dynamic_app):
 
 
 @pytest.fixture
-def client(dynamic_app):
+def client(dynamic_app: FastAPI) -> TestClient:
     """Global test client fixture for all tests."""
     # Use dynamic_app to ensure environment is set correctly
     return TestClient(cast(ASGIApp, dynamic_app))
