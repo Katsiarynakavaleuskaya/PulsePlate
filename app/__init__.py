@@ -39,6 +39,7 @@ else:
 # Create a module spec for this package
 __spec__ = importlib.util.spec_from_loader(__name__, loader=None)
 __spec__.name = __name__
+__spec__.submodule_search_locations = [os.path.dirname(__file__)]
 
 # Export the app and key functions for easy importing
 __all__ = [
