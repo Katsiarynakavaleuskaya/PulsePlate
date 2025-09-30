@@ -9,8 +9,13 @@ import time
 from pathlib import Path
 
 
-def setup_custom_mcp() -> None:
-    """Setup custom MCP configuration for PulsePlate"""
+def setup_custom_mcp(argv: list[str] | None = None) -> None:
+    """Setup custom MCP configuration for PulsePlate
+    
+    Args:
+        argv: Command line arguments to parse. If None, uses sys.argv.
+              This allows tests to pass empty list to avoid pytest arg conflicts.
+    """
     import argparse
 
     # Parse command line arguments
@@ -18,7 +23,7 @@ def setup_custom_mcp() -> None:
     parser.add_argument(
         "--force", action="store_true", help="Force overwrite existing files without prompting"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Get home directory
     home = Path.home()
