@@ -86,6 +86,11 @@ import SwiftUI
 /// RU: Тест для проверки файлов в Bundle
 /// EN: Test for checking files in Bundle
 struct BundleTestView: View {
+    private let mp4Files = [
+        "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
+        "20250913_1212_FitChef Cat Animation_simple_compose_01k515hnxhea6tx4wrkxxt4kd5"
+    ]
+
     var body: some View {
         VStack(spacing: 20) {
             Text("Bundle Test")
@@ -98,11 +103,6 @@ struct BundleTestView: View {
                 Text("MP4 Files in Bundle:")
                     .font(.headline)
                     .foregroundStyle(.white)
-
-                let mp4Files = [
-                    "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
-                    "20250913_1212_FitChef Cat Animation_simple_compose_01k515hnxhea6tx4wrkxxt4kd5"
-                ]
 
                 ForEach(mp4Files, id: \.self) { file in
                     HStack {

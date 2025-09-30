@@ -5,8 +5,9 @@
 
 echo "📦 Устанавливаем иконки из ZIP файла..."
 
-# Пути
-PROJECT_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios"
+# Пути (относительно скрипта)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 TEMP_DIR="$PROJECT_DIR/temp_icons"
 ICONS_DIR="$PROJECT_DIR/PulsePlate/Assets.xcassets/AppIcon.appiconset"
 
@@ -77,23 +78,34 @@ copy_icons() {
 
     # Копируем новые иконки
     echo "📁 Копируем PNG файлы..."
-    find "$TEMP_DIR/extracted" -name "*.png" -type f | while read -r file; do
-        filename=$(basename "$file")
-        echo "   📄 Копируем $filename"
-        cp "$file" "$ICONS_DIR/"
-    done
+copy_icons() {
+  echo "📋 Копируем иконки в проект..."
+  find "$TEMP_DIR/extracted" -name "*.png" -type f | while read -r file; do
+      filename=$(basename "$file")
+      echo "   📄 Копируем $filename"
+      cp "$file" "$ICONS_DIR/"
+  done
 
-    # Проверяем результат
-    echo "✅ Проверяем установленные иконки..."
-    png_count=$(find "$ICONS_DIR" -name "*.png" -type f | wc -l)
-    echo "📊 Установлено $png_count PNG файлов"
+  # Обновляем Contents.json, если он есть в архиве
+  local appicon_src
+  appicon_src="$(find "$TEMP_DIR/extracted" -type d -name "AppIcon.appiconset" | head -1)"
+  if [ -n "$appicon_src" ] && [ -f "$appicon_src/Contents.json" ]; then
+      echo "   📄 Обновляем Contents.json"
+      cp "$appicon_src/Contents.json" "$ICONS_DIR/Contents.json"
+  fi
 
-    # Показываем список установленных иконок
-    echo "📋 Установленные иконки:"
-    find "$ICONS_DIR" -name "*.png" -type f | sort | while read -r file; do
-        size=$(file "$file" | grep -o '[0-9]* x [0-9]*' | head -1)
-        echo "   📄 $(basename "$file"): $size"
-    done
+  # Проверяем результат
+  echo "✅ Проверяем установленные иконки..."
+  png_count=$(find "$ICONS_DIR" -name "*.png" -type f | wc -l)
+  echo "📊 Установлено $png_count PNG файлов"
+
+  # Показываем список установленных иконок
+  echo "📋 Установленные иконки:"
+  find "$ICONS_DIR" -name "*.png" -type f | sort | while read -r file; do
+      size=$(file "$file" | grep -o '[0-9]* x [0-9]*' | head -1)
+      echo "   📄 $(basename "$file"): $size"
+  done
+}
 
     echo ""
     echo "🎯 Иконки успешно установлены!"

@@ -4,9 +4,10 @@
 
 echo "🐱 Перемещаем маскота FitChef..."
 
-# Пути
-ICONS_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios/PulsePlate/Assets.xcassets/AppIcon.appiconset"
-MASCOT_DIR="/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/ios/PulsePlate/Assets.xcassets/FitChef.imageset"
+# Пути (относительно скрипта)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ICONS_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/AppIcon.appiconset"
+MASCOT_DIR="$SCRIPT_DIR/PulsePlate/Assets.xcassets/FitChef.imageset"
 
 # Проверяем, что папки существуют
 if [ ! -d "$ICONS_DIR" ]; then

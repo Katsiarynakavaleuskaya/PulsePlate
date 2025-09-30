@@ -1,5 +1,6 @@
 #!/bin/bash
 # MCP Setup Script for ChatGPT Integration with Cursor
+set -euo pipefail
 
 echo "🔧 Setting up MCP integration for ChatGPT in Cursor..."
 
@@ -34,6 +35,17 @@ mkdir -p ~/.cursor
 
 echo "✅ MCP servers installed successfully"
 
+# Check if .env file already exists
+if [ -f ~/.cursor/.env ]; then
+    echo "⚠️  Environment file ~/.cursor/.env already exists!"
+    echo "📋 Current content:"
+    cat ~/.cursor/.env
+    echo ""
+    echo "🔄 Creating backup and new template..."
+    cp ~/.cursor/.env ~/.cursor/.env.backup.$(date +%Y%m%d_%H%M%S)
+    echo "💾 Backup created: ~/.cursor/.env.backup.$(date +%Y%m%d_%H%M%S)"
+fi
+
 # Create environment file template
 cat > ~/.cursor/.env << EOF
 # OpenAI API Configuration
@@ -43,6 +55,9 @@ CHATGPT_API_KEY=your_openai_api_key_here
 # MCP Configuration
 MCP_ENABLED=true
 EOF
+
+# Set restrictive permissions
+chmod 600 ~/.cursor/.env
 
 echo "📝 Created environment file template at ~/.cursor/.env"
 echo "⚠️  Please edit ~/.cursor/.env and add your actual API keys"
