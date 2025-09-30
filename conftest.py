@@ -114,7 +114,6 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
 
     # Clear dependency overrides
     try:
-        import app as app_module
         from app import app as fastapi_app
 
         if hasattr(fastapi_app, "dependency_overrides"):

@@ -1,3 +1,4 @@
+# Coverage.py configuration file (INI format, not YAML)
 [run]
 source = .
 omit =
