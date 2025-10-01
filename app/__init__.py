@@ -7,7 +7,7 @@ import importlib.util
 import os
 import sys
 from importlib.machinery import ModuleSpec
-from typing import Optional
+from typing import Optional, cast
 
 # Import FastAPI app and functions from the main module
 
@@ -100,12 +100,12 @@ if _base_spec is not None:
     # Check _spec is not None before setting submodule_search_locations
     if _spec is not None:
         _spec.submodule_search_locations = [os.path.dirname(__file__)]
-        __spec__ = _spec  # type: ignore[assignment]
+        __spec__ = _spec
     else:
-        __spec__ = None  # type: ignore[assignment]
+        __spec__ = cast(ModuleSpec, None)
 else:
     # Fallback if spec creation fails
-    __spec__ = None  # type: ignore[assignment]
+    __spec__ = cast(ModuleSpec, None)
 
 # Export the app and key functions for easy importing
 __all__ = [
