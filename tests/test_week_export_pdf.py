@@ -238,6 +238,14 @@ def test_pdf_honors_lang_query(export_client, monkeypatch) -> None:
         and ("ккал" in node.getPlainText() or "kcal" in node.getPlainText())
         for node in captured_story
     )
+    assert any(
+        isinstance(node, plan.Table)
+        and len(node._cellvalues) >= 2
+        and len(node._cellvalues[1]) >= 2
+        and hasattr(node._cellvalues[1][1], "getPlainText")
+        and plan.SLOGAN["ru"] in node._cellvalues[1][1].getPlainText()
+        for node in captured_story
+    )
 
 
 def test_week_start_prefers_first_day() -> None:

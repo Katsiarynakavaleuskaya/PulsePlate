@@ -183,6 +183,6 @@ class TestVIPProductionMode:
                 "/api/v1/vip/weekly-plan", json={"test": "data"}, headers={"X-API-Key": "some-key"}
             )
 
-            # Should convert 403 to 401
+            # Should return 403 as raised
             assert response.status_code == 403
             assert "Forbidden" in response.json()["detail"]
