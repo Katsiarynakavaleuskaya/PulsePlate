@@ -22,7 +22,19 @@ if not ENCRYPTION_AVAILABLE:
 
 
 def update_api_key(api_key: str, use_encryption: bool = True):
-    """Update API key in MCP configuration with optional encryption."""
+    """
+    Update API key in MCP configuration with encryption.
+
+    For security, API keys are encrypted before storage in .env files.
+    MCP config receives plain text as it's used at runtime.
+
+    Args:
+        api_key: OpenAI API key (must start with 'sk-')
+        use_encryption: Whether to encrypt the key (default: True, required)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
 
     # Validate API key: must start with 'sk-', be at least 20 chars, and max 256 chars
     if not api_key or not api_key.startswith("sk-") or len(api_key) < 20 or len(api_key) > 256:
@@ -31,18 +43,22 @@ def update_api_key(api_key: str, use_encryption: bool = True):
         )
         return False
 
-    # Encrypt key if requested and available
-    stored_key = encrypt_value(api_key) if (use_encryption and ENCRYPTION_AVAILABLE) else api_key
+    # Require encryption for .env storage
+    if not ENCRYPTION_AVAILABLE:
+        print("❌ Error: cryptography library not installed")
+        print("   Encryption is required for secure API key storage")
+        print("   Install with: pip install cryptography")
+        return False
 
-    if use_encryption and ENCRYPTION_AVAILABLE:
-        print("🔐 API key will be stored encrypted")
-        # Verify encryption worked
-        assert stored_key.startswith("encrypted:"), "Encryption failed - key not encrypted"
-    elif use_encryption and not ENCRYPTION_AVAILABLE:
-        print("⚠️  Encryption requested but cryptography not installed - storing plain text")
-        print("⚠️  Install cryptography: pip install cryptography")
-    else:
-        print("⚠️  Storing API key in plain text (encryption disabled)")
+    # Encrypt key for .env storage (always, not optional)
+    stored_key = encrypt_value(api_key)
+
+    # Verify encryption worked
+    if not stored_key.startswith("encrypted:"):
+        print("❌ Error: Encryption failed - key not properly encrypted")
+        return False
+
+    print("🔐 API key will be stored encrypted in .env")
 
     # Update MCP configuration
     mcp_file = Path.home() / ".cursor" / "mcp.json"
@@ -82,10 +98,12 @@ def update_api_key(api_key: str, use_encryption: bool = True):
         if not key_replaced:
             lines.append(f"OPENAI_API_KEY={stored_key}")
 
-        # SECURITY: stored_key is encrypted when use_encryption=True (default)
-        # See encrypt_value() which uses Fernet symmetric encryption
-        # CodeQL: This is encrypted data, not plain text when ENCRYPTION_AVAILABLE
-        with open(env_file, "w") as f:  # nosec B108
+        # SECURITY NOTE: stored_key is ALWAYS encrypted at this point
+        # - Encryption is verified above (starts with "encrypted:")
+        # - Uses Fernet symmetric encryption from cryptography library
+        # - Function returns False if encryption is not available
+        # - Plain text keys are NEVER written to .env file
+        with open(env_file, "w") as f:
             f.write("\n".join(lines))
 
         print(f"✅ Updated environment file at {env_file}")

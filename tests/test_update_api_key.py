@@ -91,61 +91,72 @@ class TestUpdateAPIKey:
             captured = capsys.readouterr()
             assert "Invalid API key format" in captured.out
 
-    def test_update_api_key_valid_no_encryption(self, tmp_path, capsys):
-        """Test update_api_key with valid key and no encryption"""
+    def test_update_api_key_fails_without_encryption(self, tmp_path, capsys):
+        """Test update_api_key fails when encryption not available"""
         valid_key = "sk-" + "a" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
             with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
                 result = update_api_key.update_api_key(valid_key, use_encryption=False)
-                # Should succeed
-                assert result is True
+                # Should fail - encryption is required
+                assert result is False
 
                 captured = capsys.readouterr()
-                assert "Storing API key in plain text" in captured.out
+                assert "cryptography library not installed" in captured.out
 
     def test_update_api_key_simple_success(self, tmp_path, capsys):
-        """Test update_api_key basic success case"""
-        valid_key = "sk-" + "a" * 40
+        """Test update_api_key basic success case with encryption"""
+        try:
+            from cryptography.fernet import Fernet
 
-        # Create MCP config
-        mcp_file = tmp_path / ".cursor" / "mcp.json"
-        mcp_file.parent.mkdir(parents=True, exist_ok=True)
-        mcp_file.write_text(json.dumps({"mcpServers": {}}))
+            valid_key = "sk-" + "a" * 40
 
-        with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("secure_config.Path.home", return_value=tmp_path):
-                with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
-                    with patch("secure_config.ENCRYPTION_AVAILABLE", False):
-                        result = update_api_key.update_api_key(valid_key, use_encryption=False)
-                        assert result is True
+            # Create MCP config
+            mcp_file = tmp_path / ".cursor" / "mcp.json"
+            mcp_file.parent.mkdir(parents=True, exist_ok=True)
+            mcp_file.write_text(json.dumps({"mcpServers": {}}))
 
-                        captured = capsys.readouterr()
-                        assert "API key updated successfully" in captured.out
+            with patch("update_api_key.Path.home", return_value=tmp_path):
+                with patch("secure_config.Path.home", return_value=tmp_path):
+                    result = update_api_key.update_api_key(valid_key)
+                    assert result is True
+
+                    captured = capsys.readouterr()
+                    assert "API key will be stored encrypted" in captured.out
+
+        except ImportError:
+            pytest.skip("cryptography not installed")
 
     def test_update_api_key_updates_mcp_config(self, tmp_path):
         """Test that update_api_key updates MCP config"""
-        valid_key = "sk-" + "a" * 40
-        mcp_file = tmp_path / ".cursor" / "mcp.json"
-        mcp_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            from cryptography.fernet import Fernet
 
-        # Create initial MCP config
-        initial_config = {"mcpServers": {}}
-        mcp_file.write_text(json.dumps(initial_config))
+            valid_key = "sk-" + "a" * 40
+            mcp_file = tmp_path / ".cursor" / "mcp.json"
+            mcp_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
-                result = update_api_key.update_api_key(valid_key, use_encryption=False)
-                assert result is True
+            # Create initial MCP config
+            initial_config = {"mcpServers": {}}
+            mcp_file.write_text(json.dumps(initial_config))
 
-                # Check MCP config updated
-                config = json.loads(mcp_file.read_text())
-                assert "mcpServers" in config
-                assert "pulseplate-chatgpt" in config["mcpServers"]
-                assert "env" in config["mcpServers"]["pulseplate-chatgpt"]
-                assert (
-                    config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"] == valid_key
-                )
+            with patch("update_api_key.Path.home", return_value=tmp_path):
+                with patch("secure_config.Path.home", return_value=tmp_path):
+                    result = update_api_key.update_api_key(valid_key)
+                    assert result is True
+
+                    # Check MCP config updated (plain text for runtime)
+                    config = json.loads(mcp_file.read_text())
+                    assert "mcpServers" in config
+                    assert "pulseplate-chatgpt" in config["mcpServers"]
+                    assert "env" in config["mcpServers"]["pulseplate-chatgpt"]
+                    assert (
+                        config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"]
+                        == valid_key
+                    )
+
+        except ImportError:
+            pytest.skip("cryptography not installed")
 
     def test_main_coverage_placeholder(self):
         """Placeholder for main() function coverage - tested manually"""
