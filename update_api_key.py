@@ -141,15 +141,12 @@ def main():
         return
 
     # Ask about encryption
-    use_encryption = True
-
-    if not ENCRYPTION_AVAILABLE and use_encryption:
-        print("❌ Encryption not available. Install cryptography or run without encryption.")
-        return
-
     if ENCRYPTION_AVAILABLE:
         choice = input("Use encryption for stored key? (Y/n): ").strip().lower()
         use_encryption = choice != "n"
+    else:
+        print("❌ Encryption not available. Keys will be stored in plain text.")
+        use_encryption = False
 
     success = update_api_key(api_key, use_encryption=use_encryption)
     if success:
