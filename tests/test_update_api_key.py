@@ -97,7 +97,7 @@ class TestUpdateAPIKey:
         valid_key = "sk-" + "a" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
+            with patch("secure_config.ENCRYPTION_AVAILABLE", False):
                 result = update_api_key.update_api_key(valid_key, use_encryption=False)
                 # Should fail - encryption is required
                 assert result is False

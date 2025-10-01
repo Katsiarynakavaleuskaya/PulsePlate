@@ -9,9 +9,6 @@ import sys
 from importlib.machinery import ModuleSpec
 from typing import Optional
 
-# Declare __spec__ as Optional to allow None assignment
-__spec__: Optional[ModuleSpec]  # sourcery skip: avoid-builtin-shadow
-
 # Import FastAPI app and functions from the main module
 
 # Add parent directory to path for imports
@@ -100,8 +97,12 @@ if _base_spec is not None:
         is_package=True,
         owner_module=_this_module,
     )
-    _spec.submodule_search_locations = [os.path.dirname(__file__)]
-    __spec__ = _spec  # type: ignore[assignment]
+    # Check _spec is not None before setting submodule_search_locations
+    if _spec is not None:
+        _spec.submodule_search_locations = [os.path.dirname(__file__)]
+        __spec__ = _spec  # type: ignore[assignment]
+    else:
+        __spec__ = None  # type: ignore[assignment]
 else:
     # Fallback if spec creation fails
     __spec__ = None  # type: ignore[assignment]
