@@ -45,7 +45,7 @@ def app(app_module: ModuleType) -> FastAPI:
     if hasattr(app_module.app, "dependency_overrides") and hasattr(app_module, "get_api_key"):
         app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return app_module.app
+    return app_module.app  # type: ignore[return-value]
 
 
 @pytest.fixture
