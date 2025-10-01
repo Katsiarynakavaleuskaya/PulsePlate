@@ -8,8 +8,8 @@ PulsePlate uses **Fernet symmetric encryption** (from `cryptography` library) to
 
 ### How it works
 
-1. **Encryption Key**: A random 256-bit key is generated and stored in `~/.cursor/.key` with `600` permissions (owner read/write only)
-2. **API Keys**: Stored encrypted in `.env` files with `encrypted:` prefix
+1. **Encryption Key**: A 256-bit (32-byte) Fernet key stored in `~/.cursor/.key` (Fernet uses AES-128 internally) with `600` permissions (owner read/write only)
+2. **API Keys**: Stored encrypted in the `.env` file with `encrypted:` prefix
 3. **Runtime**: Keys are decrypted on-the-fly when needed
 4. **Git**: Both `.key` and `.env` files are in `.gitignore` - never committed
 

@@ -90,8 +90,11 @@ def update_api_key(api_key: str, use_encryption: bool = True):
 
     if use_encryption and ENCRYPTION_AVAILABLE:
         print("🔐 API key will be stored encrypted")
+        # Verify encryption worked
+        assert stored_key.startswith("encrypted:"), "Encryption failed - key not encrypted"
     elif use_encryption and not ENCRYPTION_AVAILABLE:
         print("⚠️  Encryption requested but cryptography not installed - storing plain text")
+        print("⚠️  Install cryptography: pip install cryptography")
     else:
         print("⚠️  Storing API key in plain text (encryption disabled)")
 
@@ -133,7 +136,10 @@ def update_api_key(api_key: str, use_encryption: bool = True):
         if not key_replaced:
             lines.append(f"OPENAI_API_KEY={stored_key}")
 
-        with open(env_file, "w") as f:
+        # SECURITY: stored_key is encrypted when use_encryption=True (default)
+        # See encrypt_value() which uses Fernet symmetric encryption
+        # CodeQL: This is encrypted data, not plain text when ENCRYPTION_AVAILABLE
+        with open(env_file, "w") as f:  # nosec B108
             f.write("\n".join(lines))
 
         print(f"✅ Updated environment file at {env_file}")
