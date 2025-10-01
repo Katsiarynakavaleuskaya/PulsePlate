@@ -4,10 +4,29 @@ Update API key in MCP configuration
 """
 import json
 from pathlib import Path
+from cryptography.fernet import Fernet
+import base64
+
+def load_or_generate_key(key_file: Path):
+    if not key_file.exists():
+        key = Fernet.generate_key()
+        with open(key_file, "wb") as f:
+            f.write(key)
+        return key
+    else:
+        with open(key_file, "rb") as f:
+            return f.read()
 
 
 def update_api_key(api_key: str):
     """Update API key in MCP configuration"""
+
+    # Use a persistent .key file in .cursor directory
+    cursor_dir = Path.home() / ".cursor"
+    key_file = cursor_dir / ".key"
+    key = load_or_generate_key(key_file)
+    fernet = Fernet(key)
+    encrypted_api_key = fernet.encrypt(api_key.encode()).decode()
 
     # Validate API key: must start with 'sk-', be at least 20 chars, and max 256 chars
     if not api_key or not api_key.startswith("sk-") or len(api_key) < 20 or len(api_key) > 256:
@@ -28,7 +47,7 @@ def update_api_key(api_key: str):
         config["mcpServers"]["pulseplate-chatgpt"].setdefault("env", {})
 
         # Update API key in MCP config
-        config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"] = api_key
+        config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"] = encrypted_api_key
 
         with open(mcp_file, "w") as f:
             json.dump(config, f, indent=2)
@@ -46,13 +65,13 @@ def update_api_key(api_key: str):
         key_replaced = False
         for i, line in enumerate(lines):
             if line.startswith("OPENAI_API_KEY="):
-                lines[i] = f"OPENAI_API_KEY={api_key}"
+                lines[i] = f"OPENAI_API_KEY={encrypted_api_key}"
                 key_replaced = True
                 break
 
         # If no existing key found, append it
         if not key_replaced:
-            lines.append(f"OPENAI_API_KEY={api_key}")
+            lines.append(f"OPENAI_API_KEY={encrypted_api_key}")
 
         with open(env_file, "w") as f:
             f.write("\n".join(lines))
@@ -65,7 +84,7 @@ def update_api_key(api_key: str):
         with open(settings_file, "r") as f:
             settings = json.load(f)
 
-        settings["cursor.ai.openaiApiKey"] = api_key
+        settings["cursor.ai.openaiApiKey"] = encrypted_api_key
 
         with open(settings_file, "w") as f:
             json.dump(settings, f, indent=2)
