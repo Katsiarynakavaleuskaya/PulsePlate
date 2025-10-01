@@ -12,15 +12,6 @@ omit =
     coverage/*
     providers/pico.py
     app/routers/vip.py
-    # TODO: Remove these core modules from omit list once we achieve 97%+ coverage
-    # Currently omitted to maintain CI stability while we incrementally add tests
-    # Tracking: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/76
-    app/__init__.py
-    app.py
-    core/menu_engine_new.py
-    core/food_apis/update_manager.py
-    core/food_apis/unified_db.py
-    core/recommendations.py
     conftest.py
     tests/*
     debug_test.py

@@ -17,8 +17,7 @@ from pathlib import Path
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
 if not ENCRYPTION_AVAILABLE:
-    print("⚠️  Warning: cryptography not installed. Keys will be stored in plain text.")
-    print("   Install with: pip install cryptography")
+    print("❌ Encryption is required. Install cryptography: pip install cryptography")
 
 
 def update_api_key(api_key: str, use_encryption: bool = True):
@@ -140,11 +139,12 @@ def main():
         print("❌ No API key provided")
         return
 
-    # Ask about encryption
+    # Enforce encryption availability
+    if not ENCRYPTION_AVAILABLE:
+        print("❌ Encryption not available. Please install 'cryptography' and retry.")
+        return
+
     use_encryption = True
-    if ENCRYPTION_AVAILABLE:
-        choice = input("Use encryption for stored key? (Y/n): ").strip().lower()
-        use_encryption = choice != "n"
 
     success = update_api_key(api_key, use_encryption=use_encryption)
     if success:

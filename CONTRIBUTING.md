@@ -35,6 +35,9 @@ pytest -q --maxfail=1 --disable-warnings \
 - Follow existing style. Keep changes minimal and scoped.
 - Prefer tests that isolate external services by mocking.
 - Don’t lower coverage thresholds; add tests instead.
+- **Premium endpoints policy / Политика премиальных эндпойнтов**:
+  - Every new premium/admin FastAPI route **must** include the shared API key guard (e.g. `Depends(_get_api_key_dynamic)` or `require_premium_key`).
+  - Перед добавлением нового платного эндпойнта убедитесь, что он подключает dependency для проверки ключа и что есть тест, подтверждающий 403/401 без ключа.
 
 ## Commit Messages
 

@@ -36,7 +36,7 @@ class TestVIPCoverageBoost:
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        response = client.get("/api/v1/vip/health")
+        response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert "status" in data

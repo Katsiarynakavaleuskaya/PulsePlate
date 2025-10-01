@@ -1,31 +1,14 @@
 """Tests for the public shoplist export endpoints."""
 
-import os
-import sys
 from typing import List
 
 import pytest
-from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
 from app.routers import shoplist_export as export
 
-client = TestClient(app)
 
-
-def test_shoplist_json_structure():
-    response = client.get("/api/v1/shoplist")
+def test_shoplist_json_structure(client):
+    response = client.get("/api/v1/shoplist", headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data.get("groups"), list)
@@ -34,8 +17,11 @@ def test_shoplist_json_structure():
     assert data["items"], "Expected flattened items list"
 
 
-def test_export_csv_headers_and_rows():
-    response = client.get("/api/v1/shoplist/export.csv")
+def test_export_csv_headers_and_rows(client):
+    response = client.get(
+        "/api/v1/shoplist/export.csv",
+        headers={"X-API-Key": "test_key"},
+    )
     assert response.status_code == 200
     content_type = response.headers.get("content-type", "")
     assert "text/csv" in content_type
@@ -48,8 +34,11 @@ def test_export_csv_headers_and_rows():
     assert len(lines) > 1, "CSV should contain data rows"
 
 
-def test_export_pdf_headers():
-    response = client.get("/api/v1/shoplist/export.pdf")
+def test_export_pdf_headers(client):
+    response = client.get(
+        "/api/v1/shoplist/export.pdf",
+        headers={"X-API-Key": "test_key"},
+    )
     assert response.status_code == 200
     content_type = response.headers.get("content-type", "")
     assert "application/pdf" in content_type
@@ -57,6 +46,15 @@ def test_export_pdf_headers():
     assert "attachment" in disposition
     assert response.content.startswith(b"%PDF")
     assert len(response.content) > 1000
+
+
+def test_export_pdf_auth_errors(client):
+    # Missing key
+    response = client.get("/api/v1/shoplist/export.pdf")
+    assert response.status_code == 403
+    # Wrong key
+    response = client.get("/api/v1/shoplist/export.pdf", headers={"X-API-Key": "wrong"})
+    assert response.status_code == 403
 
 
 def test_flatten_shop_items_skip_invalid() -> None:
