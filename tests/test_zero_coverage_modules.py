@@ -16,9 +16,9 @@ class TestZeroCoverageModules:
         """Test core.sports_nutrition module."""
         try:
             from core.sports_nutrition import (
+                adjust_for_training,
                 calculate_sports_targets,
                 get_athlete_nutrition,
-                adjust_for_training,
                 hydration_needs,
             )
 
@@ -51,9 +51,9 @@ class TestZeroCoverageModules:
             from core.exports import (
                 export_meal_plan,
                 export_nutrition_report,
-                generate_pdf_report,
-                export_to_csv,
                 export_shopping_list,
+                export_to_csv,
+                generate_pdf_report,
             )
 
             # Test meal plan export
@@ -93,11 +93,11 @@ class TestZeroCoverageModules:
         """Test core.recipe_synth module."""
         try:
             from core.recipe_synth import (
-                generate_recipe,
-                synthesize_meal,
                 create_recipe_variations,
+                generate_recipe,
                 optimize_recipe_nutrition,
                 suggest_substitutions,
+                synthesize_meal,
             )
 
             # Test recipe generation
@@ -146,11 +146,11 @@ class TestZeroCoverageModules:
         """Test core.product_finder module."""
         try:
             from core.product_finder import (
-                find_products,
-                search_by_nutrition,
-                filter_by_criteria,
-                get_product_info,
                 compare_products,
+                filter_by_criteria,
+                find_products,
+                get_product_info,
+                search_by_nutrition,
             )
 
             # Test product finding
@@ -191,11 +191,11 @@ class TestZeroCoverageModules:
         """Test core.product_varieties module."""
         try:
             from core.product_varieties import (
-                get_varieties,
+                analyze_variety_nutrition,
                 find_alternatives,
+                get_varieties,
                 group_by_category,
                 suggest_similar,
-                analyze_variety_nutrition,
             )
 
             # Test getting varieties
@@ -239,10 +239,10 @@ class TestZeroCoverageModules:
         """Test core.exports_simple module."""
         try:
             from core.exports_simple import (
+                quick_meal_export,
                 simple_csv_export,
                 simple_json_export,
                 simple_text_export,
-                quick_meal_export,
             )
 
             # Test simple CSV export
@@ -274,11 +274,11 @@ class TestZeroCoverageModules:
         """Test core.lifestage_nutrition module."""
         try:
             from core.lifestage_nutrition import (
-                get_lifestage_requirements,
                 adjust_for_age,
-                pregnancy_nutrition,
-                elderly_nutrition,
                 child_nutrition,
+                elderly_nutrition,
+                get_lifestage_requirements,
+                pregnancy_nutrition,
             )
 
             # Test lifestage requirements
@@ -312,9 +312,9 @@ class TestZeroCoverageModules:
         try:
             from core.disclaimers import (
                 get_disclaimer,
+                get_liability_disclaimer,
                 get_medical_disclaimer,
                 get_nutrition_disclaimer,
-                get_liability_disclaimer,
             )
 
             # Test general disclaimer

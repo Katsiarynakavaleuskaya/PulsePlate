@@ -11,9 +11,11 @@
 Нам нужно еще 51 линия для 97% (656 lines)!
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
+
 from tests.test_helpers import load_app
 
 app = load_app()

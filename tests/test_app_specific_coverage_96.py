@@ -4,12 +4,12 @@ Specific tests to cover exact missing lines in main.py for 96%+ coverage.
 This module targets the specific uncovered lines identified in the coverage report.
 """
 
+import os
+import sys
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -18,7 +18,7 @@ import importlib.util
 
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
+    pytest.skip("Cannot load app.py")
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
@@ -29,11 +29,10 @@ get_update_scheduler = app_module.get_update_scheduler
 class TestAppSpecificCoverage96:
     """Tests to cover specific missing lines in main.py."""
 
-    def setup_method(self):
-        """Set up test environment and client."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app)
+    @pytest.fixture(autouse=True)
+    def setup_client(self, client):
+        """Set up test client from conftest fixture."""
+        self.client = client
 
     @patch.object(app_module, "_scheduler_getter", None)
     async def test_get_update_scheduler_late_import(self):

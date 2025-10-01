@@ -2,10 +2,8 @@
 Тесты покрытия app.py VIP endpoints (строки 1325-1326, 1328-1329, 1342→1365)
 """
 
-from fastapi.testclient import TestClient
-
-
 import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.mark.parametrize(

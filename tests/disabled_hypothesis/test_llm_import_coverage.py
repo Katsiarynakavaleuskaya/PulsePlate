@@ -5,9 +5,10 @@
 
 import os
 import sys
-import pytest
-from unittest.mock import Mock, patch
 from importlib import reload
+from unittest.mock import Mock, patch
+
+import pytest
 
 import llm
 

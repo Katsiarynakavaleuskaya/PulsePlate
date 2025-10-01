@@ -28,6 +28,9 @@ let package = Package(
                 .process("Assets.xcassets"),
                 .process("Resources")
             ]
+            // Note: Assets loaded via SPM require Bundle.module
+            // In UI code, use: Image("FitChef", bundle: .module)
+            // instead of: Image("FitChef")
         ),
     ]
 )

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 VERS = Path("cache/food_db/database_versions.json")
 

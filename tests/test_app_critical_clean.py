@@ -11,27 +11,25 @@ class TestAppCriticalLines97:
 
     def test_invalid_json_malformed_request(self, client):
         """Тест малформированного JSON - линии обработки ошибок"""
-        # Отправляем невалидный JSON на существующий endpoint
+        # Отправляем невалидный JSON на публичный BMI endpoint (без API ключа)
         response = client.post(
             "/api/v1/bmi",
             data="{'invalid': json}",  # Невалидный JSON
-            headers={"Content-Type": "application/json", "X-API-Key": "test-key"},
+            headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
         assert response.status_code in [422, 400, 500]
 
     def test_error_handling_edge_paths(self, client):
         """Тест различных error handling путей"""
         # Тест с пустым телом запроса на реальном endpoint
-        response = client.post(
-            "/api/v1/bmi", headers={"Content-Type": "application/json", "X-API-Key": "test-key"}
-        )
-        assert response.status_code in [422, 400, 403]
+        response = client.post("/api/v1/bmi", headers={"Content-Type": "application/json"})
+        assert response.status_code in [422, 400]  # BMI is public now, no 403
 
-        # Тест без API ключа
+        # BMI endpoint теперь публичный - работает без API ключа
         response = client.post(
             "/api/v1/bmi", json={"sex": "male", "age": 30, "height_cm": 175, "weight_kg": 70}
         )
-        assert response.status_code in [403, 401]
+        assert response.status_code == 200  # BMI is public, valid payload returns 200
 
     def test_premium_endpoints_error_paths(self, client):
         """Тест error paths в premium endpoints"""
@@ -54,8 +52,8 @@ class TestAppCriticalLines97:
         """Тест путей обработки исключений"""
         # Тест с очень большим JSON
         large_data = {"data": "x" * 10000}
-        response = client.post("/api/v1/bmi", json=large_data, headers={"X-API-Key": "test-key"})
-        assert response.status_code in [422, 400, 413, 500, 403]
+        response = client.post("/api/v1/bmi", json=large_data)
+        assert response.status_code in [422, 400, 413, 500]
 
     def test_various_endpoints_coverage(self, client):
         """Тест различных endpoints для покрытия"""
@@ -69,8 +67,9 @@ class TestAppCriticalLines97:
 @pytest.fixture
 def client():
     """Создает тестового клиента"""
-    import app
     from fastapi import FastAPI
+
+    import app
 
     # Ensure app.app is a FastAPI (ASGIApp) instance and not None
     app_instance = getattr(app, "app", None)

@@ -3,8 +3,9 @@
 Покрывает строки: 1505→exit, 1508→exit, 1520-1527, 1606, 1657-1660
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 

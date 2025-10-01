@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 
@@ -20,24 +21,18 @@ def _force_prod_env():
 
 
 import importlib
+import os
 import sys
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+@pytest.fixture
+def client(app: FastAPI):
+    """Test client fixture using app from conftest"""
+    return TestClient(app)
 
 
 def disable_optional_modules(monkeypatch, *modules: str) -> None:
@@ -81,12 +76,6 @@ def test_export_pdf_no_reportlab_no_key(client, monkeypatch):
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
     response = client.post("/api/v1/premium/gaps", json=payload)
     assert response.status_code == 403
-
-
-# Pytest fixture for TestClient
-@pytest.fixture
-def client():
-    return TestClient(app)
 
 
 # Fixture for API key headers
@@ -234,6 +223,7 @@ def test_health_endpoint(client):
 def test_vip_module_disabled(monkeypatch):
     monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
     from importlib import reload
+
     import app as app_module
 
     reload(app_module)
@@ -250,6 +240,7 @@ def test_vip_module_disabled(monkeypatch):
 def test_vip_module_enabled(monkeypatch):
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     from importlib import reload
+
     import app as app_module
 
     reload(app_module)

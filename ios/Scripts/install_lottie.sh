@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -euo pipefail
+IFS=$'\n\t'
+
 # 🎨 Скрипт для установки Lottie в Xcode проект
 # Автоматически добавляет Lottie зависимость через Swift Package Manager
 
@@ -13,11 +16,11 @@ fi
 
 echo "✅ Найден проект PulsePlate.xcodeproj"
 
-# Создаем временный скрипт для добавления пакета
+# Создаем временный скрипт для инструкций по добавлению пакета
 cat > add_lottie_package.swift << 'EOF'
 import Foundation
 
-// Этот скрипт будет выполнен в Xcode для добавления Lottie пакета
+// Этот скрипт печатает шаги добавления Lottie пакета
 let packageURL = "https://github.com/airbnb/lottie-ios.git"
 let packageVersion = "4.5.2"
 
@@ -103,7 +106,7 @@ EOF
 echo "📋 Создана подробная инструкция: LOTTIE_INSTALL_STEPS.md"
 
 # Создаем тестовые Lottie файлы (заглушки)
-mkdir -p PulsePlate/Resources/Lottie
+mkdir -p PulsePlate/Resources/Lottie || { echo "❌ Не удалось создать директорию Resources/Lottie"; exit 1; }
 cat > PulsePlate/Resources/Lottie/fitchef_blink.json << 'EOF'
 {
   "v": "5.7.4",
@@ -237,6 +240,7 @@ cat > PulsePlate/Resources/Lottie/fitchef_blink.json << 'EOF'
   "markers": []
 }
 EOF
+[ $? -eq 0 ] || { echo "❌ Не удалось создать fitchef_blink.json"; exit 1; }
 
 echo "🎬 Создан тестовый Lottie файл: fitchef_blink.json"
 

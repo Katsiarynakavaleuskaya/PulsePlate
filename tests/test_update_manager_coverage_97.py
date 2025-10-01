@@ -1,9 +1,10 @@
 """Tests to boost coverage for core/food_apis/update_manager.py to 97%."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typing import Type
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestDatabaseUpdateManagerCoverage97:
@@ -12,9 +13,10 @@ class TestDatabaseUpdateManagerCoverage97:
     def test_path_wrapper_truediv_behaviour(self) -> None:
         """Path wrapper preserves Path division semantics."""
         # Use the public DatabaseUpdateManager to access the path wrapper functionality
-        from core.food_apis.update_manager import DatabaseUpdateManager
         import tempfile
         from pathlib import Path as PathlibPath
+
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
@@ -26,8 +28,9 @@ class TestDatabaseUpdateManagerCoverage97:
     def test_path_wrapper_fspath_behaviour(self) -> None:
         """Path wrapper implements os.fspath protocol."""
         # Use the public DatabaseUpdateManager to access the path wrapper functionality
-        from core.food_apis.update_manager import DatabaseUpdateManager
         import tempfile
+
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
@@ -38,8 +41,9 @@ class TestDatabaseUpdateManagerCoverage97:
     def test_path_wrapper_str_behaviour(self) -> None:
         """Path wrapper converts to string via underlying Path."""
         # Use the public DatabaseUpdateManager to access the path wrapper functionality
-        from core.food_apis.update_manager import DatabaseUpdateManager
         import tempfile
+
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)

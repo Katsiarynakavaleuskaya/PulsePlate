@@ -16,8 +16,8 @@ import signal
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from .update_manager import DatabaseUpdateManager, UpdateResult
 from ..time_utils import now_utc
+from .update_manager import DatabaseUpdateManager, UpdateResult
 
 logger = logging.getLogger(__name__)
 

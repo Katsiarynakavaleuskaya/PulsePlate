@@ -1,12 +1,11 @@
 """Tests for the public shoplist export endpoints."""
 
+import os
+import sys
 from typing import List
 
 import pytest
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,7 +20,6 @@ app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
 app = app_module.app
 from app.routers import shoplist_export as export
-
 
 client = TestClient(app)
 

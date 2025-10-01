@@ -2,10 +2,11 @@
 Test coverage boost to reach 97%
 """
 
-import pytest
 import importlib
-from unittest.mock import patch, MagicMock
 from contextlib import suppress
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestCoverageFinalBoost:

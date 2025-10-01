@@ -6,15 +6,16 @@ EN: Tests for unified food database module.
 """
 
 import tempfile
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from core.food_apis.unified_db import (
-    UnifiedFoodItem,
     UnifiedFoodDatabase,
-    search_foods_unified,
+    UnifiedFoodItem,
     get_unified_food_db,
+    search_foods_unified,
 )
 from core.food_apis.usda_client import USDAFoodItem
 

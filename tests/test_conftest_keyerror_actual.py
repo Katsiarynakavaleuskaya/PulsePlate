@@ -4,6 +4,7 @@ Test to actually trigger the KeyError exception on lines 44-45 in conftest.py.
 
 import sys
 from types import ModuleType
+
 import pytest
 
 

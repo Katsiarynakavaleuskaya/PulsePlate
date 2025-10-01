@@ -389,10 +389,8 @@ yoda_condition:
 # Reporter configuration
 reporter: "xcode"
 
-# Analyzer rules
+# Analyzer rules (only SwiftLint analyzer-supported rules)
 analyzer_rules:
   - explicit_self
   - unused_declaration
   - unused_import
-  - unused_parameter
-  - unused_variable

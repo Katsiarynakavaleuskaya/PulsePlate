@@ -1,16 +1,14 @@
 """Tests for weekly plan PDF export."""
 
+import os
+import sys
 from io import BytesIO
 from pathlib import Path
 from typing import Any, List
 
 import pytest
 from fastapi.testclient import TestClient
-
 from reportlab.platypus import Paragraph, Table
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -25,7 +23,6 @@ app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
 app = app_module.app
 from app.routers import plan_export as plan
-
 
 client = TestClient(app)
 

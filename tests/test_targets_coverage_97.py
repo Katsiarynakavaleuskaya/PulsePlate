@@ -1,6 +1,7 @@
 """Tests to boost coverage for core/targets.py to 97%."""
 
 import pytest
+
 from core.targets import MicronutrientTargets
 
 

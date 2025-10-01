@@ -11,11 +11,12 @@
 Всего нужно покрыть ~100+ lines из remaining 172 для 97%
 """
 
+import os
+import sys
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

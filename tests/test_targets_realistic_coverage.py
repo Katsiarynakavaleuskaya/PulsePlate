@@ -101,7 +101,7 @@ class TestTargetsRealisticCoverage:
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
         try:
-            from core.targets import calculate_tdee, adjust_for_activity
+            from core.targets import adjust_for_activity, calculate_tdee
 
             # Generate realistic scenarios
             for _ in range(20):
@@ -254,8 +254,8 @@ class TestTargetsRealisticCoverage:
         """Test nutrition targets for special populations"""
         try:
             from core.targets import (
-                get_elderly_adjustments,
                 get_athlete_targets,
+                get_elderly_adjustments,
                 get_pregnancy_targets,
             )
 
@@ -322,7 +322,7 @@ class TestTargetsRealisticCoverage:
     def test_nutrient_timing_realistic(self):
         """Test nutrient timing recommendations with realistic scenarios"""
         try:
-            from core.targets import get_meal_timing, calculate_pre_post_workout
+            from core.targets import calculate_pre_post_workout, get_meal_timing
 
             # Generate realistic timing scenarios
             for _ in range(15):
@@ -353,7 +353,7 @@ class TestTargetsRealisticCoverage:
     def test_hydration_targets_realistic(self):
         """Test hydration recommendations with realistic scenarios"""
         try:
-            from core.targets import calculate_hydration_needs, adjust_for_climate
+            from core.targets import adjust_for_climate, calculate_hydration_needs
 
             # Generate realistic hydration scenarios
             for _ in range(20):
@@ -386,7 +386,7 @@ class TestTargetsRealisticCoverage:
     def test_supplement_recommendations_realistic(self):
         """Test supplement recommendations with realistic user profiles"""
         try:
-            from core.targets import get_supplement_recommendations, check_deficiency_risk
+            from core.targets import check_deficiency_risk, get_supplement_recommendations
 
             # Generate diverse user profiles
             for _ in range(15):

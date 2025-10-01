@@ -21,6 +21,7 @@ class TestConftestEnvironmentCoverage:
         assert "PYTHONPATH" in os.environ
 
     def test_conftest_reset_sys_modules_fixture_coverage(self):
+        # sourcery skip: use-contextlib-suppress
         """Тест покрытия conftest.py reset_sys_modules fixture (строки 58-59)"""
         # Тестируем, что фикстура reset_sys_modules работает
         # Проверяем, что модуль может быть импортирован или не импортирован

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import math
+from typing import Any, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import Any, Optional
 
 
 # ---------- Formulas ----------

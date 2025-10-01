@@ -3,8 +3,9 @@
 Фокус: достижение 97% покрытия через тестирование недостающих веток
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 class TestQuickCoverageBoost:
@@ -14,9 +15,9 @@ class TestQuickCoverageBoost:
         """Покрытие core/targets.py edge cases (93% -> 97%+)"""
         try:
             from core.targets import (
-                calculate_who_protein_target,
-                calculate_who_fat_target,
                 calculate_who_carb_target,
+                calculate_who_fat_target,
+                calculate_who_protein_target,
                 get_nutrition_targets,
             )
 
@@ -56,7 +57,7 @@ class TestQuickCoverageBoost:
     def test_i18n_fallback_coverage(self):
         """Покрытие core/i18n.py fallback scenarios (83% -> 95%+)"""
         try:
-            from core.i18n import t, get_supported_languages, detect_language
+            from core.i18n import detect_language, get_supported_languages, t
 
             # Тест с неподдерживаемым языком
             result = t("unknown_lang", "test_key")
@@ -174,7 +175,7 @@ class TestQuickCoverageBoost:
     def test_recommendations_edge_cases(self):
         """Покрытие core/recommendations.py scenarios (92% -> 97%+)"""
         try:
-            from core.recommendations import get_food_recommendations, PersonalizedRecommender
+            from core.recommendations import PersonalizedRecommender, get_food_recommendations
 
             # Тест с пустым профилем
             recs = get_food_recommendations({}, [])
@@ -207,7 +208,7 @@ class TestQuickCoverageBoost:
     def test_region_catalog_edge_cases(self):
         """Покрытие core/region_catalog.py missing lines (89% -> 95%+)"""
         try:
-            from core.region_catalog import get_available_regions, RegionCatalog
+            from core.region_catalog import RegionCatalog, get_available_regions
 
             # Тест функций с edge cases
             regions = get_available_regions()
@@ -267,7 +268,7 @@ class TestQuickCoverageBoost:
     def test_unified_db_error_paths(self):
         """Покрытие core/food_apis/unified_db.py error paths (94% -> 97%+)"""
         try:
-            from core.food_apis.unified_db import get_unified_food_db, UnifiedFoodDB
+            from core.food_apis.unified_db import UnifiedFoodDB, get_unified_food_db
 
             # Тест с моксом для вызова ошибок
             with patch("sqlite3.connect") as mock_connect:

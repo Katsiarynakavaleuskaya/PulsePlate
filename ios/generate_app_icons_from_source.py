@@ -4,10 +4,11 @@ App Icon Generator from Source Image
 Создает все размеры иконок iOS из одного изображения высокого качества
 """
 
+import argparse
 import os
 import sys
+
 from PIL import Image
-import argparse
 
 
 def resize_icon(source_path, output_dir, filename, size):

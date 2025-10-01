@@ -3,8 +3,9 @@ Targeted tests to improve app/routers/vip.py coverage to 97%.
 """
 
 import os
-from fastapi.testclient import TestClient
+
 import pytest
+from fastapi.testclient import TestClient
 
 
 def _get_app():

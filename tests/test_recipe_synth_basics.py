@@ -5,14 +5,15 @@ RU: Базовые тесты для модуля синтеза рецепто�
 EN: Basic tests for recipe synthesis module.
 """
 
-import pytest
 import json
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from dataclasses import asdict
+from pathlib import Path
 
-from core.recipe_synth import RecipeStep, Recipe, RecipeTemplate, RecipeSynthesizer
+import pytest
+
+from core.recipe_synth import Recipe, RecipeStep, RecipeSynthesizer, RecipeTemplate
 
 
 class TestRecipeStepDataClass:

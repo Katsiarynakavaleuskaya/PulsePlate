@@ -3,10 +3,11 @@
 Покрывает строки: 504-505, 978, 995-996, 1008-1012, 1045-1049, 1093-1094, 1101-1102, 1109-1112, 1115-1118, 1121-1124, 1197
 """
 
-import pytest
 import logging
-from unittest.mock import patch
 from typing import cast
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -85,7 +86,9 @@ class TestAppBMIBodyfatCoverage:
     @pytest.mark.parametrize(
         "endpoint,valid_payload,expected_status",
         [
-            ("/api/v1/bmi", {"weight_kg": 70, "height_cm": 170, "group": "general"}, [401, 403]),
+            # BMI is now public - no API key required, returns 200
+            ("/api/v1/bmi", {"weight_kg": 70, "height_cm": 170, "group": "general"}, 200),
+            # bodyfat is also public
             (
                 "/api/v1/bodyfat",
                 {"weight_kg": 70, "height_cm": 170, "waist_cm": 80, "hip_cm": 90, "gender": "male"},
@@ -93,10 +96,10 @@ class TestAppBMIBodyfatCoverage:
             ),
         ],
     )
-    def test_endpoint_missing_api_key(
+    def test_endpoint_public_access(
         self, test_environment, endpoint, valid_payload, expected_status
     ):
-        """Тест покрытия отсутствия API ключа для BMI и bodyfat endpoints"""
+        """Тест публичного доступа к BMI и bodyfat endpoints (без API ключа)"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))

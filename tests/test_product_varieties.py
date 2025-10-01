@@ -4,14 +4,15 @@ Comprehensive tests for core.product_varieties module.
 Covers ProductVariety and ProductVarietiesManager classes.
 """
 
-import pytest
-import tempfile
 import csv
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from core.product_varieties import ProductVariety, ProductVarietiesManager
+import pytest
+
 from core.food_db import FoodItem
+from core.product_varieties import ProductVarietiesManager, ProductVariety
 
 
 class TestProductVariety:

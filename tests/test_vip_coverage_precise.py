@@ -4,11 +4,11 @@ Precise VIP coverage tests to achieve 97% coverage for specific missing lines.
 
 import os
 import sys
+from typing import cast
 from unittest.mock import patch
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from typing import cast
 from starlette.types import ASGIApp
 
 

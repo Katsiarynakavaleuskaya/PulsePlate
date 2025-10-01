@@ -6,8 +6,9 @@ RU: Финальные тесты для максимального покрыт
 EN: Final tests for maximum core modules coverage
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestFinalCoreCoverage:
@@ -16,8 +17,8 @@ class TestFinalCoreCoverage:
     def test_external_apis_coverage(self):
         """Test external APIs and providers."""
         try:
-            from core.food_sources.usda_source import USDASource
             from core.food_sources.openfood_source import OpenFoodSource
+            from core.food_sources.usda_source import USDASource
 
             # Test USDA source
             usda = USDASource()
@@ -104,8 +105,8 @@ class TestFinalCoreCoverage:
         """Test configuration management."""
         try:
             from core.config import (
-                load_config,
                 get_config_value,
+                load_config,
                 set_config_value,
                 validate_config,
             )
@@ -211,8 +212,8 @@ class TestFinalCoreCoverage:
         """Comprehensive menu engine testing."""
         try:
             from core.menu_engine import (
-                make_weekly_menu,
                 calculate_nutrition_totals,
+                make_weekly_menu,
                 suggest_meal_improvements,
             )
 
@@ -238,8 +239,8 @@ class TestFinalCoreCoverage:
         try:
             from core.auto_repair import (
                 analyze_deficiencies,
-                get_repair_suggestions,
                 calculate_repair_priority,
+                get_repair_suggestions,
             )
 
             # Test deficiency analysis
@@ -267,8 +268,8 @@ class TestFinalCoreCoverage:
         """Comprehensive plate testing."""
         try:
             from core.plate import (
-                create_nutrition_plate,
                 analyze_plate_balance,
+                create_nutrition_plate,
                 get_plate_recommendations,
             )
 
@@ -299,9 +300,9 @@ class TestFinalCoreCoverage:
         """Comprehensive targets testing."""
         try:
             from core.targets import (
+                adjust_for_activity_level,
                 calculate_daily_targets,
                 get_who_recommendations,
-                adjust_for_activity_level,
             )
 
             # Test daily targets calculation

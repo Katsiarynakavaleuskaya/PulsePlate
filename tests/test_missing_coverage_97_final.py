@@ -2,9 +2,10 @@
 Final test coverage boost to reach 97%
 """
 
-import pytest
 import importlib
 from contextlib import suppress
+
+import pytest
 
 
 class TestMissingCoverage97Final:

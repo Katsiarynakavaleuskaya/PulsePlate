@@ -7,7 +7,7 @@ EN: Tests for food data merge logic.
 
 from datetime import date
 
-from core.food_merge import _merge_values, merge_records, _classify_food_group
+from core.food_merge import _classify_food_group, _merge_values, merge_records
 from core.food_sources.base import FoodRecord
 
 

@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 import os
-from providers import ProviderBase
+
 from core.time_utils import isoformat_utc
+from providers import ProviderBase
 
 
 class GrokLiteProvider:  # lightweight fallback that never uses network

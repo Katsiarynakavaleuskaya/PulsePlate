@@ -7,6 +7,7 @@ import importlib.util
 import os
 import sys
 from importlib.machinery import ModuleSpec
+from typing import Optional
 
 # Import FastAPI app and functions from the main module
 
@@ -89,18 +90,22 @@ class _RebindingModuleSpec(ModuleSpec):
 _base_spec = importlib.util.spec_from_loader(__name__, loader=None)
 if _base_spec is not None:
     # Create custom spec with rebinding behavior, passing the captured module reference
-    _spec = _RebindingModuleSpec(
+    _spec: Optional[ModuleSpec] = _RebindingModuleSpec(
         name=__name__,
         loader=_base_spec.loader,
         origin=_base_spec.origin,
         is_package=True,
         owner_module=_this_module,
     )
-    _spec.submodule_search_locations = [os.path.dirname(__file__)]
-    __spec__ = _spec  # sourcery skip: avoid-builtin-shadow
+    # Check _spec is not None before setting submodule_search_locations
+    if _spec is not None:
+        _spec.submodule_search_locations = [os.path.dirname(__file__)]
+        __spec__ = _spec  # type: ignore[assignment]
+    else:
+        __spec__ = None  # type: ignore[assignment]
 else:
     # Fallback if spec creation fails
-    __spec__ = None  # sourcery skip: avoid-builtin-shadow
+    __spec__ = None  # type: ignore[assignment]
 
 # Export the app and key functions for easy importing
 __all__ = [

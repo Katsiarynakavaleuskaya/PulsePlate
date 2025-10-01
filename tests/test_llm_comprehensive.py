@@ -4,8 +4,9 @@
 """
 
 import os
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 import llm
 

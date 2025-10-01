@@ -178,6 +178,8 @@ test_cache/
 .env.staging
 api_keys.txt
 secrets.txt
+.key
+*.key
 
 # Database files
 *.db

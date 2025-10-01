@@ -15,8 +15,8 @@ except Exception as exc:  # pragma: no cover
     pytest.skip(f"Hypothesis not available: {exc}", allow_module_level=True)
 
 try:
-    import sys
     import os
+    import sys
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

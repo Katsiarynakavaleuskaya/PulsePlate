@@ -4,6 +4,7 @@
 """
 
 from typing import cast
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -40,13 +41,13 @@ class TestAppProductionCoverage:
         )
         assert response.status_code == 200
 
-        # Проверяем, что неверный API key отклоняется
+        # BMI endpoint теперь публичный - работает с любым ключом
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
             headers={"X-API-Key": "invalid-key"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
     def test_app_production_environment_variables_coverage(self, production_environment):
         """Тест покрытия app.py production environment variables"""

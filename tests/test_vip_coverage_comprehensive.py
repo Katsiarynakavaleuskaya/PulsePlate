@@ -4,10 +4,10 @@ Comprehensive VIP coverage tests to achieve 97% coverage for all missing lines.
 
 import os
 import sys
+from typing import cast
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from typing import cast
 from starlette.types import ASGIApp
 
 

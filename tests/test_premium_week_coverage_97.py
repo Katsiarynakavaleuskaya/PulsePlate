@@ -1,9 +1,11 @@
 """Tests to boost coverage for app/routers/premium_week.py to 97%."""
 
-from fastapi.testclient import TestClient
-import app
-from starlette.types import ASGIApp
 from typing import cast
+
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+
+import app
 
 
 class TestPremiumWeekCoverage97:

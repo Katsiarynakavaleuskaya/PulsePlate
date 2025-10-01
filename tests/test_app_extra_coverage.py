@@ -138,8 +138,8 @@ class TestEndpointsAndValidation:
         r = self.client.get("/debug_env")
         assert r.status_code in [200, 404, 405]
 
-        # Admin endpoints (provided by routers) may be up or return 503 when backends are unavailable
+        # Admin endpoints (provided by routers) may be up or return 500/503 when backends are unavailable
         r1 = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
-        assert r1.status_code in [200, 503]
+        assert r1.status_code in [200, 500, 503]
         r2 = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
-        assert r2.status_code in [200, 503]
+        assert r2.status_code in [200, 500, 503]

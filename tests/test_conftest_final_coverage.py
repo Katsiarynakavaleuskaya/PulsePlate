@@ -4,9 +4,10 @@ Final targeted tests to improve conftest.py coverage to 97%.
 
 import os
 import sys
-from fastapi.testclient import TestClient
-import pytest
 from types import ModuleType
+
+import pytest
+from fastapi.testclient import TestClient
 
 
 class TestConftestFinalCoverage:

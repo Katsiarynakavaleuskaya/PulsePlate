@@ -35,5 +35,11 @@ if [ ! -f ".swiftlint.yml" ]; then
 fi
 
 echo "✅ SwiftLint setup complete!"
-echo "SwiftLint available at: $SWIFTLINT_PATH"
-echo "To use in other scripts: source .swiftlint_env.sh"
+echo "Binary: $SWIFTLINT_PATH"
+export SWIFTLINT_PATH
+echo ""
+echo "💡 Add to PATH for convenience:"
+echo "  export PATH=\"$(dirname "$SWIFTLINT_PATH"):\$PATH\""
+echo ""
+echo "Or source the generated env file:"
+echo "  source .swiftlint_env.sh"

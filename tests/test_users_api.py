@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Generator
+from typing import Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
-from typing import cast
-from starlette.types import ASGIApp
 from sqlalchemy import text
+from starlette.types import ASGIApp
 
 import app
 from core import db as db_module

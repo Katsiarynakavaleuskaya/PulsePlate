@@ -3,8 +3,9 @@
 Adapter coverage for app.routers.vip: _adapter_make_weekly_menu and _adapter_synthesize_recipes_for_week.
 """
 
-from unittest.mock import patch
 import importlib
+from unittest.mock import patch
+
 import pytest
 
 

@@ -3,9 +3,10 @@ Realistic tests for core/db.py using Faker library.
 Target 85% coverage, missing lines 56-65, 136.
 """
 
-from faker import Faker
-from unittest.mock import patch
 import sqlite3
+from unittest.mock import patch
+
+from faker import Faker
 
 fake = Faker()
 
@@ -68,7 +69,7 @@ class TestDbRealisticCoverage:
     def test_database_initialization_edge_cases(self):
         """Test database initialization edge cases"""
         try:
-            from core.db import init_db, create_tables
+            from core.db import create_tables, init_db
 
             # Test initialization with various conditions
             with patch("os.path.exists", return_value=False):
@@ -142,7 +143,7 @@ class TestDbRealisticCoverage:
     def test_database_migration_scenarios_realistic(self):
         """Test database migration scenarios with realistic data"""
         try:
-            from core.db import migrate_db, get_schema_version
+            from core.db import get_schema_version, migrate_db
 
             # Test migration with various version scenarios
             fake_versions = [
@@ -213,7 +214,7 @@ class TestDbRealisticCoverage:
     def test_database_connection_pooling_realistic(self):
         """Test database connection pooling scenarios"""
         try:
-            from core.db import get_db_connection, close_all_connections
+            from core.db import close_all_connections, get_db_connection
 
             # Create multiple connections
             connections = []
@@ -243,7 +244,7 @@ class TestDbRealisticCoverage:
     def test_database_schema_validation_realistic(self):
         """Test database schema validation with realistic scenarios"""
         try:
-            from core.db import validate_schema, get_table_info
+            from core.db import get_table_info, validate_schema
 
             # Test schema validation
             fake_tables = [

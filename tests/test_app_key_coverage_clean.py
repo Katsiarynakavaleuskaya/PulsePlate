@@ -5,13 +5,15 @@
 
 import os
 import sys
-from unittest.mock import patch, MagicMock
+from typing import cast
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-import app
 from starlette.types import ASGIApp
-from typing import cast
+
+import app
 
 
 class TestAPIKeyModes:

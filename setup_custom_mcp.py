@@ -11,7 +11,7 @@ from pathlib import Path
 
 def setup_custom_mcp(argv: list[str] | None = None) -> None:
     """Setup custom MCP configuration for PulsePlate
-    
+
     Args:
         argv: Command line arguments to parse. If None, uses sys.argv.
               This allows tests to pass empty list to avoid pytest arg conflicts.

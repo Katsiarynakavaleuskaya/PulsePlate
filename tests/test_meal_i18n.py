@@ -6,14 +6,14 @@ EN: Tests for meal internationalization module.
 """
 
 from core.meal_i18n import (
-    translate_food,
-    translate_recipe,
-    translate_meal_type,
-    translate_tip,
     FOOD_TRANSLATIONS,
-    RECIPE_TRANSLATIONS,
     MEAL_TRANSLATIONS,
+    RECIPE_TRANSLATIONS,
     TIP_TRANSLATIONS,
+    translate_food,
+    translate_meal_type,
+    translate_recipe,
+    translate_tip,
 )
 
 

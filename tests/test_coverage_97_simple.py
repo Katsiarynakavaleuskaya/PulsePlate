@@ -3,8 +3,9 @@
 """
 
 import os
-from starlette.types import ASGIApp
 from typing import cast
+
+from starlette.types import ASGIApp
 
 
 class TestCoverage97Simple:
@@ -38,8 +39,9 @@ class TestCoverage97Simple:
 
     def test_app_health_endpoint_coverage(self):
         """Тест покрытия health endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/health")
@@ -47,8 +49,9 @@ class TestCoverage97Simple:
 
     def test_app_root_endpoint_coverage(self):
         """Тест покрытия root endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/")
@@ -56,8 +59,9 @@ class TestCoverage97Simple:
 
     def test_app_docs_endpoint_coverage(self):
         """Тест покрытия docs endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/docs")
@@ -65,8 +69,9 @@ class TestCoverage97Simple:
 
     def test_app_openapi_endpoint_coverage(self):
         """Тест покрытия openapi endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/openapi.json")
@@ -74,8 +79,9 @@ class TestCoverage97Simple:
 
     def test_app_bmi_endpoint_coverage(self):
         """Тест покрытия BMI endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
@@ -87,8 +93,9 @@ class TestCoverage97Simple:
 
     def test_app_bodyfat_endpoint_coverage(self):
         """Тест покрытия bodyfat endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
@@ -100,8 +107,9 @@ class TestCoverage97Simple:
 
     def test_app_metrics_endpoint_coverage(self):
         """Тест покрытия metrics endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/metrics")
@@ -109,8 +117,9 @@ class TestCoverage97Simple:
 
     def test_app_admin_status_endpoint_coverage(self):
         """Тест покрытия admin status endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
@@ -118,8 +127,9 @@ class TestCoverage97Simple:
 
     def test_vip_weekly_menu_endpoint_coverage(self):
         """Тест покрытия VIP weekly menu endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -138,8 +148,9 @@ class TestCoverage97Simple:
 
     def test_vip_recipes_endpoint_coverage(self):
         """Тест покрытия VIP recipes endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -157,8 +168,9 @@ class TestCoverage97Simple:
 
     def test_vip_auto_repair_endpoint_coverage(self):
         """Тест покрытия VIP auto repair endpoint"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         payload = {
@@ -176,8 +188,9 @@ class TestCoverage97Simple:
 
     def test_app_error_handling_coverage(self):
         """Тест покрытия обработки ошибок"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
@@ -193,8 +206,9 @@ class TestCoverage97Simple:
 
     def test_app_cors_coverage(self):
         """Тест покрытия CORS"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
         response = client.options("/api/v1/bmi")
@@ -202,8 +216,9 @@ class TestCoverage97Simple:
 
     def test_app_middleware_coverage(self):
         """Тест покрытия middleware"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
@@ -213,8 +228,9 @@ class TestCoverage97Simple:
 
     def test_app_lifespan_coverage(self):
         """Тест покрытия lifespan"""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         client = TestClient(cast(ASGIApp, app.app))
 

@@ -4,9 +4,9 @@ Final VIP coverage tests to achieve 97% coverage with proper isolation.
 
 import os
 import sys
+from typing import cast
 
 from fastapi.testclient import TestClient
-from typing import cast
 from starlette.types import ASGIApp
 
 

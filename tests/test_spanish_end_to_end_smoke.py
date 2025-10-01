@@ -6,13 +6,11 @@ across the entire application in a realistic scenario.
 """
 
 import os
+import sys
 from typing import cast
 
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

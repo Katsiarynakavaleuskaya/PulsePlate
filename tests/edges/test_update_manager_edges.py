@@ -74,6 +74,7 @@ def test_load_versions_error_path(tmp_path: Path):
 
 def test_save_versions_error_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     import builtins
+
     from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
     cache = tmp_path / "cache"

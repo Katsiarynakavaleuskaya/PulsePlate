@@ -6,8 +6,7 @@ EN: Pydantic schemas powering user CRUD endpoints.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class UserBase(BaseModel):

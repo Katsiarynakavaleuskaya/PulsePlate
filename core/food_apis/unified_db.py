@@ -165,8 +165,8 @@ class UnifiedFoodDatabase:
         """Save cached food items to disk."""
         try:
             # Optional throttle via env (milliseconds)
-            import time as _time
             import os as _os
+            import time as _time
 
             ms = int(_os.getenv("UNIFIED_DB_SAVE_THROTTLE_MS", "0"))
             if ms > 0:

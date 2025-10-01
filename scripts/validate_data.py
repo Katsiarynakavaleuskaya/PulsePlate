@@ -13,7 +13,6 @@ import re
 import sys
 from pathlib import Path
 
-
 _VERSION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\d{4}-\d{2}-\d{2}$"),  # YYYY-MM-DD
     re.compile(r"^v?\d+(?:\.\d+){1,2}$"),  # semantic version, optional leading v
