@@ -32,7 +32,19 @@ def app_module() -> ModuleType:
 
 @pytest.fixture
 def app(app_module: ModuleType) -> FastAPI:
-    """Return the FastAPI app instance."""
+    """Return the FastAPI app instance with API key mock."""
+
+    # Apply lenient API key mode
+    def mock_get_api_key(api_key: str = ""):
+        if not api_key or len(api_key.strip()) < 3:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=403, detail="Invalid API Key")
+        return api_key
+
+    if hasattr(app_module.app, "dependency_overrides") and hasattr(app_module, "get_api_key"):
+        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+
     return app_module.app
 
 
