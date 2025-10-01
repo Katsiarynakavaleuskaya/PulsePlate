@@ -3707,6 +3707,7 @@ carbohidratos
 celsius
 Cena
 centimetres
+chdir
 checkmark
 Choco
 cintura
