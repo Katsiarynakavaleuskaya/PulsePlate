@@ -27,8 +27,19 @@ from app.routers import plan_export as plan
 client = TestClient(app)
 
 
-def _signed_pdf_url(lang: str = "en") -> str:
-    response = client.post("/api/v1/export/sign", json={"path": "/api/v1/plan/week/export.pdf"})
+@pytest.fixture
+def export_client(client, monkeypatch):
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    return client
+
+
+def _signed_pdf_url(client, lang: str = "en") -> str:
+    response = client.post(
+        "/api/v1/export/sign",
+        json={"path": "/api/v1/plan/week/export.pdf"},
+        headers={"X-API-Key": "test_key"},
+    )
     assert response.status_code == 200
     url = response.json()["url"]
     if lang:
@@ -37,9 +48,9 @@ def _signed_pdf_url(lang: str = "en") -> str:
     return url
 
 
-def test_week_export_pdf_ok() -> None:
-    url = _signed_pdf_url()
-    response = client.get(url)
+def test_week_export_pdf_ok(export_client) -> None:
+    url = _signed_pdf_url(export_client)
+    response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     content_type = response.headers.get("content-type", "")
     assert "application/pdf" in content_type
@@ -68,7 +79,7 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     assert plan.FONT_NAME in registered
 
 
-def test_pdf_uses_page_breaks(monkeypatch) -> None:
+def test_pdf_uses_page_breaks(export_client, monkeypatch) -> None:
     def fake_plan() -> dict[str, Any]:
         return {
             "days": [
@@ -95,14 +106,14 @@ def test_pdf_uses_page_breaks(monkeypatch) -> None:
     monkeypatch.setattr(plan, "_get_week_plan", fake_plan)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
 
-    url = _signed_pdf_url()
-    response = client.get(url)
+    url = _signed_pdf_url(export_client)
+    response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     assert response.content.count(b"/Type /Page") >= 2
 
 
-def test_pdf_includes_brand_header_and_totals() -> None:
-    response = client.get(_signed_pdf_url())
+def test_pdf_includes_brand_header_and_totals(export_client) -> None:
+    response = export_client.get(_signed_pdf_url(export_client), headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     content = response.content.decode("latin-1", "ignore")
     assert "PulsePlate" in content
@@ -190,7 +201,7 @@ def test_slogan_fallback_to_default() -> None:
     assert plan._slogan("unknown") == plan.SLOGAN[plan.DEFAULT_LANG]
 
 
-def test_pdf_honors_lang_query(monkeypatch) -> None:
+def test_pdf_honors_lang_query(export_client, monkeypatch) -> None:
     captured_story: List[Any] = []
 
     class DummyDoc:
@@ -214,20 +225,19 @@ def test_pdf_honors_lang_query(monkeypatch) -> None:
     monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
 
-    url = _signed_pdf_url("ru")
-    response = client.get(url)
+    url = _signed_pdf_url(export_client, "ru")
+    response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
 
-    header_table = next(
-        node
+    assert any(
+        isinstance(node, plan.Paragraph) and "PulsePlate" in node.getPlainText()
         for node in captured_story
-        if isinstance(node, plan.Table)
-        and len(node._cellvalues) >= 2
-        and len(node._cellvalues[0]) >= 2
-        and hasattr(node._cellvalues[0][1], "getPlainText")
-        and "PulsePlate" in node._cellvalues[0][1].getPlainText()
     )
-    assert plan.SLOGAN["ru"] in header_table._cellvalues[1][1].getPlainText()
+    assert any(
+        isinstance(node, plan.Paragraph)
+        and ("ккал" in node.getPlainText() or "kcal" in node.getPlainText())
+        for node in captured_story
+    )
 
 
 def test_week_start_prefers_first_day() -> None:

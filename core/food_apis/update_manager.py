@@ -21,10 +21,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
+from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
 
@@ -615,8 +615,8 @@ class DatabaseUpdateManager:
                 # Try to get data from SQLite cache
                 sqlite_file = cache_dir / "off.sqlite"
                 if sqlite_file.exists():
-                    import hashlib
                     import sqlite3
+                    import hashlib
 
                     conn = sqlite3.connect(str(sqlite_file))
                     try:

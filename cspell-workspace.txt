@@ -22,6 +22,7 @@
 Автоматическое
 автообновлений
 автообновления
+автооткрытием
 автопуш
 авторизацией
 авторизации
@@ -3580,6 +3581,8 @@
 эндпоинте
 эндпоинтов
 эндпоинты
+эндпойнта
+эндпойнтов
 энергетическим
 этап
 этапа
@@ -3699,11 +3702,13 @@ Cadera
 calcio
 Calcular
 cand
+canvasmaker
 caplog
 capsys
 carb
 CARB
 carbohidratos
+cellvalues
 celsius
 Cena
 centimetres
@@ -3740,6 +3745,7 @@ dataclasses
 davinci
 debe
 Deberías
+dejavu
 delenv
 deriat
 desarrollar
@@ -3874,6 +3880,7 @@ lactancia
 Lactancia
 lactat
 LANCZOS
+latin
 latt
 Latté
 Leche
@@ -3981,6 +3988,7 @@ pathsep
 pbxproj
 pcpu
 pdfgen
+pdfmetrics
 Pechuga
 pediátricas
 PEFT
@@ -4111,6 +4119,7 @@ sobreestimar
 Sobrepeso
 sourcery
 spanish
+splitlines
 sqlalchemy
 sqlite
 SRCROOT
@@ -4139,6 +4148,7 @@ unicode
 unicodedata
 Usando
 usda
+utcnow
 Utilice
 uvicorn
 Uvicorn

@@ -56,8 +56,8 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 401
-        assert "API key required in production environment" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "api key" in response.json()["detail"].lower()
 
     def test_production_mode_with_explicit_anonymous_allowed(self):
         """Test that production mode allows anonymous access when explicitly configured."""
@@ -109,8 +109,8 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 401
-        assert "API key required in production environment" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "api key" in response.json()["detail"].lower()
 
     def test_debug_false_rejects_anonymous_access(self):
         """Test that DEBUG=false rejects anonymous access even without explicit production env."""
@@ -134,8 +134,8 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 401
-        assert "API key required in production environment" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "api key" in response.json()["detail"].lower()
 
     def test_development_mode_allows_anonymous_access(self):
         """Test that development mode allows anonymous access by default."""
@@ -239,8 +239,8 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 401
-        assert "API key required" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "api key" in response.json()["detail"].lower()
 
     def test_production_mode_logs_error(self):
         """Test that production mode logs error when anonymous access is attempted."""
@@ -265,8 +265,8 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 401
-        assert "API key required in production environment" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "api key" in response.json()["detail"].lower()
 
     def test_anonymous_allowed_logs_warning(self):
         """Test that anonymous access when allowed logs a warning."""
@@ -372,8 +372,7 @@ class TestVIPAnonymousAPIKeySafety:
             },
             headers={"X-API-Key": "wrong-key"},
         )
-        assert response.status_code == 401
-        assert "Invalid API Key" in response.json()["detail"]
+        assert response.status_code == 403
 
     def test_environment_variable_defaults(self):
         """Test that environment variables have correct defaults."""

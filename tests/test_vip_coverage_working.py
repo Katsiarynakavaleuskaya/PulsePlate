@@ -287,8 +287,7 @@ class TestVIPCoverageWorking:
                 "/api/v1/vip/menu/weekly/plan",
                 json={"user_id": "test"},
             )
-            # In production mode without dev access, should require API key
-            assert response.status_code in [401, 200]  # Accept either based on actual app config
+            assert response.status_code == 403
 
     def test_vip_endpoints_invalid_json(self):
         """Тест VIP endpoints с невалидным JSON"""

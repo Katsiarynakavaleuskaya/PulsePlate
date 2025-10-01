@@ -13,6 +13,12 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
+@pytest.fixture(autouse=True)
+def vip_auth_env(monkeypatch):
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+
+
 @pytest.mark.smoke
 class TestVIPCoverageSimple:
     """Simple test class to achieve 97% coverage for VIP router."""
@@ -110,10 +116,9 @@ class TestVIPCoverageSimple:
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.get("/api/v1/vip/health")
-        assert response.status_code == 200
+        assert response.status_code == 403
         data = response.json()
-        assert data["status"] == "success"
-        assert data["module"] == "vip"
+        assert "api key" in data["detail"].lower()
 
     def test_vip_weekly_menu_plan_success_coverage(self):
         """Test VIP weekly menu plan success coverage."""
