@@ -1,78 +1,24 @@
 #!/usr/bin/env python3
 """
 Update API key in MCP configuration with encryption support
+
+Platform Notes:
+    On Unix/Linux/macOS, file permissions are set to 0o600 (owner read/write only)
+    for the encryption key file to restrict access.
+
+    On Windows, os.chmod() only affects the read-only flag and does NOT provide
+    full POSIX permission semantics. For strict file ACL enforcement on Windows,
+    additional platform-specific handling is required (e.g., using pywin32's
+    win32security module or calling icacls.exe via subprocess).
 """
 import json
-import os
 from pathlib import Path
 
-try:
-    from cryptography.fernet import Fernet
+from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
-    ENCRYPTION_AVAILABLE = True
-except ImportError:
-    ENCRYPTION_AVAILABLE = False
+if not ENCRYPTION_AVAILABLE:
     print("⚠️  Warning: cryptography not installed. Keys will be stored in plain text.")
     print("   Install with: pip install cryptography")
-
-
-def get_or_create_encryption_key() -> bytes:
-    """Get or create encryption key for secure storage."""
-    key_file = Path.home() / ".cursor" / ".key"
-
-    if key_file.exists():
-        with open(key_file, "rb") as f:
-            return f.read()
-
-    # Generate new key
-    key = Fernet.generate_key()
-
-    # Ensure directory exists
-    key_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # Save key with restricted permissions
-    with open(key_file, "wb") as f:
-        f.write(key)
-
-    # Set file permissions to 600 (owner read/write only)
-    os.chmod(key_file, 0o600)
-
-    return key
-
-
-def encrypt_value(value: str) -> str:
-    """Encrypt a sensitive value."""
-    if not ENCRYPTION_AVAILABLE:
-        return value  # Fallback to plain text if crypto not available
-
-    try:
-        key = get_or_create_encryption_key()
-        fernet = Fernet(key)
-        encrypted = fernet.encrypt(value.encode())
-        return f"encrypted:{encrypted.decode()}"
-    except Exception as e:
-        print(f"⚠️  Encryption failed: {e}")
-        return value  # Fallback to plain text
-
-
-def decrypt_value(value: str) -> str:
-    """Decrypt a sensitive value."""
-    if not value.startswith("encrypted:"):
-        return value  # Already plain text
-
-    if not ENCRYPTION_AVAILABLE:
-        print("⚠️  Cannot decrypt: cryptography not installed")
-        return value
-
-    try:
-        encrypted_data = value.replace("encrypted:", "")
-        key = get_or_create_encryption_key()
-        fernet = Fernet(key)
-        decrypted = fernet.decrypt(encrypted_data.encode())
-        return decrypted.decode()
-    except Exception as e:
-        print(f"⚠️  Decryption failed: {e}")
-        return value
 
 
 def update_api_key(api_key: str, use_encryption: bool = True):
@@ -184,7 +130,8 @@ def main():
         choice = input("Use encryption for stored key? (Y/n): ").strip().lower()
         use_encryption = choice != "n"
 
-    if success := update_api_key(api_key, use_encryption=use_encryption):
+    success = update_api_key(api_key, use_encryption=use_encryption)
+    if success:
         print("\n✅ Configuration updated successfully!")
     else:
         print("\n❌ Failed to update configuration")

@@ -3692,6 +3692,7 @@ Bodyfatv
 Bodymovin
 BOTTOMPADDING
 boxstyle
+Bxxxxxxx
 bytearray
 cadera
 Cadera
@@ -3699,6 +3700,7 @@ calcio
 Calcular
 cand
 caplog
+capsys
 carb
 CARB
 carbohidratos
@@ -3948,6 +3950,7 @@ niño
 nochange
 nokey
 noqa
+nosec
 NOTSET
 Novato
 nullable
@@ -4045,6 +4048,7 @@ pyproject
 pyright
 pytest
 pythonpath
+pywin
 qualname
 queso
 quickcheck

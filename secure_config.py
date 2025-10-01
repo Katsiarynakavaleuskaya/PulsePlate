@@ -5,16 +5,25 @@ This module provides utilities for securely storing and retrieving
 sensitive configuration values like API keys.
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
+logger = logging.getLogger(__name__)
+
 try:
-    from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet, InvalidToken
 
     ENCRYPTION_AVAILABLE = True
 except ImportError:
     ENCRYPTION_AVAILABLE = False
+
+    # Dummy exception class for type checking when cryptography is not available
+    class InvalidToken(Exception):  # type: ignore
+        """Placeholder for cryptography.fernet.InvalidToken when not available."""
+
+        pass
 
 
 def get_encryption_key() -> Optional[bytes]:
@@ -27,8 +36,128 @@ def get_encryption_key() -> Optional[bytes]:
     try:
         with open(key_file, "rb") as f:
             return f.read()
-    except Exception:
+    except (FileNotFoundError, PermissionError, IsADirectoryError, OSError) as e:
+        logger.exception("Failed to read encryption key from %s: %s", key_file, e)
         return None
+
+
+def get_or_create_encryption_key() -> bytes:
+    """
+    Get or create encryption key for secure storage.
+
+    Returns:
+        The encryption key as bytes
+
+    Raises:
+        OSError: If key file operations fail
+
+    Note:
+        On Unix/Linux/macOS, file permissions are set to 0o600 (owner read/write only).
+        On Windows, os.chmod() only affects the read-only flag and does NOT provide
+        full POSIX permission semantics. For strict file ACL enforcement on Windows,
+        use platform-specific tools (e.g., pywin32, icacls).
+    """
+    if not ENCRYPTION_AVAILABLE:
+        raise ImportError("cryptography package is required for encryption")
+
+    key_file = Path.home() / ".cursor" / ".key"
+
+    # Attempt to read existing key file
+    if key_file.exists():
+        try:
+            with open(key_file, "rb") as f:
+                return f.read()
+        except (OSError, IOError) as e:
+            raise OSError(
+                f"Failed to read encryption key file at {key_file}: {type(e).__name__}: {e}"
+            ) from e
+
+    # Generate new key
+    key: bytes = Fernet.generate_key()
+
+    # Ensure directory exists with error handling
+    try:
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+    except (OSError, IOError) as e:
+        raise OSError(
+            f"Failed to create directory for encryption key at {key_file.parent}: "
+            f"{type(e).__name__}: {e}"
+        ) from e
+
+    # Write key atomically using temporary file to prevent partial writes
+    temp_file = key_file.with_suffix(".key.tmp")
+    try:
+        # Write to temporary file first
+        with open(temp_file, "wb") as f:
+            f.write(key)
+
+        # Atomically replace target file
+        os.replace(temp_file, key_file)
+    except (OSError, IOError) as e:
+        # Clean up temporary file if it exists
+        if temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass  # Best effort cleanup
+        raise OSError(
+            f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"
+        ) from e
+
+    # Set file permissions to 600 (owner read/write only)
+    # NOTE: On Windows, os.chmod() only affects the read-only flag; it does NOT
+    # provide full POSIX permission semantics. For strict ACL enforcement on Windows,
+    # use platform-specific tools (e.g., pywin32, icacls).
+    try:
+        os.chmod(key_file, 0o600)
+        if os.name == "nt":
+            # On Windows, chmod has limited effect - warn user
+            logger.warning(
+                "On Windows, file permissions are limited. "
+                "Key file at %s may be accessible to other users. "
+                "For strict access control, consider using Windows ACLs (e.g., icacls or pywin32).",
+                key_file,
+            )
+    except (OSError, IOError) as e:
+        # Log/report but don't fail - key is already written
+        logger.warning(
+            "Failed to set secure permissions on %s: %s: %s. "
+            "Key file may be accessible to other users. Please manually set permissions to 600.",
+            key_file,
+            type(e).__name__,
+            e,
+        )
+
+    return key
+
+
+def encrypt_value(value: str) -> str:
+    """
+    Encrypt a sensitive value.
+
+    Args:
+        value: The plain text value to encrypt
+
+    Returns:
+        Encrypted value prefixed with "encrypted:" if encryption succeeds,
+        otherwise returns the original value as fallback
+
+    Note:
+        If cryptography is not available, returns the plain text value.
+        If encryption fails for any reason, logs a warning and returns plain text.
+    """
+    if not ENCRYPTION_AVAILABLE:
+        logger.warning("Encryption requested but cryptography not installed - returning plain text")
+        return value  # Fallback to plain text if crypto not available
+
+    try:
+        key = get_or_create_encryption_key()
+        fernet = Fernet(key)
+        encrypted = fernet.encrypt(value.encode())
+        return f"encrypted:{encrypted.decode()}"
+    except Exception as e:
+        logger.warning("Encryption failed: %s - returning plain text", e)
+        return value  # Fallback to plain text
 
 
 def decrypt_value(value: str) -> str:
@@ -55,10 +184,16 @@ def decrypt_value(value: str) -> str:
             return value  # No key available
 
         fernet = Fernet(key)
-        decrypted = fernet.decrypt(encrypted_data.encode())
+        decrypted: bytes = fernet.decrypt(encrypted_data.encode())
         return decrypted.decode()
-    except Exception:
-        return value  # Decryption failed, return as-is
+    except (InvalidToken, ValueError, TypeError) as e:
+        # Expected decryption failures - return original value
+        logger.debug(
+            "Decryption failed for value (expected error): %s: %s",
+            type(e).__name__,
+            str(e),
+        )
+        return value
 
 
 def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
