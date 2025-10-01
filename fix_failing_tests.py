@@ -91,7 +91,6 @@ def fix_test_file(file_path: str) -> bool:
         ),
     ]
 
-    original = content
     changes = 0
 
     for pattern, replacement in patterns_to_replace:
@@ -109,7 +108,8 @@ def fix_test_file(file_path: str) -> bool:
         backup_path = f"{file_path}.bak"
         shutil.copyfile(file_path, backup_path)
     except (OSError, PermissionError) as e:
-        print(f"⚠️  Warning: Could not create backup: {e}", file=sys.stderr)
+        print(f"❌ Error: Could not create backup: {e}", file=sys.stderr)
+        return False
 
     try:
         with open(file_path, "w", encoding="utf-8") as f:

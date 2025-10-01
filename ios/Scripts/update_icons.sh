@@ -30,12 +30,13 @@ if [ ! -f "$CONTENTS_JSON" ]; then
 fi
 
 # Извлекаем имена файлов из Contents.json (единственный источник истины)
-mapfile -t required_icons < <(python3 -c "
+mapfile -t required_icons < <(python3 - "$CONTENTS_JSON" <<'PYTHON'
 import json
 import sys
 
 try:
-    with open('$CONTENTS_JSON', 'r', encoding='utf-8') as f:
+    contents_path = sys.argv[1]
+    with open(contents_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     filenames = []
@@ -52,7 +53,8 @@ try:
 except Exception as e:
     print(f'Error reading Contents.json: {e}', file=sys.stderr)
     sys.exit(1)
-")
+PYTHON
+)
 
 if [ ${#required_icons[@]} -eq 0 ]; then
     echo "❌ Не удалось получить список иконок из Contents.json"

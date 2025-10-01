@@ -3,15 +3,12 @@ Target missing lines in main.py with realistic tests.
 Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 """
 
-import os
-import sys
-from types import ModuleType
-from typing import Any
+from faker import Faker
+from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from faker import Faker
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+import sys
+import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -19,16 +16,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import importlib.util
 import pathlib
 
-repo_root: pathlib.Path = pathlib.Path(__file__).parent.parent
-app_path: pathlib.Path = repo_root / "app.py"
+repo_root = pathlib.Path(__file__).parent.parent
+app_path = repo_root / "app.py"
 
-spec: Any = importlib.util.spec_from_file_location("app_module", str(app_path))
+spec = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
     raise ImportError(f"Cannot load app.py from {app_path}")
 
-app_module: ModuleType = importlib.util.module_from_spec(spec)
+app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
-app: FastAPI = app_module.app
+app = app_module.app
 
 fake = Faker()
 
@@ -120,6 +117,7 @@ class TestAppMissingLinesTargeted:
         assert response.status_code in [200, 400, 422]
 
     def test_extreme_numeric_values_edge_cases(self):
+        # sourcery skip: use-contextlib-suppress
         """Test extreme numeric values that might trigger different paths"""
         extreme_cases = [
             {"weight": 0.1, "height": 50, "age": 1},  # Very small
@@ -127,6 +125,7 @@ class TestAppMissingLinesTargeted:
             {"weight": float("inf"), "height": 175, "age": 30},  # Infinity
         ]
 
+        # sourcery skip: no-loop-in-tests
         for case in extreme_cases:
             case.update({"sex": "M", "lang": "en"})
             try:
@@ -269,6 +268,7 @@ class TestAppErrorHandlingPaths:
             "application/xml",
         ]
 
+        # sourcery skip: no-loop-in-tests
         for content_type in content_types:
             response = self.client.post(
                 "/bmi", content=test_data, headers={"Content-Type": content_type}
@@ -306,6 +306,7 @@ class TestAppSpecificMissingBlocks:
         # Test various premium endpoints
         endpoints = ["/premium_bmr", "/premium_targets"]
 
+        # sourcery skip: no-loop-in-tests
         for endpoint in endpoints:
             response = self.client.post(endpoint, json=premium_data)
             # Should work or return appropriate error
@@ -340,6 +341,7 @@ class TestAppSpecificMissingBlocks:
         assert response.status_code in [200, 400, 422]
 
     def test_edge_case_language_handling(self):
+        # sourcery skip: use-contextlib-suppress
         """Test edge cases in language handling"""
         # Test with various language formats
         language_variants = [
