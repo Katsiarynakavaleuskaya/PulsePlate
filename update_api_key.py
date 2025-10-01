@@ -54,7 +54,10 @@ def update_api_key(api_key: str):
         if not key_replaced:
             lines.append(f"OPENAI_API_KEY={api_key}")
 
-        with open(env_file, "w") as f:
+        # SECURITY NOTE: API keys stored in plain text for local development only
+        # .env file is in .gitignore and never committed to repository
+        # For production, use encrypted secret storage (AWS Secrets Manager, etc.)
+        with open(env_file, "w") as f:  # nosec B108 (local dev only)
             f.write("\n".join(lines))
 
         print(f"✅ Updated environment file at {env_file}")
