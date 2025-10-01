@@ -3,7 +3,7 @@
 # Использование: source setup_cli_aliases.sh
 
 # Установка PROJECT_ROOT через переменную окружения или интерактивный ввод
-if [ -z "$PROJECT_ROOT" ]; then
+if [ -z "${PROJECT_ROOT:-}" ]; then
     # Попробуем автоматически определить путь к проекту
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     # Проверяем наличие pyproject.toml и либо app.py, либо app/ директории
@@ -59,6 +59,10 @@ echo "✅ Функция 'pptest-method' создана"
 # Покрытие кода
 create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
 
+# Coverage with threshold enforcement (default 97%)
+# Allows overriding via PPCOV_FAIL_UNDER env variable.
+create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=\${PPCOV_FAIL_UNDER:-97}"
+
 # Функция для покрытия с HTML и автооткрытием браузера
 ppcov-html() {
   cd "$PROJECT_ROOT" || return 1
@@ -72,8 +76,6 @@ ppcov-html() {
   fi
 }
 echo "✅ Функция 'ppcov-html' создана"
-
-create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97"
 
 # Линтинг и форматирование
 create_alias "pplint" "cd $PROJECT_ROOT && flake8 ."

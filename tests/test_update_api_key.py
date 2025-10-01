@@ -9,8 +9,38 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+import secure_config
 import update_api_key
 from secure_config import encrypt_value, get_or_create_encryption_key
+
+
+@pytest.fixture
+def fake_crypto(monkeypatch, tmp_path):
+    """Provide fake encryption so tests run without cryptography."""
+
+    class FakeFernet:
+        def __init__(self, key: bytes):
+            self.key = key
+
+        @staticmethod
+        def generate_key() -> bytes:
+            return b"fake-key-000000000000000000000000000000"
+
+        def encrypt(self, data: bytes) -> bytes:
+            return (data[::-1]).hex().encode()
+
+        def decrypt(self, token: bytes) -> bytes:
+            try:
+                return bytes.fromhex(token.decode())[::-1]
+            except Exception as exc:  # pragma: no cover
+                raise secure_config.InvalidToken(str(exc)) from exc
+
+    monkeypatch.setattr(secure_config, "ENCRYPTION_AVAILABLE", True)
+    monkeypatch.setattr(secure_config, "Fernet", FakeFernet, raising=False)
+    monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", True)
+    monkeypatch.setattr(update_api_key, "encrypt_value", secure_config.encrypt_value)
+    monkeypatch.setattr(update_api_key, "Path", Path)
+    return FakeFernet
 
 
 class TestUpdateAPIKey:
@@ -105,59 +135,236 @@ class TestUpdateAPIKey:
                 captured = capsys.readouterr()
                 assert "cryptography library not installed" in captured.out
 
-    def test_update_api_key_simple_success(self, tmp_path, capsys):
+    def test_update_api_key_simple_success(self, tmp_path, capsys, fake_crypto):
         """Test update_api_key basic success case with encryption"""
-        try:
-            from cryptography.fernet import Fernet
+        valid_key = "sk-" + "a" * 40
 
-            valid_key = "sk-" + "a" * 40
+        # Create MCP config
+        mcp_file = tmp_path / ".cursor" / "mcp.json"
+        mcp_file.parent.mkdir(parents=True, exist_ok=True)
+        mcp_file.write_text(json.dumps({"mcpServers": {}}))
 
-            # Create MCP config
-            mcp_file = tmp_path / ".cursor" / "mcp.json"
-            mcp_file.parent.mkdir(parents=True, exist_ok=True)
-            mcp_file.write_text(json.dumps({"mcpServers": {}}))
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
 
-            with patch("update_api_key.Path.home", return_value=tmp_path):
-                with patch("secure_config.Path.home", return_value=tmp_path):
-                    result = update_api_key.update_api_key(valid_key)
-                    assert result is True
+        captured = capsys.readouterr()
+        assert "API key will be stored encrypted" in captured.out
 
-                    captured = capsys.readouterr()
-                    assert "API key will be stored encrypted" in captured.out
-
-        except ImportError:
-            pytest.skip("cryptography not installed")
-
-    def test_update_api_key_updates_mcp_config(self, tmp_path):
+    def test_update_api_key_updates_mcp_config(self, tmp_path, fake_crypto):
         """Test that update_api_key updates MCP config"""
-        try:
-            from cryptography.fernet import Fernet
+        valid_key = "sk-" + "a" * 40
+        mcp_file = tmp_path / ".cursor" / "mcp.json"
+        mcp_file.parent.mkdir(parents=True, exist_ok=True)
 
-            valid_key = "sk-" + "a" * 40
-            mcp_file = tmp_path / ".cursor" / "mcp.json"
-            mcp_file.parent.mkdir(parents=True, exist_ok=True)
+        mcp_file.write_text(json.dumps({"mcpServers": {}}))
 
-            # Create initial MCP config
-            initial_config = {"mcpServers": {}}
-            mcp_file.write_text(json.dumps(initial_config))
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
 
-            with patch("update_api_key.Path.home", return_value=tmp_path):
-                with patch("secure_config.Path.home", return_value=tmp_path):
-                    result = update_api_key.update_api_key(valid_key)
-                    assert result is True
+        config = json.loads(mcp_file.read_text())
+        env = config["mcpServers"]["pulseplate-chatgpt"]["env"]
+        assert env["OPENAI_API_KEY"] == valid_key
 
-                    # Check MCP config updated (plain text for runtime)
-                    config = json.loads(mcp_file.read_text())
-                    assert "mcpServers" in config
-                    assert "pulseplate-chatgpt" in config["mcpServers"]
-                    assert "env" in config["mcpServers"]["pulseplate-chatgpt"]
-                    assert (
-                        config["mcpServers"]["pulseplate-chatgpt"]["env"]["OPENAI_API_KEY"]
-                        == valid_key
-                    )
+    def test_update_api_key_updates_env_file(self, tmp_path, fake_crypto):
+        """Ensure .env file is updated and encrypted value written."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("OPENAI_API_KEY=encrypted:old")
 
-        except ImportError:
-            pytest.skip("cryptography not installed")
+        valid_key = "sk-" + "x" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        new_value = env_file.read_text().strip().split("=", 1)[1]
+        assert new_value.startswith("encrypted:")
+
+    def test_update_api_key_handles_env_missing(self, tmp_path, fake_crypto):
+        """Should append encrypted key when env entry missing."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("OTHER=value")
+
+        valid_key = "sk-" + "y" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        content = env_file.read_text().splitlines()
+        assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in content)
+        assert "OTHER=value" in content
+
+    def test_update_api_key_handles_env_file_absent(self, tmp_path, capsys, fake_crypto):
+        """No error when env/settings files do not exist."""
+        valid_key = "sk-" + "z" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        captured = capsys.readouterr()
+        assert "environment file" not in captured.out.lower()
+
+    def test_update_api_key_creates_env_entry_when_missing(self, tmp_path, fake_crypto):
+        """If env file absent, no file should be created automatically."""
+        valid_key = "sk-" + "w" * 40
+
+        env_file = tmp_path / ".cursor" / ".env"
+        assert not env_file.exists()
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            update_api_key.update_api_key(valid_key)
+
+        assert not env_file.exists()
+
+    def test_update_api_key_writes_plaintext_to_settings_json(self, tmp_path, fake_crypto):
+        """settings.json should receive plain text key."""
+        settings_file = tmp_path / ".cursor" / "settings.json"
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        settings_file.write_text(json.dumps({}))
+
+        valid_key = "sk-" + "d" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        settings = json.loads(settings_file.read_text())
+        assert settings["cursor.ai.openaiApiKey"] == valid_key
+
+    def test_update_api_key_updates_env_file_existing_key(self, tmp_path, fake_crypto):
+        """Test update_api_key replaces existing encrypted key in .env."""
+        valid_key = "sk-" + "b" * 40
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(fake_crypto.generate_key())
+
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.write_text("OPENAI_API_KEY=encrypted:old")
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                result = update_api_key.update_api_key(valid_key)
+                assert result is True
+
+        content = env_file.read_text().strip()
+        assert content.startswith("OPENAI_API_KEY=encrypted:")
+        assert "old" not in content
+
+    def test_update_api_key_appends_env_key_when_missing(self, tmp_path, fake_crypto):
+        """Test update_api_key appends encrypted key when env file has no entry."""
+        valid_key = "sk-" + "c" * 40
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(fake_crypto.generate_key())
+
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.write_text("OTHER_VAR=value")
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                result = update_api_key.update_api_key(valid_key)
+                assert result is True
+
+        content = env_file.read_text().splitlines()
+        assert "OTHER_VAR=value" in content
+        assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in content)
+
+    def test_update_api_key_creates_files_when_missing(self, tmp_path, capsys, fake_crypto):
+        """Test update_api_key handles missing optional files gracefully."""
+        valid_key = "sk-" + "d" * 40
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(fake_crypto.generate_key())
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                result = update_api_key.update_api_key(valid_key)
+                assert result is True
+
+        """Test update_api_key updates settings.json when present."""
+        captured = capsys.readouterr()
+        assert "MCP configuration" not in captured.out  # file absent, skip message
+        env_file = tmp_path / ".cursor" / ".env"
+        assert env_file.exists() is False  # not created because method only writes if exists
+
+    def test_update_api_key_updates_settings_json(self, tmp_path, fake_crypto):
+        """Test update_api_key updates settings.json when present."""
+        valid_key = "sk-" + "e" * 40
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(fake_crypto.generate_key())
+
+        settings_file = tmp_path / ".cursor" / "settings.json"
+        settings_file.write_text(json.dumps({"cursor.ai.openaiApiKey": "old"}))
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                result = update_api_key.update_api_key(valid_key)
+                assert result is True
+
+        updated = json.loads(settings_file.read_text())
+        assert updated["cursor.ai.openaiApiKey"] == valid_key
+
+    def test_update_api_key_encrypt_failure(self, tmp_path, capsys):
+        """Test update_api_key handles encryption failure gracefully."""
+        valid_key = "sk-" + "f" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("update_api_key.encrypt_value", side_effect=RuntimeError("boom")):
+                result = update_api_key.update_api_key(valid_key)
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "Error: boom" in captured.out
+
+    def test_update_api_key_encryption_prefix_validation(self, tmp_path, capsys):
+        """Test update_api_key detects unexpected encryption output."""
+        valid_key = "sk-" + "g" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            with patch("update_api_key.encrypt_value", return_value="not_encrypted"):
+                result = update_api_key.update_api_key(valid_key)
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "Encryption failed" in captured.out
+
+    def test_update_api_key_invalid_env_line(self, tmp_path, fake_crypto):
+        """Строки .env без '=' пропускаются без ошибок / Invalid lines are skipped."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("INVALID_LINE\nOPENAI_API_KEY=encrypted:old")
+
+        valid_key = "sk-" + "h" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        lines = env_file.read_text().splitlines()
+        assert "INVALID_LINE" in lines
+        assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in lines)
+
+    def test_update_api_key_skips_blank_env_lines(self, tmp_path, fake_crypto):
+        """Blank env lines are preserved without breaking updates."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("\nOPENAI_API_KEY=encrypted:old\n")
+
+        valid_key = "sk-" + "i" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            result = update_api_key.update_api_key(valid_key)
+            assert result is True
+
+        lines = env_file.read_text().splitlines()
+        assert "" in lines  # blank line preserved
+        assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in lines)
 
     def test_main_coverage_placeholder(self):
         """Placeholder for main() function coverage - tested manually"""

@@ -19,9 +19,8 @@ try:
 except ImportError:
     ENCRYPTION_AVAILABLE = False
 
-    # Dummy exception class for type checking when cryptography is not available
-    class InvalidToken(Exception):  # type: ignore
-        """Placeholder for cryptography.fernet.InvalidToken when not available."""
+    class InvalidToken(Exception):  # type: ignore[misc]
+        """Placeholder when cryptography is unavailable."""
 
         pass
 
@@ -35,8 +34,12 @@ def get_encryption_key() -> Optional[bytes]:
 
     try:
         with open(key_file, "rb") as f:
-            return f.read()
-    except (FileNotFoundError, PermissionError, IsADirectoryError, OSError) as e:
+            key = f.read()
+            if not key:
+                logger.error("Encryption key file at %s is empty", key_file)
+                return None
+            return key
+    except OSError as e:
         logger.exception("Failed to read encryption key from %s: %s", key_file, e)
         return None
 

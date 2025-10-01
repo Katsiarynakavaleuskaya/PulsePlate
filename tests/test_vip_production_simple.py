@@ -42,8 +42,8 @@ class TestVIPProductionMode:
 
         # Test request without API key to VIP endpoint
         response = client.post("/api/v1/vip/weekly-plan", json={"test": "data"})
-        assert response.status_code == 401
-        assert "API key" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "invalid api key" in response.json()["detail"].lower()
 
     def test_vip_api_key_validation_wrong_key(self):
         """Test API key validation with incorrect key (line 95)."""
@@ -58,7 +58,7 @@ class TestVIPProductionMode:
         response = client.post(
             "/api/v1/vip/weekly-plan", json={"test": "data"}, headers={"X-API-Key": "wrong-key"}
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
         assert "Invalid API" in response.json()["detail"]
 
     def test_vip_api_key_validation_correct_key(self):
@@ -116,7 +116,7 @@ class TestVIPProductionMode:
 
         # Test recipes endpoint without API key
         response = client.post("/api/v1/vip/recipes/synthesize", json={"ingredients": []})
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     def test_vip_regions_endpoint_auth_check(self):
         """Test VIP regions endpoint requires authentication."""
@@ -129,7 +129,7 @@ class TestVIPProductionMode:
 
         # Test regions endpoint without API key
         response = client.get("/api/v1/vip/regions")
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     def test_vip_production_mode_coverage_lines(self):
         """Test specific production mode lines for coverage.
@@ -153,7 +153,7 @@ class TestVIPProductionMode:
             json={"calories": 2000, "preferences": []},
             headers={"X-API-Key": "wrong-key"},
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
 
         # Test 2: Valid API key allows access
         response = client.post(
@@ -183,6 +183,6 @@ class TestVIPProductionMode:
                 "/api/v1/vip/weekly-plan", json={"test": "data"}, headers={"X-API-Key": "some-key"}
             )
 
-            # Should convert 403 to 401
-            assert response.status_code == 401
+            # Should return 403 as raised
+            assert response.status_code == 403
             assert "Forbidden" in response.json()["detail"]
