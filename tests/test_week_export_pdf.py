@@ -27,14 +27,13 @@ from app.routers import plan_export as plan
 client = TestClient(app)
 
 
-@pytest.fixture
-def export_client(client, monkeypatch):
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    return client
+# export_client fixture moved to tests/conftest.py
 
 
-def _signed_pdf_url(client, lang: str = "en") -> str:
+from fastapi.testclient import TestClient
+
+
+def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:
     response = client.post(
         "/api/v1/export/sign",
         json={"path": "/api/v1/plan/week/export.pdf"},
@@ -48,7 +47,7 @@ def _signed_pdf_url(client, lang: str = "en") -> str:
     return url
 
 
-def test_week_export_pdf_ok(export_client) -> None:
+def test_week_export_pdf_ok(export_client: TestClient) -> None:
     url = _signed_pdf_url(export_client)
     response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
@@ -79,7 +78,7 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     assert plan.FONT_NAME in registered
 
 
-def test_pdf_uses_page_breaks(export_client, monkeypatch) -> None:
+def test_pdf_uses_page_breaks(export_client: TestClient, monkeypatch) -> None:
     def fake_plan() -> dict[str, Any]:
         return {
             "days": [
@@ -112,7 +111,7 @@ def test_pdf_uses_page_breaks(export_client, monkeypatch) -> None:
     assert response.content.count(b"/Type /Page") >= 2
 
 
-def test_pdf_includes_brand_header_and_totals(export_client) -> None:
+def test_pdf_includes_brand_header_and_totals(export_client: TestClient) -> None:
     response = export_client.get(_signed_pdf_url(export_client), headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     content = response.content.decode("latin-1", "ignore")
@@ -201,7 +200,7 @@ def test_slogan_fallback_to_default() -> None:
     assert plan._slogan("unknown") == plan.SLOGAN[plan.DEFAULT_LANG]
 
 
-def test_pdf_honors_lang_query(export_client, monkeypatch) -> None:
+def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
     captured_story: List[Any] = []
 
     class DummyDoc:

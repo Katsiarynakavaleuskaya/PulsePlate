@@ -616,7 +616,6 @@ class DatabaseUpdateManager:
                 sqlite_file = cache_dir / "off.sqlite"
                 if sqlite_file.exists():
                     import sqlite3
-                    import hashlib
 
                     conn = sqlite3.connect(str(sqlite_file))
                     try:
@@ -636,7 +635,6 @@ class DatabaseUpdateManager:
                         conn.close()
 
                 # Fallback to JSON/CSV files
-                import hashlib
 
                 # Check for JSONL/NDJSON files first
                 jsonl_patterns = [

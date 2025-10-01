@@ -48,6 +48,15 @@ def test_export_pdf_headers(client):
     assert len(response.content) > 1000
 
 
+def test_export_pdf_auth_errors(client):
+    # Missing key
+    response = client.get("/api/v1/shoplist/export.pdf")
+    assert response.status_code == 403
+    # Wrong key
+    response = client.get("/api/v1/shoplist/export.pdf", headers={"X-API-Key": "wrong"})
+    assert response.status_code == 403
+
+
 def test_flatten_shop_items_skip_invalid() -> None:
     groups = [
         {

@@ -63,7 +63,8 @@ class TestPremiumWeekCoverage97:
             json=payload,
             headers={"X-API-Key": "test_key"},
         )
-        assert response.status_code in [200, 400, 422, 500]
+        # Accept 200 for success; some environments may return 400 when profile mapping is required
+        assert response.status_code in [200, 400]
 
     def test_week_plan_with_macros_validation(self, premium_client):
         """Test WeekPlanRequest with macros validation."""

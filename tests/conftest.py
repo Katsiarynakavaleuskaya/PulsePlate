@@ -81,3 +81,11 @@ def api_key():
     This fixture just provides the key value for tests to use in headers.
     """
     return "test_key"
+
+
+@pytest.fixture
+def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Client configured for export endpoints with API key env."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    return client

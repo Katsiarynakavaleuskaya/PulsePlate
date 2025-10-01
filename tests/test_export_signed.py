@@ -1,13 +1,10 @@
 import pytest
+from fastapi.testclient import TestClient
 
 from settings import PRIVATE_EXPORTS_ENABLED
 
 
-@pytest.fixture
-def export_client(client, monkeypatch):
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    return client
+# export_client fixture moved to tests/conftest.py
 
 
 def _signed_url(client, path: str) -> str:
@@ -20,14 +17,14 @@ def _signed_url(client, path: str) -> str:
     return response.json()["url"]
 
 
-def test_signed_csv_flow(export_client) -> None:
+def test_signed_csv_flow(export_client: TestClient) -> None:
     url = _signed_url(export_client, "/api/v1/plan/week/export.csv")
     response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
     assert "text/csv" in response.headers.get("content-type", "")
 
 
-def test_signed_pdf_flow(export_client) -> None:
+def test_signed_pdf_flow(export_client: TestClient) -> None:
     url = _signed_url(export_client, "/api/v1/plan/week/export.pdf")
     response = export_client.get(url, headers={"X-API-Key": "test_key"})
     assert response.status_code == 200
@@ -35,7 +32,7 @@ def test_signed_pdf_flow(export_client) -> None:
     assert response.content.startswith(b"%PDF")
 
 
-def test_missing_token_rejected(export_client) -> None:
+def test_missing_token_rejected(export_client: TestClient) -> None:
     if not PRIVATE_EXPORTS_ENABLED:
         return
     response = export_client.get("/api/v1/plan/week/export.csv")

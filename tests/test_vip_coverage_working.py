@@ -282,7 +282,7 @@ class TestVIPCoverageWorking:
         ):
             client = TestClient(_get_app())
 
-            # Должен возвращать 401 без API ключа
+            # Должен возвращать 403 без API ключа
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json={"user_id": "test"},

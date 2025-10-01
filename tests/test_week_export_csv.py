@@ -3,11 +3,7 @@
 import pytest
 
 
-@pytest.fixture
-def export_client(client, monkeypatch):
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    return client
+# export_client fixture moved to tests/conftest.py
 
 
 def _signed_csv_url(client):

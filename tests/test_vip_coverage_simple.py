@@ -25,8 +25,8 @@ class TestVIPCoverageSimple:
 
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure we're testing in production mode
-        os.environ["API_KEY"] = "test-key"
+        # Env configured via vip_auth_env autouse fixture
+        pass
 
     def test_vip_require_api_key_app_get_api_key_coverage(self):
         """Test VIP _require_api_key with app_get_api_key coverage."""
@@ -141,7 +141,7 @@ class TestVIPCoverageSimple:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -167,7 +167,7 @@ class TestVIPCoverageSimple:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -189,7 +189,7 @@ class TestVIPCoverageSimple:
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
                 json={"week_plan": {"days": []}},
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -212,7 +212,7 @@ class TestVIPCoverageSimple:
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
                 json={"week_plan": {"days": []}},
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -232,7 +232,7 @@ class TestVIPCoverageSimple:
             response = client.post(
                 "/api/v1/vip/shoplist/daily",
                 json={"day_plan": {"meals": []}},
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -255,7 +255,7 @@ class TestVIPCoverageSimple:
             response = client.post(
                 "/api/v1/vip/shoplist/daily",
                 json={"day_plan": {"meals": []}},
-                headers={"X-API-Key": "test-key"},
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -269,7 +269,7 @@ class TestVIPCoverageSimple:
 
         # Mock format_export to return success
         with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
@@ -283,7 +283,7 @@ class TestVIPCoverageSimple:
 
         # Mock format_export to raise exception
         with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"  # Returns success with echo mode

@@ -18,10 +18,10 @@ def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app) -> None
     original_guard = app.dependency_overrides.get(app_module._get_api_key_dynamic)
     app.dependency_overrides[app_module._get_api_key_dynamic] = app_module.get_api_key
     yield
-    if original_guard is None:
-        app.dependency_overrides.pop(app_module._get_api_key_dynamic, None)
-    else:
+    if original_guard is not None:
         app.dependency_overrides[app_module._get_api_key_dynamic] = original_guard
+    else:
+        app.dependency_overrides.pop(app_module._get_api_key_dynamic, None)
 
 
 def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, object]:
@@ -36,7 +36,7 @@ def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, o
         "lang": "en",
     }
     if extra:
-        payload.update(extra)
+        payload |= extra
     return payload
 
 

@@ -39,7 +39,7 @@ def get_encryption_key() -> Optional[bytes]:
                 logger.error("Encryption key file at %s is empty", key_file)
                 return None
             return key
-    except (FileNotFoundError, PermissionError, IsADirectoryError, OSError, ValueError) as e:
+    except OSError as e:
         logger.exception("Failed to read encryption key from %s: %s", key_file, e)
         return None
 
