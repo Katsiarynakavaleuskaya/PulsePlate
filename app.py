@@ -2076,7 +2076,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
 
         # Use globals() instead of sys.modules to access module-level make_weekly_menu
         # This works correctly when app.py is loaded dynamically by app/__init__.py
-        _make_weekly_menu = globals().get("make_weekly_menu", None)
+        _make_weekly_menu = globals().get("make_weekly_menu")
         if _make_weekly_menu is None:
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"
