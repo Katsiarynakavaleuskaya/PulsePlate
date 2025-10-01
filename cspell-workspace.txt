@@ -3784,6 +3784,7 @@ excinfo
 facecolor
 fastapi
 Femenino
+fernet
 ffmi
 FFMI
 fibra

@@ -11,20 +11,18 @@ class TestAppCriticalLines97:
 
     def test_invalid_json_malformed_request(self, client):
         """Тест малформированного JSON - линии обработки ошибок"""
-        # Отправляем невалидный JSON на существующий endpoint
+        # Отправляем невалидный JSON на публичный BMI endpoint (без API ключа)
         response = client.post(
             "/api/v1/bmi",
             data="{'invalid': json}",  # Невалидный JSON
-            headers={"Content-Type": "application/json", "X-API-Key": "test-key"},
+            headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
         assert response.status_code in [422, 400, 500]
 
     def test_error_handling_edge_paths(self, client):
         """Тест различных error handling путей"""
         # Тест с пустым телом запроса на реальном endpoint
-        response = client.post(
-            "/api/v1/bmi", headers={"Content-Type": "application/json", "X-API-Key": "test-key"}
-        )
+        response = client.post("/api/v1/bmi", headers={"Content-Type": "application/json"})
         assert response.status_code in [422, 400]  # BMI is public now, no 403
 
         # BMI endpoint теперь публичный - работает без API ключа
@@ -54,8 +52,8 @@ class TestAppCriticalLines97:
         """Тест путей обработки исключений"""
         # Тест с очень большим JSON
         large_data = {"data": "x" * 10000}
-        response = client.post("/api/v1/bmi", json=large_data, headers={"X-API-Key": "test-key"})
-        assert response.status_code in [422, 400, 413, 500, 403]
+        response = client.post("/api/v1/bmi", json=large_data)
+        assert response.status_code in [422, 400, 413, 500]
 
     def test_various_endpoints_coverage(self, client):
         """Тест различных endpoints для покрытия"""
