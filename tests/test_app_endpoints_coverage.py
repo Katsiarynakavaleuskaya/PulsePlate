@@ -221,9 +221,9 @@ class TestAppEndpointsCoverage:
         )
         assert response.status_code == 200
 
-        # Тестируем без API key
+        # BMI endpoint теперь публичный - работает без API key
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now

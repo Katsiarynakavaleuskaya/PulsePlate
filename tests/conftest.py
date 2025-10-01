@@ -7,16 +7,35 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_environment():
+    """Set up test environment variables before any tests run.
+
+    This fixture runs automatically for the entire session to ensure
+    API_KEY is configured before the app module is loaded.
+    """
+    # Set API key for the entire test session
+    os.environ["API_KEY"] = "test_key"
+    yield
+    # Clean up after all tests
+    if "API_KEY" in os.environ:
+        del os.environ["API_KEY"]
+
+
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return the module."""
+    """Dynamically load app.py and return the module.
+
+    This fixture depends on setup_test_environment to ensure
+    API_KEY is set before loading the app.
+    """
     repo_root = Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root))
 
@@ -45,7 +64,7 @@ def app(app_module: ModuleType) -> FastAPI:
     if hasattr(app_module.app, "dependency_overrides") and hasattr(app_module, "get_api_key"):
         app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return app_module.app  # type: ignore[return-value]
+    return cast(FastAPI, app_module.app)
 
 
 @pytest.fixture
@@ -56,8 +75,9 @@ def client(app: FastAPI) -> TestClient:
 
 @pytest.fixture
 def api_key():
-    """Set up and tear down API key for testing."""
-    os.environ["API_KEY"] = "test_key"
-    yield "test_key"
-    if "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
+    """Return the test API key value.
+
+    The actual environment setup is done by setup_test_environment fixture.
+    This fixture just provides the key value for tests to use in headers.
+    """
+    return "test_key"

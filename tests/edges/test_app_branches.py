@@ -10,24 +10,24 @@ def test_api_key_strict_production_requires_config(monkeypatch):
 
     import app
 
-    # RU: Прод режиме без ключа и без dev-режима → 403
-    # EN: Production, no configured key and no dev mode → 403
+    # RU: BMI endpoint теперь публичный - работает без ключа даже в продакшене
+    # EN: BMI endpoint is now public - works without key even in production
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
     monkeypatch.delenv("API_KEY", raising=False)
 
     client = TestClient(cast(ASGIApp, app.app))
     r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
-    assert r.status_code == 403
+    assert r.status_code == 200  # BMI is public now
 
-    # RU: Тривиальный токен в проде без ключа → 403
-    # EN: Trivial token rejected in production without configured key → 403
+    # RU: BMI endpoint публичный - работает даже с неправильным ключом
+    # EN: BMI endpoint is public - works even with wrong key
     r2 = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "general"},
         headers={"X-API-Key": "bad"},
     )
-    assert r2.status_code == 403
+    assert r2.status_code == 200  # BMI is public now
 
 
 def test_insight_feature_disabled_and_import_error(monkeypatch):
@@ -60,7 +60,7 @@ def test_insight_feature_disabled_and_import_error(monkeypatch):
     assert r2.status_code in [403, 503]
 
 
-def test_admin_status_scheduler_error_paths(monkeypatch):
+def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
     from fastapi.testclient import TestClient
 
     import app
@@ -73,7 +73,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch):
         return None
 
     monkeypatch.setattr(app, "get_update_scheduler", _none_sched, raising=True)
-    r = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/admin/status", headers={"X-API-Key": api_key})
     assert r.status_code == 503
 
     # RU: Исключение от геттера → 503
@@ -82,7 +82,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch):
         raise RuntimeError("x")
 
     monkeypatch.setattr(app, "get_update_scheduler", _boom, raising=True)
-    r2 = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
+    r2 = client.get("/api/v1/admin/status", headers={"X-API-Key": api_key})
     assert r2.status_code == 503
 
 

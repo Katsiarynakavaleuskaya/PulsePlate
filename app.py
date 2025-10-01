@@ -994,9 +994,9 @@ async def plan_endpoint(req: BMIRequest):
     return base
 
 
-@app.post("/api/v1/bmi", dependencies=[Depends(_get_api_key_dynamic)])
+@app.post("/api/v1/bmi")
 async def bmi_endpoint_v1(req: BMIRequestV1):
-    """V1 BMI endpoint with API key authentication."""
+    """V1 BMI endpoint (public access)."""
     # Convert height_cm to height_m
     height_m = req.height_cm / 100.0
 

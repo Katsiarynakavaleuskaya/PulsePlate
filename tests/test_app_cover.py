@@ -30,24 +30,31 @@ except Exception as exc:  # pragma: no cover
 
 
 @pytest.mark.parametrize("group", ["athlete", "pregnant", "elderly", "teen"])
-def test_bmi_groups_exercise_branches(client, group: str):
+def test_bmi_groups_exercise_branches(client, api_key, group: str):
+    """Test BMI endpoint with different user groups.
+
+    Uses api_key fixture to ensure API_KEY env var is set before app loads.
+    """
     payload = {"weight_kg": 70, "height_cm": 170, "group": group}
-    res = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
-    # Accept 403 if API key override wasn't applied (module-level import issue)
-    assert res.status_code in [200, 403], f"Expected 200 or 403, got {res.status_code}"
-    if res.status_code == 200:
-        data = res.json()
-        assert "bmi" in data and isinstance(data["bmi"], (int, float))
-        assert "category" in data
+    res = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": api_key})
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    data = res.json()
+    assert "bmi" in data and isinstance(data["bmi"], (int, float))
+    assert "category" in data
 
 
-def test_insight_route_or_skip(client):
-    """Если /insight не поднят (404) — скипаем, иначе ждём 503."""
-    res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": "test_key"})
+def test_insight_route_or_skip(client, api_key):
+    """Test /insight route if available, skip if not found.
+
+    Uses api_key fixture to ensure API_KEY env var is set before app loads.
+    Expects 503 (service unavailable) if the insight feature is not configured.
+    """
+    res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": api_key})
     if res.status_code == 404:
         pytest.skip("No /insight route (skipping)")
-    # Accept 403 if API key override wasn't applied (module-level import issue)
-    assert res.status_code in [503, 403], f"Expected 503 or 403, got {res.status_code}"
+    assert (
+        res.status_code == 503
+    ), f"Expected 503 (service unavailable), got {res.status_code}: {res.text}"
 
 
 def test_debug_env_keys_or_skip(client):

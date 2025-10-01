@@ -25,13 +25,13 @@ class TestAppCriticalLines97:
         response = client.post(
             "/api/v1/bmi", headers={"Content-Type": "application/json", "X-API-Key": "test-key"}
         )
-        assert response.status_code in [422, 400, 403]
+        assert response.status_code in [422, 400]  # BMI is public now, no 403
 
-        # Тест без API ключа
+        # BMI endpoint теперь публичный - работает без API ключа
         response = client.post(
             "/api/v1/bmi", json={"sex": "male", "age": 30, "height_cm": 175, "weight_kg": 70}
         )
-        assert response.status_code in [403, 401]
+        assert response.status_code == 200  # BMI is public, valid payload returns 200
 
     def test_premium_endpoints_error_paths(self, client):
         """Тест error paths в premium endpoints"""

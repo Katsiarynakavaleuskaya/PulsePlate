@@ -34,20 +34,20 @@ class TestCoverage97UltimateBoost:
         )
         assert response.status_code == 200
 
-        # Тест 2: Production с невалидным API ключом
+        # Тест 2: BMI теперь публичный - работает с любым ключом
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
             headers={"X-API-Key": "invalid-production-key"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
-        # Тест 3: Production без API ключа
+        # Тест 3: Production без API ключа - BMI публичный
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
     def test_app_coverage_ultimate_boost_missing_lines_98_105_115(self, test_environment):
         """Тест покрытия app.py строк 98, 105, 115 - различные методы и endpoints"""

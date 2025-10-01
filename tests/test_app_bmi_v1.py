@@ -134,21 +134,16 @@ class TestBMIv1API:
         response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422
 
-    def test_bmi_v1_missing_api_key(self):
-        """Test BMI v1 API without API key header"""
+    def test_bmi_v1_public_access_no_key(self):
+        """Test BMI v1 API is publicly accessible (no API key required)"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general"}
 
-        # Test without API key header
+        # BMI endpoint is now public - should work without API key
         response = client.post("/api/v1/bmi", json=payload)
-        # Should fail with 403 when API_KEY is set in environment
-        assert response.status_code == 403
-
-    def test_bmi_v1_invalid_api_key(self):
-        """Test BMI v1 API with invalid API key"""
-        payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general"}
-
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "wrong_key"})
-        assert response.status_code == 403
+        assert response.status_code == 200
+        data = response.json()
+        assert "bmi" in data
+        assert data["bmi"] > 0
 
     def test_bmi_v1_localization_russian(self):
         """Test BMI v1 API with Russian localization"""

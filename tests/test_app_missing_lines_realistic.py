@@ -249,12 +249,13 @@ class TestAppErrorHandlingPaths:
             assert response.status_code in [503, 400, 422]
 
     def test_authentication_error_paths(self):
-        """Test authentication error paths"""
-        # Try to access protected endpoint without auth
+        """Test authentication - BMI is now public"""
+        # BMI endpoint is now public - no auth required
+        # Using correct payload format for v1 API
         response = self.client.post(
-            "/api/v1/bmi", json={"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": "en"}
+            "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 175, "group": "general"}
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
     def test_various_content_types(self):
         """Test various content types"""
