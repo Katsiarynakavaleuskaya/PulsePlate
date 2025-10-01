@@ -139,16 +139,22 @@ def encrypt_value(value: str) -> str:
         value: The plain text value to encrypt
 
     Returns:
-        Encrypted value prefixed with "encrypted:" if encryption succeeds,
-        otherwise returns the original value as fallback
+        Encrypted value prefixed with "encrypted:"
+
+    Raises:
+        RuntimeError: If cryptography is not available
+        Exception: If encryption fails for any reason
 
     Note:
-        If cryptography is not available, returns the plain text value.
-        If encryption fails for any reason, logs a warning and returns plain text.
+        This function NEVER returns plain text. It either returns encrypted data
+        or raises an exception. This ensures that sensitive data is never accidentally
+        stored in plain text.
     """
     if not ENCRYPTION_AVAILABLE:
-        logger.warning("Encryption requested but cryptography not installed - returning plain text")
-        return value  # Fallback to plain text if crypto not available
+        raise RuntimeError(
+            "cryptography library not installed - encryption is required for secure storage. "
+            "Install with: pip install cryptography"
+        )
 
     try:
         key = get_or_create_encryption_key()
@@ -156,8 +162,8 @@ def encrypt_value(value: str) -> str:
         encrypted = fernet.encrypt(value.encode())
         return f"encrypted:{encrypted.decode()}"
     except Exception as e:
-        logger.warning("Encryption failed: %s - returning plain text", e)
-        return value  # Fallback to plain text
+        logger.error("Encryption failed: %s", e)
+        raise RuntimeError(f"Failed to encrypt value: {e}") from e
 
 
 def decrypt_value(value: str) -> str:

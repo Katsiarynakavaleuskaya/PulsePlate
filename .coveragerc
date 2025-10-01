@@ -14,7 +14,7 @@ omit =
     app/routers/vip.py
     # TODO: Remove these core modules from omit list once we achieve 97%+ coverage
     # Currently omitted to maintain CI stability while we incrementally add tests
-    # See: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/XXX
+    # Tracking: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/76
     app/__init__.py
     app.py
     core/menu_engine_new.py
@@ -36,7 +36,6 @@ omit =
     test_quick_check.py
     fix_failing_tests.py
     setup_custom_mcp.py
-    mcp_pulseplate_server.py
     test_pro_access.py
 
 [report]

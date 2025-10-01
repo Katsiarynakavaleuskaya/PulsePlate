@@ -222,12 +222,12 @@ class TestSecureConfig:
             pytest.skip("cryptography not installed")
 
     def test_encrypt_value_without_cryptography(self):
-        """Test encrypt_value falls back to plain text when cryptography not available"""
+        """Test encrypt_value raises RuntimeError when cryptography not available"""
         with patch("secure_config.ENCRYPTION_AVAILABLE", False):
             original = "sk-test12345678901234567890"
-            result = encrypt_value(original)
-            # Should return unchanged when crypto not available
-            assert result == original
+            # Should raise RuntimeError when crypto not available
+            with pytest.raises(RuntimeError, match="cryptography library not installed"):
+                encrypt_value(original)
 
     def test_encrypt_decrypt_roundtrip_with_moved_functions(self, tmp_path):
         """Test that encrypt/decrypt work correctly after being moved to secure_config"""

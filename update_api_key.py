@@ -43,17 +43,15 @@ def update_api_key(api_key: str, use_encryption: bool = True):
         )
         return False
 
-    # Require encryption for .env storage
-    if not ENCRYPTION_AVAILABLE:
-        print("❌ Error: cryptography library not installed")
-        print("   Encryption is required for secure API key storage")
-        print("   Install with: pip install cryptography")
+    # Encrypt key for .env storage (always, not optional)
+    # encrypt_value() will raise RuntimeError if encryption not available
+    try:
+        stored_key = encrypt_value(api_key)
+    except RuntimeError as e:
+        print(f"❌ Error: {e}")
         return False
 
-    # Encrypt key for .env storage (always, not optional)
-    stored_key = encrypt_value(api_key)
-
-    # Verify encryption worked
+    # Verify encryption worked (should always be true, but defense in depth)
     if not stored_key.startswith("encrypted:"):
         print("❌ Error: Encryption failed - key not properly encrypted")
         return False

@@ -40,10 +40,11 @@ class TestUpdateAPIKey:
         assert len(long_key) > 256
 
     def test_encrypt_value_no_encryption(self):
-        """Test encryption falls back to plain text when crypto unavailable"""
+        """Test encryption raises RuntimeError when crypto unavailable"""
         with patch("secure_config.ENCRYPTION_AVAILABLE", False):
-            result = encrypt_value("sk-test12345678901234567890")
-            assert result == "sk-test12345678901234567890"
+            # Should raise RuntimeError when crypto not available
+            with pytest.raises(RuntimeError, match="cryptography library not installed"):
+                encrypt_value("sk-test12345678901234567890")
 
     def test_encrypt_value_with_encryption(self, tmp_path):
         """Test encryption works when crypto available"""
