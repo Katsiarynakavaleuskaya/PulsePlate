@@ -141,7 +141,7 @@ class TestSecureConfig:
                 result = get_api_key_from_env("TEST_KEY")
                 assert result == original
 
-    def test_decrypt_with_missing_key_file(self, tmp_path):
+    def test_decrypt_with_missing_key_file(self, tmp_path, fake_crypto):
         """Test decrypt when key file is missing"""
         encrypted_value = "encrypted:gAAAABxxxxxxx"
 
@@ -283,13 +283,64 @@ class TestSecureConfig:
         assert key is None
         assert "Failed to read encryption key" in caplog.text
 
+    def test_get_encryption_key_permission_error(self, tmp_path, caplog):
+        """PermissionError при чтении ключа обрабатывается и возвращает None (RU/EN)."""
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(b"dummy-key")
+
+        with patch("secure_config.Path.home", return_value=tmp_path), caplog.at_level("ERROR"):
+            with patch("secure_config.open", side_effect=PermissionError("denied")):
+                key = get_encryption_key()
+
+        assert key is None
+        assert "Failed to read encryption key" in caplog.text
+
+    def test_get_encryption_key_directory_error(self, tmp_path, caplog):
+        """IsADirectoryError обрабатывается как OSError и возвращает None (RU/EN)."""
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(b"dummy-key")
+
+        with patch("secure_config.Path.home", return_value=tmp_path), caplog.at_level("ERROR"):
+            with patch("secure_config.open", side_effect=IsADirectoryError("is dir")):
+                key = get_encryption_key()
+
+        assert key is None
+        assert "Failed to read encryption key" in caplog.text
+
+    def test_decrypt_value_exception_branch_returns_encrypted(self, tmp_path, fake_crypto):
+        """When Fernet.decrypt raises, decrypt_value should return the original encrypted string."""
+        # Prepare valid key file
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(fake_crypto.generate_key())
+
+        original = "sk-exception-path-1234567890"
+        with patch("secure_config.Path.home", return_value=tmp_path):
+            encrypted = encrypt_value(original)
+
+        # Patch Fernet to raise ValueError on decrypt to hit exception branch
+        class RaisingFernet:
+            def __init__(self, key: bytes):  # noqa: D401 - simple init
+                self._key = key
+
+            def decrypt(self, token: bytes) -> bytes:  # noqa: D401 - simple stub
+                raise ValueError("bad token")
+
+        with patch("secure_config.Fernet", RaisingFernet):
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                result = decrypt_value(encrypted)
+
+        assert result == encrypted  # unchanged on decrypt failure
+
     def test_get_or_create_encryption_key_without_crypto(self):
         """Test that get_or_create_encryption_key raises when crypto unavailable."""
         with patch("secure_config.ENCRYPTION_AVAILABLE", False):
             with pytest.raises(ImportError, match="cryptography package is required"):
                 get_or_create_encryption_key()
 
-    def test_get_or_create_encryption_key_mkdir_failure(self, tmp_path):
+    def test_get_or_create_encryption_key_mkdir_failure(self, tmp_path, fake_crypto):
         """Test directory creation failure surfaces as OSError."""
         from secure_config import ENCRYPTION_AVAILABLE  # local import to capture runtime value
 
@@ -304,7 +355,7 @@ class TestSecureConfig:
                 with pytest.raises(OSError, match="Failed to create directory"):
                     get_or_create_encryption_key()
 
-    def test_get_or_create_encryption_key_replace_failure(self, tmp_path):
+    def test_get_or_create_encryption_key_replace_failure(self, tmp_path, fake_crypto):
         """Test atomic replace failure cleans up temp file and raises."""
         temp_file = tmp_path / ".cursor" / ".key.tmp"
 
@@ -323,7 +374,42 @@ class TestSecureConfig:
 
         assert not temp_file.exists(), "Temp key file should be removed after failure"
 
-    def test_get_or_create_encryption_key_chmod_warning(self, tmp_path, caplog):
+    def test_get_or_create_encryption_key_replace_failure_best_effort_cleanup(
+        self, tmp_path, fake_crypto
+    ):
+        """Temp unlink failures are swallowed but original error surfaces."""
+
+        from secure_config import ENCRYPTION_AVAILABLE
+
+        if not ENCRYPTION_AVAILABLE:
+            pytest.skip("cryptography not installed")
+
+        # Ensure we're operating in the temp directory used by secure_config
+        temp_dir = tmp_path / ".cursor"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_file = temp_dir / ".key.tmp"
+
+        unlink_called = False
+
+        def _tracking_unlink(self):
+            nonlocal unlink_called
+            unlink_called = True
+            raise RuntimeError("unlink boom")
+
+        with (
+            patch("secure_config.Path.home", return_value=tmp_path),
+            patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
+            patch("secure_config.os.replace", side_effect=OSError("replace failed")),
+            patch.object(secure_config.Path, "unlink", _tracking_unlink),
+        ):
+            with pytest.raises(OSError, match="Failed to write encryption key"):
+                get_or_create_encryption_key()
+
+        assert unlink_called
+        if temp_file.exists():
+            temp_file.unlink()
+
+    def test_get_or_create_encryption_key_chmod_warning(self, tmp_path, caplog, fake_crypto):
         """Test chmod failure logs warning but still returns key."""
         from secure_config import ENCRYPTION_AVAILABLE
 
@@ -340,6 +426,51 @@ class TestSecureConfig:
 
         assert key is not None
         assert "Failed to set secure permissions" in caplog.text
+
+    def test_get_or_create_encryption_key_windows_permission_warning(
+        self, tmp_path, fake_crypto, caplog, monkeypatch
+    ):
+        """Windows chmod limitation emits warning when os.name == 'nt'."""
+
+        from secure_config import ENCRYPTION_AVAILABLE
+
+        if not ENCRYPTION_AVAILABLE:
+            pytest.skip("cryptography not installed")
+
+        with (
+            patch("secure_config.Path.home", return_value=tmp_path),
+            patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
+            caplog.at_level("WARNING"),
+        ):
+            monkeypatch.setattr(secure_config.os, "name", "nt", raising=False)
+            key = get_or_create_encryption_key()
+
+        assert key is not None
+        assert "Windows" in caplog.text
+
+    def test_get_or_create_encryption_key_replace_failure_no_temp_cleanup(
+        self, tmp_path, fake_crypto
+    ):
+        """If the temp file never materializes, cleanup branch is skipped."""
+
+        from secure_config import ENCRYPTION_AVAILABLE
+
+        if not ENCRYPTION_AVAILABLE:
+            pytest.skip("cryptography not installed")
+
+        original_exists = secure_config.Path.exists
+
+        def fake_exists(path_obj):
+            return False if path_obj.name == ".key.tmp" else original_exists(path_obj)
+
+        with (
+            patch("secure_config.Path.home", return_value=tmp_path),
+            patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
+            patch.object(secure_config.Path, "exists", fake_exists),
+            patch("secure_config.os.replace", side_effect=OSError("replace failed")),
+        ):
+            with pytest.raises(OSError, match="Failed to write encryption key"):
+                get_or_create_encryption_key()
 
     def test_encrypt_value_logs_and_raises_on_failure(self, tmp_path, caplog, fake_crypto):
         """Test encrypt_value logs error and raises when Fernet fails."""
