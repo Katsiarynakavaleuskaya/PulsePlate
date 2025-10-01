@@ -2,8 +2,9 @@
 Simple tests for core/food_db_new.py to cover remaining lines.
 """
 
-import tempfile
 import os
+import tempfile
+
 from faker import Faker
 
 fake = Faker()

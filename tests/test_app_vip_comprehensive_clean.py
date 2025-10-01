@@ -4,6 +4,7 @@ Covers all VIP endpoints with happy path, 422 validation, and 500 error cases.
 """
 
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 

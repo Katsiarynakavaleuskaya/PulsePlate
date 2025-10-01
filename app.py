@@ -1,46 +1,43 @@
-from bmi_core import bmi_category
-from bmi_visualization import generate_bmi_visualization, MATPLOTLIB_AVAILABLE
-from fastapi.responses import JSONResponse
-from core.utils import resolve_attr
-from core.i18n import t
-from core.utils import get_activity_factor
-from core.i18n import Language
-
-
-from fastapi.responses import Response, HTMLResponse
-from pydantic import BaseModel, Field, StrictFloat, model_validator
+import asyncio
+import logging
+import os
+import time
+from contextlib import asynccontextmanager, suppress
 from typing import (
+    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Union,
-    Literal,
-    TYPE_CHECKING,
 )
-from nutrition_core import calculate_all_bmr, calculate_all_tdee
-from contextlib import asynccontextmanager, suppress
-from core.db import init_db, get_session
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from starlette.requests import Request
-from starlette import status as fastapi_status
-from fastapi import FastAPI, HTTPException, Depends, APIRouter
-import time
+
 import dotenv
-import logging
-import os
-from app.routers.foods import router as foods_router
-from app.routers.recipes import router as recipes_router
-from app.routers.users import router as users_router
-from app.routers.bmi_pro import router as bmi_pro_router
-from app.routers.premium_week import router as premium_week_router
-from app.routers.plan_export import export_router, plan_router
-from app.routers.shoplist_export import router as shoplist_router
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from pydantic import BaseModel, Field, StrictFloat, model_validator
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from starlette import status as fastapi_status
+from starlette.requests import Request
+
 from app.routers.api_key import api_key_header
-import asyncio
+from app.routers.bmi_pro import router as bmi_pro_router
+from app.routers.foods import router as foods_router
+from app.routers.plan_export import export_router, plan_router
+from app.routers.premium_week import router as premium_week_router
+from app.routers.recipes import router as recipes_router
+from app.routers.shoplist_export import router as shoplist_router
+from app.routers.users import router as users_router
+from bmi_core import bmi_category
+from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
+from core.db import get_session, init_db
+from core.i18n import Language, t
+from core.utils import get_activity_factor, resolve_attr
+from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
@@ -267,8 +264,8 @@ async def admin_status():
     Uses dynamic resolution for get_update_scheduler so tests can patch it easily.
     """
     try:
-        import sys as _sys
         import inspect as _inspect
+        import sys as _sys
 
         _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
         _getter = getattr(_pkg, "get_update_scheduler", get_update_scheduler)
@@ -997,9 +994,9 @@ async def plan_endpoint(req: BMIRequest):
     return base
 
 
-@app.post("/api/v1/bmi", dependencies=[Depends(_get_api_key_dynamic)])
+@app.post("/api/v1/bmi")
 async def bmi_endpoint_v1(req: BMIRequestV1):
-    """V1 BMI endpoint with API key authentication."""
+    """V1 BMI endpoint (public access)."""
     # Convert height_cm to height_m
     height_m = req.height_cm / 100.0
 
@@ -1131,12 +1128,10 @@ to_csv_week: Optional[ExportCallable] = None
 to_pdf_week: Optional[ExportCallable] = None
 
 try:
-    from core.menu_engine import (
-        analyze_nutrient_gaps as _analyze_nutrient_gaps,
-        make_daily_menu as _make_daily_menu,
-        make_weekly_menu as _make_weekly_menu,
-        repair_week_plan as _repair_week_plan,
-    )
+    from core.menu_engine import analyze_nutrient_gaps as _analyze_nutrient_gaps
+    from core.menu_engine import make_daily_menu as _make_daily_menu
+    from core.menu_engine import make_weekly_menu as _make_weekly_menu
+    from core.menu_engine import repair_week_plan as _repair_week_plan
     from core.plate import make_plate as _make_plate
     from core.recommendations import build_nutrition_targets as _build_nutrition_targets
 except ImportError:
@@ -1150,7 +1145,8 @@ else:
     build_nutrition_targets = _build_nutrition_targets
 
 try:
-    from core.exports import to_csv_day as _to_csv_day_fn, to_csv_week as _to_csv_week_fn
+    from core.exports import to_csv_day as _to_csv_day_fn
+    from core.exports import to_csv_week as _to_csv_week_fn
 except ImportError:
     pass
 else:
@@ -1158,7 +1154,8 @@ else:
     to_csv_week = _to_csv_week_fn
 
 try:
-    from core.exports_simple import to_pdf_day as _to_pdf_day_fn, to_pdf_week as _to_pdf_week_fn
+    from core.exports_simple import to_pdf_day as _to_pdf_day_fn
+    from core.exports_simple import to_pdf_week as _to_pdf_week_fn
 except ImportError:
     pass
 else:
@@ -2077,10 +2074,9 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         }:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
-        import sys as _sys
-
-        _module = _sys.modules[__name__]
-        _make_weekly_menu = getattr(_module, "make_weekly_menu", None)
+        # Use globals() instead of sys.modules to access module-level make_weekly_menu
+        # This works correctly when app.py is loaded dynamically by app/__init__.py
+        _make_weekly_menu = globals().get("make_weekly_menu")
         if _make_weekly_menu is None:
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"

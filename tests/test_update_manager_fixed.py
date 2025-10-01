@@ -8,14 +8,14 @@ EN: Fixed update manager tests
 
 import tempfile
 from datetime import datetime, timedelta, timezone
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
-from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestUpdateManagerFixed:

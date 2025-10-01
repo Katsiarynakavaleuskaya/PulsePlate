@@ -4,10 +4,10 @@ Fixed VIP coverage tests with proper environment isolation.
 
 import os
 import sys
+from typing import cast
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from typing import cast
 from starlette.types import ASGIApp
 
 

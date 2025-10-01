@@ -4,6 +4,7 @@ Targeted tests to trigger the KeyError exception path in conftest.py
 
 import sys
 from types import ModuleType
+
 import pytest
 
 

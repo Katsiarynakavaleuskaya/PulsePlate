@@ -4,12 +4,13 @@ Targets remaining uncovered lines.
 """
 
 import os
+from typing import cast
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestVIPCoverageAdditional:

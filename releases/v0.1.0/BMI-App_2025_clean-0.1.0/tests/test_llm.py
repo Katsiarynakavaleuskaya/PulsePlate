@@ -2,8 +2,9 @@
 """Tests for LLM module and providers."""
 
 import os
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 # Import the modules to test
 import llm

@@ -6,8 +6,9 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestShoplistModule:
@@ -54,8 +55,8 @@ class TestShoplistModule:
         try:
             from core.shoplist import (
                 create_shopping_list,
-                optimize_packaging,
                 group_by_category,
+                optimize_packaging,
             )
 
             # Test with mock meal plan
@@ -94,8 +95,8 @@ class TestWeeklyPlanModule:
     def test_weekly_plan_generation(self):
         """Test weekly plan generation."""
         try:
-            from core.weekly_plan import generate_weekly_plan
             from core.targets import NutritionTargets
+            from core.weekly_plan import generate_weekly_plan
 
             # Create mock targets
             targets = NutritionTargets(calories=2000, protein=150, carbs=250, fat=70)
@@ -116,8 +117,8 @@ class TestWeeklyPlanModule:
     def test_weekly_plan_with_diet_flags(self):
         """Test weekly plan with dietary restrictions."""
         try:
-            from core.weekly_plan import generate_weekly_plan
             from core.targets import NutritionTargets
+            from core.weekly_plan import generate_weekly_plan
 
             # Mock targets
             targets = NutritionTargets(calories=1800, protein=120, carbs=200, fat=60)
@@ -218,10 +219,10 @@ class TestUtilsModule:
         """Test additional utility functions."""
         try:
             from core.utils import (
-                validate_email,
-                sanitize_html,
-                generate_id,
                 format_number,
+                generate_id,
+                sanitize_html,
+                validate_email,
             )
 
             # Test email validation
@@ -261,10 +262,10 @@ class TestTimeUtilsModule:
         """Test time utilities comprehensively."""
         try:
             from core.time_utils import (
-                parse_datetime,
                 format_datetime,
                 get_timezone_offset,
                 is_valid_date,
+                parse_datetime,
             )
 
             # Test datetime parsing

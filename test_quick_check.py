@@ -26,6 +26,7 @@ def test_quick_llm_import_smoke() -> None:
     """
     os.environ["LLM_PROVIDER"] = "none"
     import importlib  # local import to keep global import time minimal
+
     import llm  # type: ignore
 
     m = importlib.reload(llm)

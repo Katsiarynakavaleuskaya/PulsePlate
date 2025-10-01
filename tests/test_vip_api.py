@@ -6,12 +6,13 @@ RU: Тесты для VIP API эндпоинтов
 EN: Tests for VIP API endpoints
 """
 
-from fastapi.testclient import TestClient
+from typing import cast
+
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 import app
-from starlette.types import ASGIApp
-from typing import cast
 
 # Type assertion to satisfy type checker
 assert isinstance(app.app, FastAPI), "app should be FastAPI instance"

@@ -3,13 +3,11 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 """
 
 import os
+import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

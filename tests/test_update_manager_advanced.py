@@ -5,19 +5,20 @@ RU: Дополнительные тесты для покрытия менедж
 EN: Additional coverage tests for database update manager module.
 """
 
-import pytest
 import json
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from core.food_apis.unified_db import UnifiedFoodItem
 from core.food_apis.update_manager import (
     DatabaseUpdateManager,
     DatabaseVersion,
 )
-from core.food_apis.unified_db import UnifiedFoodItem
 
 
 class TestDatabaseUpdateManagerAdditionalCoverage:

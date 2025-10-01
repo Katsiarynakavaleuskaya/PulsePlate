@@ -2,8 +2,9 @@
 Simple test to import app.py and check its coverage.
 """
 
-import app
 from fastapi import FastAPI
+
+import app
 
 
 def test_app_import():

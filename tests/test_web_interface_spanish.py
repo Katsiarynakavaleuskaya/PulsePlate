@@ -5,11 +5,9 @@ This test ensures that the web interface correctly supports Spanish language sel
 """
 
 import os
+import sys
 
 from fastapi.testclient import TestClient
-
-import sys
-import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

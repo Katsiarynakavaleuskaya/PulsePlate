@@ -7,11 +7,11 @@ EN: Alias mapping tests.
 
 import os
 import tempfile
-
 from typing import Any, cast
+
 import pytest
 
-from core.aliases import _load_aliases, map_to_canonical, add_alias
+from core.aliases import _load_aliases, add_alias, map_to_canonical
 
 
 def test_map_to_canonical_basic():

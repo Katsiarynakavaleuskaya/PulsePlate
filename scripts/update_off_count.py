@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from pathlib import Path
-import json
-import sys
-import sqlite3
+
 import hashlib
+import json
+import sqlite3
+import sys
+from pathlib import Path
 
 ROOT = Path("cache/food_db")
 VERS = ROOT / "database_versions.json"

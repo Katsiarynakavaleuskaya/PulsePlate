@@ -7,10 +7,11 @@ EN: Tests for shopping list generation module.
 
 import csv
 import tempfile
-import pytest
 from pathlib import Path
 
-from core.shoplist import PackagingRule, ShoppingItem, ShoplistGenerator
+import pytest
+
+from core.shoplist import PackagingRule, ShoplistGenerator, ShoppingItem
 
 
 class TestPackagingRuleDataClass:

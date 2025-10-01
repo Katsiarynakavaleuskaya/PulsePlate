@@ -12,6 +12,7 @@ Tests cover:
 """
 
 from fastapi.testclient import TestClient
+
 import app as app_mod  # type: ignore
 
 client = TestClient(app_mod.app)

@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.schemas.users import UserCreate, UserRead
 from core.db import get_session
 from core.models import User
-from app.schemas.users import UserCreate, UserRead
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 

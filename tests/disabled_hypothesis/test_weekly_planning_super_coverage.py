@@ -6,17 +6,21 @@
 Стратегия: создать функцию make_weekly_menu и заставить код выполниться
 """
 
-import pytest
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from app.app import app
 
 
 @pytest.fixture
-def client():
-    """Test client fixture"""
-    return TestClient(app)
+def client(dynamic_app):
+    """Test client fixture using conftest's dynamic_app"""
+    from fastapi import FastAPI
+    from starlette.types import ASGIApp
+    from typing import cast
+
+    return TestClient(cast(ASGIApp, dynamic_app))
 
 
 class TestWeeklyPlanningBlocks:
@@ -144,9 +148,9 @@ class TestWeeklyPlanningBlocks:
         # Патчинг getattr для нахождения make_weekly_menu
         original_getattr = getattr
 
-        def mock_getattr(obj: object, name: str, default: object = None) -> object:
+        def mock_getattr(obj: object, name: str, *args) -> object:
             if name != "make_weekly_menu":
-                return original_getattr(obj, name, default)
+                return original_getattr(obj, name, *args)
 
             # Возвращаем мокнутую функцию
             def mock_make_weekly_menu(_profile: object) -> MagicMock:

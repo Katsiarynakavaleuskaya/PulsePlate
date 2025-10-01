@@ -3,11 +3,12 @@
 These tests exercise actual code paths in core modules rather than just imports.
 """
 
-import pytest
+import os
+import tempfile
 from datetime import datetime, timezone
 from unittest.mock import patch
-import tempfile
-import os
+
+import pytest
 
 
 class TestTimeUtils:

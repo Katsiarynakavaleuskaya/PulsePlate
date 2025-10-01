@@ -4,14 +4,15 @@ Simplified tests for core.product_finder module.
 Covers main functionality for coverage improvement.
 """
 
-import pytest
 from pathlib import Path
 from typing import Literal, Union
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, mock_open, patch
 
-from core.product_finder import ProductSearchResult, ProductFinder
+import pytest
+
 from core.food_db import FoodItem
 from core.food_sources.base import FoodRecord
+from core.product_finder import ProductFinder, ProductSearchResult
 
 
 def create_mock_food_record(name, protein_g=0, fat_g=0, carbs_g=0):

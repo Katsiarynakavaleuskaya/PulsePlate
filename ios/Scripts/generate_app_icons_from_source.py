@@ -4,9 +4,9 @@ App Icon Generator from Source Image
 Создает все размеры иконок iOS из одного изображения высокого качества
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 
 def _process_image_for_icon(img, size: int):
@@ -46,13 +46,13 @@ def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> 
 def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
     try:
-        from PIL import Image  # noqa: F401
+        from PIL import Image
     except ImportError:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 
     # Размеры для iOS (в пикселях) - соответствует Contents.json
-    icon_sizes = {
+    icon_sizes: dict[str, int] = {
         # iPhone
         "icon_iphone_20pt@2x.png": 40,  # 20x20 @2x
         "icon_iphone_20pt@3x.png": 60,  # 20x20 @3x
@@ -77,15 +77,15 @@ def generate_all_icons_from_source(source_path: str) -> bool:
     }
 
     # Путь к папке с иконками (относительно расположения скрипта)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    icons_dir = os.path.join(
+    script_dir: str = os.path.dirname(os.path.abspath(__file__))
+    icons_dir: str = os.path.join(
         script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
     )
     icons_dir = os.path.normpath(icons_dir)
 
     if not os.path.exists(icons_dir):
-        print(f"❌ Папка {icons_dir} не найдена!")
-        return False
+        print(f"⚠️  Папка {icons_dir} не найдена, создаём...")
+        os.makedirs(icons_dir, exist_ok=True)
 
     if not os.path.exists(source_path):
         print(f"❌ Исходный файл {source_path} не найден!")

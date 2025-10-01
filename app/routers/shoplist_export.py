@@ -7,10 +7,10 @@ integration with the richer generator pipeline.
 
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
-import csv
 from typing import Any, Dict, Iterable, List
 
 from fastapi import APIRouter, Response

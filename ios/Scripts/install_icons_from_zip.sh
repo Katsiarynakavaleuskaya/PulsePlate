@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -euo pipefail
+IFS=$'\n\t'
+
 # Скрипт для установки иконок из ZIP файла
 # Автоматически распаковывает и копирует иконки в проект
 
@@ -27,7 +30,7 @@ echo ""
 # Функция для поиска ZIP файла
 find_zip_file() {
     local zip_file
-    zip_file="$(find "$TEMP_DIR" -name "*.zip" -type f | head -1)"
+    zip_file="$(find "$TEMP_DIR" -maxdepth 1 -type f -name "*.zip" -print -quit)"
     if [ -z "$zip_file" ]; then
         echo "❌ ZIP файл не найден в папке $TEMP_DIR"
         echo "📁 Содержимое папки:"
@@ -39,7 +42,8 @@ find_zip_file() {
 
 # Функция для извлечения иконок
 extract_icons() {
-    local zip_file=$(find_zip_file)
+    local zip_file
+    zip_file=$(find_zip_file)
     if [ $? -ne 0 ]; then
         return 1
     fi
@@ -47,11 +51,11 @@ extract_icons() {
     echo "📦 Найден ZIP файл: $(basename "$zip_file")"
     echo "🔄 Извлекаем иконки..."
 
-# Извлекаем в подпапку
-ORIGINAL_DIR="$PWD"
-cd "$TEMP_DIR" || { echo "❌ Не удалось перейти в $TEMP_DIR"; return 1; }
-unzip -q "$zip_file" -d "extracted"
-cd "$ORIGINAL_DIR" || { echo "❌ Не удалось вернуться в $ORIGINAL_DIR"; return 1; }
+    # Извлекаем в подпапку
+    local original_dir="$PWD"
+    cd "$TEMP_DIR" || return 1
+    unzip -q "$zip_file" -d "extracted"
+    cd "$original_dir" || return 1
 
     if [ $? -ne 0 ]; then
         echo "❌ Ошибка при извлечении ZIP файла"
@@ -62,7 +66,7 @@ cd "$ORIGINAL_DIR" || { echo "❌ Не удалось вернуться в $ORI
 
     # Ищем PNG файлы
     echo "🔍 Ищем PNG файлы..."
-    find "$TEMP_DIR/extracted" -name "*.png" -type f | while IFS= read -r file; do
+    find "$TEMP_DIR/extracted" -name "*.png" -type f -print0 | while IFS= read -r -d '' file; do
         echo "   📄 $(basename "$file")"
     done
 
@@ -81,7 +85,7 @@ copy_icons() {
 
     # Копируем новые иконки
     echo "📁 Копируем PNG файлы..."
-    find "$TEMP_DIR/extracted" -name "*.png" -type f | while IFS= read -r file; do
+    find "$TEMP_DIR/extracted" -name "*.png" -type f -print0 | while IFS= read -r -d '' file; do
         filename="$(basename "$file")"
         echo "   📄 Копируем $filename"
         cp "$file" "$ICONS_DIR/" || echo "⚠️ Ошибка копирования $filename"
@@ -102,7 +106,7 @@ copy_icons() {
 
     # Показываем список установленных иконок
     echo "📋 Установленные иконки:"
-    find "$ICONS_DIR" -name "*.png" -type f | sort | while IFS= read -r file; do
+    find "$ICONS_DIR" -name "*.png" -type f -print0 | sort -z | while IFS= read -r -d '' file; do
         size=$(file "$file" | grep -o '[0-9]* x [0-9]*' | head -1)
         echo "   📄 $(basename "$file"): $size"
     done

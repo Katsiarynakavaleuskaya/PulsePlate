@@ -1,0 +1,23 @@
+# Constraints file for reproducible dev environments
+# Use with: pip install -r requirements-dev.txt -c constraints.txt
+
+# Testing
+pytest==8.4.2
+pytest-cov==7.0.0
+pytest-asyncio==1.2.0
+coverage==7.10.7
+
+# Code quality
+black==25.9.0
+flake8==7.3.0
+mypy==1.18.2
+ruff==0.13.1
+
+# Security
+bandit==1.8.6
+# safety==3.6.1b0  # Disabled due to typer compatibility
+
+# Dev tools
+pre-commit==3.8.0
+sourcery==2.0.0
+asgi-lifespan==2.1.0

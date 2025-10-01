@@ -6,11 +6,12 @@ RU: Специфичные тесты для core модулей с низким
 EN: Specific tests for core modules with low coverage
 """
 
-import tempfile
 import os
+import tempfile
 from typing import Any, cast
+from unittest.mock import mock_open, patch
+
 import pytest
-from unittest.mock import patch, mock_open
 
 
 class TestAliasesModule:
@@ -298,8 +299,9 @@ class TestI18nModule:
 
     def test_translation_function_comprehensive(self):
         """Test translation function comprehensively."""
-        from core.i18n import t, Language
         from typing import get_args
+
+        from core.i18n import Language, t
 
         # Test actual BMI terms that exist in translations
         bmi_terms = [
@@ -336,8 +338,9 @@ class TestI18nModule:
 
     def test_language_functions(self):
         """Test language management functions."""
-        from core.i18n import t, Language
         from typing import get_args
+
+        from core.i18n import Language, t
 
         # Test translation with parameters
         result = t("en", "bmi_normal")

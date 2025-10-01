@@ -4,15 +4,16 @@ Comprehensive tests for core.product_finder module.
 Covers ProductSearchResult and ProductFinder classes.
 """
 
-import pytest
-import tempfile
 import csv
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, mock_open, patch
 
-from core.product_finder import ProductSearchResult, ProductFinder
+import pytest
+
 from core.food_db import FoodItem
 from core.food_sources.base import FoodRecord
+from core.product_finder import ProductFinder, ProductSearchResult
 
 
 def create_mock_food_record(

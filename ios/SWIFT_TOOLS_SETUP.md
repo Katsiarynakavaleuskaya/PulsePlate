@@ -54,7 +54,7 @@ swift build
 
 ```bash
 # В корне проекта
-cp ios/xcode_build_phase.sh .git/hooks/pre-commit
+cp ios/Scripts/xcode_build_phase.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 

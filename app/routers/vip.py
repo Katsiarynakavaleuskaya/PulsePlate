@@ -1,17 +1,19 @@
-import os
 import logging
-from typing import Any, Dict, Union, Optional, Callable, Type
-from fastapi import (
+import os
+from typing import Any, Callable, Dict, Optional, Type, Union
+
+from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
+    Body,
     Depends,
+    Header,
     HTTPException,
     status,
-    Body,
-    Header,
-)  # pyright: ignore[reportMissingImports]
+)
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
+
+from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.utils import resolve_attr
-from app.schemas.vip import WeeklyPlanRequest, WeeklyPlanResponse, ErrorResponse
 
 # -*- coding: utf-8 -*-
 """
@@ -347,7 +349,6 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     from core.targets import UserProfile
 
     # Use default values for missing fields instead of validation
-
     # Convert diet_flags to set if it's a list
     diet_flags = profile_data.get("diet_flags", [])
     if isinstance(diet_flags, list):

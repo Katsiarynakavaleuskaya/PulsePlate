@@ -3,10 +3,11 @@
 Покрывает строки: 2095, 2118, 2151, 2153
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
-from starlette.types import ASGIApp
+
 import pytest
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 @pytest.fixture()

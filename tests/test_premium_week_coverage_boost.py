@@ -11,8 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    import sys
     import importlib.util
+    import sys
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

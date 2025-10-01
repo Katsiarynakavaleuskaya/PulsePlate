@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -euo pipefail
+IFS=$'\n\t'
+
 # 🎬 Скрипт для добавления MP4 файлов в Xcode проект
 
 echo "🎬 Добавляем MP4 файлы в Xcode проект..."
@@ -16,21 +19,27 @@ echo "✅ Найден проект PulsePlate.xcodeproj"
 mkdir -p PulsePlate/Resources/MP4
 
 # Проверяем наличие исходной папки и MP4 файлов
-if [ -d "temp_animation" ] && compgen -G "temp_animation/*.mp4" > /dev/null; then
-    echo "📁 Копируем MP4 файлы из temp_animation..."
-    if ! cp temp_animation/*.mp4 PulsePlate/Resources/MP4/; then
-        echo "⚠️  Не удалось скопировать некоторые файлы"
-    fi
+echo "📁 Копируем MP4 файлы..."
+shopt -s nullglob
+srcs=(temp_animation/*.mp4)
+if ((${#srcs[@]})); then
+    echo "  Копируем из temp_animation/:"
+    cp -v "${srcs[@]}" "PulsePlate/Resources/MP4/"
 else
-    echo "⚠️  Папка temp_animation не найдена или не содержит MP4 файлов"
+    echo "ℹ️  В temp_animation нет *.mp4 — пропускаем"
 fi
 
 # Дополнительная копия из корневой папки Resources (если есть)
-cp PulsePlate/Resources/*.mp4 PulsePlate/Resources/MP4/ 2>/dev/null || true
+srcs2=(PulsePlate/Resources/*.mp4)
+if ((${#srcs2[@]})); then
+    echo "  Копируем из PulsePlate/Resources/:"
+    cp -v "${srcs2[@]}" "PulsePlate/Resources/MP4/"
+fi
+shopt -u nullglob
 
 # Проверяем, что файлы скопированы
 echo "📋 Проверяем MP4 файлы:"
-ls -la PulsePlate/Resources/MP4/
+ls -la "PulsePlate/Resources/MP4/"
 
 # Создаем инструкцию для добавления в Xcode
 cat > ADD_MP4_TO_XCODE.md << 'EOF'
@@ -95,6 +104,9 @@ if [ -d "PulsePlate/Resources/MP4" ] && [ "$(ls -A PulsePlate/Resources/MP4/*.mp
 else
     MP4_FILES='        "no_files_found"'
 fi
+
+# Создаем папку для Views/Components
+mkdir -p PulsePlate/Views/Components
 
 # Создаем простой тест для проверки Bundle
 cat > PulsePlate/Views/Components/BundleTestView.swift << EOF

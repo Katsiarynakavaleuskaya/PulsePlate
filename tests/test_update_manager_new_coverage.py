@@ -5,13 +5,14 @@ RU: Тесты для новой функциональности update_manager
 EN: Tests for new update_manager.py functionality to restore coverage to 97%+.
 """
 
-import pytest
-import json
-import tempfile
-import sqlite3
 import csv
+import json
+import sqlite3
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from core.food_apis.update_manager import DatabaseUpdateManager
 

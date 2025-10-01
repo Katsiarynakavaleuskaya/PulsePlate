@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+from typing import cast
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.test_helpers import load_app
+from tests.test_helpers import load_app  # noqa: E402 (import after sys.path modification)
 
-client = TestClient(load_app())
+# client fixture is provided by conftest.py
 
 
 def _cleanup_app_module(original_app):
@@ -37,13 +37,13 @@ def _test_app_import_with_assertions(original_app, test_assertions):
         _cleanup_app_module(original_app)
 
 
-def test_v1_health():
+def test_v1_health(client):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
 
 
-def test_v1_bmi_happy():
+def test_v1_bmi_happy(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "general"},
@@ -56,7 +56,7 @@ def test_v1_bmi_happy():
     assert data["category"] == "Normal weight"
 
 
-def test_v1_bmi_invalid_height():
+def test_v1_bmi_invalid_height(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 0, "group": "general"},
@@ -68,7 +68,7 @@ def test_v1_bmi_invalid_height():
     assert "detail" in data
 
 
-def test_v1_bmi_invalid_weight():
+def test_v1_bmi_invalid_weight(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": -50, "height_cm": 170, "group": "general"},
@@ -80,7 +80,7 @@ def test_v1_bmi_invalid_weight():
     assert "detail" in data
 
 
-def test_v1_bmi_unrealistic_weight():
+def test_v1_bmi_unrealistic_weight(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 10, "height_cm": 170, "group": "general"},
@@ -92,7 +92,7 @@ def test_v1_bmi_unrealistic_weight():
     assert "detail" in data
 
 
-def test_v1_bmi_invalid_group():
+def test_v1_bmi_invalid_group(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 70, "height_cm": 170, "group": "invalid"},
@@ -104,7 +104,7 @@ def test_v1_bmi_invalid_group():
     assert "bmi" in data
 
 
-def test_v1_bmi_underweight():
+def test_v1_bmi_underweight(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 45, "height_cm": 170, "group": "general"},
@@ -116,7 +116,7 @@ def test_v1_bmi_underweight():
     assert data["category"] == "Underweight"
 
 
-def test_v1_bmi_overweight():
+def test_v1_bmi_overweight(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 85, "height_cm": 170, "group": "general"},
@@ -128,7 +128,7 @@ def test_v1_bmi_overweight():
     assert data["category"] == "Overweight"
 
 
-def test_v1_bmi_obese():
+def test_v1_bmi_obese(client):
     r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": 100, "height_cm": 170, "group": "general"},
@@ -141,7 +141,7 @@ def test_v1_bmi_obese():
     assert data["category"] == "Obese Class I"
 
 
-def test_v1_bodyfat():
+def test_v1_bodyfat(client):
     r = client.post(
         "/api/v1/bodyfat",
         json={
@@ -162,7 +162,7 @@ def test_v1_bodyfat():
     assert "labels" in data
 
 
-def test_v1_bodyfat_missing_hip():
+def test_v1_bodyfat_missing_hip(client):
     r = client.post(
         "/api/v1/bodyfat",
         json={
@@ -182,7 +182,7 @@ def test_v1_bodyfat_missing_hip():
     assert "us_navy" not in data["methods"]
 
 
-def test_bodyfat_import_failure():
+def test_bodyfat_import_failure(client):
     """Test coverage for bodyfat import exception in main.py."""
     import builtins
     import sys
@@ -210,7 +210,7 @@ def test_bodyfat_import_failure():
         _test_app_import_with_assertions(original_app, test_assertions)
 
 
-def test_insight_import_failure():
+def test_insight_import_failure(client):
     """Test coverage for llm import exception in main.py."""
     import sys
     from unittest.mock import MagicMock, patch
@@ -242,7 +242,7 @@ def test_insight_import_failure():
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_generate_failure(mock_get_provider):
+def test_api_insight_provider_generate_failure(mock_get_provider, client):
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
 
@@ -272,7 +272,7 @@ def test_api_insight_provider_generate_failure(mock_get_provider):
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_none(mock_get_provider):
+def test_api_insight_provider_none(mock_get_provider, client):
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
@@ -296,7 +296,7 @@ def test_api_insight_provider_none(mock_get_provider):
         del os.environ["FEATURE_INSIGHT"]
 
 
-def test_metrics():
+def test_metrics(client):
     response = client.get("/metrics")
     assert response.status_code == 200
     # Metrics endpoint returns Prometheus format, not JSON
@@ -304,7 +304,7 @@ def test_metrics():
     assert "python_info" in content or "error" in content
 
 
-def test_category_by_bmi_ru():
+def test_category_by_bmi_ru(client):
     from bmi_core import bmi_category
 
     assert bmi_category(17, "ru") == "Недостаточная масса"
@@ -313,7 +313,7 @@ def test_category_by_bmi_ru():
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception():
+def test_compute_wht_ratio_round_exception(client):
     from bmi_core import compute_wht_ratio
 
     with patch("builtins.round", side_effect=Exception("Round failed")):
@@ -321,38 +321,12 @@ def test_compute_wht_ratio_round_exception():
         assert result is None
 
 
-def test_v1_bmi_invalid_api_key():
-    # Устанавливаем API_KEY в environment чтобы валидация работала
-    os.environ["API_KEY"] = "valid_key"
-    try:
-        r = client.post(
-            "/api/v1/bmi",
-            json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "wrong_key"},
-        )
-        assert r.status_code == 403
-        data = r.json()
-        assert "Invalid API Key" in data["detail"]
-    finally:
-        # Очищаем API_KEY после теста
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+# Removed: test_v1_bmi_invalid_api_key and test_v1_bmi_no_api_key
+# Reason: /api/v1/bmi is now a public endpoint (no API key required)
+# These tests are obsolete as they tested API key validation on BMI endpoint
 
 
-def test_v1_bmi_no_api_key():
-    # Устанавливаем API_KEY для активации валидации
-    os.environ["API_KEY"] = "valid_key"
-    try:
-        r = client.post("/api/v1/bmi", json={"weight_kg": 70, "height_cm": 170, "group": "general"})
-        assert r.status_code == 403
-        data = r.json()
-        assert "Invalid API Key" in data["detail"]
-    finally:
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-
-
-def test_v1_insight_invalid_api_key():
+def test_v1_insight_invalid_api_key(client):
     os.environ["API_KEY"] = "valid_key"
     try:
         r = client.post(
@@ -366,7 +340,7 @@ def test_v1_insight_invalid_api_key():
             del os.environ["API_KEY"]
 
 
-def test_slowapi_import_failure():
+def test_slowapi_import_failure(client):
     """Test coverage for slowapi import exception in main.py."""
     import builtins
     import sys
@@ -394,7 +368,7 @@ def test_slowapi_import_failure():
         _test_app_import_with_assertions(original_app, test_assertions)
 
 
-def test_prometheus_import_failure():
+def test_prometheus_import_failure(client):
     """Test coverage for prometheus_client import exception in main.py."""
     import builtins
     import sys

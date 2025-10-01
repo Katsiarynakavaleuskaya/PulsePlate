@@ -14,11 +14,12 @@
 Нужно покрыть: 262+ дополнительных линии
 """
 
-import pytest
-import os
-from fastapi.testclient import TestClient
-import sys
 import importlib.util
+import os
+import sys
+
+import pytest
+from fastapi.testclient import TestClient
 
 # Resolve app.py relative to this test file
 test_dir = os.path.dirname(os.path.abspath(__file__))

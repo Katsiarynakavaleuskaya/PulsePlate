@@ -3,9 +3,9 @@
 Скрипт для запуска тестов покрытия и проверки достижения 97%
 """
 
+import os
 import subprocess
 import sys
-import os
 
 
 def run_command(cmd, description):

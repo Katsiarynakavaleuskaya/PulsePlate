@@ -7,8 +7,8 @@
 from __future__ import annotations
 
 import sys
-from typing import Any, Iterable, Optional
 import types
+from typing import Any, Iterable, Optional
 
 
 def get_activity_factor(activity: str) -> float:

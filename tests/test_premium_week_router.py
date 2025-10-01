@@ -5,11 +5,12 @@ RU: Тесты для роутера Premium Week.
 EN: Tests for Premium Week router.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
-from app.routers.premium_week import router, WeekPlanRequest, WeekPlanResponse, TargetsIn
+from app.routers.premium_week import TargetsIn, WeekPlanRequest, WeekPlanResponse, router
 
 
 class TestPremiumWeekRouter:

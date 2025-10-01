@@ -117,6 +117,7 @@ class TestAppMissingLinesTargeted:
         assert response.status_code in [200, 400, 422]
 
     def test_extreme_numeric_values_edge_cases(self):
+        # sourcery skip: use-contextlib-suppress
         """Test extreme numeric values that might trigger different paths"""
         extreme_cases = [
             {"weight": 0.1, "height": 50, "age": 1},  # Very small
@@ -124,6 +125,7 @@ class TestAppMissingLinesTargeted:
             {"weight": float("inf"), "height": 175, "age": 30},  # Infinity
         ]
 
+        # sourcery skip: no-loop-in-tests
         for case in extreme_cases:
             case.update({"sex": "M", "lang": "en"})
             try:
@@ -247,12 +249,13 @@ class TestAppErrorHandlingPaths:
             assert response.status_code in [503, 400, 422]
 
     def test_authentication_error_paths(self):
-        """Test authentication error paths"""
-        # Try to access protected endpoint without auth
+        """Test authentication - BMI is now public"""
+        # BMI endpoint is now public - no auth required
+        # Using correct payload format for v1 API
         response = self.client.post(
-            "/api/v1/bmi", json={"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": "en"}
+            "/api/v1/bmi", json={"weight_kg": 70, "height_cm": 175, "group": "general"}
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
     def test_various_content_types(self):
         """Test various content types"""
@@ -266,6 +269,7 @@ class TestAppErrorHandlingPaths:
             "application/xml",
         ]
 
+        # sourcery skip: no-loop-in-tests
         for content_type in content_types:
             response = self.client.post(
                 "/bmi", content=test_data, headers={"Content-Type": content_type}
@@ -303,6 +307,7 @@ class TestAppSpecificMissingBlocks:
         # Test various premium endpoints
         endpoints = ["/premium_bmr", "/premium_targets"]
 
+        # sourcery skip: no-loop-in-tests
         for endpoint in endpoints:
             response = self.client.post(endpoint, json=premium_data)
             # Should work or return appropriate error
@@ -337,6 +342,7 @@ class TestAppSpecificMissingBlocks:
         assert response.status_code in [200, 400, 422]
 
     def test_edge_case_language_handling(self):
+        # sourcery skip: use-contextlib-suppress
         """Test edge cases in language handling"""
         # Test with various language formats
         language_variants = [

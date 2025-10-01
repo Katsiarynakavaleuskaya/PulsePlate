@@ -8,11 +8,11 @@ EN: Advanced tests for shopping list module - formatting and integration.
 import pytest
 
 from core.shoplist import (
-    ShoppingItem,
     ShoplistGenerator,
+    ShoppingItem,
     aggregate_ingredients,
-    round_to_packages,
     format_export,
+    round_to_packages,
 )
 
 

@@ -3,8 +3,9 @@
 Покрывает строки: 2513, 2586, 2593, 2600, 2693, 2699, 2706, 2718→2722, 2722→exit
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 

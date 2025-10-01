@@ -2,9 +2,10 @@
 Highly targeted tests to cover the exact missing lines in conftest.py.
 """
 
-import sys
 import os
+import sys
 from types import ModuleType
+
 import pytest
 
 

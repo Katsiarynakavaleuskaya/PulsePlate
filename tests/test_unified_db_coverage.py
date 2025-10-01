@@ -3,8 +3,9 @@
 Покрывает различные сценарии работы с unified_db
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestUnifiedDBCoverage:
@@ -27,6 +28,7 @@ class TestUnifiedDBCoverage:
         """Тест покрытия unified_db.py cache handling - проверяем кэширование экземпляра"""
         # Перезагружаем модуль, чтобы сбросить состояние вместо патчинга приватной переменной
         import importlib
+
         import core.food_apis.unified_db as unified_db
 
         importlib.reload(unified_db)

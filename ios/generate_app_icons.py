@@ -6,6 +6,7 @@ App Icon Generator for PulsePlate
 
 import os
 import sys
+
 from PIL import Image, ImageDraw
 
 
@@ -137,14 +138,6 @@ def generate_all_icons():
 
 
 if __name__ == "__main__":
-    # Проверяем наличие PIL
-    try:
-        import PIL
-    except ImportError:
-        print("❌ Требуется библиотека Pillow:")
-        print("pip install Pillow")
-        sys.exit(1)
-
     # Генерируем иконки
     if generate_all_icons():
         print("\n🎉 Все иконки успешно созданы!")

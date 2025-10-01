@@ -2,27 +2,28 @@
 Финальные тесты для достижения 97% покрытия
 """
 
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
 class TestCoverage97FinalPush:
     """Final behavioral coverage tests (no line numbers)."""
 
-    def test_bmi_invalid_api_key_rejected(self, production_environment):
-        """BMI rejects invalid API key (auth behavior)."""
+    def test_bmi_public_access_works(self, production_environment):
+        """BMI is publicly accessible (no API key required)."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест с production окружением и невалидным API ключом
+        # Тест: BMI endpoint теперь публичный - работает даже с невалидным ключом
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
             headers={"X-API-Key": "invalid-key"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200  # BMI is public now
 
     def test_health_and_docs_endpoints_available(self, test_environment):
         """Health and docs available in normal mode."""

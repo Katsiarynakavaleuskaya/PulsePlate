@@ -48,7 +48,7 @@ class TestI18nFinalCoverage:
         But all three are in LOCALE_SPECIAL_CASES, so this line might be unreachable!
         """
         try:
-            from core.i18n import normalize_lang, LOCALE_SPECIAL_CASES
+            from core.i18n import LOCALE_SPECIAL_CASES, normalize_lang
 
             # Debug: check what's in LOCALE_SPECIAL_CASES
             print(f"LOCALE_SPECIAL_CASES keys: {list(LOCALE_SPECIAL_CASES.keys())}")
@@ -101,7 +101,6 @@ class TestI18nFinalCoverage:
 
             # Test with current config - es-MX should work
             # Let's trace through the logic manually
-
             # Input: "es-MX"
             # key = "es-mx" (after normalization)
             # Has "-", so base="es", region="mx"
@@ -136,7 +135,7 @@ class TestI18nFinalCoverage:
     def test_comprehensive_debug_trace(self):
         """Debug trace through normalize_lang to understand execution paths"""
         try:
-            from core.i18n import normalize_lang, LOCALE_SPECIAL_CASES, LANG_ALIASES
+            from core.i18n import LANG_ALIASES, LOCALE_SPECIAL_CASES, normalize_lang
 
             print("\n=== DEBUG TRACE ===")
             print(f"LOCALE_SPECIAL_CASES: {LOCALE_SPECIAL_CASES}")

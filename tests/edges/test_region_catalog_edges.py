@@ -1,5 +1,6 @@
 def test_region_catalog_helpers_and_conversion(monkeypatch, tmp_path):
     import csv
+
     from core import region_catalog as rc
 
     # Prepare temporary region data

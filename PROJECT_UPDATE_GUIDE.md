@@ -1,11 +1,13 @@
 # 🚀 PulsePlate Project Update Guide
 
 ## Проблема с терминалом
+
 У нас возникли проблемы с выполнением команд через терминал. Вот пошаговое руководство для ручного обновления проекта.
 
 ## 📋 План обновления
 
 ### 1. Проверка текущего состояния
+
 ```bash
 # Проверить версии
 python --version
@@ -18,6 +20,7 @@ git status
 ```
 
 ### 2. Обновление Python окружения
+
 ```bash
 # Создать новое виртуальное окружение
 python -m venv .venv_new
@@ -37,21 +40,27 @@ mv .venv_new .venv
 ```
 
 ### 3. Обновление Node.js зависимостей
+
 ```bash
 # Очистить кэш
 npm cache clean --force
 
-# Удалить node_modules и package-lock.json
-rm -rf node_modules package-lock.json
+# Переустановить зависимости (reproducible)
+rm -rf node_modules
 
-# Переустановить зависимости
-npm install
+# Использовать npm ci если есть lockfile (рекомендуется)
+if [ -f package-lock.json ]; then
+  npm ci
+else
+  npm install
+fi
 
-# Обновить зависимости
-npm update
+# Или для обновления зависимостей (только если нужно):
+# npm update
 ```
 
 ### 4. Обновление iOS инструментов
+
 ```bash
 cd ios
 
@@ -67,6 +76,7 @@ rm -rf build
 ```
 
 ### 5. Обновление iOS зависимостей
+
 ```bash
 cd ios
 
@@ -78,6 +88,7 @@ cat Package.resolved
 ```
 
 ### 6. Тестирование после обновления
+
 ```bash
 # Python тесты
 python -m pytest tests/ -v --cov=core --cov-report=html
@@ -92,6 +103,7 @@ xcodebuild test -scheme PulsePlate -destination 'platform=iOS Simulator,name=iPh
 ```
 
 ### 7. Обновление документации
+
 ```bash
 # Обновить версии в README
 # Обновить requirements.txt если нужно
@@ -101,12 +113,14 @@ xcodebuild test -scheme PulsePlate -destination 'platform=iOS Simulator,name=iPh
 ## 🔧 Troubleshooting
 
 ### Проблема: "Permission denied"
+
 ```bash
 chmod +x *.sh
 chmod +x ios/Scripts/*.sh
 ```
 
 ### Проблема: "Module not found"
+
 ```bash
 # Переустановить виртуальное окружение
 rm -rf .venv
@@ -116,6 +130,7 @@ pip install -r requirements.txt
 ```
 
 ### Проблема: "Swift package not found"
+
 ```bash
 cd ios
 swift package resolve
@@ -123,6 +138,7 @@ swift build
 ```
 
 ### Проблема: "Xcode build failed"
+
 ```bash
 cd ios
 # Очистить DerivedData
@@ -155,6 +171,7 @@ xcodebuild build
 ## 📞 Если нужна помощь
 
 Если возникнут проблемы:
+
 1. Проверьте логи ошибок
 2. Убедитесь что все зависимости установлены
 3. Попробуйте очистить кэши

@@ -1,8 +1,10 @@
 """Tests to boost coverage for core/shoplist.py to 97%."""
 
-import pytest
 from unittest.mock import patch
-from core.shoplist import ShoplistGenerator, PackagingRule
+
+import pytest
+
+from core.shoplist import PackagingRule, ShoplistGenerator
 
 
 class TestShoplistCoverage97:

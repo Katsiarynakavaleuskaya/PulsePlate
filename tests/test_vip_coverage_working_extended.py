@@ -3,10 +3,11 @@ Working extended tests to achieve 97% coverage for VIP router.
 Uses correct endpoint paths and working test patterns.
 """
 
-from unittest.mock import patch, MagicMock
+from typing import cast
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestVIPCoverageWorkingExtended:

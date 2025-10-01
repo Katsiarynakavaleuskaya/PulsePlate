@@ -44,7 +44,6 @@ class TestI18nAdditionalCoverage:
             # Test template formatting with kwargs
             # Need to find a translation key that uses formatting
             # Let's check if there are any with {} placeholders
-
             # For risk_high_whr which has {threshold} placeholder
             result_ru = t("ru", "risk_high_whr", threshold="0.85")
             assert "0.85" in result_ru
@@ -198,7 +197,8 @@ class TestI18nAdditionalCoverage:
         """Test concurrent access to translation functions"""
         try:
             import concurrent.futures
-            from core.i18n import t, normalize_lang, validate_translation_key
+
+            from core.i18n import normalize_lang, t, validate_translation_key
 
             def translation_worker():
                 lang = fake.random_element(["ru", "en", "es"])

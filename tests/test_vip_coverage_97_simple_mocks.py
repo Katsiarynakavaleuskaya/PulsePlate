@@ -2,9 +2,10 @@
 Интеграционные тесты для достижения 97% покрытия VIP router
 """
 
-from unittest.mock import patch
-from fastapi.testclient import TestClient
 from typing import cast
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
