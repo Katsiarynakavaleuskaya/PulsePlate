@@ -9,10 +9,20 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncGenerator, Generator, Optional
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+if TYPE_CHECKING:  # pragma: no cover - type check only
+    from sqlalchemy.ext.asyncio import (
+        AsyncEngine as AsyncEngineType,
+        AsyncSession as AsyncSessionType,
+        async_sessionmaker as AsyncSessionmakerType,
+    )
+else:
+    AsyncEngineType = AsyncSessionType = Any  # type: ignore[assignment]
+    AsyncSessionmakerType = Any  # type: ignore[assignment]
 
 try:  # Optional async support
     from sqlalchemy.ext.asyncio import (
@@ -22,7 +32,10 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    AsyncEngine = AsyncSession = async_sessionmaker = create_async_engine = None  # type: ignore
+    AsyncEngine = cast(Any, None)
+    AsyncSession = cast(Any, None)
+    async_sessionmaker = cast(Any, None)
+    create_async_engine = cast(Any, None)
 
 
 def _build_engine_url() -> str:
@@ -41,7 +54,7 @@ def _sqlite_connect_args(url: str) -> dict[str, object]:
     return {}
 
 
-DATABASE_URL = _build_engine_url()
+DATABASE_URL: str = _build_engine_url()
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:
@@ -165,6 +178,7 @@ SessionLocal = sessionmaker(bind=_RAW_ENGINE, autoflush=False, autocommit=False,
 _ASYNC_URL_ENV = os.getenv("DATABASE_ASYNC_URL")
 _ASYNC_ENABLED_FLAG = os.getenv("DATABASE_USE_ASYNC", "auto").lower()
 
+ASYNC_DATABASE_URL: Optional[str]
 if _ASYNC_URL_ENV:
     ASYNC_DATABASE_URL = _ASYNC_URL_ENV
 elif _ASYNC_ENABLED_FLAG in {"1", "true", "yes", "on"}:
@@ -177,6 +191,9 @@ if ASYNC_DATABASE_URL and create_async_engine is None:
         "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
     )
 
+_ASYNC_ENGINE: Optional[AsyncEngine] = None
+AsyncSessionLocal: Optional[async_sessionmaker[AsyncSession]]
+
 if ASYNC_DATABASE_URL and create_async_engine is not None:
     async_kwargs: dict[str, Any] = {
         "echo": _ECHO_SQL,
@@ -188,21 +205,16 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             {key: value for key, value in _POOL_CONFIG.items() if key != "max_overflow"}
         )
 
-    _ASYNC_ENGINE: AsyncEngine = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
-    AsyncSessionLocal: Optional[async_sessionmaker[AsyncSession]] = async_sessionmaker(
+    _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
+    AsyncSessionLocal = async_sessionmaker(
         bind=_ASYNC_ENGINE,
         autoflush=False,
         expire_on_commit=False,
     )
 else:
-    _ASYNC_ENGINE = None  # type: ignore[assignment]
     AsyncSessionLocal = None
 
-async_engine: Optional[AsyncEngine]
-if _ASYNC_ENGINE is not None:
-    async_engine = _ASYNC_ENGINE
-else:
-    async_engine = None
+async_engine: Optional[AsyncEngine] = _ASYNC_ENGINE
 
 
 def get_session() -> Generator[Session, None, None]:

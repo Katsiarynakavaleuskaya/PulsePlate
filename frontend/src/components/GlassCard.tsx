@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 
 type GlassCardTone = "neutral" | "light" | "dark";
@@ -31,17 +32,20 @@ const TONE_CLASS: Record<GlassCardTone, string> = {
  * RU: Универсальная «стеклянная» карточка под iOS Liquid Glass.
  * EN: Reusable glass-like card (Liquid Glass style).
  */
-export default function GlassCard({
-  children,
-  className,
-  contentClassName,
-  padding = "md",
-  tone = "neutral",
-  role,
-  ariaLabel,
-  ariaLabelledBy,
-  ...rest
-}: GlassCardProps) {
+const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
+  {
+    children,
+    className,
+    contentClassName,
+    padding = "md",
+    tone = "neutral",
+    role,
+    ariaLabel,
+    ariaLabelledBy,
+    ...rest
+  },
+  ref
+) {
   const ariaProps =
     ariaLabelledBy != null && ariaLabelledBy !== ""
       ? { "aria-labelledby": ariaLabelledBy }
@@ -64,8 +68,10 @@ export default function GlassCard({
     .join(" ");
 
   return (
-    <div className={wrapperClasses} role={role ?? "group"} {...ariaProps} {...rest}>
+    <div ref={ref} className={wrapperClasses} role={role ?? "group"} {...ariaProps} {...rest}>
       <div className={contentClasses}>{children}</div>
     </div>
   );
-}
+});
+
+export default GlassCard;

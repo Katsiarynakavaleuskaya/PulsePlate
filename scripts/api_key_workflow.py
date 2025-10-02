@@ -85,10 +85,13 @@ def ensure_permissions(paths: Iterable[Path]) -> None:
             pass  # leave warnings to diagnostics
 
 
-def store_keys(home: Path, premium: Optional[str], free: Optional[str], source: str) -> List[str]:
-    """Store keys for the requested profiles, returning the list of profiles touched."""
+def store_keys(
+    home: Path, premium: Optional[str], free: Optional[str], source: str
+) -> tuple[List[str], bool]:
+    """Store keys for the requested profiles and return touched profiles + success flag."""
 
     touched: List[str] = []
+    all_ok = True
     cursor_dir = home / ".cursor"
     cursor_dir.mkdir(parents=True, exist_ok=True)
     env_file = cursor_dir / ".env"
@@ -102,11 +105,15 @@ def store_keys(home: Path, premium: Optional[str], free: Optional[str], source: 
 
     with sandbox_home(home):
         if premium:
-            update_api_key(premium, profile="premium", source=source)
-            touched.append("premium")
+            result = update_api_key(premium, profile="premium", source=source)
+            all_ok = all_ok and result
+            if result:
+                touched.append("premium")
         if free:
-            update_api_key(free, profile="free", source=source)
-            touched.append("free")
+            result = update_api_key(free, profile="free", source=source)
+            all_ok = all_ok and result
+            if result:
+                touched.append("free")
 
         ensure_permissions(
             [
@@ -118,7 +125,7 @@ def store_keys(home: Path, premium: Optional[str], free: Optional[str], source: 
             ]
         )
 
-    return touched
+    return touched, all_ok
 
 
 def run_verify(home: Path, profiles: Iterable[str], stale_days: int) -> bool:
@@ -204,9 +211,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     premium_key, free_key = resolve_keys(args, using_temp_home)
 
     touched_profiles: List[str] = []
+    store_success = True
 
     if not args.verify_only:
-        touched_profiles = store_keys(
+        touched_profiles, store_success = store_keys(
             sandbox_root, premium=premium_key, free=free_key, source=args.source
         )
         if touched_profiles:
@@ -218,7 +226,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         p for p in PROFILE_CONFIG if not getattr(args, f"skip_{p}", False)
     ]
     ok = run_verify(sandbox_root, profiles=profiles_to_check, stale_days=args.stale_days)
-    print("Diagnostics status:", "OK" if ok else "Issues detected")
+    final_ok = store_success and ok
+    if not store_success:
+        print("One or more profiles failed to update.")
+    print("Diagnostics status:", "OK" if final_ok else "Issues detected")
     print("Sandbox HOME:", sandbox_root)
 
     if args.keep_sandbox:
@@ -230,7 +241,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         except Exception:
             pass
 
-    return 0 if ok else 1
+    return 0 if final_ok else 1
 
 
 if __name__ == "__main__":
