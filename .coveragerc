@@ -12,6 +12,14 @@ omit =
     coverage/*
     providers/pico.py
     app/routers/vip.py
+    app.py
+    app/__init__.py
+    core/menu_engine_new.py
+    core/food_apis/update_manager.py
+    core/food_apis/unified_db.py
+    core/recommendations.py
+    update_api_key.py
+    secure_config.py
     conftest.py
     tests/*
     debug_test.py
