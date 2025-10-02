@@ -3,6 +3,7 @@ Test coverage boost to reach 97%
 """
 
 import importlib
+import os
 from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
@@ -54,21 +55,24 @@ class TestCoverageFinalBoost:
             if hasattr(test_pro_access, "main"):
                 # Patch external dependencies instead of the main function
                 with patch("builtins.input", return_value="test-key"):
-                    with patch("builtins.print") as mock_print:
-                        with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
-                            mock_test.return_value = {
-                                "status": "success",
-                                "available_models": ["gpt-4"],
-                                "pro_models": {"gpt-4": True},
-                                "total_models": 1,
-                            }
+                    with patch.dict(os.environ, {}, clear=True):
+                        with patch("builtins.print") as mock_print:
+                            with patch.object(
+                                test_pro_access, "test_openai_pro_access"
+                            ) as mock_test:
+                                mock_test.return_value = {
+                                    "status": "success",
+                                    "available_models": ["gpt-4"],
+                                    "pro_models": {"gpt-4": True},
+                                    "total_models": 1,
+                                }
 
-                            # Call the real main function
-                            test_pro_access.main()
+                                # Call the real main function
+                                test_pro_access.main()
 
-                            # Verify the mocked dependencies were called
-                            mock_test.assert_called_once_with("test-key")
-                            mock_print.assert_called()
+                                # Verify the mocked dependencies were called
+                                mock_test.assert_called_once_with("test-key")
+                                mock_print.assert_called()
 
     @pytest.mark.parametrize(
         "module_name",
