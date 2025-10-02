@@ -134,7 +134,7 @@ def _create_backup(path: Path) -> Optional[Path]:
     if not path.exists():
         return None
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    backup_path = path.with_suffix(path.suffix + f".bak.{timestamp}")
+    backup_path = path.with_suffix(f"{path.suffix}.bak.{timestamp}")
     shutil.copy2(path, backup_path)
     return backup_path
 
