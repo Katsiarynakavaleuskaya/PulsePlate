@@ -253,7 +253,7 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
         # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
         if isinstance(exc, HTTPException):
             raise
-        logger.error("Auth dependency failure", exc_info=exc)
+        logger.error("Auth dependency failure: %s", type(exc).__name__)
         raise HTTPException(status_code=500, detail="Authentication dependency error")
 
 
