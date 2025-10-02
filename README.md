@@ -55,6 +55,9 @@ source scripts/dev_shell.sh
 
 # (Опционально) Настроить git post-commit напоминание
 ./scripts/install_post_commit_reminder.sh
+
+# Автоматизированная проверка шифрования API-ключей
+python scripts/api_key_workflow.py --help
 ```
 
 **📋 Archived planning docs moved to `docs/archive/`**
@@ -65,6 +68,7 @@ source scripts/dev_shell.sh
 - Приложение использует SQLAlchemy 2.x + Alembic. Базовая конфигурация находится в `core/db.py`.
 - По умолчанию создаётся SQLite-файл `cache/app.db`. Переопределите `DATABASE_URL`, чтобы подключиться к PostgreSQL (через `psycopg[binary]`) или другой БД.
 - Миграции управляются Alembic (`alembic.ini`, каталог `alembic/`). Первичная ревизия создаёт таблицу `users`.
+- Поддерживается асинхронный доступ: задайте `DATABASE_ASYNC_URL` (или `DATABASE_USE_ASYNC=1`, чтобы автоматически подобрать драйвер, например `postgresql+asyncpg://…`). Для настроек пула доступны переменные `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE`, `DB_POOL_TIMEOUT`, режим логирования SQL — `DB_ECHO`.
 - Быстрый старт data layer:
   1. `alembic upgrade head` — применить миграции к текущему `DATABASE_URL`.
   2. `uvicorn app:app --reload` — запустить API локально.

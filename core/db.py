@@ -6,12 +6,23 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
+import asyncio
 import os
-from contextlib import contextmanager
-from typing import Any, Generator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, AsyncGenerator, Generator, Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+try:  # Optional async support
+    from sqlalchemy.ext.asyncio import (
+        AsyncEngine,
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+except ImportError:  # pragma: no cover - async extras not installed
+    AsyncEngine = AsyncSession = async_sessionmaker = create_async_engine = None  # type: ignore
 
 
 def _build_engine_url() -> str:
@@ -31,6 +42,61 @@ def _sqlite_connect_args(url: str) -> dict[str, object]:
 
 
 DATABASE_URL = _build_engine_url()
+
+
+def _derive_async_url(sync_url: str) -> Optional[str]:
+    """Derive an async-capable URL from a synchronous URL when possible."""
+
+    if "+async" in sync_url:
+        return sync_url
+    if sync_url.startswith("sqlite+aiosqlite"):
+        return sync_url
+    if sync_url.startswith("sqlite:///"):
+        return sync_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    if sync_url.startswith("postgresql+asyncpg://") or sync_url.startswith("postgres+asyncpg://"):
+        return sync_url
+    if sync_url.startswith("postgresql://"):
+        return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("postgres://"):
+        return sync_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("mysql://"):
+        return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
+    if sync_url.startswith("mysql+pymysql://"):
+        return sync_url.replace("mysql+pymysql://", "mysql+aiomysql://", 1)
+    return None
+
+
+def _engine_pool_config() -> dict[str, Any]:
+    """Return engine pooling options based on environment variables."""
+
+    config: dict[str, Any] = {}
+    pool_size = os.getenv("DB_POOL_SIZE")
+    max_overflow = os.getenv("DB_MAX_OVERFLOW")
+    pool_recycle = os.getenv("DB_POOL_RECYCLE")
+    pool_timeout = os.getenv("DB_POOL_TIMEOUT")
+
+    if pool_size:
+        try:
+            config["pool_size"] = int(pool_size)
+        except ValueError:
+            raise ValueError("DB_POOL_SIZE must be an integer") from None
+    if max_overflow:
+        try:
+            config["max_overflow"] = int(max_overflow)
+        except ValueError:
+            raise ValueError("DB_MAX_OVERFLOW must be an integer") from None
+    if pool_recycle:
+        try:
+            config["pool_recycle"] = int(pool_recycle)
+        except ValueError:
+            raise ValueError("DB_POOL_RECYCLE must be an integer") from None
+    if pool_timeout:
+        try:
+            config["pool_timeout"] = int(pool_timeout)
+        except ValueError:
+            raise ValueError("DB_POOL_TIMEOUT must be an integer") from None
+
+    return config
 
 
 class EngineCompat:
@@ -65,10 +131,24 @@ class EngineCompat:
             return result
 
 
+# Engine creation settings shared between sync/async variants
+_ECHO_SQL = os.getenv("DB_ECHO", "false").lower() in {"1", "true", "yes", "on"}
+_POOL_CONFIG = _engine_pool_config()
+
+
+def _sync_engine_kwargs(url: str) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "future": True,
+        "echo": _ECHO_SQL,
+        "connect_args": _sqlite_connect_args(url),
+    }
+    if not url.startswith("sqlite"):
+        kwargs.update(_POOL_CONFIG)
+    return kwargs
+
+
 # Create the underlying SQLAlchemy Engine instance (2.x style)
-_RAW_ENGINE = create_engine(
-    DATABASE_URL, echo=False, future=True, connect_args=_sqlite_connect_args(DATABASE_URL)
-)
+_RAW_ENGINE = create_engine(DATABASE_URL, **_sync_engine_kwargs(DATABASE_URL))
 
 # Public engine exposes a legacy-compatible .execute attribute expected by tests
 engine = EngineCompat(_RAW_ENGINE)
@@ -79,6 +159,50 @@ class Base(DeclarativeBase):
 
 
 SessionLocal = sessionmaker(bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True)
+
+
+# Optional async engine/session factory -----------------------------------------------------
+_ASYNC_URL_ENV = os.getenv("DATABASE_ASYNC_URL")
+_ASYNC_ENABLED_FLAG = os.getenv("DATABASE_USE_ASYNC", "auto").lower()
+
+if _ASYNC_URL_ENV:
+    ASYNC_DATABASE_URL = _ASYNC_URL_ENV
+elif _ASYNC_ENABLED_FLAG in {"1", "true", "yes", "on"}:
+    ASYNC_DATABASE_URL = _derive_async_url(DATABASE_URL)
+else:
+    ASYNC_DATABASE_URL = None
+
+if ASYNC_DATABASE_URL and create_async_engine is None:
+    raise ImportError(
+        "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+    )
+
+if ASYNC_DATABASE_URL and create_async_engine is not None:
+    async_kwargs: dict[str, Any] = {
+        "echo": _ECHO_SQL,
+        "future": True,
+        "pool_pre_ping": True,
+    }
+    if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
+        async_kwargs.update(
+            {key: value for key, value in _POOL_CONFIG.items() if key != "max_overflow"}
+        )
+
+    _ASYNC_ENGINE: AsyncEngine = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
+    AsyncSessionLocal: Optional[async_sessionmaker[AsyncSession]] = async_sessionmaker(
+        bind=_ASYNC_ENGINE,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+else:
+    _ASYNC_ENGINE = None  # type: ignore[assignment]
+    AsyncSessionLocal = None
+
+async_engine: Optional[AsyncEngine]
+if _ASYNC_ENGINE is not None:
+    async_engine = _ASYNC_ENGINE
+else:
+    async_engine = None
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -110,6 +234,41 @@ def session_scope() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Async dependency yielding an async SQLAlchemy session when enabled."""
+
+    if AsyncSessionLocal is None:
+        raise RuntimeError(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+@asynccontextmanager
+async def session_scope_async() -> AsyncGenerator[AsyncSession, None]:
+    """Async context manager for atomic DB operations."""
+
+    if AsyncSessionLocal is None:
+        raise RuntimeError(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
+    session = AsyncSessionLocal()
+    try:
+        yield session
+        await session.commit()
+    except Exception:  # pragma: no cover - defensive rollback
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 def init_db() -> None:
@@ -144,4 +303,32 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
+    if _ASYNC_ENGINE is not None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(init_db_async())
+        else:  # pragma: no cover - requires runtime event loop
+            if loop.is_running():
+                raise RuntimeError(
+                    "init_db() called inside an active event loop while async engine is enabled. "
+                    "Use `await init_db_async()` instead."
+                )
+        return
+
     metadata.create_all(bind=_RAW_ENGINE)
+
+
+async def init_db_async() -> None:
+    """Async variant of :func:`init_db` for async engines."""
+
+    import core.models  # noqa: F401  # pylint: disable=unused-import
+
+    metadata = Base.metadata
+
+    if _ASYNC_ENGINE is None:
+        metadata.create_all(bind=_RAW_ENGINE)
+        return
+
+    async with _ASYNC_ENGINE.begin() as conn:
+        await conn.run_sync(metadata.create_all)

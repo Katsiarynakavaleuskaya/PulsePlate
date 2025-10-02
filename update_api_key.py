@@ -440,6 +440,8 @@ def update_api_key(
             logger.info("update.env profile=%s file=%s", profile, updated_env)
     elif dry_run:
         logger.info("update.env profile=%s dry_run_skipped file=%s", profile, env_file)
+    else:
+        logger.info("update.env profile=%s skipped_missing_file file=%s", profile, env_file)
 
     if mcp_file.exists():
         updated_mcp = _update_mcp_config(
@@ -684,7 +686,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         dry_run = getattr(args, "dry_run", False)
         backup = not getattr(args, "skip_backup", False)
         if args.command == "rotate":
-            backup = True and not dry_run
+            backup = not dry_run
         success = _handle_set_command(
             api_key=args.api_key,
             profile=args.profile,
