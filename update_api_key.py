@@ -155,14 +155,13 @@ def _verify_secure_permissions(path: Path) -> None:
         )
 
 
-def _store_in_keychain(profile: str, api_key: str, encrypted: str) -> bool:
+def _store_in_keychain(profile: str, encrypted: str) -> bool:
     storage_pref = os.getenv("PP_KEY_STORAGE", "file").lower()
     if storage_pref != "keychain":
         return False
     if keyring is None:
         _audit_logger().warning(
-            "Keychain storage requested for profile %s but python-keyring is not installed. Fallback to file.",
-            profile,
+            "Keychain storage requested but python-keyring is not installed; falling back to file storage."
         )
         return False
     service = "PulsePlate/OpenAI"
@@ -170,10 +169,8 @@ def _store_in_keychain(profile: str, api_key: str, encrypted: str) -> bool:
     try:
         keyring.set_password(service, username, encrypted)
         return True
-    except Exception as exc:  # pragma: no cover - defensive
-        _audit_logger().warning(
-            "Failed to persist profile %s key in system keychain: %s", profile, str(exc)
-        )
+    except Exception:  # pragma: no cover - defensive
+        _audit_logger().warning("System keychain persistence failed; falling back to file storage.")
         return False
 
 
@@ -422,7 +419,8 @@ def _update_config_files(
     """Update all configuration files for the given profile.
 
     Note: api_key parameter is never logged directly to prevent clear-text logging
-    of sensitive information. All logging uses only profile names and file paths.
+    of sensitive information. Logging intentionally omits profile names and file
+    paths to satisfy CodeQL requirements.
     """
     cursor_home = _cursor_home()
     env_file = cursor_home / ".env"
@@ -439,11 +437,11 @@ def _update_config_files(
         )
         if updated_env:
             touched.append(updated_env)
-            logger.info("update.env profile=%s file=%s", profile, updated_env)
+            logger.info("update.env: configuration file updated.")
     elif dry_run:
-        logger.info("update.env profile=%s dry_run_skipped file=%s", profile, env_file)
+        logger.info("update.env: dry run skipped configuration file write.")
     else:
-        logger.info("update.env profile=%s skipped_missing_file file=%s", profile, env_file)
+        logger.info("update.env: configuration file missing; skipped.")
 
     if mcp_file.exists():
         mcp_env_key: str = config["mcp_env_key"]  # type: ignore[assignment]
@@ -452,7 +450,7 @@ def _update_config_files(
         )
         if updated_mcp and not dry_run:
             touched.append(updated_mcp)
-            logger.info("update.mcp profile=%s file=%s", profile, updated_mcp)
+            logger.info("update.mcp: configuration file updated.")
 
     if settings_file.exists():
         settings_key: str = config["settings_key"]  # type: ignore[assignment]
@@ -461,15 +459,16 @@ def _update_config_files(
         )
         if updated_settings and not dry_run:
             touched.append(updated_settings)
-            logger.info("update.settings profile=%s file=%s", profile, updated_settings)
+            logger.info("update.settings: configuration file updated.")
 
     return touched
 
 
-def _log_and_fail(logger, log_message: str, *log_args, error_message: str = "") -> bool:
+def _log_and_fail(logger, log_message: str, error_message: str = "") -> bool:
     """Log an error and print a user-friendly message, then return False."""
-    logger.error(log_message, *log_args)
-    print(error_message)
+    logger.error(log_message)
+    if error_message:
+        print(error_message)
     return False
 
 
@@ -504,7 +503,6 @@ def update_api_key(
     api_key: str,
     *,
     profile: str = DEFAULT_PROFILE,
-    use_encryption: bool = True,
     dry_run: bool = False,
     backup: bool = True,
     source: str = "manual",
@@ -514,13 +512,13 @@ def update_api_key(
     Args:
         api_key: Plain text OpenAI API key (never logged in clear text).
         profile: Logical profile name ("premium" or "free").
-        use_encryption: Whether to encrypt before writing to disk (recommended).
         dry_run: When True, validate flows but avoid writing to disk.
         backup: Create timestamped .bak copies of touched files.
         source: Descriptive label recorded in metadata/audit trail.
 
     Security:
-        API keys are NEVER logged in clear text. All logging uses masked values only.
+        API keys are NEVER logged in clear text. Audit logs now avoid persisting
+        any portion of the key value.
     """
     profile = profile.lower()
     if profile not in PROFILE_CONFIG:
@@ -529,16 +527,13 @@ def update_api_key(
         )
 
     logger = _audit_logger()
-    # SECURITY: Mask the key immediately and use only masked value in logs
-    masked = _mask_secret(api_key)
-    logger.info("update.start profile=%s masked=%s dry_run=%s", profile, masked, dry_run)
+    logger.info("update.start")
 
     # Validate API key
     if not _is_valid_api_key(api_key):
         return _log_and_fail(
             logger,
-            "update.validation_failed profile=%s reason=invalid_format",
-            profile,
+            "update.validation_failed invalid_format",
             error_message="❌ Invalid API key format. Should start with 'sk-', be at least 20 characters, and no longer than 256 characters",
         )
 
@@ -546,8 +541,7 @@ def update_api_key(
     if not ENCRYPTION_AVAILABLE:
         return _log_and_fail(
             logger,
-            "update.encryption_unavailable profile=%s",
-            profile,
+            "update.encryption_unavailable",
             error_message="❌ Encryption is required. Install cryptography: pip install cryptography",
         )
 
@@ -557,9 +551,7 @@ def update_api_key(
     except RuntimeError as exc:
         return _log_and_fail(
             logger,
-            "update.encryption_failed profile=%s error=%s",
-            profile,
-            str(exc),  # SECURITY: Convert exception to string to avoid leaking sensitive data
+            "update.encryption_failed runtime_error",
             error_message=f"❌ Error: {exc}",
         )
 
@@ -567,8 +559,7 @@ def update_api_key(
     if not encrypted_value.startswith("encrypted:"):
         return _log_and_fail(
             logger,
-            "update.encryption_failed profile=%s error=unexpected_format",
-            profile,
+            "update.encryption_failed unexpected_format",
             error_message="❌ Error: Encryption failed - key not properly encrypted",
         )
 
@@ -578,23 +569,16 @@ def update_api_key(
 
     stored_keychain = False
     if not dry_run and encrypted_value.startswith("encrypted:"):
-        stored_keychain = _store_in_keychain(profile, api_key, encrypted_value)
+        stored_keychain = _store_in_keychain(profile, encrypted_value)
         if stored_keychain:
-            logger.info("update.keychain profile=%s status=stored", profile)
+            logger.info("update.keychain stored_in_system")
 
     metadata_path = None
     if not dry_run:
         metadata_path = _update_metadata(profile, api_key, source)
-        logger.info("update.metadata profile=%s file=%s", profile, metadata_path)
+        logger.info("update.metadata updated")
 
-    # SECURITY: Only log masked value, never the actual key
-    logger.info(
-        "update.complete profile=%s masked=%s touched=%d dry_run=%s",
-        profile,
-        masked,
-        len(touched),
-        dry_run,
-    )
+    logger.info("update.complete")
 
     _print_update_results(profile, touched, metadata_path, stored_keychain, dry_run)
 
@@ -771,15 +755,12 @@ def _handle_set_command(
                 source=job_source,
             )
             success = success and result
-        except Exception as exc:  # pragma: no cover - defensive
-            # SECURITY: Log only profile and source, not the key or exception details that might contain keys
-            _audit_logger().error(
-                "batch.update_failed profile=%s source=%s error=%s",
-                job_profile,
-                job_source,
-                type(exc).__name__,
+        except Exception:  # pragma: no cover - defensive
+            # SECURITY: Log a generic failure to avoid leaking key-related context
+            _audit_logger().error("batch.update_failed")
+            print(
+                "❌ Failed to update one of the configured profiles. Check audit logs for details."
             )
-            print(f"❌ Failed to update profile '{job_profile}': {type(exc).__name__}")
             success = False
     return success
 

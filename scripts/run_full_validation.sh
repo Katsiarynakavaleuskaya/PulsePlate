@@ -53,7 +53,7 @@ PYTHONDONTWRITEBYTECODE=1 python -m pytest \
   --ignore=tests/test_app_cover.py \
   --cov=. \
   --cov-config=.coveragerc \
-  --cov-fail-under=95 \
+  --cov-fail-under=97 \
   -q \
   --maxfail=5
 

@@ -105,8 +105,8 @@ else:
     # Fallback if spec creation fails
     _module_spec = cast(ModuleSpec, None)
 
-# Assign module __spec__ once with appropriate ignore for typing tools
-__spec__ = _module_spec  # type: ignore[assignment]
+# Assign module __spec__ once via setattr to avoid rebinding builtins directly
+setattr(_this_module, "__spec__", _module_spec)
 
 # Export the app and key functions for easy importing
 __all__ = [

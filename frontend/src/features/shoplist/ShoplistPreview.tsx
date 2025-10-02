@@ -54,18 +54,22 @@ export default function ShoplistPreview() {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    try {
+      anchor.click();
+    } finally {
+      try {
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch (cleanupError) {
+        console.error("Cleanup error in downloadFile:", cleanupError);
+      }
+    }
   }, []);
 
   const handleDownload = useCallback(

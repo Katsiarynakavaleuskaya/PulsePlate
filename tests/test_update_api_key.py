@@ -99,7 +99,7 @@ class TestUpdateAPIKey:
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
             with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
-                result = update_api_key.update_api_key(valid_key, use_encryption=False)
+                result = update_api_key.update_api_key(valid_key)
                 assert result is False
 
         captured = capsys.readouterr()

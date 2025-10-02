@@ -146,7 +146,7 @@ def _sync_engine_kwargs(url: str) -> dict[str, Any]:
         "connect_args": _sqlite_connect_args(url),
     }
     if not url.startswith("sqlite"):
-        kwargs.update(_POOL_CONFIG)
+        kwargs |= _POOL_CONFIG
     return kwargs
 
 
@@ -281,7 +281,7 @@ def init_db() -> None:
     """
 
     # Import models lazily so Base metadata is populated before create_all is called.
-    import core.models  # noqa: F401  # pylint: disable=unused-import
+    import core.models  # pylint: disable=unused-import
 
     metadata = Base.metadata
     create_all = metadata.create_all
@@ -306,9 +306,9 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
-    if _ASYNC_ENGINE is not None:
+    if _ASYNC_ENGINE is not None and _RAW_ENGINE is None:
         raise RuntimeError(
-            "init_db() cannot be used when async engine is enabled. Use `await init_db_async()` instead."
+            "init_db() cannot be used when only an async engine is configured. Use `await init_db_async()` instead."
         )
 
     metadata.create_all(bind=_RAW_ENGINE)
@@ -317,7 +317,7 @@ def init_db() -> None:
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
 
-    import core.models  # noqa: F401  # pylint: disable=unused-import
+    import core.models  # pylint: disable=unused-import
 
     metadata = Base.metadata
 

@@ -78,11 +78,9 @@ def ensure_permissions(paths: Iterable[Path]) -> None:
     """Best-effort chmod 600 on provided paths."""
 
     for path in paths:
-        try:
+        with contextlib.suppress(OSError):
             if path.exists():
                 os.chmod(path, 0o600)
-        except OSError:
-            pass  # leave warnings to diagnostics
 
 
 def store_keys(
@@ -91,8 +89,8 @@ def store_keys(
     """Store keys for the requested profiles and return touched profiles + success flag.
 
     Security: API keys are passed directly to update_api_key which handles all
-    masking and security. This function NEVER logs or prints the key values,
-    only the profile names ("premium", "free").
+    masking and security. This function never logs or prints key values and only
+    reports aggregate status to the console.
 
     Args:
         home: Directory to use as HOME for configuration files
@@ -234,8 +232,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             sandbox_root, premium=premium_key, free=free_key, source=args.source
         )
         if touched_profiles:
-            # SECURITY: Only printing profile names (e.g., "premium", "free"), never key values
-            print("Stored profiles:", ", ".join(touched_profiles))
+            # SECURITY: Communicate high-level status only; never surface key values
+            print(f"Stored {len(touched_profiles)} profile(s).")
         else:
             print("No profiles updated (nothing to do).")
 
