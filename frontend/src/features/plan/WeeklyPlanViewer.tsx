@@ -61,7 +61,6 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   activity: "moderate",
   goal: "maintain",
   diet_flags: [],
-  lang: "en",
 };
 
 export default function WeeklyPlanViewer() {
@@ -76,9 +75,20 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
+        const localeRaw =
+          (typeof document !== "undefined" && document.documentElement?.lang) ||
+          (typeof navigator !== "undefined" ? navigator.language : "") ||
+          "";
+        const locale = localeRaw ? localeRaw.split("-")[0]?.toLowerCase() : "";
+
+        const payload: WeekPlanRequest = {
+          ...DEFAULT_REQUEST,
+          lang: locale && locale.length === 2 ? locale : "en",
+        };
+
         const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {
           method: "POST",
-          body: JSON.stringify(DEFAULT_REQUEST),
+          body: JSON.stringify(payload),
         });
         setData(week);
       } catch (e: any) {
