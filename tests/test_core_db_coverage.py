@@ -13,13 +13,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.db import (
+    ASYNC_DATABASE_URL,
+    AsyncSessionLocal,
     Base,
     SessionLocal,
     _build_engine_url,
+    _derive_async_url,
     _sqlite_connect_args,
+    async_engine,
+    get_async_session,
     get_session,
     init_db,
+    init_db_async,
     session_scope,
+    session_scope_async,
 )
 
 
@@ -136,6 +143,23 @@ class TestCoreDB:
         assert session is not None
         session.close()
 
+    def test_async_defaults_disabled(self):
+        """Async session factory defaults to None unless configured."""
+
+        assert AsyncSessionLocal is None or callable(AsyncSessionLocal)
+        assert async_engine is None or hasattr(async_engine, "begin")
+
+    def test_derive_async_url_helper(self):
+        """Test async URL derivation from common driver strings."""
+
+        assert _derive_async_url("sqlite:///data.db") == "sqlite+aiosqlite:///data.db"
+        assert (
+            _derive_async_url("postgresql://user:pass@host/db")
+            == "postgresql+asyncpg://user:pass@host/db"
+        )
+        assert _derive_async_url("mysql+pymysql://user@host/db") == "mysql+aiomysql://user@host/db"
+        assert _derive_async_url("custom://driver") is None
+
     def test_session_scope_rollback(self):
         """Test session_scope rolls back on exception."""
         try:
@@ -162,6 +186,39 @@ class TestCoreDB:
             with patch.dict(os.environ, {"DATABASE_URL": test_url}):
                 url = _build_engine_url()
                 assert url == test_url
+
+    @pytest.mark.asyncio
+    async def test_get_async_session_raises_when_disabled(self):
+        """get_async_session should raise if async factory not configured."""
+
+        if AsyncSessionLocal is not None:
+            pytest.skip("Async session factory configured in environment")
+
+        with pytest.raises(RuntimeError):
+            gen = get_async_session()
+            await gen.__anext__()
+
+    @pytest.mark.asyncio
+    async def test_session_scope_async_missing_factory(self):
+        """session_scope_async should raise when async not configured."""
+
+        if AsyncSessionLocal is not None:
+            pytest.skip("Async session factory configured in environment")
+
+        with pytest.raises(RuntimeError):
+            async with session_scope_async():
+                pass
+
+    def test_async_database_url_constant_defined(self):
+        """ASYNC_DATABASE_URL should always be defined (possibly None)."""
+
+        assert ASYNC_DATABASE_URL is None or isinstance(ASYNC_DATABASE_URL, str)
+
+    @pytest.mark.asyncio
+    async def test_init_db_async_fallback(self):
+        """init_db_async should succeed even when async engine disabled."""
+
+        await init_db_async()
 
     def test_sqlite_file_path_creation(self):
         """Test SQLite file path handling."""

@@ -161,9 +161,16 @@ export default function WeeklyPlanViewer() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard tone="light" className="drop-shadow-lg" ariaLabel="Действия для недельного плана" role="region">
+      <GlassCard
+        tone="light"
+        ariaLabelledBy="weekly-plan-actions-title"
+        role="region"
+        contentClassName="space-y-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Мой недельный план</h2>
+          <h2 id="weekly-plan-actions-title" className="text-xl font-semibold">
+            Мой недельный план
+          </h2>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -219,7 +226,7 @@ export default function WeeklyPlanViewer() {
           </div>
         </div>
         {hint && (
-          <div className="mt-3 text-sm text-slate-600">
+          <div className="mt-3 text-sm text-slate-700" role="status" aria-live="polite">
             {hint}
             {lastSignedLink && (
               <div>
@@ -229,101 +236,108 @@ export default function WeeklyPlanViewer() {
           </div>
         )}
       </GlassCard>
-      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Сводка недельного плана">
+      <GlassCard
+        role="region"
+        ariaLabelledBy="weekly-plan-summary-title"
+        contentClassName="space-y-3"
+      >
+        <h2 id="weekly-plan-summary-title" className="text-lg font-semibold">
+          Сводка недельного плана
+        </h2>
         {dailyMenus.length === 0 ? (
           <div className="opacity-80">Пока пусто.</div>
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
-          const day = menu as UnknownRecord;
-          const dayTitle =
-            typeof day.date === "string"
-              ? day.date
-              : typeof day.day_label === "string"
-              ? day.day_label
-              : `День ${idx + 1}`;
-          const dayEnergy =
-            typeof day.energy_kcal === "number"
-              ? day.energy_kcal
-              : typeof day.kcal === "number"
-              ? day.kcal
-              : undefined;
+              const day = menu as UnknownRecord;
+              const dayTitle =
+                typeof day.date === "string"
+                  ? day.date
+                  : typeof day.day_label === "string"
+                  ? day.day_label
+                  : `День ${idx + 1}`;
+              const dayEnergy =
+                typeof day.energy_kcal === "number"
+                  ? day.energy_kcal
+                  : typeof day.kcal === "number"
+                  ? day.kcal
+                  : undefined;
 
-          const meals = Array.isArray(day.meals)
-            ? (day.meals as UnknownRecord[])
-            : [];
+              const meals = Array.isArray(day.meals)
+                ? (day.meals as UnknownRecord[])
+                : [];
 
-          return (
-            <li
-              key={dayTitle}
-              className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{dayTitle}</div>
-                {typeof dayEnergy === "number" && (
-                  <div className="text-sm opacity-70">{Math.round(dayEnergy)} ккал/день</div>
-                )}
-              </div>
-              <ul className="space-y-2">
-                {meals.map((meal, mi) => {
-                  const mealObj = meal as UnknownRecord;
-                  const mealName =
-                    typeof mealObj.name === "string"
-                      ? mealObj.name
-                      : typeof mealObj.meal === "string"
-                      ? mealObj.meal
-                      : `Приём ${mi + 1}`;
-                  const mealEnergy =
-                    typeof mealObj.energy_kcal === "number"
-                      ? mealObj.energy_kcal
-                      : typeof mealObj.kcal === "number"
-                      ? mealObj.kcal
-                      : undefined;
+              return (
+                <li
+                  key={`${dayTitle}-${idx}`}
+                  className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{dayTitle}</div>
+                    {typeof dayEnergy === "number" && (
+                      <div className="text-sm opacity-70">{Math.round(dayEnergy)} ккал/день</div>
+                    )}
+                  </div>
+                  <ul className="space-y-2">
+                    {meals.map((meal, mi) => {
+                      const mealObj = meal as UnknownRecord;
+                      const mealName =
+                        typeof mealObj.name === "string"
+                          ? mealObj.name
+                          : typeof mealObj.meal === "string"
+                          ? mealObj.meal
+                          : `Приём ${mi + 1}`;
+                      const mealEnergy =
+                        typeof mealObj.energy_kcal === "number"
+                          ? mealObj.energy_kcal
+                          : typeof mealObj.kcal === "number"
+                          ? mealObj.kcal
+                          : undefined;
 
-                  const rawItems = Array.isArray(mealObj.items)
-                    ? (mealObj.items as UnknownRecord[])
-                    : [];
+                      const rawItems = Array.isArray(mealObj.items)
+                        ? (mealObj.items as UnknownRecord[])
+                        : [];
 
-                  const fallbackItem =
-                    typeof mealObj.food_item === "string"
-                      ? [
-                          {
-                            name: mealObj.food_item,
-                            energy_kcal:
-                              typeof mealObj.kcal === "number"
-                                ? mealObj.kcal
-                                : typeof mealObj.energy_kcal === "number"
-                                ? mealObj.energy_kcal
-                                : undefined,
-                          },
-                        ]
-                      : [];
+                      const fallbackItem =
+                        typeof mealObj.food_item === "string"
+                          ? [
+                              {
+                                name: mealObj.food_item,
+                                energy_kcal:
+                                  typeof mealObj.kcal === "number"
+                                    ? mealObj.kcal
+                                    : typeof mealObj.energy_kcal === "number"
+                                    ? mealObj.energy_kcal
+                                    : undefined,
+                              },
+                            ]
+                          : [];
 
-                  const items = rawItems.length > 0 ? rawItems : fallbackItem;
+                      const items = rawItems.length > 0 ? rawItems : fallbackItem;
 
-                  return (
-                    <li
-                      key={`${mealName}-${mi}`}
-                      className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{mealName}</div>
-                        {typeof mealEnergy === "number" && (
-                          <div className="text-sm opacity-70">{Math.round(mealEnergy)} ккал</div>
-                        )}
-                      </div>
-                      <ul className="mt-2 grid gap-1">
-                        {items.length > 0 ? (
-                          items.map((item, ii) => {
-                            const itemObj = item as UnknownRecord;
-                            const itemName =
-                              typeof itemObj.name === "string"
-                                ? itemObj.name
-                                : typeof itemObj.title === "string"
-                                ? itemObj.title
-                                : typeof itemObj.food_item === "string"
-                                ? itemObj.food_item
-                                : `Блюдо ${ii + 1}`;
+                      return (
+                        <li
+                          key={`${mealName}-${mi}`}
+                          className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{mealName}</div>
+                            {typeof mealEnergy === "number" && (
+                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} ккал</div>
+                            )}
+                          </div>
+                          <ul className="mt-2 grid gap-1">
+                            {items.length > 0 ? (
+                              items.map((item, ii) => {
+                                const itemObj = item as UnknownRecord;
+                                const itemName =
+                                  typeof itemObj.name === "string"
+                                    ? itemObj.name
+                                    : typeof itemObj.title === "string"
+                                    ? itemObj.title
+                                    : typeof itemObj.food_item === "string"
+                                    ? itemObj.food_item
+                                    : `Блюдо ${ii + 1}`;
                             const itemEnergy =
                               typeof itemObj.energy_kcal === "number"
                                 ? itemObj.energy_kcal

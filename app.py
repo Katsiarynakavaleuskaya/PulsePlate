@@ -34,7 +34,7 @@ from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
-from core.db import get_session, init_db
+from core.db import async_engine, get_session, init_db, init_db_async
 from core.i18n import Language, t
 from core.utils import get_activity_factor, resolve_attr
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
@@ -125,7 +125,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     try:
-        init_db()
+        if async_engine is not None:
+            await init_db_async()
+        else:
+            init_db()
         logger.info("Database schema initialized")
     except Exception as db_err:
         logger.error(f"Failed to initialize database: {db_err}")

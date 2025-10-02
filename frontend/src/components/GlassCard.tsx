@@ -3,7 +3,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 type GlassCardTone = "neutral" | "light" | "dark";
 type GlassCardPadding = "none" | "sm" | "md" | "lg";
 
-type GlassCardProps = {
+type GlassCardProps = Omit<HTMLAttributes<HTMLDivElement>, "children" | "className"> & {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
@@ -22,9 +22,9 @@ const PADDING_CLASS: Record<GlassCardPadding, string> = {
 };
 
 const TONE_CLASS: Record<GlassCardTone, string> = {
-  neutral: "border-white/15 bg-white/10 text-white",
-  light: "border-slate-200/80 bg-white/80 text-slate-900",
-  dark: "border-slate-700/70 bg-slate-900/70 text-white",
+  neutral: "border border-white/15 bg-white/10 text-white",
+  light: "border border-slate-200/80 bg-white/80 text-slate-900",
+  dark: "border border-slate-700/70 bg-slate-900/70 text-white",
 };
 
 /**
@@ -33,26 +33,39 @@ const TONE_CLASS: Record<GlassCardTone, string> = {
  */
 export default function GlassCard({
   children,
-  className = "",
-  contentClassName = "",
+  className,
+  contentClassName,
   padding = "md",
   tone = "neutral",
   role,
   ariaLabel,
   ariaLabelledBy,
+  ...rest
 }: GlassCardProps) {
-  const ariaProps = {
-    ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
-    ...(ariaLabelledBy ? { "aria-labelledby": ariaLabelledBy } : {}),
-  };
+  const ariaProps =
+    ariaLabelledBy != null && ariaLabelledBy !== ""
+      ? { "aria-labelledby": ariaLabelledBy }
+      : ariaLabel
+      ? { "aria-label": ariaLabel }
+      : {};
+
+  const wrapperClasses = [
+    "rounded-2xl",
+    "backdrop-blur-xl",
+    "shadow-[0_8px_30px_rgba(0,0,0,0.12)]",
+    TONE_CLASS[tone],
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const contentClasses = [PADDING_CLASS[padding], contentClassName]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div
-      className={`rounded-2xl backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] ${TONE_CLASS[tone]} ${className}`.trim()}
-      role={role}
-      {...ariaProps}
-    >
-      <div className={`${PADDING_CLASS[padding]} ${contentClassName}`.trim()}>{children}</div>
+    <div className={wrapperClasses} role={role ?? "group"} {...ariaProps} {...rest}>
+      <div className={contentClasses}>{children}</div>
     </div>
   );
 }

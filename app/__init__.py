@@ -102,7 +102,7 @@ if _base_spec is not None:
         _spec.submodule_search_locations = [os.path.dirname(__file__)]
         __spec__ = _spec
     else:
-        __spec__ = cast(ModuleSpec, None)
+        __spec__: Optional[ModuleSpec] = None
 else:
     # Fallback if spec creation fails
     __spec__ = cast(ModuleSpec, None)
