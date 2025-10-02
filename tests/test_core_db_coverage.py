@@ -18,6 +18,8 @@ from core.db import (
     Base,
     SessionLocal,
     _build_engine_url,
+    _engine_pool_config,
+    _sync_engine_kwargs,
     _derive_async_url,
     _sqlite_connect_args,
     async_engine,
@@ -142,6 +144,51 @@ class TestCoreDB:
         session = SessionLocal()
         assert session is not None
         session.close()
+
+    def test_engine_pool_config_parses_values(self):
+        """_engine_pool_config parses integer environment variables."""
+
+        with patch.dict(
+            os.environ,
+            {
+                "DB_POOL_SIZE": "5",
+                "DB_MAX_OVERFLOW": "7",
+                "DB_POOL_RECYCLE": "120",
+                "DB_POOL_TIMEOUT": "30",
+            },
+        ):
+            config = _engine_pool_config()
+
+        assert config == {
+            "pool_size": 5,
+            "max_overflow": 7,
+            "pool_recycle": 120,
+            "pool_timeout": 30,
+        }
+
+    def test_engine_pool_config_invalid_value(self):
+        """Invalid integer values should raise ValueError."""
+
+        with patch.dict(os.environ, {"DB_POOL_SIZE": "abc"}):
+            with pytest.raises(ValueError):
+                _engine_pool_config()
+
+    def test_sync_engine_kwargs_sqlite(self):
+        """SQLite engines should include connect args and skip pool tuning."""
+
+        kwargs = _sync_engine_kwargs("sqlite:///tmp.db")
+        assert kwargs["connect_args"] == {"check_same_thread": False}
+        assert "pool_size" not in kwargs
+
+    def test_sync_engine_kwargs_non_sqlite(self):
+        """Non-sqlite engines merge pool configuration."""
+
+        with patch("core.db._POOL_CONFIG", {"pool_size": 3, "max_overflow": 1}):
+            kwargs = _sync_engine_kwargs("postgresql://user@host/db")
+
+        assert kwargs["pool_size"] == 3
+        assert kwargs["max_overflow"] == 1
+        assert kwargs["echo"] is not None
 
     def test_async_defaults_disabled(self):
         """Async session factory defaults to None unless configured."""
