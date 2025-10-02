@@ -47,32 +47,31 @@ class TestCoverageFinalBoost:
             setup_custom_mcp.main()
             mock_main.assert_called_once()
 
-    def test_test_pro_access_coverage(self):
+    @patch("builtins.input", return_value="test-key")
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("builtins.print")
+    def test_test_pro_access_coverage(self, mock_print: MagicMock, mock_input: MagicMock) -> None:  # type: ignore[override]
         """Test test_pro_access.py coverage"""
+        del mock_input  # Unused but kept for clarity in decorated signature
+
         with suppress(ImportError):
             test_pro_access = importlib.import_module("test_pro_access")
 
             if hasattr(test_pro_access, "main"):
-                # Patch external dependencies instead of the main function
-                with patch("builtins.input", return_value="test-key"):
-                    with patch.dict(os.environ, {}, clear=True):
-                        with patch("builtins.print") as mock_print:
-                            with patch.object(
-                                test_pro_access, "test_openai_pro_access"
-                            ) as mock_test:
-                                mock_test.return_value = {
-                                    "status": "success",
-                                    "available_models": ["gpt-4"],
-                                    "pro_models": {"gpt-4": True},
-                                    "total_models": 1,
-                                }
+                with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
+                    mock_test.return_value = {
+                        "status": "success",
+                        "available_models": ["gpt-4"],
+                        "pro_models": {"gpt-4": True},
+                        "total_models": 1,
+                    }
 
-                                # Call the real main function
-                                test_pro_access.main()
+                    # Call the real main function
+                    test_pro_access.main()
 
-                                # Verify the mocked dependencies were called
-                                mock_test.assert_called_once_with("test-key")
-                                mock_print.assert_called()
+                    # Verify the mocked dependencies were called
+                    mock_test.assert_called_once_with("test-key")
+                    mock_print.assert_called()
 
     @pytest.mark.parametrize(
         "module_name",
