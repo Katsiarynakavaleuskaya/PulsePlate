@@ -61,7 +61,9 @@ create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-
 
 # Coverage with threshold enforcement (default 97%)
 # Allows overriding via PPCOV_FAIL_UNDER env variable.
-unalias ppcov-check 2>/dev/null
+if alias ppcov-check >/dev/null 2>&1; then
+    unalias ppcov-check
+fi
 create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=\${PPCOV_FAIL_UNDER:-97}"
 
 # Функция для покрытия с HTML и автооткрытием браузера

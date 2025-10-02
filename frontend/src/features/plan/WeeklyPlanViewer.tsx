@@ -4,12 +4,13 @@ import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
+import { getClientLocale } from "../../lib/i18n";
 
 const DEFAULT_TTL_SECONDS = 900;
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
-    if (navigator?.clipboard?.writeText) {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     }
@@ -75,15 +76,9 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
-        const localeRaw =
-          (typeof document !== "undefined" && document.documentElement?.lang) ||
-          (typeof navigator !== "undefined" ? navigator.language : "") ||
-          "";
-        const locale = localeRaw ? localeRaw.split("-")[0]?.toLowerCase() : "";
-
         const payload: WeekPlanRequest = {
           ...DEFAULT_REQUEST,
-          lang: locale && locale.length === 2 ? locale : "en",
+          lang: getClientLocale(),
         };
 
         const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {

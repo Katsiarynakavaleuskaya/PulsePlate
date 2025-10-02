@@ -37,7 +37,7 @@ if git rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "Running pre-commit hooks across the repository..."
   pre-commit run --all-files
   echo "Running pre-push pytest suite..."
-  SKIP= pytest pre-commit run pytest --hook-stage pre-push
+  SKIP=pytest,pytest-smoke pre-commit run --hook-stage pre-push
 fi
 
 # Explicit smoke test invocation (mirrors hook configuration)

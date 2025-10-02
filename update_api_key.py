@@ -140,7 +140,7 @@ def _create_backup(path: Path) -> Optional[Path]:
     if not path.exists():
         return None
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    backup_path = path.with_suffix(f"{path.suffix}.bak.{timestamp}")
+    backup_path = path.with_name(f"{path.name}.bak.{timestamp}")
     shutil.copy2(path, backup_path)
     return backup_path
 
@@ -550,7 +550,7 @@ def run_diagnostics(
         print(f"📄 Metadata file located at {meta_path}")
         _verify_secure_permissions(meta_path)
     else:
-        print("ℹ️ No metadata file found yet (keys may not have been stored).")
+        print("Info: No metadata file found yet (keys may not have been stored).")
 
     _warn_if_stale(threshold_days)
 
@@ -562,7 +562,7 @@ def run_diagnostics(
         env_keys: Sequence[str] = PROFILE_CONFIG[profile]["env_keys"]  # type: ignore[assignment]
         env_file = cursor_home / ".env"
         if not env_file.exists():
-            print(f"ℹ️ .env missing for profile '{profile}' — nothing to verify.")
+            print(f"Info: .env missing for profile '{profile}' — nothing to verify.")
             continue
         content = env_file.read_text()
         if any(f"{key}=" in content for key in env_keys):
