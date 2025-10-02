@@ -41,13 +41,17 @@ async function downloadSignedFile(url: string, filename: string) {
     throw new Error(`HTTP ${res.status}`);
   }
   const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = URL.createObjectURL(blob);
+  anchor.href = objectUrl;
   anchor.download = filename;
   document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(anchor.href);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 type WeekPlanResponse =
