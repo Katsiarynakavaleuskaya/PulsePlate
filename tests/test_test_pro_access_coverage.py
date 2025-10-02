@@ -215,17 +215,18 @@ class TestTestProAccessCoverage:
     def test_main_execution_mock(self):
         """Test main execution when script is run directly"""
         # Patch external dependencies instead of the main function
-        with patch("builtins.input", return_value="test-key"):
-            with patch("builtins.print") as mock_print:
-                with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
-                    mock_test.return_value = {
-                        "status": "success",
-                        "available_models": ["gpt-4"],
-                        "pro_models": {"gpt-4": True},
-                        "total_models": 1,
-                    }
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("builtins.input", return_value="test-key"):
+                with patch("builtins.print") as mock_print:
+                    with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
+                        mock_test.return_value = {
+                            "status": "success",
+                            "available_models": ["gpt-4"],
+                            "pro_models": {"gpt-4": True},
+                            "total_models": 1,
+                        }
 
-                    self._verify_main_execution_with_mocks(mock_test, "test-key", mock_print)
+                        self._verify_main_execution_with_mocks(mock_test, "test-key", mock_print)
 
     def _verify_main_execution_with_mocks(self, mock_test, api_key, mock_print):
         """Helper method to verify main execution with mocked dependencies"""
