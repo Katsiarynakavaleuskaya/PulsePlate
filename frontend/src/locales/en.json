@@ -1,0 +1,36 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel"
+  },
+  "paywall": {
+    "title": "Unlock Premium",
+    "subtitle": "Personalized plate, micro-balance, weekly plan.",
+    "cta": "Continue",
+    "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
+    "before": {
+      "label": "Before",
+      "randomPlate": "Random plate",
+      "macrosOnly": "Macros only",
+      "manualShopping": "Manual shopping"
+    },
+    "after": {
+      "label": "After",
+      "personalPlate": "Personal plate",
+      "microBalance": "Micro-balance",
+      "autoShoppingList": "Auto shopping list"
+    },
+    "items": {
+      "before": {
+        "random_plate": "Random plate",
+        "macros_only": "Macros only",
+        "manual_shopping": "Manual shopping"
+      },
+      "after": {
+        "personal_plate": "Personal plate",
+        "micro_balance": "Micro-balance",
+        "auto_shopping_list": "Auto shopping list"
+      }
+    }
+  }
+}

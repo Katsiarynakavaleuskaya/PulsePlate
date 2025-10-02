@@ -1,0 +1,41 @@
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* Base theming from tokens */
+html, body, #root {
+  min-height: 100%;
+}
+body {
+  background: var(--pp-navy);
+  color: var(--pp-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utilities */
+.bg-pp-primary { background: var(--pp-primary); }
+.text-white { color: #fff; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Видимый фокус по умолчанию */
+:focus-visible {
+  outline: 2px solid var(--pp-primary);
+  outline-offset: 2px;
+}
+
+/* Заголовки — лёгкая шкала, без фанатизма */
+h1 { font-size: 1.75rem; line-height: 1.2; }
+h2 { font-size: 1.375rem; line-height: 1.25; }
+p, li { line-height: 1.55; }
