@@ -253,13 +253,13 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
         # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
         if isinstance(exc, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=f"auth dependency error: {exc}")
+        logger.error("Auth dependency failure", exc_info=exc)
+        raise HTTPException(status_code=500, detail="Authentication dependency error")
 
 
 # (moved to top with other imports)
 
 
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status():
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
