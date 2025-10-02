@@ -58,6 +58,9 @@ source scripts/dev_shell.sh
 
 # Автоматизированная проверка шифрования API-ключей
 python scripts/api_key_workflow.py --help
+
+# Полная локальная проверка перед пушем (слияние с main + тесты)
+scripts/run_full_validation.sh
 ```
 
 **📋 Archived planning docs moved to `docs/archive/`**
