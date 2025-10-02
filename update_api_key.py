@@ -30,7 +30,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
 try:  # Optional secret storage backends
-    import keyring  # type: ignore
+    import keyring
 except ImportError:  # pragma: no cover - optional dependency
     keyring = None
 
@@ -131,9 +131,7 @@ def _audit_logger() -> logging.Logger:
 def _mask_secret(value: str) -> str:
     if not value:
         return "(empty)"
-    if len(value) <= 8:
-        return "***"
-    return f"{value[:4]}...{value[-4:]}"
+    return "***" if len(value) <= 8 else f"{value[:4]}...{value[-4:]}"
 
 
 def _create_backup(path: Path) -> Optional[Path]:
@@ -249,18 +247,21 @@ def _update_env_file(
     with open(env_path, "r", encoding="utf-8") as handle:
         lines = handle.read().splitlines()
 
+    # Remove all existing entries for each key in key_names to prevent duplicates
+    key_set = set(key_names)
+    filtered_lines = [
+        line for line in lines if not any(line.strip().startswith(f"{key}=") for key in key_set)
+    ]
+
     updated = False
-    for idx, line in enumerate(lines):
-        for key_name in key_names:
-            if line.startswith(f"{key_name}="):
-                lines[idx] = f"{key_name}={value}"
-                updated = True
 
-    if not updated:
-        for key_name in key_names:
-            lines.append(f"{key_name}={value}")
+    # Add new entries for each key
+    for key in key_names:
+        filtered_lines.append(f"{key}={value}")
+        updated = True
 
-    env_path.write_text("\n".join(lines) + "\n")
+    if updated:
+        env_path.write_text("\n".join(filtered_lines) + "\n")
     _verify_secure_permissions(env_path)
     return env_path
 
@@ -274,8 +275,12 @@ def _update_mcp_config(
     if backup:
         _create_backup(mcp_path)
 
-    with open(mcp_path, "r", encoding="utf-8") as handle:
-        config = json.load(handle)
+    try:
+        with open(mcp_path, "r", encoding="utf-8") as handle:
+            config = json.load(handle)
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to decode MCP config file '{mcp_path}': {e}")
+        return None
 
     config.setdefault("mcpServers", {})
     config["mcpServers"].setdefault("pulseplate-chatgpt", {})
@@ -301,6 +306,13 @@ def _update_settings(
         with open(settings_path, "r", encoding="utf-8") as handle:
             settings = json.load(handle)
     except json.JSONDecodeError:
+        print(
+            f"Warning: {settings_path} contains invalid JSON. Creating backup before overwriting."
+        )
+        backup_path = settings_path.with_suffix(f"{settings_path.suffix}.bak")
+        import shutil
+
+        shutil.copy2(settings_path, backup_path)
         settings = {}
 
     settings[settings_key] = api_key
@@ -324,14 +336,18 @@ def _collect_jobs(
         jobs.append((profile, api_key, source))
 
     if from_env:
-        payload = os.getenv(from_env)
-        if not payload:
+        if not (payload := os.getenv(from_env)):
             raise RuntimeError(f"Environment variable {from_env} is not set or empty")
         jobs.extend(_parse_bulk_payload(payload, default_profile=profile, source=f"env:{from_env}"))
 
     if from_file:
-        content = Path(from_file).read_text(encoding="utf-8")
-        jobs.extend(_parse_bulk_payload(content, default_profile=profile, source=str(from_file)))
+        jobs.extend(
+            _parse_bulk_payload(
+                Path(from_file).read_text(encoding="utf-8"),
+                default_profile=profile,
+                source=str(from_file),
+            )
+        )
 
     if not jobs:
         raise RuntimeError("No API keys supplied. Provide --api-key, --from-env, or --from-file.")
@@ -342,34 +358,144 @@ def _collect_jobs(
 def _parse_bulk_payload(
     payload: str, *, default_profile: str, source: str
 ) -> List[Tuple[str, str, str]]:
+    """Parse bulk payload for API keys. Supports both JSON array format and line-based profile:key format."""
+    import json
+
+    jobs: List[Tuple[str, str, str]] = []
     payload = payload.strip()
+
     if not payload:
-        return []
+        return jobs
 
-    entries: List[Tuple[str, str, str]] = []
-    if payload.startswith("{"):
-        data = json.loads(payload)
-        if not isinstance(data, dict):
-            raise ValueError("Bulk payload JSON must be an object mapping profile to key")
-        for profile, key in data.items():
-            entries.append((str(profile), str(key).strip(), source))
-        return entries
+    # Try JSON format first
+    if payload.startswith("{") or payload.startswith("["):
+        try:
+            data = json.loads(payload)
+            if isinstance(data, list):
+                # JSON array format: [{"profile": "premium", "api_key": "sk-..."}, ...]
+                for entry in data:
+                    if not isinstance(entry, dict):
+                        raise ValueError("Each entry in bulk payload must be a JSON object")
+                    profile = entry.get("profile", default_profile)
+                    api_key = entry.get("api_key")
+                    if not api_key:
+                        raise ValueError("Missing 'api_key' in bulk payload entry")
+                    jobs.append((profile, api_key, source))
+            elif isinstance(data, dict):
+                # JSON object format: {"premium": "sk-...", "free": "sk-..."}
+                for profile, api_key in data.items():
+                    jobs.append((str(profile), str(api_key).strip(), source))
+            else:
+                raise ValueError("Bulk payload JSON must be an object or array")
+            return jobs
+        except (json.JSONDecodeError, ValueError) as exc:
+            # If JSON parsing fails, fall back to line-based parsing
+            pass
 
+    # Line-based format: "profile:key" or just "key" (uses default_profile)
     for raw_line in payload.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
+
         delimiter = None
         for candidate in ("=", ":", ","):
             if candidate in line:
                 delimiter = candidate
                 break
+
         if delimiter:
-            prof, key = line.split(delimiter, 1)
-            entries.append((prof.strip(), key.strip(), source))
+            parts = line.split(delimiter, 1)
+            if len(parts) == 2:
+                prof, key = parts
+                jobs.append((prof.strip(), key.strip(), source))
+            else:
+                raise ValueError(f"Invalid line format: {line}")
         else:
-            entries.append((default_profile, line, source))
-    return entries
+            # No delimiter found, treat as API key with default profile
+            jobs.append((default_profile, line, source))
+
+    return jobs
+
+
+def _update_config_files(
+    profile: str, api_key: str, encrypted_value: str, logger, *, backup: bool, dry_run: bool
+) -> List[Path]:
+    """Update all configuration files for the given profile."""
+    cursor_home = _cursor_home()
+    env_file = cursor_home / ".env"
+    mcp_file = cursor_home / "mcp.json"
+    settings_file = cursor_home / "settings.json"
+
+    config = PROFILE_CONFIG[profile]
+    touched: List[Path] = []
+
+    if env_file.exists() and not dry_run:
+        env_keys: Sequence[str] = config["env_keys"]  # type: ignore[assignment]
+        updated_env = _update_env_file(
+            env_file, env_keys, encrypted_value, backup=backup, dry_run=dry_run
+        )
+        if updated_env:
+            touched.append(updated_env)
+            logger.info("update.env profile=%s file=%s", profile, updated_env)
+    elif dry_run:
+        logger.info("update.env profile=%s dry_run_skipped file=%s", profile, env_file)
+    else:
+        logger.info("update.env profile=%s skipped_missing_file file=%s", profile, env_file)
+
+    if mcp_file.exists():
+        mcp_env_key: str = config["mcp_env_key"]  # type: ignore[assignment]
+        updated_mcp = _update_mcp_config(
+            mcp_file, mcp_env_key, api_key, backup=backup, dry_run=dry_run
+        )
+        if updated_mcp and not dry_run:
+            touched.append(updated_mcp)
+            logger.info("update.mcp profile=%s file=%s", profile, updated_mcp)
+
+    if settings_file.exists():
+        settings_key: str = config["settings_key"]  # type: ignore[assignment]
+        updated_settings = _update_settings(
+            settings_file, settings_key, api_key, backup=backup, dry_run=dry_run
+        )
+        if updated_settings and not dry_run:
+            touched.append(updated_settings)
+            logger.info("update.settings profile=%s file=%s", profile, updated_settings)
+
+    return touched
+
+
+def _log_and_fail(logger, log_message: str, *log_args, error_message: str = "") -> bool:
+    """Log an error and print a user-friendly message, then return False."""
+    logger.error(log_message, *log_args)
+    print(error_message)
+    return False
+
+
+def _print_update_results(
+    profile: str,
+    touched: List[Path],
+    metadata_path: Optional[Path],
+    stored_keychain: bool,
+    dry_run: bool,
+) -> None:
+    """Print the results of an API key update operation."""
+    if dry_run:
+        print(f"🔍 Dry run complete for profile '{profile}'. No files were modified.")
+    else:
+        print("🔐 API key will be stored encrypted in .env")
+        if touched:
+            print("✅ Updated:")
+            for path in touched:
+                print(f"  - {path}")
+        if metadata_path:
+            print(f"🗂️ Metadata recorded at {metadata_path}")
+        if stored_keychain:
+            print("🔑 Key also stored in system keychain (PP_KEY_STORAGE=keychain)")
+        print("\n🎉 API key updated successfully!")
+        print("\nNext steps:")
+        print("1. Restart Cursor")
+        print("2. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
+        print("3. Verify ChatGPT tools are available")
 
 
 def update_api_key(
@@ -401,69 +527,48 @@ def update_api_key(
     masked = _mask_secret(api_key)
     logger.info("update.start profile=%s masked=%s dry_run=%s", profile, masked, dry_run)
 
+    # Validate API key
     if not _is_valid_api_key(api_key):
-        logger.error("update.validation_failed profile=%s reason=invalid_format", profile)
-        print(
-            "❌ Invalid API key format. Should start with 'sk-', be at least 20 characters, and no longer than 256 characters"
+        return _log_and_fail(
+            logger,
+            "update.validation_failed profile=%s reason=invalid_format",
+            profile,
+            error_message="❌ Invalid API key format. Should start with 'sk-', be at least 20 characters, and no longer than 256 characters",
         )
-        return False
 
+    # Check encryption availability
     if not ENCRYPTION_AVAILABLE:
-        logger.error("update.encryption_unavailable profile=%s", profile)
-        print("❌ Encryption is required. Install cryptography: pip install cryptography")
-        return False
+        return _log_and_fail(
+            logger,
+            "update.encryption_unavailable profile=%s",
+            profile,
+            error_message="❌ Encryption is required. Install cryptography: pip install cryptography",
+        )
 
+    # Encrypt the API key
     try:
         encrypted_value = encrypt_value(api_key)
     except RuntimeError as exc:
-        logger.error("update.encryption_failed profile=%s error=%s", profile, exc)
-        print(f"❌ Error: {exc}")
-        return False
+        return _log_and_fail(
+            logger,
+            "update.encryption_failed profile=%s error=%s",
+            profile,
+            exc,
+            error_message=f"❌ Error: {exc}",
+        )
 
+    # Validate encryption result
     if not encrypted_value.startswith("encrypted:"):
-        logger.error("update.encryption_failed profile=%s error=unexpected_format", profile)
-        print("❌ Error: Encryption failed - key not properly encrypted")
-        return False
-
-    cursor_home = _cursor_home()
-    env_file = cursor_home / ".env"
-    mcp_file = cursor_home / "mcp.json"
-    settings_file = cursor_home / "settings.json"
-
-    config = PROFILE_CONFIG[profile]
-    env_keys: Sequence[str] = config["env_keys"]  # type: ignore[assignment]
-    settings_key: str = config["settings_key"]  # type: ignore[assignment]
-    mcp_env_key: str = config["mcp_env_key"]  # type: ignore[assignment]
-
-    touched: List[Path] = []
-
-    if env_file.exists() and not dry_run:
-        updated_env = _update_env_file(
-            env_file, env_keys, encrypted_value, backup=backup, dry_run=dry_run
+        return _log_and_fail(
+            logger,
+            "update.encryption_failed profile=%s error=unexpected_format",
+            profile,
+            error_message="❌ Error: Encryption failed - key not properly encrypted",
         )
-        if updated_env:
-            touched.append(updated_env)
-            logger.info("update.env profile=%s file=%s", profile, updated_env)
-    elif dry_run:
-        logger.info("update.env profile=%s dry_run_skipped file=%s", profile, env_file)
-    else:
-        logger.info("update.env profile=%s skipped_missing_file file=%s", profile, env_file)
 
-    if mcp_file.exists():
-        updated_mcp = _update_mcp_config(
-            mcp_file, mcp_env_key, api_key, backup=backup, dry_run=dry_run
-        )
-        if updated_mcp and not dry_run:
-            touched.append(updated_mcp)
-            logger.info("update.mcp profile=%s file=%s", profile, updated_mcp)
-
-    if settings_file.exists():
-        updated_settings = _update_settings(
-            settings_file, settings_key, api_key, backup=backup, dry_run=dry_run
-        )
-        if updated_settings and not dry_run:
-            touched.append(updated_settings)
-            logger.info("update.settings profile=%s file=%s", profile, updated_settings)
+    touched = _update_config_files(
+        profile, api_key, encrypted_value, logger, backup=backup, dry_run=dry_run
+    )
 
     stored_keychain = False
     if not dry_run and encrypted_value.startswith("encrypted:"):
@@ -484,23 +589,7 @@ def update_api_key(
         dry_run,
     )
 
-    if dry_run:
-        print(f"🔍 Dry run complete for profile '{profile}'. No files were modified.")
-    else:
-        print("🔐 API key will be stored encrypted in .env")
-        if touched:
-            print("✅ Updated:")
-            for path in touched:
-                print(f"  - {path}")
-        if metadata_path:
-            print(f"🗂️ Metadata recorded at {metadata_path}")
-        if stored_keychain:
-            print("🔑 Key also stored in system keychain (PP_KEY_STORAGE=keychain)")
-        print("\n🎉 API key updated successfully!")
-        print("\nNext steps:")
-        print("1. Restart Cursor")
-        print("2. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
-        print("3. Verify ChatGPT tools are available")
+    _print_update_results(profile, touched, metadata_path, stored_keychain, dry_run)
 
     return True
 
@@ -585,8 +674,7 @@ def _interactive_prompt() -> None:
 
     profile = input("Profile (premium/free) [premium]: ").strip() or DEFAULT_PROFILE
 
-    success = update_api_key(api_key, profile=profile)
-    if success:
+    if success := update_api_key(api_key, profile=profile):
         print("\n✅ Configuration updated successfully!")
     else:
         print("\n❌ Failed to update configuration")

@@ -129,9 +129,7 @@ def store_keys(
 
 
 def run_verify(home: Path, profiles: Iterable[str], stale_days: int) -> bool:
-    profiles = list(profiles)
-    if not profiles:
-        profiles = list(PROFILE_CONFIG.keys())
+    profiles = list(profiles) or list(PROFILE_CONFIG.keys())
 
     with sandbox_home(home):
         return run_diagnostics(profiles=profiles, threshold_days=stale_days)
@@ -232,9 +230,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     print("Diagnostics status:", "OK" if final_ok else "Issues detected")
     print("Sandbox HOME:", sandbox_root)
 
-    if args.keep_sandbox:
+    if sandbox_manager is None or args.keep_sandbox:
         print("Sandbox preserved for inspection.")
-    elif args.home is None and not args.keep_sandbox:
+    elif sandbox_manager is not None:
         # TemporaryDirectory automatically cleans up on GC; keep reference until after run
         try:
             sandbox_manager.cleanup()
