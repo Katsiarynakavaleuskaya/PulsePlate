@@ -100,10 +100,11 @@ def fake_crypto(monkeypatch: pytest.MonkeyPatch):
     class FakeFernet:
         _RAW_KEY = b"01234567890123456789012345678901"
         _KEY = base64.urlsafe_b64encode(_RAW_KEY)
+        _INVALID_KEY_MSG = "invalid key"
 
         def __init__(self, key: bytes):
             if key != self._KEY:
-                raise InvalidToken("invalid key")
+                raise InvalidToken(self._INVALID_KEY_MSG)
             self._key = key
 
         @staticmethod
