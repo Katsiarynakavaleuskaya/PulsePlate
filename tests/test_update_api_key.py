@@ -16,6 +16,12 @@ import update_api_key
 from secure_config import encrypt_value, get_or_create_encryption_key
 
 
+def fake_key(label: str = "test", *, blocks: int = 7) -> str:
+    """Generate a deterministic fake key that passes validation without resembling a real secret."""
+
+    return f"sk-{label}-" + ("xyz" * blocks)
+
+
 class TestUpdateAPIKey:
     """Test update_api_key functionality"""
 
@@ -580,19 +586,17 @@ class TestUpdateAPIKey:
     def test_parse_bulk_payload_formats(self):
         """Bulk payload parser should support JSON, lines, and empty payloads."""
 
-        json_array = json.dumps(
-            [{"profile": "premium", "api_key": "sk-array-12345678901234567890"}]
-        )
+        json_array = json.dumps([{"profile": "premium", "api_key": fake_key("array")}])
         jobs = update_api_key._parse_bulk_payload(
             json_array, default_profile="premium", source="json"
         )
-        assert jobs == [("premium", "sk-array-12345678901234567890", "json")]
+        assert jobs == [("premium", fake_key("array"), "json")]
 
-        json_object = json.dumps({"free": "sk-free-12345678901234567890"})
+        json_object = json.dumps({"free": fake_key("free")})
         jobs = update_api_key._parse_bulk_payload(
             json_object, default_profile="premium", source="json"
         )
-        assert ("free", "sk-free-12345678901234567890", "json") in jobs
+        assert ("free", fake_key("free"), "json") in jobs
 
         weird_json = json.dumps([1, 2])
         jobs = update_api_key._parse_bulk_payload(
@@ -618,12 +622,12 @@ class TestUpdateAPIKey:
         )
         assert jobs
 
-        graph_payload = "premium=sk-11111111111111111111\n# comment\nsk-22222222222222222222"
+        graph_payload = f"premium={fake_key('graph')}\n# comment\n{fake_key('fallback')}"
         jobs = update_api_key._parse_bulk_payload(
             graph_payload, default_profile="premium", source="lines"
         )
-        assert ("premium", "sk-11111111111111111111", "lines") in jobs
-        assert ("premium", "sk-22222222222222222222", "lines") in jobs
+        assert ("premium", fake_key("graph"), "lines") in jobs
+        assert ("premium", fake_key("fallback"), "lines") in jobs
 
         assert (
             update_api_key._parse_bulk_payload("", default_profile="premium", source="empty") == []
@@ -660,20 +664,20 @@ class TestUpdateAPIKey:
         """_collect_jobs should aggregate direct, env, and file sources."""
 
         config = tmp_path / "bulk_keys.json"
-        config.write_text(json.dumps({"free": "sk-free-12345678901234567890"}))
+        config.write_text(json.dumps({"free": fake_key("file")}))
         monkeypatch.setenv(
             "BULK_KEYS",
-            json.dumps([{"profile": "premium", "api_key": "sk-env-12345678901234567890"}]),
+            json.dumps([{"profile": "premium", "api_key": fake_key("env")}]),
         )
 
         jobs = update_api_key._collect_jobs(
-            "sk-direct-12345678901234567890",
+            fake_key("direct"),
             profile="premium",
             from_env="BULK_KEYS",
             from_file=config,
             source="cli",
         )
-        assert any(job[0] == "premium" and job[1].startswith("sk-direct") for job in jobs)
+        assert any(job[0] == "premium" and job[1] == fake_key("direct") for job in jobs)
         assert any(job[0] == "free" for job in jobs)
 
         with pytest.raises(RuntimeError):
