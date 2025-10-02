@@ -1,0 +1,15 @@
+# CodeQL configuration file
+# This file tells CodeQL how to analyze your codebase
+
+disable-default-queries: false
+queries:
+  - uses: security-and-quality
+  - uses: security-experimental
+
+paths-ignore:
+  - "**/node_modules/**"
+  - "**/tests/**"
+  - "**/htmlcov/**"
+  - "**/.venv/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
