@@ -18,7 +18,6 @@ omit =
     core/food_apis/update_manager.py
     core/food_apis/unified_db.py
     core/recommendations.py
-    update_api_key.py
     secure_config.py
     conftest.py
     tests/*

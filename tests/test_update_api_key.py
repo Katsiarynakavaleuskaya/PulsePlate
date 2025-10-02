@@ -3,7 +3,9 @@ Tests for update_api_key module - API key management with encryption
 """
 
 import json
+import logging
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -398,24 +400,508 @@ class TestUpdateAPIKey:
         assert "OPENAI_API_KEY=" in content
         assert "OPENAI_API_KEY_FREE=" in content
 
-    def test_run_diagnostics_reports_missing_entries(self, tmp_path, fake_crypto, capsys):
-        """Diagnostics should report missing env entries for profiles."""
+    def test_audit_logger_reuse_same_directory(self, tmp_path, monkeypatch):
+        """_audit_logger should reuse handlers when working directory matches."""
+
         cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir(parents=True, exist_ok=True)
-        (cursor_dir / ".env").write_text("OPENAI_API_KEY=encrypted:value\n")
-        (cursor_dir / "key.meta.json").write_text(json.dumps({"profiles": {}}, indent=2))
-        (cursor_dir / ".key").write_text("dummy")
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+        logger = update_api_key._audit_logger()
+        for handler in list(logger.handlers):
+            if not isinstance(handler, logging.handlers.RotatingFileHandler):
+                logger.removeHandler(handler)
+                handler.close()
+        initial_count = len(logger.handlers)
+        try:
+            again = update_api_key._audit_logger()
+            assert again is logger
+            assert len(logger.handlers) == initial_count
+        finally:
+            for handler in list(logger.handlers):
+                logger.removeHandler(handler)
+                handler.close()
 
-        with patch("update_api_key.Path.home", return_value=tmp_path):
-            ok = update_api_key.run_diagnostics(profiles=["premium", "free"], threshold_days=0)
+    def test_mask_secret_variants(self):
+        """_mask_secret handles empty, short, and long inputs."""
 
-        captured = capsys.readouterr()
-        assert not ok
-        assert "missing entry" in captured.out
+        assert update_api_key._mask_secret("") == "(empty)"
+        assert update_api_key._mask_secret("short") == "***"
+        assert update_api_key._mask_secret("sk-secret-value") == "sk-s...alue"
 
-    def test_main_coverage_placeholder(self):
-        """Placeholder for main() function coverage - tested manually"""
-        # main() function requires sys.argv manipulation and interactive behavior
-        # Best tested through integration tests or manual testing
-        assert hasattr(update_api_key, "main")
-        assert callable(update_api_key.main)
+    def test_create_backup_and_permission_warning(self, tmp_path, monkeypatch, caplog):
+        """Backup helper creates copies and warns about unsafe permissions."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        target = cursor_dir / ".env"
+        target.write_text("OPENAI_API_KEY=encrypted:value")
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2025, 1, 2, 3, 4, 5, tzinfo=tz)
+
+        monkeypatch.setattr(update_api_key, "datetime", FixedDatetime, raising=False)
+
+        assert update_api_key._create_backup(cursor_dir / "missing.env") is None
+
+        backup_path = update_api_key._create_backup(target)
+        assert backup_path is not None and backup_path.exists()
+
+        os.chmod(target, 0o644)
+        perm_logger = logging.getLogger("perm-warning")
+        for handler in list(perm_logger.handlers):
+            perm_logger.removeHandler(handler)
+        caplog.set_level(logging.WARNING, logger="perm-warning")
+        monkeypatch.setattr(update_api_key, "_audit_logger", lambda: perm_logger)
+        update_api_key._verify_secure_permissions(target)
+        assert "Insecure permissions" in caplog.text
+
+        # Non-existent paths should be ignored without error
+        update_api_key._verify_secure_permissions(cursor_dir / "nonexistent")
+
+    def test_store_in_keychain_branches(self, monkeypatch, caplog):
+        """_store_in_keychain handles missing modules, failures, and success."""
+
+        caplog.set_level(logging.WARNING)
+        log = logging.getLogger("keychain-test")
+        for handler in list(log.handlers):
+            log.removeHandler(handler)
+        monkeypatch.setattr(update_api_key, "_audit_logger", lambda: log)
+        monkeypatch.setenv("PP_KEY_STORAGE", "keychain")
+
+        monkeypatch.setattr(update_api_key, "keyring", None, raising=False)
+        assert update_api_key._store_in_keychain("premium", "encrypted:value") is False
+        assert "python-keyring" in caplog.text
+        caplog.clear()
+
+        class FaultyKeyring:
+            def set_password(self, *_args, **_kwargs):
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(update_api_key, "keyring", FaultyKeyring(), raising=False)
+        assert update_api_key._store_in_keychain("premium", "encrypted:value") is False
+        assert "System keychain persistence failed" in caplog.text
+        caplog.clear()
+
+        saved = {}
+
+        class SuccessfulKeyring:
+            def set_password(self, service, username, value):
+                saved["call"] = (service, username, value)
+
+        monkeypatch.setattr(update_api_key, "keyring", SuccessfulKeyring(), raising=False)
+        assert update_api_key._store_in_keychain("premium", "encrypted:value") is True
+        assert saved["call"][1] == "premium-api-key"
+
+    def test_update_metadata_handles_invalid_json(self, tmp_path, monkeypatch):
+        """Invalid metadata should be replaced without error."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        meta_path = cursor_dir / "key.meta.json"
+        meta_path.write_text("not-json")
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+
+        result = update_api_key._update_metadata("premium", "sk-test-1234567890", "tests")
+        data = json.loads(result.read_text())
+        assert data["profiles"]["premium"]["source"] == "tests"
+
+    def test_update_api_key_logs_keychain_success(self, tmp_path, monkeypatch, caplog):
+        """update_api_key should log keychain storage when enabled."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+        monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", True, raising=False)
+        monkeypatch.setenv("PP_KEY_STORAGE", "keychain")
+
+        class DummyKeyring:
+            def set_password(self, *args):
+                return None
+
+        audit_logger = logging.getLogger("update-keychain")
+        for handler in list(audit_logger.handlers):
+            audit_logger.removeHandler(handler)
+        caplog.set_level(logging.INFO, logger="update-keychain")
+
+        monkeypatch.setattr(update_api_key, "keyring", DummyKeyring(), raising=False)
+        monkeypatch.setattr(update_api_key, "_audit_logger", lambda: audit_logger)
+        monkeypatch.setattr(
+            update_api_key, "encrypt_value", lambda key: "encrypted:value", raising=False
+        )
+        monkeypatch.setattr(update_api_key, "_update_config_files", lambda *a, **k: [])
+        monkeypatch.setattr(update_api_key, "_update_metadata", lambda *a, **k: tmp_path / "meta")
+
+        assert update_api_key.update_api_key("sk-" + "m" * 40) is True
+        assert "stored_in_system" in caplog.text
+
+    def test_warn_if_stale_emits_warning(self, tmp_path, monkeypatch, caplog):
+        """_warn_if_stale should warn for outdated metadata entries."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+
+        # Missing file should be ignored silently
+        update_api_key._warn_if_stale(threshold_days=30)
+
+        # Invalid JSON content should also be ignored
+        meta_file = cursor_dir / "key.meta.json"
+        meta_file.write_text("not-json")
+        update_api_key._warn_if_stale(threshold_days=30)
+
+        meta_file.write_text(json.dumps({"profiles": []}))
+        update_api_key._warn_if_stale(threshold_days=30)
+
+        meta_file.write_text(json.dumps({"profiles": {"premium": {}}}))
+        update_api_key._warn_if_stale(threshold_days=30)
+
+        meta_file.write_text(json.dumps({"profiles": {"premium": {"last_updated": "bad"}}}))
+        update_api_key._warn_if_stale(threshold_days=30)
+
+        stale_payload = {
+            "profiles": {
+                "premium": {
+                    "last_updated": (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+                }
+            }
+        }
+        meta_file.write_text(json.dumps(stale_payload))
+
+        warning_logger = logging.getLogger("stale")
+        for handler in list(warning_logger.handlers):
+            warning_logger.removeHandler(handler)
+        caplog.set_level(logging.WARNING, logger="stale")
+        monkeypatch.setattr(update_api_key, "_audit_logger", lambda: warning_logger)
+
+        update_api_key._warn_if_stale(threshold_days=30)
+        assert "stale" in caplog.text
+
+    def test_parse_bulk_payload_formats(self):
+        """Bulk payload parser should support JSON, lines, and empty payloads."""
+
+        json_array = json.dumps(
+            [{"profile": "premium", "api_key": "sk-array-12345678901234567890"}]
+        )
+        jobs = update_api_key._parse_bulk_payload(
+            json_array, default_profile="premium", source="json"
+        )
+        assert jobs == [("premium", "sk-array-12345678901234567890", "json")]
+
+        json_object = json.dumps({"free": "sk-free-12345678901234567890"})
+        jobs = update_api_key._parse_bulk_payload(
+            json_object, default_profile="premium", source="json"
+        )
+        assert ("free", "sk-free-12345678901234567890", "json") in jobs
+
+        weird_json = json.dumps([1, 2])
+        jobs = update_api_key._parse_bulk_payload(
+            weird_json, default_profile="premium", source="json"
+        )
+        assert jobs  # fallback to line-based parsing
+
+        missing_key_json = json.dumps([{"profile": "premium"}])
+        jobs = update_api_key._parse_bulk_payload(
+            missing_key_json, default_profile="premium", source="json"
+        )
+        assert jobs
+
+        odd_json = json.dumps("just-a-string")
+        jobs = update_api_key._parse_bulk_payload(
+            odd_json, default_profile="premium", source="json"
+        )
+        assert jobs
+
+        broken_json = "{invalid"
+        jobs = update_api_key._parse_bulk_payload(
+            broken_json, default_profile="premium", source="json"
+        )
+        assert jobs
+
+        graph_payload = "premium=sk-11111111111111111111\n# comment\nsk-22222222222222222222"
+        jobs = update_api_key._parse_bulk_payload(
+            graph_payload, default_profile="premium", source="lines"
+        )
+        assert ("premium", "sk-11111111111111111111", "lines") in jobs
+        assert ("premium", "sk-22222222222222222222", "lines") in jobs
+
+        assert (
+            update_api_key._parse_bulk_payload("", default_profile="premium", source="empty") == []
+        )
+
+        class BadPayload(str):
+            def strip(self):
+                return self
+
+            def splitlines(self):
+                return [BadLine(self)]
+
+        class BadLine(str):
+            def split(self, sep=None, maxsplit=-1):
+                if sep == ":":
+                    return [self]
+                return super().split(sep, maxsplit)
+
+            def strip(self):
+                return self
+
+        with pytest.raises(ValueError):
+            update_api_key._parse_bulk_payload(
+                BadPayload("premium:bad"), default_profile="premium", source="lines"
+            )
+
+        with patch("update_api_key.json.loads", return_value=123):
+            jobs = update_api_key._parse_bulk_payload(
+                "{}", default_profile="premium", source="json"
+            )
+            assert jobs
+
+    def test_collect_jobs_sources(self, tmp_path, monkeypatch):
+        """_collect_jobs should aggregate direct, env, and file sources."""
+
+        config = tmp_path / "bulk_keys.json"
+        config.write_text(json.dumps({"free": "sk-free-12345678901234567890"}))
+        monkeypatch.setenv(
+            "BULK_KEYS",
+            json.dumps([{"profile": "premium", "api_key": "sk-env-12345678901234567890"}]),
+        )
+
+        jobs = update_api_key._collect_jobs(
+            "sk-direct-12345678901234567890",
+            profile="premium",
+            from_env="BULK_KEYS",
+            from_file=config,
+            source="cli",
+        )
+        assert any(job[0] == "premium" and job[1].startswith("sk-direct") for job in jobs)
+        assert any(job[0] == "free" for job in jobs)
+
+        with pytest.raises(RuntimeError):
+            update_api_key._collect_jobs(None, "premium", "MISSING_ENV", None, source="cli")
+
+        with pytest.raises(RuntimeError):
+            update_api_key._collect_jobs(None, "premium", None, None, source="cli")
+
+    def test_update_api_key_invalid_profile_raises(self):
+        """Unsupported profiles should raise ValueError before any side effects."""
+
+        with pytest.raises(ValueError):
+            update_api_key.update_api_key("sk-" + "v" * 40, profile="unknown")
+
+    def test_update_helpers_handle_invalid_json(self, tmp_path, monkeypatch, capsys):
+        """Config update helpers should tolerate invalid JSON payloads."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+
+        missing_mcp = cursor_dir / "missing.json"
+        assert (
+            update_api_key._update_mcp_config(
+                missing_mcp, "OPENAI_API_KEY", "value", backup=False, dry_run=False
+            )
+            is None
+        )
+
+        mcp = cursor_dir / "mcp.json"
+        mcp.write_text("not-json")
+        assert (
+            update_api_key._update_mcp_config(
+                mcp, "OPENAI_API_KEY", "value", backup=False, dry_run=False
+            )
+            is None
+        )
+        assert "Failed to decode" in capsys.readouterr().out
+
+        missing_settings = cursor_dir / "missing_settings.json"
+        assert (
+            update_api_key._update_settings(
+                missing_settings, "cursor.ai.openaiApiKey", "plain", backup=False, dry_run=False
+            )
+            is None
+        )
+
+        settings = cursor_dir / "settings.json"
+        settings.write_text("not-json")
+        result = update_api_key._update_settings(
+            settings, "cursor.ai.openaiApiKey", "plain", backup=True, dry_run=False
+        )
+        assert result == settings
+        assert json.loads(settings.read_text())["cursor.ai.openaiApiKey"] == "plain"
+
+    def test_run_diagnostics_paths(self, tmp_path, monkeypatch, caplog):
+        """run_diagnostics detects missing resources then succeeds once files exist."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+        caplog.set_level(logging.WARNING)
+
+        monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", False, raising=False)
+        assert update_api_key.run_diagnostics(profiles=["premium"]) is False
+
+        monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", True, raising=False)
+        assert update_api_key.run_diagnostics(profiles=["unknown"]) is False
+
+        key_file = cursor_dir / ".key"
+        key_file.write_text("secret")
+        os.chmod(key_file, 0o600)
+        meta_content = {
+            "profiles": {
+                "premium": {
+                    "last_updated": datetime.now(timezone.utc).isoformat(),
+                    "masked_sample": "***",
+                    "source": "tests",
+                }
+            }
+        }
+        (cursor_dir / "key.meta.json").write_text(json.dumps(meta_content))
+        env_file = cursor_dir / ".env"
+        env_file.write_text("OPENAI_API_KEY=encrypted:value\n")
+
+        assert update_api_key.run_diagnostics(profiles=["free"]) is False
+
+        env_file.write_text("OPENAI_API_KEY=encrypted:value\nOPENAI_API_KEY_FREE=encrypted:free\n")
+        assert update_api_key.run_diagnostics(profiles=["premium", "free"]) is True
+
+    def test_update_config_files_logging(self, tmp_path, monkeypatch, caplog):
+        """_update_config_files should log dry-run and missing file states."""
+
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir()
+        monkeypatch.setattr(update_api_key, "_cursor_home", lambda: cursor_dir)
+
+        log = logging.getLogger("config-files")
+        for handler in list(log.handlers):
+            log.removeHandler(handler)
+        caplog.set_level(logging.INFO, logger="config-files")
+
+        update_api_key._update_config_files(
+            "premium", "sk-test", "encrypted:value", log, backup=False, dry_run=True
+        )
+        assert "dry run" in caplog.text
+
+        caplog.clear()
+        update_api_key._update_config_files(
+            "premium", "sk-test", "encrypted:value", log, backup=False, dry_run=False
+        )
+        assert "missing" in caplog.text
+
+        env_path = cursor_dir / ".env"
+        assert (
+            update_api_key._update_env_file(
+                env_path, ["OPENAI_API_KEY"], "value", backup=False, dry_run=False
+            )
+            is None
+        )
+        env_path.write_text("EXISTING=value")
+        assert (
+            update_api_key._update_env_file(
+                env_path, ["OPENAI_API_KEY"], "value", backup=False, dry_run=True
+            )
+            == env_path
+        )
+
+    def test_print_update_results_branches(self, tmp_path, capsys):
+        """_print_update_results should handle dry-run and success output."""
+
+        update_api_key._print_update_results("premium", [], None, False, dry_run=True)
+        assert "No files were modified" in capsys.readouterr().out
+
+        touched = [tmp_path / "file"]
+        metadata_path = tmp_path / "meta"
+        update_api_key._print_update_results("premium", touched, metadata_path, True, dry_run=False)
+        output = capsys.readouterr().out
+        assert "Metadata recorded" in output
+        assert "Key also stored" in output
+
+    def test_interactive_prompt_branches(self, monkeypatch, capsys):
+        """Interactive prompt handles missing and valid user input."""
+
+        monkeypatch.setattr("builtins.input", lambda prompt="": "")
+        update_api_key._interactive_prompt()
+        assert "No API key" in capsys.readouterr().out
+
+        responses = iter(["sk-prompt", "free"])
+        monkeypatch.setattr("builtins.input", lambda prompt="": next(responses))
+        monkeypatch.setattr(update_api_key, "update_api_key", lambda *args, **kwargs: True)
+        update_api_key._interactive_prompt()
+        assert "Configuration updated successfully" in capsys.readouterr().out
+
+        responses_fail = iter(["sk-fail", "premium"])
+        monkeypatch.setattr("builtins.input", lambda prompt="": next(responses_fail))
+        monkeypatch.setattr(update_api_key, "update_api_key", lambda *args, **kwargs: False)
+        update_api_key._interactive_prompt()
+        assert "Failed to update" in capsys.readouterr().out
+
+    def test_handle_set_command_and_main_dispatch(self, monkeypatch, capsys):
+        """CLI helpers should dispatch commands and report failures."""
+
+        jobs = [("premium", "sk-test", "cli")]
+        monkeypatch.setattr(update_api_key, "_collect_jobs", lambda *a, **k: jobs)
+        monkeypatch.setattr(update_api_key, "update_api_key", lambda *a, **k: True)
+        assert update_api_key._handle_set_command(
+            "sk", "premium", None, None, dry_run=False, backup=True, source="cli"
+        )
+
+        def _exploding(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(update_api_key, "update_api_key", _exploding)
+        batch_logger = logging.getLogger("batch-failure")
+        for handler in list(batch_logger.handlers):
+            batch_logger.removeHandler(handler)
+        monkeypatch.setattr(update_api_key, "_audit_logger", lambda: batch_logger)
+        assert (
+            update_api_key._handle_set_command(
+                "sk", "premium", None, None, dry_run=False, backup=True, source="cli"
+            )
+            is False
+        )
+        assert "Failed to update" in capsys.readouterr().out
+
+        monkeypatch.setattr(update_api_key, "run_diagnostics", lambda **_: True)
+        assert update_api_key.main(["verify"]) == 0
+
+        monkeypatch.setattr(update_api_key, "_handle_set_command", lambda **_: True)
+        assert (
+            update_api_key.main(
+                [
+                    "set",
+                    "--api-key",
+                    "sk-test",
+                    "--profile",
+                    "premium",
+                ]
+            )
+            == 0
+        )
+
+        monkeypatch.setattr(update_api_key, "_interactive_prompt", lambda: None)
+        assert update_api_key.main([]) == 0
+
+        assert (
+            update_api_key.main(
+                [
+                    "rotate",
+                    "--api-key",
+                    "sk-rotate",
+                    "--profile",
+                    "premium",
+                ]
+            )
+            == 0
+        )
+
+        monkeypatch.setattr(update_api_key, "update_api_key", lambda *args, **kwargs: True)
+        assert (
+            update_api_key.main(
+                [
+                    "--api-key",
+                    "sk-direct",
+                    "--profile",
+                    "premium",
+                ]
+            )
+            == 0
+        )
