@@ -122,6 +122,17 @@ class TestCoreDB:
             # If models don't exist, that's okay for this test
             pass
 
+    def test_init_db_rejects_async_only_configuration(self, monkeypatch):
+        """init_db should fail when only an async engine is configured."""
+
+        from core import db as core_db
+
+        monkeypatch.setattr(core_db, "_RAW_ENGINE", None, raising=False)
+        monkeypatch.setattr(core_db, "_ASYNC_ENGINE", object(), raising=False)
+
+        with pytest.raises(RuntimeError, match="only an async engine"):
+            init_db()
+
     def test_database_url_sqlite_format(self):
         """Test DATABASE_URL is properly formatted for SQLite."""
         from core.db import DATABASE_URL

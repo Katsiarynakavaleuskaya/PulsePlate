@@ -16,6 +16,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.PulsePlate_openai }}
     strategy:
       fail-fast: false
       matrix:
