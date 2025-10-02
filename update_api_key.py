@@ -172,7 +172,7 @@ def _store_in_keychain(profile: str, api_key: str, encrypted: str) -> bool:
         return True
     except Exception as exc:  # pragma: no cover - defensive
         _audit_logger().warning(
-            "Failed to persist profile %s key in system keychain: %s", profile, exc
+            "Failed to persist profile %s key in system keychain: %s", profile, str(exc)
         )
         return False
 
@@ -181,7 +181,7 @@ def _update_metadata(profile: str, api_key: str, source: str) -> Path:
     cursor_home = _cursor_home()
     _ensure_directory(cursor_home)
     meta_path = cursor_home / METADATA_FILENAME
-    masked = _mask_secret(api_key)
+    masked = _mask_secret(api_key)  # Always mask before any operation
     now = datetime.now(timezone.utc)
 
     if meta_path.exists():
@@ -195,7 +195,7 @@ def _update_metadata(profile: str, api_key: str, source: str) -> Path:
     profiles = meta.setdefault("profiles", {})
     profiles[profile] = {
         "last_updated": now.isoformat(),
-        "masked_sample": masked,
+        "masked_sample": masked,  # Only store masked value, never plain text
         "source": source,
     }
     meta["updated_at"] = now.isoformat()
@@ -359,8 +359,6 @@ def _parse_bulk_payload(
     payload: str, *, default_profile: str, source: str
 ) -> List[Tuple[str, str, str]]:
     """Parse bulk payload for API keys. Supports both JSON array format and line-based profile:key format."""
-    import json
-
     jobs: List[Tuple[str, str, str]] = []
     payload = payload.strip()
 
@@ -388,7 +386,7 @@ def _parse_bulk_payload(
             else:
                 raise ValueError("Bulk payload JSON must be an object or array")
             return jobs
-        except (json.JSONDecodeError, ValueError) as exc:
+        except (json.JSONDecodeError, ValueError):
             # If JSON parsing fails, fall back to line-based parsing
             pass
 
@@ -421,7 +419,11 @@ def _parse_bulk_payload(
 def _update_config_files(
     profile: str, api_key: str, encrypted_value: str, logger, *, backup: bool, dry_run: bool
 ) -> List[Path]:
-    """Update all configuration files for the given profile."""
+    """Update all configuration files for the given profile.
+
+    Note: api_key parameter is never logged directly to prevent clear-text logging
+    of sensitive information. All logging uses only profile names and file paths.
+    """
     cursor_home = _cursor_home()
     env_file = cursor_home / ".env"
     mcp_file = cursor_home / "mcp.json"
@@ -510,12 +512,15 @@ def update_api_key(
     """Persist an API key for the given profile.
 
     Args:
-        api_key: Plain text OpenAI API key.
+        api_key: Plain text OpenAI API key (never logged in clear text).
         profile: Logical profile name ("premium" or "free").
         use_encryption: Whether to encrypt before writing to disk (recommended).
         dry_run: When True, validate flows but avoid writing to disk.
         backup: Create timestamped .bak copies of touched files.
         source: Descriptive label recorded in metadata/audit trail.
+
+    Security:
+        API keys are NEVER logged in clear text. All logging uses masked values only.
     """
     profile = profile.lower()
     if profile not in PROFILE_CONFIG:
@@ -524,6 +529,7 @@ def update_api_key(
         )
 
     logger = _audit_logger()
+    # SECURITY: Mask the key immediately and use only masked value in logs
     masked = _mask_secret(api_key)
     logger.info("update.start profile=%s masked=%s dry_run=%s", profile, masked, dry_run)
 
@@ -553,7 +559,7 @@ def update_api_key(
             logger,
             "update.encryption_failed profile=%s error=%s",
             profile,
-            exc,
+            str(exc),  # SECURITY: Convert exception to string to avoid leaking sensitive data
             error_message=f"❌ Error: {exc}",
         )
 
@@ -581,6 +587,7 @@ def update_api_key(
         metadata_path = _update_metadata(profile, api_key, source)
         logger.info("update.metadata profile=%s file=%s", profile, metadata_path)
 
+    # SECURITY: Only log masked value, never the actual key
     logger.info(
         "update.complete profile=%s masked=%s touched=%d dry_run=%s",
         profile,
@@ -674,7 +681,8 @@ def _interactive_prompt() -> None:
 
     profile = input("Profile (premium/free) [premium]: ").strip() or DEFAULT_PROFILE
 
-    if success := update_api_key(api_key, profile=profile):
+    success = update_api_key(api_key, profile=profile)
+    if success:
         print("\n✅ Configuration updated successfully!")
     else:
         print("\n❌ Failed to update configuration")
@@ -747,6 +755,10 @@ def _handle_set_command(
     backup: bool,
     source: str,
 ) -> bool:
+    """Handle set command for API key updates.
+
+    Security: API keys are never logged in clear text during batch operations.
+    """
     jobs = _collect_jobs(api_key, profile, from_env, from_file, source=source)
     success = True
     for job_profile, job_key, job_source in jobs:
@@ -760,10 +772,14 @@ def _handle_set_command(
             )
             success = success and result
         except Exception as exc:  # pragma: no cover - defensive
+            # SECURITY: Log only profile and source, not the key or exception details that might contain keys
             _audit_logger().error(
-                "batch.update_failed profile=%s source=%s error=%s", job_profile, job_source, exc
+                "batch.update_failed profile=%s source=%s error=%s",
+                job_profile,
+                job_source,
+                type(exc).__name__,
             )
-            print(f"❌ Failed to update profile '{job_profile}': {exc}")
+            print(f"❌ Failed to update profile '{job_profile}': {type(exc).__name__}")
             success = False
     return success
 

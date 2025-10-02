@@ -25,14 +25,10 @@ else:
 
 try:  # Optional async support
     from sqlalchemy.ext.asyncio import (
-        AsyncEngine,
-        AsyncSession,
         async_sessionmaker,
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    AsyncEngine = cast(Any, None)
-    AsyncSession = cast(Any, None)
     async_sessionmaker = cast(Any, None)
     create_async_engine = cast(Any, None)
 

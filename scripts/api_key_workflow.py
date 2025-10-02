@@ -88,7 +88,21 @@ def ensure_permissions(paths: Iterable[Path]) -> None:
 def store_keys(
     home: Path, premium: Optional[str], free: Optional[str], source: str
 ) -> tuple[List[str], bool]:
-    """Store keys for the requested profiles and return touched profiles + success flag."""
+    """Store keys for the requested profiles and return touched profiles + success flag.
+
+    Security: API keys are passed directly to update_api_key which handles all
+    masking and security. This function NEVER logs or prints the key values,
+    only the profile names ("premium", "free").
+
+    Args:
+        home: Directory to use as HOME for configuration files
+        premium: Premium API key value (never logged)
+        free: Free-tier API key value (never logged)
+        source: Label for audit trail
+
+    Returns:
+        Tuple of (list of touched profile names, success flag)
+    """
 
     touched: List[str] = []
     all_ok = True
@@ -105,15 +119,17 @@ def store_keys(
 
     with sandbox_home(home):
         if premium:
+            # SECURITY: premium key is passed directly to update_api_key which handles masking
             result = update_api_key(premium, profile="premium", source=source)
             all_ok = all_ok and result
             if result:
-                touched.append("premium")
+                touched.append("premium")  # Only profile name, never the key value
         if free:
+            # SECURITY: free key is passed directly to update_api_key which handles masking
             result = update_api_key(free, profile="free", source=source)
             all_ok = all_ok and result
             if result:
-                touched.append("free")
+                touched.append("free")  # Only profile name, never the key value
 
         ensure_permissions(
             [
@@ -135,7 +151,7 @@ def run_verify(home: Path, profiles: Iterable[str], stale_days: int) -> bool:
         return run_diagnostics(profiles=profiles, threshold_days=stale_days)
 
 
-def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Automate PulsePlate API key setup + diagnostics")
     parser.add_argument(
         "--home", type=Path, help="Directory to treat as HOME/.cursor (defaults to temp sandbox)"
@@ -189,7 +205,7 @@ def resolve_keys(
     return premium_key, free_key
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     args = parse_args(argv)
 
     if args.home is None:
@@ -212,10 +228,13 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     store_success = True
 
     if not args.verify_only:
+        # SECURITY: Keys are passed to store_keys which forwards them to update_api_key
+        # Neither function logs the actual key values, only profile names
         touched_profiles, store_success = store_keys(
             sandbox_root, premium=premium_key, free=free_key, source=args.source
         )
         if touched_profiles:
+            # SECURITY: Only printing profile names (e.g., "premium", "free"), never key values
             print("Stored profiles:", ", ".join(touched_profiles))
         else:
             print("No profiles updated (nothing to do).")
@@ -237,6 +256,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         try:
             sandbox_manager.cleanup()
         except Exception:
+            # Cleanup failure is not critical - temporary directory will be removed on system cleanup
             pass
 
     return 0 if final_ok else 1
