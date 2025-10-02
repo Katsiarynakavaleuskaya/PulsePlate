@@ -61,9 +61,12 @@ class TestHealthAndMonitoringEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "privacy_policy" in data
+        assert "ai_usage" in data
         assert "data_retention" in data
+        assert "security" in data
+        assert "user_rights" in data and isinstance(data["user_rights"], list)
         assert "contact" in data
-        assert "No personal data is stored" in data["privacy_policy"]
+        assert "PulsePlate runs BMI" in data["privacy_policy"]
 
 
 class TestDebugEndpoint:

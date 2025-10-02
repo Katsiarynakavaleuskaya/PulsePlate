@@ -896,13 +896,32 @@ async def metrics():
 @app.get("/privacy")
 async def privacy():
     """Privacy policy endpoint."""
+
     return {
         "privacy_policy": (
-            "This application processes BMI calculations locally. "
-            "No personal data is stored or transmitted to external servers."
+            "PulsePlate runs BMI and nutrition calculations locally. Personal metrics are processed "
+            "in memory, and we do not persist or sell any identifying information."
         ),
-        "data_retention": "No data is retained beyond the current session.",
-        "contact": "For privacy concerns, please contact the application administrator.",
+        "ai_usage": (
+            "AI-assisted features (such as recipe suggestions or premium tips) are opt-in. When enabled, "
+            "requests are routed only to the configured provider and never include raw biometric data "
+            "without explicit consent."
+        ),
+        "data_retention": (
+            "Operational logs retain anonymized events for 30 days to help us improve reliability. "
+            "Nutrition plans, exports, and inputs are cleared after each session unless you explicitly "
+            "export them."
+        ),
+        "security": (
+            "API keys and secrets are encrypted on disk via secure_config and stored with 600 permissions "
+            "inside the user profile directory."
+        ),
+        "user_rights": [
+            "Request deletion of cached data and logs at any time.",
+            "Export any stored plans before requesting removal to keep a personal copy.",
+            "Disable AI-assisted features through settings without impacting core BMI tools.",
+        ],
+        "contact": "privacy@pulseplate.app",
     }
 
 

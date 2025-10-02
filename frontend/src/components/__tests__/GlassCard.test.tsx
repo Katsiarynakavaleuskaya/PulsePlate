@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import React from "react";
 import GlassCard from "../GlassCard";
 
 describe("GlassCard", () => {
@@ -121,5 +122,24 @@ describe("GlassCard", () => {
     const content = screen.getByTestId("content").parentElement as HTMLElement;
     expect(content).toHaveClass("custom-content");
     expect(content.className).toBe("custom-content");
+  });
+
+  it("correctly forwards refs to its root DOM element", () => {
+    const ref = React.createRef<HTMLDivElement>();
+    render(
+      <GlassCard ref={ref} data-testid="glass-card">
+        <span>Content</span>
+      </GlassCard>
+    );
+
+    const wrapper = screen.getByTestId("glass-card");
+
+    // Verify ref.current is not null and is an HTMLElement
+    expect(ref.current).not.toBeNull();
+    expect(ref.current).toBeInstanceOf(HTMLElement);
+
+    // Verify ref.current points to the same element as the rendered root
+    expect(ref.current).toBe(wrapper);
+    expect(ref.current).toHaveAttribute("data-testid", "glass-card");
   });
 });
