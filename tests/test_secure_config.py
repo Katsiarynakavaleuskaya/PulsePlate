@@ -2,7 +2,6 @@
 Tests for secure_config module - encryption/decryption of API keys
 """
 
-import base64
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -11,46 +10,12 @@ import pytest
 
 import secure_config
 from secure_config import (
-    InvalidToken,
     decrypt_value,
     encrypt_value,
     get_api_key_from_env,
     get_encryption_key,
     get_or_create_encryption_key,
 )
-
-
-@pytest.fixture
-def fake_crypto(monkeypatch):
-    """Provide a fake Fernet implementation when cryptography is unavailable."""
-
-    class FakeFernet:
-        _RAW_KEY = b"01234567890123456789012345678901"
-        _KEY = base64.urlsafe_b64encode(_RAW_KEY)
-
-        def __init__(self, key: bytes):
-            if key != self._KEY:
-                raise InvalidToken("invalid key")
-            self._key = key
-
-        @staticmethod
-        def generate_key() -> bytes:
-            return FakeFernet._KEY
-
-        def encrypt(self, data: bytes) -> bytes:
-            cipher = data[::-1]
-            return base64.urlsafe_b64encode(cipher)
-
-        def decrypt(self, token: bytes) -> bytes:
-            try:
-                decoded = base64.urlsafe_b64decode(token)
-            except Exception as exc:  # pragma: no cover - defensive
-                raise InvalidToken(str(exc)) from exc
-            return decoded[::-1]
-
-    monkeypatch.setattr(secure_config, "ENCRYPTION_AVAILABLE", True)
-    monkeypatch.setattr(secure_config, "Fernet", FakeFernet, raising=False)
-    return FakeFernet
 
 
 class TestSecureConfig:
@@ -342,11 +307,6 @@ class TestSecureConfig:
 
     def test_get_or_create_encryption_key_mkdir_failure(self, tmp_path, fake_crypto):
         """Test directory creation failure surfaces as OSError."""
-        from secure_config import ENCRYPTION_AVAILABLE  # local import to capture runtime value
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
-
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
             patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
@@ -358,11 +318,6 @@ class TestSecureConfig:
     def test_get_or_create_encryption_key_replace_failure(self, tmp_path, fake_crypto):
         """Test atomic replace failure cleans up temp file and raises."""
         temp_file = tmp_path / ".cursor" / ".key.tmp"
-
-        from secure_config import ENCRYPTION_AVAILABLE
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
 
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
@@ -378,11 +333,6 @@ class TestSecureConfig:
         self, tmp_path, fake_crypto
     ):
         """Temp unlink failures are swallowed but original error surfaces."""
-
-        from secure_config import ENCRYPTION_AVAILABLE
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
 
         # Ensure we're operating in the temp directory used by secure_config
         temp_dir = tmp_path / ".cursor"
@@ -411,11 +361,6 @@ class TestSecureConfig:
 
     def test_get_or_create_encryption_key_chmod_warning(self, tmp_path, caplog, fake_crypto):
         """Test chmod failure logs warning but still returns key."""
-        from secure_config import ENCRYPTION_AVAILABLE
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
-
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
             patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
@@ -431,12 +376,6 @@ class TestSecureConfig:
         self, tmp_path, fake_crypto, caplog, monkeypatch
     ):
         """Windows chmod limitation emits warning when os.name == 'nt'."""
-
-        from secure_config import ENCRYPTION_AVAILABLE
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
-
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
             patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
@@ -452,12 +391,6 @@ class TestSecureConfig:
         self, tmp_path, fake_crypto
     ):
         """If the temp file never materializes, cleanup branch is skipped."""
-
-        from secure_config import ENCRYPTION_AVAILABLE
-
-        if not ENCRYPTION_AVAILABLE:
-            pytest.skip("cryptography not installed")
-
         original_exists = secure_config.Path.exists
 
         def fake_exists(path_obj):

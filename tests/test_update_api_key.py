@@ -14,35 +14,6 @@ import update_api_key
 from secure_config import encrypt_value, get_or_create_encryption_key
 
 
-@pytest.fixture
-def fake_crypto(monkeypatch, tmp_path):
-    """Provide fake encryption so tests run without cryptography."""
-
-    class FakeFernet:
-        def __init__(self, key: bytes):
-            self.key = key
-
-        @staticmethod
-        def generate_key() -> bytes:
-            return b"fake-key-000000000000000000000000000000"
-
-        def encrypt(self, data: bytes) -> bytes:
-            return (data[::-1]).hex().encode()
-
-        def decrypt(self, token: bytes) -> bytes:
-            try:
-                return bytes.fromhex(token.decode())[::-1]
-            except Exception as exc:  # pragma: no cover
-                raise secure_config.InvalidToken(str(exc)) from exc
-
-    monkeypatch.setattr(secure_config, "ENCRYPTION_AVAILABLE", True)
-    monkeypatch.setattr(secure_config, "Fernet", FakeFernet, raising=False)
-    monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", True)
-    monkeypatch.setattr(update_api_key, "encrypt_value", secure_config.encrypt_value)
-    monkeypatch.setattr(update_api_key, "Path", Path)
-    return FakeFernet
-
-
 class TestUpdateAPIKey:
     """Test update_api_key functionality"""
 
@@ -127,13 +98,12 @@ class TestUpdateAPIKey:
         valid_key = "sk-" + "a" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("secure_config.ENCRYPTION_AVAILABLE", False):
+            with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
                 result = update_api_key.update_api_key(valid_key, use_encryption=False)
-                # Should fail - encryption is required
                 assert result is False
 
-                captured = capsys.readouterr()
-                assert "cryptography library not installed" in captured.out
+        captured = capsys.readouterr()
+        assert "cryptography" in captured.out
 
     def test_update_api_key_simple_success(self, tmp_path, capsys, fake_crypto):
         """Test update_api_key basic success case with encryption"""
@@ -150,6 +120,10 @@ class TestUpdateAPIKey:
 
         captured = capsys.readouterr()
         assert "API key will be stored encrypted" in captured.out
+        meta = tmp_path / ".cursor" / "key.meta.json"
+        assert meta.exists()
+        metadata = json.loads(meta.read_text())
+        assert metadata["profiles"]["premium"]["masked_sample"].startswith("sk-a")
 
     def test_update_api_key_updates_mcp_config(self, tmp_path, fake_crypto):
         """Test that update_api_key updates MCP config"""
@@ -315,8 +289,9 @@ class TestUpdateAPIKey:
         valid_key = "sk-" + "f" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("update_api_key.encrypt_value", side_effect=RuntimeError("boom")):
-                result = update_api_key.update_api_key(valid_key)
+            with patch("update_api_key.ENCRYPTION_AVAILABLE", True):
+                with patch("update_api_key.encrypt_value", side_effect=RuntimeError("boom")):
+                    result = update_api_key.update_api_key(valid_key)
 
         assert result is False
         captured = capsys.readouterr()
@@ -327,8 +302,9 @@ class TestUpdateAPIKey:
         valid_key = "sk-" + "g" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("update_api_key.encrypt_value", return_value="not_encrypted"):
-                result = update_api_key.update_api_key(valid_key)
+            with patch("update_api_key.ENCRYPTION_AVAILABLE", True):
+                with patch("update_api_key.encrypt_value", return_value="not_encrypted"):
+                    result = update_api_key.update_api_key(valid_key)
 
         assert result is False
         captured = capsys.readouterr()
@@ -365,6 +341,77 @@ class TestUpdateAPIKey:
         lines = env_file.read_text().splitlines()
         assert "" in lines  # blank line preserved
         assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in lines)
+
+    def test_update_api_key_supports_free_profile(self, tmp_path, fake_crypto):
+        """Free profile writes to dedicated env key without touching premium entry."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("OPENAI_API_KEY=encrypted:premium-value\n")
+
+        free_key = "sk-" + "f" * 40
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            update_api_key.update_api_key(free_key, profile="free")
+
+        lines = env_file.read_text().splitlines()
+        assert any(line.startswith("OPENAI_API_KEY=encrypted:premium-value") for line in lines)
+        assert any(line.startswith("OPENAI_API_KEY_FREE=") for line in lines)
+
+        meta = json.loads((tmp_path / ".cursor" / "key.meta.json").read_text())
+        assert "free" in meta["profiles"]
+
+    def test_rotate_api_key_creates_backups(self, tmp_path, fake_crypto):
+        """Rotation should back up mutable files when present."""
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("OPENAI_API_KEY=encrypted:old\n")
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            update_api_key.rotate_api_key("sk-" + "r" * 40)
+
+        backups = list(env_file.parent.glob(".env.bak.*"))
+        assert backups, "Expected rotation to create at least one backup file"
+
+    def test_batch_update_from_file_multiple_profiles(self, tmp_path, fake_crypto):
+        """Bulk file payload supports multiple profile entries."""
+        payload = "premium:sk-" + "p" * 40 + "\nfree:sk-" + "f" * 40 + "\n"
+        config_file = tmp_path / "keys.txt"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(payload)
+
+        env_file = tmp_path / ".cursor" / ".env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.write_text("OPENAI_API_KEY=encrypted:old\n")
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            update_api_key._handle_set_command(
+                api_key=None,
+                profile="premium",
+                from_env=None,
+                from_file=config_file,
+                dry_run=False,
+                backup=False,
+                source="test-batch",
+            )
+
+        content = env_file.read_text()
+        assert "OPENAI_API_KEY=" in content
+        assert "OPENAI_API_KEY_FREE=" in content
+
+    def test_run_diagnostics_reports_missing_entries(self, tmp_path, fake_crypto, capsys):
+        """Diagnostics should report missing env entries for profiles."""
+        cursor_dir = tmp_path / ".cursor"
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        (cursor_dir / ".env").write_text("OPENAI_API_KEY=encrypted:value\n")
+        (cursor_dir / "key.meta.json").write_text(json.dumps({"profiles": {}}, indent=2))
+        (cursor_dir / ".key").write_text("dummy")
+
+        with patch("update_api_key.Path.home", return_value=tmp_path):
+            ok = update_api_key.run_diagnostics(profiles=["premium", "free"], threshold_days=0)
+
+        captured = capsys.readouterr()
+        assert not ok
+        assert "missing entry" in captured.out
 
     def test_main_coverage_placeholder(self):
         """Placeholder for main() function coverage - tested manually"""

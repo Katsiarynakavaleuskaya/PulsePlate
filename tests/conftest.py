@@ -1,7 +1,6 @@
-"""
-Shared pytest fixtures for the PulsePlate test suite.
-"""
+"""Shared pytest fixtures for the PulsePlate test suite."""
 
+import base64
 import importlib.util
 import os
 import sys
@@ -12,6 +11,9 @@ from typing import Any, cast
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+import secure_config
+from secure_config import InvalidToken
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -89,3 +91,53 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     return client
+
+
+@pytest.fixture
+def fake_crypto(monkeypatch: pytest.MonkeyPatch):
+    """Provide a deterministic Fernet substitute when cryptography is absent."""
+
+    class FakeFernet:
+        _RAW_KEY = b"01234567890123456789012345678901"
+        _KEY = base64.urlsafe_b64encode(_RAW_KEY)
+
+        def __init__(self, key: bytes):
+            if key != self._KEY:
+                raise InvalidToken("invalid key")
+            self._key = key
+
+        @staticmethod
+        def generate_key() -> bytes:
+            return FakeFernet._KEY
+
+        def encrypt(self, data: bytes) -> bytes:
+            cipher = data[::-1]
+            return base64.urlsafe_b64encode(cipher)
+
+        def decrypt(self, token: bytes) -> bytes:
+            try:
+                decoded = base64.urlsafe_b64decode(token)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise InvalidToken(str(exc)) from exc
+            return decoded[::-1]
+
+    monkeypatch.setattr(secure_config, "ENCRYPTION_AVAILABLE", True)
+    monkeypatch.setattr(secure_config, "Fernet", FakeFernet, raising=False)
+
+    try:  # Some tests import update_api_key lazily
+        import update_api_key as update_api_key_module  # type: ignore
+    except ImportError:  # pragma: no cover - optional dependency
+        update_api_key_module = None
+
+    if update_api_key_module is not None:
+        monkeypatch.setattr(update_api_key_module, "ENCRYPTION_AVAILABLE", True, raising=False)
+        monkeypatch.setattr(update_api_key_module, "Fernet", FakeFernet, raising=False)
+        monkeypatch.setattr(
+            update_api_key_module,
+            "encrypt_value",
+            secure_config.encrypt_value,
+            raising=False,
+        )
+        monkeypatch.setattr(update_api_key_module, "Path", Path, raising=False)
+
+    return FakeFernet
