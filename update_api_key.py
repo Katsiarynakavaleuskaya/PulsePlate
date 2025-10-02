@@ -58,6 +58,12 @@ PROFILE_CONFIG: Dict[str, Dict[str, object]] = {
 }
 
 
+def _is_valid_api_key(api_key: str) -> bool:
+    """Return True when the provided API key satisfies length/prefix requirements."""
+
+    return bool(api_key and api_key.startswith("sk-") and 20 <= len(api_key) <= 256)
+
+
 @dataclass
 class UpdateResult:
     """Result information for key updates."""
@@ -395,7 +401,7 @@ def update_api_key(
     masked = _mask_secret(api_key)
     logger.info("update.start profile=%s masked=%s dry_run=%s", profile, masked, dry_run)
 
-    if not api_key or not api_key.startswith("sk-") or not (20 <= len(api_key) <= 256):
+    if not _is_valid_api_key(api_key):
         logger.error("update.validation_failed profile=%s reason=invalid_format", profile)
         print(
             "❌ Invalid API key format. Should start with 'sk-', be at least 20 characters, and no longer than 256 characters"

@@ -304,17 +304,9 @@ def init_db() -> None:
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     if _ASYNC_ENGINE is not None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(init_db_async())
-        else:  # pragma: no cover - requires runtime event loop
-            if loop.is_running():
-                raise RuntimeError(
-                    "init_db() called inside an active event loop while async engine is enabled. "
-                    "Use `await init_db_async()` instead."
-                )
-        return
+        raise RuntimeError(
+            "init_db() cannot be used when async engine is enabled. Use `await init_db_async()` instead."
+        )
 
     metadata.create_all(bind=_RAW_ENGINE)
 

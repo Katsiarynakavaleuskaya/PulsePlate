@@ -100,12 +100,13 @@ if _base_spec is not None:
     # Check _spec is not None before setting submodule_search_locations
     if _spec is not None:
         _spec.submodule_search_locations = [os.path.dirname(__file__)]
-        __spec__ = _spec
-    else:
-        __spec__: Optional[ModuleSpec] = None
+    _module_spec: Optional[ModuleSpec] = _spec
 else:
     # Fallback if spec creation fails
-    __spec__ = cast(ModuleSpec, None)
+    _module_spec = cast(ModuleSpec, None)
+
+# Assign module __spec__ once with appropriate ignore for typing tools
+__spec__ = _module_spec  # type: ignore[assignment]
 
 # Export the app and key functions for easy importing
 __all__ = [
