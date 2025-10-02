@@ -481,7 +481,7 @@ def _print_update_results(
 ) -> None:
     """Print the results of an API key update operation."""
     if dry_run:
-        print(f"🔍 Dry run complete for profile '{profile}'. No files were modified.")
+        print("🔍 Dry run complete. No files were modified.")
     else:
         print("🔐 API key will be stored encrypted in .env")
         if touched:
