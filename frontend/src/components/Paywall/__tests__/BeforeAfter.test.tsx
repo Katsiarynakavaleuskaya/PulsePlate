@@ -8,21 +8,22 @@ import "../../../test/setup";
 import i18n from "../../../i18n";
 
 beforeAll(async () => {
-  await new Promise<void>((resolve) => {
-    const handler = () => {
-      i18n.off("initialized", handler);
-      resolve();
-    };
+  if (!i18n.isInitialized) {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("i18n initialization timeout"));
+      }, 5000);
 
-    // Register listener first to avoid missing events
-    i18n.on("initialized", handler);
+      const handler = () => {
+        i18n.off("initialized", handler);
+        clearTimeout(timeout);
+        resolve();
+      };
 
-    // If already initialized, resolve immediately
-    if (i18n.isInitialized) {
-      i18n.off("initialized", handler);
-      resolve();
-    }
-  });
+      // Register listener first to avoid missing events
+      i18n.on("initialized", handler);
+    });
+  }
 });
 
 
