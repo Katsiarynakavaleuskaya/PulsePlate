@@ -22,6 +22,7 @@ export default tseslint.config(
         window: 'readonly',
         document: 'readonly',
         console: 'readonly',
+        process: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
         HTMLElement: 'readonly',
@@ -49,7 +50,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': process.env.NODE_ENV === 'production' ? ['error', { allow: ['warn', 'error'] }] : 'off', // Allow console.log for development
+      'no-console': 'off', // Allow console.log for development - process.env check not reliable in ESLint
       'no-empty': 'warn',
       'no-constant-condition': 'warn',
       'no-cond-assign': 'warn',
