@@ -3,6 +3,11 @@
     "ok": "OK",
     "cancel": "Cancelar"
   },
+  "shoplist": {
+    "loading": "Cargando lista de compras…",
+    "error": "Error",
+    "empty": "Vacío."
+  },
   "paywall": {
     "title": "Desbloquear Premium",
     "subtitle": "Plato personal, microequilibrio, plan semanal.",
