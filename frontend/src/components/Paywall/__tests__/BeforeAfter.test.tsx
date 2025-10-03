@@ -1,12 +1,29 @@
 /* @vitest-environment jsdom */
 import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { vi, describe, test, expect, afterEach } from "vitest";
+import { vi, describe, test, expect, afterEach, beforeAll } from "vitest";
 import "@testing-library/jest-dom";
 import BeforeAfter from "../BeforeAfter";
+import "../../../test/setup";
+import i18n from "../../../i18n";
 
-// Initialize i18n so t() returns strings
-import "../../../i18n";
+beforeAll(async () => {
+  await new Promise<void>((resolve) => {
+    const handler = () => {
+      i18n.off("initialized", handler);
+      resolve();
+    };
+
+    // Register listener first to avoid missing events
+    i18n.on("initialized", handler);
+
+    // If already initialized, resolve immediately
+    if (i18n.isInitialized) {
+      i18n.off("initialized", handler);
+      resolve();
+    }
+  });
+});
 
 
 // Mock analytics to verify calls

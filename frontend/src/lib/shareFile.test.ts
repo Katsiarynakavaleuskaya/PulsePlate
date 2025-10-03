@@ -32,14 +32,14 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 const originalFetch = global.fetch;
 const originalDocument = globalThis.document;
 
-const isNativePlatformMock = Capacitor.isNativePlatform as unknown as vi.Mock;
-const writeFileMock = Filesystem.writeFile as unknown as vi.Mock;
-const shareMock = Share.share as unknown as vi.Mock;
+const isNativePlatformMock = vi.mocked(Capacitor.isNativePlatform, true);
+const writeFileMock = vi.mocked(Filesystem.writeFile, true);
+const shareMock = vi.mocked(Share.share, true);
 
 describe("shareFile", () => {
   let anchorMock: HTMLAnchorElement;
-  let createElementMock: vi.Mock;
-  let nowSpy: vi.SpyInstance;
+  let createElementMock: ReturnType<typeof vi.fn>;
+  let nowSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     anchorMock = {
@@ -62,7 +62,13 @@ describe("shareFile", () => {
 
     isNativePlatformMock.mockReturnValue(false);
     writeFileMock.mockResolvedValue({ uri: "file://cache/pulseplate/test" });
-    shareMock.mockResolvedValue(undefined);
+    // Исправлено: Share.share должен возвращать объект типа ShareResult, а не undefined.
+    // Fixed: Share.share should return an object of type ShareResult, not undefined.
+    // Share.share должен возвращать объект типа ShareResult.
+    // Share.share should return an object of type ShareResult.
+    shareMock.mockResolvedValue({
+      activityType: undefined
+    });
   });
 
   afterEach(() => {
@@ -93,12 +99,14 @@ describe("shareFile", () => {
 
   it("uses default title when sharing natively without an explicit title", async () => {
     isNativePlatformMock.mockReturnValue(true);
-
+    // Мокаем fetch для возврата успешного ответа с arrayBuffer
+    // Mock fetch to return a successful response with arrayBuffer
     const buffer = new Uint8Array([1, 2, 3]).buffer;
-    (global.fetch as vi.Mock).mockResolvedValue({
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      arrayBuffer: () => Promise.resolve(buffer),
+      arrayBuffer: vi.fn().mockResolvedValue(buffer),
     });
 
     await shareFile("https://example.com/file.bin", "export.bin");
@@ -117,7 +125,8 @@ describe("shareFile", () => {
     const uint8 = new Uint8Array(arrayBuffer);
     uint8.set([0xde, 0xad, 0xbe, 0xef, 0x01]);
 
-    (global.fetch as vi.Mock).mockResolvedValue({
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       arrayBuffer: () => Promise.resolve(arrayBuffer),
@@ -140,7 +149,8 @@ describe("shareFile", () => {
       dialogTitle: "Share",
     });
 
-    const encodedData: string = writeFileMock.mock.calls[0][0].data;
+    const { data } = writeFileMock.mock.calls[0][0];
+    const encodedData = data as string;
     const expectedBase64 = Buffer.from(uint8).toString("base64");
     expect(encodedData).toBe(expectedBase64);
   });
@@ -148,7 +158,8 @@ describe("shareFile", () => {
   it("throws an error when the fetch request is unsuccessful", async () => {
     isNativePlatformMock.mockReturnValue(true);
 
-    (global.fetch as vi.Mock).mockResolvedValue({
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue({
       ok: false,
       status: 404,
     });
@@ -164,7 +175,8 @@ describe("shareFile", () => {
   it("propagates file system write errors", async () => {
     isNativePlatformMock.mockReturnValue(true);
 
-    (global.fetch as vi.Mock).mockResolvedValue({
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
@@ -179,7 +191,8 @@ describe("shareFile", () => {
   it("propagates share API errors", async () => {
     isNativePlatformMock.mockReturnValue(true);
 
-    (global.fetch as vi.Mock).mockResolvedValue({
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
@@ -201,7 +214,10 @@ describe("shareFile", () => {
     ];
 
     for (const buffer of buffers) {
-      (global.fetch as vi.Mock).mockResolvedValueOnce({
+      // Используем vi для моков в Vitest
+      // Use vi for mocks in Vitest
+      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         status: 200,
         arrayBuffer: () => Promise.resolve(buffer),
@@ -214,7 +230,9 @@ describe("shareFile", () => {
 
     buffers.forEach((buffer, index) => {
       const call = writeFileMock.mock.calls[index][0];
-      const encodedData: string = call.data;
+      // call.data должен быть строкой в нашем тесте, так как мы мокаем arrayBufferToBase64
+      // call.data should be a string in our test, since we mock arrayBufferToBase64
+      const encodedData = call.data as string;
 
       expect(encodedData.length % 4).toBe(0);
       expect(/^[A-Za-z0-9+/=]+$/.test(encodedData)).toBe(true);
