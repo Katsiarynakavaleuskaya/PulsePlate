@@ -1,7 +1,7 @@
 // RU: Минимальный клиент для FastAPI. Без моков и MSW на этом шаге.
 // EN: Minimal FastAPI client. No mocks/MSW in this step.
 
-import { log, logError } from "../lib/analytics";
+import { logError } from "../lib/analytics";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -79,8 +79,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (!res.ok) {
       throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
     }
-    // eslint-disable-next-line no-console
-    console.info(`[API] MOCK fallback ON → ${url}`);
+        console.info(`[API] MOCK fallback ON → ${url}`);
     return res.json() as Promise<T>;
   };
 

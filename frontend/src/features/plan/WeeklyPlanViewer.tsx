@@ -13,7 +13,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (error) {
+  } catch {
     // Will fall back to the legacy approach below
   }
 
@@ -133,7 +133,8 @@ export default function WeeklyPlanViewer() {
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
       setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
-    } catch (error: any) {
+    } catch (error) {
+      console.error("Download failed:", error);
       setHint("Не удалось скачать файл. Попробуйте ещё раз.");
     }
   };
@@ -143,7 +144,7 @@ export default function WeeklyPlanViewer() {
       const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       setHint(formatShareErrorMessage(error, "Не удалось поделиться: произошла ошибка. Попробуйте ещё раз."));
     }
   };
@@ -154,7 +155,8 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
-    } catch (error: any) {
+    } catch (error) {
+      console.error("Failed to open private CSV:", error);
       setHint("Не удалось открыть приватную ссылку. Попробуйте ещё раз.");
     }
   };
