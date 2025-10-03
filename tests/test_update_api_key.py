@@ -151,7 +151,7 @@ class TestUpdateAPIKey:
         captured = capsys.readouterr()
         assert "API key will be stored encrypted" in captured.out
 
-    def test_update_api_key_updates_mcp_config(self, tmp_path):
+    def test_update_api_key_updates_mcp_config(self, tmp_path, fake_crypto):
         """Test that update_api_key updates MCP config"""
         valid_key = "sk-" + "a" * 40
         mcp_file = tmp_path / ".cursor" / "mcp.json"
