@@ -26,6 +26,15 @@ type Shoplist = {
   items?: ShopItem[];
 };
 
+/**
+ * Renders a shopping-list preview UI that fetches the current shoplist from the server
+ * and provides actions to export (CSV/PDF) or share the list.
+ *
+ * The component displays loading and error states, shows grouped items (or a single "All items" group),
+ * and surfaces download/share errors to the user.
+ *
+ * @returns The JSX element for the shoplist preview, including action controls and grouped item lists.
+ */
 export default function ShoplistPreview() {
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);

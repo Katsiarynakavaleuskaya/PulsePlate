@@ -7,6 +7,12 @@ import { requestSignedLink } from "../../lib/sharedLinks";
 
 const DEFAULT_TTL_SECONDS = 900;
 
+/**
+ * Copies the provided text to the system clipboard, using a fallback method when the Clipboard API is unavailable.
+ *
+ * @param text - The string to copy to the clipboard
+ * @returns `true` if the text was successfully copied, `false` otherwise
+ */
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator?.clipboard?.writeText) {
@@ -64,6 +70,14 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
+/**
+ * Render a weekly meal-plan viewer with export, share, and CSV actions.
+ *
+ * Fetches the user's weekly plan on mount and displays a summary of days, meals, and items
+ * along with action controls to download, share, copy, or open CSV/PDF exports.
+ *
+ * @returns A React element that shows the fetched weekly plan, action buttons, status hints, and error/loading states.
+ */
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);

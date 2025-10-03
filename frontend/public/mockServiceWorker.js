@@ -202,17 +202,26 @@ async function resolveMainClient(event) {
 }
 
 /**
- * @param {FetchEvent} event
- * @param {Client | undefined} client
- * @param {string} requestId
- * @returns {Promise<Response>}
+ * Determine and produce the Response for an intercepted fetch request, using a mocked response when provided by the client or performing a network passthrough otherwise.
+ *
+ * @param {FetchEvent} event - The fetch event for the intercepted request.
+ * @param {Client|undefined} client - The client to query for a mock; if `undefined` or not active, the request is sent to the network.
+ * @param {string} requestId - Unique identifier for the intercepted request.
+ * @param {number} requestInterceptedAt - Timestamp (milliseconds) when the request was intercepted.
+ * @returns {Promise<Response>} A Response to fulfill the intercepted request: the client's mocked Response when supplied, or a network fetch Response otherwise.
  */
 async function getResponse(event, client, requestId, requestInterceptedAt) {
   // Clone the request because it might've been already used
   // (i.e. its body has been read and sent to the client).
   const requestClone = event.request.clone()
 
-  const passthrough = () => {
+  /**
+   * Performs the real network request for the captured request after removing the "msw/passthrough" marker from the Accept header.
+   *
+   * This function creates a mutable Headers instance from the cloned request, strips the `msw/passthrough` value from the `Accept` header (removing the header entirely if no values remain), and then performs fetch with the adjusted headers.
+   * @returns {Promise<Response>} The Response returned by the network fetch.
+   */
+  function passthrough() {
     // Cast the request headers to a new Headers instance
     // so the headers can be manipulated with.
     const headers = new Headers(requestClone.headers)

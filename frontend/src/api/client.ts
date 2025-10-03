@@ -57,6 +57,15 @@ function mergeHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
+/**
+ * Perform a typed API request to the configured backend, falling back to a local mock file when configured or when the network request fails.
+ *
+ * If the runtime query parameter `mock=1` is present, the function uses a mapped local mock JSON file for the given `path`. Otherwise it attempts a network request to `API_BASE + path`; if that request fails it will attempt the mapped mock before propagating the original network error.
+ *
+ * @param path - The API endpoint path (appended to the configured API base)
+ * @param init - Optional fetch init overrides (headers will be merged with client defaults)
+ * @returns The parsed JSON response typed as `T`
+ */
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {

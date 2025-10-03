@@ -11,6 +11,19 @@ type Props = {
   via?: string;
 };
 
+/**
+ * Render a "Before/After" paywall modal with purchase and cancel actions.
+ *
+ * The dialog traps focus, focuses the primary CTA on mount, and closes when the Escape key is pressed
+ * or the cancel action is invoked. It attempts to log paywall and purchase analytics events; analytics
+ * errors are ignored so they never interrupt the UI.
+ *
+ * @param onClose - Callback invoked when the dialog should close
+ * @param onPurchase - Optional callback invoked when the purchase CTA is activated
+ * @param source - Analytics source identifier; defaults to `"unknown"`
+ * @param via - Analytics channel identifier; defaults to `"paywall"`
+ * @returns The rendered dialog element to mount in the application UI
+ */
 export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -25,7 +38,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
         try {
           log(Events.PURCHASE_CANCEL, { source, via });
         } catch {
-            // Ignore analytics errors
+          // Ignore analytics errors
         }
         onClose();
         return;
@@ -105,7 +118,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
             } catch {
-            // Ignore analytics errors
+          // Ignore analytics errors
         }
             onPurchase?.();
           }}
@@ -122,7 +135,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_CANCEL, { source, via });
             } catch {
-            // Ignore analytics errors
+          // Ignore analytics errors
         }
             onClose();
           }}
