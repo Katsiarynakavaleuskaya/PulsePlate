@@ -9,6 +9,16 @@ type Props = {
   source?: string;
 };
 
+/**
+ * Renders content behind a premium gate that either shows children directly for premium users or presents a de-emphasized, non-interactive preview with a CTA to open a paywall.
+ *
+ * When gating is active, the component prevents interaction and focus on the preview content for assistive and keyboard users (using native `inert` when available, with an aria-hidden/tabindex fallback) and exposes an accessible CTA that opens the Paywall dialog.
+ *
+ * @param isPremium - If `true`, renders `children` without gating.
+ * @param children - Content to render inside the gate or preview.
+ * @param source - Optional source identifier forwarded to the Paywall; defaults to `"unknown"`.
+ * @returns The PremiumGate React element containing either the unmodified children (for premium users) or a gated preview with a CTA and paywall dialog.
+ */
 export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
