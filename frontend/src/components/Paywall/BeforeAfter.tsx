@@ -48,7 +48,17 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
 
   // Focus effect - only on mount to avoid stealing focus on prop changes
   useEffect(() => {
+    // Prevent background scrolling when modal is open
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    // Set focus on primary button
     primaryButtonRef.current?.focus();
+
+    // Cleanup: restore scroll when modal closes
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, []);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
