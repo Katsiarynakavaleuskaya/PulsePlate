@@ -25,7 +25,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
         try {
           log(Events.PURCHASE_CANCEL, { source, via });
         } catch {
-          // Ignore analytics errors
+            // Ignore analytics errors
         }
         onClose();
         return;
@@ -105,7 +105,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
             } catch {
-          // Ignore analytics errors
+            // Ignore analytics errors
         }
             onPurchase?.();
           }}
@@ -122,7 +122,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_CANCEL, { source, via });
             } catch {
-          // Ignore analytics errors
+            // Ignore analytics errors
         }
             onClose();
           }}
