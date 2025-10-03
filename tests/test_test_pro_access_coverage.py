@@ -7,7 +7,7 @@ import os
 
 # Import the module under test
 import sys
-from typing import Any
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -30,7 +30,7 @@ spec.loader.exec_module(test_pro_access)
 class TestTestProAccessCoverage:
     """Test class to cover test_pro_access.py"""
 
-    def _create_mock_client_with_models(self, model_ids):
+    def _create_mock_client_with_models(self, model_ids: List[str]) -> MagicMock:
         """Helper method to create mock OpenAI client with specified models"""
         mock_models = MagicMock()
         mock_models.data = [MagicMock(id=model_id) for model_id in model_ids]
@@ -39,7 +39,12 @@ class TestTestProAccessCoverage:
         mock_client.models.list.return_value = mock_models
         return mock_client
 
-    def _assert_success_result(self, result, expected_models, expected_pro_models):
+    def _assert_success_result(
+        self,
+        result: Dict[str, Any],
+        expected_models: List[str],
+        expected_pro_models: Dict[str, bool],
+    ) -> None:
         """Helper method to assert success result structure"""
         assert result["status"] == "success"
         assert result["total_models"] == len(expected_models)
@@ -48,7 +53,9 @@ class TestTestProAccessCoverage:
         for model, expected in expected_pro_models.items():
             assert result["pro_models"][model] == expected
 
-    def _create_mock_test_return_value(self, models, pro_models):
+    def _create_mock_test_return_value(
+        self, models: List[str], pro_models: Dict[str, bool]
+    ) -> Dict[str, Any]:
         """Helper method to create mock test return value"""
         return {
             "status": "success",
@@ -87,7 +94,7 @@ class TestTestProAccessCoverage:
         with patch("openai.OpenAI", return_value=mock_client):
             self._verify_pro_access_result(False, model_ids)
 
-    def _verify_pro_access_result(self, has_pro_models, model_ids):
+    def _verify_pro_access_result(self, has_pro_models: bool, model_ids: List[str]) -> None:
         result = test_pro_access.test_openai_pro_access("test-api-key")
         expected_pro_models = {
             "gpt-5": has_pro_models,
@@ -227,7 +234,9 @@ class TestTestProAccessCoverage:
 
                     self._verify_main_execution_with_mocks(mock_test, "test-key", mock_print)
 
-    def _verify_main_execution_with_mocks(self, mock_test, api_key, mock_print):
+    def _verify_main_execution_with_mocks(
+        self, mock_test: MagicMock, api_key: str, mock_print: MagicMock
+    ) -> None:
         """Helper method to verify main execution with mocked dependencies"""
         test_pro_access.main()
         mock_test.assert_called_once_with(api_key)
@@ -276,7 +285,13 @@ class TestTestProAccessCoverage:
                     assert any("=" * 50 in call for call in print_calls)
                     assert any("📋 All available models (2):" in call for call in print_calls)
 
-    def _verify_output_contains(self, gpt_35_turbo_is_pro, mock_test, mock_print, expected_message):
+    def _verify_output_contains(
+        self,
+        gpt_35_turbo_is_pro: bool,
+        mock_test: MagicMock,
+        mock_print: MagicMock,
+        expected_message: str,
+    ) -> List[str]:
         mock_test.return_value = {
             "status": "success",
             "available_models": ["gpt-4", "gpt-3.5-turbo"],
