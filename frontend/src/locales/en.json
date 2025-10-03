@@ -1,9 +1,8 @@
 {
   "common": {
-    "ok": "OK",
     "cancel": "Cancel",
     "loading": "Loading…",
-    "skeleton": "Page skeleton."
+    "skeleton": "Skeleton view loading…"
   },
   "plate": {
     "title": "Plate",
@@ -16,33 +15,8 @@
     "title": "Progress"
   },
   "paywall": {
-    "title": "Unlock Premium",
-    "subtitle": "Personalized plate, micro-balance, weekly plan.",
-    "cta": "Continue",
-    "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
-    "sections": {
-      "before": {
-        "label": "Before",
-        "features": {
-          "randomPlate": "Random plate",
-          "randomDescription": "Generic suggestions without personalization.",
-          "macrosOnly": "Macros only",
-          "macrosDescription": "Limited to calorie and macro targets.",
-          "manualShopping": "Manual shopping",
-          "manualDescription": "You compile grocery lists yourself."
-        }
-      },
-      "after": {
-        "label": "After",
-        "features": {
-          "personalPlate": "Personal plate",
-          "personalDescription": "Tailored recipes matched to your biometrics.",
-          "microBalance": "Micro-balance",
-          "microDescription": "Tracks micronutrients for optimal balance.",
-          "autoShoppingList": "Auto shopping list",
-          "autoDescription": "Smart grocery planner with package rounding."
-        }
-      }
-    }
+    "title": "Unlock premium guidance",
+    "subtitle": "Personalized plans, richer analytics, and FitChef support",
+    "cta": "Continue"
   }
 }

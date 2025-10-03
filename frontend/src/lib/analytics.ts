@@ -15,7 +15,6 @@ export function logError(error: AnalyticsError): void {
   }
   console.warn("[analytics] unknown error", error);
 }
-
 // Часто используемые имена — чтобы не ошибаться в орфографии.
 export const Events = {
   PAYWALL_VIEW: "paywall_view",

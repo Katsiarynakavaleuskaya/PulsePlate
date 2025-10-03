@@ -1,13 +1,12 @@
 {
   "common": {
-    "ok": "OK",
     "cancel": "Cancelar",
     "loading": "Cargando…",
-    "skeleton": "Esqueleto de la página."
+    "skeleton": "Cargando estructura…"
   },
   "plate": {
     "title": "Plato",
-    "preview": "Vista previa solo Premium…"
+    "preview": "Vista previa solo para Premium…"
   },
   "profile": {
     "title": "Perfil"
@@ -16,33 +15,8 @@
     "title": "Progreso"
   },
   "paywall": {
-    "title": "Desbloquear Premium",
-    "subtitle": "Plato personal, microequilibrio, plan semanal.",
-    "cta": "Continuar",
-    "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
-    "sections": {
-      "before": {
-        "label": "Antes",
-        "features": {
-          "randomPlate": "Plato aleatorio",
-          "randomDescription": "Sugerencias genéricas sin personalización.",
-          "macrosOnly": "Solo macros",
-          "macrosDescription": "Solo cubre calorías y macronutrientes.",
-          "manualShopping": "Lista manual",
-          "manualDescription": "Preparas la lista de compras por tu cuenta."
-        }
-      },
-      "after": {
-        "label": "Después",
-        "features": {
-          "personalPlate": "Plato personal",
-          "personalDescription": "Recetas adaptadas a tus datos biométricos.",
-          "microBalance": "Equilibrio de micronutrientes",
-          "microDescription": "Control preciso de vitaminas y minerales.",
-          "autoShoppingList": "Lista automática",
-          "autoDescription": "Planificador inteligente con redondeo de packs."
-        }
-      }
-    }
+    "title": "Desbloquea la guía premium",
+    "subtitle": "Planes personalizados, analíticas avanzadas y soporte de FitChef",
+    "cta": "Continuar"
   }
 }

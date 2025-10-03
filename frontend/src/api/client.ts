@@ -6,7 +6,8 @@ import { log, logError } from "../lib/analytics";
 export const API_BASE = (import.meta.env.VITE_API_BASE || "") as string;
 
 if (!API_BASE) {
-  logError(new Error("VITE_API_BASE is not set. Create frontend/.env from .env.example"));
+  const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
+  logError(new Error(envHint));
 }
 
 const searchParams = (() => {
@@ -93,30 +94,28 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const fetchJson = api;
 
-// Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
 export type BmrRequest = {
   sex: "male" | "female";
-  age: number; // years
-  height: number; // cm
-  weight: number; // kg
+  age: number;
+  height: number;
+  weight: number;
 };
 
 export type BmrResponse = {
-  bmr: number; // kcal/day
-  method: string; // e.g., "Mifflin-St Jeor"
+  bmr: number;
+  method: string;
 };
 
 export type PlateResponse = {
   calories: number;
-  macros: { protein: number; fat: number; carbs: number }; // grams
-  micros?: Record<string, number>; // optional micronutrients map
+  macros: { protein: number; fat: number; carbs: number };
+  micros?: Record<string, number>;
 };
 
 export type WeekPlanResponse = {
   days: Array<{ date: string; meals: Array<{ name: string; kcal: number }> }>;
 };
 
-// Endpoints
 export const getBmr = (body: BmrRequest) =>
   api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
 

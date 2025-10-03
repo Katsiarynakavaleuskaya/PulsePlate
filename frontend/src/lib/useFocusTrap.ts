@@ -25,14 +25,10 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
       );
 
       const isTrulyFocusable = (el: HTMLElement): boolean => {
-        // Skip aria-hidden elements
         if (el.getAttribute("aria-hidden") === "true") return false;
-        // Skip explicitly non-tabbable
         if (el.tabIndex === -1) return false;
-        // Skip disabled form controls
         if ((el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled === true)
           return false;
-        // Skip hidden elements (no layout box)
         if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) return false;
         const style = getComputedStyle(el);
         if (style.visibility === "hidden") return false;

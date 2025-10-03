@@ -157,13 +157,12 @@ export function formatShareErrorMessage(
     return TECH_ERROR_PATTERN.test(error.message) ? fallback : error.message;
   }
 
-  const rawMessage =
-    typeof error === "object" && error && "message" in error
-      ? String((error as Record<string, unknown>).message)
-      : "";
-  if (!rawMessage) {
-    return fallback;
+  if (typeof error === "object" && error !== null) {
+    const maybeMessage = (error as Record<string, unknown>).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+      return TECH_ERROR_PATTERN.test(maybeMessage) ? fallback : maybeMessage;
+    }
   }
 
-  return TECH_ERROR_PATTERN.test(rawMessage) ? fallback : rawMessage;
+  return fallback;
 }
