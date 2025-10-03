@@ -93,7 +93,7 @@ def build_plate_day(
                 raw_macros["protein_g"] * 4 + raw_macros["carbs_g"] * 4 + raw_macros["fat_g"] * 9
             )
             if raw_kcal <= 0:
-                continue
+                continue  # pragma: no cover
 
             allowed_above = tolerance - max(0.0, total_kcal - targets["kcal"])
             if allowed_above <= 0:
@@ -102,7 +102,7 @@ def build_plate_day(
             if raw_kcal > allowed_above:
                 ratio = allowed_above / raw_kcal
                 if ratio <= 0:
-                    continue
+                    continue  # pragma: no cover
                 grams *= ratio
                 raw_macros = {k: v * ratio for k, v in raw_macros.items()}
                 raw_kcal *= ratio

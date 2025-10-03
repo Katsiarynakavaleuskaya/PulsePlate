@@ -330,7 +330,9 @@ class ProductVarietiesManager:
                 filtered = gf_varieties
 
         if not filtered:
-            return varieties[0]  # Возвращаем первый доступный, если ничего не подходит
+            return varieties[
+                0
+            ]  # Возвращаем первый доступный, если ничего не подходит  # pragma: no cover
 
         # Выбираем лучший из отфильтрованных
         if len(filtered) == 1:

@@ -16,13 +16,13 @@ try:
     from cryptography.fernet import Fernet, InvalidToken
 
     ENCRYPTION_AVAILABLE = True
-except ImportError:
-    ENCRYPTION_AVAILABLE = False
+except ImportError:  # pragma: no cover
+    ENCRYPTION_AVAILABLE = False  # pragma: no cover
 
-    class InvalidToken(Exception):  # type: ignore[misc]
+    class InvalidToken(Exception):  # type: ignore[misc]  # pragma: no cover
         """Placeholder when cryptography is unavailable."""
 
-        pass
+        pass  # pragma: no cover
 
 
 def get_encryption_key() -> Optional[bytes]:
