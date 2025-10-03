@@ -7,6 +7,12 @@ import { requestSignedLink } from "../../lib/sharedLinks";
 
 const DEFAULT_TTL_SECONDS = 900;
 
+/**
+ * Copy the provided text to the user's clipboard, falling back to a legacy method if needed.
+ *
+ * @param text - The string to copy to the clipboard
+ * @returns `true` if the text was copied to the clipboard, `false` otherwise
+ */
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator?.clipboard?.writeText) {
@@ -64,6 +70,18 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
+/**
+ * Render a weekly plan viewer with export, share, and open actions.
+ *
+ * Fetches the weekly plan on mount and displays loading, error, or the plan breakdown by day, meal, and item.
+ * Provides controls to download CSV/PDF, create shareable signed links, copy a private CSV link to the clipboard,
+ * and open the CSV in a new tab or Google Sheets. UI state includes hints and the last generated signed link.
+ *
+ * On mount, the component requests plan data from the API. User actions may open new tabs, copy text to the clipboard,
+ * request signed links, or trigger file downloads.
+ *
+ * @returns A React element that displays the weekly plan and controls for exporting, sharing, and viewing it.
+ */
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);

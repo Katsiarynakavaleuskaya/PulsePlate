@@ -57,6 +57,14 @@ function mergeHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
+/**
+ * Performs a fetch to the given API path and returns the parsed JSON, using a mock response when mocking is forced or the network request fails.
+ *
+ * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
+ * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
+ * @returns The parsed JSON response typed as `T`.
+ * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
+ */
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {
