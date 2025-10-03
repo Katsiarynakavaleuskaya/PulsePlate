@@ -8,22 +8,38 @@ import "../../../test/setup";
 import i18n from "../../../i18n";
 
 beforeAll(async () => {
-  if (!i18n.isInitialized) {
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("i18n initialization timeout"));
-      }, 5000);
-
-      const handler = () => {
+  await new Promise<void>((resolve, reject) => {
+    let handler: (() => void) | null = null;
+    const timeout = setTimeout(() => {
+      if (handler) {
         i18n.off("initialized", handler);
-        clearTimeout(timeout);
-        resolve();
-      };
+        handler = null;
+      }
+      reject(new Error("i18n initialization timeout"));
+    }, 5000);
 
-      // Register listener first to avoid missing events
-      i18n.on("initialized", handler);
-    });
-  }
+    handler = () => {
+      if (handler) {
+        i18n.off("initialized", handler);
+        handler = null;
+      }
+      clearTimeout(timeout);
+      resolve();
+    };
+
+    // Register listener first to avoid race condition
+    i18n.on("initialized", handler);
+
+    // Immediately re-check if already initialized after registering listener
+    if (i18n.isInitialized) {
+      // Remove the listener since we don't need it
+      i18n.off("initialized", handler);
+      handler = null;
+      // Clear the timeout since we're resolving immediately
+      clearTimeout(timeout);
+      resolve();
+    }
+  });
 });
 
 
