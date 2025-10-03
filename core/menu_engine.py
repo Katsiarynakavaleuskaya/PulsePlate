@@ -252,8 +252,8 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
             finally:
                 try:
                     loop.close()
-                except Exception:
-                    pass
+                except Exception:  # pragma: no cover
+                    pass  # pragma: no cover
     except Exception as e:
         # Fall back to basic mock data if API fails or loop is running
         print(f"Warning: Could not load USDA data, using fallback: {e}")
