@@ -94,7 +94,7 @@ describe("shareFile", () => {
   it("uses default title when sharing natively without an explicit title", async () => {
     isNativePlatformMock.mockReturnValue(true);
 
-    const buffer = new Uint8Array([1, 2, 3]).buffer;
+    const {buffer} = new Uint8Array([1, 2, 3]);
     (global.fetch as vi.Mock).mockResolvedValue({
       ok: true,
       status: 200,

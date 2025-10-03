@@ -1,10 +1,20 @@
 // RU: простая заглушка для событий, позже заменим на PostHog/Amplitude.
 // EN: tiny stub for events; swap later with PostHog/Amplitude.
+
 type Payload = Record<string, unknown>;
 
+type AnalyticsError = unknown;
+
 export function log(event: string, payload: Payload = {}): void {
-  // eslint-disable-next-line no-console
   console.info(`[analytics] ${event}`, payload);
+}
+
+export function logError(error: AnalyticsError): void {
+  if (error instanceof Error) {
+    console.warn("[analytics] error", error.message);
+    return;
+  }
+  console.warn("[analytics] unknown error", error);
 }
 
 // Часто используемые имена — чтобы не ошибаться в орфографии.

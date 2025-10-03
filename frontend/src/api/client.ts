@@ -1,12 +1,13 @@
 // RU: Минимальный клиент для FastAPI. Без моков и MSW на этом шаге.
 // EN: Minimal FastAPI client. No mocks/MSW in this step.
 
+import { log, logError } from "../lib/analytics";
+
 export const API_BASE = (import.meta.env.VITE_API_BASE || "") as string;
 
 if (!API_BASE) {
-  // Подсказываем в консоль, если забыли .env
-  // eslint-disable-next-line no-console
-  console.warn("[API] VITE_API_BASE is not set. Create frontend/.env from .env.example");
+  const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
+  logError(new Error(envHint));
 }
 
 const searchParams = (() => {

@@ -96,7 +96,15 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
 
   const buf = await res.arrayBuffer();
   const base64Data = await arrayBufferToBase64(buf);
-  const cachePath = `pulseplate/${Date.now()}-${filename}`;
+
+  const safeFilename =
+    filename
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.+/g, ".")
+      .replace(/[<>:"|?*]/g, "_") || "export.dat";
+  const cachePath = `pulseplate/${Date.now()}-${safeFilename}`;
 
   try {
     const writeResult = await Filesystem.writeFile({
@@ -121,8 +129,9 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
   } finally {
     try {
       await Filesystem.deleteFile({ path: cachePath, directory: Directory.Cache });
-    } catch {
-      // ignore cleanup failures
+    } catch (error) {
+      // Log cleanup failures for diagnostics, particularly important for mobile storage management
+      console.warn("[shareFile] Failed to cleanup cache file:", error);
     }
   }
 }
@@ -138,9 +147,22 @@ export async function shareSignedExport(
   return link;
 }
 
-export function formatShareErrorMessage(error: unknown, fallback = "Не удалось поделиться файлом. Попробуйте ещё раз."): string {
+export function formatShareErrorMessage(
+  error: unknown,
+  fallback = "Не удалось поделиться файлом. Попробуйте ещё раз."
+): string {
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return TECH_ERROR_PATTERN.test(error.message) ? fallback : error.message;
+  }
+
   const rawMessage =
-    typeof error === "object" && error && "message" in error ? String((error as Record<string, unknown>).message) : "";
+    typeof error === "object" && error && "message" in error
+      ? String((error as Record<string, unknown>).message)
+      : "";
   if (!rawMessage) {
     return fallback;
   }
