@@ -11,6 +11,19 @@ type Props = {
   via?: string;
 };
 
+/**
+ * Renders a paywall "Before/After" dialog with purchase and cancel actions.
+ *
+ * The dialog traps focus, focuses the primary CTA on mount, and emits analytics
+ * events for view, purchase attempt, and cancel actions while swallowing any
+ * analytics errors so rendering and user flow are unaffected.
+ *
+ * @param onClose - Callback invoked when the dialog should be closed
+ * @param onPurchase - Optional callback invoked when the purchase CTA is activated
+ * @param source - Analytics source identifier (default: `"unknown"`)
+ * @param via - Analytics channel identifier (default: `"paywall"`)
+ * @returns The paywall dialog element
+ */
 export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);

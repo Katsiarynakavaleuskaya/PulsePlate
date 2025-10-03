@@ -57,6 +57,16 @@ function mergeHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
+/**
+ * Fetches JSON for the given API path using the configured API base, falling back to a local mock when appropriate.
+ *
+ * Tries a network request to `${API_BASE}${path}` first (unless `forceMock` is set), and if that fails will attempt to load a mapped local mock JSON file for the same path.
+ *
+ * @param path - The endpoint path appended to the configured API base or used to resolve a mock mapping.
+ * @param init - Optional fetch init to send with the network request; headers from `init` are merged with default headers.
+ * @returns The parsed JSON response typed as `T`.
+ * @throws Error when the selected response has a non-OK HTTP status, when no mock mapping exists for a mock fallback, or when both network and mock attempts fail.
+ */
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {

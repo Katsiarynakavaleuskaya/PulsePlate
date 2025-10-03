@@ -202,16 +202,22 @@ async function resolveMainClient(event) {
 }
 
 /**
- * @param {FetchEvent} event
- * @param {Client | undefined} client
- * @param {string} requestId
- * @returns {Promise<Response>}
- */
+ * Determine and return the Response for an intercepted fetch request, using a mocked response from the client when available or performing a network passthrough otherwise.
+ *
+ * @param {FetchEvent} event - The fetch event representing the intercepted request.
+ * @param {Client | undefined} client - The client to which the request will be dispatched for handling; `undefined` when no client is available.
+ * @param {string} requestId - A unique identifier for the intercepted request.
+ * @param {number} requestInterceptedAt - The timestamp (milliseconds since epoch) when the request was intercepted.
+ * @returns {Promise<Response>} A `Response` instance that is either the client's mocked response or the network passthrough response.
 async function getResponse(event, client, requestId, requestInterceptedAt) {
   // Clone the request because it might've been already used
   // (i.e. its body has been read and sent to the client).
   const requestClone = event.request.clone()
 
+  /**
+   * Perform a network fetch for the intercepted request after removing the "msw/passthrough" token from its Accept header.
+   * @returns {Promise<Response>} The network Response for the original request.
+   */
   function passthrough() {
     // Cast the request headers to a new Headers instance
     // so the headers can be manipulated with.

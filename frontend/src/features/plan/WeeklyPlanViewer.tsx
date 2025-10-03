@@ -7,6 +7,12 @@ import { requestSignedLink } from "../../lib/sharedLinks";
 
 const DEFAULT_TTL_SECONDS = 900;
 
+/**
+ * Copy the provided text to the user's clipboard.
+ *
+ * @param text - The text to copy
+ * @returns `true` if the text was successfully copied, `false` otherwise
+ */
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator?.clipboard?.writeText) {
@@ -64,6 +70,13 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
+/**
+ * Renders a weekly plan viewer UI that fetches the user's weekly plan on mount and provides actions to export, download, share, copy, or open the plan in Google Sheets.
+ *
+ * The component displays loading and error states, shows a summary of daily menus with meals and items, and manages short-lived signed links used by the export/share actions.
+ *
+ * @returns The JSX element for the weekly plan viewer.
+ */
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);

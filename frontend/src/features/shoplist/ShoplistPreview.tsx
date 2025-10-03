@@ -26,6 +26,16 @@ type Shoplist = {
   items?: ShopItem[];
 };
 
+/**
+ * Render a preview of the shopping list with controls to export or share it.
+ *
+ * The component fetches the current shopping list and displays loading, error,
+ * empty, or the list grouped by aisle. It also provides buttons to download
+ * the list as CSV or PDF and to share a signed PDF export, showing inline
+ * status and download/share errors when they occur.
+ *
+ * @returns A React element that displays the shopping list UI including action controls for export and sharing.
+ */
 export default function ShoplistPreview() {
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
