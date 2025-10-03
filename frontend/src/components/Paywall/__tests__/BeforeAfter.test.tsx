@@ -8,15 +8,21 @@ import "../../../test/setup";
 import i18n from "../../../i18n";
 
 beforeAll(async () => {
-  if (!i18n.isInitialized) {
-    await new Promise<void>((resolve) => {
-      const handler = () => {
-        i18n.off("initialized", handler);
-        resolve();
-      };
-      i18n.on("initialized", handler);
-    });
-  }
+  await new Promise<void>((resolve) => {
+    const handler = () => {
+      i18n.off("initialized", handler);
+      resolve();
+    };
+
+    // Register listener first to avoid missing events
+    i18n.on("initialized", handler);
+
+    // If already initialized, resolve immediately
+    if (i18n.isInitialized) {
+      i18n.off("initialized", handler);
+      resolve();
+    }
+  });
 });
 
 
