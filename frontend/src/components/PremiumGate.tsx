@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Paywall from "./Paywall/BeforeAfter";
-import { log, Events } from "../lib/analytics";
+// import { log, Events } from "../lib/analytics"; // TODO: Add analytics when needed
 
 type Props = {
   isPremium: boolean;

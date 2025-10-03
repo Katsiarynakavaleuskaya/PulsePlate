@@ -24,7 +24,9 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
         event.stopPropagation();
         try {
           log(Events.PURCHASE_CANCEL, { source, via });
-        } catch {}
+        } catch {
+          // Ignore analytics errors
+        }
         onClose();
         return;
       }
@@ -102,7 +104,9 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             // Fire-and-forget analytics before invoking callback
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
-            } catch {}
+            } catch {
+          // Ignore analytics errors
+        }
             onPurchase?.();
           }}
         >
@@ -117,7 +121,9 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
           onClick={() => {
             try {
               log(Events.PURCHASE_CANCEL, { source, via });
-            } catch {}
+            } catch {
+          // Ignore analytics errors
+        }
             onClose();
           }}
         >

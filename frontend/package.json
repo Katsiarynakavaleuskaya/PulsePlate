@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest --environment jsdom"
+    "test": "vitest --environment jsdom",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",

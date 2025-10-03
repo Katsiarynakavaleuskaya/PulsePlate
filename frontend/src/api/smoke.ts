@@ -6,6 +6,5 @@ export function apiSmoke(): void {
     typeof window !== "undefined" && typeof window.location?.search === "string"
       ? new URLSearchParams(window.location.search).get("mock") === "1"
       : false;
-  // eslint-disable-next-line no-console
   console.log(`[API] base => ${API_BASE || "(not set)"} | mock=${mockEnabled}`);
 }
