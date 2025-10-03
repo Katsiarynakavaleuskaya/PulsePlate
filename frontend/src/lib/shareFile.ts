@@ -6,6 +6,12 @@ import { requestSignedLink } from "./sharedLinks";
 
 const TECH_ERROR_PATTERN = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i;
 
+/**
+ * Downloads a file in the browser by creating a temporary anchor element.
+ *
+ * @param url - The URL to download
+ * @param filename - The filename for the download
+ */
 function downloadInBrowser(url: string, filename: string) {
   if (typeof document === "undefined") {
     return;
@@ -72,8 +78,16 @@ function isAbortError(error: unknown): boolean {
   return typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError";
 }
 
-// RU: Шэрим файл нативно на iOS (или используем Web Share/скачивание в браузере).
-// EN: Native share on iOS; on web prefer Web Share API then fall back to download.
+/**
+ * Shares a file using native platform capabilities or web APIs.
+ *
+ * On native platforms (iOS/Android), uses Capacitor Share plugin.
+ * On web, attempts Web Share API first, then falls back to download.
+ *
+ * @param url - The URL of the file to share
+ * @param filename - The filename for the shared file
+ * @param title - The title for the share dialog (default: "PulsePlate export")
+ */
 export async function shareFile(url: string, filename: string, title = "PulsePlate export") {
   if (!Capacitor.isNativePlatform()) {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
@@ -92,7 +106,9 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
   }
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
 
   const buf = await res.arrayBuffer();
   const base64Data = await arrayBufferToBase64(buf);
@@ -136,6 +152,15 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
   }
 }
 
+/**
+ * Shares a file using a signed link for secure access.
+ *
+ * @param path - The file path to share
+ * @param filename - The filename for the shared file
+ * @param title - The title for the share dialog (default: "PulsePlate export")
+ * @param options - Options for generating the signed link
+ * @returns Promise resolving to the signed link
+ */
 export async function shareSignedExport(
   path: string,
   filename: string,
@@ -147,6 +172,14 @@ export async function shareSignedExport(
   return link;
 }
 
+/**
+ * Formats error messages for file sharing operations.
+ * Filters out technical error details and provides user-friendly messages.
+ *
+ * @param error - The error to format
+ * @param fallback - Fallback message if error cannot be formatted (default: Russian error message)
+ * @returns User-friendly error message
+ */
 export function formatShareErrorMessage(
   error: unknown,
   fallback = "Не удалось поделиться файлом. Попробуйте ещё раз."

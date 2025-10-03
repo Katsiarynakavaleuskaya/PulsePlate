@@ -3,7 +3,7 @@
 
 import { log, logError } from "../lib/analytics";
 
-export const API_BASE = (import.meta.env.VITE_API_BASE || "") as string;
+export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
 if (!API_BASE) {
   const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
@@ -20,9 +20,15 @@ const searchParams = (() => {
 const forceMock = searchParams.get("mock") === "1";
 
 function mockUrl(path: string): string | null {
-  if (path.includes("/premium/bmr")) return "/mock/bmr.json";
-  if (path.includes("/premium/plate")) return "/mock/plate.json";
-  if (path.includes("/plan/week")) return "/mock/week.json";
+  if (path.includes("/premium/bmr")) {
+    return "/mock/bmr.json";
+  }
+  if (path.includes("/premium/plate")) {
+    return "/mock/plate.json";
+  }
+  if (path.includes("/plan/week")) {
+    return "/mock/week.json";
+  }
   return null;
 }
 

@@ -1,3 +1,4 @@
+import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 export default function TabBar() {
@@ -8,6 +9,7 @@ export default function TabBar() {
     { to: "/progress", label: "Progress" },
     { to: "/profile", label: "Profile" },
   ];
+
   return (
     <nav
       role="tablist"

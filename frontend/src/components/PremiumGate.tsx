@@ -17,7 +17,9 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
   useEffect(() => {
     const root = previewRef.current;
-    if (!root) return;
+    if (!root) {
+      return;
+    }
 
     // Feature-detect inert support explicitly
     const hasInertSupport = 'inert' in HTMLElement.prototype ||
@@ -54,8 +56,11 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         restore.forEach((el) => {
           const prev = el.getAttribute("data-pp-prev-tabindex");
           if (prev !== null) {
-            if (prev === "") el.removeAttribute("tabindex");
-            else el.setAttribute("tabindex", prev);
+            if (prev === "") {
+              el.removeAttribute("tabindex");
+            } else {
+              el.setAttribute("tabindex", prev);
+            }
             el.removeAttribute("data-pp-prev-tabindex");
           } else if (el.getAttribute("tabindex") === "-1") {
             el.removeAttribute("tabindex");

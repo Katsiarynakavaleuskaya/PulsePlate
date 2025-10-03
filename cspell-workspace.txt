@@ -1289,6 +1289,7 @@
 логики
 логику
 логировать
+логируем
 Логируем
 ложка
 локализацией
@@ -1472,6 +1473,7 @@
 можно
 Можно
 мока
+мокаем
 Мокаем
 моками
 моки
@@ -3734,6 +3736,7 @@ considere
 Consulta
 consultar
 consulte
+contenteditable
 contextlib
 contextmanager
 coro
@@ -3806,6 +3809,7 @@ finetune
 física
 fitchef
 FNDDS
+focusables
 folate
 Folate
 folates
@@ -3957,6 +3961,7 @@ NFKD
 niño
 nochange
 nokey
+noopener
 noqa
 nosec
 NOTSET
@@ -4140,6 +4145,7 @@ TEXTCOLOR
 Tienes
 timedelta
 Tomate
+transferrables
 truediv
 typeerror
 typer
@@ -4160,6 +4166,7 @@ vitamina
 vitd
 whitesmoke
 whtr
+wicg
 wmax
 wmin
 wpdf

@@ -25,14 +25,25 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
       );
 
       const isTrulyFocusable = (el: HTMLElement): boolean => {
-        if (el.getAttribute("aria-hidden") === "true") return false;
-        if (el.tabIndex === -1) return false;
-        if ((el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled === true)
+        if (el.getAttribute("aria-hidden") === "true") {
           return false;
-        if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) return false;
+        }
+        if (el.tabIndex === -1) {
+          return false;
+        }
+        if ((el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled === true) {
+          return false;
+        }
+        if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) {
+          return false;
+        }
         const style = getComputedStyle(el);
-        if (style.visibility === "hidden") return false;
-        if (el.offsetParent === null && style.position !== "fixed" && style.position !== "absolute") return false;
+        if (style.visibility === "hidden") {
+          return false;
+        }
+        if (el.offsetParent === null && style.position !== "fixed" && style.position !== "absolute") {
+          return false;
+        }
 
         // Handle radio groups: only the checked/selected radio in a group is focusable
         if (
@@ -58,9 +69,13 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
         }
 
         // Custom widgets: check for tabindex and ARIA attributes
-        const tabIndex = (el as HTMLElement).tabIndex;
-        if (tabIndex < 0) return false;
-        if ((el as HTMLElement).hasAttribute("aria-disabled") && (el as HTMLElement).getAttribute("aria-disabled") === "true") return false;
+        const { tabIndex } = el as HTMLElement;
+        if (tabIndex < 0) {
+          return false;
+        }
+        if ((el as HTMLElement).hasAttribute("aria-disabled") && (el as HTMLElement).getAttribute("aria-disabled") === "true") {
+          return false;
+        }
 
         return true;
       };
