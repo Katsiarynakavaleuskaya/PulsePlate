@@ -72,7 +72,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         });
       };
     }
-  }, [previewRef.current]);
+  }, []);
 
   if (isPremium) return <>{children}</>;
 

@@ -38,13 +38,18 @@ export default tseslint.config(
         File: 'readonly',
         DOMException: 'readonly',
         reportError: 'readonly',
-        __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly'
+        __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        crypto: 'readonly',
+        IntersectionObserver: 'readonly',
+        ResizeObserver: 'readonly'
       }
     },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': 'off', // Allow console.log for development
+      'no-console': process.env.NODE_ENV === 'production' ? ['error', { allow: ['warn', 'error'] }] : 'off', // Allow console.log for development
       'no-empty': 'warn',
       'no-constant-condition': 'warn',
       'no-cond-assign': 'warn',
