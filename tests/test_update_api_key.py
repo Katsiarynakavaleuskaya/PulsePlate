@@ -366,9 +366,49 @@ class TestUpdateAPIKey:
         assert "" in lines  # blank line preserved
         assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in lines)
 
-    def test_main_coverage_placeholder(self):
-        """Placeholder for main() function coverage - tested manually"""
-        # main() function requires sys.argv manipulation and interactive behavior
-        # Best tested through integration tests or manual testing
-        assert hasattr(update_api_key, "main")
-        assert callable(update_api_key.main)
+    def test_main_success_path(self, tmp_path, capsys, monkeypatch, fake_crypto):
+        """Test main() function success path"""
+        valid_key = "sk-" + "a" * 40
+        monkeypatch.setattr("update_api_key.Path.home", lambda: tmp_path)
+
+        # Mock user input
+        monkeypatch.setattr("builtins.input", lambda _: valid_key)
+
+        update_api_key.main()
+
+        captured = capsys.readouterr()
+        assert "🔑 OpenAI API Key Configuration" in captured.out
+        assert "🎉 API key updated successfully!" in captured.out
+        assert "✅ Configuration updated successfully!" in captured.out
+
+    def test_main_empty_input(self, capsys, monkeypatch):
+        """Test main() function with empty input"""
+        monkeypatch.setattr("builtins.input", lambda _: "")
+
+        update_api_key.main()
+
+        captured = capsys.readouterr()
+        assert "🔑 OpenAI API Key Configuration" in captured.out
+        assert "❌ No API key provided" in captured.out
+
+    def test_main_encryption_unavailable(self, capsys, monkeypatch):
+        """Test main() function when encryption is not available"""
+        valid_key = "sk-" + "a" * 40
+        monkeypatch.setattr("update_api_key.ENCRYPTION_AVAILABLE", False)
+        monkeypatch.setattr("builtins.input", lambda _: valid_key)
+
+        update_api_key.main()
+
+        captured = capsys.readouterr()
+        assert "❌ Encryption not available" in captured.out
+
+    def test_main_update_failure(self, capsys, monkeypatch):
+        """Test main() function when update_api_key fails"""
+        valid_key = "sk-" + "a" * 40
+        monkeypatch.setattr("builtins.input", lambda _: valid_key)
+
+        with patch("update_api_key.update_api_key", return_value=False):
+            update_api_key.main()
+
+        captured = capsys.readouterr()
+        assert "❌ Failed to update configuration" in captured.out
