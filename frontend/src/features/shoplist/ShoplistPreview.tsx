@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
@@ -35,6 +36,7 @@ type Shoplist = {
  * @returns The component's rendered JSX element representing the shopping list preview and controls.
  */
 export default function ShoplistPreview() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -102,19 +104,19 @@ export default function ShoplistPreview() {
   );
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">Загружаем список…</div>;
+    return <div className="max-w-3xl mx-auto p-6">{t("shoplist.loading")}</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        Ошибка: {err}
+        {t("shoplist.error")}: {err}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto p-6 opacity-70">Пусто.</div>;
+    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t("shoplist.empty")}</div>;
   }
 
   const groups = data.groups && data.groups.length > 0

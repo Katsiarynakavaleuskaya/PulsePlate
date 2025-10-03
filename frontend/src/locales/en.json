@@ -3,6 +3,11 @@
     "ok": "OK",
     "cancel": "Cancel"
   },
+  "shoplist": {
+    "loading": "Loading shopping list…",
+    "error": "Error",
+    "empty": "Empty."
+  },
   "paywall": {
     "title": "Unlock Premium",
     "subtitle": "Personalized plate, micro-balance, weekly plan.",
