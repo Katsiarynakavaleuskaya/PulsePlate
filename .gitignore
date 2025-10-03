@@ -204,3 +204,6 @@ reproduce_*.py
 
 # Allow tests under tests/ (do not ignore them)
 !tests/**
+
+# Ignore compiled bytecode
+__pycache__/
