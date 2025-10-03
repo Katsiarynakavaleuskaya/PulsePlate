@@ -41,7 +41,11 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
         ) {
           // For native radios
           if (el instanceof HTMLInputElement && el.name) {
-            const radios = document.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${el.name}"]`);
+            // Use getElementsByName for better compatibility and to avoid CSS selector escaping issues
+            const radios = Array.from(document.getElementsByName(el.name)).filter(
+              (radio): radio is HTMLInputElement =>
+                radio instanceof HTMLInputElement && radio.type === "radio"
+            );
             if (radios.length > 1) {
               // Only checked radio is focusable
               return el.checked;
