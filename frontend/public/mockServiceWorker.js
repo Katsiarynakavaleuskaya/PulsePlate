@@ -212,7 +212,7 @@ async function getResponse(event, client, requestId, requestInterceptedAt) {
   // (i.e. its body has been read and sent to the client).
   const requestClone = event.request.clone()
 
-  function passthrough() {
+  const passthrough = () => {
     // Cast the request headers to a new Headers instance
     // so the headers can be manipulated with.
     const headers = new Headers(requestClone.headers)
