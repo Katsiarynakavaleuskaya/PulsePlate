@@ -135,7 +135,7 @@ class TestUpdateAPIKey:
                 captured = capsys.readouterr()
                 assert "cryptography library not installed" in captured.out
 
-    def test_update_api_key_simple_success(self, tmp_path, capsys):
+    def test_update_api_key_simple_success(self, tmp_path, capsys, fake_crypto):
         """Test update_api_key basic success case with encryption"""
         valid_key = "sk-" + "a" * 40
 
@@ -167,7 +167,7 @@ class TestUpdateAPIKey:
         env = config["mcpServers"]["pulseplate-chatgpt"]["env"]
         assert env["OPENAI_API_KEY"] == valid_key
 
-    def test_update_api_key_updates_env_file(self, tmp_path):
+    def test_update_api_key_updates_env_file(self, tmp_path, fake_crypto):
         """Ensure .env file is updated and encrypted value written."""
         env_file = tmp_path / ".cursor" / ".env"
         env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -182,7 +182,7 @@ class TestUpdateAPIKey:
         new_value = env_file.read_text().strip().split("=", 1)[1]
         assert new_value.startswith("encrypted:")
 
-    def test_update_api_key_handles_env_missing(self, tmp_path):
+    def test_update_api_key_handles_env_missing(self, tmp_path, fake_crypto):
         """Should append encrypted key when env entry missing."""
         env_file = tmp_path / ".cursor" / ".env"
         env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -198,7 +198,7 @@ class TestUpdateAPIKey:
         assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in content)
         assert "OTHER=value" in content
 
-    def test_update_api_key_handles_env_file_absent(self, tmp_path, capsys):
+    def test_update_api_key_handles_env_file_absent(self, tmp_path, capsys, fake_crypto):
         """No error when env/settings files do not exist."""
         valid_key = "sk-" + "z" * 40
 
@@ -209,7 +209,7 @@ class TestUpdateAPIKey:
         captured = capsys.readouterr()
         assert "environment file" not in captured.out.lower()
 
-    def test_update_api_key_creates_env_entry_when_missing(self, tmp_path):
+    def test_update_api_key_creates_env_entry_when_missing(self, tmp_path, fake_crypto):
         """If env file absent, no file should be created automatically."""
         valid_key = "sk-" + "w" * 40
 
@@ -221,7 +221,7 @@ class TestUpdateAPIKey:
 
         assert not env_file.exists()
 
-    def test_update_api_key_writes_plaintext_to_settings_json(self, tmp_path):
+    def test_update_api_key_writes_plaintext_to_settings_json(self, tmp_path, fake_crypto):
         """settings.json should receive plain text key."""
         settings_file = tmp_path / ".cursor" / "settings.json"
         settings_file.parent.mkdir(parents=True, exist_ok=True)
@@ -334,7 +334,7 @@ class TestUpdateAPIKey:
         captured = capsys.readouterr()
         assert "Encryption failed" in captured.out
 
-    def test_update_api_key_invalid_env_line(self, tmp_path):
+    def test_update_api_key_invalid_env_line(self, tmp_path, fake_crypto):
         """Строки .env без '=' пропускаются без ошибок / Invalid lines are skipped."""
         env_file = tmp_path / ".cursor" / ".env"
         env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -350,7 +350,7 @@ class TestUpdateAPIKey:
         assert "INVALID_LINE" in lines
         assert any(line.startswith("OPENAI_API_KEY=encrypted:") for line in lines)
 
-    def test_update_api_key_skips_blank_env_lines(self, tmp_path):
+    def test_update_api_key_skips_blank_env_lines(self, tmp_path, fake_crypto):
         """Blank env lines are preserved without breaking updates."""
         env_file = tmp_path / ".cursor" / ".env"
         env_file.parent.mkdir(parents=True, exist_ok=True)

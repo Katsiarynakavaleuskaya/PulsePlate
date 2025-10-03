@@ -21,8 +21,19 @@ beforeAll(async () => {
         resolve();
       };
 
+      // Register listener first to avoid race condition
       i18n.on("initialized", handler);
+
+      // Immediately re-check if already initialized after registering listener
+      if (i18n.isInitialized) {
+        i18n.off("initialized", handler);
+        clearTimeout(timeout);
+        resolve();
+      }
     });
+  } else {
+    // i18n is already initialized, nothing to wait for
+    await Promise.resolve();
   }
 });
 
@@ -80,5 +91,22 @@ describe("Paywall BeforeAfter", () => {
     expect(log).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenCalledWith(Events.PAYWALL_VIEW, expect.anything());
     expect(log).toHaveBeenCalledWith(Events.PURCHASE_CANCEL, expect.anything());
+  });
+
+  test("disables body scroll when modal opens and restores on unmount", () => {
+    // Store original overflow value
+    const originalOverflow = document.body.style.overflow;
+
+    // Render modal
+    const { unmount } = render(<BeforeAfter onClose={() => {}} />);
+
+    // Check that body scroll is disabled
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // Unmount modal
+    unmount();
+
+    // Check that body scroll is restored
+    expect(document.body.style.overflow).toBe(originalOverflow);
   });
 });
