@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest --environment jsdom"
+    "test": "vitest --environment jsdom",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",
@@ -20,14 +22,17 @@
     "wicg-inert": "^3.1.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.36.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "eslint": "^9.36.0",
     "jsdom": "^25.0.1",
     "msw": "^2.11.3",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.45.0",
     "vite": "^7.1.7",
     "vitest": "^3.2.4"
   },
