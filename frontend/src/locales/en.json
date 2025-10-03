@@ -1,35 +1,47 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "skeleton": "Page skeleton."
+  },
+  "plate": {
+    "title": "Plate",
+    "preview": "Premium-only section preview…"
+  },
+  "profile": {
+    "title": "Profile"
+  },
+  "progress": {
+    "title": "Progress"
   },
   "paywall": {
     "title": "Unlock Premium",
     "subtitle": "Personalized plate, micro-balance, weekly plan.",
     "cta": "Continue",
     "legal": "Auto-renewing subscription. Cancel anytime in Settings.",
-    "before": {
-      "label": "Before",
-      "randomPlate": "Random plate",
-      "macrosOnly": "Macros only",
-      "manualShopping": "Manual shopping"
-    },
-    "after": {
-      "label": "After",
-      "personalPlate": "Personal plate",
-      "microBalance": "Micro-balance",
-      "autoShoppingList": "Auto shopping list"
-    },
-    "items": {
+    "sections": {
       "before": {
-        "random_plate": "Random plate",
-        "macros_only": "Macros only",
-        "manual_shopping": "Manual shopping"
+        "label": "Before",
+        "features": {
+          "randomPlate": "Random plate",
+          "randomDescription": "Generic suggestions without personalization.",
+          "macrosOnly": "Macros only",
+          "macrosDescription": "Limited to calorie and macro targets.",
+          "manualShopping": "Manual shopping",
+          "manualDescription": "You compile grocery lists yourself."
+        }
       },
       "after": {
-        "personal_plate": "Personal plate",
-        "micro_balance": "Micro-balance",
-        "auto_shopping_list": "Auto shopping list"
+        "label": "After",
+        "features": {
+          "personalPlate": "Personal plate",
+          "personalDescription": "Tailored recipes matched to your biometrics.",
+          "microBalance": "Micro-balance",
+          "microDescription": "Tracks micronutrients for optimal balance.",
+          "autoShoppingList": "Auto shopping list",
+          "autoDescription": "Smart grocery planner with package rounding."
+        }
       }
     }
   }

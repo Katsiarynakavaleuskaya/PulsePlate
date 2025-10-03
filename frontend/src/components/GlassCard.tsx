@@ -67,8 +67,11 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
     .filter(Boolean)
     .join(" ");
 
+  const hasAriaContext = "aria-label" in ariaProps || "aria-labelledby" in ariaProps;
+  const computedRole = role ?? (hasAriaContext ? "region" : "group");
+
   return (
-    <div ref={ref} className={wrapperClasses} role={role ?? "group"} {...ariaProps} {...rest}>
+    <div ref={ref} className={wrapperClasses} role={computedRole} {...ariaProps} {...rest}>
       <div className={contentClasses}>{children}</div>
     </div>
   );

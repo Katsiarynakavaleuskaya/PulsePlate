@@ -25,17 +25,32 @@ export async function requestSignedLink(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    const errorBody = await response.json().catch(() => ({}));
+    const message =
+      typeof errorBody.error === "string"
+        ? errorBody.error
+        : typeof errorBody.message === "string"
+          ? errorBody.message
+          : `HTTP ${response.status}`;
+    throw new Error(message);
   }
 
   const data = await response.json();
-  const relative = data.url as string;
+
+  if (typeof data.url !== "string" || data.url.length === 0) {
+    throw new Error("Invalid response: missing or invalid 'url' field");
+  }
+
+  const relative = data.url;
   let absolute: string | undefined;
 
   if (relative) {
     try {
       absolute = new URL(relative, response?.url ?? window?.location?.origin ?? undefined).toString();
-    } catch {
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("Failed to construct absolute URL from relative:", relative, error);
+      }
       absolute = undefined;
     }
   }

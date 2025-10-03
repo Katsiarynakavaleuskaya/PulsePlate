@@ -14,20 +14,24 @@ export default function TabBar() {
       aria-label="Main tabs"
       className="fixed bottom-0 inset-x-0 grid grid-cols-4 border-t border-muted/30 bg-navy"
     >
-      {items.map(({ to, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === "/"}
-          role="tab"
-          aria-selected={pathname === to}
-          className={({ isActive }) =>
-            `py-3 text-center ${isActive ? "text-primary font-medium" : "text-muted"}`
-          }
-        >
-          {label}
-        </NavLink>
-      ))}
+      {items.map(({ to, label }) => {
+        const isActive =
+          to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);
+        return (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === "/"}
+            role="tab"
+            aria-selected={isActive}
+            className={`py-3 text-center ${
+              isActive ? "text-primary font-medium" : "text-muted"
+            }`}
+          >
+            {label}
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }

@@ -17,12 +17,15 @@ type StoredState = {
 
 function applyFallbackInert(root: HTMLElement): () => void {
   root.setAttribute("aria-hidden", "true");
+  const selector = "a, button, input, textarea, select, details, [tabindex]";
   const state = new WeakMap<HTMLElement, StoredState>();
-  const focusables = root.querySelectorAll<HTMLElement>(
-    "a, button, input, textarea, select, details, [tabindex]"
-  );
+  const tracked = new Set<HTMLElement>();
 
-  focusables.forEach((element) => {
+  const applyToElement = (element: HTMLElement) => {
+    if (tracked.has(element)) {
+      return;
+    }
+
     const previousTabIndex = element.getAttribute("tabindex");
     const previousDisabled = "disabled" in element && Boolean((element as HTMLButtonElement).disabled);
     state.set(element, { previousTabIndex, previousDisabled });
@@ -33,12 +36,41 @@ function applyFallbackInert(root: HTMLElement): () => void {
     if ("disabled" in element && !previousDisabled) {
       (element as HTMLButtonElement).disabled = true;
     }
+
+    tracked.add(element);
+  };
+
+  const scanTree = (node: HTMLElement) => {
+    if (node.matches(selector)) {
+      applyToElement(node);
+    }
+
+    node.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+      applyToElement(element);
+    });
+  };
+
+  scanTree(root);
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === "childList") {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof HTMLElement) {
+            scanTree(node);
+          }
+        });
+      }
+    });
   });
 
+  observer.observe(root, { subtree: true, childList: true });
+
   return () => {
+    observer.disconnect();
     root.removeAttribute("aria-hidden");
 
-    focusables.forEach((element) => {
+    tracked.forEach((element) => {
       const stored = state.get(element);
       if (!stored) return;
 
@@ -55,6 +87,8 @@ function applyFallbackInert(root: HTMLElement): () => void {
 
       element.removeAttribute("data-pp-disabled");
     });
+
+    tracked.clear();
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useId, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Events, log, logError } from "../../lib/analytics";
@@ -15,6 +15,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const titleId = useId();
   const trap = useFocusTrap(dialogRef);
 
   const handleKeyDown = useCallback(
@@ -57,41 +58,49 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="paywall-title"
+      aria-labelledby={titleId}
       className="fixed inset-0 grid place-items-center bg-black/60 p-4"
       onKeyDown={handleKeyDown}
     >
       <div ref={dialogRef} className="w-full max-w-md rounded-xl bg-white text-black p-5">
-        <h2 id="paywall-title" className="text-2xl mb-1">
+        <h2 id={titleId} className="text-2xl mb-1">
           {t("paywall.title")}
         </h2>
         <p className="text-sm text-gray-600 mb-4">{t("paywall.subtitle")}</p>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="border rounded-lg p-3">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.before.label")}</div>
-            <ul className="text-sm list-disc list-inside">
-              {[
-                "paywall.items.before.random_plate",
-                "paywall.items.before.macros_only",
-                "paywall.items.before.manual_shopping",
-              ].map((key) => (
-                <li key={key}>{t(key)}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="border rounded-lg p-3 border-[var(--pp-gold)]">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.after.label")}</div>
-            <ul className="text-sm list-disc list-inside">
-              {[
-                "paywall.items.after.personal_plate",
-                "paywall.items.after.micro_balance",
-                "paywall.items.after.auto_shopping_list",
-              ].map((key) => (
-                <li key={key}>{t(key)}</li>
-              ))}
-            </ul>
-          </div>
+          {([
+            {
+              label: "paywall.sections.before.label",
+              features: [
+                ["paywall.sections.before.features.randomPlate", "paywall.sections.before.features.randomDescription"],
+                ["paywall.sections.before.features.macrosOnly", "paywall.sections.before.features.macrosDescription"],
+                ["paywall.sections.before.features.manualShopping", "paywall.sections.before.features.manualDescription"],
+              ],
+              toneClass: "border",
+            },
+            {
+              label: "paywall.sections.after.label",
+              features: [
+                ["paywall.sections.after.features.personalPlate", "paywall.sections.after.features.personalDescription"],
+                ["paywall.sections.after.features.microBalance", "paywall.sections.after.features.microDescription"],
+                ["paywall.sections.after.features.autoShoppingList", "paywall.sections.after.features.autoDescription"],
+              ],
+              toneClass: "border border-[var(--pp-gold)]",
+            },
+          ] as const).map(({ label, features, toneClass }) => (
+            <div key={label} className={`${toneClass} rounded-lg p-3`}>
+              <div className="text-xs uppercase text-gray-500">{t(label)}</div>
+              <ul className="text-sm list-disc list-inside">
+                {features.map(([featureKey, descriptionKey]) => (
+                  <li key={featureKey} className="space-y-1">
+                    <div>{t(featureKey)}</div>
+                    <p className="text-xs text-gray-500">{t(descriptionKey)}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         <button

@@ -172,7 +172,7 @@ export default function ShoplistPreview() {
         </div>
         {downloadError && (
           <div className="text-sm text-red-500" role="status" aria-live="polite">
-            Ошибка загрузки: {downloadError}
+            Ошибка: {downloadError}
           </div>
         )}
       </GlassCard>

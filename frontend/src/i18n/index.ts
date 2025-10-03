@@ -7,16 +7,39 @@ import en from "../locales/en.json";
 import ru from "../locales/ru.json";
 import es from "../locales/es.json";
 
-const urlLang =
-  typeof location !== "undefined" && typeof location.search === "string"
-    ? new URLSearchParams(location.search).get("lang") ?? "en"
-    : "en";
+const detectLanguage = (): string => {
+  if (typeof location === "undefined" || typeof location.search !== "string") {
+    return "en";
+  }
 
-i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, ru: { translation: ru }, es: { translation: es } },
-  lng: urlLang,
-  fallbackLng: "en",
-  interpolation: { escapeValue: false },
-});
+  const query = new URLSearchParams(location.search);
+  const lang = query.get("lang");
+
+  if (lang && ["en", "ru", "es"].includes(lang)) {
+    return lang;
+  }
+
+  return "en";
+};
+
+if (!i18n.isInitialized) {
+  void i18n
+    .use(initReactI18next)
+    .init({
+      resources: {
+        en: { translation: en as Record<string, unknown> },
+        ru: { translation: ru as Record<string, unknown> },
+        es: { translation: es as Record<string, unknown> },
+      },
+      lng: detectLanguage(),
+      fallbackLng: "en",
+      interpolation: { escapeValue: false },
+    })
+    .catch((error) => {
+      if (typeof console !== "undefined") {
+        console.error("Failed to initialize i18n", error);
+      }
+    });
+}
 
 export default i18n;

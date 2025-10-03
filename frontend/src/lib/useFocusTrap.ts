@@ -21,7 +21,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
       }
 
       const candidates = container.querySelectorAll<HTMLElement>(
-        'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        'a[href], area[href], button, textarea, input, select, [contenteditable="true"], details, summary, audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
       );
 
       const isTrulyFocusable = (el: HTMLElement): boolean => {
@@ -34,8 +34,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
           return false;
         // Skip hidden elements (no layout box)
         if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) return false;
-        // Another visibility signal
-        if ((el as HTMLElement).offsetParent === null && getComputedStyle(el).position !== "fixed") return false;
+        const style = getComputedStyle(el);
+        if (style.visibility === "hidden") return false;
+        if (el.offsetParent === null && style.position !== "fixed" && style.position !== "absolute") return false;
         return true;
       };
 

@@ -1,35 +1,47 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "loading": "Cargando…",
+    "skeleton": "Esqueleto de la página."
+  },
+  "plate": {
+    "title": "Plato",
+    "preview": "Vista previa solo Premium…"
+  },
+  "profile": {
+    "title": "Perfil"
+  },
+  "progress": {
+    "title": "Progreso"
   },
   "paywall": {
     "title": "Desbloquear Premium",
     "subtitle": "Plato personal, microequilibrio, plan semanal.",
     "cta": "Continuar",
     "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
-    "before": {
-      "label": "Antes",
-      "randomPlate": "Plato aleatorio",
-      "macrosOnly": "Solo macros",
-      "manualShopping": "Lista manual"
-    },
-    "after": {
-      "label": "Después",
-      "personalPlate": "Plato personal",
-      "microBalance": "Microequilibrio",
-      "autoShoppingList": "Lista automática"
-    },
-    "items": {
+    "sections": {
       "before": {
-        "random_plate": "Plato aleatorio",
-        "macros_only": "Solo macros",
-        "manual_shopping": "Lista manual"
+        "label": "Antes",
+        "features": {
+          "randomPlate": "Plato aleatorio",
+          "randomDescription": "Sugerencias genéricas sin personalización.",
+          "macrosOnly": "Solo macros",
+          "macrosDescription": "Solo cubre calorías y macronutrientes.",
+          "manualShopping": "Lista manual",
+          "manualDescription": "Preparas la lista de compras por tu cuenta."
+        }
       },
       "after": {
-        "personal_plate": "Plato personal",
-        "micro_balance": "Microequilibrio",
-        "auto_shopping_list": "Lista automática"
+        "label": "Después",
+        "features": {
+          "personalPlate": "Plato personal",
+          "personalDescription": "Recetas adaptadas a tus datos biométricos.",
+          "microBalance": "Equilibrio de micronutrientes",
+          "microDescription": "Control preciso de vitaminas y minerales.",
+          "autoShoppingList": "Lista automática",
+          "autoDescription": "Planificador inteligente con redondeo de packs."
+        }
       }
     }
   }
