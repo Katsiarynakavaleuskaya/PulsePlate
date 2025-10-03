@@ -10,7 +10,7 @@
   },
   "paywall": {
     "title": "Desbloquear Premium",
-    "subtitle": "Plan nutricional personalizado, equilibrio preciso, planificación semanal.",
+    "subtitle": "Plan nutricional personal, equilibrio preciso, planificación semanal.",
     "cta": "Continuar",
     "legal": "Suscripción con renovación automática. Cancela en Configuración.",
     "before": {
@@ -21,9 +21,9 @@
     },
     "after": {
       "label": "Después",
-      "personalPlate": "Plan nutricional personalizado",
-      "microBalance": "Equilibrio nutricional preciso",
-      "autoShoppingList": "Lista de compras automática"
+      "personalPlate": "Plan nutricional personal",
+      "microBalance": "Equilibrio nutricional",
+      "autoShoppingList": "Lista automática"
     },
     "items": {
       "before": {
@@ -32,9 +32,9 @@
         "manual_shopping": "Lista manual"
       },
       "after": {
-        "personal_plate": "Plan nutricional personalizado",
-        "micro_balance": "Equilibrio nutricional preciso",
-        "auto_shopping_list": "Lista de compras automática"
+        "personal_plate": "Plan nutricional personal",
+        "micro_balance": "Equilibrio nutricional",
+        "auto_shopping_list": "Lista automática"
       }
     }
   }
