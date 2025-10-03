@@ -11,6 +11,18 @@ type Props = {
   via?: string;
 };
 
+/**
+ * Renders a modal paywall dialog showing before/after feature lists with primary purchase and cancel actions.
+ *
+ * The dialog traps focus, sets initial focus to the primary CTA on mount, and handles Escape to close.
+ * Analytics events for view, purchase attempt, and cancel are issued but errors from analytics are ignored.
+ *
+ * @param onClose - Callback invoked when the dialog should close (Escape key or Cancel).
+ * @param onPurchase - Optional callback invoked when the primary purchase CTA is activated.
+ * @param source - Optional identifier for analytics `source` (defaults to `"unknown"`).
+ * @param via - Optional identifier for analytics `via` (defaults to `"paywall"`).
+ * @returns The React element for the paywall dialog.
+ */
 export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
