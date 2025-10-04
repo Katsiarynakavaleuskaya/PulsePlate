@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 # Project paths - configurable via environment variable
 IOS_DIR="${IOS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$IOS_DIR" || exit 1
 SWIFT_FILES="PulsePlate/**/*.swift"
 

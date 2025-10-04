@@ -50,7 +50,7 @@ struct VideoPlayerView: View {
 
         player = AVPlayer(url: url)
         setupPlayerLoop()
-        player.play()
+        player?.play()
     }
 
     private func setupPlayerLoop() {
@@ -166,5 +166,5 @@ struct AnimatedMascotBubbleVideo: View {
         AnimatedMascotBubbleVideo(textKey: "Добро пожаловать в PulsePlate!")
             .padding()
     }
-    .background(.navy)
+    .background(Color.navy)
 }

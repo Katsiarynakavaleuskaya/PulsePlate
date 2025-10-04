@@ -85,5 +85,5 @@ struct AnimatedMascotBubble: View {
         AnimatedMascotBubble(textKey: "Добро пожаловать в PulsePlate!")
             .padding()
     }
-    .background(.navy)
+    .background(Color.navy)
 }

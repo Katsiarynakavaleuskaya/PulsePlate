@@ -7,24 +7,24 @@ struct ColorTestView: View {
                 Text("Color Assets Test")
                     .font(.largeTitle)
                     .bold()
-                    .foregroundColor(.textPrimary)
+                    .foregroundColor(.white)
 
                 // Brand Colors
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Brand Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Navy", color: .navy)
-                        ColorCard(name: "Primary", color: .primary)
-                        ColorCard(name: "Accent", color: .accent)
+                        ColorCard(name: "Navy", color: Color.navy)
+                        ColorCard(name: "AppPrimary", color: Color.appPrimary)
+                        ColorCard(name: "Accent", color: Color.accent)
                     }
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Heart", color: .heart)
-                        ColorCard(name: "Gold", color: .gold)
-                        ColorCard(name: "Success", color: .success)
+                        ColorCard(name: "Heart", color: Color.heart)
+                        ColorCard(name: "Gold", color: Color.gold)
+                        ColorCard(name: "Success", color: Color.green)
                     }
                 }
 
@@ -32,12 +32,12 @@ struct ColorTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Surface Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Surface", color: .surface)
-                        ColorCard(name: "Elevated", color: .surfaceElevated)
-                        ColorCard(name: "Highlight", color: .surfaceHighlight)
+                        ColorCard(name: "Surface", color: Color.gray.opacity(0.1))
+                        ColorCard(name: "Elevated", color: Color.white.opacity(0.1))
+                        ColorCard(name: "Highlight", color: Color.blue.opacity(0.1))
                     }
                 }
 
@@ -45,24 +45,24 @@ struct ColorTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Text Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Primary Text")
-                            .foregroundColor(.textPrimary)
+                            .foregroundColor(.white)
                         Text("Secondary Text")
-                            .foregroundColor(.textSecondary)
+                            .foregroundColor(.gray)
                         Text("Tertiary Text")
-                            .foregroundColor(.textTertiary)
+                            .foregroundColor(.gray.opacity(0.6))
                     }
                     .padding()
-                    .background(.surface)
+                    .background(Color.gray.opacity(0.1))
                     .cornerRadius(12)
                 }
             }
             .padding()
         }
-        .background(.navy)
+        .background(Color.navy)
     }
 }
 

@@ -4,7 +4,7 @@ import SwiftUI
 extension Color {
     // MARK: - Brand Colors
     static let navy = Color("Navy")
-    static let primary = Color("Primary")
+    static let appPrimary = Color("AppPrimary")
     static let accent = Color("AccentGreen")
     static let heart = Color("HeartRed")
     static let gold = Color("Gold")
@@ -16,8 +16,8 @@ extension Color {
     static let info = Color(hex: "#3B82F6")
 
     // MARK: - Surface Colors
-    static let surface = Color.white.opacity(0.1)
-    static let surfaceElevated = Color.white.opacity(0.15)
+    static let surface = Color.gray.opacity(0.1)
+    static let surfaceElevated = Color.white.opacity(0.1)
     static let surfaceHighlight = Color.white.opacity(0.25)
 
     // MARK: - Text Colors
