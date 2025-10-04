@@ -63,6 +63,7 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   activity: "moderate",
   goal: "maintain",
   diet_flags: [],
+  lang: "en",
 };
 
 function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
@@ -140,7 +141,7 @@ function getItemEnergy(item: UnknownRecord): number | undefined {
 
 export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -203,11 +204,11 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       setHint(
         ok
-          ? "Приватная CSV-ссылка скопирована (действует 15 минут). В Google Sheets выбери File → Import → Link."
-          : `Не удалось скопировать автоматически. Скопируй вручную: ${link.absolute}`
+          ? t('plan.linkCopied')
+          : `${t('plan.copyFailed')}: ${link.absolute}`
       );
     } catch (error: any) {
-      setHint(`Не удалось получить приватную ссылку: ${error?.message || "error"}`);
+      setHint(`${t('plan.linkRequestFailed')}: ${error?.message || t('plan.unknownError')}`);
     }
   };
 
@@ -216,9 +217,9 @@ export default function WeeklyPlanViewer() {
       const link = await requestSignedLink(path, { ttlSeconds: DEFAULT_TTL_SECONDS });
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
-      setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
+      setHint(t('plan.exportReady'));
     } catch (error: any) {
-      setHint(`Не удалось скачать файл: ${error?.message || "Неизвестная ошибка"}. Попробуйте ещё раз.`);
+      setHint(`${t('plan.downloadFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
     }
   };
 
@@ -226,9 +227,9 @@ export default function WeeklyPlanViewer() {
     try {
       const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
-      setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
+      setHint(t('plan.shareReady'));
     } catch (error: any) {
-      setHint(formatShareErrorMessage(error, "Не удалось поделиться: произошла ошибка. Попробуйте ещё раз."));
+      setHint(formatShareErrorMessage(error, `${t('plan.shareFailed')}. ${t('plan.tryAgain')}`));
     }
   };
 
@@ -237,9 +238,9 @@ export default function WeeklyPlanViewer() {
       const link = await requestSignedLink("/api/v1/plan/week/export.csv", { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
-      setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
+      setHint(t('plan.linkOpened'));
     } catch (error: any) {
-      setHint(`Не удалось открыть приватную ссылку: ${error?.message || "Неизвестная ошибка"}. Попробуйте ещё раз.`);
+      setHint(`${t('plan.linkOpenFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
     }
   };
 

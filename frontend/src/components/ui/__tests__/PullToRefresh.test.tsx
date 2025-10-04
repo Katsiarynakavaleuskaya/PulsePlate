@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { PullToRefresh } from '../PullToRefresh';
 
 describe('PullToRefresh', () => {
@@ -32,20 +32,23 @@ describe('PullToRefresh', () => {
     const container = screen.getByText('Test content').parentElement!;
 
     // Simulate touch start
-    fireEvent.touchStart(container, {
-      touches: [{ clientY: 100 }]
+    await act(async () => {
+      fireEvent.touchStart(container, {
+        touches: [{ clientY: 100 }]
+      });
     });
 
     // Simulate touch move (pull down 100px)
-    fireEvent.touchMove(container, {
-      touches: [{ clientY: 200 }]
+    await act(async () => {
+      fireEvent.touchMove(container, {
+        touches: [{ clientY: 200 }]
+      });
     });
 
     // Simulate touch end
-    fireEvent.touchEnd(container);
-
-    // Wait for the async operation
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await act(async () => {
+      fireEvent.touchEnd(container);
+    });
 
     expect(mockOnRefresh).toHaveBeenCalledTimes(1);
   });
