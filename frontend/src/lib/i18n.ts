@@ -9,7 +9,7 @@ export function getClientLocale(): string {
   }
 
   const raw = navigator.language || 'en';
-  const normalized = raw ? (raw.split("-")[0] ?? "").toLowerCase() : "";
+  const normalized = raw.split("-")[0].toLowerCase();
 
   return normalized || 'en';
 }

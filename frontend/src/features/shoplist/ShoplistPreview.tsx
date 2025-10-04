@@ -85,16 +85,14 @@ export default function ShoplistPreview() {
     // Rely on browser's garbage collection as fallback
     const revokeTimeout = setTimeout(() => {
       try {
-        if (url && typeof url === 'string' && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
+        URL.revokeObjectURL(url);
       } catch {
         // Ignore errors if URL was already revoked or invalid
       }
     }, 10000); // 10 seconds for very large files on slow networks
     timeoutsRef.current.push(revokeTimeout);
   }
-  }, [timeoutsRef]);
+  }, []); // timeoutsRef is stable, no need to include it
 
   const handleDownload = useCallback(
     async (kind: "csv" | "pdf") => {
