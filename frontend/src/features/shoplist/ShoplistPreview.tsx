@@ -64,17 +64,18 @@ export default function ShoplistPreview() {
     anchor.click();
   } finally {
     anchor.remove();
-    // Delay URL revocation to ensure download completes
-    // Use a longer timeout for large files/slow networks, plus check if anchor still exists
+    // Delay URL revocation to ensure download completes for large files/slow networks
+    // Use a very conservative timeout and rely on browser's garbage collection as fallback
     setTimeout(() => {
-      // Double-check the anchor was removed and download likely started
-      if (!document.body.contains(anchor)) {
-        URL.revokeObjectURL(url);
-      } else {
-        // If anchor is still in DOM, wait longer
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      try {
+        // Only revoke if the URL is still valid and we're reasonably sure download started
+        if (url && url.startsWith('blob:') && !document.body.contains(anchor)) {
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        // Ignore errors if URL was already revoked or invalid
       }
-    }, 3000); // Longer initial timeout for safety
+    }, 10000); // 10 seconds for very large files on slow networks
   }
   }, []);
 
