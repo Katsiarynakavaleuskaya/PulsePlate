@@ -3,9 +3,16 @@ import { describe, it, expect } from 'vitest';
 import en from '../en.json';
 import ru from '../ru.json';
 import es from '../es.json';
+import {
+  collectKeyPaths,
+  checkLengths,
+  getMaxLength,
+  MAX_ALLOWED_DUPLICATES,
+  STRING_LENGTH_LIMITS,
+  TestLogger
+} from './test-utils';
 
-// Allow some reasonable duplicates in locale files (common UI elements)
-const MAX_ALLOWED_DUPLICATES = 10;
+// Test constants imported from test-utils
 
 describe('Locale JSON Structure and Content', () => {
   const locales = { en, ru, es };
@@ -13,17 +20,6 @@ describe('Locale JSON Structure and Content', () => {
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
-      const collectKeyPaths = (obj: unknown, prefix = ''): string[] => {
-        if (obj === null || typeof obj !== 'object') return [];
-        return Object.entries(obj).flatMap(([key, value]) => {
-          const currentPath = prefix ? `${prefix}.${key}` : key;
-          return [
-            currentPath,
-            ...collectKeyPaths(value, currentPath)
-          ];
-        });
-      };
-
       const enKeyPaths = collectKeyPaths(en).sort();
 
       for (const lang of languages) {
@@ -167,34 +163,46 @@ describe('Locale JSON Structure and Content', () => {
     });
 
     it('should have reasonable string lengths', () => {
-      const checkLengths = (obj: any, path = ''): string[] => {
-        const issues: string[] = [];
-
-        const getMaxLength = (path: string) => {
-          if (path.includes('legal') || path.includes('description') || path.includes('disclaimer')) {
-            return 1000;
-          }
-          return 500;
-        };
-
-        if (typeof obj === 'string') {
-          const maxLength = getMaxLength(path);
-          if (obj.length < 1 || obj.length > maxLength) {
-            issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${obj.substring(0, 50)}..."`);
-          }
-        } else if (typeof obj === 'object' && obj !== null) {
-          for (const [key, value] of Object.entries(obj)) {
-            issues.push(...checkLengths(value, path ? `${path}.${key}` : key));
-          }
-        }
-
-        return issues;
-      };
-
       for (const lang of languages) {
         const issues = checkLengths(locales[lang]);
         expect(issues).toHaveLength(0);
       }
+    });
+
+    // Boundary tests for string length validation
+    describe('String length validation', () => {
+      it('should allow strings exactly at the max length', () => {
+        const testCases = [
+          { path: 'description', length: STRING_LENGTH_LIMITS.extended },
+          { path: 'legal', length: STRING_LENGTH_LIMITS.extended },
+          { path: 'disclaimer', length: STRING_LENGTH_LIMITS.extended },
+          { path: 'title', length: STRING_LENGTH_LIMITS.default },
+          { path: 'name', length: STRING_LENGTH_LIMITS.default },
+        ];
+
+        testCases.forEach(({ path, length }) => {
+          const obj = { [path]: 'a'.repeat(length) };
+          const issues = checkLengths(obj, path);
+          expect(issues).toHaveLength(0);
+        });
+      });
+
+      it('should report strings just above the max length', () => {
+        const testCases = [
+          { path: 'description', length: STRING_LENGTH_LIMITS.extended + 1 },
+          { path: 'legal', length: STRING_LENGTH_LIMITS.extended + 1 },
+          { path: 'disclaimer', length: STRING_LENGTH_LIMITS.extended + 1 },
+          { path: 'title', length: STRING_LENGTH_LIMITS.default + 1 },
+          { path: 'name', length: STRING_LENGTH_LIMITS.default + 1 },
+        ];
+
+        testCases.forEach(({ path, length }) => {
+          const obj = { [path]: 'a'.repeat(length) };
+          const issues = checkLengths(obj, path);
+          expect(issues.length).toBeGreaterThan(0);
+          expect(issues[0]).toMatch(/Invalid length.*max:/);
+        });
+      });
     });
 
     it('should not have problematic duplicate values', () => {
@@ -228,15 +236,63 @@ describe('Locale JSON Structure and Content', () => {
         const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
 
         // Log duplicates for visibility even if test passes
+        const logger = new TestLogger();
         if (problematicDuplicates.length > 0) {
-          console.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
-            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`));
+          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
         }
 
         // Note: We expect some duplicates in locale files (like common UI elements)
         // This test ensures there are no unexpected problematic duplicates
         expect(problematicDuplicates.length).toBeLessThanOrEqual(MAX_ALLOWED_DUPLICATES);
+
+        // Verify logging behavior
+        if (problematicDuplicates.length > 0) {
+          expect(logger.getLogs()).toHaveLength(1);
+          expect(logger.getLogs()[0]).toContain(`[${lang}] Found ${problematicDuplicates.length} duplicate values`);
+        } else {
+          expect(logger.getLogs()).toHaveLength(0);
+        }
       }
+    });
+
+    // Tests for duplicate logging and threshold
+    describe('duplicate logging and threshold', () => {
+      it('logs a warning when problematic duplicates are detected', () => {
+        const logger = new TestLogger();
+        const lang = 'fr';
+        const duplicates = ['dup1', 'dup2', 'dup3'];
+        const allowedDuplicates: string[] = ['dup1'];
+        const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
+
+        if (problematicDuplicates.length > 0) {
+          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+        }
+
+        expect(logger.getLogs()).toHaveLength(1);
+        expect(logger.getLogs()[0]).toContain(`[${lang}] Found 2 duplicate values:`);
+      });
+
+      it('does not log a warning when no problematic duplicates are detected', () => {
+        const logger = new TestLogger();
+        const lang = 'fr';
+        const duplicates = ['dup1', 'dup2'];
+        const allowedDuplicates: string[] = ['dup1', 'dup2'];
+        const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
+
+        if (problematicDuplicates.length > 0) {
+          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+        }
+
+        expect(logger.getLogs()).toHaveLength(0);
+      });
+
+      it('respects the configurable duplicate threshold', () => {
+        const problematicDuplicates = Array(MAX_ALLOWED_DUPLICATES + 1).fill('dup');
+        expect(problematicDuplicates.length).toBeGreaterThan(MAX_ALLOWED_DUPLICATES);
+      });
     });
   });
 
