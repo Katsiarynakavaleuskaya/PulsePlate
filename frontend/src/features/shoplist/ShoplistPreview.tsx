@@ -111,88 +111,36 @@ export default function ShoplistPreview() {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  try {
-    anchor.click();
-  } finally {
-    // Delay URL revocation to ensure download completes for large files/slow networks
-    // Remove anchor after a short delay to avoid interfering with download
-    const removeTimeout = setTimeout(() => {
-      try {
-        anchor.remove();
-      } catch {
-        // Ignore if anchor was already removed
-      }
-    }, 100);
-    cleanupRef.current.push({
-      id: removeTimeout,
-      cleanup: () => {
-        try {
-          anchor.remove();
-        } catch {
-          // Ignore if anchor was already removed
-        }
-      }
-    });
 
-    // Use a very conservative timeout for URL revocation
-    // Rely on browser's garbage collection as fallback
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+
+    // Remove anchor synchronously - it's not needed after click
+    anchor.remove();
+
+    // Schedule URL revocation with a reasonable timeout
+    // The browser will initiate download before this fires
     const revokeTimeout = setTimeout(() => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch {
-        // Ignore errors if URL was already revoked or invalid
-      }
-    }, 10000); // 10 seconds for very large files on slow networks
+      URL.revokeObjectURL(url);
+    }, 1000);
+
     cleanupRef.current.push({
       id: revokeTimeout,
-      cleanup: () => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch {
-          // Ignore errors if URL was already revoked or invalid
-        }
-      }
+      cleanup: () => URL.revokeObjectURL(url)
     });
-  }
-  }, []); // cleanupRef is stable, no need to include it
-
-  /**
-   * Handles the download process for specified file type with loading states and error handling
-   *
-   * @param kind - File type to download ("csv" or "pdf")
-   */
-  const handleDownload = useCallback(
-    async (kind: "csv" | "pdf") => {
-      try {
-        setDownloadError(null);
-        setDownloading(kind);
-        await downloadFile(kind);
-      } catch (error: unknown) {
-        setDownloadError(`${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}`);
-      } finally {
-        setDownloading(null);
-      }
-    },
-    [downloadFile],
-  );
-
-  const handleShare = useCallback(
-    async (kind: "csv" | "pdf") => {
-      try {
-        setDownloadError(null);
-        const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
+  }, []);
         await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
       } catch (error: unknown) {
         setDownloadError(formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`));
       }
     },
-    [],
+    [t],
   );
 
   if (loading) {
@@ -267,7 +215,7 @@ export default function ShoplistPreview() {
         </div>
         {downloadError && (
           <div className="text-sm text-red-500" role="status" aria-live="polite">
-            {t('shoplist.downloadError')}: {downloadError}
+            {downloadError}
           </div>
         )}
       </GlassCard>

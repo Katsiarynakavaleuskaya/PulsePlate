@@ -23,6 +23,19 @@
     "estimated": "≈",
     "downloadHint": "Exportación lista. El enlace privado es válido por 15 minutos."
   },
+  "plan": {
+    "exportReady": "Exportación lista. Enlace privado válido por 15 minutos.",
+    "shareReady": "Compartir listo. Enlace privado válido por 15 minutos.",
+    "linkOpened": "Enlace privado abierto (15 minutos). Se puede compartir selectivamente.",
+    "linkCopied": "Enlace CSV privado copiado (válido por 15 minutos). En Google Sheets elige Archivo → Importar → Enlace.",
+    "copyFailed": "No se pudo copiar automáticamente. Copia manualmente",
+    "linkRequestFailed": "No se pudo obtener el enlace privado",
+    "downloadFailed": "No se pudo descargar el archivo",
+    "shareFailed": "No se pudo compartir",
+    "linkOpenFailed": "No se pudo abrir el enlace privado",
+    "tryAgain": "Inténtalo de nuevo.",
+    "unknownError": "Error desconocido"
+  },
   "paywall": {
     "title": "Desbloquear Premium",
     "subtitle": "Plan nutricional personal, equilibrio preciso, planificación semanal.",
