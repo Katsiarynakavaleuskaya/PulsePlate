@@ -65,7 +65,7 @@ export default function ShoplistPreview() {
   } finally {
     // Delay URL revocation to ensure download completes for large files/slow networks
     // Remove anchor after a short delay to avoid interfering with download
-    const removeAnchorTimeout = setTimeout(() => {
+    setTimeout(() => {
       try {
         anchor.remove();
       } catch {
@@ -75,7 +75,7 @@ export default function ShoplistPreview() {
 
     // Use a very conservative timeout for URL revocation
     // Rely on browser's garbage collection as fallback
-    const revokeTimeout = setTimeout(() => {
+    setTimeout(() => {
       try {
         if (url && typeof url === 'string' && url.startsWith('blob:')) {
           URL.revokeObjectURL(url);
@@ -84,12 +84,6 @@ export default function ShoplistPreview() {
         // Ignore errors if URL was already revoked or invalid
       }
     }, 10000); // 10 seconds for very large files on slow networks
-
-    // Clear timeouts if component unmounts
-    return () => {
-      clearTimeout(removeAnchorTimeout);
-      clearTimeout(revokeTimeout);
-    };
   }
   }, []);
 
