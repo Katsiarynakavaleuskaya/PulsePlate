@@ -174,7 +174,7 @@ export default function ShoplistPreview() {
         setDownloading(kind);
         await downloadFile(kind);
       } catch (error: unknown) {
-        setDownloadError(`${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}. ${t('shoplist.tryAgain')}`);
+        setDownloadError(`${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}`);
       } finally {
         setDownloading(null);
       }
