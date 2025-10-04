@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
@@ -63,6 +63,79 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   goal: "maintain",
   diet_flags: [],
 };
+
+function getDayTitle(day: UnknownRecord, idx: number): string {
+  return typeof day.date === "string"
+    ? day.date
+    : typeof day.day_label === "string"
+    ? day.day_label
+    : `День ${idx + 1}`;
+}
+
+function getDayEnergy(day: UnknownRecord): number | undefined {
+  return typeof day.energy_kcal === "number"
+    ? day.energy_kcal
+    : typeof day.kcal === "number"
+    ? day.kcal
+    : undefined;
+}
+
+function getMealName(meal: UnknownRecord, mi: number): string {
+  return typeof meal.name === "string"
+    ? meal.name
+    : typeof meal.meal === "string"
+    ? meal.meal
+    : `Приём ${mi + 1}`;
+}
+
+function getMealEnergy(meal: UnknownRecord): number | undefined {
+  return typeof meal.energy_kcal === "number"
+    ? meal.energy_kcal
+    : typeof meal.kcal === "number"
+    ? meal.kcal
+    : undefined;
+}
+
+function getMealItems(meal: UnknownRecord): UnknownRecord[] {
+  const rawItems = Array.isArray(meal.items)
+    ? (meal.items as UnknownRecord[])
+    : [];
+
+  const fallbackItem =
+    typeof meal.food_item === "string"
+      ? [
+          {
+            name: meal.food_item,
+            energy_kcal:
+              typeof meal.kcal === "number"
+                ? meal.kcal
+                : typeof meal.energy_kcal === "number"
+                ? meal.energy_kcal
+                : undefined,
+          },
+        ]
+      : [];
+
+  return rawItems.length > 0 ? rawItems : fallbackItem;
+}
+
+function getItemName(item: UnknownRecord, ii: number): string {
+  return typeof item.name === "string"
+    ? item.name
+    : typeof item.title === "string"
+    ? item.title
+    : typeof item.food_item === "string"
+    ? item.food_item
+    : `Блюдо ${ii + 1}`;
+}
+
+function getItemEnergy(item: UnknownRecord): number | undefined {
+  return typeof item.energy_kcal === "number"
+    ? item.energy_kcal
+    : typeof item.kcal === "number"
+    ? item.kcal
+    : undefined;
+}
 
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
@@ -259,18 +332,8 @@ export default function WeeklyPlanViewer() {
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
               const day = menu as UnknownRecord;
-              const dayTitle =
-                typeof day.date === "string"
-                  ? day.date
-                  : typeof day.day_label === "string"
-                  ? day.day_label
-                  : `День ${idx + 1}`;
-              const dayEnergy =
-                typeof day.energy_kcal === "number"
-                  ? day.energy_kcal
-                  : typeof day.kcal === "number"
-                  ? day.kcal
-                  : undefined;
+              const dayTitle = getDayTitle(day, idx);
+              const dayEnergy = getDayEnergy(day);
 
               const meals = Array.isArray(day.meals)
                 ? (day.meals as UnknownRecord[])
@@ -290,39 +353,9 @@ export default function WeeklyPlanViewer() {
                   <ul className="space-y-2">
                     {meals.map((meal, mi) => {
                       const mealObj = meal as UnknownRecord;
-                      const mealName =
-                        typeof mealObj.name === "string"
-                          ? mealObj.name
-                          : typeof mealObj.meal === "string"
-                          ? mealObj.meal
-                          : `Приём ${mi + 1}`;
-                      const mealEnergy =
-                        typeof mealObj.energy_kcal === "number"
-                          ? mealObj.energy_kcal
-                          : typeof mealObj.kcal === "number"
-                          ? mealObj.kcal
-                          : undefined;
-
-                      const rawItems = Array.isArray(mealObj.items)
-                        ? (mealObj.items as UnknownRecord[])
-                        : [];
-
-                      const fallbackItem =
-                        typeof mealObj.food_item === "string"
-                          ? [
-                              {
-                                name: mealObj.food_item,
-                                energy_kcal:
-                                  typeof mealObj.kcal === "number"
-                                    ? mealObj.kcal
-                                    : typeof mealObj.energy_kcal === "number"
-                                    ? mealObj.energy_kcal
-                                    : undefined,
-                              },
-                            ]
-                          : [];
-
-                      const items = rawItems.length > 0 ? rawItems : fallbackItem;
+                      const mealName = getMealName(mealObj, mi);
+                      const mealEnergy = getMealEnergy(mealObj);
+                      const items = getMealItems(mealObj);
 
                       return (
                         <li
@@ -339,20 +372,8 @@ export default function WeeklyPlanViewer() {
                             {items.length > 0 ? (
                               items.map((item, ii) => {
                                 const itemObj = item as UnknownRecord;
-                                const itemName =
-                                  typeof itemObj.name === "string"
-                                    ? itemObj.name
-                                    : typeof itemObj.title === "string"
-                                    ? itemObj.title
-                                    : typeof itemObj.food_item === "string"
-                                    ? itemObj.food_item
-                                    : `Блюдо ${ii + 1}`;
-                            const itemEnergy =
-                              typeof itemObj.energy_kcal === "number"
-                                ? itemObj.energy_kcal
-                                : typeof itemObj.kcal === "number"
-                                ? itemObj.kcal
-                                : undefined;
+                                const itemName = getItemName(itemObj, ii);
+                                const itemEnergy = getItemEnergy(itemObj);
                             return (
                               <li key={`${itemName}-${ii}`} className="text-sm">
                                 • {itemName}
