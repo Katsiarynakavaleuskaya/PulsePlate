@@ -7,13 +7,13 @@ struct AppIconTestView: View {
                 Text("App Icon Test")
                     .font(.largeTitle)
                     .bold()
-                    .foregroundColor(.textPrimary)
+                    .foregroundColor(.white)
 
                 // Показываем иконку в разных размерах
                 VStack(spacing: 16) {
                     Text("App Icon Preview")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     HStack(spacing: 20) {
                         // Маленькая иконка
@@ -43,7 +43,7 @@ struct AppIconTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Icon Information")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     VStack(alignment: .leading, spacing: 8) {
                         InfoRow(title: "Design", value: "PulsePlate Brand")
@@ -60,7 +60,7 @@ struct AppIconTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Generated Sizes")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                         SizeCard(size: "20x20", count: "3 variants")
@@ -78,7 +78,7 @@ struct AppIconTestView: View {
             }
             .padding()
         }
-                .background(Color.navy)
+                .navyBackground()
     }
 }
 
@@ -89,10 +89,10 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(title)
-                .foregroundColor(.gray)
+                .foregroundColor(.textSecondary)
             Spacer()
             Text(value)
-                .foregroundColor(.textPrimary)
+                .foregroundColor(.white)
                 .fontWeight(.medium)
         }
     }
@@ -107,14 +107,14 @@ struct SizeCard: View {
             Text(size)
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(.textPrimary)
+                .foregroundColor(.white)
 
             Text(count)
                 .font(.caption2)
-                .foregroundColor(.gray.opacity(0.6))
+                .foregroundColor(.textTertiary)
         }
         .padding(8)
-        .background(Color.white.opacity(0.1))
+        .background(.surfaceElevated)
         .cornerRadius(8)
     }
 }

@@ -56,5 +56,5 @@ struct PlateRing: View {
 
 #Preview {
   PlateRing(progress: 0.68)
-    .background(Color.navy)
+    .navyBackground()
 }

@@ -16,15 +16,15 @@ struct ColorTestView: View {
                         .foregroundColor(.white)
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Navy", color: Color.navy)
-                        ColorCard(name: "AppPrimary", color: Color.appPrimary)
-                        ColorCard(name: "Accent", color: Color.accent)
+                        ColorCard(name: "Navy", color: .navy)
+                        ColorCard(name: "AppPrimary", color: .appPrimary)
+                        ColorCard(name: "Accent", color: .accent)
                     }
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Heart", color: Color.heart)
-                        ColorCard(name: "Gold", color: Color.gold)
-                        ColorCard(name: "Success", color: Color.green)
+                        ColorCard(name: "Heart", color: .heart)
+                        ColorCard(name: "Gold", color: .gold)
+                        ColorCard(name: "Success", color: .success)
                     }
                 }
 
@@ -37,7 +37,7 @@ struct ColorTestView: View {
                     HStack(spacing: 12) {
                         ColorCard(name: "Surface", color: Color.gray.opacity(0.1))
                         ColorCard(name: "Elevated", color: Color.white.opacity(0.1))
-                        ColorCard(name: "Highlight", color: Color.blue.opacity(0.1))
+                        ColorCard(name: "Highlight", color: .surfaceHighlight)
                     }
                 }
 
@@ -49,11 +49,12 @@ struct ColorTestView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Primary Text")
-                            .foregroundColor(.white)
+                        Text("Primary Text")
+                            .foregroundColor(.textPrimary)
                         Text("Secondary Text")
                             .foregroundColor(.gray)
                         Text("Tertiary Text")
-                            .foregroundColor(.gray.opacity(0.6))
+                            .foregroundColor(.textTertiary)
                     }
                     .padding()
                     .background(Color.gray.opacity(0.1))
@@ -62,7 +63,7 @@ struct ColorTestView: View {
             }
             .padding()
         }
-        .background(Color.navy)
+        .navyBackground()
     }
 }
 
@@ -78,7 +79,7 @@ struct ColorCard: View {
 
             Text(name)
                 .font(.caption)
-                .foregroundColor(.textSecondary)
+                .foregroundColor(.white)
         }
     }
 }
