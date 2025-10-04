@@ -126,7 +126,7 @@ describe('Locale JSON Structure and Content', () => {
         /\btbd\b/i
       ];
 
-      const checkValue = (value: any, currentPath: string) => {
+      const checkValue = (value: any, currentPath: string): Array<{key: string, value: string, pattern: string}> => {
         if (typeof value === 'string') {
           for (const pattern of PLACEHOLDER_PATTERNS) {
             if (pattern.test(value)) {
