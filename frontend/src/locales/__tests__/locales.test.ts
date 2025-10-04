@@ -126,31 +126,29 @@ describe('Locale JSON Structure and Content', () => {
         /\btbd\b/i
       ];
 
-      const issues: Array<{key: string, value: string, reason: string}> = [];
-
       const checkValue = (value: any, currentPath: string) => {
         if (typeof value === 'string') {
           for (const pattern of PLACEHOLDER_PATTERNS) {
             if (pattern.test(value)) {
-              issues.push({
+              return [{
                 key: currentPath,
                 value,
-                reason: `Contains placeholder pattern: ${pattern.source}`
-              });
+                pattern: pattern.source
+              }];
             }
           }
         } else if (typeof value === 'object' && value !== null) {
           for (const [key, val] of Object.entries(value)) {
-            checkValue(val, currentPath ? `${currentPath}.${key}` : key);
+            const result = checkValue(val, currentPath ? `${currentPath}.${key}` : key);
+            if (result.length > 0) return result;
           }
         }
+        return [];
       };
 
       for (const lang of languages) {
-        const initialLength = issues.length;
-        checkValue(locales[lang], '');
-        const newIssues = issues.slice(initialLength);
-        expect(newIssues).toHaveLength(0);
+        const issues = checkValue(locales[lang], '');
+        expect(issues).toHaveLength(0);
       }
     });
 
