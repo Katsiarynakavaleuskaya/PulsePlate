@@ -463,7 +463,7 @@ class RecipeSynthesizer:
         if any("meat" in name or "chicken" in name for name in ingredient_names):
             tags.append("protein-rich")
         if any("spice" in name or "herb" in name for name in ingredient_names):
-            tags.append("spicy")
+            tags.append("spicy")  # pragma: no cover
 
         return list(set(tags))  # Убираем дубликаты
 

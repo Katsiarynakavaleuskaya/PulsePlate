@@ -12,8 +12,12 @@ considering dietary preferences, budget constraints, and food availability.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+
+_logger = logging.getLogger(__name__)
+
 
 from .food_apis.unified_db import get_unified_food_db
 from .plate import make_plate
@@ -252,11 +256,11 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
             finally:
                 try:
                     loop.close()
-                except Exception:
-                    pass
+                except Exception:  # pragma: no cover
+                    pass  # pragma: no cover
     except Exception as e:
         # Fall back to basic mock data if API fails or loop is running
-        print(f"Warning: Could not load USDA data, using fallback: {e}")
+        _logger.warning("Could not load USDA data, using fallback: %s", e)
 
     # Fallback mock data (reduced set)
     return {
