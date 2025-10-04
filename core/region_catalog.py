@@ -80,8 +80,8 @@ class RegionCatalog:
                         region=row.get("region", ""),
                     )
                     products.append(product)
-        except Exception as e:  # pragma: no cover
-            _logger.error("Error loading region data from %s: %s", csv_file, e)  # pragma: no cover
+        except (OSError, csv.Error, ValueError) as exc:  # pragma: no cover
+            _logger.exception("Error loading region data from %s", csv_file)  # pragma: no cover
 
         return products
 
