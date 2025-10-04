@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 # Project paths - configurable via environment variable
 IOS_DIR="${IOS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 cd "$IOS_DIR" || exit 1
 SWIFT_FILES="PulsePlate/**/*.swift"
 
@@ -37,7 +38,7 @@ check_tools() {
 # Function to run SwiftLint
 run_lint() {
     echo -e "${BLUE}🔍 Running SwiftLint...${NC}"
-    swiftlint lint --config .swiftlint.yml --reporter xcode
+    swiftlint lint --config "$PROJECT_ROOT/.swiftlint.yml" --reporter xcode
     local exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
@@ -53,14 +54,14 @@ run_lint() {
 run_format() {
     echo -e "${BLUE}🎨 Running SwiftFormat...${NC}"
     # shellcheck disable=SC2086
-    swiftformat --config .swiftformat --inplace $SWIFT_FILES
+    swiftformat --config "$PROJECT_ROOT/.swiftformat" --inplace $SWIFT_FILES
     echo -e "${GREEN}✅ SwiftFormat complete!${NC}"
 }
 
 # Function to run SwiftFormat in check mode
 check_format() {
     # shellcheck disable=SC2086
-    swiftformat --config .swiftformat --lint $SWIFT_FILES
+    swiftformat --config "$PROJECT_ROOT/.swiftformat" --lint $SWIFT_FILES
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
         echo -e "${GREEN}✅ SwiftFormat check passed!${NC}"
