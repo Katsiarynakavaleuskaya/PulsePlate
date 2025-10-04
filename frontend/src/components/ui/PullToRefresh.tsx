@@ -81,6 +81,8 @@ export function PullToRefresh({
       {/* Pull indicator */}
       {showIndicator && (
         <div
+          role="status"
+          aria-live="polite"
           className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-4 bg-gradient-to-b from-white to-transparent dark:from-gray-900 dark:to-transparent"
           style={{
             transform: `translateY(${Math.max(-40, pullDistance - 60)}px)`,
@@ -89,10 +91,11 @@ export function PullToRefresh({
         >
           <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
             {isRefreshing ? (
-              <RefreshCw className="w-5 h-5 animate-spin" />
+              <RefreshCw className="w-5 h-5 animate-spin" aria-hidden="true" />
             ) : (
               <ArrowDown
                 className={`w-5 h-5 transition-transform ${progress >= 1 ? 'rotate-180 text-blue-600' : ''}`}
+                aria-hidden="true"
               />
             )}
             <span className="text-sm font-medium">

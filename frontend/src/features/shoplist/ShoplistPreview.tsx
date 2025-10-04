@@ -40,8 +40,8 @@ export default function ShoplistPreview() {
       try {
         const res = await fetchJson<Shoplist>("/api/v1/shoplist");
         setData(res);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Fetch error");
       } finally {
         setLoading(false);
       }
@@ -93,7 +93,7 @@ export default function ShoplistPreview() {
         setDownloadError(null);
         setDownloading(kind);
         await downloadFile(kind);
-      } catch (error: any) {
+      } catch (error: unknown) {
         setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
       } finally {
         setDownloading(null);
@@ -108,7 +108,7 @@ export default function ShoplistPreview() {
         setDownloadError(null);
         const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
         await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
-      } catch (error: any) {
+      } catch (error: unknown) {
         setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
       }
     },

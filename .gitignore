@@ -50,6 +50,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 test_results.xml
+frontend/tests/*.xml
 *.cover
 *.py,cover
 .hypothesis/
