@@ -9,6 +9,12 @@ class PlayerWrapper: ObservableObject {
     init() {
         self.player = AVPlayer()
     }
+
+    deinit {
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        // Note: Add cleanup for time observers and KVO observers here when implemented
+    }
 }
 
 /// RU: Тестовый экран для проверки анимаций FitChef
@@ -47,7 +53,7 @@ struct AnimationTestView: View {
                             playerWrapper.player.play()
                         }
                     }
-                    .onChange(of: isPlaying) { playing in
+                    .onChange(of: isPlaying) { _, playing in
                         if playing {
                             playerWrapper.player.play()
                         } else {
@@ -109,14 +115,17 @@ struct AnimationTestView: View {
             Spacer()
         }
         .padding()
-        .background(Color.navy)
+        .navyBackground()
         .navigationTitle("Animation Test")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func setupPlayer(with url: URL) {
-        let playerItem = AVPlayerItem(url: url)
-        playerWrapper.player.replaceCurrentItem(with: playerItem)
+        DispatchQueue.main.async {
+            self.playerWrapper.player.pause()
+            let playerItem = AVPlayerItem(url: url)
+            self.playerWrapper.player.replaceCurrentItem(with: playerItem)
+        }
     }
 }
 

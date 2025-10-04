@@ -192,7 +192,7 @@ struct LottieTestView: View {
             Spacer()
         }
         .padding()
-        .background(Color.navy)
+        .navyBackground()
         .navigationTitle("Lottie Test")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -206,5 +206,5 @@ struct LottieTestView: View {
         AnimatedMascotBubbleLottie(textKey: "Добро пожаловать в PulsePlate!")
             .padding()
     }
-    .background(Color.navy)
+    .navyBackground()
 }

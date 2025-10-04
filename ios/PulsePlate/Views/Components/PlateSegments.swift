@@ -188,5 +188,5 @@ struct NutritionSegment {
     ],
     onSegmentTap: { _ in }
   )
-  .background(Color.navy)
+  .navyBackground()
 }
