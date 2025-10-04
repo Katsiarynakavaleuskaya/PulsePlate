@@ -4,6 +4,7 @@ import Plate from "./pages/Plate";
 import Progress from "./pages/Progress";
 import Profile from "./pages/Profile";
 import TabBar from "./components/TabBar";
+import { Toaster, OfflineIndicator } from "./components/ui";
 
 export default function App() {
   return (
@@ -17,6 +18,8 @@ export default function App() {
         </Routes>
         <TabBar />
       </div>
+      <OfflineIndicator />
+      <Toaster />
     </BrowserRouter>
   );
 }
