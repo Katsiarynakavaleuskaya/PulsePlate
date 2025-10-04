@@ -38,7 +38,7 @@ export function FormField({
           placeholder={placeholder}
           aria-invalid={error ? 'true' : 'false'}
           aria-describedby={error ? `${name}-error` : undefined}
-          aria-required={required}
+          aria-required={required ? 'true' : undefined}
           className={`
             w-full px-3 py-2 border rounded-lg shadow-sm
             bg-white dark:bg-gray-800
@@ -64,7 +64,11 @@ export function FormError({ error }: { error?: string }) {
   if (!error) return null;
 
   return (
-    <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+    >
       <div className="flex">
         <div className="ml-3">
           <p className="text-sm text-red-800 dark:text-red-200">

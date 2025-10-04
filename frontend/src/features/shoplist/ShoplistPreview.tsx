@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
@@ -32,6 +32,7 @@ export default function ShoplistPreview() {
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const timeoutsRef = useRef<number[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -46,6 +47,12 @@ export default function ShoplistPreview() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   const downloadFile = useCallback(async (kind: "csv" | "pdf") => {
@@ -65,17 +72,18 @@ export default function ShoplistPreview() {
   } finally {
     // Delay URL revocation to ensure download completes for large files/slow networks
     // Remove anchor after a short delay to avoid interfering with download
-    setTimeout(() => {
+    const removeTimeout = setTimeout(() => {
       try {
         anchor.remove();
       } catch {
         // Ignore if anchor was already removed
       }
     }, 100);
+    timeoutsRef.current.push(removeTimeout);
 
     // Use a very conservative timeout for URL revocation
     // Rely on browser's garbage collection as fallback
-    setTimeout(() => {
+    const revokeTimeout = setTimeout(() => {
       try {
         if (url && typeof url === 'string' && url.startsWith('blob:')) {
           URL.revokeObjectURL(url);
@@ -84,8 +92,9 @@ export default function ShoplistPreview() {
         // Ignore errors if URL was already revoked or invalid
       }
     }, 10000); // 10 seconds for very large files on slow networks
+    timeoutsRef.current.push(revokeTimeout);
   }
-  }, []);
+  }, [timeoutsRef]);
 
   const handleDownload = useCallback(
     async (kind: "csv" | "pdf") => {
