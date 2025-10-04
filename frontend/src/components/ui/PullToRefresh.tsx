@@ -34,9 +34,9 @@ export function PullToRefresh({
     const currentY = e.touches[0].clientY;
     const distance = Math.max(0, currentY - startYRef.current);
 
-    // Only allow pulling when at the top of the container or window
+    // Only allow pulling when both container and window are at the top
     const isAtTop =
-      (containerRef.current && containerRef.current.scrollTop === 0) ||
+      (containerRef.current && containerRef.current.scrollTop === 0) &&
       (window.scrollY === 0);
 
     if (isAtTop) {

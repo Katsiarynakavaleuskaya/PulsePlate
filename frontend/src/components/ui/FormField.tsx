@@ -30,8 +30,8 @@ export function FormField({
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
 
-      {React.Children.count(children) > 0 ? (
-        React.cloneElement(children as React.ReactElement, {
+      {React.Children.count(children) > 0 && React.isValidElement(children) ? (
+        React.cloneElement(children, {
           id: name,
           'aria-invalid': error ? 'true' : 'false',
           'aria-describedby': error ? `${name}-error` : undefined,
