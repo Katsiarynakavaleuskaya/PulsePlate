@@ -152,13 +152,11 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
-        const locale = getClientLocale();
+        const locale = getClientLocale() as WeekPlanRequest["lang"];
         const supportedLangs: WeekPlanRequest["lang"][] = ["en", "ru", "es"];
         const payload: WeekPlanRequest = {
           ...DEFAULT_REQUEST,
-          lang: supportedLangs.includes(locale as WeekPlanRequest["lang"])
-            ? (locale as WeekPlanRequest["lang"])
-            : "en",
+          lang: supportedLangs.includes(locale) ? locale : "en",
         };
 
         const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {
