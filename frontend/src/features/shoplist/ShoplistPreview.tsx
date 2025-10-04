@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
@@ -173,7 +173,7 @@ export default function ShoplistPreview() {
                 disabled={downloading === "csv"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "csv" ? "Скачиваем CSV…" : "Export CSV"}
+                {downloading === "csv" ? "Скачиваем CSV…" : "Экспорт CSV"}
               </button>
               <button
                 type="button"
@@ -181,15 +181,15 @@ export default function ShoplistPreview() {
                 disabled={downloading === "pdf"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
+                {downloading === "pdf" ? "Скачиваем PDF…" : "Экспорт PDF"}
               </button>
               <button
                 type="button"
                 onClick={() => handleShare("pdf")}
                 className="border rounded-xl px-3 py-2 text-sm"
-                aria-label="Share shopping list PDF"
+                aria-label="Поделиться списком покупок PDF"
               >
-                Share…
+                Поделиться…
               </button>
             </div>
           </div>
