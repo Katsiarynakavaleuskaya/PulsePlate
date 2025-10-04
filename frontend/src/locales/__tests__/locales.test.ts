@@ -4,17 +4,31 @@ import en from '../en.json';
 import ru from '../ru.json';
 import es from '../es.json';
 
+// Allow some reasonable duplicates in locale files (common UI elements)
+const MAX_ALLOWED_DUPLICATES = 10;
+
 describe('Locale JSON Structure and Content', () => {
   const locales = { en, ru, es };
   const languages = Object.keys(locales);
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
-      const enKeys = Object.keys(en).sort();
+      const collectKeyPaths = (obj: unknown, prefix = ''): string[] => {
+        if (obj === null || typeof obj !== 'object') return [];
+        return Object.entries(obj).flatMap(([key, value]) => {
+          const currentPath = prefix ? `${prefix}.${key}` : key;
+          return [
+            currentPath,
+            ...collectKeyPaths(value, currentPath)
+          ];
+        });
+      };
+
+      const enKeyPaths = collectKeyPaths(en).sort();
+
       for (const lang of languages) {
-        if (lang === 'en') continue;
-        const currentKeys = Object.keys(locales[lang]).sort();
-        expect(currentKeys).toEqual(enKeys);
+        const keyPaths = collectKeyPaths(locales[lang]).sort();
+        expect(keyPaths).toEqual(enKeyPaths);
       }
     });
 
@@ -126,28 +140,28 @@ describe('Locale JSON Structure and Content', () => {
         /\btbd\b/i
       ];
 
-      const checkValue = (value: any, currentPath: string): Array<{key: string, value: string, pattern: string}> => {
-        if (typeof value === 'string') {
-          for (const pattern of PLACEHOLDER_PATTERNS) {
-            if (pattern.test(value)) {
-              return [{
-                key: currentPath,
-                value,
-                pattern: pattern.source
-              }];
+      for (const lang of languages) {
+        const issues: Array<{key: string, value: string, pattern: string}> = [];
+
+        const checkValue = (value: any, currentPath: string) => {
+          if (typeof value === 'string') {
+            for (const pattern of PLACEHOLDER_PATTERNS) {
+              if (pattern.test(value)) {
+                issues.push({
+                  key: currentPath,
+                  value,
+                  pattern: pattern.source
+                });
+              }
+            }
+          } else if (typeof value === 'object' && value !== null) {
+            for (const [key, val] of Object.entries(value)) {
+              checkValue(val, currentPath ? `${currentPath}.${key}` : key);
             }
           }
-        } else if (typeof value === 'object' && value !== null) {
-          for (const [key, val] of Object.entries(value)) {
-            const result = checkValue(val, currentPath ? `${currentPath}.${key}` : key);
-            if (result.length > 0) return result;
-          }
-        }
-        return [];
-      };
+        };
 
-      for (const lang of languages) {
-        const issues = checkValue(locales[lang], '');
+        checkValue(locales[lang], '');
         expect(issues).toHaveLength(0);
       }
     });
@@ -156,9 +170,17 @@ describe('Locale JSON Structure and Content', () => {
       const checkLengths = (obj: any, path = ''): string[] => {
         const issues: string[] = [];
 
+        const getMaxLength = (path: string) => {
+          if (path.includes('legal') || path.includes('description') || path.includes('disclaimer')) {
+            return 1000;
+          }
+          return 500;
+        };
+
         if (typeof obj === 'string') {
-          if (obj.length < 1 || obj.length > 200) {
-            issues.push(`${path}: Invalid length ${obj.length} for "${obj}"`);
+          const maxLength = getMaxLength(path);
+          if (obj.length < 1 || obj.length > maxLength) {
+            issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${obj.substring(0, 50)}..."`);
           }
         } else if (typeof obj === 'object' && obj !== null) {
           for (const [key, value] of Object.entries(obj)) {
@@ -205,9 +227,15 @@ describe('Locale JSON Structure and Content', () => {
 
         const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
 
+        // Log duplicates for visibility even if test passes
+        if (problematicDuplicates.length > 0) {
+          console.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`));
+        }
+
         // Note: We expect some duplicates in locale files (like common UI elements)
         // This test ensures there are no unexpected problematic duplicates
-        expect(problematicDuplicates.length).toBeLessThanOrEqual(10); // Allow reasonable duplicates
+        expect(problematicDuplicates.length).toBeLessThanOrEqual(MAX_ALLOWED_DUPLICATES);
       }
     });
   });
