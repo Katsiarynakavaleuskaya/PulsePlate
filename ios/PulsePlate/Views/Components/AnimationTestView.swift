@@ -41,7 +41,7 @@ struct AnimationTestView: View {
                             playerWrapper.player.play()
                         }
                     }
-                    .onChange(of: currentVideo) { _ in
+                    .onChange(of: currentVideo) { _, _ in
                         setupPlayer(with: url)
                         if isPlaying {
                             playerWrapper.player.play()
