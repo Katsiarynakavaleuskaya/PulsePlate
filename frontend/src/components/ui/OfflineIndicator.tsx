@@ -49,6 +49,9 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 ${
         isOnline
           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
@@ -56,9 +59,9 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
       } ${className}`}
     >
       {isOnline ? (
-        <Wifi className="w-4 h-4" />
+        <Wifi className="w-4 h-4" aria-hidden="true" />
       ) : (
-        <WifiOff className="w-4 h-4" />
+        <WifiOff className="w-4 h-4" aria-hidden="true" />
       )}
       <span className="text-sm font-medium">
         {isOnline ? 'Back online' : 'You are offline'}

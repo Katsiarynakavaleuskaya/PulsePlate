@@ -1,3 +1,8 @@
+/**
+ * Get the client's locale from browser navigator.language.
+ *
+ * @returns The normalized locale string (e.g., 'en', 'es', 'ru') or 'en' as fallback
+ */
 export function getClientLocale(): string {
   if (typeof window === 'undefined') {
     return 'en';

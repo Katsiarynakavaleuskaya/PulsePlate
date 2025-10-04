@@ -36,6 +36,9 @@ export function FormField({
           name={name}
           type={type}
           placeholder={placeholder}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${name}-error` : undefined}
+          aria-required={required}
           className={`
             w-full px-3 py-2 border rounded-lg shadow-sm
             bg-white dark:bg-gray-800
@@ -49,7 +52,7 @@ export function FormField({
       )}
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p id={`${name}-error`} className="text-sm text-red-600 dark:text-red-400" role="alert">
           {error.message}
         </p>
       )}

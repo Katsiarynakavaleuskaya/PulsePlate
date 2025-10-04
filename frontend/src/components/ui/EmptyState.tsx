@@ -34,14 +34,17 @@ export function EmptyState({
   );
 }
 
-export function NoProgressData() {
+export function NoProgressData({ onStartTracking }: { onStartTracking?: () => void }) {
   return (
     <EmptyState
       icon={TrendingUp}
       title="No progress data yet"
       description="Start tracking your health journey to see charts and insights here."
       action={
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={onStartTracking}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
           Start Tracking
         </button>
       }
@@ -49,7 +52,7 @@ export function NoProgressData() {
   );
 }
 
-export function NoChartsAvailable() {
+export function NoChartsAvailable({ onRetry }: { onRetry?: () => void }) {
   return (
     <EmptyState
       icon={BarChart3}
@@ -57,7 +60,7 @@ export function NoChartsAvailable() {
       description="Unable to load progress charts at the moment. Please try again later."
       action={
         <button
-          onClick={() => window.location.reload()}
+          onClick={onRetry || (() => window.location.reload())}
           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
           Retry
