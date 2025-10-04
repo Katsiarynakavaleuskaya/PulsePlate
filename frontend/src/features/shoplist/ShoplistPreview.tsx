@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
@@ -27,16 +26,7 @@ type Shoplist = {
   items?: ShopItem[];
 };
 
-/**
- * Renders a preview of the current shopping list with actions to export or share it.
- *
- * Displays loading and error states, fetches the list on mount, groups items by aisle when available,
- * and provides buttons to download the list as CSV or PDF and to share the PDF.
- *
- * @returns The component's rendered JSX element representing the shopping list preview and controls.
- */
 export default function ShoplistPreview() {
-  const { t } = useTranslation();
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -64,15 +54,29 @@ export default function ShoplistPreview() {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  try {
     anchor.click();
+  } finally {
     anchor.remove();
-    URL.revokeObjectURL(url);
+    // Delay URL revocation to ensure download completes for large files/slow networks
+    // Use a very conservative timeout and rely on browser's garbage collection as fallback
+    setTimeout(() => {
+      try {
+        // Only revoke if the URL is still valid and we're reasonably sure download started
+        if (url && url.startsWith('blob:') && !document.body.contains(anchor)) {
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        // Ignore errors if URL was already revoked or invalid
+      }
+    }, 10000); // 10 seconds for very large files on slow networks
+  }
   }, []);
 
   const handleDownload = useCallback(
@@ -81,7 +85,7 @@ export default function ShoplistPreview() {
         setDownloadError(null);
         setDownloading(kind);
         await downloadFile(kind);
-      } catch {
+      } catch (error: any) {
         setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
       } finally {
         setDownloading(null);
@@ -96,7 +100,7 @@ export default function ShoplistPreview() {
         setDownloadError(null);
         const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
         await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
-      } catch (error: unknown) {
+      } catch (error: any) {
         setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
       }
     },
@@ -104,19 +108,19 @@ export default function ShoplistPreview() {
   );
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">{t("shoplist.loading")}</div>;
+    return <div className="max-w-3xl mx-auto p-6">Загружаем список…</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        {t("shoplist.error")}: {err}
+        Ошибка: {err}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t("shoplist.empty")}</div>;
+    return <div className="max-w-3xl mx-auto p-6 opacity-70">Пусто.</div>;
   }
 
   const groups = data.groups && data.groups.length > 0
@@ -125,9 +129,16 @@ export default function ShoplistPreview() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard tone="light" className="drop-shadow-lg" role="region" ariaLabel="Действия для списка покупок">
+      <GlassCard
+        tone="light"
+        role="region"
+        ariaLabelledBy="shopping-actions-title"
+        contentClassName="space-y-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Список покупок</h2>
+          <h2 id="shopping-actions-title" className="text-xl font-semibold">
+            Список покупок
+          </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="opacity-80 text-slate-700">
               {data.store ? `Магазин: ${data.store}` : ""}
@@ -167,10 +178,19 @@ export default function ShoplistPreview() {
           </div>
         </div>
         {downloadError && (
-          <div className="mt-3 text-sm text-red-500">Ошибка загрузки: {downloadError}</div>
+          <div className="text-sm text-red-500" role="status" aria-live="polite">
+            Ошибка загрузки: {downloadError}
+          </div>
         )}
       </GlassCard>
-      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Содержимое списка покупок">
+      <GlassCard
+        role="region"
+        ariaLabelledBy="shopping-content-title"
+        contentClassName="space-y-4"
+      >
+        <h2 id="shopping-content-title" className="text-lg font-semibold">
+          Содержимое списка покупок
+        </h2>
         <ul className="space-y-3">
           {groups.map((group, gi) => (
             <li
