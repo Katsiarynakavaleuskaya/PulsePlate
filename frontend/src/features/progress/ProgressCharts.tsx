@@ -48,41 +48,42 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const exportToPDF = () => {
+const exportToPDF = async () => {
   // Simple PDF export using html2canvas + jspdf
-  import('html2canvas').then(html2canvas => {
-    import('jspdf').then(({ jsPDF }) => {
-      const element = document.getElementById('progress-charts');
-      if (element) {
-        html2canvas.default(element, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-        }).then(canvas => {
-          const imgData = canvas.toDataURL('image/png');
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const imgWidth = 210;
-          const pageHeight = 295;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          let heightLeft = imgHeight;
+  try {
+    const html2canvas = await import('html2canvas');
+    const { jsPDF } = await import('jspdf');
+    const element = document.getElementById('progress-charts');
+    if (element) {
+      const canvas = await html2canvas.default(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
 
-          let position = 0;
+      let position = 0;
 
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
 
-          while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-          }
-
-          pdf.save('progress-report.pdf');
-        });
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
-    });
-  });
+
+      pdf.save('progress-report.pdf');
+    }
+  } catch (error) {
+    console.error('Failed to export PDF:', error);
+  }
 };
 
 export default function ProgressCharts() {
