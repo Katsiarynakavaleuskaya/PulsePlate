@@ -17,7 +17,9 @@ from pathlib import Path
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
 if not ENCRYPTION_AVAILABLE:
-    print("❌ Encryption is required. Install cryptography: pip install cryptography")
+    print(
+        "❌ Encryption is required. Install cryptography: pip install cryptography"
+    )  # pragma: no cover
 
 
 def update_api_key(api_key: str, use_encryption: bool = True):
