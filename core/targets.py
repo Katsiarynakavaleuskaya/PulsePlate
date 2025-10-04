@@ -148,15 +148,15 @@ class MicronutrientTargets:
         """Get minimum acceptable value for a nutrient."""
         if hasattr(self, nutrient):
             val = getattr(self, nutrient)[0]  # first value is minimum
-            return float(val)  # pragma: no cover
-        raise ValueError(f"Unknown nutrient: {nutrient}")
+            return float(val)
+        raise ValueError(f"Unknown nutrient: {nutrient}")  # pragma: no cover
 
     def get_maximum(self, nutrient: str) -> float:
         """Get maximum safe value for a nutrient."""
         if hasattr(self, nutrient):
             val = getattr(self, nutrient)[2]  # third value is maximum
-            return float(val)  # pragma: no cover
-        raise ValueError(f"Unknown nutrient: {nutrient}")
+            return float(val)
+        raise ValueError(f"Unknown nutrient: {nutrient}")  # pragma: no cover
 
     def is_deficient(self, nutrient: str, actual_value: float) -> bool:
         """Check if actual intake is deficient."""
