@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { components, paths } from "../../api/schema";
+// TODO: Generate types from OpenAPI schema
+// import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
@@ -50,9 +51,18 @@ async function downloadSignedFile(url: string, filename: string) {
   URL.revokeObjectURL(anchor.href);
 }
 
-type WeekPlanResponse =
-  paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
-type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
+// TODO: Replace with proper types from OpenAPI schema
+type WeekPlanResponse = Record<string, unknown>;
+type WeekPlanRequest = {
+  sex: string;
+  age: number;
+  height_cm: number;
+  weight_kg: number;
+  activity: string;
+  goal: string;
+  diet_flags: string[];
+  lang?: string;
+};
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
@@ -120,7 +130,7 @@ function getMealItems(meal: UnknownRecord): UnknownRecord[] {
   return rawItems.length > 0 ? rawItems : fallbackItem;
 }
 
-function getItemName(item: UnknownRecord, ii: number): string {
+function getItemName(item: UnknownRecord, ii: number, t: (key: string, options?: any) => string): string {
   return typeof item.name === "string"
     ? item.name
     : typeof item.title === "string"
@@ -334,7 +344,7 @@ export default function WeeklyPlanViewer() {
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
               const day = menu as UnknownRecord;
-              const dayTitle = getDayTitle(day, idx);
+              const dayTitle = getDayTitle(day, idx, t);
               const dayEnergy = getDayEnergy(day);
 
               const meals = Array.isArray(day.meals)
@@ -355,7 +365,7 @@ export default function WeeklyPlanViewer() {
                   <ul className="space-y-2">
                     {meals.map((meal, mi) => {
                       const mealObj = meal as UnknownRecord;
-                      const mealName = getMealName(mealObj, mi);
+                      const mealName = getMealName(mealObj, mi, t);
                       const mealEnergy = getMealEnergy(mealObj);
                       const items = getMealItems(mealObj);
 
@@ -374,7 +384,7 @@ export default function WeeklyPlanViewer() {
                             {items.length > 0 ? (
                               items.map((item, ii) => {
                                 const itemObj = item as UnknownRecord;
-                                const itemName = getItemName(itemObj, ii);
+                                const itemName = getItemName(itemObj, ii, t);
                                 const itemEnergy = getItemEnergy(itemObj);
                             return (
                               <li key={`${itemName}-${ii}`} className="text-sm">
