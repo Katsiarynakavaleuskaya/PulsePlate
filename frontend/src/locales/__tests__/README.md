@@ -30,8 +30,8 @@ npm test -- src/locales/__tests__/locales.test.ts
 |----------|-------|---------|
 | Structure | 5 | Validate JSON structure and consistency |
 | Content | 3 | Validate translation content quality |
-| Domain-Specific | 4 | Validate app-specific translation requirements |
-| **Total** | **12** | **Complete validation coverage** |
+| Domain-Specific | 9 | Validate app-specific translation requirements |
+| **Total** | **17** | **Complete validation coverage** |
 
 ## Maintenance Notes
 
