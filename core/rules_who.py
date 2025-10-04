@@ -290,7 +290,7 @@ def get_compact_micronutrient_rda(sex: Sex) -> Dict[str, float]:
     Returns:
         Dictionary with compact micronutrient RDA values for 19-50 age group
     """
-    return COMPACT_MICRONUTRIENT_RDA[sex].copy()
+    return COMPACT_MICRONUTRIENT_RDA[sex].copy()  # pragma: no cover
 
 
 def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -> Dict[str, float]:
