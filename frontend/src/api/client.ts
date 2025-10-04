@@ -26,12 +26,20 @@ function mockUrl(path: string): string | null {
 }
 
 function mergeHeaders(init?: RequestInit): Headers {
-  const defaults = {
+  const defaults: Record<string, string> = {
     Accept: "application/json",
-    "Content-Type": "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
-  } satisfies Record<string, string>;
+  };
+
+  // Only set Content-Type for JSON bodies, not FormData or Blob
+  if (
+    init?.body &&
+    !(init.body instanceof FormData) &&
+    !(init.body instanceof Blob)
+  ) {
+    defaults["Content-Type"] = "application/json";
+  }
 
   const headers = new Headers(defaults);
 

@@ -113,7 +113,13 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
     const resolvedUri = typeof candidateUri === "string" ? candidateUri.trim() : "";
 
     if (!resolvedUri) {
-      throw new Error("Share unavailable: unable to resolve file URI");
+      throw new Error(
+        `Share unavailable: unable to resolve file URI.
+        Details:
+          cachePath: ${cachePath}
+          uriResult: ${JSON.stringify(uriResult)}
+          writeResult.uri: ${writeResult?.uri}`
+      );
     }
 
     const files = [resolvedUri];

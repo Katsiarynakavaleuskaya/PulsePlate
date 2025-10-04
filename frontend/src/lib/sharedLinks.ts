@@ -33,8 +33,12 @@ export async function requestSignedLink(
   let absolute: string | undefined;
 
   if (relative) {
+    const base =
+      typeof response?.url === "string" && response.url.length > 0
+        ? response.url
+        : window.location.origin;
     try {
-      absolute = new URL(relative, response?.url ?? window?.location?.origin ?? undefined).toString();
+      absolute = new URL(relative, base).toString();
     } catch {
       absolute = undefined;
     }
