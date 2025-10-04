@@ -64,6 +64,13 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   diet_flags: [],
 };
 
+/**
+ * Extracts day title from various possible formats in day data
+ *
+ * @param day - Day data object with potential date or label fields
+ * @param idx - Day index (0-based) for fallback naming
+ * @returns Formatted day title string
+ */
 function getDayTitle(day: UnknownRecord, idx: number): string {
   return typeof day.date === "string"
     ? day.date

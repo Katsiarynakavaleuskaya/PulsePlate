@@ -3,36 +3,72 @@ import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
+/**
+ * Represents a single shopping list item with optional properties
+ */
 type ShopItem = {
+  /** Unique identifier for the item */
   id?: string;
+  /** Name of the shopping item */
   name?: string;
+  /** Quantity of the item */
   qty?: number;
+  /** Unit of measurement (e.g., "kg", "pcs") */
   unit?: string;
+  /** Store aisle where item is located */
   aisle?: string;
+  /** Store name */
   store?: string;
+  /** Additional notes for the item */
   note?: string;
 };
 
+/**
+ * Represents a group of shopping items organized by aisle
+ */
 type ShopGroup = {
+  /** Aisle name for the group */
   aisle?: string;
+  /** Array of items in this group */
   items?: ShopItem[];
 };
 
+/**
+ * Complete shopping list data structure
+ */
 type Shoplist = {
+  /** Store name */
   store?: string;
+  /** Currency for price display */
   currency?: string;
+  /** Estimated total cost */
   total_estimated?: number;
+  /** Groups organized by aisles */
   groups?: ShopGroup[];
+  /** Flat list of all items (alternative to groups) */
   items?: ShopItem[];
 };
 
+/**
+ * Shopping list preview component that displays user's shopping list with export and share options
+ *
+ * Features:
+ * - Loads shopping list data from API
+ * - Displays items organized by store aisles
+ * - Provides CSV and PDF export functionality
+ * - Includes sharing capabilities
+ * - Shows loading states and error handling
+ * - Fully localized interface (Russian primary)
+ *
+ * @returns React component for shopping list management
+ */
 export default function ShoplistPreview() {
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const timeoutsRef = useRef<number[]>([]);
+  const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -51,10 +87,20 @@ export default function ShoplistPreview() {
 
   useEffect(() => {
     return () => {
-      timeoutsRef.current.forEach(clearTimeout);
+      cleanupRef.current.forEach(({ id, cleanup }) => {
+        cleanup(); // Execute cleanup first to remove DOM nodes and revoke URLs
+        clearTimeout(id); // Then clear the timeout to prevent any potential firing
+      });
+      cleanupRef.current = [];
     };
   }, []);
 
+  /**
+   * Downloads a file of specified type (CSV or PDF) by creating a blob URL and anchor element
+   *
+   * @param kind - File type to download ("csv" or "pdf")
+   * @throws Error if fetch fails or response is not ok
+   */
   const downloadFile = useCallback(async (kind: "csv" | "pdf") => {
     const filename = `shoplist.${kind}`;
     const res = await fetch(`/api/v1/shoplist/export.${kind}`);
@@ -79,7 +125,16 @@ export default function ShoplistPreview() {
         // Ignore if anchor was already removed
       }
     }, 100);
-    timeoutsRef.current.push(removeTimeout);
+    cleanupRef.current.push({
+      id: removeTimeout,
+      cleanup: () => {
+        try {
+          anchor.remove();
+        } catch {
+          // Ignore if anchor was already removed
+        }
+      }
+    });
 
     // Use a very conservative timeout for URL revocation
     // Rely on browser's garbage collection as fallback
@@ -90,10 +145,24 @@ export default function ShoplistPreview() {
         // Ignore errors if URL was already revoked or invalid
       }
     }, 10000); // 10 seconds for very large files on slow networks
-    timeoutsRef.current.push(revokeTimeout);
+    cleanupRef.current.push({
+      id: revokeTimeout,
+      cleanup: () => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Ignore errors if URL was already revoked or invalid
+        }
+      }
+    });
   }
-  }, []); // timeoutsRef is stable, no need to include it
+  }, []); // cleanupRef is stable, no need to include it
 
+  /**
+   * Handles the download process for specified file type with loading states and error handling
+   *
+   * @param kind - File type to download ("csv" or "pdf")
+   */
   const handleDownload = useCallback(
     async (kind: "csv" | "pdf") => {
       try {
