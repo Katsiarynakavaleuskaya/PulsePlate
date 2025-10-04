@@ -63,13 +63,21 @@ export default function ShoplistPreview() {
   try {
     anchor.click();
   } finally {
-    anchor.remove();
     // Delay URL revocation to ensure download completes for large files/slow networks
-    // Use a very conservative timeout and rely on browser's garbage collection as fallback
+    // Remove anchor after a short delay to avoid interfering with download
     setTimeout(() => {
       try {
-        // Only revoke if the URL is still valid and we're reasonably sure download started
-        if (url && url.startsWith('blob:') && !document.body.contains(anchor)) {
+        anchor.remove();
+      } catch {
+        // Ignore if anchor was already removed
+      }
+    }, 100);
+
+    // Use a very conservative timeout for URL revocation
+    // Rely on browser's garbage collection as fallback
+    setTimeout(() => {
+      try {
+        if (url && typeof url === 'string' && url.startsWith('blob:')) {
           URL.revokeObjectURL(url);
         }
       } catch {

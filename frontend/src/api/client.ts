@@ -35,10 +35,18 @@ function mockUrl(path: string): string | null {
 function mergeHeaders(init?: RequestInit): Headers {
   const defaults = {
     Accept: "application/json",
-    "Content-Type": "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
   } satisfies Record<string, string>;
+
+  // Only set Content-Type for JSON bodies
+  if (
+    init?.body &&
+    typeof init.body === "string" &&
+    init.body.trim().startsWith("{")
+  ) {
+    defaults["Content-Type"] = "application/json";
+  }
 
   const headers = new Headers(defaults);
 
