@@ -78,11 +78,9 @@ def ensure_permissions(paths: Iterable[Path]) -> None:
     """Best-effort chmod 600 on provided paths."""
 
     for path in paths:
-        try:
+        with contextlib.suppress(OSError):
             if path.exists():
                 os.chmod(path, 0o600)
-        except OSError:
-            pass  # leave warnings to diagnostics
 
 
 def store_keys(
@@ -129,9 +127,7 @@ def store_keys(
 
 
 def run_verify(home: Path, profiles: Iterable[str], stale_days: int) -> bool:
-    profiles = list(profiles)
-    if not profiles:
-        profiles = list(PROFILE_CONFIG.keys())
+    profiles = list(profiles) or list(PROFILE_CONFIG.keys())
 
     with sandbox_home(home):
         return run_diagnostics(profiles=profiles, threshold_days=stale_days)

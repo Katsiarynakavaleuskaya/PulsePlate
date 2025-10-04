@@ -106,7 +106,8 @@ else:
     _module_spec = cast(ModuleSpec, None)
 
 # Assign module __spec__ once with appropriate ignore for typing tools
-__spec__ = _module_spec  # type: ignore[assignment]
+_module_spec_for_builtin = _module_spec
+__spec__ = _module_spec_for_builtin  # type: ignore[assignment]
 
 # Export the app and key functions for easy importing
 __all__ = [

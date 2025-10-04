@@ -58,7 +58,22 @@ DATABASE_URL: str = _build_engine_url()
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:
-    """Derive an async-capable URL from a synchronous URL when possible."""
+    """
+    Derive an async-capable URL from a synchronous SQLAlchemy database URL.
+
+    Supported patterns:
+    - PostgreSQL: 'postgresql://...' → 'postgresql+asyncpg://...'
+    - MySQL: 'mysql://...' → 'mysql+aiomysql://...'
+    - SQLite: 'sqlite://...' → 'sqlite+aiosqlite://...'
+
+    For unsupported or custom formats, returns None.
+
+    Args:
+        sync_url (str): Synchronous SQLAlchemy database URL.
+
+    Returns:
+        Optional[str]: Async-capable database URL, or None if unsupported.
+    """
 
     if "+async" in sync_url:
         return sync_url
@@ -156,7 +171,7 @@ def _sync_engine_kwargs(url: str) -> dict[str, Any]:
         "connect_args": _sqlite_connect_args(url),
     }
     if not url.startswith("sqlite"):
-        kwargs.update(_POOL_CONFIG)
+        kwargs |= _POOL_CONFIG
     return kwargs
 
 

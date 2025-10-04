@@ -64,7 +64,8 @@ export default function ShoplistPreview() {
     anchor.click();
   } finally {
     anchor.remove();
-    URL.revokeObjectURL(url);
+    // Delay URL revocation to ensure download completes
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   }, []);
 

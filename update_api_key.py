@@ -42,6 +42,10 @@ DEFAULT_STALE_THRESHOLD_DAYS = 60
 MAX_AUDIT_LOG_BYTES = 512 * 1024  # 512 KiB
 AUDIT_LOG_BACKUPS = 3
 
+# API key validation constants
+API_KEY_MIN_LENGTH = 20
+API_KEY_MAX_LENGTH = 256
+
 PROFILE_CONFIG: Dict[str, Dict[str, object]] = {
     "premium": {
         "env_keys": ["OPENAI_API_KEY"],
@@ -61,7 +65,11 @@ PROFILE_CONFIG: Dict[str, Dict[str, object]] = {
 def _is_valid_api_key(api_key: str) -> bool:
     """Return True when the provided API key satisfies length/prefix requirements."""
 
-    return bool(api_key and api_key.startswith("sk-") and 20 <= len(api_key) <= 256)
+    return bool(
+        api_key
+        and api_key.startswith("sk-")
+        and API_KEY_MIN_LENGTH <= len(api_key) <= API_KEY_MAX_LENGTH
+    )
 
 
 @dataclass
@@ -131,9 +139,7 @@ def _audit_logger() -> logging.Logger:
 def _mask_secret(value: str) -> str:
     if not value:
         return "(empty)"
-    if len(value) <= 8:
-        return "***"
-    return f"{value[:4]}...{value[-4:]}"
+    return "***" if len(value) <= 8 else f"{value[:4]}...{value[-4:]}"
 
 
 def _create_backup(path: Path) -> Optional[Path]:
@@ -260,8 +266,25 @@ def _update_env_file(
         for key_name in key_names:
             lines.append(f"{key_name}={value}")
 
-    env_path.write_text("\n".join(lines) + "\n")
-    _verify_secure_permissions(env_path)
+    # Atomic file write to prevent corruption
+    import tempfile
+    import os
+
+    temp_dir = env_path.parent
+    temp_file = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=temp_dir, delete=False) as tf:
+            tf.write("\n".join(lines) + "\n")
+            temp_file = Path(tf.name)
+        os.replace(temp_file, env_path)
+        _verify_secure_permissions(env_path)
+    finally:
+        # Clean up temp file if something went wrong before replace
+        if temp_file and temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
     return env_path
 
 
@@ -282,9 +305,18 @@ def _update_mcp_config(
     config["mcpServers"]["pulseplate-chatgpt"].setdefault("env", {})
     config["mcpServers"]["pulseplate-chatgpt"]["env"][env_key] = api_key
 
-    with open(mcp_path, "w", encoding="utf-8") as handle:
-        json.dump(config, handle, indent=2)
+    # Atomic file write to prevent corruption
+    import tempfile
+    import os
 
+    temp_dir = mcp_path.parent
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=temp_dir, delete=False
+    ) as tmp_handle:
+        json.dump(config, tmp_handle, indent=2)
+        temp_name = tmp_handle.name
+
+    os.replace(temp_name, mcp_path)
     return mcp_path
 
 
@@ -305,9 +337,18 @@ def _update_settings(
 
     settings[settings_key] = api_key
 
-    with open(settings_path, "w", encoding="utf-8") as handle:
-        json.dump(settings, handle, indent=2)
+    # Atomic file write to prevent corruption
+    import tempfile
+    import os
 
+    temp_dir = settings_path.parent
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=temp_dir, delete=False
+    ) as tmp_handle:
+        json.dump(settings, tmp_handle, indent=2)
+        temp_name = tmp_handle.name
+
+    os.replace(temp_name, settings_path)
     return settings_path
 
 
@@ -324,8 +365,7 @@ def _collect_jobs(
         jobs.append((profile, api_key, source))
 
     if from_env:
-        payload = os.getenv(from_env)
-        if not payload:
+        if not (payload := os.getenv(from_env)):
             raise RuntimeError(f"Environment variable {from_env} is not set or empty")
         jobs.extend(_parse_bulk_payload(payload, default_profile=profile, source=f"env:{from_env}"))
 
@@ -351,20 +391,25 @@ def _parse_bulk_payload(
         data = json.loads(payload)
         if not isinstance(data, dict):
             raise ValueError("Bulk payload JSON must be an object mapping profile to key")
-        for profile, key in data.items():
-            entries.append((str(profile), str(key).strip(), source))
+        entries.extend((str(profile), str(key).strip(), source) for profile, key in data.items())
         return entries
 
     for raw_line in payload.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        delimiter = None
-        for candidate in ("=", ":", ","):
-            if candidate in line:
-                delimiter = candidate
-                break
+
+        # Find delimiter - prefer first match but warn if multiple present
+        delimiter = next((candidate for candidate in ("=", ":", ",") if candidate in line), None)
+
         if delimiter:
+            # Check for ambiguous delimiters
+            found_delimiters = [candidate for candidate in ("=", ":", ",") if candidate in line]
+            if len(found_delimiters) > 1:
+                raise ValueError(
+                    f"Ambiguous delimiters in line '{line}': {found_delimiters}. Use only one of '=', ':', or ','."
+                )
+
             prof, key = line.split(delimiter, 1)
             entries.append((prof.strip(), key.strip(), source))
         else:
@@ -496,11 +541,11 @@ def update_api_key(
             print(f"🗂️ Metadata recorded at {metadata_path}")
         if stored_keychain:
             print("🔑 Key also stored in system keychain (PP_KEY_STORAGE=keychain)")
-        print("\n🎉 API key updated successfully!")
-        print("\nNext steps:")
-        print("1. Restart Cursor")
-        print("2. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
-        print("3. Verify ChatGPT tools are available")
+    print("\n🎉 API key updated successfully!")
+    print("\nNext steps:")
+    print("1. Restart Cursor")
+    print("2. Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
+    print("3. Verify ChatGPT tools are available")
 
     return True
 
@@ -585,8 +630,7 @@ def _interactive_prompt() -> None:
 
     profile = input("Profile (premium/free) [premium]: ").strip() or DEFAULT_PROFILE
 
-    success = update_api_key(api_key, profile=profile)
-    if success:
+    if success := update_api_key(api_key, profile=profile):
         print("\n✅ Configuration updated successfully!")
     else:
         print("\n❌ Failed to update configuration")
