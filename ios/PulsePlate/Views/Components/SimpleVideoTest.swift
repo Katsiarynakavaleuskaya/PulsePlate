@@ -96,7 +96,7 @@ struct SimpleVideoTest: View {
             Spacer()
         }
         .padding()
-        .background(.navy)
+        .background(Color.navy)
         .onAppear {
             loadVideo()
         }

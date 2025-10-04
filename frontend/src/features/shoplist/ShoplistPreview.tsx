@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
+import { getClientLocale } from "../../lib/i18n";
 
 /**
  * Represents a single shopping list item with optional properties
@@ -63,6 +64,22 @@ type Shoplist = {
  * @returns React component for shopping list management
  */
 export default function ShoplistPreview() {
+  const translations = {
+    en: {
+      loading: "Loading list...",
+      error: "Error: ",
+      empty: "Empty.",
+    },
+    ru: {
+      loading: "Загружаем список…",
+      error: "Ошибка: ",
+      empty: "Пусто.",
+    },
+  };
+
+  const locale = getClientLocale();
+  const t = translations[locale as keyof typeof translations] || translations.en;
+
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -170,7 +187,7 @@ export default function ShoplistPreview() {
         setDownloading(kind);
         await downloadFile(kind);
       } catch (error: unknown) {
-        setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
+        setDownloadError(`Не удалось скачать файл: ${error instanceof Error ? error.message : "Неизвестная ошибка"}. Попробуйте ещё раз.`);
       } finally {
         setDownloading(null);
       }
@@ -192,19 +209,19 @@ export default function ShoplistPreview() {
   );
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">Загружаем список…</div>;
+    return <div className="max-w-3xl mx-auto p-6">{t.loading}</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        Ошибка: {err}
+        {t.error}{err}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto p-6 opacity-70">Пусто.</div>;
+    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t.empty}</div>;
   }
 
   const groups = data.groups && data.groups.length > 0

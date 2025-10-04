@@ -78,7 +78,7 @@ struct AppIconTestView: View {
             }
             .padding()
         }
-        .background(.navy)
+                .background(Color.navy)
     }
 }
 
@@ -89,7 +89,7 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(title)
-                .foregroundColor(.textSecondary)
+                .foregroundColor(.gray)
             Spacer()
             Text(value)
                 .foregroundColor(.textPrimary)
@@ -111,10 +111,10 @@ struct SizeCard: View {
 
             Text(count)
                 .font(.caption2)
-                .foregroundColor(.textTertiary)
+                .foregroundColor(.gray.opacity(0.6))
         }
         .padding(8)
-        .background(.surfaceElevated)
+        .background(Color.white.opacity(0.1))
         .cornerRadius(8)
     }
 }

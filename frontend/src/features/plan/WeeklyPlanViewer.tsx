@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
@@ -64,19 +65,12 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   diet_flags: [],
 };
 
-/**
- * Extracts day title from various possible formats in day data
- *
- * @param day - Day data object with potential date or label fields
- * @param idx - Day index (0-based) for fallback naming
- * @returns Formatted day title string
- */
-function getDayTitle(day: UnknownRecord, idx: number): string {
+function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
   return typeof day.date === "string"
     ? day.date
     : typeof day.day_label === "string"
     ? day.day_label
-    : `День ${idx + 1}`;
+    : t("plan.day_fallback", { number: idx + 1 }); // e.g., "Day {number}"
 }
 
 function getDayEnergy(day: UnknownRecord): number | undefined {
@@ -87,12 +81,12 @@ function getDayEnergy(day: UnknownRecord): number | undefined {
     : undefined;
 }
 
-function getMealName(meal: UnknownRecord, mi: number): string {
+function getMealName(meal: UnknownRecord, mi: number, t: (key: string, options?: any) => string): string {
   return typeof meal.name === "string"
     ? meal.name
     : typeof meal.meal === "string"
     ? meal.meal
-    : `Приём ${mi + 1}`;
+    : t("plan.meal_fallback", { number: mi + 1 }); // e.g., "Meal {number}"
 }
 
 function getMealEnergy(meal: UnknownRecord): number | undefined {
@@ -133,7 +127,7 @@ function getItemName(item: UnknownRecord, ii: number): string {
     ? item.title
     : typeof item.food_item === "string"
     ? item.food_item
-    : `Блюдо ${ii + 1}`;
+    : t("plan.item_fallback", { number: ii + 1 }); // e.g., "Item {number}"
 }
 
 function getItemEnergy(item: UnknownRecord): number | undefined {
@@ -145,9 +139,10 @@ function getItemEnergy(item: UnknownRecord): number | undefined {
 }
 
 export default function WeeklyPlanViewer() {
-  const [data, setData] = useState<WeekPlanResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
 
@@ -223,7 +218,7 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
     } catch (error: any) {
-      setHint("Не удалось скачать файл. Попробуйте ещё раз.");
+      setHint(`Не удалось скачать файл: ${error?.message || "Неизвестная ошибка"}. Попробуйте ещё раз.`);
     }
   };
 
@@ -244,7 +239,7 @@ export default function WeeklyPlanViewer() {
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
     } catch (error: any) {
-      setHint("Не удалось открыть приватную ссылку. Попробуйте ещё раз.");
+      setHint(`Не удалось открыть приватную ссылку: ${error?.message || "Неизвестная ошибка"}. Попробуйте ещё раз.`);
     }
   };
 
