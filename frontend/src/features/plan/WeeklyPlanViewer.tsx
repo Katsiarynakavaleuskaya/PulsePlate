@@ -1,25 +1,20 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
+import { getClientLocale } from "../../lib/i18n";
 
 const DEFAULT_TTL_SECONDS = 900;
 
-/**
- * Copy the provided text to the user's clipboard, falling back to a legacy method if needed.
- *
- * @param text - The string to copy to the clipboard
- * @returns `true` if the text was copied to the clipboard, `false` otherwise
- */
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
-    if (navigator?.clipboard?.writeText) {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch {
+  } catch (error) {
     // Will fall back to the legacy approach below
   }
 
@@ -67,21 +62,88 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   activity: "moderate",
   goal: "maintain",
   diet_flags: [],
-  lang: "en",
 };
 
 /**
- * Render a weekly plan viewer with export, share, and open actions.
+ * Extracts day title from various possible formats in day data
  *
- * Fetches the weekly plan on mount and displays loading, error, or the plan breakdown by day, meal, and item.
- * Provides controls to download CSV/PDF, create shareable signed links, copy a private CSV link to the clipboard,
- * and open the CSV in a new tab or Google Sheets. UI state includes hints and the last generated signed link.
- *
- * On mount, the component requests plan data from the API. User actions may open new tabs, copy text to the clipboard,
- * request signed links, or trigger file downloads.
- *
- * @returns A React element that displays the weekly plan and controls for exporting, sharing, and viewing it.
+ * @param day - Day data object with potential date or label fields
+ * @param idx - Day index (0-based) for fallback naming
+ * @returns Formatted day title string
  */
+function getDayTitle(day: UnknownRecord, idx: number): string {
+  return typeof day.date === "string"
+    ? day.date
+    : typeof day.day_label === "string"
+    ? day.day_label
+    : `День ${idx + 1}`;
+}
+
+function getDayEnergy(day: UnknownRecord): number | undefined {
+  return typeof day.energy_kcal === "number"
+    ? day.energy_kcal
+    : typeof day.kcal === "number"
+    ? day.kcal
+    : undefined;
+}
+
+function getMealName(meal: UnknownRecord, mi: number): string {
+  return typeof meal.name === "string"
+    ? meal.name
+    : typeof meal.meal === "string"
+    ? meal.meal
+    : `Приём ${mi + 1}`;
+}
+
+function getMealEnergy(meal: UnknownRecord): number | undefined {
+  return typeof meal.energy_kcal === "number"
+    ? meal.energy_kcal
+    : typeof meal.kcal === "number"
+    ? meal.kcal
+    : undefined;
+}
+
+function getMealItems(meal: UnknownRecord): UnknownRecord[] {
+  const rawItems = Array.isArray(meal.items)
+    ? (meal.items as UnknownRecord[])
+    : [];
+
+  const fallbackItem =
+    typeof meal.food_item === "string"
+      ? [
+          {
+            name: meal.food_item,
+            energy_kcal:
+              typeof meal.kcal === "number"
+                ? meal.kcal
+                : typeof meal.energy_kcal === "number"
+                ? meal.energy_kcal
+                : undefined,
+          },
+        ]
+      : [];
+
+  return rawItems.length > 0 ? rawItems : fallbackItem;
+}
+
+function getItemName(item: UnknownRecord, ii: number): string {
+  return typeof item.name === "string"
+    ? item.name
+    : typeof item.title === "string"
+    ? item.title
+    : typeof item.food_item === "string"
+    ? item.food_item
+    : `Блюдо ${ii + 1}`;
+}
+
+function getItemEnergy(item: UnknownRecord): number | undefined {
+  return typeof item.energy_kcal === "number"
+    ? item.energy_kcal
+    : typeof item.kcal === "number"
+    ? item.kcal
+    : undefined;
+}
+
 export default function WeeklyPlanViewer() {
   const [data, setData] = useState<WeekPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,9 +156,18 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
+        const locale = getClientLocale();
+        const supportedLangs: WeekPlanRequest["lang"][] = ["en", "ru", "es"];
+        const payload: WeekPlanRequest = {
+          ...DEFAULT_REQUEST,
+          lang: supportedLangs.includes(locale as WeekPlanRequest["lang"])
+            ? (locale as WeekPlanRequest["lang"])
+            : "en",
+        };
+
         const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {
           method: "POST",
-          body: JSON.stringify(DEFAULT_REQUEST),
+          body: JSON.stringify(payload),
         });
         setData(week);
       } catch (e: any) {
@@ -151,8 +222,7 @@ export default function WeeklyPlanViewer() {
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
       setHint("Экспорт готов. Приватная ссылка действительна 15 минут.");
-    } catch (error) {
-      console.error("Download failed:", error);
+    } catch (error: any) {
       setHint("Не удалось скачать файл. Попробуйте ещё раз.");
     }
   };
@@ -162,7 +232,7 @@ export default function WeeklyPlanViewer() {
       const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       setHint("Поделиться готово. Приватная ссылка действительна 15 минут.");
-    } catch (error: unknown) {
+    } catch (error: any) {
       setHint(formatShareErrorMessage(error, "Не удалось поделиться: произошла ошибка. Попробуйте ещё раз."));
     }
   };
@@ -173,17 +243,23 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint("Открыта приватная ссылка (15 минут). Можно поделиться точечно.");
-    } catch (error) {
-      console.error("Failed to open private CSV:", error);
+    } catch (error: any) {
       setHint("Не удалось открыть приватную ссылку. Попробуйте ещё раз.");
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard tone="light" className="drop-shadow-lg" ariaLabel="Действия для недельного плана" role="region">
+      <GlassCard
+        tone="light"
+        ariaLabelledBy="weekly-plan-actions-title"
+        role="region"
+        contentClassName="space-y-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Мой недельный план</h2>
+          <h2 id="weekly-plan-actions-title" className="text-xl font-semibold">
+            Мой недельный план
+          </h2>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -239,7 +315,7 @@ export default function WeeklyPlanViewer() {
           </div>
         </div>
         {hint && (
-          <div className="mt-3 text-sm text-slate-600">
+          <div className="mt-3 text-sm text-slate-700" role="status" aria-live="polite">
             {hint}
             {lastSignedLink && (
               <div>
@@ -249,107 +325,62 @@ export default function WeeklyPlanViewer() {
           </div>
         )}
       </GlassCard>
-      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Сводка недельного плана">
+      <GlassCard
+        role="region"
+        ariaLabelledBy="weekly-plan-summary-title"
+        contentClassName="space-y-3"
+      >
+        <h2 id="weekly-plan-summary-title" className="text-lg font-semibold">
+          Сводка недельного плана
+        </h2>
         {dailyMenus.length === 0 ? (
           <div className="opacity-80">Пока пусто.</div>
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
-          const day = menu as UnknownRecord;
-          const dayTitle =
-            typeof day.date === "string"
-              ? day.date
-              : typeof day.day_label === "string"
-              ? day.day_label
-              : `День ${idx + 1}`;
-          const dayEnergy =
-            typeof day.energy_kcal === "number"
-              ? day.energy_kcal
-              : typeof day.kcal === "number"
-              ? day.kcal
-              : undefined;
+              const day = menu as UnknownRecord;
+              const dayTitle = getDayTitle(day, idx);
+              const dayEnergy = getDayEnergy(day);
 
-          const meals = Array.isArray(day.meals)
-            ? (day.meals as UnknownRecord[])
-            : [];
+              const meals = Array.isArray(day.meals)
+                ? (day.meals as UnknownRecord[])
+                : [];
 
-          return (
-            <li
-              key={dayTitle}
-              className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{dayTitle}</div>
-                {typeof dayEnergy === "number" && (
-                  <div className="text-sm opacity-70">{Math.round(dayEnergy)} ккал/день</div>
-                )}
-              </div>
-              <ul className="space-y-2">
-                {meals.map((meal, mi) => {
-                  const mealObj = meal as UnknownRecord;
-                  const mealName =
-                    typeof mealObj.name === "string"
-                      ? mealObj.name
-                      : typeof mealObj.meal === "string"
-                      ? mealObj.meal
-                      : `Приём ${mi + 1}`;
-                  const mealEnergy =
-                    typeof mealObj.energy_kcal === "number"
-                      ? mealObj.energy_kcal
-                      : typeof mealObj.kcal === "number"
-                      ? mealObj.kcal
-                      : undefined;
+              return (
+                <li
+                  key={`${dayTitle}-${idx}`}
+                  className="border border-white/15 rounded-2xl bg-white/10 p-4 space-y-2 backdrop-blur-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{dayTitle}</div>
+                    {typeof dayEnergy === "number" && (
+                      <div className="text-sm opacity-70">{Math.round(dayEnergy)} ккал/день</div>
+                    )}
+                  </div>
+                  <ul className="space-y-2">
+                    {meals.map((meal, mi) => {
+                      const mealObj = meal as UnknownRecord;
+                      const mealName = getMealName(mealObj, mi);
+                      const mealEnergy = getMealEnergy(mealObj);
+                      const items = getMealItems(mealObj);
 
-                  const rawItems = Array.isArray(mealObj.items)
-                    ? (mealObj.items as UnknownRecord[])
-                    : [];
-
-                  const fallbackItem =
-                    typeof mealObj.food_item === "string"
-                      ? [
-                          {
-                            name: mealObj.food_item,
-                            energy_kcal:
-                              typeof mealObj.kcal === "number"
-                                ? mealObj.kcal
-                                : typeof mealObj.energy_kcal === "number"
-                                ? mealObj.energy_kcal
-                                : undefined,
-                          },
-                        ]
-                      : [];
-
-                  const items = rawItems.length > 0 ? rawItems : fallbackItem;
-
-                  return (
-                    <li
-                      key={`${mealName}-${mi}`}
-                      className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{mealName}</div>
-                        {typeof mealEnergy === "number" && (
-                          <div className="text-sm opacity-70">{Math.round(mealEnergy)} ккал</div>
-                        )}
-                      </div>
-                      <ul className="mt-2 grid gap-1">
-                        {items.length > 0 ? (
-                          items.map((item, ii) => {
-                            const itemObj = item as UnknownRecord;
-                            const itemName =
-                              typeof itemObj.name === "string"
-                                ? itemObj.name
-                                : typeof itemObj.title === "string"
-                                ? itemObj.title
-                                : typeof itemObj.food_item === "string"
-                                ? itemObj.food_item
-                                : `Блюдо ${ii + 1}`;
-                            const itemEnergy =
-                              typeof itemObj.energy_kcal === "number"
-                                ? itemObj.energy_kcal
-                                : typeof itemObj.kcal === "number"
-                                ? itemObj.kcal
-                                : undefined;
+                      return (
+                        <li
+                          key={`${mealName}-${mi}`}
+                          className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{mealName}</div>
+                            {typeof mealEnergy === "number" && (
+                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} ккал</div>
+                            )}
+                          </div>
+                          <ul className="mt-2 grid gap-1">
+                            {items.length > 0 ? (
+                              items.map((item, ii) => {
+                                const itemObj = item as UnknownRecord;
+                                const itemName = getItemName(itemObj, ii);
+                                const itemEnergy = getItemEnergy(itemObj);
                             return (
                               <li key={`${itemName}-${ii}`} className="text-sm">
                                 • {itemName}

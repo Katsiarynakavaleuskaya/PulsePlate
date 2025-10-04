@@ -1,47 +1,74 @@
-import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
+/**
+ * Represents a single shopping list item with optional properties
+ */
 type ShopItem = {
+  /** Unique identifier for the item */
   id?: string;
+  /** Name of the shopping item */
   name?: string;
+  /** Quantity of the item */
   qty?: number;
+  /** Unit of measurement (e.g., "kg", "pcs") */
   unit?: string;
+  /** Store aisle where item is located */
   aisle?: string;
+  /** Store name */
   store?: string;
+  /** Additional notes for the item */
   note?: string;
 };
 
+/**
+ * Represents a group of shopping items organized by aisle
+ */
 type ShopGroup = {
+  /** Aisle name for the group */
   aisle?: string;
-  items?: ShopItem[];
-};
-
-type Shoplist = {
-  store?: string;
-  currency?: string;
-  total_estimated?: number;
-  groups?: ShopGroup[];
+  /** Array of items in this group */
   items?: ShopItem[];
 };
 
 /**
- * Renders a preview of the current shopping list with actions to export or share it.
+ * Complete shopping list data structure
+ */
+type Shoplist = {
+  /** Store name */
+  store?: string;
+  /** Currency for price display */
+  currency?: string;
+  /** Estimated total cost */
+  total_estimated?: number;
+  /** Groups organized by aisles */
+  groups?: ShopGroup[];
+  /** Flat list of all items (alternative to groups) */
+  items?: ShopItem[];
+};
+
+/**
+ * Shopping list preview component that displays user's shopping list with export and share options
  *
- * Displays loading and error states, fetches the list on mount, groups items by aisle when available,
- * and provides buttons to download the list as CSV or PDF and to share the PDF.
+ * Features:
+ * - Loads shopping list data from API
+ * - Displays items organized by store aisles
+ * - Provides CSV and PDF export functionality
+ * - Includes sharing capabilities
+ * - Shows loading states and error handling
+ * - Fully localized interface (Russian primary)
  *
- * @returns The component's rendered JSX element representing the shopping list preview and controls.
+ * @returns React component for shopping list management
  */
 export default function ShoplistPreview() {
-  const { t } = useTranslation();
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -50,38 +77,99 @@ export default function ShoplistPreview() {
       try {
         const res = await fetchJson<Shoplist>("/api/v1/shoplist");
         setData(res);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Fetch error");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      cleanupRef.current.forEach(({ id, cleanup }) => {
+        cleanup(); // Execute cleanup first to remove DOM nodes and revoke URLs
+        clearTimeout(id); // Then clear the timeout to prevent any potential firing
+      });
+      cleanupRef.current = [];
+    };
+  }, []);
+
+  /**
+   * Downloads a file of specified type (CSV or PDF) by creating a blob URL and anchor element
+   *
+   * @param kind - File type to download ("csv" or "pdf")
+   * @throws Error if fetch fails or response is not ok
+   */
   const downloadFile = useCallback(async (kind: "csv" | "pdf") => {
     const filename = `shoplist.${kind}`;
     const res = await fetch(`/api/v1/shoplist/export.${kind}`);
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  try {
     anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }, []);
+  } finally {
+    // Delay URL revocation to ensure download completes for large files/slow networks
+    // Remove anchor after a short delay to avoid interfering with download
+    const removeTimeout = setTimeout(() => {
+      try {
+        anchor.remove();
+      } catch {
+        // Ignore if anchor was already removed
+      }
+    }, 100);
+    cleanupRef.current.push({
+      id: removeTimeout,
+      cleanup: () => {
+        try {
+          anchor.remove();
+        } catch {
+          // Ignore if anchor was already removed
+        }
+      }
+    });
 
+    // Use a very conservative timeout for URL revocation
+    // Rely on browser's garbage collection as fallback
+    const revokeTimeout = setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // Ignore errors if URL was already revoked or invalid
+      }
+    }, 10000); // 10 seconds for very large files on slow networks
+    cleanupRef.current.push({
+      id: revokeTimeout,
+      cleanup: () => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Ignore errors if URL was already revoked or invalid
+        }
+      }
+    });
+  }
+  }, []); // cleanupRef is stable, no need to include it
+
+  /**
+   * Handles the download process for specified file type with loading states and error handling
+   *
+   * @param kind - File type to download ("csv" or "pdf")
+   */
   const handleDownload = useCallback(
     async (kind: "csv" | "pdf") => {
       try {
         setDownloadError(null);
         setDownloading(kind);
         await downloadFile(kind);
-      } catch {
+      } catch (error: unknown) {
         setDownloadError("Не удалось скачать файл. Попробуйте ещё раз.");
       } finally {
         setDownloading(null);
@@ -104,19 +192,19 @@ export default function ShoplistPreview() {
   );
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">{t("shoplist.loading")}</div>;
+    return <div className="max-w-3xl mx-auto p-6">Загружаем список…</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        {t("shoplist.error")}: {err}
+        Ошибка: {err}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t("shoplist.empty")}</div>;
+    return <div className="max-w-3xl mx-auto p-6 opacity-70">Пусто.</div>;
   }
 
   const groups = data.groups && data.groups.length > 0
@@ -125,9 +213,16 @@ export default function ShoplistPreview() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
-      <GlassCard tone="light" className="drop-shadow-lg" role="region" ariaLabel="Действия для списка покупок">
+      <GlassCard
+        tone="light"
+        role="region"
+        ariaLabelledBy="shopping-actions-title"
+        contentClassName="space-y-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Список покупок</h2>
+          <h2 id="shopping-actions-title" className="text-xl font-semibold">
+            Список покупок
+          </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="opacity-80 text-slate-700">
               {data.store ? `Магазин: ${data.store}` : ""}
@@ -145,7 +240,7 @@ export default function ShoplistPreview() {
                 disabled={downloading === "csv"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "csv" ? "Скачиваем CSV…" : "Export CSV"}
+                {downloading === "csv" ? "Скачиваем CSV…" : "Экспорт CSV"}
               </button>
               <button
                 type="button"
@@ -153,24 +248,33 @@ export default function ShoplistPreview() {
                 disabled={downloading === "pdf"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "pdf" ? "Скачиваем PDF…" : "Export PDF"}
+                {downloading === "pdf" ? "Скачиваем PDF…" : "Экспорт PDF"}
               </button>
               <button
                 type="button"
                 onClick={() => handleShare("pdf")}
                 className="border rounded-xl px-3 py-2 text-sm"
-                aria-label="Share shopping list PDF"
+                aria-label="Поделиться списком покупок PDF"
               >
-                Share…
+                Поделиться…
               </button>
             </div>
           </div>
         </div>
         {downloadError && (
-          <div className="mt-3 text-sm text-red-500">Ошибка загрузки: {downloadError}</div>
+          <div className="text-sm text-red-500" role="status" aria-live="polite">
+            Ошибка загрузки: {downloadError}
+          </div>
         )}
       </GlassCard>
-      <GlassCard className="drop-shadow-md" role="region" ariaLabel="Содержимое списка покупок">
+      <GlassCard
+        role="region"
+        ariaLabelledBy="shopping-content-title"
+        contentClassName="space-y-4"
+      >
+        <h2 id="shopping-content-title" className="text-lg font-semibold">
+          Содержимое списка покупок
+        </h2>
         <ul className="space-y-3">
           {groups.map((group, gi) => (
             <li
