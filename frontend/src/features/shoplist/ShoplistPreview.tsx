@@ -65,7 +65,16 @@ export default function ShoplistPreview() {
   } finally {
     anchor.remove();
     // Delay URL revocation to ensure download completes
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Use a longer timeout for large files/slow networks, plus check if anchor still exists
+    setTimeout(() => {
+      // Double-check the anchor was removed and download likely started
+      if (!document.body.contains(anchor)) {
+        URL.revokeObjectURL(url);
+      } else {
+        // If anchor is still in DOM, wait longer
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }
+    }, 3000); // Longer initial timeout for safety
   }
   }, []);
 
