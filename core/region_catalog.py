@@ -7,9 +7,13 @@ Sprint 3: Region Catalog (ES/US open-data мок)
 """
 
 import csv
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
+
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -77,7 +81,7 @@ class RegionCatalog:
                     )
                     products.append(product)
         except Exception as e:  # pragma: no cover
-            print(f"Error loading region data from {csv_file}: {e}")  # pragma: no cover
+            _logger.error("Error loading region data from %s: %s", csv_file, e)  # pragma: no cover
 
         return products
 
