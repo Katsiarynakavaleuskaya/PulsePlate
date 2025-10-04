@@ -126,17 +126,15 @@ describe('Locale JSON Structure and Content', () => {
         /\btbd\b/i
       ];
 
-      const issues: Array<{locale: string, key: string, value: string, shouldFail: boolean, reason: string}> = [];
+      const issues: Array<{key: string, value: string, reason: string}> = [];
 
       const checkValue = (value: any, currentPath: string) => {
         if (typeof value === 'string') {
           for (const pattern of PLACEHOLDER_PATTERNS) {
             if (pattern.test(value)) {
               issues.push({
-                locale: 'current',
                 key: currentPath,
                 value,
-                shouldFail: true,
                 reason: `Contains placeholder pattern: ${pattern.source}`
               });
             }
@@ -149,9 +147,10 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const langIssues = issues.splice(0);
+        const initialLength = issues.length;
         checkValue(locales[lang], '');
-        expect(langIssues).toHaveLength(0);
+        const newIssues = issues.slice(initialLength);
+        expect(newIssues).toHaveLength(0);
       }
     });
 
@@ -220,7 +219,7 @@ describe('Locale JSON Structure and Content', () => {
       it('should have consistent paywall structure', () => {
         const paywallKeys = ['title', 'subtitle', 'cta', 'legal', 'before', 'after', 'items'];
         for (const lang of languages) {
-          const paywall = locales[lang].paywall;
+          const { paywall } = locales[lang];
           expect(paywall).toBeDefined();
           expect(Object.keys(paywall).sort()).toEqual(paywallKeys.sort());
         }
@@ -230,7 +229,7 @@ describe('Locale JSON Structure and Content', () => {
         const sectionKeys = ['label', 'randomPlate', 'macrosOnly', 'manualShopping'];
         const afterKeys = ['label', 'personalPlate', 'microBalance', 'autoShoppingList'];
         for (const lang of languages) {
-          const paywall = locales[lang].paywall;
+          const { paywall } = locales[lang];
           expect(Object.keys(paywall.before).sort()).toEqual(sectionKeys.sort());
           expect(Object.keys(paywall.after).sort()).toEqual(afterKeys.sort());
         }
@@ -240,7 +239,7 @@ describe('Locale JSON Structure and Content', () => {
         const itemKeys = ['random_plate', 'macros_only', 'manual_shopping'];
         const afterItemKeys = ['personal_plate', 'micro_balance', 'auto_shopping_list'];
         for (const lang of languages) {
-          const items = locales[lang].paywall.items;
+          const { items } = locales[lang].paywall;
           expect(items.before).toBeDefined();
           expect(items.after).toBeDefined();
           expect(Object.keys(items.before).sort()).toEqual(itemKeys.sort());
