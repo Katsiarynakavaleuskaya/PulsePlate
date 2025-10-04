@@ -62,7 +62,7 @@ Maximum recommended lengths for different UI elements:
 
 ## Test Results Summary
 
-**Total Tests: 51**
+**Total Tests: 25**
 - Structural Validation: 12 tests
 - Content Validation: 13 tests
 
