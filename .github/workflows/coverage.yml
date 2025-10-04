@@ -66,5 +66,5 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload test results to Codecov
-        if: ${{ github.event_name == 'push' && !cancelled() }}
+        if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
