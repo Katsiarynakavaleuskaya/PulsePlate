@@ -22,7 +22,7 @@ describe("GlassCard", () => {
       </GlassCard>
     );
 
-    const wrapper = screen.getByRole("group");
+    const wrapper = screen.getByTestId("glass-card");
     expect(wrapper).toHaveClass("rounded-2xl");
     expect(wrapper).toHaveClass("bg-white/10");
     expect(wrapper).toHaveClass("text-white");
@@ -45,7 +45,7 @@ describe("GlassCard", () => {
         </GlassCard>
       );
 
-      const wrapper = screen.getByRole("group");
+      const wrapper = screen.getByTestId("glass-card");
       expectedClasses.forEach((cls) => {
         expect(wrapper).toHaveClass(cls);
       });
@@ -96,7 +96,7 @@ describe("GlassCard", () => {
       </GlassCard>
     );
 
-    const wrapper = screen.getByRole("group");
+    const wrapper = screen.getByTestId("glass-card");
     expect(wrapper).not.toHaveAttribute("aria-label");
     expect(wrapper).not.toHaveAttribute("aria-labelledby");
   });
@@ -129,20 +129,20 @@ describe("GlassCard", () => {
         <span>content</span>
       </GlassCard>
     );
-    const wrapper = screen.getByRole("group");
+    const wrapper = screen.getByTestId("glass-card");
     // Expect default (neutral) classes
-    expect(wrapper).toHaveClass("bg-white/80");
-    expect(wrapper).toHaveClass("text-slate-900");
     expect(wrapper).toHaveClass("border-white/15");
+    expect(wrapper).toHaveClass("bg-white/10");
+    expect(wrapper).toHaveClass("text-white");
   });
 
-  it('does not apply any padding class for invalid padding value', () => {
+  it('applies default padding class for invalid padding value', () => {
     render(
       <GlassCard padding={"invalid" as any}>
         <span data-testid="inner" />
       </GlassCard>
     );
     const inner = screen.getByTestId("inner").parentElement as HTMLElement;
-    expect(inner.className).toBe("");
+    expect(inner).toHaveClass("p-4");
   });
 });

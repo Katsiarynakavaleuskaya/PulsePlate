@@ -57,13 +57,13 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
     "rounded-2xl",
     "backdrop-blur-xl",
     "shadow-[0_8px_30px_rgba(0,0,0,0.12)]",
-    TONE_CLASS[tone],
+    (TONE_CLASS[tone] !== undefined ? TONE_CLASS[tone] : TONE_CLASS.neutral),
     className,
   ]
     .filter(Boolean)
     .join(" ");
 
-  const contentClasses = [PADDING_CLASS[padding], contentClassName]
+  const contentClasses = [(PADDING_CLASS[padding] !== undefined ? PADDING_CLASS[padding] : PADDING_CLASS.md), contentClassName]
     .filter(Boolean)
     .join(" ");
 
@@ -71,6 +71,7 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
     <div
       ref={ref}
       className={wrapperClasses}
+      data-testid="glass-card"
       {...(role ? { role } : {})}
       {...ariaProps}
       {...rest}
