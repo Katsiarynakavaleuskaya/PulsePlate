@@ -6,7 +6,22 @@
   "shoplist": {
     "loading": "Cargando lista de compras…",
     "error": "Error",
-    "empty": "Lista vacía."
+    "empty": "Lista vacía.",
+    "title": "Lista de compras",
+    "downloadCsv": "Exportar CSV",
+    "downloadPdf": "Exportar PDF",
+    "downloadingCsv": "Descargando CSV…",
+    "downloadingPdf": "Descargando PDF…",
+    "share": "Compartir…",
+    "downloadError": "No se pudo descargar el archivo",
+    "shareError": "No se pudo compartir",
+    "tryAgain": "Inténtalo de nuevo.",
+    "contentTitle": "Contenido de la lista de compras",
+    "category": "Categoría",
+    "noItems": "Sin elementos",
+    "store": "Tienda",
+    "estimated": "≈",
+    "downloadHint": "Exportación lista. El enlace privado es válido por 15 minutos."
   },
   "paywall": {
     "title": "Desbloquear Premium",

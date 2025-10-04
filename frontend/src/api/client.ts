@@ -40,12 +40,13 @@ function mergeHeaders(init?: RequestInit): Headers {
   } satisfies Record<string, string>;
 
   // Only set Content-Type for JSON bodies
-  if (
-    init?.body &&
-    typeof init.body === "string" &&
-    (init.body.trim().startsWith("{") || init.body.trim().startsWith("["))
-  ) {
-    defaults["Content-Type"] = "application/json";
+  if (init?.body && typeof init.body === "string") {
+    try {
+      JSON.parse(init.body.trim());
+      defaults["Content-Type"] = "application/json";
+    } catch {
+      // Not valid JSON, don't set Content-Type
+    }
   }
 
   const headers = new Headers(defaults);

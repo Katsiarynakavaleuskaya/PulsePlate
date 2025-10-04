@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
@@ -64,21 +65,7 @@ type Shoplist = {
  * @returns React component for shopping list management
  */
 export default function ShoplistPreview() {
-  const translations = {
-    en: {
-      loading: "Loading list...",
-      error: "Error: ",
-      empty: "Empty.",
-    },
-    ru: {
-      loading: "Загружаем список…",
-      error: "Ошибка: ",
-      empty: "Пусто.",
-    },
-  };
-
-  const locale = getClientLocale();
-  const t = translations[locale as keyof typeof translations] || translations.en;
+  const { t } = useTranslation();
 
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
@@ -187,7 +174,7 @@ export default function ShoplistPreview() {
         setDownloading(kind);
         await downloadFile(kind);
       } catch (error: unknown) {
-        setDownloadError(`Не удалось скачать файл: ${error instanceof Error ? error.message : "Неизвестная ошибка"}. Попробуйте ещё раз.`);
+        setDownloadError(`${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}. ${t('shoplist.tryAgain')}`);
       } finally {
         setDownloading(null);
       }
@@ -202,26 +189,26 @@ export default function ShoplistPreview() {
         const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
         await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
       } catch (error: unknown) {
-        setDownloadError(formatShareErrorMessage(error, "Не удалось поделиться файлом. Попробуйте ещё раз."));
+        setDownloadError(formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`));
       }
     },
     [],
   );
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">{t.loading}</div>;
+    return <div className="max-w-3xl mx-auto p-6">{t('shoplist.loading')}</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        {t.error}{err}
+        {t('shoplist.error')}: {err}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t.empty}</div>;
+    return <div className="max-w-3xl mx-auto p-6 opacity-70">{t('shoplist.empty')}</div>;
   }
 
   const groups = data.groups && data.groups.length > 0
@@ -238,14 +225,14 @@ export default function ShoplistPreview() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="shopping-actions-title" className="text-xl font-semibold">
-            Список покупок
+            {t('shoplist.title')}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="opacity-80 text-slate-700">
-              {data.store ? `Магазин: ${data.store}` : ""}
+              {data.store ? `${t('shoplist.store')}: ${data.store}` : ""}
               {typeof data.total_estimated === "number" && (
                 <>
-                  {data.store ? " • " : ""}≈ {data.total_estimated}
+                  {data.store ? " • " : ""}{t('shoplist.estimated')} {data.total_estimated}
                   {data.currency ? ` ${data.currency}` : ""}
                 </>
               )}
@@ -257,7 +244,7 @@ export default function ShoplistPreview() {
                 disabled={downloading === "csv"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "csv" ? "Скачиваем CSV…" : "Экспорт CSV"}
+                {downloading === "csv" ? t('shoplist.downloadingCsv') : t('shoplist.downloadCsv')}
               </button>
               <button
                 type="button"
@@ -265,22 +252,22 @@ export default function ShoplistPreview() {
                 disabled={downloading === "pdf"}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "pdf" ? "Скачиваем PDF…" : "Экспорт PDF"}
+                {downloading === "pdf" ? t('shoplist.downloadingPdf') : t('shoplist.downloadPdf')}
               </button>
               <button
                 type="button"
                 onClick={() => handleShare("pdf")}
                 className="border rounded-xl px-3 py-2 text-sm"
-                aria-label="Поделиться списком покупок PDF"
+                aria-label={`${t('shoplist.share')} ${t('shoplist.downloadPdf')}`}
               >
-                Поделиться…
+                {t('shoplist.share')}
               </button>
             </div>
           </div>
         </div>
         {downloadError && (
           <div className="text-sm text-red-500" role="status" aria-live="polite">
-            Ошибка загрузки: {downloadError}
+            {t('shoplist.downloadError')}: {downloadError}
           </div>
         )}
       </GlassCard>
@@ -290,7 +277,7 @@ export default function ShoplistPreview() {
         contentClassName="space-y-4"
       >
         <h2 id="shopping-content-title" className="text-lg font-semibold">
-          Содержимое списка покупок
+          {t('shoplist.contentTitle')}
         </h2>
         <ul className="space-y-3">
           {groups.map((group, gi) => (
@@ -298,7 +285,7 @@ export default function ShoplistPreview() {
               key={group.aisle ?? gi}
               className="border border-white/15 rounded-2xl bg-white/5 p-4 backdrop-blur-sm"
             >
-              <div className="font-medium">{group.aisle ?? "Категория"}</div>
+              <div className="font-medium">{group.aisle ?? t('shoplist.category')}</div>
               <ul className="mt-2 grid gap-1">
                 {(group.items ?? []).map((item, ii) => (
                   <li key={item.id ?? `${item.name}-${ii}`} className="text-sm">
@@ -313,7 +300,7 @@ export default function ShoplistPreview() {
                   </li>
                 ))}
                 {(!group.items || group.items.length === 0) && (
-                  <li className="text-sm opacity-60">Нет позиций</li>
+                  <li className="text-sm opacity-60">{t('shoplist.noItems')}</li>
                 )}
               </ul>
             </li>
