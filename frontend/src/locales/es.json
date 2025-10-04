@@ -6,34 +6,34 @@
   "shoplist": {
     "loading": "Cargando lista de compras…",
     "error": "Error",
-    "empty": "Vacío."
+    "empty": "Lista vacía."
   },
   "paywall": {
     "title": "Desbloquear Premium",
-    "subtitle": "Plato personal, microequilibrio, plan semanal.",
+    "subtitle": "Plan nutricional personal, equilibrio preciso, planificación semanal.",
     "cta": "Continuar",
-    "legal": "Suscripción con renovación automática. Cancela en Ajustes.",
+    "legal": "Suscripción con renovación automática. Cancela en Configuración.",
     "before": {
       "label": "Antes",
       "randomPlate": "Plato aleatorio",
-      "macrosOnly": "Solo macros",
+      "macrosOnly": "Solo macronutrientes",
       "manualShopping": "Lista manual"
     },
     "after": {
       "label": "Después",
-      "personalPlate": "Plato personal",
-      "microBalance": "Microequilibrio",
+      "personalPlate": "Plan nutricional personal",
+      "microBalance": "Equilibrio nutricional",
       "autoShoppingList": "Lista automática"
     },
     "items": {
       "before": {
         "random_plate": "Plato aleatorio",
-        "macros_only": "Solo macros",
+        "macros_only": "Solo macronutrientes",
         "manual_shopping": "Lista manual"
       },
       "after": {
-        "personal_plate": "Plato personal",
-        "micro_balance": "Microequilibrio",
+        "personal_plate": "Plan nutricional personal",
+        "micro_balance": "Equilibrio nutricional",
         "auto_shopping_list": "Lista automática"
       }
     }
