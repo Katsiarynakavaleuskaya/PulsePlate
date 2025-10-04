@@ -122,4 +122,27 @@ describe("GlassCard", () => {
     expect(content).toHaveClass("custom-content");
     expect(content.className).toBe("custom-content");
   });
+
+  it('applies default tone styles for invalid tone value', () => {
+    render(
+      <GlassCard tone="invalid-tone">
+        <span>content</span>
+      </GlassCard>
+    );
+    const wrapper = screen.getByRole("group");
+    // Expect default (neutral) classes
+    expect(wrapper).toHaveClass("bg-white/80");
+    expect(wrapper).toHaveClass("text-slate-900");
+    expect(wrapper).toHaveClass("border-white/15");
+  });
+
+  it('does not apply any padding class for invalid padding value', () => {
+    render(
+      <GlassCard padding={"invalid" as any}>
+        <span data-testid="inner" />
+      </GlassCard>
+    );
+    const inner = screen.getByTestId("inner").parentElement as HTMLElement;
+    expect(inner.className).toBe("");
+  });
 });

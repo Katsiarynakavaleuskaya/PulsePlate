@@ -30,7 +30,7 @@ export function FormField({
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
 
-      {children || (
+      {React.Children.count(children) > 0 ? children : (
         <input
           id={name}
           name={name}

@@ -6,6 +6,7 @@ interface SwipeContainerProps {
   onSwipeRight?: () => void;
   threshold?: number;
   className?: string;
+  touchAction?: React.CSSProperties['touchAction'];
 }
 
 export function SwipeContainer({
@@ -13,28 +14,30 @@ export function SwipeContainer({
   onSwipeLeft,
   onSwipeRight,
   threshold = 50,
-  className = ''
+  className = '',
+  touchAction = 'pan-y pinch-zoom',
 }: SwipeContainerProps) {
-  const [startX, setStartX] = useState(0);
-  const [currentX, setCurrentX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef(0);
+  const currentXRef = useRef(0);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    setStartX(e.touches[0].clientX);
-    setCurrentX(e.touches[0].clientX);
+    const touchX = e.touches[0].clientX;
+    startXRef.current = touchX;
+    currentXRef.current = touchX;
     setIsSwiping(true);
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isSwiping) return;
-    setCurrentX(e.touches[0].clientX);
+    currentXRef.current = e.touches[0].clientX;
   }, [isSwiping]);
 
   const handleTouchEnd = useCallback(() => {
     if (!isSwiping) return;
 
-    const deltaX = currentX - startX;
+    const deltaX = currentXRef.current - startXRef.current;
     const absDeltaX = Math.abs(deltaX);
 
     // Only trigger swipe if movement is significant enough
@@ -47,7 +50,7 @@ export function SwipeContainer({
     }
 
     setIsSwiping(false);
-  }, [isSwiping, currentX, startX, threshold, onSwipeLeft, onSwipeRight]);
+  }, [isSwiping, threshold, onSwipeLeft, onSwipeRight]);
 
   return (
     <div
@@ -56,7 +59,7 @@ export function SwipeContainer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      style={{ touchAction: 'pan-y pinch-zoom' }}
+      style={{ touchAction }}
     >
       {children}
     </div>

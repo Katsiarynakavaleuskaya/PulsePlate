@@ -43,7 +43,7 @@ function mergeHeaders(init?: RequestInit): Headers {
   if (
     init?.body &&
     typeof init.body === "string" &&
-    init.body.trim().startsWith("{")
+    (init.body.trim().startsWith("{") || init.body.trim().startsWith("["))
   ) {
     defaults["Content-Type"] = "application/json";
   }

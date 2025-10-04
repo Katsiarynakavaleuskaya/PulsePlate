@@ -18,13 +18,13 @@ export function PullToRefresh({
 }: PullToRefreshProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
-  const [startY, setStartY] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startYRef = useRef(0);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (disabled || isRefreshing) return;
-    setStartY(e.touches[0].clientY);
+    startYRef.current = e.touches[0].clientY;
     setIsPulling(true);
   }, [disabled, isRefreshing]);
 
@@ -32,13 +32,17 @@ export function PullToRefresh({
     if (!isPulling || disabled || isRefreshing) return;
 
     const currentY = e.touches[0].clientY;
-    const distance = Math.max(0, currentY - startY);
+    const distance = Math.max(0, currentY - startYRef.current);
 
-    // Only allow pulling when at the top of the container
-    if (containerRef.current && containerRef.current.scrollTop === 0) {
+    // Only allow pulling when at the top of the container or window
+    const isAtTop =
+      (containerRef.current && containerRef.current.scrollTop === 0) ||
+      (window.scrollY === 0);
+
+    if (isAtTop) {
       setPullDistance(distance * 0.5); // Dampen the pull distance
     }
-  }, [isPulling, startY, disabled, isRefreshing]);
+  }, [isPulling, disabled, isRefreshing]);
 
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling || disabled || isRefreshing) {
