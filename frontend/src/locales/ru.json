@@ -10,31 +10,31 @@
   },
   "paywall": {
     "title": "Откройте Premium",
-    "subtitle": "Персональная тарелка, микро-баланс, недельный план.",
+    "subtitle": "Персональный рацион, точный баланс, недельная программа.",
     "cta": "Продолжить",
     "legal": "Подписка продлевается автоматически. Отмена — в Настройках.",
     "before": {
       "label": "До",
-      "randomPlate": "Случайная тарелка",
-      "macrosOnly": "Только макро",
+      "randomPlate": "Случайный рацион",
+      "macrosOnly": "Только макронутриенты",
       "manualShopping": "Список покупок вручную"
     },
     "after": {
       "label": "После",
-      "personalPlate": "Персональная тарелка",
-      "microBalance": "Микро-баланс",
-      "autoShoppingList": "Авто список покупок"
+      "personalPlate": "Персональный рацион",
+      "microBalance": "Точный баланс",
+      "autoShoppingList": "Автосписок покупок"
     },
     "items": {
       "before": {
-        "random_plate": "Случайная тарелка",
-        "macros_only": "Только макро",
+        "random_plate": "Случайный рацион",
+        "macros_only": "Только макронутриенты",
         "manual_shopping": "Список покупок вручную"
       },
       "after": {
-        "personal_plate": "Персональная тарелка",
-        "micro_balance": "Микро-баланс",
-        "auto_shopping_list": "Авто список покупок"
+        "personal_plate": "Персональный рацион",
+        "micro_balance": "Точный баланс",
+        "auto_shopping_list": "Автосписок покупок"
       }
     }
   }
