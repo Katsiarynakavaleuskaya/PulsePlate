@@ -68,7 +68,13 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
     .join(" ");
 
   return (
-    <div ref={ref} className={wrapperClasses} role={role ?? "group"} {...ariaProps} {...rest}>
+    <div
+      ref={ref}
+      className={wrapperClasses}
+      {...(role ? { role } : {})}
+      {...ariaProps}
+      {...rest}
+    >
       <div className={contentClasses}>{children}</div>
     </div>
   );

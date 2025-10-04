@@ -6,20 +6,33 @@ interface OfflineIndicatorProps {
 }
 
 export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [showIndicator, setShowIndicator] = useState(false);
+  const isBrowser = typeof window !== 'undefined' && typeof navigator !== 'undefined';
+  const initialOnline = isBrowser ? navigator.onLine : true;
+  const [isOnline, setIsOnline] = useState(initialOnline);
+  const [showIndicator, setShowIndicator] = useState(!initialOnline);
 
   useEffect(() => {
+    let hideTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    const clearHideTimeout = () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = undefined;
+      }
+    };
+
     const handleOnline = () => {
       setIsOnline(true);
       setShowIndicator(true);
       // Hide indicator after 3 seconds
-      setTimeout(() => setShowIndicator(false), 3000);
+      clearHideTimeout();
+      hideTimeout = window.setTimeout(() => setShowIndicator(false), 3000);
     };
 
     const handleOffline = () => {
       setIsOnline(false);
       setShowIndicator(true);
+      clearHideTimeout();
     };
 
     window.addEventListener('online', handleOnline);
@@ -28,6 +41,7 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearHideTimeout();
     };
   }, []);
 

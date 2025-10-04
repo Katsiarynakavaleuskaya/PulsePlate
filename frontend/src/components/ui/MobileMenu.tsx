@@ -43,7 +43,9 @@ export function MobileMenu({ isOpen, onClose, children }: MobileMenuProps) {
                   type="button"
                   className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                   onClick={onClose}
+                  aria-label="Close menu"
                 >
+                  <span className="sr-only">Close menu</span>
                   <X className="h-6 w-6" />
                 </button>
               </div>
@@ -71,7 +73,9 @@ export function MobileMenuButton({ onClick, className = '' }: MobileMenuButtonPr
       className={`lg:hidden rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 min-h-[44px] min-w-[44px] flex items-center justify-center ${className}`}
       onClick={onClick}
       style={{ touchAction: 'manipulation' }}
+      aria-label="Open menu"
     >
+      <span className="sr-only">Open menu</span>
       <Menu className="h-6 w-6" />
     </button>
   );
