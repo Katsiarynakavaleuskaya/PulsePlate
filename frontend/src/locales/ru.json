@@ -6,7 +6,22 @@
   "shoplist": {
     "loading": "Загружаем список…",
     "error": "Ошибка",
-    "empty": "Пусто."
+    "empty": "Пусто.",
+    "title": "Список покупок",
+    "downloadCsv": "Экспорт CSV",
+    "downloadPdf": "Экспорт PDF",
+    "downloadingCsv": "Скачиваем CSV…",
+    "downloadingPdf": "Скачиваем PDF…",
+    "share": "Поделиться…",
+    "downloadError": "Не удалось скачать файл",
+    "shareError": "Не удалось поделиться",
+    "tryAgain": "Попробуйте ещё раз.",
+    "contentTitle": "Содержимое списка покупок",
+    "category": "Категория",
+    "noItems": "Нет позиций",
+    "store": "Магазин",
+    "estimated": "≈",
+    "downloadHint": "Экспорт готов. Приватная ссылка действительна 15 минут."
   },
   "paywall": {
     "title": "Откройте Premium",

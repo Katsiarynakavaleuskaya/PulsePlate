@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-// TODO: Generate types from OpenAPI schema
-// import type { components, paths } from "../../api/schema";
+import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
@@ -51,18 +50,9 @@ async function downloadSignedFile(url: string, filename: string) {
   URL.revokeObjectURL(anchor.href);
 }
 
-// TODO: Replace with proper types from OpenAPI schema
-type WeekPlanResponse = Record<string, unknown>;
-type WeekPlanRequest = {
-  sex: string;
-  age: number;
-  height_cm: number;
-  weight_kg: number;
-  activity: string;
-  goal: string;
-  diet_flags: string[];
-  lang?: string;
-};
+type WeekPlanResponse =
+  paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
+type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
