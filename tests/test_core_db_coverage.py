@@ -17,9 +17,14 @@ from core.db import (
     SessionLocal,
     _build_engine_url,
     _sqlite_connect_args,
+    _derive_async_url,
+    async_engine,
+    get_async_session,
     get_session,
     init_db,
+    init_db_async,
     session_scope,
+    session_scope_async,
 )
 
 
@@ -171,3 +176,62 @@ class TestCoreDB:
 
             args = _sqlite_connect_args(test_url)
             assert args["check_same_thread"] is False
+
+
+class TestAsyncDB:
+    """Tests for async database functions."""
+
+    def test_derive_async_url_sqlite(self):
+        """Test _derive_async_url for SQLite URLs."""
+        sqlite_url = "sqlite:///test.db"
+        async_url = _derive_async_url(sqlite_url)
+        assert async_url == "sqlite+aiosqlite:///test.db"
+
+    def test_derive_async_url_postgresql(self):
+        """Test _derive_async_url for PostgreSQL URLs."""
+        pg_url = "postgresql://user:pass@localhost/testdb"
+        async_url = _derive_async_url(pg_url)
+        assert async_url == "postgresql+asyncpg://user:pass@localhost/testdb"
+
+    def test_derive_async_url_mysql(self):
+        """Test _derive_async_url for MySQL URLs."""
+        mysql_url = "mysql://user:pass@localhost/testdb"
+        async_url = _derive_async_url(mysql_url)
+        assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
+
+    def test_derive_async_url_already_async(self):
+        """Test _derive_async_url when URL is already async."""
+        async_url = "sqlite+aiosqlite:///test.db"
+        result = _derive_async_url(async_url)
+        assert result == async_url
+
+    def test_derive_async_url_with_support(self):
+        """Test _derive_async_url correctly derives URL when async support is available."""
+        result = _derive_async_url("sqlite:///test.db")
+        assert result == "sqlite+aiosqlite:///test.db"
+
+    def test_async_engine_not_configured(self):
+        """Test that async_engine is None when not configured."""
+        assert async_engine is None
+
+    @pytest.mark.asyncio
+    async def test_get_async_session_not_configured(self):
+        """Test get_async_session raises error when not configured."""
+        with patch("core.db.AsyncSessionLocal", None):
+            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
+                async for _session in get_async_session():
+                    break
+
+    @pytest.mark.asyncio
+    async def test_session_scope_async_not_configured(self):
+        """Test session_scope_async raises error when not configured."""
+        with patch("core.db.AsyncSessionLocal", None):
+            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
+                async with session_scope_async():
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_init_db_async_fallback(self):
+        """Test init_db_async falls back to sync init when async not configured."""
+        # Should work without raising errors
+        await init_db_async()
