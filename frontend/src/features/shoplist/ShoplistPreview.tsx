@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
-import GlassCard from "../../components/GlassCard";
+import { GlassCard } from "../../components/GlassCard";
 import { getClientLocale } from "../../lib/i18n";
 
 /**
