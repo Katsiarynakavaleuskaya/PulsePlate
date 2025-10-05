@@ -40,8 +40,14 @@ export default function Profile() {
     } catch (error) {
       console.error("Failed to toggle RAG:", error);
       // Revert optimistic update on error
-      const refreshedStats = await getRagStats();
-      setRagStats(refreshedStats);
+      try {
+        const refreshedStats = await getRagStats();
+        setRagStats(refreshedStats);
+      } catch (statsError) {
+        console.error("Failed to refresh RAG stats after toggle error:", statsError);
+        // Fallback: set error state
+        setRagStats({ enabled: !enabled, error: "Failed to toggle RAG feature" });
+      }
     }
   };
 

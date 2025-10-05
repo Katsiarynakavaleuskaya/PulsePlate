@@ -31,7 +31,10 @@ export function Toggle({
   className = '',
   id
 }: ToggleProps) {
-  const toggleId = id ?? sanitizeId(label);
+  const generatedId = useId();
+  const normalizedLabelId = sanitizeId(label) || 'toggle';
+  const toggleId = id ?? `${normalizedLabelId}-${generatedId}`;
+  const inputId = `${toggleId}-input`;
   const checkboxRef = React.useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,7 +52,7 @@ export function Toggle({
       <div className="flex-1">
         <label
           id={toggleId}
-          htmlFor={toggleId}
+          htmlFor={inputId}
           className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
         >
           {label}
@@ -88,7 +91,7 @@ export function Toggle({
       {/* Hidden checkbox for form compatibility */}
       <input
         ref={checkboxRef}
-        id={toggleId}
+        id={inputId}
         type="checkbox"
         checked={checked}
         onChange={handleChange}

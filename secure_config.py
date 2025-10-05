@@ -26,6 +26,10 @@ except ImportError:  # pragma: no cover
         pass  # pragma: no cover
 
 
+# Determine the correct decryption error type based on availability
+_DecryptionError = InvalidToken if ENCRYPTION_AVAILABLE else InvalidTokenPlaceholder
+
+
 def get_encryption_key() -> Optional[bytes]:
     """Get the encryption key if it exists."""
     key_file = Path.home() / ".cursor" / ".key"
@@ -194,9 +198,6 @@ def decrypt_value(value: str) -> str:
 
     if not ENCRYPTION_AVAILABLE:
         return value  # Cannot decrypt without cryptography
-
-    # Select the appropriate exception type at module level
-    _DecryptionError = InvalidToken if ENCRYPTION_AVAILABLE else InvalidTokenPlaceholder
 
     try:
         return _decrypt_with_key(value.replace("encrypted:", ""))

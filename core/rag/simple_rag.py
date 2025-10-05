@@ -130,7 +130,7 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
         base_score = _score(query, ch)
 
         # Boost for exact phrase matches
-        if query_lower in chunk_lower:
+        if query_lower and query_lower in chunk_lower:
             base_score += 0.3
 
         scored.append((src, ch, base_score))

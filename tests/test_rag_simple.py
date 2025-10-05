@@ -68,7 +68,9 @@ def test_get_rag_stats_with_documents(tmp_path: Path):
     rag = _reload_with_root(tmp_path)
     stats = rag.get_rag_stats()
 
-    assert stats["total_chunks"] == 3  # Assuming each paragraph becomes a chunk
+    assert (
+        stats["total_chunks"] == 3
+    )  # Each document produces one merged chunk under the default 800-character limit
     assert stats["index_loaded"] is True
     # Sources should contain the filenames
     assert "doc1.md" in stats["sources"]

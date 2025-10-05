@@ -45,6 +45,16 @@ else:
     LimiterType = Any
 
 Limiter: Optional[type[LimiterType]]
+
+# RAG feature toggle override (for MVP, persists in-memory)
+_rag_enabled_override: Optional[bool] = None
+
+
+def _is_truthy(value: str) -> bool:
+    """Check if a string value represents a truthy boolean."""
+    return value.strip().lower() in {"1", "true", "on", "yes"}
+
+
 try:
     from slowapi import Limiter as _Limiter
 
@@ -1123,11 +1133,9 @@ async def rag_stats():
         from core.rag.simple_rag import get_rag_stats
 
         stats = get_rag_stats()
-        return {
-            "enabled": str(os.getenv("FEATURE_RAG", "")).strip().lower()
-            in {"1", "true", "on", "yes"},
-            "stats": stats,
-        }
+        base_flag = _is_truthy(os.getenv("FEATURE_RAG", ""))
+        enabled = _rag_enabled_override if _rag_enabled_override is not None else base_flag
+        return {"enabled": enabled, "stats": stats}
     except ImportError:
         logger.warning("RAG module not available")
         return {"enabled": False, "error": "RAG feature not available"}
@@ -1136,21 +1144,20 @@ async def rag_stats():
         return {"enabled": False, "error": "Failed to retrieve RAG statistics"}
 
 
+class RagToggleRequest(BaseModel):
+    enabled: bool = Field(..., description="Whether to enable or disable RAG feature")
+
+
 @app.post("/api/v1/rag/toggle", dependencies=[Depends(_get_api_key_dynamic)])
-async def toggle_rag(request: dict):
+async def toggle_rag(request: RagToggleRequest):
     """Toggle RAG feature on/off."""
     try:
-        if "enabled" not in request:
-            raise HTTPException(status_code=422, detail="enabled field is required")
+        # Access the validated boolean value directly
+        enabled = request.enabled
 
-        enabled = request["enabled"]
-        # For now, this is a placeholder - RAG state would typically be stored in user settings
-        # or a database. For the MVP, we'll just validate the request.
-        if not isinstance(enabled, bool):
-            raise HTTPException(status_code=400, detail="enabled must be a boolean")
-
-        # TODO: Persist RAG preference to user settings/database
         logger.info("RAG toggle requested: enabled=%s", enabled)
+        global _rag_enabled_override
+        _rag_enabled_override = enabled
 
         return {"success": True, "enabled": enabled}
     except HTTPException:
