@@ -28,6 +28,18 @@ describe("api client", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
+  it("returns undefined for 204 No Content responses", async () => {
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 204,
+      url: "",
+      text: () => Promise.resolve(""),
+    } as Response);
+
+    const result = await api("/some-endpoint", { method: "GET" });
+    expect(result).toBeUndefined();
+  });
+
   it("falls back to mockUrl when network request fails", async () => {
     const fetchSpy = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 
