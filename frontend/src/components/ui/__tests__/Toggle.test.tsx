@@ -50,4 +50,21 @@ describe('Toggle', () => {
 
     expect(handleChange).not.toHaveBeenCalled();
   });
+
+  it('does not toggle when disabled via label click', () => {
+    const handleChange = vi.fn();
+    render(
+      <Toggle
+        label="Test Toggle"
+        checked={false}
+        onChange={handleChange}
+        disabled={true}
+      />
+    );
+
+    const label = screen.getByText('Test Toggle');
+    fireEvent.click(label);
+
+    expect(handleChange).not.toHaveBeenCalled();
+  });
 });

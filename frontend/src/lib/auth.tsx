@@ -56,7 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error('auth.apiKey.tooShort');
     }
     // Add format check: only allow alphanumeric, dashes, and underscores
-    if (!/^[A-Za-z0-9\-_]+$/.test(trimmedKey)) {
+    if (!/^[A-Za-z0-9_-]+$/.test(trimmedKey)) {
       throw new Error('auth.apiKey.invalidFormat');
     }
     if (promptTimeoutRef.current !== null) {

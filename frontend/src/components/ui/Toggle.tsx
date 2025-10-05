@@ -26,7 +26,7 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         role="switch"
         aria-checked={checked}
         aria-labelledby={labelId}
-        onClick={() => onChange(!checked)}
+        onClick={() => !disabled && onChange(!checked)}
         disabled={disabled}
         className={`
           relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
