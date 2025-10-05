@@ -53,7 +53,7 @@ struct AnimationTestView: View {
                         debounceWorkItem?.cancel()
 
                         // Schedule new work item with debounce delay
-                        debounceWorkItem = DispatchWorkItem { [self] in
+                        debounceWorkItem = DispatchWorkItem {
                             if let newUrl = Bundle.main.url(forResource: videos[newVideo], withExtension: "mp4") {
                                 setupPlayer(with: newUrl)
                                 if isPlaying {
