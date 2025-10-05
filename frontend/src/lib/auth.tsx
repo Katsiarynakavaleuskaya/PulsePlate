@@ -11,6 +11,7 @@ export class AuthError extends Error {
     super(message);
     this.name = 'AuthError';
     this.code = code;
+    Object.setPrototypeOf(this, AuthError.prototype);
   }
 }
 
@@ -64,8 +65,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const setApiKey = (key: string, remember: boolean = false) => {
     const trimmedKey = key.trim();
-    // Increase minimum length to 20 characters
-    if (trimmedKey.length < 20) {
+    // Validate minimum API key length
+    if (trimmedKey.length < MIN_API_KEY_LENGTH) {
       throw new AuthError('API_KEY_TOO_SHORT');
     }
     // Add format check: only allow alphanumeric, dashes, and underscores
