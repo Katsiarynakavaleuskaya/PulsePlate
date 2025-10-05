@@ -25,7 +25,7 @@ Platform Notes:
 import argparse
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Union
 
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
@@ -39,7 +39,7 @@ if not ENCRYPTION_AVAILABLE:
 DEFAULT_PROFILE = "premium"
 CURSOR_SUBDIR = ".cursor"
 
-PROFILE_CONFIG: Dict[str, Dict[str, str]] = {
+PROFILE_CONFIG: Dict[str, Dict[str, Union[str, List[str]]]] = {
     "premium": {
         "env_keys": ["OPENAI_API_KEY"],
         "settings_key": "cursor.ai.openaiApiKey",
