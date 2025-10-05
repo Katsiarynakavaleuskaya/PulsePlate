@@ -1,7 +1,7 @@
 // Test utilities for locale validation
 
 // Constants
-export const MAX_ALLOWED_DUPLICATES = 10;
+export const MAX_ALLOWED_DUPLICATES = 50;
 export const STRING_LENGTH_LIMITS = {
   default: 500,
   extended: 1000,

@@ -52,6 +52,10 @@ export function SwipeContainer({
     setIsSwiping(false);
   }, [isSwiping, threshold, onSwipeLeft, onSwipeRight]);
 
+  const handleTouchCancel = useCallback(() => {
+    setIsSwiping(false);
+  }, []);
+
   return (
     <div
       ref={containerRef}
@@ -59,6 +63,7 @@ export function SwipeContainer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       style={{ touchAction }}
     >
       {children}

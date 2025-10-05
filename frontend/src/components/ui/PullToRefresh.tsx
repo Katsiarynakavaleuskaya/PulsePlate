@@ -41,6 +41,8 @@ export function PullToRefresh({
 
     if (isAtTop) {
       setPullDistance(distance * 0.5); // Dampen the pull distance
+    } else {
+      setPullDistance(0);
     }
   }, [isPulling, disabled, isRefreshing]);
 
@@ -67,6 +69,11 @@ export function PullToRefresh({
     setPullDistance(0);
   }, [isPulling, pullDistance, threshold, onRefresh, disabled, isRefreshing]);
 
+  const handleTouchCancel = useCallback(() => {
+    setPullDistance(0);
+    setIsPulling(false);
+  }, []);
+
   const progress = Math.min(pullDistance / threshold, 1);
   const showIndicator = pullDistance > 10;
 
@@ -77,6 +84,7 @@ export function PullToRefresh({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
     >
       {/* Pull indicator */}
       {showIndicator && (

@@ -135,13 +135,26 @@ export default function ShoplistPreview() {
       cleanup: () => URL.revokeObjectURL(url)
     });
   }, []);
-        await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
-      } catch (error: unknown) {
-        setDownloadError(formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`));
-      }
-    },
-    [t],
-  );
+
+  const handleDownload = useCallback(async (kind: "csv" | "pdf") => {
+    try {
+      setDownloading(kind);
+      await downloadFile(kind);
+    } catch (error: unknown) {
+      setDownloadError(formatShareErrorMessage(error, `${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}`));
+    } finally {
+      setDownloading(null);
+    }
+  }, [downloadFile, t]);
+
+  const handleShare = useCallback(async (kind: "csv" | "pdf") => {
+    try {
+      const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
+      await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
+    } catch (error: unknown) {
+      setDownloadError(formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`));
+    }
+  }, [t]);
 
   if (loading) {
     return <div className="max-w-3xl mx-auto p-6">{t('shoplist.loading')}</div>;

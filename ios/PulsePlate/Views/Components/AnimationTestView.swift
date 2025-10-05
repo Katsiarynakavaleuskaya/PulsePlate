@@ -23,6 +23,7 @@ struct AnimationTestView: View {
     @State private var currentVideo = 0
     @State private var isPlaying = false
     @StateObject private var playerWrapper = PlayerWrapper()
+    @State private var debounceWorkItem: DispatchWorkItem?
 
     private let videos = [
         "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
@@ -47,11 +48,22 @@ struct AnimationTestView: View {
                             playerWrapper.player.play()
                         }
                     }
-                    .onChange(of: currentVideo) { _, _ in
-                        setupPlayer(with: url)
-                        if isPlaying {
-                            playerWrapper.player.play()
+                    .onChange(of: currentVideo) { _, newVideo in
+                        // Cancel any pending work item to debounce rapid changes
+                        debounceWorkItem?.cancel()
+
+                        // Schedule new work item with debounce delay
+                        debounceWorkItem = DispatchWorkItem { [self] in
+                            if let newUrl = Bundle.main.url(forResource: videos[newVideo], withExtension: "mp4") {
+                                setupPlayer(with: newUrl)
+                                if isPlaying {
+                                    playerWrapper.player.play()
+                                }
+                            }
                         }
+
+                        // Execute after 0.3 seconds delay to prevent rapid tap issues
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: debounceWorkItem!)
                     }
                     .onChange(of: isPlaying) { _, playing in
                         if playing {
@@ -118,6 +130,11 @@ struct AnimationTestView: View {
         .navyBackground()
         .navigationTitle("Animation Test")
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear {
+            // Cancel any pending debounce work item when view disappears
+            debounceWorkItem?.cancel()
+            debounceWorkItem = nil
+        }
     }
 
     private func setupPlayer(with url: URL) {
