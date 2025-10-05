@@ -193,7 +193,7 @@ def decrypt_value(value: str) -> str:
         fernet = Fernet(key)
         decrypted: bytes = fernet.decrypt(encrypted_data.encode())
         return decrypted.decode()
-    except Exception as e:
+    except (InvalidToken, ValueError, TypeError, UnicodeDecodeError) as e:
         # Expected decryption failures - return original value
         logger.debug(
             "Decryption failed for value (expected error): %s: %s",
