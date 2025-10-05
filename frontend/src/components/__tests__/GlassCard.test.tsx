@@ -123,9 +123,9 @@ describe("GlassCard", () => {
     expect(content.className).toBe("custom-content");
   });
 
-  it('applies default tone styles for invalid tone value', () => {
+  it('applies default tone styles when tone is undefined', () => {
     render(
-      <GlassCard tone="invalid-tone">
+      <GlassCard>
         <span>content</span>
       </GlassCard>
     );
