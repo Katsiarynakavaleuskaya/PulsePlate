@@ -23,13 +23,13 @@ let package = Package(
             dependencies: [
                 .product(name: "Lottie", package: "lottie-ios")
             ],
-            path: "PulsePlate",
+            path: "../../../PulsePlate",
             resources: [
                 .process("Assets.xcassets"),
                 .process("Resources")
             ]
-            // Note: Assets loaded via SPM require Bundle.module
-            // In UI code, use: Image("FitChef", bundle: .module)
+            // Note: In hybrid Xcode/SPM setup, use Bundle.main for assets
+            // In UI code, use: Image("FitChef", bundle: .main)
             // instead of: Image("FitChef")
         ),
     ]
