@@ -10,7 +10,6 @@ interface ToggleProps {
 export function Toggle({ label, checked, onChange, disabled = false }: ToggleProps) {
   const id = useId();
   const inputId = `toggle-input-${id}`;
-  const toggleId = `toggle-${id}`;
 
   return (
     <div className="flex items-center space-x-2">
@@ -21,13 +20,11 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
         className="sr-only"
-        aria-labelledby={toggleId}
       />
       <button
-        id={toggleId}
         role="switch"
         aria-checked={checked}
-        aria-labelledby={inputId}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         disabled={disabled}
         className={`

@@ -33,7 +33,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!storedKey) {
       // Delay showing prompt to avoid flash on initial load
       promptTimeoutRef.current = window.setTimeout(() => {
-        if (!getStoredApiKey()) {
+        // Double-check that no key was set during the delay
+        const currentKey = getStoredApiKey();
+        if (!currentKey) {
           setShowAuthPrompt(true);
         }
       }, 500);
