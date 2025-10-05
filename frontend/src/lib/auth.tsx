@@ -37,8 +37,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const setApiKey = (key: string, remember: boolean = false) => {
     const trimmedKey = key.trim();
-    if (trimmedKey.length < 3) {
-      throw new Error('API key must be at least 3 characters');
+    // Increase minimum length to 20 characters
+    if (trimmedKey.length < 20) {
+      throw new Error('API key must be at least 20 characters');
+    }
+    // Add format check: only allow alphanumeric, dashes, and underscores
+    if (!/^[A-Za-z0-9\-_]+$/.test(trimmedKey)) {
+      throw new Error('API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed.');
     }
     setStoredApiKey(trimmedKey, remember);
     setApiKeyState(trimmedKey);
