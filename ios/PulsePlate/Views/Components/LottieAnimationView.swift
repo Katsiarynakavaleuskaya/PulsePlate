@@ -35,12 +35,11 @@ struct LottieAnimationView: View {
     }
 
     private func loadAnimation() {
-        do {
-            animation = try LottieAnimation.from(named: animationName)
+        animation = LottieAnimation.named(animationName, bundle: .main)
+        if animation != nil {
             print("✅ Lottie animation loaded: \(animationName)")
-        } catch {
-            print("❌ Failed to load Lottie animation: \(animationName) - \(error)")
-            animation = nil
+        } else {
+            print("❌ Failed to load Lottie animation: \(animationName)")
         }
     }
 }
@@ -193,7 +192,7 @@ struct LottieTestView: View {
             Spacer()
         }
         .padding()
-        .background(.navy)
+        .navyBackground()
         .navigationTitle("Lottie Test")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -207,5 +206,5 @@ struct LottieTestView: View {
         AnimatedMascotBubbleLottie(textKey: "Добро пожаловать в PulsePlate!")
             .padding()
     }
-    .background(.navy)
+    .navyBackground()
 }

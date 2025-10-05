@@ -7,17 +7,17 @@ struct ColorTestView: View {
                 Text("Color Assets Test")
                     .font(.largeTitle)
                     .bold()
-                    .foregroundColor(.textPrimary)
+                    .foregroundColor(.white)
 
                 // Brand Colors
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Brand Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     HStack(spacing: 12) {
                         ColorCard(name: "Navy", color: .navy)
-                        ColorCard(name: "Primary", color: .primary)
+                        ColorCard(name: "AppPrimary", color: .appPrimary)
                         ColorCard(name: "Accent", color: .accent)
                     }
 
@@ -32,7 +32,7 @@ struct ColorTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Surface Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     HStack(spacing: 12) {
                         ColorCard(name: "Surface", color: .surface)
@@ -45,24 +45,25 @@ struct ColorTestView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Text Colors")
                         .font(.headline)
-                        .foregroundColor(.textPrimary)
+                        .foregroundColor(.white)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Primary Text")
+                        Text("Primary Text")
                             .foregroundColor(.textPrimary)
                         Text("Secondary Text")
-                            .foregroundColor(.textSecondary)
+                            .foregroundColor(.gray)
                         Text("Tertiary Text")
                             .foregroundColor(.textTertiary)
                     }
                     .padding()
-                    .background(.surface)
+                    .background(Color.surface)
                     .cornerRadius(12)
                 }
             }
             .padding()
         }
-        .background(.navy)
+        .navyBackground()
     }
 }
 
@@ -78,7 +79,7 @@ struct ColorCard: View {
 
             Text(name)
                 .font(.caption)
-                .foregroundColor(.textSecondary)
+                .foregroundColor(.white)
         }
     }
 }

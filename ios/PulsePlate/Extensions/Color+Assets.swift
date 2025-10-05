@@ -4,7 +4,7 @@ import SwiftUI
 extension Color {
     // MARK: - Brand Colors
     static let navy = Color("Navy")
-    static let primary = Color("Primary")
+    static let appPrimary = Color("AppPrimary")
     static let accent = Color("AccentGreen")
     static let heart = Color("HeartRed")
     static let gold = Color("Gold")
@@ -16,8 +16,8 @@ extension Color {
     static let info = Color(hex: "#3B82F6")
 
     // MARK: - Surface Colors
-    static let surface = Color.white.opacity(0.1)
-    static let surfaceElevated = Color.white.opacity(0.15)
+    static let surface = Color.gray.opacity(0.1)
+    static let surfaceElevated = Color.white.opacity(0.1)
     static let surfaceHighlight = Color.white.opacity(0.25)
 
     // MARK: - Text Colors
@@ -51,5 +51,39 @@ extension Color {
             blue:  Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+// MARK: - View Theme Extensions
+extension View {
+    /// Apply navy background - the main theme background used throughout the app
+    func navyBackground() -> some View {
+        self.background(Color.navy)
+    }
+
+    /// Apply glass card styling with consistent background and corner radius
+    func glassCardStyle() -> some View {
+        self
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+    }
+
+    /// Apply primary text color (white)
+    func primaryText() -> some View {
+        self.foregroundColor(.textPrimary)
+    }
+
+    /// Apply secondary text color
+    func secondaryText() -> some View {
+        self.foregroundColor(.textSecondary)
+    }
+
+    /// Apply tertiary text color
+    func tertiaryText() -> some View {
+        self.foregroundColor(.textTertiary)
     }
 }

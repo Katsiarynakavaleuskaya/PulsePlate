@@ -33,9 +33,9 @@ export function FormField({
       {React.Children.count(children) > 0 && React.isValidElement(children) ? (
         React.cloneElement(children, {
           id: name,
-          'aria-invalid': error ? 'true' : 'false',
+          'aria-invalid': Boolean(error),
           'aria-describedby': error ? `${name}-error` : undefined,
-          'aria-required': required ? 'true' : undefined,
+          'aria-required': required ? true : undefined,
         })
       ) : (
         <input
@@ -43,9 +43,9 @@ export function FormField({
           name={name}
           type={type}
           placeholder={placeholder}
-          aria-invalid={error ? 'true' : 'false'}
+          aria-invalid={Boolean(error)}
           aria-describedby={error ? `${name}-error` : undefined}
-          {...(required && { 'aria-required': 'true' })}
+          {...(required && { 'aria-required': true })}
           className={`
             w-full px-3 py-2 border rounded-lg shadow-sm
             bg-white dark:bg-gray-800

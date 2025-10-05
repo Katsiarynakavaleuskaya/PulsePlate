@@ -44,7 +44,7 @@ struct PlateRing: View {
     .onAppear {
       animatedProgress = clampedProgress
     }
-    .onChange(of: clampedProgress) { newValue in
+    .onChange(of: clampedProgress) { _, newValue in
       withAnimation(.easeInOut(duration: 0.8)) {
         animatedProgress = newValue
       }
@@ -56,5 +56,5 @@ struct PlateRing: View {
 
 #Preview {
   PlateRing(progress: 0.68)
-    .background(.navy)
+    .navyBackground()
 }
