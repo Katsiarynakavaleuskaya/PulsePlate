@@ -375,7 +375,7 @@ class TestSecureConfig:
         assert not temp_file.exists(), "Temp key file should be removed after failure"
 
     def test_get_or_create_encryption_key_replace_failure_best_effort_cleanup(
-        self, tmp_path, fake_crypto
+        self, tmp_path, fake_crypto, monkeypatch
     ):
         """Temp unlink failures are swallowed but original error surfaces."""
 
@@ -396,18 +396,21 @@ class TestSecureConfig:
             unlink_called = True
             raise RuntimeError("unlink boom")
 
+        # Monkeypatch the unlink method
+        original_unlink = temp_file.unlink
+        monkeypatch.setattr(temp_file, "unlink", _tracking_unlink)
+
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
             patch("secure_config.Fernet.generate_key", return_value=b"forced-key"),
             patch("secure_config.os.replace", side_effect=OSError("replace failed")),
-            patch.object(secure_config.Path, "unlink", _tracking_unlink),
         ):
             with pytest.raises(OSError, match="Failed to write encryption key"):
                 get_or_create_encryption_key()
 
         assert unlink_called
         if temp_file.exists():
-            temp_file.unlink()
+            original_unlink()
 
     def test_get_or_create_encryption_key_chmod_warning(self, tmp_path, caplog, fake_crypto):
         """Test chmod failure logs warning but still returns key."""
