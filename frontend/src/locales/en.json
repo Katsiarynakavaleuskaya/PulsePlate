@@ -3,6 +3,19 @@
     "ok": "OK",
     "cancel": "Cancel"
   },
+  "onboarding": {
+    "enterKey": {
+      "title": "API Key",
+      "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
+      "placeholder": "Paste X-API-Key",
+      "save": "Save",
+      "clear": "Clear",
+      "errorEmpty": "Please enter a non-empty API key.",
+      "successSaved": "Key saved.",
+      "keyCleared": "Key cleared.",
+      "changesNote": "Changes apply instantly. No page reload required — we'll return you to the previous screen automatically."
+    }
+  },
   "shoplist": {
     "loading": "Loading shopping list…",
     "error": "Error",

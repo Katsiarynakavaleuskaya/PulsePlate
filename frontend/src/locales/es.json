@@ -3,6 +3,19 @@
     "ok": "OK",
     "cancel": "Cancelar"
   },
+  "onboarding": {
+    "enterKey": {
+      "title": "Clave API",
+      "description": "La clave es obligatoria para las secciones Premium y de administración. Dónde obtenerla: revise README → sección de clave API.",
+      "placeholder": "Pegue X-API-Key",
+      "save": "Guardar",
+      "clear": "Limpiar",
+      "errorEmpty": "Por favor ingrese una clave API no vacía.",
+      "successSaved": "Clave guardada.",
+      "keyCleared": "Clave eliminada.",
+      "changesNote": "Los cambios se aplican instantáneamente. No se requiere recarga de página — lo devolveremos a la pantalla anterior automáticamente."
+    }
+  },
   "shoplist": {
     "loading": "Cargando lista de compras…",
     "error": "Error",

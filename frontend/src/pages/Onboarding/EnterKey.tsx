@@ -3,7 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../auth/AuthContext";
 import { useToast } from "../../components/ui/useToast";
 
+import { useTranslation } from "react-i18next";
+
 export default function EnterKey() {
+  const { t } = useTranslation();
   const auth = useContext(AuthContext);
   const toast = useToast();
   const navigate = useNavigate();
@@ -15,11 +18,11 @@ export default function EnterKey() {
   const handleSave = () => {
     const trimmed = value.trim();
     if (!trimmed) {
-      toast.error("Введите непустой API-ключ.");
+      toast.error(t("onboarding.enterKey.errorEmpty"));
       return;
     }
     auth?.setApiKey(trimmed);
-    toast.success("Ключ сохранён.");
+    toast.success(t("onboarding.enterKey.successSaved"));
     if (from && from !== "/enter-key") {
       navigate(from, { replace: true });
     }
@@ -28,22 +31,22 @@ export default function EnterKey() {
   const handleClear = () => {
     auth?.clearApiKey();
     setValue("");
-    toast.success("Ключ удалён.");
+    toast.success(t("onboarding.enterKey.keyCleared"));
   };
 
   return (
     <div className="max-w-md mx-auto p-6 space-y-4">
       <header>
-        <h1 className="text-2xl font-semibold mb-2">API-ключ</h1>
+        <h1 className="text-2xl font-semibold mb-2">{t("onboarding.enterKey.title")}</h1>
         <p className="text-sm text-gray-400">
-          Ключ обязателен для Premium и админ-разделов. Где взять: проверьте README → раздел API key.
+          {t("onboarding.enterKey.description")}
         </p>
       </header>
 
       <div className="space-y-3">
         <input
           className="w-full border border-white/10 rounded-xl bg-white/5 p-3 text-white placeholder:text-gray-400"
-          placeholder="Вставьте X-API-Key"
+          placeholder={t("onboarding.enterKey.placeholder")}
           value={value}
           autoComplete="off"
           onChange={(event) => setValue(event.target.value)}
@@ -54,18 +57,18 @@ export default function EnterKey() {
             type="button"
             onClick={handleSave}
           >
-            Сохранить
+            {t("onboarding.enterKey.save")}
           </button>
           <button
             className="rounded-xl border border-white/15 text-white py-3 px-4"
             type="button"
             onClick={handleClear}
           >
-            Очистить
+            {t("onboarding.enterKey.clear")}
           </button>
         </div>
         <p className="text-xs text-gray-500">
-          Изменения применяются мгновенно. Перезагружать страницу не требуется — мы вернём вас на предыдущий экран автоматически.
+          {t("onboarding.enterKey.changesNote")}
         </p>
       </div>
     </div>

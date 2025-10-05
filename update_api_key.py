@@ -55,12 +55,21 @@ PROFILE_CONFIG: Dict[str, Dict[str, Union[str, List[str]]]] = {
 }
 
 
-def update_mcp_config(api_key: str, profile_config: Dict[str, Union[str, List[str]]]) -> None:
+def update_mcp_config(api_key: str, profile_config: Dict[str, Union[str, List[str]]]) -> bool:
     """Update MCP configuration with API key."""
-    mcp_file = Path.home() / ".cursor" / "mcp.json"
+    # Validate profile_config has required key
+    if "mcp_env_key" not in profile_config:
+        print("❌ Error: Invalid profile configuration - missing mcp_env_key")
+        return False
+
+    mcp_file = Path.home() / CURSOR_SUBDIR / "mcp.json"
     if mcp_file.exists():
-        with open(mcp_file, "r") as f:
-            config = json.load(f)
+        try:
+            with open(mcp_file, "r") as f:
+                config = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"❌ Failed to read MCP config: {e}")
+            return False
 
         # Ensure nested structure exists
         config.setdefault("mcpServers", {})
@@ -70,20 +79,26 @@ def update_mcp_config(api_key: str, profile_config: Dict[str, Union[str, List[st
         # Update API key in MCP config (always plain text for runtime use)
         config["mcpServers"]["pulseplate-chatgpt"]["env"][profile_config["mcp_env_key"]] = api_key
 
-        with open(mcp_file, "w") as f:
-            json.dump(config, f, indent=2)
+        try:
+            with open(mcp_file, "w") as f:
+                json.dump(config, f, indent=2)
+        except OSError as e:
+            print(f"❌ Failed to write MCP config: {e}")
+            return False
 
         print(f"✅ Updated MCP configuration at {mcp_file}")
 
+    return True
 
-def update_env_file(stored_key: str, profile: str) -> None:
+
+def update_env_file(stored_key: str, profile: str) -> bool:
     """Update environment file with encrypted API key."""
     # Validate encryption
     if not stored_key.startswith("encrypted:"):
         print("❌ Error: Key must be encrypted before writing to .env")
-        return
+        return False
 
-    env_file = Path.home() / ".cursor" / ".env"
+    env_file = Path.home() / CURSOR_SUBDIR / ".env"
     env_file.parent.mkdir(parents=True, exist_ok=True)
 
     if env_file.exists():
@@ -92,7 +107,7 @@ def update_env_file(stored_key: str, profile: str) -> None:
                 content = f.read()
         except OSError as e:
             print(f"❌ Failed to read .env file: {e}")
-            return
+            return False
 
         # Replace API key for the specified profile
         lines = content.split("\n")
@@ -100,7 +115,13 @@ def update_env_file(stored_key: str, profile: str) -> None:
         profile_config = PROFILE_CONFIG.get(profile)
         if not profile_config:
             print(f"❌ Invalid profile: {profile}")
-            return
+            return False
+
+        # Validate env_keys list is not empty
+        if not profile_config.get("env_keys") or not isinstance(profile_config["env_keys"], list):
+            print("❌ Invalid profile configuration: missing or invalid env_keys")
+            return False
+
         env_key_name = profile_config["env_keys"][0]
 
         key_replaced = False
@@ -124,12 +145,16 @@ def update_env_file(stored_key: str, profile: str) -> None:
                 f.write("\n".join(lines))
         except OSError as e:
             print(f"❌ Failed to write .env file: {e}")
-            return
+            return False
 
         print(f"✅ Updated environment file at {env_file}")
 
+    return True
 
-def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption: bool = True):
+
+def update_api_key(
+    api_key: str, profile: str = DEFAULT_PROFILE, use_encryption: bool = True
+) -> bool:
     """
     Update API key in MCP configuration with encryption for specified profile.
 
@@ -176,13 +201,15 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     profile_config = PROFILE_CONFIG[profile]
 
     # Update MCP configuration
-    update_mcp_config(api_key, profile_config)
+    if not update_mcp_config(api_key, profile_config):
+        return False
 
     # Update environment file with encrypted key
-    update_env_file(stored_key, profile)
+    if not update_env_file(stored_key, profile):
+        return False
 
     # Update Cursor settings (plain text for runtime)
-    settings_file = Path.home() / ".cursor" / "settings.json"
+    settings_file = Path.home() / CURSOR_SUBDIR / "settings.json"
     if settings_file.exists():
         with open(settings_file, "r") as f:
             settings = json.load(f)
@@ -203,7 +230,7 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     return True
 
 
-def main():
+def main() -> None:
     """Main CLI function"""
     # Handle pytest execution where sys.argv contains pytest arguments
     import sys
