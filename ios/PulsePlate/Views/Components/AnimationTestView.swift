@@ -63,7 +63,7 @@ struct AnimationTestView: View {
                         }
 
                         // Execute after 0.3 seconds delay to prevent rapid tap issues
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: debounceWorkItem!)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: debounceWorkItem)
                     }
                     .onChange(of: isPlaying) { _, playing in
                         if playing {
