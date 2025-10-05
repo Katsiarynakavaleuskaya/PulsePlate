@@ -34,7 +34,19 @@
     "shareFailed": "Failed to share",
     "linkOpenFailed": "Failed to open private link",
     "tryAgain": "Try again.",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "loadingWeek": "Loading week…",
+    "loadError": "Failed to load plan",
+    "sheetsHelp": "In new Google Sheets: File → Import → Insert link and paste the CSV link below.",
+    "weeklyPlanTitle": "My Weekly Plan",
+    "openSheetsTitle": "Opens empty Google Sheets",
+    "copyCsvLinkTitle": "Copy direct CSV link",
+    "privateLinkLabel": "Private link",
+    "weeklySummaryTitle": "Weekly Plan Summary",
+    "emptySummary": "Empty for now.",
+    "kcalPerDay": "kcal/day",
+    "kcal": "kcal",
+    "noItems": "No items"
   },
   "paywall": {
     "title": "Unlock Premium",

@@ -35,8 +35,8 @@ struct ColorTestView: View {
                         .foregroundColor(.white)
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Surface", color: Color.gray.opacity(0.1))
-                        ColorCard(name: "Elevated", color: Color.white.opacity(0.1))
+                        ColorCard(name: "Surface", color: .surface)
+                        ColorCard(name: "Elevated", color: .surfaceElevated)
                         ColorCard(name: "Highlight", color: .surfaceHighlight)
                     }
                 }
@@ -57,7 +57,7 @@ struct ColorTestView: View {
                             .foregroundColor(.textTertiary)
                     }
                     .padding()
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color.surface)
                     .cornerRadius(12)
                 }
             }

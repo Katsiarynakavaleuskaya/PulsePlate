@@ -34,7 +34,19 @@
     "shareFailed": "No se pudo compartir",
     "linkOpenFailed": "No se pudo abrir el enlace privado",
     "tryAgain": "Inténtalo de nuevo.",
-    "unknownError": "Error desconocido"
+    "unknownError": "Error desconocido",
+    "loadingWeek": "Cargando semana…",
+    "loadError": "Error al cargar el plan",
+    "sheetsHelp": "En nueva pestaña de Google Sheets: Archivo → Importar → Insertar enlace e inserta el enlace CSV abajo.",
+    "weeklyPlanTitle": "Mi Plan Semanal",
+    "openSheetsTitle": "Abre Google Sheets vacío",
+    "copyCsvLinkTitle": "Copiar enlace CSV directo",
+    "privateLinkLabel": "Enlace privado",
+    "weeklySummaryTitle": "Resumen del Plan Semanal",
+    "emptySummary": "Vacío por ahora.",
+    "kcalPerDay": "kcal/día",
+    "kcal": "kcal",
+    "noItems": "Sin elementos"
   },
   "paywall": {
     "title": "Desbloquear Premium",

@@ -173,13 +173,13 @@ export default function WeeklyPlanViewer() {
   }, []);
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto p-6">Загружаем неделю…</div>;
+    return <div className="max-w-3xl mx-auto p-6">{t('plan.loadingWeek')}</div>;
   }
 
   if (err) {
     return (
       <div className="max-w-3xl mx-auto p-6 text-red-600">
-        Ошибка загрузки плана: {err}
+        {t('plan.loadError')}: {err}
       </div>
     );
   }
@@ -190,9 +190,7 @@ export default function WeeklyPlanViewer() {
 
   const openSheetsHelp = () => {
     window.open("https://sheets.new", "_blank", "noopener,noreferrer");
-    setHint(
-      "В новой вкладке Google Sheets: File → Import → Insert link и вставь CSV-ссылку ниже."
-    );
+    setHint(t('plan.sheetsHelp'));
   };
 
   const copyLink = async () => {
@@ -252,7 +250,7 @@ export default function WeeklyPlanViewer() {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="weekly-plan-actions-title" className="text-xl font-semibold">
-            Мой недельный план
+            {t('plan.weeklyPlanTitle')}
           </h2>
           <div className="flex flex-wrap gap-2">
             <button
@@ -287,7 +285,7 @@ export default function WeeklyPlanViewer() {
               type="button"
               className="border rounded-xl px-3 py-2 text-sm"
               onClick={openSheetsHelp}
-              title="Откроет пустой Google Sheets"
+              title={t('plan.openSheetsTitle')}
             >
               Open in Google Sheets
             </button>
@@ -295,7 +293,7 @@ export default function WeeklyPlanViewer() {
               type="button"
               className="border rounded-xl px-3 py-2 text-sm"
               onClick={copyLink}
-              title="Скопировать прямую CSV-ссылку"
+              title={t('plan.copyCsvLinkTitle')}
             >
               Copy CSV Link
             </button>
@@ -313,7 +311,7 @@ export default function WeeklyPlanViewer() {
             {hint}
             {lastSignedLink && (
               <div>
-                Приватная ссылка: <code>{lastSignedLink}</code>
+                {t('plan.privateLinkLabel')}: <code>{lastSignedLink}</code>
               </div>
             )}
           </div>
@@ -325,10 +323,10 @@ export default function WeeklyPlanViewer() {
         contentClassName="space-y-3"
       >
         <h2 id="weekly-plan-summary-title" className="text-lg font-semibold">
-          Сводка недельного плана
+          {t('plan.weeklySummaryTitle')}
         </h2>
         {dailyMenus.length === 0 ? (
-          <div className="opacity-80">Пока пусто.</div>
+          <div className="opacity-80">{t('plan.emptySummary')}</div>
         ) : (
           <ul className="space-y-4">
             {dailyMenus.map((menu, idx) => {
@@ -348,7 +346,7 @@ export default function WeeklyPlanViewer() {
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{dayTitle}</div>
                     {typeof dayEnergy === "number" && (
-                      <div className="text-sm opacity-70">{Math.round(dayEnergy)} ккал/день</div>
+                      <div className="text-sm opacity-70">{Math.round(dayEnergy)} {t('plan.kcalPerDay')}</div>
                     )}
                   </div>
                   <ul className="space-y-2">
@@ -366,7 +364,7 @@ export default function WeeklyPlanViewer() {
                           <div className="flex items-center justify-between">
                             <div className="font-medium">{mealName}</div>
                             {typeof mealEnergy === "number" && (
-                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} ккал</div>
+                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} {t('plan.kcal')}</div>
                             )}
                           </div>
                           <ul className="mt-2 grid gap-1">
@@ -379,13 +377,13 @@ export default function WeeklyPlanViewer() {
                               <li key={`${itemName}-${ii}`} className="text-sm">
                                 • {itemName}
                                 {typeof itemEnergy === "number" && (
-                                  <span className="opacity-70"> — {Math.round(itemEnergy)} ккал</span>
+                                  <span className="opacity-70"> — {Math.round(itemEnergy)} {t('plan.kcal')}</span>
                                 )}
                               </li>
                             );
                           })
                         ) : (
-                          <li className="text-sm opacity-60">Нет позиций</li>
+                          <li className="text-sm opacity-60">{t('plan.noItems')}</li>
                         )}
                       </ul>
                     </li>
