@@ -43,6 +43,10 @@ const renderWithProviders = (component: React.ReactElement) => {
   );
 };
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 describe('EnterKey', () => {
   it('renders the API key input form', () => {
     renderWithProviders(<EnterKey />);
