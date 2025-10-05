@@ -103,7 +103,7 @@ def get_or_create_encryption_key() -> bytes:
         os.replace(temp_file, key_file)
     except (OSError, IOError) as e:
         # Clean up temporary file if it exists
-        with suppress(Exception):
+        with suppress(OSError):
             temp_file.unlink()
         raise OSError(
             f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"
@@ -222,4 +222,6 @@ def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
         Decrypted API key or None if not found
     """
     value = os.getenv(env_var)
-    return None if value is None else decrypt_value(value)
+    if value is None:
+        return None
+    return decrypt_value(value)

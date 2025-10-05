@@ -50,11 +50,6 @@ Limiter: Optional[type[LimiterType]]
 _rag_enabled_override: Optional[bool] = None
 
 
-def _is_truthy(value: str) -> bool:
-    """Check if a string value represents a truthy boolean."""
-    return value.strip().lower() in {"1", "true", "on", "yes"}
-
-
 try:
     from slowapi import Limiter as _Limiter
 
@@ -203,6 +198,8 @@ app = FastAPI(title="PulsePlate", lifespan=lifespan)
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
 def _is_truthy(value: Optional[str]) -> bool:
+    if not value or not str(value).strip():
+        return False
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -1139,8 +1136,8 @@ async def rag_stats():
     except ImportError:
         logger.warning("RAG module not available")
         return {"enabled": False, "error": "RAG feature not available"}
-    except Exception as e:
-        logger.error("Failed to get RAG stats: %s", e)
+    except Exception:
+        logger.exception("Failed to get RAG stats")
         return {"enabled": False, "error": "Failed to retrieve RAG statistics"}
 
 
@@ -1164,7 +1161,7 @@ async def toggle_rag(request: RagToggleRequest):
         raise
     except Exception as e:
         logger.error("Failed to toggle RAG: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to toggle RAG feature")
+        raise HTTPException(status_code=500, detail="Failed to toggle RAG feature") from e
 
 
 MenuEngineCallable = Callable[..., Any]

@@ -2,6 +2,7 @@
 // EN: Minimal FastAPI client. No mocks/MSW in this step.
 
 import { logError } from "../lib/analytics";
+import { SettingsStore } from "../settings";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -17,9 +18,15 @@ const searchParams = (() => {
   return new URLSearchParams(window.location.search);
 })();
 
-const forceMock = searchParams.get("mock") === "1";
+const globalForceMock = searchParams.get("mock") === "1";
 
-function mockUrl(path: string): string | null {
+type ApiRequestInit = RequestInit & {
+  mockUrl?: string;
+  forceMock?: boolean;
+  onAuthError?: (code: 401 | 403, ctx: { clearApiKey: () => void }) => void;
+};
+
+function resolveMockUrl(path: string): string | null {
   if (path.includes("/premium/bmr")) {
     return "/mock/bmr.json";
   }
@@ -32,50 +39,21 @@ function mockUrl(path: string): string | null {
   return null;
 }
 
-// API Key management
-const API_KEY_STORAGE_KEY = "pulseplate_api_key";
-
-export function getStoredApiKey(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
-}
-
-export function setStoredApiKey(key: string, remember: boolean = false): void {
-  if (typeof window === "undefined") return;
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem(API_KEY_STORAGE_KEY, key);
-  // Clear from other storage
-  const otherStorage = remember ? sessionStorage : localStorage;
-  otherStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-export function clearStoredApiKey(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(API_KEY_STORAGE_KEY);
-  sessionStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-function mergeHeaders(init?: RequestInit): Headers {
-  const defaults = {
+function buildHeaders(init: RequestInit | undefined, apiKey: string | undefined): Headers {
+  const defaults: Record<string, string> = {
     Accept: "application/json",
-    "Accept-Language":
-      (typeof navigator !== "undefined" && navigator.language) || "en",
-  } satisfies Record<string, string>;
-
-  // Add API key if available
-  const apiKey = getStoredApiKey();
+  };
+  if (typeof navigator !== "undefined" && navigator.language) {
+    defaults["Accept-Language"] = navigator.language;
+  }
   if (apiKey) {
     defaults["X-API-Key"] = apiKey;
   }
 
-  // Only set Content-Type for JSON bodies
-  if (init?.body && typeof init.body === "string") {
-    try {
-      JSON.parse(init.body.trim());
-      defaults["Content-Type"] = "application/json";
-    } catch {
-      // Not valid JSON, don't set Content-Type
-    }
+  const bodyIsJsonString =
+    typeof init?.body === "string" && init.body.trim().startsWith("{") && init.body.trim().endsWith("}");
+  if (bodyIsJsonString && !defaults["Content-Type"]) {
+    defaults["Content-Type"] = "application/json";
   }
 
   const headers = new Headers(defaults);
@@ -84,9 +62,10 @@ function mergeHeaders(init?: RequestInit): Headers {
     return headers;
   }
 
-  const incoming = init.headers instanceof Headers
-    ? init.headers
-    : new Headers(init.headers as HeadersInit);
+  const incoming =
+    init.headers instanceof Headers
+      ? init.headers
+      : new Headers(init.headers as HeadersInit);
 
   incoming.forEach((value, key) => {
     headers.set(key, value);
@@ -95,53 +74,80 @@ function mergeHeaders(init?: RequestInit): Headers {
   return headers;
 }
 
-/**
- * Performs a fetch to the given API path and returns the parsed JSON, using a mock response when mocking is forced or the network request fails.
- *
- * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
- * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
- * @returns The parsed JSON response typed as `T`.
- * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
- */
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const tryNetwork = async (): Promise<T> => {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: mergeHeaders(init),
-    });
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => "<response body unavailable>");
-      throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
-    }
-    return res.json() as Promise<T>;
-  };
+async function runFetch(target: string, init: RequestInit): Promise<Response> {
+  return fetch(target, init);
+}
 
-  const tryMock = async (): Promise<T> => {
-    const url = mockUrl(path);
-    if (!url) {
+export async function api<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { mockUrl, forceMock, onAuthError, ...baseInit } = init;
+  const apiKey = SettingsStore.getApiKey();
+  const headers = buildHeaders(baseInit, apiKey);
+  const requestInit: RequestInit = { ...baseInit, headers };
+
+  const endpoint = `${API_BASE}${path}`;
+  const fallbackMockUrl = mockUrl ?? resolveMockUrl(path);
+  const shouldForceMock = Boolean(forceMock ?? globalForceMock);
+
+  const fetchMock = async (): Promise<Response> => {
+    if (!fallbackMockUrl) {
       throw new Error(`No mock mapped for ${path}`);
     }
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
-    }
-        console.info(`[API] MOCK fallback ON → ${url}`);
-    return res.json() as Promise<T>;
+    const response = await runFetch(fallbackMockUrl, requestInit);
+    console.info(`[API] MOCK fallback ON → ${fallbackMockUrl}`);
+    return response;
   };
 
-  if (forceMock) {
-    return tryMock();
-  }
-
+  let res: Response;
   try {
-    return await tryNetwork();
+    if (shouldForceMock) {
+      res = await fetchMock();
+    } else {
+      res = await runFetch(endpoint, requestInit);
+    }
   } catch (networkError) {
-    try {
-      return await tryMock();
-    } catch (mockError) {
-      throw networkError instanceof Error ? networkError : mockError;
+    if (!shouldForceMock && fallbackMockUrl) {
+      try {
+        logError(networkError, { url: path, endpoint, phase: "network-fallback" });
+      } catch {
+        // telemetry best-effort
+      }
+      res = await fetchMock();
+    } else {
+      try {
+        logError(networkError, { url: path, endpoint, phase: "network-error" });
+      } catch {
+        // ignore
+      }
+      throw networkError;
     }
   }
+
+  const effectiveUrl = res.url || (shouldForceMock && fallbackMockUrl ? fallbackMockUrl : endpoint);
+
+  if (res.status === 401 || res.status === 403) {
+    try {
+      logError(new Error(`Auth ${res.status}`), { url: path, endpoint: effectiveUrl });
+    } catch {
+      // ignore logging errors
+    }
+    onAuthError?.(res.status as 401 | 403, { clearApiKey: SettingsStore.clearApiKey });
+  }
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "<response body unavailable>");
+    try {
+      logError(new Error(`HTTP ${res.status}`), { url: path, endpoint: effectiveUrl, body: errorBody });
+    } catch {
+      // ignore logging errors
+    }
+    throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  return res.json() as Promise<T>;
 }
 
 export const fetchJson = api;

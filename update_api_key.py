@@ -78,14 +78,31 @@ def update_mcp_config(api_key: str, profile_config: Dict[str, Union[str, List[st
 
 def update_env_file(stored_key: str, profile: str) -> None:
     """Update environment file with encrypted API key."""
+    # Validate encryption
+    if not stored_key.startswith("encrypted:"):
+        print("❌ Error: Key must be encrypted before writing to .env")
+        return
+
     env_file = Path.home() / ".cursor" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+
     if env_file.exists():
-        with open(env_file, "r") as f:
-            content = f.read()
+        try:
+            with open(env_file, "r") as f:
+                content = f.read()
+        except OSError as e:
+            print(f"❌ Failed to read .env file: {e}")
+            return
 
         # Replace API key for the specified profile
         lines = content.split("\n")
-        env_key_name = "OPENAI_API_KEY" if profile == "premium" else "OPENAI_API_KEY_FREE"
+        # Get env key name from profile config instead of hard-coding
+        profile_config = PROFILE_CONFIG.get(profile)
+        if not profile_config:
+            print(f"❌ Invalid profile: {profile}")
+            return
+        env_key_name = profile_config["env_keys"][0]
+
         key_replaced = False
         for i, line in enumerate(lines):
             if line.startswith(f"{env_key_name}="):
@@ -102,8 +119,12 @@ def update_env_file(stored_key: str, profile: str) -> None:
         # - Uses Fernet symmetric encryption from cryptography library
         # - Function returns False if encryption is not available
         # - Plain text keys are NEVER written to .env file
-        with open(env_file, "w") as f:
-            f.write("\n".join(lines))
+        try:
+            with open(env_file, "w") as f:
+                f.write("\n".join(lines))
+        except OSError as e:
+            print(f"❌ Failed to write .env file: {e}")
+            return
 
         print(f"✅ Updated environment file at {env_file}")
 

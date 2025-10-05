@@ -43,7 +43,7 @@ export function Toggle({
 
   const handleButtonClick = () => {
     if (!disabled && checkboxRef.current) {
-      checkboxRef.current.click();
+      onChange(!checkboxRef.current.checked);
     }
   };
 

@@ -30,13 +30,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Show auth prompt if no key is stored
     if (!storedKey) {
-      setShowAuthPrompt(true);
+      // Delay showing prompt to avoid flash on initial load
+      setTimeout(() => setShowAuthPrompt(true), 500);
     }
   }, []);
 
   const setApiKey = (key: string, remember: boolean = false) => {
-    setStoredApiKey(key, remember);
-    setApiKeyState(key);
+    const trimmedKey = key.trim();
+    if (trimmedKey.length < 3) {
+      throw new Error('API key must be at least 3 characters');
+    }
+    setStoredApiKey(trimmedKey, remember);
+    setApiKeyState(trimmedKey);
     setShowAuthPrompt(false);
   };
 

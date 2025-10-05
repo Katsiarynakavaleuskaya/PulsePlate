@@ -7,15 +7,19 @@ import { GlassCard } from "../components/GlassCard";
 export default function Profile() {
   const { t } = useTranslation();
   const [ragStats, setRagStats] = useState<RagStatsResponse | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadRagStats = async () => {
       try {
         const stats = await getRagStats();
         setRagStats(stats);
+        setError(null);
       } catch (error) {
         console.error("Failed to load RAG stats:", error);
+        setError(t("profile.rag.errorLoading"));
       } finally {
         setLoading(false);
       }
@@ -25,6 +29,8 @@ export default function Profile() {
   }, []);
 
   const handleRagToggle = async (enabled: boolean) => {
+    const previousStats = ragStats;
+    setIsToggling(true);
     try {
       // Optimistically update UI
       setRagStats(prev => prev ? { ...prev, enabled } : null);
@@ -40,14 +46,17 @@ export default function Profile() {
     } catch (error) {
       console.error("Failed to toggle RAG:", error);
       // Revert optimistic update on error
+      if (previousStats) {
+        setRagStats(previousStats);
+      }
       try {
         const refreshedStats = await getRagStats();
         setRagStats(refreshedStats);
-      } catch (statsError) {
-        console.error("Failed to refresh RAG stats after toggle error:", statsError);
-        // Fallback: set error state
-        setRagStats({ enabled: !enabled, error: "Failed to toggle RAG feature" });
+      } catch (refreshError) {
+        console.error("Failed to refresh RAG stats after toggle error:", refreshError);
       }
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -68,6 +77,7 @@ export default function Profile() {
             description={t("profile.rag.description")}
             checked={ragStats?.enabled ?? false}
             onChange={handleRagToggle}
+            disabled={isToggling}
             className="py-4"
           />
 
@@ -93,7 +103,7 @@ export default function Profile() {
                   </>
                 ) : (
                   <div className="text-red-400">
-                    {(ragStats as RagStatsResponse).error || "Failed to load RAG statistics"}
+                    {ragStats.error || "Failed to load RAG statistics"}
                   </div>
                 )}
                 <div>
@@ -101,9 +111,11 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="text-red-400">
-              {t("profile.rag.stats")}: Failed to load
+          )}
+
+          {error && (
+            <div className="text-red-400 p-4 bg-red-900/20 rounded-lg">
+              {error}
             </div>
           )}
         </div>

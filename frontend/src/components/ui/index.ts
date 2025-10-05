@@ -8,4 +8,5 @@ export * from './MobileMenu';
 export * from './PullToRefresh';
 export * from './SwipeContainer';
 export * from './OfflineIndicator';
+export * from './useToast';
 export * from './Toggle';

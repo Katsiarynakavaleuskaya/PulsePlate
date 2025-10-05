@@ -86,9 +86,8 @@ describe('Toggle', () => {
     );
 
     const toggle = screen.getByRole('switch');
-    const label = screen.getByLabelText('Test Toggle');
 
     expect(toggle).toHaveAttribute('aria-checked', 'true');
-    expect(label).toBeInTheDocument();
+    expect(toggle).toHaveAccessibleName('Test Toggle');
   });
 });
