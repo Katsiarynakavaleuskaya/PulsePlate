@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../lib/auth";
+import { useAuth, AuthError } from "../../lib/auth";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
@@ -14,7 +14,7 @@ export default function EnterKey() {
   const { t } = useTranslation();
   const auth = useAuth();
   const navigate = useNavigate();
-  const location = useLocation<LocationState>();
+  const location = useLocation();
   const [value, setValue] = useState(auth.apiKey || "");
 
   // Sync value state with auth.apiKey to avoid stale inputs
@@ -23,7 +23,7 @@ export default function EnterKey() {
   }, [auth.apiKey]);
 
   // Get the page user was trying to access
-  const from = location.state?.from?.pathname || "/";
+  const from = (location.state as LocationState)?.from?.pathname || "/";
 
   const handleSave = () => {
     const trimmed = value.trim();
@@ -40,14 +40,12 @@ export default function EnterKey() {
         navigate("/", { replace: true });
       }
     } catch (error) {
-      let errorMessage = t("onboarding.enterKey.errorEmpty");
-      if (error instanceof Error) {
-        if (error.message === 'auth.apiKey.tooShort') {
+      let errorMessage = t("onboarding.enterKey.errorGeneric");
+      if (error instanceof AuthError) {
+        if (error.code === 'API_KEY_TOO_SHORT') {
           errorMessage = t("auth.apiKey.tooShort");
-        } else if (error.message === 'auth.apiKey.invalidFormat') {
+        } else if (error.code === 'API_KEY_INVALID_FORMAT') {
           errorMessage = t("auth.apiKey.invalidFormat");
-        } else {
-          errorMessage = error.message;
         }
       }
       toast.error(errorMessage);

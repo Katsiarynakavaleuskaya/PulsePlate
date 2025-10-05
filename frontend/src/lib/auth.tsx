@@ -1,5 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../api/client';
+
+export class AuthError extends Error {
+  code: string;
+
+  constructor(code: string, message?: string) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+  }
+}
 
 interface AuthContextType {
   apiKey: string | null;
@@ -53,11 +63,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const trimmedKey = key.trim();
     // Increase minimum length to 20 characters
     if (trimmedKey.length < 20) {
-      throw new Error('auth.apiKey.tooShort');
+      throw new AuthError('API_KEY_TOO_SHORT');
     }
     // Add format check: only allow alphanumeric, dashes, and underscores
     if (!/^[A-Za-z0-9_-]+$/.test(trimmedKey)) {
-      throw new Error('auth.apiKey.invalidFormat');
+      throw new AuthError('API_KEY_INVALID_FORMAT');
     }
     if (promptTimeoutRef.current !== null) {
       clearTimeout(promptTimeoutRef.current);

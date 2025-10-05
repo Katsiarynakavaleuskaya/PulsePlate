@@ -1,10 +1,11 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useState } from 'react';
 
 // Settings context for future use - currently no settings are implemented
+type Settings = Record<string, unknown>;
+
 interface SettingsContextType {
-  // Placeholder for future settings
-  settings: Record<string, never>;
-  updateSetting: <K extends keyof Record<string, never>>(key: K, value: Record<string, never>[K]) => void;
+  settings: Settings;
+  updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -13,16 +14,17 @@ interface SettingsProviderProps {
   children: ReactNode;
 }
 
-const initialSettings = {} as const;
+const initialSettings: Settings = {};
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const updateSetting = <K extends keyof typeof initialSettings>(key: K, value: typeof initialSettings[K]) => {
-    // Placeholder implementation - no settings currently implemented
-    console.warn(`Setting "${key}" not implemented yet`);
+  const [settings, setSettings] = useState<Settings>(initialSettings);
+
+  const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
   };
 
   const value: SettingsContextType = {
-    settings: initialSettings,
+    settings,
     updateSetting,
   };
 
