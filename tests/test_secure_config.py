@@ -87,6 +87,21 @@ class TestSecureConfig:
             # Should return unchanged when crypto not available
             assert result == encrypted_value
 
+    def test_decrypt_unicode_decode_error(self, tmp_path, fake_crypto):
+        """Test decrypt_value handles UnicodeDecodeError gracefully"""
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        test_key = fake_crypto.generate_key()
+        key_file.write_bytes(test_key)
+
+        # Mock Fernet to return non-UTF-8 bytes that will cause UnicodeDecodeError
+        with patch.object(fake_crypto, "decrypt", return_value=b"\xff\xfe\xfd"):  # Invalid UTF-8
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                encrypted_value = "encrypted:invalid-base64"
+                result = decrypt_value(encrypted_value)
+                # Should return original encrypted value on decode error
+                assert result == encrypted_value
+
     def test_encrypt_decrypt_roundtrip(self, tmp_path, fake_crypto):
         """Test full encryption/decryption cycle"""
         key_file = tmp_path / ".cursor" / ".key"

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
-import Toggle from '../Toggle';
+import { Toggle } from '../Toggle';
 
 describe('Toggle', () => {
   it('has proper accessibility attributes', () => {
@@ -30,6 +30,38 @@ describe('Toggle', () => {
 
     const toggle = screen.getByRole('switch');
     fireEvent.click(toggle);
+
+    expect(handleChange).toHaveBeenCalledWith(true);
+  });
+
+  it('toggles from checked to unchecked', () => {
+    const handleChange = vi.fn();
+    render(
+      <Toggle
+        label="Test Toggle"
+        checked={true}
+        onChange={handleChange}
+      />
+    );
+
+    const toggle = screen.getByRole('switch');
+    fireEvent.click(toggle);
+
+    expect(handleChange).toHaveBeenCalledWith(false);
+  });
+
+  it('toggles when Space key is pressed', () => {
+    const handleChange = vi.fn();
+    render(
+      <Toggle
+        label="Test Toggle"
+        checked={false}
+        onChange={handleChange}
+      />
+    );
+
+    const toggle = screen.getByRole('switch');
+    fireEvent.keyDown(toggle, { key: ' ', code: 'Space' });
 
     expect(handleChange).toHaveBeenCalledWith(true);
   });

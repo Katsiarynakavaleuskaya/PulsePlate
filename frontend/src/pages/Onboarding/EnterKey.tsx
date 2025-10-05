@@ -32,7 +32,7 @@ export default function EnterKey() {
       return;
     }
     try {
-      auth.setApiKey(trimmed);
+      auth.setApiKey(trimmed, true); // Remember by default for onboarding
       toast.success(t("onboarding.enterKey.successSaved"));
       if (from && from !== "/enter-key" && from !== "/") {
         navigate(from, { replace: true });
@@ -70,35 +70,40 @@ export default function EnterKey() {
         </p>
       </header>
 
-      <div className="space-y-3">
-        <input
-          className="w-full border border-white/10 rounded-xl bg-white/5 p-3 text-white placeholder:text-gray-400"
-          placeholder={t("onboarding.enterKey.placeholder")}
-          value={value}
-          autoComplete="off"
-          onChange={(event) => setValue(event.target.value)}
-        />
+        <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+        <div className="space-y-3">
+          <label htmlFor="api-key-input" className="sr-only">
+            {t("onboarding.enterKey.label")}
+          </label>
+          <input
+            id="api-key-input"
+            className="w-full border border-white/10 rounded-xl bg-white/5 p-3 text-white placeholder:text-gray-400"
+            placeholder={t("onboarding.enterKey.placeholder")}
+            value={value}
+            autoComplete="off"
+            onChange={(event) => setValue(event.target.value)}
+          />
 
-        <div className="flex gap-3">
-          <button
-            className="flex-1 rounded-xl bg-blue-600 text-white py-3 px-4 font-medium"
-            type="button"
-            onClick={handleSave}
-          >
-            {t("onboarding.enterKey.save")}
-          </button>
-          <button
-            className="rounded-xl border border-white/15 text-white py-3 px-4"
-            type="button"
-            onClick={handleClear}
-          >
-            {t("onboarding.enterKey.clear")}
-          </button>
+          <div className="flex gap-3">
+            <button
+              className="flex-1 rounded-xl bg-blue-600 text-white py-3 px-4 font-medium"
+              type="submit"
+            >
+              {t("onboarding.enterKey.save")}
+            </button>
+            <button
+              className="rounded-xl border border-white/15 text-white py-3 px-4"
+              type="button"
+              onClick={handleClear}
+            >
+              {t("onboarding.enterKey.clear")}
+            </button>
+          </div>
         </div>
-        <p className="text-xs text-gray-500">
-          {t("onboarding.enterKey.changesNote")}
-        </p>
-      </div>
+      </form>
+      <p className="text-xs text-gray-500">
+        {t("onboarding.enterKey.changesNote")}
+      </p>
     </div>
   );
 }

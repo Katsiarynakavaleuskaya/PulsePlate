@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import { useId } from 'react';
 
 interface ToggleProps {
   label: string;
@@ -27,6 +27,12 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         aria-checked={checked}
         aria-labelledby={labelId}
         onClick={() => !disabled && onChange(!checked)}
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === ' ' || e.key === 'Enter')) {
+            e.preventDefault();
+            onChange(!checked);
+          }
+        }}
         disabled={disabled}
         className={`
           relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
@@ -45,7 +51,7 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
       </button>
       <label
         id={labelId}
-        htmlFor={inputId}
+        htmlFor={disabled ? undefined : inputId}
         className="text-sm font-medium text-gray-700"
         style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
       >

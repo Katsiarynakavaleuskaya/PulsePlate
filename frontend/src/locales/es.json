@@ -13,6 +13,7 @@
     "enterKey": {
       "title": "Clave API",
       "description": "Clave obligatoria para secciones Premium y de administración. Dónde obtener: consulta README → sección de clave API.",
+      "label": "Clave API",
       "placeholder": "Pegar X-API-Key",
       "save": "Guardar",
       "clear": "Limpiar",
