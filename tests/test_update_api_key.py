@@ -81,16 +81,19 @@ class TestUpdateAPIKey:
         try:
             from cryptography.fernet import Fernet
 
-            # Create temp key
+            # Create temp key in the expected location
             key_file = tmp_path / ".cursor" / ".key"
             key_file.parent.mkdir(parents=True, exist_ok=True)
             test_key = Fernet.generate_key()
             key_file.write_bytes(test_key)
             os.chmod(key_file, 0o600)
 
+            # Mock Path.home to return our temp path and use the existing key
             with patch("secure_config.Path.home", return_value=tmp_path):
                 result = encrypt_value("sk-test12345678901234567890")
                 assert result.startswith("encrypted:")
+                # Verify it's actually encrypted (not plain text)
+                assert result != f"encrypted:{'sk-test12345678901234567890'.encode().decode()}"
 
         except ImportError:
             pytest.skip("cryptography not installed")
