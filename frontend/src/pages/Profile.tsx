@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getRagStats, toggleRag, RagStatsResponse } from "../api/client";
 import { Toggle } from "../components/ui/Toggle";
-import GlassCard from "../components/GlassCard";
+import { GlassCard } from "../components/GlassCard";
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -87,7 +87,7 @@ export default function Profile() {
                   </>
                 ) : (
                   <div className="text-red-400">
-                    {ragStats.error || "Failed to load RAG statistics"}
+                    {(ragStats as RagStatsResponse).error || "Failed to load RAG statistics"}
                   </div>
                 )}
                 <div>
