@@ -1,14 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 
-interface SettingsState {
-  // RAG settings
-  ragEnabled: boolean;
-  // Other settings can be added here
-}
-
+// Settings context for future use - currently no settings are implemented
 interface SettingsContextType {
-  settings: SettingsState;
-  updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
+  // Placeholder for future settings
+  settings: Record<string, never>;
+  updateSetting: <K extends keyof Record<string, never>>(key: K, value: Record<string, never>[K]) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -17,22 +13,16 @@ interface SettingsProviderProps {
   children: ReactNode;
 }
 
-const initialSettings: SettingsState = {
-  ragEnabled: false,
-};
+const initialSettings = {} as const;
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [settings, setSettings] = useState<SettingsState>(initialSettings);
-
-  const updateSetting = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: value,
-    }));
+  const updateSetting = <K extends keyof typeof initialSettings>(key: K, value: typeof initialSettings[K]) => {
+    // Placeholder implementation - no settings currently implemented
+    console.warn(`Setting "${key}" not implemented yet`);
   };
 
   const value: SettingsContextType = {
-    settings,
+    settings: initialSettings,
     updateSetting,
   };
 

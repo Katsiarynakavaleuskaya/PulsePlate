@@ -1,39 +1,53 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
+
+interface LocationState {
+  from?: {
+    pathname: string;
+  };
+}
 
 export default function EnterKey() {
   const { t } = useTranslation();
   const auth = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const location = useLocation<LocationState>();
   const [value, setValue] = useState(auth.apiKey || "");
 
+  // Sync value state with auth.apiKey to avoid stale inputs
+  useEffect(() => {
+    setValue(auth.apiKey || "");
+  }, [auth.apiKey]);
+
   // Get the page user was trying to access
-  const from = (location.state as any)?.from?.pathname || "/";
+  const from = location.state?.from?.pathname || "/";
 
   const handleSave = () => {
     const trimmed = value.trim();
     if (!trimmed) {
-      alert(t("onboarding.enterKey.errorEmpty"));
+      toast.error(t("onboarding.enterKey.errorEmpty"));
       return;
     }
     try {
       auth.setApiKey(trimmed);
-      alert(t("onboarding.enterKey.successSaved"));
-      if (from && from !== "/enter-key") {
+      toast.success(t("onboarding.enterKey.successSaved"));
+      if (from && from !== "/enter-key" && from !== "/") {
         navigate(from, { replace: true });
+      } else {
+        navigate("/", { replace: true });
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : t("onboarding.enterKey.errorEmpty"));
+      toast.error(error instanceof Error ? error.message : t("onboarding.enterKey.errorEmpty"));
     }
   };
 
   const handleClear = () => {
     auth.clearApiKey();
     setValue("");
-    alert(t("onboarding.enterKey.keyCleared"));
+    toast.success(t("onboarding.enterKey.keyCleared"));
   };
 
   return (
