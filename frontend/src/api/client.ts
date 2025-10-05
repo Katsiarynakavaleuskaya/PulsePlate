@@ -140,6 +140,15 @@ export type WeekPlanResponse = {
   days: Array<{ date: string; meals: Array<{ name: string; kcal: number }> }>;
 };
 
+export type RagStatsResponse = {
+  enabled: boolean;
+  stats: {
+    total_chunks: number;
+    sources: Record<string, number>;
+    index_loaded: boolean;
+  };
+};
+
 // Endpoints
 export const getBmr = (body: BmrRequest) =>
   api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
@@ -147,3 +156,5 @@ export const getBmr = (body: BmrRequest) =>
 export const getPlate = () => api<PlateResponse>("/premium/plate");
 
 export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
+
+export const getRagStats = () => api<RagStatsResponse>("/api/v1/rag/stats");

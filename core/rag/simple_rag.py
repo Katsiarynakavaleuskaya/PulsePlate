@@ -102,17 +102,56 @@ def _score(query: str, text: str) -> float:
     return base
 
 
+def get_rag_stats() -> dict:
+    """Get RAG system statistics."""
+    items = _get_index()
+    total_chunks = len(items)
+    sources = {}
+    for src, _ in items:
+        src_name = Path(src).name
+        sources[src_name] = sources.get(src_name, 0) + 1
+
+    return {"total_chunks": total_chunks, "sources": sources, "index_loaded": _INDEX is not None}
+
+
 def retrieve_context(query: str, max_chunks: int = 3) -> str:
     """Return top-k relevant chunks concatenated with brief headers."""
     items = _get_index()
     if not items:
         return ""
-    scored = sorted(
-        ((src, ch, _score(query, ch)) for src, ch in items), key=lambda x: x[2], reverse=True
-    )
+
+    # Enhanced scoring with multiple factors
+    scored = []
+    query_lower = query.lower()
+    query_words = set(_tokenize(query))
+
+    for src, ch in items:
+        chunk_lower = ch.lower()
+        chunk_words = set(_tokenize(ch))
+
+        # Base keyword matching score
+        base_score = _score(query, ch)
+
+        # Boost for exact phrase matches
+        if query_lower in chunk_lower:
+            base_score += 0.3
+
+        # Boost for word overlap (Jaccard similarity)
+        if query_words and chunk_words:
+            intersection = len(query_words & chunk_words)
+            union = len(query_words | chunk_words)
+            if union > 0:
+                jaccard = intersection / union
+                base_score += jaccard * 0.2
+
+        scored.append((src, ch, base_score))
+
+    scored.sort(key=lambda x: x[2], reverse=True)
     top = [x for x in scored[: max(1, max_chunks)] if x[2] > 0]
+
     if not top:
         return ""
+
     parts = []
     for src, ch, sc in top:
         parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")

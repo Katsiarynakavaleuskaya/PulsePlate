@@ -1116,6 +1116,22 @@ async def insight(req: InsightRequest):
         raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}") from e
 
 
+@app.get("/api/v1/rag/stats")
+async def rag_stats():
+    """Get RAG system statistics."""
+    try:
+        from core.rag.simple_rag import get_rag_stats
+
+        stats = get_rag_stats()
+        return {
+            "enabled": str(os.getenv("FEATURE_RAG", "")).strip().lower()
+            in {"1", "true", "on", "yes"},
+            "stats": stats,
+        }
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
 MenuEngineCallable = Callable[..., Any]
 
 analyze_nutrient_gaps: Optional[MenuEngineCallable] = None

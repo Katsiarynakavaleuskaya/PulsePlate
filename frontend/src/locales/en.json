@@ -23,6 +23,18 @@
     "estimated": "≈",
     "downloadHint": "Export ready. Private link valid for 15 minutes."
   },
+  "profile": {
+    "title": "Settings",
+    "rag": {
+      "title": "AI Assistant",
+      "description": "Enable AI-powered insights for nutrition queries",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "stats": "System Stats",
+      "chunks": "Knowledge chunks",
+      "sources": "Sources"
+    }
+  },
   "plan": {
     "exportReady": "Export ready. Private link valid for 15 minutes.",
     "shareReady": "Share ready. Private link valid for 15 minutes.",

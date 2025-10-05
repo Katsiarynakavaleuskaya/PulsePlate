@@ -23,6 +23,18 @@
     "estimated": "≈",
     "downloadHint": "Exportación lista. El enlace privado es válido por 15 minutos."
   },
+  "profile": {
+    "title": "Configuración",
+    "rag": {
+      "title": "Asistente IA",
+      "description": "Habilitar insights impulsados por IA para consultas de nutrición",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "stats": "Estadísticas del Sistema",
+      "chunks": "Fragmentos de conocimiento",
+      "sources": "Fuentes"
+    }
+  },
   "plan": {
     "exportReady": "Exportación lista. Enlace privado válido por 15 minutos.",
     "shareReady": "Compartir listo. Enlace privado válido por 15 minutos.",
