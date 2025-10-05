@@ -7,6 +7,7 @@ sensitive configuration values like API keys.
 
 import logging
 import os
+from contextlib import suppress
 from pathlib import Path
 from typing import Optional
 
@@ -98,11 +99,8 @@ def get_or_create_encryption_key() -> bytes:
         os.replace(temp_file, key_file)
     except (OSError, IOError) as e:
         # Clean up temporary file if it exists
-        if temp_file.exists():
-            try:
-                temp_file.unlink()
-            except Exception:
-                pass  # Best effort cleanup
+        with suppress(Exception):
+            temp_file.unlink()
         raise OSError(
             f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"
         ) from e
@@ -169,6 +167,18 @@ def encrypt_value(value: str) -> str:
         raise RuntimeError(f"Failed to encrypt value: {e}") from e
 
 
+def _decrypt_with_key(encrypted_data: str) -> str:
+    """Decrypt data using the encryption key."""
+    key = get_encryption_key()
+
+    if key is None:
+        raise ValueError("No encryption key available")
+
+    fernet = Fernet(key)
+    decrypted: bytes = fernet.decrypt(encrypted_data.encode())
+    return decrypted.decode()
+
+
 def decrypt_value(value: str) -> str:
     """
     Decrypt a sensitive value if it's encrypted.
@@ -189,15 +199,7 @@ def decrypt_value(value: str) -> str:
     _DecryptionError = InvalidToken if ENCRYPTION_AVAILABLE else InvalidTokenPlaceholder
 
     try:
-        encrypted_data = value.replace("encrypted:", "")
-        key = get_encryption_key()
-
-        if key is None:
-            return value  # No key available
-
-        fernet = Fernet(key)
-        decrypted: bytes = fernet.decrypt(encrypted_data.encode())
-        return decrypted.decode()
+        return _decrypt_with_key(value.replace("encrypted:", ""))
     except (_DecryptionError, ValueError, TypeError) as e:
         # Expected decryption failures - return original value
         logger.debug(
@@ -219,8 +221,4 @@ def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
         Decrypted API key or None if not found
     """
     value = os.getenv(env_var)
-
-    if value is None:
-        return None
-
-    return decrypt_value(value)
+    return None if value is None else decrypt_value(value)

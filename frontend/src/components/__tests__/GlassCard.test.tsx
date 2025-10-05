@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
+import React from "react";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import GlassCard from "../GlassCard";
+import { GlassCard } from "../GlassCard";
 
 describe("GlassCard", () => {
   it("renders children without crashing", () => {
@@ -125,7 +126,7 @@ describe("GlassCard", () => {
 
   it('applies default tone styles for invalid tone value', () => {
     render(
-      <GlassCard tone="invalid-tone">
+      <GlassCard tone={"invalid-tone" as any}>
         <span>content</span>
       </GlassCard>
     );

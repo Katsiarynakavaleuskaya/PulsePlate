@@ -201,6 +201,18 @@ class TestAsyncDB:
         async_url = _derive_async_url(mysql_url)
         assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
 
+    def test_derive_async_url_mysql_pymysql(self):
+        """Test _derive_async_url for MySQL with pymysql driver."""
+        mysql_url = "mysql+pymysql://user:pass@localhost/testdb"
+        async_url = _derive_async_url(mysql_url)
+        assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
+
+    def test_derive_async_url_postgres_short(self):
+        """Test _derive_async_url for postgres:// (short form) URLs."""
+        pg_url = "postgres://user:pass@localhost/testdb"
+        async_url = _derive_async_url(pg_url)
+        assert async_url == "postgresql+asyncpg://user:pass@localhost/testdb"
+
     def test_derive_async_url_already_async(self):
         """Test _derive_async_url when URL is already async."""
         async_url = "sqlite+aiosqlite:///test.db"

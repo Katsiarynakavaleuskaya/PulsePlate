@@ -55,6 +55,59 @@ PROFILE_CONFIG: Dict[str, Dict[str, Union[str, List[str]]]] = {
 }
 
 
+def update_mcp_config(api_key: str, profile_config: Dict[str, Union[str, List[str]]]) -> None:
+    """Update MCP configuration with API key."""
+    mcp_file = Path.home() / ".cursor" / "mcp.json"
+    if mcp_file.exists():
+        with open(mcp_file, "r") as f:
+            config = json.load(f)
+
+        # Ensure nested structure exists
+        config.setdefault("mcpServers", {})
+        config["mcpServers"].setdefault("pulseplate-chatgpt", {})
+        config["mcpServers"]["pulseplate-chatgpt"].setdefault("env", {})
+
+        # Update API key in MCP config (always plain text for runtime use)
+        config["mcpServers"]["pulseplate-chatgpt"]["env"][profile_config["mcp_env_key"]] = api_key
+
+        with open(mcp_file, "w") as f:
+            json.dump(config, f, indent=2)
+
+        print(f"✅ Updated MCP configuration at {mcp_file}")
+
+
+def update_env_file(stored_key: str, profile: str) -> None:
+    """Update environment file with encrypted API key."""
+    env_file = Path.home() / ".cursor" / ".env"
+    if env_file.exists():
+        with open(env_file, "r") as f:
+            content = f.read()
+
+        # Replace API key for the specified profile
+        lines = content.split("\n")
+        env_key_name = "OPENAI_API_KEY" if profile == "premium" else "OPENAI_API_KEY_FREE"
+        key_replaced = False
+        for i, line in enumerate(lines):
+            if line.startswith(f"{env_key_name}="):
+                lines[i] = f"{env_key_name}={stored_key}"
+                key_replaced = True
+                break
+
+        # If no existing key found, append it
+        if not key_replaced:
+            lines.append(f"{env_key_name}={stored_key}")
+
+        # SECURITY NOTE: stored_key is ALWAYS encrypted at this point
+        # - Encryption is verified above (starts with "encrypted:")
+        # - Uses Fernet symmetric encryption from cryptography library
+        # - Function returns False if encryption is not available
+        # - Plain text keys are NEVER written to .env file
+        with open(env_file, "w") as f:
+            f.write("\n".join(lines))
+
+        print(f"✅ Updated environment file at {env_file}")
+
+
 def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption: bool = True):
     """
     Update API key in MCP configuration with encryption for specified profile.
@@ -102,53 +155,10 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     profile_config = PROFILE_CONFIG[profile]
 
     # Update MCP configuration
-    mcp_file = Path.home() / ".cursor" / "mcp.json"
-    if mcp_file.exists():
-        with open(mcp_file, "r") as f:
-            config = json.load(f)
-
-        # Ensure nested structure exists
-        config.setdefault("mcpServers", {})
-        config["mcpServers"].setdefault("pulseplate-chatgpt", {})
-        config["mcpServers"]["pulseplate-chatgpt"].setdefault("env", {})
-
-        # Update API key in MCP config (always plain text for runtime use)
-        config["mcpServers"]["pulseplate-chatgpt"]["env"][profile_config["mcp_env_key"]] = api_key
-
-        with open(mcp_file, "w") as f:
-            json.dump(config, f, indent=2)
-
-        print(f"✅ Updated MCP configuration at {mcp_file}")
+    update_mcp_config(api_key, profile_config)
 
     # Update environment file with encrypted key
-    env_file = Path.home() / ".cursor" / ".env"
-    if env_file.exists():
-        with open(env_file, "r") as f:
-            content = f.read()
-
-        # Replace API key for the specified profile
-        lines = content.split("\n")
-        env_key_name = "OPENAI_API_KEY" if profile == "premium" else "OPENAI_API_KEY_FREE"
-        key_replaced = False
-        for i, line in enumerate(lines):
-            if line.startswith(f"{env_key_name}="):
-                lines[i] = f"{env_key_name}={stored_key}"
-                key_replaced = True
-                break
-
-        # If no existing key found, append it
-        if not key_replaced:
-            lines.append(f"{env_key_name}={stored_key}")
-
-        # SECURITY NOTE: stored_key is ALWAYS encrypted at this point
-        # - Encryption is verified above (starts with "encrypted:")
-        # - Uses Fernet symmetric encryption from cryptography library
-        # - Function returns False if encryption is not available
-        # - Plain text keys are NEVER written to .env file
-        with open(env_file, "w") as f:
-            f.write("\n".join(lines))
-
-        print(f"✅ Updated environment file at {env_file}")
+    update_env_file(stored_key, profile)
 
     # Update Cursor settings (plain text for runtime)
     settings_file = Path.home() / ".cursor" / "settings.json"

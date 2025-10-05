@@ -142,11 +142,12 @@ export type WeekPlanResponse = {
 
 export type RagStatsResponse = {
   enabled: boolean;
-  stats: {
+  stats?: {
     total_chunks: number;
     sources: Record<string, number>;
     index_loaded: boolean;
   };
+  error?: string;
 };
 
 // Endpoints

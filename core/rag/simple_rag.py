@@ -70,9 +70,7 @@ def _build_index() -> List[Tuple[str, str]]:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
-        for ch in _chunk(text):
-            if ch:
-                items.append((str(path), ch))
+        items.extend((str(path), ch) for ch in _chunk(text) if ch)
     return items
 
 
@@ -143,7 +141,4 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
     if not top:
         return ""
 
-    parts = []
-    for src, ch, sc in top:
-        parts.append(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}")
-    return "\n\n".join(parts)
+    return "\n\n".join(f"# Source: {Path(src).name} (score={sc:.2f})\n{ch}" for src, ch, sc in top)

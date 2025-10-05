@@ -31,8 +31,7 @@ export function Toggle({
   className = '',
   id
 }: ToggleProps) {
-  const generatedId = useId();
-  const toggleId = id ?? generatedId;
+  const toggleId = id ?? sanitizeId(label);
   const checkboxRef = React.useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
