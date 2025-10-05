@@ -40,14 +40,27 @@ export default function EnterKey() {
         navigate("/", { replace: true });
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("onboarding.enterKey.errorEmpty"));
+      let errorMessage = t("onboarding.enterKey.errorEmpty");
+      if (error instanceof Error) {
+        if (error.message === 'auth.apiKey.tooShort') {
+          errorMessage = t("auth.apiKey.tooShort");
+        } else if (error.message === 'auth.apiKey.invalidFormat') {
+          errorMessage = t("auth.apiKey.invalidFormat");
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      toast.error(errorMessage);
     }
   };
 
   const handleClear = () => {
+    const hadKey = !!auth.apiKey;
     auth.clearApiKey();
     setValue("");
-    toast.success(t("onboarding.enterKey.keyCleared"));
+    if (hadKey) {
+      toast.success(t("onboarding.enterKey.keyCleared"));
+    }
   };
 
   return (
