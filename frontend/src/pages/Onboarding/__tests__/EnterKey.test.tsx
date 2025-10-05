@@ -32,6 +32,10 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 const renderWithProviders = (component: React.ReactElement) => {
+  // Clear any stored API keys before each test
+  localStorage.removeItem('pulseplate_api_key');
+  sessionStorage.removeItem('pulseplate_api_key');
+
   return render(
     <AuthProvider>
       {component}
