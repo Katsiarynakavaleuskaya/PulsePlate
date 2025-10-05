@@ -157,7 +157,7 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
 class PageNumCanvas(Canvas):
     """Canvas that injects total page count after building."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         Canvas.__init__(self, *args, **kwargs)
         self._saved_page_states: List[Dict[str, Any]] = []
         # Ensure the document metadata carries our brand name so text-based
