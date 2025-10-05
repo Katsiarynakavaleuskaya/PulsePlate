@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import (
@@ -48,6 +49,7 @@ Limiter: Optional[type[LimiterType]]
 
 # RAG feature toggle override (for MVP, persists in-memory)
 _rag_enabled_override: Optional[bool] = None
+_rag_override_lock = threading.Lock()
 
 
 try:
@@ -1131,7 +1133,8 @@ async def rag_stats():
 
         stats = get_rag_stats()
         base_flag = _is_truthy(os.getenv("FEATURE_RAG", ""))
-        enabled = _rag_enabled_override if _rag_enabled_override is not None else base_flag
+        with _rag_override_lock:
+            enabled = _rag_enabled_override if _rag_enabled_override is not None else base_flag
         return {"enabled": enabled, "stats": stats}
     except ImportError:
         logger.warning("RAG module not available")
@@ -1153,8 +1156,9 @@ async def toggle_rag(request: RagToggleRequest):
         enabled = request.enabled
 
         logger.info("RAG toggle requested: enabled=%s", enabled)
-        global _rag_enabled_override
-        _rag_enabled_override = enabled
+        with _rag_override_lock:
+            global _rag_enabled_override
+            _rag_enabled_override = enabled
 
         return {"success": True, "enabled": enabled}
     except HTTPException:
