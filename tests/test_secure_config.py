@@ -25,23 +25,29 @@ def fake_crypto(monkeypatch):
     """Provide a fake Fernet implementation when cryptography is unavailable."""
 
     class FakeFernet:
+        """Fake Fernet implementation for testing without cryptography dependency."""
+
         _RAW_KEY: bytes = b"01234567890123456789012345678901"
         _KEY: bytes = base64.urlsafe_b64encode(_RAW_KEY)
 
         def __init__(self, key: bytes):
+            """Initialize fake Fernet with test key validation."""
             if key != self._KEY:
                 raise InvalidToken("invalid key")
             self._key = key
 
         @staticmethod
         def generate_key() -> bytes:
+            """Generate a test encryption key."""
             return FakeFernet._KEY
 
         def encrypt(self, data: bytes) -> bytes:
+            """Fake encrypt by reversing bytes and base64 encoding."""
             cipher = data[::-1]
             return base64.urlsafe_b64encode(cipher)
 
         def decrypt(self, token: bytes) -> bytes:
+            """Fake decrypt by base64 decoding and reversing bytes."""
             try:
                 decoded = base64.urlsafe_b64decode(token)
             except Exception as exc:  # pragma: no cover - defensive

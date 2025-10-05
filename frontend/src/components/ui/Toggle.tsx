@@ -47,7 +47,6 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         id={labelId}
         htmlFor={inputId}
         className="text-sm font-medium text-gray-700"
-        onClick={() => !disabled && onChange(!checked)}
         style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
       >
         {label}
