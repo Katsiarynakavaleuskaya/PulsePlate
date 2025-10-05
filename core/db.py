@@ -7,7 +7,7 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 from __future__ import annotations
 
 import os
-from contextlib import asynccontextmanager, contextmanager, suppress
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
@@ -54,14 +54,18 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
     if create_async_engine is None:
         return None
 
-    if "+async" in sync_url:
+    # If already async-capable, return as-is
+    if (
+        "+async" in sync_url
+        or "aiosqlite" in sync_url
+        or "asyncpg" in sync_url
+        or "aiomysql" in sync_url
+    ):
         return sync_url
-    if sync_url.startswith("sqlite+aiosqlite"):
-        return sync_url
+
+    # Convert sync URLs to async equivalents
     if sync_url.startswith("sqlite:///"):
         return sync_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
-    if sync_url.startswith("postgresql+asyncpg://") or sync_url.startswith("postgres+asyncpg://"):
-        return sync_url
     if sync_url.startswith("postgresql://"):
         return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     if sync_url.startswith("postgres://"):
@@ -120,11 +124,14 @@ engine = EngineCompat(_RAW_ENGINE)
 # Async engine configuration (optional)
 ASYNC_DATABASE_URL = None
 if create_async_engine is not None:
-    ASYNC_DATABASE_URL = (
-        os.getenv("DATABASE_ASYNC_URL")
-        or _derive_async_url(DATABASE_URL)
-        or os.getenv("DATABASE_USE_ASYNC")
-    )
+    # Check for explicit async URL first
+    async_url = os.getenv("DATABASE_ASYNC_URL")
+
+    # If no explicit URL but async is enabled, derive from sync URL
+    if not async_url and os.getenv("DATABASE_USE_ASYNC") == "1":
+        async_url = _derive_async_url(DATABASE_URL)
+
+    ASYNC_DATABASE_URL = async_url
 
 _POOL_CONFIG = {
     "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
@@ -271,17 +278,13 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
-    if _ASYNC_ENGINE is not None and _RAW_ENGINE is None:
-        raise RuntimeError(
-            "init_db() cannot be used when only an async engine is configured. Use `await init_db_async()` instead."
-        )
     metadata.create_all(bind=_RAW_ENGINE)
 
 
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
 
-    import core.models  # pylint: disable=unused-import
+    import core.models  # noqa: F401  # pylint: disable=unused-import
 
     metadata = Base.metadata
 
