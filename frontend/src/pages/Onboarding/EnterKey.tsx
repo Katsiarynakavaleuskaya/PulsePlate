@@ -55,7 +55,7 @@ export default function EnterKey() {
   };
 
   const handleClear = () => {
-    const hadKey = !!auth.apiKey;
+    const hadKey = !!value.trim();
     auth.clearApiKey();
     setValue("");
     if (hadKey) {
