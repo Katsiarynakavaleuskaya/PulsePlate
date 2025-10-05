@@ -50,9 +50,11 @@ def test_rag_stats_endpoint_import_error(client, monkeypatch) -> None:
 
     try:
         response = client.get("/api/v1/rag/stats", headers={"X-API-Key": "test_key"})
-        assert response.status_code in (500, 503)
+        assert response.status_code == 200  # ImportError is handled gracefully
         data = response.json()
-        assert "error" in data or "detail" in data
+        assert data["enabled"] is False
+        assert "error" in data
+        assert data["error"] == "RAG feature not available"
     finally:
         # Restore original import
         __builtins__["__import__"] = original_import
