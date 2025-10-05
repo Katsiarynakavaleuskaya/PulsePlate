@@ -50,9 +50,16 @@ function buildHeaders(init: RequestInit | undefined, apiKey: string | undefined)
     defaults["X-API-Key"] = apiKey;
   }
 
-  const bodyIsJsonString =
-    typeof init?.body === "string" && init.body.trim().startsWith("{") && init.body.trim().endsWith("}");
-  if (bodyIsJsonString && !defaults["Content-Type"]) {
+  let bodyIsJson = false;
+  if (typeof init?.body === "string") {
+    try {
+      JSON.parse(init.body);
+      bodyIsJson = true;
+    } catch {
+      // Not valid JSON, do not set Content-Type
+    }
+  }
+  if (bodyIsJson && !defaults["Content-Type"]) {
     defaults["Content-Type"] = "application/json";
   }
 
