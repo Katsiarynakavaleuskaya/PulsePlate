@@ -7,11 +7,30 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 from __future__ import annotations
 
 import os
-from contextlib import contextmanager
-from typing import Any, Generator
+from contextlib import asynccontextmanager, contextmanager, suppress
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+if TYPE_CHECKING:  # pragma: no cover - type check only
+    from sqlalchemy.ext.asyncio import (
+        AsyncEngine as AsyncEngineType,
+        AsyncSession as AsyncSessionType,
+        async_sessionmaker as AsyncSessionmakerType,
+    )
+else:
+    AsyncEngineType = AsyncSessionType = Any  # type: ignore[assignment]
+    AsyncSessionmakerType = Any  # type: ignore[assignment]
+
+try:  # Optional async support
+    from sqlalchemy.ext.asyncio import (
+        async_sessionmaker,
+        create_async_engine,
+    )
+except ImportError:  # pragma: no cover - async extras not installed
+    async_sessionmaker = cast(Any, None)
+    create_async_engine = cast(Any, None)
 
 
 def _build_engine_url() -> str:
@@ -25,9 +44,33 @@ def _build_engine_url() -> str:
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
 
-    if url.startswith("sqlite"):
-        return {"check_same_thread": False}
-    return {}
+    return {"check_same_thread": False} if url.startswith("sqlite") else {}
+
+
+def _derive_async_url(sync_url: str) -> Optional[str]:
+    """Derive an async-capable URL from a synchronous URL when possible."""
+
+    # Only derive async URLs if async support is available
+    if create_async_engine is None:
+        return None
+
+    if "+async" in sync_url:
+        return sync_url
+    if sync_url.startswith("sqlite+aiosqlite"):
+        return sync_url
+    if sync_url.startswith("sqlite:///"):
+        return sync_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    if sync_url.startswith("postgresql+asyncpg://") or sync_url.startswith("postgres+asyncpg://"):
+        return sync_url
+    if sync_url.startswith("postgresql://"):
+        return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("postgres://"):
+        return sync_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("mysql://"):
+        return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
+    if sync_url.startswith("mysql+pymysql://"):
+        return sync_url.replace("mysql+pymysql://", "mysql+aiomysql://", 1)
+    return None
 
 
 DATABASE_URL = _build_engine_url()
@@ -74,6 +117,51 @@ _RAW_ENGINE = create_engine(
 engine = EngineCompat(_RAW_ENGINE)
 
 
+# Async engine configuration (optional)
+ASYNC_DATABASE_URL = None
+if create_async_engine is not None:
+    ASYNC_DATABASE_URL = (
+        os.getenv("DATABASE_ASYNC_URL")
+        or _derive_async_url(DATABASE_URL)
+        or os.getenv("DATABASE_USE_ASYNC")
+    )
+
+_POOL_CONFIG = {
+    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
+    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
+    "pool_pre_ping": True,
+}
+
+if ASYNC_DATABASE_URL and create_async_engine is not None:
+    try:
+        async_kwargs = {
+            "echo": False,
+            "future": True,
+        }
+
+        if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
+            # SQLite async doesn't support pooling
+            pass
+        else:
+            async_kwargs.update(_POOL_CONFIG)
+
+        _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
+        AsyncSessionLocal = async_sessionmaker(
+            bind=_ASYNC_ENGINE,
+            autoflush=False,
+            expire_on_commit=False,
+        )
+    except ImportError:
+        # Fallback if async drivers are not available
+        _ASYNC_ENGINE = None
+        AsyncSessionLocal = None
+else:
+    _ASYNC_ENGINE = None
+    AsyncSessionLocal = None
+
+async_engine: Optional[AsyncEngineType] = _ASYNC_ENGINE
+
+
 class Base(DeclarativeBase):
     """Base class for declarative SQLAlchemy models."""
 
@@ -112,6 +200,45 @@ def session_scope() -> Generator[Session, None, None]:
         session.close()
 
 
+async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
+    """Async dependency yielding an async SQLAlchemy session when enabled."""
+
+    if AsyncSessionLocal is None:
+        if create_async_engine is None:
+            raise ImportError(
+                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+            )
+        raise RuntimeError(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+@asynccontextmanager
+async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
+    """Async context manager for atomic DB operations."""
+
+    if AsyncSessionLocal is None:
+        raise RuntimeError(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
+    session = AsyncSessionLocal()
+    try:
+        yield session
+        await session.commit()
+    except Exception:  # pragma: no cover - defensive rollback
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+
+
 def init_db() -> None:
     """RU: Создаёт схему таблиц для зарегистрированных моделей (например, при старте).
 
@@ -144,4 +271,23 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
+    if _ASYNC_ENGINE is not None and _RAW_ENGINE is None:
+        raise RuntimeError(
+            "init_db() cannot be used when only an async engine is configured. Use `await init_db_async()` instead."
+        )
     metadata.create_all(bind=_RAW_ENGINE)
+
+
+async def init_db_async() -> None:
+    """Async variant of :func:`init_db` for async engines."""
+
+    import core.models  # pylint: disable=unused-import
+
+    metadata = Base.metadata
+
+    if _ASYNC_ENGINE is None:
+        metadata.create_all(bind=_RAW_ENGINE)
+        return
+
+    async with _ASYNC_ENGINE.begin() as conn:
+        await conn.run_sync(metadata.create_all)
