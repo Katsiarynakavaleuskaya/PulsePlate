@@ -33,6 +33,7 @@
     "enterKey": {
       "title": "API-ключ",
       "description": "Ключ обязателен для Premium и админ-разделов. Где взять: проверьте README → раздел API key.",
+      "label": "API-ключ",
       "placeholder": "Вставьте X-API-Key",
       "save": "Сохранить",
       "clear": "Очистить",

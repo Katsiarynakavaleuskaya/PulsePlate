@@ -33,6 +33,7 @@
     "enterKey": {
       "title": "API Key",
       "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
+      "label": "API Key",
       "placeholder": "Paste X-API-Key",
       "save": "Save",
       "clear": "Clear",

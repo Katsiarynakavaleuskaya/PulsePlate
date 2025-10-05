@@ -1,6 +1,9 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../api/client';
 
+const MIN_API_KEY_LENGTH = 20;
+const AUTH_PROMPT_DELAY_MS = 500;
+
 export class AuthError extends Error {
   code: string;
 
@@ -48,7 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!currentKey) {
           setShowAuthPrompt(true);
         }
-      }, 500);
+      }, AUTH_PROMPT_DELAY_MS);
     }
 
     return () => {
