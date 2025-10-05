@@ -3,6 +3,26 @@
     "ok": "OK",
     "cancel": "Cancelar"
   },
+  "auth": {
+    "apiKey": {
+      "tooShort": "La clave API debe tener al menos 20 caracteres",
+      "invalidFormat": "Formato de clave API inválido. Solo se permiten caracteres alfanuméricos, guiones y guiones bajos."
+    }
+  },
+  "onboarding": {
+    "enterKey": {
+      "title": "Clave API",
+      "description": "Clave obligatoria para secciones Premium y de administración. Dónde obtener: consulta README → sección de clave API.",
+      "label": "Clave API",
+      "placeholder": "Pegar X-API-Key",
+      "save": "Guardar",
+      "clear": "Limpiar",
+      "errorEmpty": "Por favor ingresa una clave API no vacía.",
+      "successSaved": "Clave guardada.",
+      "keyCleared": "Clave limpiada.",
+      "changesNote": "Los cambios se aplican instantáneamente. No se requiere recarga de página — te devolveremos a la pantalla anterior automáticamente."
+    }
+  },
   "shoplist": {
     "loading": "Cargando lista de compras…",
     "error": "Error",
