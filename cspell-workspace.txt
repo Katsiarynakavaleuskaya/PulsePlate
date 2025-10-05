@@ -3641,6 +3641,8 @@ aenter
 aexit
 agregado
 agua
+aiomysql
+aiosqlite
 alimento
 Almuerzo
 alnum
@@ -3666,6 +3668,7 @@ asian
 astimezone
 asynccontextmanager
 asyncio
+asyncpg
 atlantic
 atleta
 Atleta
@@ -3809,6 +3812,7 @@ findall
 finetune
 física
 fitchef
+flowable
 FNDDS
 focusables
 folate
@@ -3854,6 +3858,7 @@ httpx
 IFPA
 iloc
 imageset
+Immer
 importlib
 importorskip
 indicadores
@@ -3891,6 +3896,7 @@ latt
 Latté
 Leche
 Lechuga
+LEFTPADDING
 lentejas
 Lentejas
 levelname
@@ -3994,6 +4000,7 @@ pathlib
 pathsep
 pbxproj
 pcpu
+pdfbase
 pdfgen
 pdfmetrics
 Pechuga
@@ -4059,6 +4066,7 @@ pydantic
 Pydantic
 pyenv
 pylint
+pymysql
 pyplot
 pyproject
 pyright
@@ -4090,6 +4098,7 @@ returncode
 rglob
 riesgo
 Riesgo
+RIGHTPADDING
 rmtree
 rowid
 rstrip
@@ -4147,13 +4156,16 @@ TEXTCOLOR
 Tienes
 timedelta
 Tomate
+TOPPADDING
 transferrables
 truediv
+ttfonts
 typeerror
 typer
 tzname
 unicode
 unicodedata
+urllib
 Usando
 usda
 utcnow

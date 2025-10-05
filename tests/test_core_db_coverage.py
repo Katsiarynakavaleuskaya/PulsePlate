@@ -11,10 +11,12 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy import text
 
 from core.db import (
     Base,
     SessionLocal,
+    _RAW_ENGINE,
     _build_engine_url,
     _sqlite_connect_args,
     _derive_async_url,
@@ -235,3 +237,50 @@ class TestAsyncDB:
         """Test init_db_async falls back to sync init when async not configured."""
         # Should work without raising errors
         await init_db_async()
+
+    def test_derive_async_url_no_async_support(self):
+        """Test _derive_async_url returns None when async support not available."""
+        with patch("core.db.create_async_engine", None):
+            result = _derive_async_url("sqlite:///test.db")
+            assert result is None
+
+    def test_execute_sql_method(self):
+        """Test execute method on connection."""
+        # Test with a simple SELECT statement using connection
+        with _RAW_ENGINE.connect() as conn:
+            result = conn.execute(text("SELECT 1 as test_value"))
+            # Should return a result object
+            assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_async_session_import_error(self):
+        """Test get_async_session raises ImportError when async extras not available."""
+        with patch("core.db.AsyncSessionLocal", None), patch("core.db.create_async_engine", None):
+            with pytest.raises(ImportError, match="SQLAlchemy async extras are not available"):
+                async for _session in get_async_session():
+                    break
+
+    @pytest.mark.asyncio
+    async def test_session_scope_async_success(self):
+        """Test session_scope_async with successful commit."""
+        # This will test the main path if async is configured
+        if async_engine is not None:
+            async with session_scope_async() as session:
+                # Just ensure we can get a session
+                assert session is not None
+
+    @pytest.mark.asyncio
+    async def test_session_scope_async_rollback(self):
+        """Test session_scope_async with exception and rollback."""
+        if async_engine is not None:
+            with pytest.raises(ValueError):
+                async with session_scope_async() as session:
+                    # Simulate an error that should trigger rollback
+                    raise ValueError("Test rollback")
+
+    @pytest.mark.asyncio
+    async def test_init_db_async_with_async_engine(self):
+        """Test init_db_async when async engine is available."""
+        if async_engine is not None:
+            # Should work without raising errors
+            await init_db_async()
