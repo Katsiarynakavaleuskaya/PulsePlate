@@ -3,6 +3,12 @@
     "ok": "OK",
     "cancel": "Cancel"
   },
+  "auth": {
+    "apiKey": {
+      "tooShort": "API key must be at least 20 characters",
+      "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."
+    }
+  },
   "shoplist": {
     "loading": "Loading shopping list…",
     "error": "Error",

@@ -15,6 +15,14 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+// Mock react-router-dom
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  BrowserRouter: ({ children }: any) => children,
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ state: null }),
+}));
+
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -25,11 +33,9 @@ vi.mock('react-hot-toast', () => ({
 
 const renderWithProviders = (component: React.ReactElement) => {
   return render(
-    <BrowserRouter>
-      <AuthProvider>
-        {component}
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      {component}
+    </AuthProvider>
   );
 };
 
@@ -64,7 +70,7 @@ describe('EnterKey', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('API key must be at least 20 characters');
+      expect(toast.error).toHaveBeenCalledWith('auth.apiKey.tooShort');
     });
   });
 
@@ -95,5 +101,15 @@ describe('EnterKey', () => {
       expect(toast.success).toHaveBeenCalledWith('onboarding.enterKey.keyCleared');
       expect(input).toHaveValue('');
     });
+  });
+
+  it('does not show success message when clearing empty API key', async () => {
+    renderWithProviders(<EnterKey />);
+
+    const clearButton = screen.getByText('onboarding.enterKey.clear');
+    fireEvent.click(clearButton);
+
+    // Should not show success message when no key was present
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
