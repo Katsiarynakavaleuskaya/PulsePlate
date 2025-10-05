@@ -25,23 +25,29 @@ def fake_crypto(monkeypatch):
     """Provide a fake Fernet implementation when cryptography is unavailable."""
 
     class FakeFernet:
-        _RAW_KEY = b"01234567890123456789012345678901"
-        _KEY = base64.urlsafe_b64encode(_RAW_KEY)
+        """Fake Fernet implementation for testing without cryptography dependency."""
+
+        _RAW_KEY: bytes = b"01234567890123456789012345678901"
+        _KEY: bytes = base64.urlsafe_b64encode(_RAW_KEY)
 
         def __init__(self, key: bytes):
+            """Initialize fake Fernet with test key validation."""
             if key != self._KEY:
                 raise InvalidToken("invalid key")
             self._key = key
 
         @staticmethod
         def generate_key() -> bytes:
+            """Generate a test encryption key."""
             return FakeFernet._KEY
 
         def encrypt(self, data: bytes) -> bytes:
+            """Fake encrypt by reversing bytes and base64 encoding."""
             cipher = data[::-1]
             return base64.urlsafe_b64encode(cipher)
 
         def decrypt(self, token: bytes) -> bytes:
+            """Fake decrypt by base64 decoding and reversing bytes."""
             try:
                 decoded = base64.urlsafe_b64decode(token)
             except Exception as exc:  # pragma: no cover - defensive
@@ -80,6 +86,21 @@ class TestSecureConfig:
             result = decrypt_value(encrypted_value)
             # Should return unchanged when crypto not available
             assert result == encrypted_value
+
+    def test_decrypt_unicode_decode_error(self, tmp_path, fake_crypto):
+        """Test decrypt_value handles UnicodeDecodeError gracefully"""
+        key_file = tmp_path / ".cursor" / ".key"
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        test_key = fake_crypto.generate_key()
+        key_file.write_bytes(test_key)
+
+        # Mock Fernet to return non-UTF-8 bytes that will cause UnicodeDecodeError
+        with patch.object(fake_crypto, "decrypt", return_value=b"\xff\xfe\xfd"):  # Invalid UTF-8
+            with patch("secure_config.Path.home", return_value=tmp_path):
+                encrypted_value = "encrypted:invalid-base64"
+                result = decrypt_value(encrypted_value)
+                # Should return original encrypted value on decode error
+                assert result == encrypted_value
 
     def test_encrypt_decrypt_roundtrip(self, tmp_path, fake_crypto):
         """Test full encryption/decryption cycle"""

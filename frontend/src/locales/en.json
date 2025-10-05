@@ -3,6 +3,12 @@
     "ok": "OK",
     "cancel": "Cancel"
   },
+  "auth": {
+    "apiKey": {
+      "tooShort": "API key must be at least 20 characters",
+      "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."
+    }
+  },
   "shoplist": {
     "loading": "Loading shopping list…",
     "error": "Error",
@@ -22,6 +28,20 @@
     "store": "Store",
     "estimated": "≈",
     "downloadHint": "Export ready. Private link valid for 15 minutes."
+  },
+  "onboarding": {
+    "enterKey": {
+      "title": "API Key",
+      "description": "Key required for Premium and admin sections. Where to get: check README → API key section.",
+      "label": "API Key",
+      "placeholder": "Paste X-API-Key",
+      "save": "Save",
+      "clear": "Clear",
+      "errorEmpty": "Please enter a non-empty API key.",
+      "successSaved": "Key saved.",
+      "keyCleared": "Key cleared.",
+      "changesNote": "Changes apply instantly. No page reload required — we'll return you to the previous screen automatically."
+    }
   },
   "plan": {
     "exportReady": "Export ready. Private link valid for 15 minutes.",

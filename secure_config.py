@@ -19,10 +19,8 @@ try:
 except ImportError:  # pragma: no cover
     ENCRYPTION_AVAILABLE = False  # pragma: no cover
 
-    class InvalidToken(Exception):  # type: ignore[misc]  # pragma: no cover
-        """Placeholder when cryptography is unavailable."""
-
-        pass  # pragma: no cover
+    # Placeholder when cryptography is unavailable
+    InvalidToken = Exception  # pragma: no cover
 
 
 def get_encryption_key() -> Optional[bytes]:
@@ -195,7 +193,7 @@ def decrypt_value(value: str) -> str:
         fernet = Fernet(key)
         decrypted: bytes = fernet.decrypt(encrypted_data.encode())
         return decrypted.decode()
-    except (InvalidToken, ValueError, TypeError) as e:
+    except (InvalidToken, ValueError, TypeError, UnicodeDecodeError) as e:
         # Expected decryption failures - return original value
         logger.debug(
             "Decryption failed for value (expected error): %s: %s",
