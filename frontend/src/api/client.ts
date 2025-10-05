@@ -32,12 +32,41 @@ function mockUrl(path: string): string | null {
   return null;
 }
 
+// API Key management
+const API_KEY_STORAGE_KEY = "pulseplate_api_key";
+
+export function getStoredApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
+}
+
+export function setStoredApiKey(key: string, remember: boolean = false): void {
+  if (typeof window === "undefined") return;
+  const storage = remember ? localStorage : sessionStorage;
+  storage.setItem(API_KEY_STORAGE_KEY, key);
+  // Clear from other storage
+  const otherStorage = remember ? sessionStorage : localStorage;
+  otherStorage.removeItem(API_KEY_STORAGE_KEY);
+}
+
+export function clearStoredApiKey(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(API_KEY_STORAGE_KEY);
+  sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+}
+
 function mergeHeaders(init?: RequestInit): Headers {
   const defaults = {
     Accept: "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
   } satisfies Record<string, string>;
+
+  // Add API key if available
+  const apiKey = getStoredApiKey();
+  if (apiKey) {
+    defaults["X-API-Key"] = apiKey;
+  }
 
   // Only set Content-Type for JSON bodies
   if (init?.body && typeof init.body === "string") {
