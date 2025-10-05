@@ -2,6 +2,7 @@
 // EN: Minimal FastAPI client. No mocks/MSW in this step.
 
 import { logError } from "../lib/analytics";
+import CryptoJS from "crypto-js";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -34,16 +35,34 @@ function mockUrl(path: string): string | null {
 
 // API Key management
 const API_KEY_STORAGE_KEY = "pulseplate_api_key";
+const API_KEY_ENCRYPTION_SECRET = "pp_static_secret_strong-change-me"; // CHANGE ME FOR DEPLOYMENT
+
+function decryptApiKey(encrypted: string | null): string | null {
+  if (!encrypted) return null;
+  try {
+    const bytes = CryptoJS.AES.decrypt(encrypted, API_KEY_ENCRYPTION_SECRET);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    return decrypted || null;
+  } catch {
+    return null;
+  }
+}
 
 export function getStoredApiKey(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
+  const encrypted = localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
+  return decryptApiKey(encrypted);
+}
+
+function encryptApiKey(key: string): string {
+  return CryptoJS.AES.encrypt(key, API_KEY_ENCRYPTION_SECRET).toString();
 }
 
 export function setStoredApiKey(key: string, remember: boolean = false): void {
   if (typeof window === "undefined") return;
+  const encrypted = encryptApiKey(key);
   const storage = remember ? localStorage : sessionStorage;
-  storage.setItem(API_KEY_STORAGE_KEY, key);
+  storage.setItem(API_KEY_STORAGE_KEY, encrypted);
   // Clear from other storage
   const otherStorage = remember ? sessionStorage : localStorage;
   otherStorage.removeItem(API_KEY_STORAGE_KEY);
