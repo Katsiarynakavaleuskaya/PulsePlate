@@ -24,9 +24,8 @@ Platform Notes:
 """
 import argparse
 import json
-import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
@@ -182,7 +181,7 @@ def main():
     pytest_indicators = ["pytest", "test_", "::", "-v", "--tb", "--cov"]
     is_pytest = any(indicator in " ".join(sys.argv) for indicator in pytest_indicators)
 
-    if is_pytest or len(sys.argv) > 2 or (len(sys.argv) == 2 and not sys.argv[1].startswith("--")):
+    if is_pytest or (len(sys.argv) == 2 and not sys.argv[1].startswith("--")):
         # Running under pytest or similar, skip argparse parsing
         print("🔑 PulsePlate API Key Configuration")
         print("=" * 45)
