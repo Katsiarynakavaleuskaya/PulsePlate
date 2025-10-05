@@ -81,4 +81,4 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
   );
 });
 
-export default GlassCard;
+export { GlassCard };

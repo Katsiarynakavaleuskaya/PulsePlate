@@ -32,7 +32,7 @@ export function Toggle({
   id
 }: ToggleProps) {
   const generatedId = useId();
-  const toggleId = id ?? sanitizeId(`${label}-${generatedId}`);
+  const toggleId = id ?? generatedId;
   const checkboxRef = React.useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +49,7 @@ export function Toggle({
     <div className={`flex items-center justify-between ${className}`}>
       <div className="flex-1">
         <label
+          id={toggleId}
           htmlFor={toggleId}
           className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
         >
