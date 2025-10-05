@@ -83,4 +83,4 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
 
 # Constant for marking untestable edge cases in coverage reports
 # Usage: add comment "# pragma: no cover" after lines that are difficult to test
-UNTESTABLE_EDGE_CASE = None  # type: ignore[misc]
+UNTESTABLE_EDGE_CASE = None

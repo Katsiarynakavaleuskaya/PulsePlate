@@ -141,7 +141,7 @@ _POOL_CONFIG = {
 
 if ASYNC_DATABASE_URL and create_async_engine is not None:
     try:
-        async_kwargs = {
+        async_kwargs: dict[str, Any] = {
             "echo": False,
             "future": True,
         }
