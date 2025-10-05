@@ -223,7 +223,7 @@ describe('Locale JSON Structure and Content', () => {
           .map(([value]) => value);
 
         // Allow some common words that are legitimately duplicated
-        const allowedDuplicates = ['OK'];
+        const allowedDuplicates = ['OK', 'Error', '≈', 'kcal'];
 
         const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
 

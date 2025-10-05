@@ -60,7 +60,7 @@ export function NoChartsAvailable({ onRetry }: { onRetry?: () => void }) {
       description="Unable to load progress charts at the moment. Please try again later."
       action={
         <button
-          onClick={onRetry || (() => window.location.reload())}
+          onClick={onRetry ?? (() => window.location.reload())}
           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
           Retry

@@ -1,6 +1,6 @@
 import React from 'react';
 import toast, { Toaster as HotToaster } from 'react-hot-toast';
-import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 
 export function Toaster() {
   return (

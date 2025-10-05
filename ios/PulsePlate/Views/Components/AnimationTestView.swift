@@ -1,12 +1,29 @@
 import SwiftUI
 import AVKit
 
+/// RU: Обёртка для AVPlayer, чтобы сохранить состояние плеера между обновлениями view
+/// EN: Wrapper for AVPlayer to preserve player state across view updates
+class PlayerWrapper: ObservableObject {
+    @Published var player: AVPlayer
+
+    init() {
+        self.player = AVPlayer()
+    }
+
+    deinit {
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        // Note: Add cleanup for time observers and KVO observers here when implemented
+    }
+}
+
 /// RU: Тестовый экран для проверки анимаций FitChef
 /// EN: Test screen for FitChef animations
 struct AnimationTestView: View {
     @State private var currentVideo = 0
     @State private var isPlaying = false
-    @StateObject private var player = AVPlayer()
+    @StateObject private var playerWrapper = PlayerWrapper()
+    @State private var debounceWorkItem: DispatchWorkItem?
 
     private let videos = [
         "20250913_1212_FitChef Cat Animation_simple_compose_01k515hmynfk7amcg36rv5eqba",
@@ -22,26 +39,37 @@ struct AnimationTestView: View {
 
             // Video Player
             if let url = Bundle.main.url(forResource: videos[currentVideo], withExtension: "mp4") {
-                VideoPlayer(player: player)
+                VideoPlayer(player: playerWrapper.player)
                     .frame(width: 200, height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .onAppear {
                         setupPlayer(with: url)
                         if isPlaying {
-                            player.play()
+                            playerWrapper.player.play()
                         }
                     }
-                    .onChange(of: currentVideo) { _ in
-                        setupPlayer(with: url)
-                        if isPlaying {
-                            player.play()
+                    .onChange(of: currentVideo) { _, newVideo in
+                        // Cancel any pending work item to debounce rapid changes
+                        debounceWorkItem?.cancel()
+
+                        // Schedule new work item with debounce delay
+                        debounceWorkItem = DispatchWorkItem {
+                            if let newUrl = Bundle.main.url(forResource: videos[newVideo], withExtension: "mp4") {
+                                setupPlayer(with: newUrl)
+                                if isPlaying {
+                                    playerWrapper.player.play()
+                                }
+                            }
                         }
+
+                        // Execute after 0.3 seconds delay to prevent rapid tap issues
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: debounceWorkItem)
                     }
-                    .onChange(of: isPlaying) { playing in
+                    .onChange(of: isPlaying) { _, playing in
                         if playing {
-                            player.play()
+                            playerWrapper.player.play()
                         } else {
-                            player.pause()
+                            playerWrapper.player.pause()
                         }
                     }
             } else {
@@ -99,14 +127,22 @@ struct AnimationTestView: View {
             Spacer()
         }
         .padding()
-        .background(.navy)
+        .navyBackground()
         .navigationTitle("Animation Test")
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear {
+            // Cancel any pending debounce work item when view disappears
+            debounceWorkItem?.cancel()
+            debounceWorkItem = nil
+        }
     }
 
     private func setupPlayer(with url: URL) {
-        let playerItem = AVPlayerItem(url: url)
-        player.replaceCurrentItem(with: playerItem)
+        DispatchQueue.main.async {
+            self.playerWrapper.player.pause()
+            let playerItem = AVPlayerItem(url: url)
+            self.playerWrapper.player.replaceCurrentItem(with: playerItem)
+        }
     }
 }
 
