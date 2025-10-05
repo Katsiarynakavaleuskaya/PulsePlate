@@ -1,15 +1,26 @@
+/// <reference types="vitest/globals" />
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import EnterKey from '../EnterKey';
 import { AuthProvider } from '../../../lib/auth';
+import toast from 'react-hot-toast';
+
 
 // Mock i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
+}));
+
+// Mock react-hot-toast
+vi.mock('react-hot-toast', () => ({
+  default: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
 }));
 
 const renderWithProviders = (component: React.ReactElement) => {
@@ -33,36 +44,56 @@ describe('EnterKey', () => {
   });
 
   it('shows error for empty API key', async () => {
-    // Mock alert
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
-
     renderWithProviders(<EnterKey />);
 
     const saveButton = screen.getByText('onboarding.enterKey.save');
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(alertMock).toHaveBeenCalledWith('onboarding.enterKey.errorEmpty');
+      expect(toast.error).toHaveBeenCalledWith('onboarding.enterKey.errorEmpty');
     });
-
-    alertMock.mockRestore();
   });
 
-  it('saves API key when valid', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
-
+  it('shows error for API key shorter than minimum length', async () => {
     renderWithProviders(<EnterKey />);
 
     const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
-    fireEvent.change(input, { target: { value: 'sk-test123456789' } });
+    fireEvent.change(input, { target: { value: 'short' } }); // 5 characters, less than minimum
 
     const saveButton = screen.getByText('onboarding.enterKey.save');
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(alertMock).toHaveBeenCalledWith('onboarding.enterKey.successSaved');
+      expect(toast.error).toHaveBeenCalledWith('API key must be at least 20 characters');
     });
+  });
 
-    alertMock.mockRestore();
+  it('saves API key when valid', async () => {
+    renderWithProviders(<EnterKey />);
+
+    const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
+    fireEvent.change(input, { target: { value: 'sk-test12345678901234567890' } });
+
+    const saveButton = screen.getByText('onboarding.enterKey.save');
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('onboarding.enterKey.successSaved');
+    });
+  });
+
+  it('clears API key when clear button is clicked', async () => {
+    renderWithProviders(<EnterKey />);
+
+    const input = screen.getByPlaceholderText('onboarding.enterKey.placeholder');
+    fireEvent.change(input, { target: { value: 'sk-test12345678901234567890' } });
+
+    const clearButton = screen.getByText('onboarding.enterKey.clear');
+    fireEvent.click(clearButton);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('onboarding.enterKey.keyCleared');
+      expect(input).toHaveValue('');
+    });
   });
 });

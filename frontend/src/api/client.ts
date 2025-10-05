@@ -2,7 +2,6 @@
 // EN: Minimal FastAPI client. No mocks/MSW in this step.
 
 import { logError } from "../lib/analytics";
-import CryptoJS from "crypto-js";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -34,35 +33,28 @@ function mockUrl(path: string): string | null {
 }
 
 // API Key management
+// SECURITY NOTE: API keys are stored in plain text in browser storage.
+// Client-side encryption with a visible secret provides no real security.
+// This approach is acceptable only if:
+// 1. API keys are user-provided and can be easily rotated
+// 2. Keys have limited scope and are rate-limited server-side
+// 3. Application uses strict CSP to prevent XSS
+// 4. All user input is properly sanitized
+// For production with sensitive operations, consider:
+// - Using httpOnly cookies for authentication tokens
+// - Implementing short-lived tokens with backend refresh
+// - Server-side session management
 const API_KEY_STORAGE_KEY = "pulseplate_api_key";
-const API_KEY_ENCRYPTION_SECRET = "pp_static_secret_strong-change-me"; // CHANGE ME FOR DEPLOYMENT
-
-function decryptApiKey(encrypted: string | null): string | null {
-  if (!encrypted) return null;
-  try {
-    const bytes = CryptoJS.AES.decrypt(encrypted, API_KEY_ENCRYPTION_SECRET);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    return decrypted || null;
-  } catch {
-    return null;
-  }
-}
 
 export function getStoredApiKey(): string | null {
   if (typeof window === "undefined") return null;
-  const encrypted = localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
-  return decryptApiKey(encrypted);
-}
-
-function encryptApiKey(key: string): string {
-  return CryptoJS.AES.encrypt(key, API_KEY_ENCRYPTION_SECRET).toString();
+  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
 export function setStoredApiKey(key: string, remember: boolean = false): void {
   if (typeof window === "undefined") return;
-  const encrypted = encryptApiKey(key);
   const storage = remember ? localStorage : sessionStorage;
-  storage.setItem(API_KEY_STORAGE_KEY, encrypted);
+  storage.setItem(API_KEY_STORAGE_KEY, key);
   // Clear from other storage
   const otherStorage = remember ? sessionStorage : localStorage;
   otherStorage.removeItem(API_KEY_STORAGE_KEY);

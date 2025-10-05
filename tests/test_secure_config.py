@@ -25,8 +25,8 @@ def fake_crypto(monkeypatch):
     """Provide a fake Fernet implementation when cryptography is unavailable."""
 
     class FakeFernet:
-        _RAW_KEY = b"01234567890123456789012345678901"
-        _KEY = base64.urlsafe_b64encode(_RAW_KEY)
+        _RAW_KEY: bytes = b"01234567890123456789012345678901"
+        _KEY: bytes = base64.urlsafe_b64encode(_RAW_KEY)
 
         def __init__(self, key: bytes):
             if key != self._KEY:

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../api/client';
 
 interface AuthContextType {
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const promptTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Load API key from storage on mount
@@ -31,8 +32,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Show auth prompt if no key is stored
     if (!storedKey) {
       // Delay showing prompt to avoid flash on initial load
-      setTimeout(() => setShowAuthPrompt(true), 500);
+      promptTimeoutRef.current = window.setTimeout(() => {
+        if (!getStoredApiKey()) {
+          setShowAuthPrompt(true);
+        }
+      }, 500);
     }
+
+    return () => {
+      if (promptTimeoutRef.current !== null) {
+        clearTimeout(promptTimeoutRef.current);
+        promptTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const setApiKey = (key: string, remember: boolean = false) => {
@@ -45,12 +57,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!/^[A-Za-z0-9\-_]+$/.test(trimmedKey)) {
       throw new Error('API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed.');
     }
+    if (promptTimeoutRef.current !== null) {
+      clearTimeout(promptTimeoutRef.current);
+      promptTimeoutRef.current = null;
+    }
     setStoredApiKey(trimmedKey, remember);
     setApiKeyState(trimmedKey);
     setShowAuthPrompt(false);
   };
 
   const clearApiKey = () => {
+    if (promptTimeoutRef.current !== null) {
+      clearTimeout(promptTimeoutRef.current);
+      promptTimeoutRef.current = null;
+    }
     clearStoredApiKey();
     setApiKeyState(null);
     setShowAuthPrompt(true);
