@@ -25,9 +25,10 @@ export default function Profile() {
   }, []);
 
   const handleRagToggle = async (enabled: boolean) => {
+    const previousStats = ragStats;
     try {
       // Optimistically update UI
-      setRagStats(prev => prev ? { ...prev, enabled } : null);
+      setRagStats(prev => (prev ? { ...prev, enabled } : prev));
 
       const result = await toggleRag(enabled);
       if (!result.success) {
@@ -40,9 +41,17 @@ export default function Profile() {
     } catch (error) {
       console.error("Failed to toggle RAG:", error);
       // Revert optimistic update on error
-      const refreshedStats = await getRagStats();
-      setRagStats(refreshedStats);
+      if (previousStats) {
+        setRagStats(previousStats);
+      }
+      try {
+        const refreshedStats = await getRagStats();
+        setRagStats(refreshedStats);
+      } catch (refreshError) {
+        console.error("Failed to refresh RAG stats:", refreshError);
+      }
     }
+  };
   };
 
   return (
