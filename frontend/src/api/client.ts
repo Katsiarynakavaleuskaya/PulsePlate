@@ -158,3 +158,9 @@ export const getPlate = () => api<PlateResponse>("/premium/plate");
 export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
 
 export const getRagStats = () => api<RagStatsResponse>("/api/v1/rag/stats");
+
+export const toggleRag = (enabled: boolean) =>
+  api<{ success: boolean; enabled: boolean }>("/api/v1/rag/toggle", {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });

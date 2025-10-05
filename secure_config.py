@@ -185,6 +185,9 @@ def decrypt_value(value: str) -> str:
     if not ENCRYPTION_AVAILABLE:
         return value  # Cannot decrypt without cryptography
 
+    # Select the appropriate exception type at module level
+    _DecryptionError = InvalidToken if ENCRYPTION_AVAILABLE else InvalidTokenPlaceholder
+
     try:
         encrypted_data = value.replace("encrypted:", "")
         key = get_encryption_key()
@@ -195,11 +198,7 @@ def decrypt_value(value: str) -> str:
         fernet = Fernet(key)
         decrypted: bytes = fernet.decrypt(encrypted_data.encode())
         return decrypted.decode()
-    except (
-        InvalidToken if ENCRYPTION_AVAILABLE else InvalidTokenPlaceholder,
-        ValueError,
-        TypeError,
-    ) as e:
+    except (_DecryptionError, ValueError, TypeError) as e:
         # Expected decryption failures - return original value
         logger.debug(
             "Decryption failed for value (expected error): %s: %s",

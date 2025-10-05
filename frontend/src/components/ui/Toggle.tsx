@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface ToggleProps {
   label: string;
@@ -7,6 +7,19 @@ interface ToggleProps {
   disabled?: boolean;
   description?: string;
   className?: string;
+  id?: string;
+}
+
+function sanitizeId(label: string): string {
+  // Trim the label, convert to lower case, replace any sequence of non-alphanumeric characters with a single hyphen
+  let sanitized = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  // Strip leading/trailing hyphens
+  sanitized = sanitized.replace(/^-+|-+$/g, '');
+  // If the result is empty or starts with a digit, prefix with "toggle-"
+  if (!sanitized || /^\d/.test(sanitized)) {
+    sanitized = `toggle-${sanitized}`;
+  }
+  return sanitized;
 }
 
 export function Toggle({
@@ -15,17 +28,28 @@ export function Toggle({
   onChange,
   disabled = false,
   description,
-  className = ''
+  className = '',
+  id
 }: ToggleProps) {
+  const generatedId = useId();
+  const toggleId = id ?? sanitizeId(`${label}-${generatedId}`);
+  const checkboxRef = React.useRef<HTMLInputElement>(null);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.checked);
+  };
+
+  const handleButtonClick = () => {
+    if (!disabled && checkboxRef.current) {
+      checkboxRef.current.click();
+    }
   };
 
   return (
     <div className={`flex items-center justify-between ${className}`}>
       <div className="flex-1">
         <label
-          htmlFor={`toggle-${label.replace(/\s+/g, '-').toLowerCase()}`}
+          htmlFor={toggleId}
           className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
         >
           {label}
@@ -41,8 +65,8 @@ export function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
-        aria-labelledby={`toggle-${label.replace(/\s+/g, '-').toLowerCase()}`}
-        onClick={() => !disabled && onChange(!checked)}
+        aria-labelledby={toggleId}
+        onClick={handleButtonClick}
         disabled={disabled}
         className={`
           relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
@@ -63,13 +87,13 @@ export function Toggle({
 
       {/* Hidden checkbox for form compatibility */}
       <input
-        id={`toggle-${label.replace(/\s+/g, '-').toLowerCase()}`}
+        ref={checkboxRef}
+        id={toggleId}
         type="checkbox"
         checked={checked}
         onChange={handleChange}
         disabled={disabled}
         className="sr-only"
-        aria-hidden="true"
       />
     </div>
   );

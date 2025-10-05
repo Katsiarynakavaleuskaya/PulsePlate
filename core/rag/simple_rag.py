@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
@@ -89,29 +89,30 @@ def invalidate_index() -> None:
 
 
 def _score(query: str, text: str) -> float:
-    # Simple Jaccard on word sets, with small bonus for exact substring hits
+    # Simple Jaccard on word sets (no bonuses)
     q = set(_tokenize(query))
     t = set(_tokenize(text))
     if not q or not t:
         return 0.0
     inter = len(q & t)
     union = len(q | t)
-    base = inter / union if union else 0.0
-    if query.lower() in text.lower():
-        base += 0.1
-    return base
+    return inter / union if union else 0.0
 
 
 def get_rag_stats() -> dict:
     """Get RAG system statistics."""
     items = _get_index()
     total_chunks = len(items)
-    sources = {}
+    sources: Dict[str, int] = {}
     for src, _ in items:
         src_name = Path(src).name
         sources[src_name] = sources.get(src_name, 0) + 1
 
-    return {"total_chunks": total_chunks, "sources": sources, "index_loaded": _INDEX is not None}
+    return {
+        "total_chunks": total_chunks,
+        "sources": sources,
+        "index_loaded": _INDEX is not None and len(_INDEX) > 0,
+    }
 
 
 def retrieve_context(query: str, max_chunks: int = 3) -> str:
@@ -123,26 +124,16 @@ def retrieve_context(query: str, max_chunks: int = 3) -> str:
     # Enhanced scoring with multiple factors
     scored = []
     query_lower = query.lower()
-    query_words = set(_tokenize(query))
 
     for src, ch in items:
         chunk_lower = ch.lower()
-        chunk_words = set(_tokenize(ch))
 
-        # Base keyword matching score
+        # Base Jaccard score
         base_score = _score(query, ch)
 
         # Boost for exact phrase matches
         if query_lower in chunk_lower:
             base_score += 0.3
-
-        # Boost for word overlap (Jaccard similarity)
-        if query_words and chunk_words:
-            intersection = len(query_words & chunk_words)
-            union = len(query_words | chunk_words)
-            if union > 0:
-                jaccard = intersection / union
-                base_score += jaccard * 0.2
 
         scored.append((src, ch, base_score))
 

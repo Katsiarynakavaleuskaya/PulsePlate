@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getRagStats, RagStatsResponse } from "../api/client";
+import { getRagStats, toggleRag, RagStatsResponse } from "../api/client";
 import { Toggle } from "../components/ui/Toggle";
-import { GlassCard } from "../components/GlassCard";
+import GlassCard from "../components/GlassCard";
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -24,10 +24,25 @@ export default function Profile() {
     loadRagStats();
   }, []);
 
-  const handleRagToggle = (enabled: boolean) => {
-    // TODO: Implement RAG toggle functionality
-    console.log("RAG toggle:", enabled);
-    // This would typically make an API call to enable/disable RAG
+  const handleRagToggle = async (enabled: boolean) => {
+    try {
+      // Optimistically update UI
+      setRagStats(prev => prev ? { ...prev, enabled } : null);
+
+      const result = await toggleRag(enabled);
+      if (!result.success) {
+        throw new Error("Toggle failed");
+      }
+
+      // Reload stats to get updated data
+      const updatedStats = await getRagStats();
+      setRagStats(updatedStats);
+    } catch (error) {
+      console.error("Failed to toggle RAG:", error);
+      // Revert optimistic update on error
+      const refreshedStats = await getRagStats();
+      setRagStats(refreshedStats);
+    }
   };
 
   return (
@@ -61,12 +76,20 @@ export default function Profile() {
                 {t("profile.rag.stats")}
               </h3>
               <div className="text-sm text-gray-300 space-y-1">
-                <div>
-                  {t("profile.rag.chunks")}: {ragStats.stats.total_chunks}
-                </div>
-                <div>
-                  {t("profile.rag.sources")}: {Object.keys(ragStats.stats.sources).length}
-                </div>
+                {ragStats.stats ? (
+                  <>
+                    <div>
+                      {t("profile.rag.chunks")}: {ragStats.stats.total_chunks}
+                    </div>
+                    <div>
+                      {t("profile.rag.sources")}: {Object.keys(ragStats.stats.sources).length}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-red-400">
+                    {ragStats.error || "Failed to load RAG statistics"}
+                  </div>
+                )}
                 <div>
                   Status: {ragStats.enabled ? t("profile.rag.enabled") : t("profile.rag.disabled")}
                 </div>

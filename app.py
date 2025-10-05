@@ -1116,7 +1116,7 @@ async def insight(req: InsightRequest):
         raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}") from e
 
 
-@app.get("/api/v1/rag/stats")
+@app.get("/api/v1/rag/stats", dependencies=[Depends(_get_api_key_dynamic)])
 async def rag_stats():
     """Get RAG system statistics."""
     try:
@@ -1128,8 +1128,36 @@ async def rag_stats():
             in {"1", "true", "on", "yes"},
             "stats": stats,
         }
+    except ImportError:
+        logger.warning("RAG module not available")
+        return {"enabled": False, "error": "RAG feature not available"}
     except Exception as e:
-        return {"enabled": False, "error": str(e)}
+        logger.error("Failed to get RAG stats: %s", e)
+        return {"enabled": False, "error": "Failed to retrieve RAG statistics"}
+
+
+@app.post("/api/v1/rag/toggle", dependencies=[Depends(_get_api_key_dynamic)])
+async def toggle_rag(request: dict):
+    """Toggle RAG feature on/off."""
+    try:
+        if "enabled" not in request:
+            raise HTTPException(status_code=422, detail="enabled field is required")
+
+        enabled = request["enabled"]
+        # For now, this is a placeholder - RAG state would typically be stored in user settings
+        # or a database. For the MVP, we'll just validate the request.
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="enabled must be a boolean")
+
+        # TODO: Persist RAG preference to user settings/database
+        logger.info("RAG toggle requested: enabled=%s", enabled)
+
+        return {"success": True, "enabled": enabled}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to toggle RAG: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to toggle RAG feature")
 
 
 MenuEngineCallable = Callable[..., Any]
