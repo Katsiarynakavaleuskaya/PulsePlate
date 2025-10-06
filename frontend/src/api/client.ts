@@ -2,7 +2,7 @@
 // EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
-import { getStoredApiKey } from "../auth/AuthContext";
+import { getStoredApiKey, clearStoredApiKey } from "../auth/AuthContext";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -43,7 +43,7 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/Aut
  */
 export async function validateApiKey(): Promise<boolean> {
   try {
-    // Use a lightweight endpoint for validation (adjust path as needed)
+    // Use health endpoint which is available without API key
     await api<{ status: string }>("/health", { method: "GET" });
     return true;
   } catch (error) {
@@ -109,15 +109,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       // Handle 401 Unauthorized - redirect to auth
       if (res.status === 401) {
         // Clear invalid API key
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("pulseplate_api_key");
-          sessionStorage.removeItem("pulseplate_api_key");
-        }
+        clearStoredApiKey();
         // Redirect to enter key page (soft-gating)
         if (typeof window !== "undefined") {
           window.location.href = "/enter-key";
         }
-        throw new Error("API key invalid or expired. Redirecting to authentication.");
+        // Don't throw error immediately to allow redirect to complete
+        return Promise.reject(new Error("API key invalid or expired. Redirecting to authentication."));
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../api/client';
+import { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../auth/storage';
 
 const MIN_API_KEY_LENGTH = 20;
 const AUTH_PROMPT_DELAY_MS = 500;
