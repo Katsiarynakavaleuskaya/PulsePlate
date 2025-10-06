@@ -20,15 +20,16 @@ export default function TabBar() {
       className="fixed bottom-0 inset-x-0 grid grid-cols-4 border-t border-muted/30 bg-navy"
     >
       {items.map(({ to, label, requiresAuth }) => {
+        const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
         const isDisabled = requiresAuth && !apiKey;
 
         if (isDisabled) {
-          const wouldBeActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
           return (
             <span
               key={to}
               role="tab"
-              aria-selected={wouldBeActive}
+              aria-selected={isActive}
+              aria-disabled="true"
               className="py-3 text-center text-muted/50 cursor-not-allowed"
               title={t("auth.requiresApiKey")}
             >
@@ -43,15 +44,10 @@ export default function TabBar() {
             to={to}
             end={to === "/"}
             role="tab"
-            className={({ isActive }) =>
-              `py-3 text-center ${isActive ? "text-primary font-medium" : "text-muted"}`
-            }
+            aria-selected={isActive}
+            className={`py-3 text-center ${isActive ? "text-primary font-medium" : "text-muted"}`}
           >
-            {({ isActive }) => (
-              <span aria-selected={isActive}>
-                {label}
-              </span>
-            )}
+            {label}
           </NavLink>
         );
       })}

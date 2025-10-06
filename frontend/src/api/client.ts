@@ -1,6 +1,9 @@
 // RU: Клиент для FastAPI с поддержкой API ключа и моков.
 // EN: FastAPI client with API key support and mocks.
 
+// Global variable for controlling mock behavior in tests (deprecated, use forceMock instead)
+// declare const GLOBAL_FORCE_MOCK: boolean | undefined;
+
 import { SettingsStore } from "../settings";
 import { logError } from "../lib/analytics";
 import { getMockUrl } from "../mocks/config";
@@ -43,7 +46,9 @@ function buildHeaders(
   body?: unknown
 ) {
   const h: Record<string, string> = { ...base };
-  if (apiKey) h["X-API-Key"] = apiKey;
+  if (apiKey) {
+    h["X-API-Key"] = apiKey;
+  }
   // Для GET/без тела не шлём Content-Type, и не шлём для FormData, URLSearchParams, Blob, ArrayBuffer (браузер сам установит правильный Content-Type)
   // Normalize header keys to lowercase for case-insensitive check
   const lowerCaseKeys = Object.keys(h).map((k) => k.toLowerCase());
@@ -63,7 +68,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     body,
     headers,
     mockUrl,
-    forceMock = typeof GLOBAL_FORCE_MOCK !== 'undefined' ? GLOBAL_FORCE_MOCK : false,
+    forceMock = forceMock,
     onAuthError,
     credentials,
     signal,
@@ -91,7 +96,9 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
 
   const primary = `${API_BASE}${url}`;
   const useMock = async () => {
-    if (!mockUrl) throw new Error("Mock URL not provided");
+    if (!mockUrl) {
+      throw new Error("Mock URL not provided");
+    }
     try {
       return await fetch(mockUrl, {
         method,
@@ -165,7 +172,9 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
   }
 
   // Endpoints which may return 204 should call the API with a response type that includes undefined (e.g. api<Response | undefined>(...))
-  if (res.status === 204) return undefined;
+  if (res.status === 204) {
+    return undefined;
+  }
   return (await res.json()) as T;
 }
 

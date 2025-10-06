@@ -6,14 +6,13 @@ import EnterKey from "../EnterKey";
 import { SettingsStore } from "../../../settings/index";
 
 // Use a fake API key constant to avoid triggering security scanners
-const TEST_API_KEY = "sk-fake_key_12345678901234567890";
+const TEST_API_KEY = "sk-test_12345678901234567890";
+const TEST_EXISTING_KEY = "sk-existing_12345678901234567890";
 
 let setItemSpy: ReturnType<typeof vi.spyOn>;
 
-// Mock useNavigate globally to prevent errors in tests that don't explicitly mock it
 const mockNavigate = vi.fn();
 let mockLocationState: any = null;
-
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
@@ -23,12 +22,13 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-beforeEach(() => {
+describe("EnterKey component", () => {
+  beforeEach(() => {
   // Clean store
   localStorage.clear();
   mockLocationState = null;
   mockNavigate.mockClear();
-  setItemSpy = vi.spyOn(window.localStorage.__proto__, 'setItem');
+  setItemSpy = vi.spyOn(window.sessionStorage.__proto__, 'setItem');
 });
 
 afterEach(() => {
@@ -60,7 +60,6 @@ it("rejects invalid API key format", () => {
 });
 
 it("trims and saves key", () => {
-it("trims and saves key", () => {
   const sessionSetSpy = vi.spyOn(window.sessionStorage.__proto__, 'setItem');
   render(<AuthProvider><EnterKey/></AuthProvider>);
   fireEvent.change(
@@ -76,7 +75,7 @@ it("trims and saves key", () => {
 
 it("clears input and removes key on clear button click", () => {
   // Pre-populate with an API key
-  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: TEST_API_KEY }));
+  sessionStorage.setItem("pulseplate.settings.v1.apiKey", TEST_API_KEY);
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
@@ -92,8 +91,8 @@ it("clears input and removes key on clear button click", () => {
   // Input should be emptied
   expect(input).toHaveValue("");
 
-  // localStorage.setItem should have been called to remove the key
-  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1", JSON.stringify({}));
+  // sessionStorage.removeItem should have been called to remove the key
+  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1.apiKey", "");
 });
 
 it("navigates to from route after saving valid key", () => {
@@ -124,14 +123,14 @@ it("navigates to from route after saving valid key", () => {
 
 it("displays existing apiKey in input on initial render", () => {
   // Pre-populate with an API key with whitespace that should be trimmed in display
-  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: "  sk-existing12345678901234567890  " }));
+  sessionStorage.setItem("pulseplate.settings.v1.apiKey", `  ${TEST_EXISTING_KEY}  `);
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
   const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
 
   // Should display the existing key (trimmed)
-  expect(input).toHaveValue("sk-existing12345678901234567890");
+  expect(input).toHaveValue(TEST_EXISTING_KEY);
 });
 
 it("displays error message when save fails", () => {
@@ -160,4 +159,5 @@ it("displays error message when save fails", () => {
   // Restore mocks
   setApiKeySpy.mockRestore();
   toastErrorSpy.mockRestore();
+  });
 });

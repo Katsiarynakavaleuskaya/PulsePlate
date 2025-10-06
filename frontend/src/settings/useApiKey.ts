@@ -17,15 +17,8 @@ export function useApiKey() {
     // Listen for apiKey changes
     window.addEventListener("settings:apiKey:changed", handleApiKeyChange);
 
-    // Also listen for general settings changes in case of cross-tab sync
-    const unsubscribe = SettingsStore.subscribe(() => {
-      // Refresh apiKey from sessionStorage
-      setApiKeyState(SettingsStore.getApiKey());
-    });
-
     return () => {
       window.removeEventListener("settings:apiKey:changed", handleApiKeyChange);
-      unsubscribe();
     };
   }, []);
 
