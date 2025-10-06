@@ -18,13 +18,11 @@ global.fetch = fetchMock;
 // Set up test environment
 beforeAll(() => {
   // Mock import.meta.env
-  vi.stubGlobal('import', {
-    meta: {
-      env: {
-        VITE_API_BASE: 'http://test-api.com',
-      },
-    },
-  });
+// Set up test environment
+beforeAll(() => {
+  // Ensure vite/vitest env var is available at import time
+  vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
+});
 });
 
 describe('API Client Auth', () => {
