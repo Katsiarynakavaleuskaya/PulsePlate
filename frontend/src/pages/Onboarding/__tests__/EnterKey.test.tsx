@@ -36,8 +36,8 @@ it("rejects empty key", () => {
   const toastErrorSpy = vi.spyOn(toast, "error").mockReturnValue("");
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
-  fireEvent.click(screen.getByText(/Сохранить/i));
-  expect(toastErrorSpy).toHaveBeenCalledWith("Введите непустой API-ключ.");
+  fireEvent.click(screen.getByText(/Save/i));
+  expect(toastErrorSpy).toHaveBeenCalledWith("Invalid or missing API key.");
   expect(setItemSpy).not.toHaveBeenCalled();
 
   toastErrorSpy.mockRestore();
@@ -45,9 +45,9 @@ it("rejects empty key", () => {
 
 it("trims and saves key", () => {
   render(<AuthProvider><EnterKey/></AuthProvider>);
-  fireEvent.change(screen.getByPlaceholderText(/X-API-Key|Вставьте/i), { target: { value: " secret " } });
-  fireEvent.click(screen.getByText(/Сохранить/i));
-  expect(setItemSpy).toHaveBeenCalled(); // детальнее можно проверить содержимое NS
+  fireEvent.change(screen.getByPlaceholderText(/Paste X-API-Key/i), { target: { value: " secret " } });
+  fireEvent.click(screen.getByText(/Save/i));
+  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1", JSON.stringify({ apiKey: "secret" }));
 });
 
 it("clears input and removes key on clear button click", () => {
@@ -56,8 +56,8 @@ it("clears input and removes key on clear button click", () => {
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
-  const input = screen.getByPlaceholderText(/X-API-Key|Вставьте/i);
-  const clearButton = screen.getByText(/Очистить/i);
+  const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
+  const clearButton = screen.getByText(/Clear/i);
 
   // Initially should show the existing key
   expect(input).toHaveValue("test-key");
@@ -85,8 +85,8 @@ it("navigates to from route after saving valid key", () => {
     </MemoryRouter>
   );
 
-  const input = screen.getByPlaceholderText(/X-API-Key|Вставьте/i);
-  const saveButton = screen.getByText(/Сохранить/i);
+  const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
+  const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
   fireEvent.change(input, { target: { value: "valid-api-key" } });
@@ -104,7 +104,7 @@ it("displays existing apiKey in input on initial render", () => {
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
-  const input = screen.getByPlaceholderText(/X-API-Key|Вставьте/i);
+  const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
 
   // Should display the existing key (trimmed)
   expect(input).toHaveValue("existing-key");
@@ -122,8 +122,8 @@ it("displays error message when save fails", () => {
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
-  const input = screen.getByPlaceholderText(/X-API-Key|Вставьте/i);
-  const saveButton = screen.getByText(/Сохранить/i);
+  const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
+  const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
   fireEvent.change(input, { target: { value: "valid-api-key" } });
@@ -132,7 +132,7 @@ it("displays error message when save fails", () => {
   fireEvent.click(saveButton);
 
   // Should display error message
-  expect(toastErrorSpy).toHaveBeenCalledWith("Не удалось сохранить ключ. Попробуйте ещё раз.");
+  expect(toastErrorSpy).toHaveBeenCalledWith("Failed to save key. try again.");
 
   // Restore mocks
   SettingsStore.setApiKey = originalSetApiKey;

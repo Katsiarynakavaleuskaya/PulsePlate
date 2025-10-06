@@ -3,6 +3,10 @@
     "ok": "OK",
     "cancel": "Cancelar"
   },
+  "auth": {
+    "invalidApiKey": "Clave API inválida o faltante.",
+    "accessDenied": "Acceso denegado (403)."
+  },
   "shoplist": {
     "loading": "Cargando lista de compras…",
     "error": "Error",
@@ -77,5 +81,17 @@
         "auto_shopping_list": "Lista automática"
       }
     }
+  },
+  "enterKey": {
+    "title": "Clave API",
+    "description": "Clave requerida para funciones Premium. Dónde obtener: ver",
+    "label": "X-API-Key",
+    "placeholder": "Pegar X-API-Key",
+    "save": "Guardar",
+    "clear": "Limpiar",
+    "saved": "Clave guardada",
+    "cleared": "Clave eliminada",
+    "saveFailed": "No se pudo guardar la clave",
+    "footer": "Los cambios se aplican inmediatamente. Las páginas VIP/Admin no requieren recarga — te devolveremos automáticamente a la pantalla anterior."
   }
 }

@@ -147,6 +147,15 @@ class TestDatabaseUpdateManagerCoverage97:
         assert len(checksum) == 64  # SHA-256 produces 64 character hex string
         assert re.fullmatch(r"[0-9a-f]{64}", checksum) is not None
 
+        # Test determinism: same input should produce same checksum
+        checksum_again = manager._calculate_checksum(test_data)
+        assert checksum == checksum_again
+
+        # Test uniqueness: different input should produce different checksum
+        different_data = {"test": "different checksum data"}  # Meaningfully different value
+        different_checksum = manager._calculate_checksum(different_data)
+        assert checksum != different_checksum
+
     @pytest.mark.asyncio
     async def test_get_product_count_from_sqlite_database(self) -> None:
         """Test SQLite product count extraction for openfoodfacts (lines 564-572)."""

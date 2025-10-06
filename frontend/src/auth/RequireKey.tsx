@@ -13,7 +13,7 @@ export const RequireKey: React.FC<React.PropsWithChildren> = ({ children }) => {
   const loc = useLocation();
 
   if (!apiKey) {
-    // soft-гейтинг: уводим на /enter-key, но сохраняем from
+    // soft-gating: redirect to /enter-key but preserve the originating path in state for return navigation
     return <Navigate to="/enter-key" replace state={{ from: loc.pathname }} />;
   }
   return <>{children}</>;

@@ -3,8 +3,9 @@
 
 import { SettingsStore } from "../settings";
 import { logError } from "../lib/analytics";
+import { getMockUrl } from "../mocks/config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 if (!API_BASE) {
   const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
@@ -21,16 +22,7 @@ const searchParams = (() => {
 const forceMock = searchParams.get("mock") === "1";
 
 function mockUrl(path: string): string | null {
-  if (path.includes("/premium/bmr")) {
-    return "/mock/bmr.json";
-  }
-  if (path.includes("/premium/plate")) {
-    return "/mock/plate.json";
-  }
-  if (path.includes("/plan/week")) {
-    return "/mock/week.json";
-  }
-  return null;
+  return getMockUrl(path);
 }
 
 type ApiOptions = {
@@ -47,12 +39,13 @@ type ApiOptions = {
 function buildHeaders(
   apiKey: string | undefined,
   base: Record<string, string> = {},
-  hasBody: boolean
+  hasBody: boolean,
+  body?: unknown
 ) {
   const h: Record<string, string> = { ...base };
   if (apiKey) h["X-API-Key"] = apiKey;
-  // Для GET/без тела не шлём Content-Type
-  if (hasBody && !("Content-Type" in h)) h["Content-Type"] = "application/json";
+  // Для GET/без тела не шлём Content-Type, и не шлём для FormData (браузер сам установит multipart)
+  if (hasBody && !("Content-Type" in h) && !(body instanceof FormData)) h["Content-Type"] = "application/json";
   return h;
 }
 
@@ -70,7 +63,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
 
   const apiKey = SettingsStore.getApiKey();
   const hasBody = body !== undefined && method !== "GET";
-  const finalHeaders = buildHeaders(apiKey, headers, hasBody);
+  const finalHeaders = buildHeaders(apiKey, headers, hasBody, body);
 
   // Prepare body once - only stringify if it's a plain object/array, leave strings/FormData as-is
   let preparedBody: BodyInit | undefined;
@@ -174,7 +167,7 @@ export type WeekPlanResponse = {
 
 // Endpoints
 export const getBmr = (body: BmrRequest): Promise<BmrResponse | undefined> =>
-  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
+  api<BmrResponse>("/premium/bmr", { method: "POST", body });
 
 export const getPlate = (): Promise<PlateResponse | undefined> => api<PlateResponse>("/premium/plate");
 

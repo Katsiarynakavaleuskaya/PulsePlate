@@ -1373,6 +1373,7 @@
 масштабируем
 Масштабируем
 Масштабирует
+матчерами
 мгновенные
 Мгновенные
 медиа
@@ -3589,8 +3590,6 @@
 эндпоинтов
 эндпоинты
 эндпойнт
-эндпойнта
-эндпойнтов
 энергетическим
 этап
 этапа
@@ -3922,6 +3921,7 @@ lproj
 macronutrient
 Macronutrient
 MACRONUTRIENT
+macronutrientes
 macronutrients
 Macronutrients
 magnesio

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import Plate from "./pages/Plate";
 import Progress from "./pages/Progress";
@@ -9,23 +9,34 @@ import { Toaster, OfflineIndicator } from "./components/ui";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireKey } from "./auth/RequireKey";
 
+function AppContent() {
+  const location = useLocation();
+
+  // Hide TabBar on enter-key page, show otherwise
+  const showTabBar = location.pathname !== "/enter-key";
+
+  return (
+    <div className="min-h-dvh bg-navy text-text pb-14">
+      <Routes>
+        {/* Публичные */}
+        <Route path="/" element={<Home />} />
+        <Route path="/enter-key" element={<EnterKey />} />
+
+        {/* Приватные */}
+        <Route path="/plate" element={<RequireKey><Plate /></RequireKey>} />
+        <Route path="/progress" element={<RequireKey><Progress /></RequireKey>} />
+        <Route path="/profile" element={<Profile />} />
+      </Routes>
+      {showTabBar && <TabBar />}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="min-h-dvh bg-navy text-text pb-14">
-          <Routes>
-            {/* Публичные */}
-            <Route path="/" element={<Home />} />
-            <Route path="/enter-key" element={<EnterKey />} />
-
-            {/* Приватные */}
-            <Route path="/plate" element={<RequireKey><Plate /></RequireKey>} />
-            <Route path="/progress" element={<RequireKey><Progress /></RequireKey>} />
-            <Route path="/profile" element={<Profile />} />
-          </Routes>
-          <TabBar />
-        </div>
+        <AppContent />
         <OfflineIndicator />
         <Toaster />
       </AuthProvider>

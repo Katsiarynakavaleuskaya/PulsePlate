@@ -3,6 +3,10 @@
     "ok": "OK",
     "cancel": "Cancel"
   },
+  "auth": {
+    "invalidApiKey": "Invalid or missing API key.",
+    "accessDenied": "Access denied (403)."
+  },
   "shoplist": {
     "loading": "Loading shopping list…",
     "error": "Error",
@@ -77,5 +81,17 @@
         "auto_shopping_list": "Auto shopping list"
       }
     }
+  },
+  "enterKey": {
+    "title": "API Key",
+    "description": "Key required for Premium features. Where to get: see",
+    "label": "X-API-Key",
+    "placeholder": "Paste X-API-Key",
+    "save": "Save",
+    "clear": "Clear",
+    "saved": "Key saved",
+    "cleared": "Key removed",
+    "saveFailed": "Failed to save key",
+    "footer": "Changes apply immediately. VIP/Admin pages don't need reload — we'll return you to the previous screen automatically."
   }
 }
