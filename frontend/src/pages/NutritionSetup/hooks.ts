@@ -1,7 +1,7 @@
 // RU: Хуки для работы с API расчетов в Nutrition Setup
 // EN: Hooks for API calculations in Nutrition Setup
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getBmr } from '../../api/client';
 import type { SetupFormValues, EnrichedBmrResponse, PlateResponse, TargetsResponse } from './schema';
 import { mockPlateData } from './mocks';
