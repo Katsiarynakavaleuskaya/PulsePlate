@@ -27,8 +27,9 @@ export function useSetupCalc(values: SetupFormValues | null) {
       abortControllerRef.current.abort();
     }
 
-    // Create new abort controller
-    abortControllerRef.current = new AbortController();
+    // Create new abort controller for this effect run
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const fetchData = async () => {
       setLoading(true);
@@ -97,9 +98,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
 
     // Cleanup function
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortController.abort();
     };
   }, [enabled, values]);
 
