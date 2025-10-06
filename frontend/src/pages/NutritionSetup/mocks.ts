@@ -1,0 +1,20 @@
+// RU: Mock данные для Nutrition Setup (используются пока API не готово)
+// EN: Mock data for Nutrition Setup (used until API is ready)
+
+import type { PlateResponse } from './schema';
+
+export const mockPlateData: PlateResponse = {
+  plate: {
+    carbs_pct: 50,
+    protein_pct: 25,
+    fat_pct: 25,
+    kcal: 2000,
+  },
+  macros: {
+    carbs_g: 250,
+    protein_g: 125,
+    fat_g: 55,
+    fiber_g: 25,
+  },
+  water_l: 2.5,
+};

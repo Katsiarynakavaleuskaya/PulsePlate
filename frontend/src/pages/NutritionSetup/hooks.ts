@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getBmr } from '../../api/client';
 import type { SetupFormValues, EnrichedBmrResponse, PlateResponse, TargetsResponse } from './schema';
+import { mockPlateData } from './mocks';
 
 export function useSetupCalc(values: SetupFormValues | null) {
   const [bmrData, setBmrData] = useState<EnrichedBmrResponse | null>(null);
@@ -65,22 +66,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
 
         // TODO: Replace with real getPlate() call once API supports goal/diet_flags parameters
         // Currently using mock data because getPlate() API doesn't accept goal and diet_flags yet
-        const plateResult = {
-          plate: {
-            carbs_pct: 50,
-            protein_pct: 25,
-            fat_pct: 25,
-            kcal: 2000,
-          },
-          macros: {
-            carbs_g: 250,
-            protein_g: 125,
-            fat_g: 55,
-            fiber_g: 25,
-          },
-          water_l: 2.5,
-        };
-        setPlateData(plateResult);
+        setPlateData(mockPlateData);
 
       } catch (err) {
         // Don't set error state if request was aborted

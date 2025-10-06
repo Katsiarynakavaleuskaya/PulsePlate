@@ -28,7 +28,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
     );
   }
 
-  if (error || targetsError || !bmrData || !plateData || !targetsData) {
+  if (error || targetsError || !bmrData || !plateData) {
     return (
       <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
         <div className="text-red-600 mb-4">
@@ -125,13 +125,15 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       </div>
 
       {/* Micros */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-text mb-4">Цели по микроэлементам</h2>
-        <p className="text-muted mb-6 text-sm">
-          Рекомендуемые суточные нормы витаминов и минералов для вашего возраста и пола
-        </p>
-        <MicrosGrid items={targetsData.micros} />
-      </div>
+      {targetsData && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-text mb-4">Цели по микроэлементам</h2>
+          <p className="text-muted mb-6 text-sm">
+            Рекомендуемые суточные нормы витаминов и минералов для вашего возраста и пола
+          </p>
+          <MicrosGrid items={targetsData.micros} />
+        </div>
+      )}
     </div>
   );
 }
