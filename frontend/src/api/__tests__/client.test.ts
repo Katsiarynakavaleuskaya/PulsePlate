@@ -9,21 +9,10 @@ const mockStorage = {
 };
 vi.mock('../auth/storage', () => mockStorage);
 
-import { validateApiKey } from '../client';
-
-// Mock fetch globally
+// Глобальный мок fetch для Vitest (jsdom окружение)
+// Global fetch mock for Vitest (jsdom environment)
 const fetchMock = vi.fn();
-global.fetch = fetchMock;
-
-// Set up test environment
-beforeAll(() => {
-  // Mock import.meta.env
-// Set up test environment
-beforeAll(() => {
-  // Ensure vite/vitest env var is available at import time
-  vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
-});
-});
+(globalThis as any).fetch = fetchMock;
 
 describe('API Client Auth', () => {
   beforeEach(() => {
@@ -35,16 +24,36 @@ describe('API Client Auth', () => {
   });
 
   describe('validateApiKey', () => {
-    it('should handle validation attempts', async () => {
-      // This test validates that validateApiKey can be called without errors
-      // The actual return value depends on API_BASE setup which is complex to mock
+    it('returns false on network error', async () => {
+      const originalImport = (globalThis as any).import;
+      (globalThis as any).import = {
+        meta: {
+          env: {
+            VITE_API_BASE: 'http://test-api.com',
+          },
+        },
+      };
+
+      const { validateApiKey } = await import('../client');
       fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await validateApiKey();
-      expect(typeof result).toBe('boolean');
+      expect(result).toBe(false);
+
+      (globalThis as any).import = originalImport;
     });
 
-    it('should return false for 401 Unauthorized response', async () => {
+    it('should return false for 401 on health check (mockResolvedValueOnce)', async () => {
+      const originalImport = (globalThis as any).import;
+      (globalThis as any).import = {
+        meta: {
+          env: {
+            VITE_API_BASE: 'http://test-api.com',
+          },
+        },
+      };
+
+      const { validateApiKey } = await import('../client');
       fetchMock.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -53,28 +62,8 @@ describe('API Client Auth', () => {
 
       const result = await validateApiKey();
       expect(result).toBe(false);
-    });
 
-    it('should return false for failed validation', async () => {
-      fetchMock.mockImplementationOnce(() => Promise.reject(new Error('Network error')));
-
-      const result = await validateApiKey();
-      expect(result).toBe(false);
-    });
-
-    it('should return false for 401 Unauthorized response', async () => {
-      fetchMock.mockImplementationOnce((url) => {
-        if (url === 'http://test-api.com/health') {
-          return Promise.resolve({
-            ok: false,
-            status: 401,
-          });
-        }
-        return Promise.reject(new Error('Unexpected URL'));
-      });
-
-      const result = await validateApiKey();
-      expect(result).toBe(false);
+      (globalThis as any).import = originalImport;
     });
   });
 });
