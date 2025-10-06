@@ -18,7 +18,9 @@ Object.defineProperty(window, 'location', {
 
 // Глобальный мок fetch для Vitest (jsdom окружение)
 // Global fetch mock for Vitest (jsdom environment)
-const fetchMock = vi.fn(() => Promise.resolve(new Response('{}', { status: 200 })));
+const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+  () => Promise.resolve(new Response('{}', { status: 200 }))
+);
 (globalThis as any).fetch = fetchMock;
 
 // Helper to create a proper Response mock
@@ -31,7 +33,17 @@ const createMockResponse = (data: any, options: { ok: boolean; status: number })
 
 describe('API Client Auth', () => {
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // Reset mock implementations/state
+    fetchMock.mockReset();
+    testStorage.getStoredApiKey.mockReset();
+    testStorage.setStoredApiKey.mockReset();
+    testStorage.clearStoredApiKey.mockReset();
+    // Default behaviors for each test
+    testStorage.getStoredApiKey.mockReturnValue(null);
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('{}', { status: 200 })));
+    vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
+
     // Set up test dependencies using dependency injection
     const { setApiClientDependencies } = await import('../client');
     setApiClientDependencies({
@@ -70,15 +82,41 @@ describe('API Client Auth', () => {
       const result = await validateApiKey();
       expect(result).toBe(false);
     });
+
+    it('throws error when API base is not set', async () => {
+      const { validateApiKey, setApiClientDependencies } = await import('../client');
+
+      // Temporarily set API base to empty string
+      setApiClientDependencies({
+        getStoredApiKey: testStorage.getStoredApiKey,
+        clearStoredApiKey: testStorage.clearStoredApiKey,
+        apiBase: '',
+      });
+
+      await expect(validateApiKey()).rejects.toThrow('VITE_API_BASE is not set');
+    });
   });
 
   describe('api() function', () => {
+    it('throws error when API base is not set', async () => {
+      const { api, setApiClientDependencies } = await import('../client');
+
+      // Temporarily set API base to empty string
+      setApiClientDependencies({
+        getStoredApiKey: testStorage.getStoredApiKey,
+        clearStoredApiKey: testStorage.clearStoredApiKey,
+        apiBase: '',
+      });
+
+      await expect(api('/test-endpoint')).rejects.toThrow('VITE_API_BASE is not set');
+    });
+
     it('includes X-API-Key header when API key is set in storage', async () => {
       testStorage.getStoredApiKey.mockReturnValue('test-api-key');
 
       const { api } = await import('../client');
 
-      (fetchMock as any).mockImplementationOnce((input: any, options?: any) => {
+      fetchMock.mockImplementationOnce((input: any, options?: any) => {
         const url = typeof input === 'string' ? input : input.url;
         expect(url).toBe('http://test-api.com/test-endpoint');
         const requestOptions = typeof input === 'string' ? options : input;
@@ -124,7 +162,9 @@ describe('API Client Auth', () => {
 
     it('throws UnauthorizedError on 401 response', async () => {
       const { api, UnauthorizedError } = await import('../client');
-      fetchMock.mockImplementationOnce(() => Promise.resolve(new Response('{"error": "Unauthorized"}', { status: 401 } as any)));
+      fetchMock.mockImplementationOnce(() =>
+        Promise.resolve(createMockResponse({ error: 'Unauthorized' }, { ok: false, status: 401 }))
+      );
 
       await expect(api('/test-endpoint')).rejects.toThrow(UnauthorizedError);
     });
@@ -133,7 +173,7 @@ describe('API Client Auth', () => {
       const { api } = await import('../client');
 
       // Mock fetch to behave differently based on URL pattern
-      (fetchMock as any).mockImplementation((input: any) => {
+      fetchMock.mockImplementation((input: any) => {
         const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : 'unknown');
         if (url.includes('/premium/bmr') && !url.includes('mock')) {
           // Primary API call fails

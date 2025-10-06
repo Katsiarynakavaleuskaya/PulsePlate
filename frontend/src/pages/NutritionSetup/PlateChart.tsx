@@ -1,0 +1,106 @@
+// RU: Простая SVG-диаграмма распределения макронутриентов в тарелке
+// EN: Simple SVG chart showing macronutrient distribution in the plate
+
+interface PlateChartProps {
+  carbsPct: number;
+  proteinPct: number;
+  fatPct: number;
+}
+
+export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartProps) {
+  // Validate percentages sum to 100% (allow small floating-point tolerance)
+  const total = carbsPct + proteinPct + fatPct;
+  if (Math.abs(total - 100) > 0.1) {
+    console.warn(`Plate percentages sum to ${total.toFixed(1)}%, expected 100%`);
+  }
+
+  // Calculate stroke dash arrays for the circular segments
+  const radius = 45;
+  const circumference = 2 * Math.PI * radius;
+
+  const carbsAngle = (carbsPct / 100) * 360;
+  const proteinAngle = (proteinPct / 100) * 360;
+  const fatAngle = (fatPct / 100) * 360;
+
+  const carbsDash = (carbsAngle / 360) * circumference;
+  const proteinDash = (proteinAngle / 360) * circumference;
+  const fatDash = (fatAngle / 360) * circumference;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg
+        width="120"
+        height="120"
+        viewBox="0 0 110 110"
+        className="drop-shadow-sm"
+        role="img"
+        aria-label={`Диаграмма тарелки: углеводы ${Math.round(carbsPct)}%, белки ${Math.round(proteinPct)}%, жиры ${Math.round(fatPct)}%`}
+      >
+        {/* Background circle */}
+        <circle
+          cx="55"
+          cy="55"
+          r={radius}
+          fill="none"
+          stroke="#f3f4f6"
+          strokeWidth="8"
+        />
+
+        {/* Carbs segment (blue) */}
+        <circle
+          cx="55"
+          cy="55"
+          r={radius}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="8"
+          strokeDasharray={`${carbsDash} ${circumference}`}
+          strokeDashoffset={circumference * 0.25}
+          transform="rotate(-90 55 55)"
+        />
+
+        {/* Protein segment (green) */}
+        <circle
+          cx="55"
+          cy="55"
+          r={radius}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="8"
+          strokeDasharray={`${proteinDash} ${circumference}`}
+          strokeDashoffset={circumference * 0.25 + carbsDash}
+          transform="rotate(-90 55 55)"
+        />
+
+        {/* Fat segment (red) */}
+        <circle
+          cx="55"
+          cy="55"
+          r={radius}
+          fill="none"
+          stroke="#ef4444"
+          strokeWidth="8"
+          strokeDasharray={`${fatDash} ${circumference}`}
+          strokeDashoffset={circumference * 0.25 + carbsDash + proteinDash}
+          transform="rotate(-90 55 55)"
+        />
+      </svg>
+
+      {/* Legend */}
+      <div className="mt-4 space-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+          <span className="text-text">Углеводы: {Math.round(carbsPct)}%</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          <span className="text-text">Белки: {Math.round(proteinPct)}%</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+          <span className="text-text">Жиры: {Math.round(fatPct)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,12 @@
+{
+  "micros": [
+    { "id": "fe", "name": "Железо", "unit": "мг", "target": 18 },
+    { "id": "ca", "name": "Кальций", "unit": "мг", "target": 1000 },
+    { "id": "k", "name": "Калий", "unit": "мг", "target": 4700 },
+    { "id": "mg", "name": "Магний", "unit": "мг", "target": 400 },
+    { "id": "zn", "name": "Цинк", "unit": "мг", "target": 11 },
+    { "id": "i", "name": "Йод", "unit": "мкг", "target": 150 },
+    { "id": "d", "name": "Витамин D", "unit": "МЕ", "target": 600 },
+    { "id": "b12", "name": "Витамин B12", "unit": "мкг", "target": 2.4 }
+  ]
+}
