@@ -6,8 +6,10 @@ import EnterKey from "../EnterKey";
 import { SettingsStore } from "../../../settings/index";
 
 // Use a fake API key constant to avoid triggering security scanners
-const TEST_API_KEY = "sk-test_12345678901234567890";
-const TEST_EXISTING_KEY = "sk-existing_12345678901234567890";
+// gitleaks:allow
+const TEST_API_KEY = "sk-fake_test_key_1234567890_fake";
+// gitleaks:allow
+const TEST_EXISTING_KEY = "sk-fake_existing_key_1234567890_fake";
 
 let setItemSpy: ReturnType<typeof vi.spyOn>;
 

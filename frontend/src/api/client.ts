@@ -22,7 +22,7 @@ const searchParams = (() => {
   return new URLSearchParams(window.location.search);
 })();
 
-const forceMock = searchParams.get("mock") === "1";
+const forceMockDefault = searchParams.get("mock") === "1";
 
 function getAutomaticMockUrl(path: string): string | null {
   return getMockUrl(path);
@@ -68,7 +68,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     body,
     headers,
     mockUrl,
-    forceMock = forceMock,
+    forceMock = forceMockDefault,
     onAuthError,
     credentials,
     signal,
