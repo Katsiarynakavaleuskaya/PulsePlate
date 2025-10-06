@@ -8,6 +8,12 @@ interface PlateChartProps {
 }
 
 export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartProps) {
+  // Validate percentages sum to 100% (allow small floating-point tolerance)
+  const total = carbsPct + proteinPct + fatPct;
+  if (Math.abs(total - 100) > 0.1) {
+    console.warn(`Plate percentages sum to ${total.toFixed(1)}%, expected 100%`);
+  }
+
   // Calculate stroke dash arrays for the circular segments
   const radius = 45;
   const circumference = 2 * Math.PI * radius;
