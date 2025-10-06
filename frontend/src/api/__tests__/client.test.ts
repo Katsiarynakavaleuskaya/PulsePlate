@@ -132,7 +132,7 @@ describe("api client auth", () => {
     const res = await api(url, { method: "POST", body: {}, mockUrl, forceMock: false });
     expect(res).toEqual({ ok: true });
 
-    // Проверяем порядок вызовов
+    // Check call order
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
       1,
       `${API_BASE}${url}`,

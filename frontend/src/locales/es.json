@@ -5,8 +5,9 @@
   },
   "auth": {
     "invalidApiKey": "Clave API inválida o faltante.",
+    "invalidApiKeyFormat": "Formato de clave API inválido. La clave debe comenzar con 'sk-', tener al menos 20 caracteres y no más de 256 caracteres.",
     "accessDenied": "Acceso denegado (403).",
-    "requiresApiKey": "Requiere clave API"
+    "requiresApiKey": "Se requiere una clave API"
   },
   "settings": {
     "storageQuotaExceeded": "Espacio de almacenamiento insuficiente. Borre la caché del navegador o inténtelo de nuevo más tarde."
@@ -96,6 +97,6 @@
     "saved": "Clave guardada",
     "cleared": "Clave eliminada",
     "saveFailed": "No se pudo guardar la clave",
-    "footer": "Los cambios se aplican inmediatamente. Las páginas VIP/Admin no requieren recarga — te devolveremos automáticamente a la pantalla anterior."
+    "footer": "Cambios aplicados inmediatamente. Páginas VIP/Admin sin recarga; retorno automático."
   }
 }

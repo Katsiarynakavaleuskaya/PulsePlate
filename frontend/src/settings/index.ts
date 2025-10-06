@@ -1,21 +1,37 @@
 // Single source of truth for user settings (including API key).
 // SSR/test-safe. Listens to changes across tabs.
 
+import { z } from "zod";
 import i18n from "../i18n";
 
 const NS = "pulseplate.settings.v1";
 const isBrowser = typeof window !== "undefined" && typeof localStorage !== "undefined";
 
-type Settings = {
-  apiKey?: string;
+const SettingsSchema = z.object({
+  apiKey: z.string().optional(),
   // зарезервировано: lang, theme, diet_flags, и т.д.
-};
+});
+
+type Settings = z.infer<typeof SettingsSchema>;
 
 function read(): Settings {
   if (!isBrowser) return {};
   try {
     const raw = localStorage.getItem(NS);
-    return raw ? (JSON.parse(raw) as Settings) : {};
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    const result = SettingsSchema.safeParse(parsed);
+
+    if (result.success) {
+      return result.data;
+    } else {
+      // Validation failed, return safe default and log in dev
+      if (import.meta.env.DEV) {
+        console.error("settings.read validation failed", result.error);
+      }
+      return {};
+    }
   } catch (err) {
     if (import.meta.env.DEV) {
       console.error("settings.read failed", err);
@@ -27,10 +43,20 @@ function read(): Settings {
 function write(next: Settings) {
   if (!isBrowser) return;
   try {
-    localStorage.setItem(NS, JSON.stringify(next));
+    // Validate and strip unknown keys before writing
+    const validated = SettingsSchema.strip().parse(next);
+    localStorage.setItem(NS, JSON.stringify(validated));
     // Notify current tab (storage event doesn't fire in the same tab)
-    window.dispatchEvent(new CustomEvent("settings:changed", { detail: next }));
+    window.dispatchEvent(new CustomEvent("settings:changed", { detail: validated }));
   } catch (error) {
+    // Handle validation errors specifically
+    if (error instanceof z.ZodError) {
+      if (import.meta.env.DEV) {
+        console.error("settings write validation failed, corrupt data not written", error);
+      }
+      return; // Don't write invalid data
+    }
+
     // Log error for diagnostics
     if (import.meta.env.DEV) {
       console.error("settings write failed", error);
@@ -79,9 +105,14 @@ export const SettingsStore = {
       if (e.key === NS) fn(read());
     };
     const onInTab = (e: Event) => {
-      const detail = (e as CustomEvent<Settings>).detail;
-      if (detail && typeof detail === "object") {
-        fn(detail);
+      const detail = (e as CustomEvent<unknown>).detail;
+      if (detail) {
+        try {
+          const validated = SettingsSchema.parse(detail);
+          fn(validated);
+        } catch (error) {
+          fn(read());
+        }
       } else {
         fn(read());
       }

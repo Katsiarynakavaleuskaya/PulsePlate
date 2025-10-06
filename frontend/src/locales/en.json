@@ -5,6 +5,7 @@
   },
   "auth": {
     "invalidApiKey": "Invalid or missing API key.",
+    "invalidApiKeyFormat": "Invalid API key format. Key must start with 'sk-', be at least 20 characters long, and no longer than 256 characters.",
     "accessDenied": "Access denied (403).",
     "requiresApiKey": "Requires API key"
   },
@@ -96,6 +97,6 @@
     "saved": "Key saved",
     "cleared": "Key removed",
     "saveFailed": "Failed to save key",
-    "footer": "Changes apply immediately. VIP/Admin pages don't need reload — we'll return you to the previous screen automatically."
+    "footer": "Changes apply immediately; VIP/Admin pages auto-redirect—no reload needed."
   }
 }

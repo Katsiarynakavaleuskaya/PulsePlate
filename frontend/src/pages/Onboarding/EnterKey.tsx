@@ -3,6 +3,24 @@ import { AuthContext } from "../../auth/AuthContext";
 import { useToast } from "../../components/ui/useToast";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { EyeIcon } from "../../components/icons/EyeIcon";
+import { EyeOffIcon } from "../../components/icons/EyeOffIcon";
+
+// Type-guard helper to safely extract 'from' property from location state
+function extractFrom(state: unknown): string | undefined {
+  if (state && typeof state === 'object' && 'from' in state && typeof (state as any).from === 'string') {
+    return (state as any).from;
+  }
+  return undefined;
+}
+
+// Validate API key format: must start with 'sk-', be at least 20 chars, max 256 chars
+function validateApiKeyFormat(apiKey: string): boolean {
+  if (!apiKey) {
+    return false;
+  }
+  return apiKey.startsWith('sk-') && apiKey.length >= 20 && apiKey.length <= 256;
+}
 
 export default function EnterKey() {
   const { apiKey, setApiKey, clearApiKey } = useContext(AuthContext);
@@ -11,7 +29,7 @@ export default function EnterKey() {
   const inputRef = useRef<HTMLInputElement>(null);
   const nav = useNavigate();
   const loc = useLocation();
-  const from = (loc.state as { from?: string } | null)?.from;
+  const from = extractFrom(loc.state);
   const { t } = useTranslation();
   const toast = useToast();
 
@@ -19,6 +37,10 @@ export default function EnterKey() {
     const v = value.trim();
     if (!v) {
       toast.error(t("auth.invalidApiKey"));
+      return;
+    }
+    if (!validateApiKeyFormat(v)) {
+      toast.error(t("auth.invalidApiKeyFormat"));
       return;
     }
     try {
@@ -29,7 +51,7 @@ export default function EnterKey() {
         nav(from, { replace: true });
       }
     } catch (error) {
-      toast.error(t("enterKey.saveFailed") + ". " + t("shoplist.tryAgain").toLowerCase());
+      toast.error(`${t("enterKey.saveFailed")}. ${t("shoplist.tryAgain").toLowerCase()}`);
     }
   };
 
@@ -42,7 +64,7 @@ export default function EnterKey() {
   const toggleShowKey = () => {
     setShowKey(!showKey);
     // Focus back to input after state change
-    setTimeout(() => inputRef.current?.focus(), 0);
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   return (
@@ -75,17 +97,7 @@ export default function EnterKey() {
           aria-pressed={showKey}
           id="api-key-toggle"
         >
-          {showKey ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-              <line x1="1" y1="1" x2="23" y2="23" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          )}
+          {showKey ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
       <div className="flex gap-2">

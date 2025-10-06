@@ -43,16 +43,29 @@ it("rejects empty key", () => {
   toastErrorSpy.mockRestore();
 });
 
+it("rejects invalid API key format", () => {
+  const toastErrorSpy = vi.spyOn(toast, "error").mockReturnValue("");
+
+  render(<AuthProvider><EnterKey/></AuthProvider>);
+  fireEvent.change(screen.getByPlaceholderText(/Paste X-API-Key/i), { target: { value: "invalid-key" } });
+  fireEvent.click(screen.getByText(/Save/i));
+
+  expect(toastErrorSpy).toHaveBeenCalledWith("Invalid API key format. Key must start with 'sk-', be at least 20 characters long, and no longer than 256 characters.");
+  expect(setItemSpy).not.toHaveBeenCalled();
+
+  toastErrorSpy.mockRestore();
+});
+
 it("trims and saves key", () => {
   render(<AuthProvider><EnterKey/></AuthProvider>);
-  fireEvent.change(screen.getByPlaceholderText(/Paste X-API-Key/i), { target: { value: " secret " } });
+  fireEvent.change(screen.getByPlaceholderText(/Paste X-API-Key/i), { target: { value: " sk-test12345678901234567890 " } });
   fireEvent.click(screen.getByText(/Save/i));
-  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1", JSON.stringify({ apiKey: "secret" }));
+  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1", JSON.stringify({ apiKey: "sk-test12345678901234567890" }));
 });
 
 it("clears input and removes key on clear button click", () => {
   // Pre-populate with an API key
-  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: "test-key" }));
+  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: "sk-test12345678901234567890" }));
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
@@ -60,7 +73,7 @@ it("clears input and removes key on clear button click", () => {
   const clearButton = screen.getByText(/Clear/i);
 
   // Initially should show the existing key
-  expect(input).toHaveValue("test-key");
+  expect(input).toHaveValue("sk-test12345678901234567890");
 
   // Click clear button
   fireEvent.click(clearButton);
@@ -89,7 +102,7 @@ it("navigates to from route after saving valid key", () => {
   const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
-  fireEvent.change(input, { target: { value: "valid-api-key" } });
+  fireEvent.change(input, { target: { value: "sk-test12345678901234567890" } });
 
   // Click save
   fireEvent.click(saveButton);
@@ -100,20 +113,19 @@ it("navigates to from route after saving valid key", () => {
 
 it("displays existing apiKey in input on initial render", () => {
   // Pre-populate with an API key with whitespace that should be trimmed in display
-  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: "  existing-key  " }));
+  localStorage.setItem("pulseplate.settings.v1", JSON.stringify({ apiKey: "  sk-existing12345678901234567890  " }));
 
   render(<AuthProvider><EnterKey/></AuthProvider>);
 
   const input = screen.getByPlaceholderText(/Paste X-API-Key/i);
 
   // Should display the existing key (trimmed)
-  expect(input).toHaveValue("existing-key");
+  expect(input).toHaveValue("sk-existing12345678901234567890");
 });
 
 it("displays error message when save fails", () => {
   // Mock SettingsStore.setApiKey to throw an error
-  const originalSetApiKey = SettingsStore.setApiKey;
-  SettingsStore.setApiKey = vi.fn(() => {
+  const setApiKeySpy = vi.spyOn(SettingsStore, "setApiKey").mockImplementation(() => {
     throw new Error("Storage quota exceeded");
   });
 
@@ -126,7 +138,7 @@ it("displays error message when save fails", () => {
   const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
-  fireEvent.change(input, { target: { value: "valid-api-key" } });
+  fireEvent.change(input, { target: { value: "sk-test12345678901234567890" } });
 
   // Click save
   fireEvent.click(saveButton);
@@ -135,6 +147,6 @@ it("displays error message when save fails", () => {
   expect(toastErrorSpy).toHaveBeenCalledWith("Failed to save key. try again.");
 
   // Restore mocks
-  SettingsStore.setApiKey = originalSetApiKey;
+  setApiKeySpy.mockRestore();
   toastErrorSpy.mockRestore();
 });
