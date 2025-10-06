@@ -61,7 +61,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     body,
     headers,
     mockUrl,
-    forceMock = false,
+    forceMock = GLOBAL_FORCE_MOCK,
     onAuthError,
     credentials,
     signal,
@@ -153,7 +153,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
 
   if (res.status === 401 || res.status === 403) {
     try { logError(new Error(`Auth ${res.status}`)); } catch {}
-    onAuthError?.(res.status as 401 | 403, { clearApiKey: SettingsStore.clearApiKey });
+    onAuthError?.(res.status as 401 | 403, { clearApiKey: () => SettingsStore.clearApiKey() });
   }
 
   if (!res.ok) {

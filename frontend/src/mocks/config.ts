@@ -42,12 +42,7 @@ export function getMockUrl(path: string): string | null {
     const pathSegments = normalizedPath.split('/').filter(Boolean);
     const patternSegments = mapping.pattern.split('/').filter(Boolean);
 
-    // Check if pattern segments appear consecutively in path segments
-    if (patternSegments.length === 0) {
-      continue;
-    }
-
-    // Sliding-window approach: iterate possible start indexes in pathSegments
+        // Sliding-window approach: iterate possible start indexes in pathSegments
     // and compare consecutive segments against patternSegments for exact match
     for (let i = 0; i <= pathSegments.length - patternSegments.length; i++) {
       if (patternSegments.every((segment, j) => segment === pathSegments[i + j])) {

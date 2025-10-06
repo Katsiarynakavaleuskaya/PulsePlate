@@ -1,6 +1,6 @@
 // RU: Подхватываем CSS-переменные как Tailwind-цвета и радиусы.
 // EN: Map CSS variables into Tailwind theme.
-var config = {
+const config = {
     content: [
         "./index.html", // actual Vite entry HTML
         "./src/**/*.{ts,tsx}",

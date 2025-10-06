@@ -6,8 +6,8 @@ interface EyeOffIconProps {
 
 export const EyeOffIcon: React.FC<EyeOffIconProps> = ({ className = "w-5 h-5" }) => (
   <svg
-    width="20"
-    height="20"
+    width="24"
+    height="24"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"

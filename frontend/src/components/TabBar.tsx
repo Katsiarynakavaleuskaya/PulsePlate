@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, matchPath } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useTranslation } from "react-i18next";
 
@@ -22,7 +22,7 @@ export default function TabBar() {
     >
       {items.map(({ to, label, requiresAuth }) => {
         const isDisabled = requiresAuth && !apiKey;
-        const isActive = pathname === to;
+        const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
 
         if (isDisabled) {
           return (

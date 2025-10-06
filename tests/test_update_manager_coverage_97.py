@@ -158,7 +158,7 @@ class TestDatabaseUpdateManagerCoverage97:
         """Parameterized fixture providing different mock OFFClient search_products implementations."""
         if request.param == "original_data":
 
-            async def mock_search_products(query, page_size=25):
+            async def mock_search_products(query, _page_size=25):
                 if query == "apple":
                     return [
                         OFFFoodItem(
@@ -206,7 +206,7 @@ class TestDatabaseUpdateManagerCoverage97:
 
         else:  # different_data
 
-            async def mock_search_products(query, page_size=25):
+            async def mock_search_products(query, _page_size=25):
                 if query == "apple":
                     return [
                         OFFFoodItem(
@@ -255,23 +255,10 @@ class TestDatabaseUpdateManagerCoverage97:
         return mock_search_products
 
     @pytest.mark.asyncio
-    async def test_checksum_format_validation(
-        self, tmp_path: Path, mock_off_client_setup, mock_search_products_data
-    ) -> None:
+    async def test_checksum_format_validation(self, tmp_path: Path) -> None:
         """Test checksum calculation with cache data via public API (lines 497-498)."""
         from core.food_apis.update_manager import DatabaseUpdateManager
         from unittest.mock import MagicMock, patch
-
-        # Create mock data that will be used for checksum calculation
-        test_food_data = {
-            "apple": {"name": "Apple", "calories": 95, "protein": 0.5},
-            "banana": {"name": "Banana", "calories": 105, "protein": 1.3},
-        }
-
-        different_food_data = {
-            "orange": {"name": "Orange", "calories": 62, "protein": 1.2},
-            "grape": {"name": "Grape", "calories": 69, "protein": 0.7},
-        }
 
         # Mock clients to return controlled data
         with (
@@ -289,7 +276,7 @@ class TestDatabaseUpdateManagerCoverage97:
             mock_unified_cls.return_value = mock_unified_db
 
             # Configure OFF client to return test data for searches
-            async def mock_search_products(query, page_size=25):
+            async def mock_search_products(query, _page_size=25):
                 if query == "apple":
                     return [
                         OFFFoodItem(
@@ -361,7 +348,7 @@ class TestDatabaseUpdateManagerCoverage97:
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         # Use original data for this test
-        async def mock_search_products(query, page_size=25):
+        async def mock_search_products(query, _page_size=25):
             if query == "apple":
                 return [
                     OFFFoodItem(
@@ -439,7 +426,7 @@ class TestDatabaseUpdateManagerCoverage97:
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         # Use original data for first update
-        async def mock_search_products_original(query, page_size=25):
+        async def mock_search_products_original(query, _page_size=25):
             if query == "apple":
                 return [
                     OFFFoodItem(
@@ -502,7 +489,7 @@ class TestDatabaseUpdateManagerCoverage97:
         checksum1 = versions_data1["openfoodfacts"]["checksum"]
 
         # Now use different data for second update
-        async def mock_search_products_different(query, page_size=25):
+        async def mock_search_products_different(query, _page_size=25):
             if query == "apple":
                 return [
                     OFFFoodItem(
