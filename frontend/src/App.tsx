@@ -1,14 +1,10 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import Home from "./pages/Home";
-import Plate from "./pages/Plate";
-import Progress from "./pages/Progress";
-import Profile from "./pages/Profile";
-import EnterKey from "./pages/Onboarding/EnterKey";
 import TabBar from "./components/TabBar";
 import { Toaster, OfflineIndicator } from "./components/ui";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireKey } from "./auth/RequireKey";
 import { routes } from "./config/routes";
+import NotFound from "./components/NotFound";
 
 function AppContent() {
   const location = useLocation();
@@ -16,18 +12,19 @@ function AppContent() {
   // Hide TabBar on enter-key page, show otherwise
   const showTabBar = location.pathname !== "/enter-key";
 
-  // Map route paths to components
-  const routeComponents: Record<string, React.ComponentType> = {
-    "/": Home,
-    "/enter-key": EnterKey,
-    "/profile": Profile,
-    "/plate": Plate,
-    "/progress": Progress,
-  };
-
   const renderRoute = (route: typeof routes[0]) => {
-    const Component = routeComponents[route.path];
-    const element = Component ? <Component /> : <div>Page not found</div>;
+    const Component = route.component;
+    if (!Component) {
+      console.error(`Missing component for route: ${route.path}`);
+      return (
+        <Route
+          key={route.path}
+          path={route.path}
+          element={<NotFound />}
+        />
+      );
+    }
+    const element = <Component />;
 
     return (
       <Route
