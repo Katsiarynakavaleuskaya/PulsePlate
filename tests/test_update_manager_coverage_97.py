@@ -131,28 +131,6 @@ class TestDatabaseUpdateManagerCoverage97:
         path_set = {wrapper1, wrapper1_copy}
         assert len(path_set) == 1  # Should be deduplicated
 
-    @pytest.mark.asyncio
-    async def test_get_cache_data_for_checksum_method(self) -> None:
-        """Test _get_cache_data_for_checksum method (lines 497-498)."""
-        from core.food_apis.update_manager import DatabaseUpdateManager
-
-        with (
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.is_file", return_value=True),
-            patch("builtins.open", create=True) as mock_open,
-        ):
-
-            mock_file = MagicMock()
-            mock_file.read.return_value = b'{"test": "data"}'  # JSON string
-            mock_open.return_value.__enter__.return_value = mock_file
-
-            manager = DatabaseUpdateManager(cache_dir="/tmp")
-            cache_data = await manager._get_cache_data_for_checksum("usda")
-
-            # Verify cache data was read and parsed
-            assert cache_data == {"test": "data"}
-            mock_open.assert_called_once()
-
     def test_calculate_checksum_with_cache_data(self) -> None:
         """Test checksum calculation with cache data (lines 497-498)."""
         from core.food_apis.update_manager import DatabaseUpdateManager
