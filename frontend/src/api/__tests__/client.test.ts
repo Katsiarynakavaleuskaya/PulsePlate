@@ -118,8 +118,8 @@ describe("api client auth", () => {
     const url = "/premium/plate";
     const mockUrl = "/mocks/premium/plate.json";
 
-    // 1-й вызов — сеть падает
-    // 2-й вызов — мок успешен
+    // 1st call — network fails
+    // 2nd call — mock succeeds
     globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new TypeError("Network down"))
       .mockResolvedValueOnce({

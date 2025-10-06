@@ -5,7 +5,11 @@
   },
   "auth": {
     "invalidApiKey": "Неверный или отсутствующий API-ключ.",
-    "accessDenied": "Доступ запрещён (403)."
+    "accessDenied": "Доступ запрещён (403).",
+    "requiresApiKey": "Требуется API-ключ"
+  },
+  "settings": {
+    "storageQuotaExceeded": "Недостаточно места в хранилище. Очистите кэш браузера или попробуйте позже."
   },
   "shoplist": {
     "loading": "Загружаем список…",

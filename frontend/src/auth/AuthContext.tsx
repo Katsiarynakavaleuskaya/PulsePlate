@@ -22,19 +22,20 @@ export const AuthContext = createContext<AuthContextType>(null!);
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { apiKey, setApiKey, clearApiKey } = useApiKey();
   const { t } = useTranslation();
+  const toast = useToast();
 
   // общий onAuthError → решение принимает UI: тост + soft-гейтинг
   const apiJson = useCallback<typeof apiBase>((url, opts = {}) => {
     return apiBase(url, {
       ...opts,
       onAuthError: (code, ctx) => {
-        useToast.error(code === 401 ? t("auth.invalidApiKey") : t("auth.accessDenied"));
+        toast.error(code === 401 ? t("auth.invalidApiKey") : t("auth.accessDenied"));
         // можно не очищать ключ автоматически — оставим пользователю выбор
         // при желании: ctx.clearApiKey();
         opts.onAuthError?.(code, ctx);
       },
     });
-  }, [t]);
+  }, [t, toast]);
 
   const value = useMemo(() => ({ apiKey, setApiKey, clearApiKey, apiJson }), [apiKey, setApiKey, clearApiKey, apiJson]);
 

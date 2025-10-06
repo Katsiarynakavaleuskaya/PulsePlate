@@ -35,12 +35,10 @@ def fake_crypto(monkeypatch):
 
         @staticmethod
         def generate_key() -> bytes:
-            # Возвращает ключ в виде байтов (base64-encoded)
             # Returns the key as bytes (base64-encoded)
             return FakeFernet._KEY
 
         def encrypt(self, data: bytes) -> bytes:
-            # "Шифрует" данные, инвертируя байты и кодируя в base64
             # "Encrypts" data by reversing bytes and encoding with base64
             cipher = data[::-1]
             return base64.urlsafe_b64encode(cipher)

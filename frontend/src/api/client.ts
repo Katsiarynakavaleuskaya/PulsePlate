@@ -44,8 +44,14 @@ function buildHeaders(
 ) {
   const h: Record<string, string> = { ...base };
   if (apiKey) h["X-API-Key"] = apiKey;
-  // Для GET/без тела не шлём Content-Type, и не шлём для FormData (браузер сам установит multipart)
-  if (hasBody && !("Content-Type" in h) && !(body instanceof FormData)) h["Content-Type"] = "application/json";
+  // Для GET/без тела не шлём Content-Type, и не шлём для FormData, URLSearchParams, Blob, ArrayBuffer (браузер сам установит правильный Content-Type)
+  if (hasBody && !("Content-Type" in h) &&
+      !(body instanceof FormData) &&
+      !(body instanceof URLSearchParams) &&
+      !(body instanceof Blob) &&
+      !(body instanceof ArrayBuffer)) {
+    h["Content-Type"] = "application/json";
+  }
   return h;
 }
 
@@ -115,9 +121,30 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     }
   } catch (netErr) {
     // 🔁 Старое поведение: при сетевой ошибке и наличии mockUrl — фоллбэк
-    if (!forceMock && mockUrl) {
+    const automaticMockUrl = mockUrl(url); // Try to get automatic mock URL
+    if (!forceMock && (mockUrl || automaticMockUrl)) {
       try { logError(netErr); } catch {}
-      res = await useMock();
+      // Use explicit mockUrl if provided, otherwise use automatic mockUrl
+      const finalMockUrl = mockUrl || automaticMockUrl;
+      if (finalMockUrl) {
+        const useAutoMock = async () => {
+          try {
+            return await fetch(finalMockUrl, {
+              method,
+              headers: finalHeaders,
+              body: preparedBody,
+              credentials,
+              signal,
+            });
+          } catch (autoMockErr) {
+            try { logError(autoMockErr); } catch {}
+            throw autoMockErr;
+          }
+        };
+        res = await useAutoMock();
+      } else {
+        throw netErr;
+      }
     } else {
       try { logError(netErr); } catch {}
       throw netErr;

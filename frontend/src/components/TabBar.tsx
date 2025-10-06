@@ -1,10 +1,12 @@
 import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useTranslation } from "react-i18next";
 
 export default function TabBar() {
   const { pathname } = useLocation();
   const { apiKey } = useAuth();
+  const { t } = useTranslation();
   const items = [
     { to: "/", label: "Home", requiresAuth: false },
     { to: "/plate", label: "Plate", requiresAuth: true },
@@ -29,7 +31,7 @@ export default function TabBar() {
               role="tab"
               aria-selected={false}
               className="py-3 text-center text-muted/50 cursor-not-allowed"
-              title="Требуется API-ключ"
+              title={t("auth.requiresApiKey")}
             >
               {label}
             </span>

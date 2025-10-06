@@ -5,7 +5,11 @@
   },
   "auth": {
     "invalidApiKey": "Invalid or missing API key.",
-    "accessDenied": "Access denied (403)."
+    "accessDenied": "Access denied (403).",
+    "requiresApiKey": "Requires API key"
+  },
+  "settings": {
+    "storageQuotaExceeded": "Insufficient storage space. Clear your browser cache or try again later."
   },
   "shoplist": {
     "loading": "Loading shopping list…",

@@ -34,9 +34,21 @@ export const MOCK_MAPPINGS: MockMapping[] = [
  * @returns The mock file path if a pattern matches, null otherwise
  */
 export function getMockUrl(path: string): string | null {
+  // Normalize path to ensure it starts with leading slash and remove query/hash
+  const normalizedPath = path.split(/[?#]/)[0].replace(/^([^/])/, '/$1');
+
   for (const mapping of MOCK_MAPPINGS) {
-    if (path.includes(mapping.pattern)) {
-      return mapping.mockPath;
+    // Split both path and pattern into segments for precise matching
+    const pathSegments = normalizedPath.split('/').filter(Boolean);
+    const patternSegments = mapping.pattern.split('/').filter(Boolean);
+
+    // Check if pattern segments appear consecutively in path segments
+    if (patternSegments.length === 0) continue;
+
+    for (let i = 0; i <= pathSegments.length - patternSegments.length; i++) {
+      if (patternSegments.every((segment, j) => segment === pathSegments[i + j])) {
+        return mapping.mockPath;
+      }
     }
   }
   return null;

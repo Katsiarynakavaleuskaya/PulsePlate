@@ -21,7 +21,7 @@ vi.mock("react-router-dom", async () => {
 });
 
 beforeEach(() => {
-  // чистый стор
+  // Clean store
   localStorage.clear();
   mockLocationState = null;
   mockNavigate.mockClear();

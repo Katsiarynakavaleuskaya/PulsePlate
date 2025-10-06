@@ -1,6 +1,8 @@
 // Единая точка правды для пользовательских настроек (вкл. API-ключ).
 // Безопасен для SSR/тестов. Слушает изменения между вкладками.
 
+import i18n from "../i18n";
+
 const NS = "pulseplate.settings.v1";
 const isBrowser = typeof window !== "undefined" && typeof localStorage !== "undefined";
 
@@ -38,11 +40,11 @@ function write(next: Settings) {
     if (error instanceof DOMException) {
       if (error.name === "QuotaExceededError") {
         // Ленивый импорт toast для избежания зависимостей
-        import("../components/ui/Toast").then(({ showError }) => {
-          showError("Недостаточно места в хранилище. Очистите кэш браузера или попробуйте позже.");
+        import("../components/ui").then(({ showError }) => {
+          showError(i18n.t("settings.storageQuotaExceeded"));
         }).catch(() => {
           // Если toast недоступен, используем нативный alert как fallback
-          alert("Недостаточно места в хранилище для сохранения настроек.");
+          alert(i18n.t("settings.storageQuotaExceeded"));
         });
       } else if (error.name === "SecurityError") {
         if (import.meta.env.DEV) {
