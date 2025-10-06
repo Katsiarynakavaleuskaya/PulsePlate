@@ -1,7 +1,18 @@
-// RU: Минимальный клиент для FastAPI. Без моков и MSW на этом шаге.
-// EN: Minimal FastAPI client. No mocks/MSW in this step.
+// RU: API клиент с поддержкой аутентификации. Обрабатывает 401 ошибки, перенаправляя на страницу ввода ключа.
+// EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
+import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
+
+/**
+ * Custom error class for 401 Unauthorized responses
+ */
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -32,38 +43,25 @@ function mockUrl(path: string): string | null {
   return null;
 }
 
-// API Key management
-// SECURITY NOTE: API keys are stored in plain text in browser storage.
-// Client-side encryption with a visible secret provides no real security.
-// This approach is acceptable only if:
-// 1. API keys are user-provided and can be easily rotated
-// 2. Keys have limited scope and are rate-limited server-side
-// 3. Application uses strict CSP to prevent XSS
-// 4. All user input is properly sanitized
-// For production with sensitive operations, consider:
-// - Using httpOnly cookies for authentication tokens
-// - Implementing short-lived tokens with backend refresh
-// - Server-side session management
-const API_KEY_STORAGE_KEY = "pulseplate_api_key";
+// API Key management moved to auth context
+// Re-export for backward compatibility
+export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
-export function getStoredApiKey(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
-}
-
-export function setStoredApiKey(key: string, remember: boolean = false): void {
-  if (typeof window === "undefined") return;
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem(API_KEY_STORAGE_KEY, key);
-  // Clear from other storage
-  const otherStorage = remember ? sessionStorage : localStorage;
-  otherStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-export function clearStoredApiKey(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(API_KEY_STORAGE_KEY);
-  sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+/**
+ * Validates API key by making a lightweight request to the backend
+ * @returns Promise<boolean> - true if key is valid
+ */
+export async function validateApiKey(): Promise<boolean> {
+  try {
+    // Use direct fetch to avoid 401 error handling that clears keys and redirects
+    const res = await fetch(`${API_BASE}/health`, {
+      method: "GET",
+      headers: mergeHeaders(),
+    });
+    return res.ok;
+  } catch (error) {
+    return false;
+  }
 }
 
 function mergeHeaders(init?: RequestInit): Headers {
@@ -111,16 +109,31 @@ function mergeHeaders(init?: RequestInit): Headers {
  *
  * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
  * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
+ * @param navigate - Optional React Router navigate function for SPA redirects.
  * @returns The parsed JSON response typed as `T`.
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: mergeHeaders(init),
     });
     if (!res.ok) {
+      // Handle 401 Unauthorized - redirect to auth
+      if (res.status === 401) {
+        // Clear invalid API key
+        clearStoredApiKey();
+        // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
+        if (navigate) {
+          navigate("/enter-key");
+        } else if (typeof window !== "undefined") {
+          window.location.replace("/enter-key");
+        }
+        // Reject with specific UnauthorizedError so callers can detect 401
+        return Promise.reject(new UnauthorizedError("API key invalid or expired."));
+      }
+
       const errorBody = await res.text().catch(() => "<response body unavailable>");
       throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
     }
@@ -181,9 +194,23 @@ export type WeekPlanResponse = {
 };
 
 // Endpoints
+
+/**
+ * Calculates Basal Metabolic Rate (BMR) based on user parameters
+ * @param body - Request body with user parameters for BMR calculation
+ * @returns Promise<BmrResponse> - BMR calculation result
+ */
 export const getBmr = (body: BmrRequest) =>
   api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
 
+/**
+ * Retrieves personalized nutrition plate recommendations
+ * @returns Promise<PlateResponse> - Nutrition plate data
+ */
 export const getPlate = () => api<PlateResponse>("/premium/plate");
 
+/**
+ * Generates a weekly meal plan
+ * @returns Promise<WeekPlanResponse> - Weekly meal plan data
+ */
 export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
