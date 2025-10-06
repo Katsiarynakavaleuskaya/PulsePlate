@@ -202,6 +202,9 @@ build/
 dist/
 *.egg-info/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Local development
 local/
 dev/
