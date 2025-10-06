@@ -309,8 +309,8 @@ export type WeekPlanResponse = {
  * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<BmrResponse> - BMR calculation result
  */
-export const getBmr = (body: BmrRequest, navigate?: (path: string) => void) =>
-  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) }, navigate, true);
+export const getBmr = (body: BmrRequest, options?: { navigate?: (path: string) => void; signal?: AbortSignal }) =>
+  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body), signal: options?.signal }, options?.navigate, true);
 
 /**
  * Retrieves personalized nutrition plate recommendations

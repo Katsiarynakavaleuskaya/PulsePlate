@@ -37,5 +37,5 @@ export type _AssertRoutesExhaustive = [RoutePath] extends [RoutePathsInConfig]
     : never
   : never;
 
-// Routes that should appear in the tab bar (excluding pages like enter-key and setup)
-export const tabRoutes = routes.filter(route => route.path !== '/enter-key' && route.path !== '/setup');
+// Routes that should appear in the tab bar (excluding pages with hideTabBar: true)
+export const tabRoutes = routes.filter(route => !route.hideTabBar);

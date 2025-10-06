@@ -14,10 +14,10 @@ export default function NutritionSetupPage() {
   // Initialize values from saved settings on mount
   useEffect(() => {
     const saved = settings.setup as SetupFormValues | undefined;
-    if (saved && !values) {
+    if (saved) {
       setValues(saved);
     }
-  }, [settings.setup, values]);
+  }, [settings.setup]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 pb-20">
