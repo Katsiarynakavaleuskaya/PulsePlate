@@ -134,8 +134,130 @@ class TestDatabaseUpdateManagerCoverage97:
         cache_dir_set = {cache_dir1, cache_dir2}
         assert len(cache_dir_set) == 1  # Should be deduplicated
 
+    @pytest.fixture
+    def mock_off_client_setup(self):
+        """Fixture that provides common mock setup for OFFClient tests."""
+        with (
+            patch("core.food_apis.update_manager.OFF_AVAILABLE", True),
+            patch("core.food_apis.update_manager.USDAClient") as mock_usda_cls,
+            patch("core.food_apis.update_manager.OFFClient") as mock_off_cls,
+            patch("core.food_apis.update_manager.UnifiedFoodDatabase") as mock_unified_cls,
+        ):
+            mock_usda_client = MagicMock()
+            mock_off_client = MagicMock()
+            mock_unified_db = MagicMock()
+
+            mock_usda_cls.return_value = mock_usda_client
+            mock_off_cls.return_value = mock_off_client
+            mock_unified_cls.return_value = mock_unified_db
+
+            yield mock_off_client
+
+    @pytest.fixture(params=["original_data", "different_data"])
+    def mock_search_products_data(self, request):
+        """Parameterized fixture providing different mock OFFClient search_products implementations."""
+        if request.param == "original_data":
+
+            async def mock_search_products(query, page_size=25):
+                if query == "apple":
+                    return [
+                        OFFFoodItem(
+                            code="apple",
+                            product_name="Apple",
+                            categories=["Fruits"],
+                            nutrients_per_100g={
+                                "energy-kcal": 95,
+                                "protein_g": 0.5,
+                                "fat_g": 0.3,
+                                "carbs_g": 25.0,
+                            },
+                            ingredients_text="Apple",
+                            brands="Generic",
+                            labels=[],
+                            countries=["United States"],
+                            packaging=[],
+                            image_url=None,
+                            last_modified_t=1234567890,
+                        )
+                    ]
+                elif query == "banana":
+                    return [
+                        OFFFoodItem(
+                            code="banana",
+                            product_name="Banana",
+                            categories=["Fruits"],
+                            nutrients_per_100g={
+                                "energy-kcal": 105,
+                                "protein_g": 1.3,
+                                "fat_g": 0.4,
+                                "carbs_g": 27.0,
+                            },
+                            ingredients_text="Banana",
+                            brands="Generic",
+                            labels=[],
+                            countries=["United States"],
+                            packaging=[],
+                            image_url=None,
+                            last_modified_t=1234567890,
+                        )
+                    ]
+                else:
+                    return []
+
+        else:  # different_data
+
+            async def mock_search_products(query, page_size=25):
+                if query == "apple":
+                    return [
+                        OFFFoodItem(
+                            code="orange",
+                            product_name="Orange",
+                            categories=["Fruits"],
+                            nutrients_per_100g={
+                                "energy-kcal": 62,
+                                "protein_g": 1.2,
+                                "fat_g": 0.2,
+                                "carbs_g": 15.0,
+                            },
+                            ingredients_text="Orange",
+                            brands="Generic",
+                            labels=[],
+                            countries=["United States"],
+                            packaging=[],
+                            image_url=None,
+                            last_modified_t=1234567890,
+                        )
+                    ]
+                elif query == "banana":
+                    return [
+                        OFFFoodItem(
+                            code="grape",
+                            product_name="Grape",
+                            categories=["Fruits"],
+                            nutrients_per_100g={
+                                "energy-kcal": 69,
+                                "protein_g": 0.7,
+                                "fat_g": 0.2,
+                                "carbs_g": 18.0,
+                            },
+                            ingredients_text="Grape",
+                            brands="Generic",
+                            labels=[],
+                            countries=["United States"],
+                            packaging=[],
+                            image_url=None,
+                            last_modified_t=1234567890,
+                        )
+                    ]
+                else:
+                    return []
+
+        return mock_search_products
+
     @pytest.mark.asyncio
-    async def test_calculate_checksum_with_cache_data(self, tmp_path: Path) -> None:
+    async def test_checksum_format_validation(
+        self, tmp_path: Path, mock_off_client_setup, mock_search_products_data
+    ) -> None:
         """Test checksum calculation with cache data via public API (lines 497-498)."""
         from core.food_apis.update_manager import DatabaseUpdateManager
         from unittest.mock import MagicMock, patch
