@@ -5,6 +5,47 @@ import { logError } from "../lib/analytics";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 /**
+ * Dependencies for API client that can be injected for testing
+ */
+export interface ApiClientDependencies {
+  getStoredApiKey: () => string | null;
+  clearStoredApiKey: () => void;
+  apiBase: string;
+}
+
+/**
+ * Default dependencies using production implementations
+ */
+const defaultDependencies: ApiClientDependencies = {
+  getStoredApiKey,
+  clearStoredApiKey,
+  apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
+};
+
+/**
+ * Current injected dependencies (mutable for testing)
+ */
+let injectedDependencies: ApiClientDependencies | null = null;
+
+/**
+ * Get the current dependencies (injected or default)
+ */
+function getDependencies(): ApiClientDependencies {
+  return injectedDependencies || defaultDependencies;
+}
+
+/**
+ * Set dependencies for testing. Pass null to reset to defaults.
+ */
+export function setApiClientDependencies(deps: ApiClientDependencies | null): void {
+  injectedDependencies = deps;
+}
+
+// Extract functions from current dependencies
+const _getStoredApiKey = () => getDependencies().getStoredApiKey();
+const _clearStoredApiKey = () => getDependencies().clearStoredApiKey();
+
+/**
  * Custom error class for 401 Unauthorized responses
  */
 export class UnauthorizedError extends Error {
@@ -14,12 +55,19 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
+// Get API base from injected dependencies (computed dynamically)
+export const getApiBase = () => getDependencies().apiBase;
 
-if (!API_BASE) {
-  const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
-  logError(new Error(envHint));
-}
+/**
+ * Validate API base is set and log error if not
+ * Called lazily to allow for dependency injection in tests
+ */
+const validateApiBase = () => {
+  if (!getApiBase()) {
+    const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
+    logError(new Error(envHint));
+  }
+};
 
 const searchParams = (() => {
   if (typeof window === "undefined" || typeof window.location?.search !== "string") {
@@ -52,9 +100,12 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/sto
  * @returns Promise<boolean> - true if key is valid
  */
 export async function validateApiKey(): Promise<boolean> {
+  // Validate API base on first use
+  validateApiBase();
+
   try {
     // Use direct fetch to avoid 401 error handling that clears keys and redirects
-    const res = await fetch(`${API_BASE}/health`, {
+    const res = await fetch(`${getApiBase()}/health`, {
       method: "GET",
       headers: mergeHeaders(),
     });
@@ -64,26 +115,51 @@ export async function validateApiKey(): Promise<boolean> {
   }
 }
 
-function mergeHeaders(init?: RequestInit): Headers {
-  const defaults = {
+function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
+  const defaults: Record<string, string> = {
     Accept: "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
-  } satisfies Record<string, string>;
+  };
 
   // Add API key if available
-  const apiKey = getStoredApiKey();
+  const apiKey = _getStoredApiKey();
   if (apiKey) {
     defaults["X-API-Key"] = apiKey;
   }
 
-  // Only set Content-Type for JSON bodies
-  if (init?.body && typeof init.body === "string") {
-    try {
-      JSON.parse(init.body.trim());
+  // Check if caller already provided Content-Type (case-insensitive)
+  const hasContentType = (() => {
+    if (!init?.headers) {
+      return false;
+    }
+
+    const incoming = init.headers instanceof Headers
+      ? init.headers
+      : new Headers(init.headers as HeadersInit);
+
+    // Check for Content-Type header case-insensitively
+    for (const [key] of incoming) {
+      if (key.toLowerCase() === "content-type") {
+        return true;
+      }
+    }
+    return false;
+  })();
+
+  // Only set Content-Type if caller didn't provide one
+  if (!hasContentType) {
+    if (forceJson === true) {
+      // Explicit flag takes priority
       defaults["Content-Type"] = "application/json";
-    } catch {
-      // Not valid JSON, don't set Content-Type
+    } else if (forceJson === undefined && init?.body && typeof init.body === "string") {
+      // Fall back to safe JSON detection only when flag is undefined
+      try {
+        JSON.parse(init.body.trim());
+        defaults["Content-Type"] = "application/json";
+      } catch {
+        // Not valid JSON, don't set Content-Type
+      }
     }
   }
 
@@ -110,28 +186,29 @@ function mergeHeaders(init?: RequestInit): Headers {
  * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
  * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
  * @param navigate - Optional React Router navigate function for SPA redirects.
+ * @param forceJson - Optional flag to explicitly set Content-Type to application/json, bypassing automatic detection.
  * @returns The parsed JSON response typed as `T`.
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
-async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void): Promise<T> {
+async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
-      headers: mergeHeaders(init),
+      headers: mergeHeaders(init, forceJson),
     });
     if (!res.ok) {
       // Handle 401 Unauthorized - redirect to auth
       if (res.status === 401) {
         // Clear invalid API key
-        clearStoredApiKey();
+        _clearStoredApiKey();
         // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
         if (navigate) {
           navigate("/enter-key");
         } else if (typeof window !== "undefined") {
           window.location.replace("/enter-key");
         }
-        // Reject with specific UnauthorizedError so callers can detect 401
-        return Promise.reject(new UnauthorizedError("API key invalid or expired."));
+        // Throw specific UnauthorizedError so callers can detect 401
+        throw new UnauthorizedError("API key invalid or expired.");
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
@@ -168,6 +245,7 @@ async function api<T>(path: string, init?: RequestInit, navigate?: (path: string
   }
 }
 
+export { api };
 export const fetchJson = api;
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
@@ -198,19 +276,22 @@ export type WeekPlanResponse = {
 /**
  * Calculates Basal Metabolic Rate (BMR) based on user parameters
  * @param body - Request body with user parameters for BMR calculation
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<BmrResponse> - BMR calculation result
  */
-export const getBmr = (body: BmrRequest) =>
-  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
+export const getBmr = (body: BmrRequest, navigate?: (path: string) => void) =>
+  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) }, navigate, true);
 
 /**
  * Retrieves personalized nutrition plate recommendations
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<PlateResponse> - Nutrition plate data
  */
-export const getPlate = () => api<PlateResponse>("/premium/plate");
+export const getPlate = (navigate?: (path: string) => void) => api<PlateResponse>("/premium/plate", undefined, navigate);
 
 /**
  * Generates a weekly meal plan
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
-export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
+export const getWeekPlan = (navigate?: (path: string) => void) => api<WeekPlanResponse>("/plan/week", undefined, navigate);
