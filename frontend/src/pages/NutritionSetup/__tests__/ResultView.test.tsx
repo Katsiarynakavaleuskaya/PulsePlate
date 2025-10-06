@@ -93,8 +93,8 @@ describe("ResultView", () => {
     mockUseSetupCalc.mockReturnValue({
       ...mockUseSetupCalc(),
       error: null,
-      bmrData: { calories: 2000 },
-      plateData: { protein: 100, fat: 70, carbs: 250 },
+      bmrData: { bmr: 1400, tdee: 1800, method: "Mifflin-St Jeor" },
+      plateData: mockPlateData,
     });
 
     mockUseTargets.mockReturnValue({
