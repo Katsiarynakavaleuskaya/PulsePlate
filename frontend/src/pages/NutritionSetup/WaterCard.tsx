@@ -6,6 +6,11 @@ interface WaterCardProps {
 }
 
 export default function WaterCard({ liters }: WaterCardProps) {
+  // Handle edge cases for water intake value
+  const displayLiters = typeof liters === 'number' && liters > 0 && !isNaN(liters)
+    ? liters.toFixed(1)
+    : '2.0'; // fallback value
+
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm">
       <div className="flex items-center gap-4">
@@ -23,7 +28,7 @@ export default function WaterCard({ liters }: WaterCardProps) {
             Рекомендуемое суточное потребление воды
           </p>
           <div className="text-2xl font-bold text-blue-600">
-            {liters.toFixed(1)} л/день
+            {displayLiters} л/день
           </div>
         </div>
       </div>
