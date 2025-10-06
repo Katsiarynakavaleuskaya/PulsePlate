@@ -58,10 +58,16 @@ export class UnauthorizedError extends Error {
 // Get API base from injected dependencies (computed dynamically)
 export const getApiBase = () => getDependencies().apiBase;
 
-if (!getApiBase()) {
-  const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
-  logError(new Error(envHint));
-}
+/**
+ * Validate API base is set and log error if not
+ * Called lazily to allow for dependency injection in tests
+ */
+const validateApiBase = () => {
+  if (!getApiBase()) {
+    const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
+    logError(new Error(envHint));
+  }
+};
 
 const searchParams = (() => {
   if (typeof window === "undefined" || typeof window.location?.search !== "string") {
@@ -94,6 +100,9 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/sto
  * @returns Promise<boolean> - true if key is valid
  */
 export async function validateApiKey(): Promise<boolean> {
+  // Validate API base on first use
+  validateApiBase();
+
   try {
     // Use direct fetch to avoid 401 error handling that clears keys and redirects
     const res = await fetch(`${getApiBase()}/health`, {
