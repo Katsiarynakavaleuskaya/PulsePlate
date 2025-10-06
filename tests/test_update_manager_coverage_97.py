@@ -355,15 +355,83 @@ class TestDatabaseUpdateManagerCoverage97:
             assert len(checksum1) == 64  # SHA-256 produces 64 character hex string
             assert re.fullmatch(r"[0-9a-f]{64}", checksum1) is not None
 
-            # Test determinism: same input should produce same checksum (update again)
-            result2 = await manager.update_database("openfoodfacts", force=True)
-            assert result2.success
+    @pytest.mark.asyncio
+    async def test_checksum_determinism(self, tmp_path: Path, mock_off_client_setup) -> None:
+        """Test that the same input data produces the same checksum consistently."""
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
-            with open(versions_file, "r") as f:
-                versions_data2 = json.load(f)
+        # Use original data for this test
+        async def mock_search_products(query, page_size=25):
+            if query == "apple":
+                return [
+                    OFFFoodItem(
+                        code="apple",
+                        product_name="Apple",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 95,
+                            "protein_g": 0.5,
+                            "fat_g": 0.3,
+                            "carbs_g": 25.0,
+                        },
+                        ingredients_text="Apple",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            elif query == "banana":
+                return [
+                    OFFFoodItem(
+                        code="banana",
+                        product_name="Banana",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 105,
+                            "protein_g": 1.3,
+                            "fat_g": 0.4,
+                            "carbs_g": 27.0,
+                        },
+                        ingredients_text="Banana",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            else:
+                return []
 
-            checksum2 = versions_data2["openfoodfacts"]["checksum"]
-            assert checksum1 == checksum2  # Same data should produce same checksum
+        # Set up the mock search function
+        mock_off_client_setup.search_products = mock_search_products
+
+        manager = DatabaseUpdateManager(cache_dir=str(tmp_path))
+
+        # First update with test data
+        result1 = await manager.update_database("openfoodfacts", force=True)
+        assert result1.success
+
+        # Read the versions file to get the first checksum
+        versions_file = tmp_path / "database_versions.json"
+        with open(versions_file, "r") as f:
+            versions_data1 = json.load(f)
+
+        checksum1 = versions_data1["openfoodfacts"]["checksum"]
+
+        # Second update with same data should produce same checksum
+        result2 = await manager.update_database("openfoodfacts", force=True)
+        assert result2.success
+
+        with open(versions_file, "r") as f:
+            versions_data2 = json.load(f)
+
+        checksum2 = versions_data2["openfoodfacts"]["checksum"]
+        assert checksum1 == checksum2  # Same data should produce same checksum
 
     @pytest.mark.asyncio
     async def test_checksum_uniqueness(self, tmp_path: Path, mock_off_client_setup) -> None:
