@@ -16,6 +16,12 @@ global.fetch = fetchMock;
 describe('API Client Auth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock auth context functions
+    vi.mock('../auth/AuthContext', () => ({
+      getStoredApiKey: vi.fn(() => 'test-api-key'),
+      setStoredApiKey: vi.fn(),
+      clearStoredApiKey: vi.fn(),
+    }));
   });
 
   afterEach(() => {
@@ -43,6 +49,10 @@ describe('API Client Auth', () => {
 
       // Attempt API call
       await expect(fetchJson('/test')).rejects.toThrow('API key invalid or expired');
+
+      // Verify clearStoredApiKey was called
+      const { clearStoredApiKey } = await import('../auth/AuthContext');
+      expect(clearStoredApiKey).toHaveBeenCalled();
 
       // Fast-forward timers to trigger redirect
       vi.advanceTimersByTime(100);
