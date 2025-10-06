@@ -53,15 +53,6 @@ export function useSetupCalc(values: SetupFormValues | null) {
           active: 1.725,
           athlete: 1.9,
         };
-<<<<<<< HEAD
-        // Calculate TDEE based on BMR and activity level
-        const activityMultipliers = {
-          sedentary: 1.2,
-          light: 1.375,
-          moderate: 1.55,
-          active: 1.725,
-          athlete: 1.9,
-        };
 
         const multiplier = activityMultipliers[values.activity] || 1.55; // default to moderate
         const tdee = Math.round(bmrResult.bmr * multiplier);
@@ -170,15 +161,6 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
       setError(null);
 
       try {
-<<<<<<< HEAD
-        // Fetch targets from mock API file
-        const response = await fetch('/mocks/premium/targets.json');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch targets: ${response.statusText}`);
-        }
-        const targets: TargetsResponse = await response.json();
-        setData(targets);
-=======
         // TODO: Replace with real /premium/targets API call when it supports i18n
         // Currently using localized mock data
         const mockTargets: TargetsResponse = {
@@ -186,7 +168,6 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
         };
 
         setData(mockTargets);
->>>>>>> 3af6860 (fix: address all code review feedback from AI bots)
       } catch (err) {
         console.error('Targets fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
