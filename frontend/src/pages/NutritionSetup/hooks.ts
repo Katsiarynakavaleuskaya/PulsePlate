@@ -77,21 +77,13 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
       setError(null);
 
       try {
-        // For now, return mock data since /premium/targets endpoint may not exist yet
-        const mockTargets: TargetsResponse = {
-          micros: [
-            { id: 'fe', name: 'Железо', unit: 'мг', target: 18 },
-            { id: 'ca', name: 'Кальций', unit: 'мг', target: 1000 },
-            { id: 'k', name: 'Калий', unit: 'мг', target: 4700 },
-            { id: 'mg', name: 'Магний', unit: 'мг', target: 400 },
-            { id: 'zn', name: 'Цинк', unit: 'мг', target: 11 },
-            { id: 'i', name: 'Йод', unit: 'мкг', target: 150 },
-            { id: 'd', name: 'Витамин D', unit: 'МЕ', target: 600 },
-            { id: 'b12', name: 'Витамин B12', unit: 'мкг', target: 2.4 },
-          ]
-        };
-
-        setData(mockTargets);
+        // Fetch targets from mock API file
+        const response = await fetch('/mocks/premium/targets.json');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch targets: ${response.statusText}`);
+        }
+        const targets: TargetsResponse = await response.json();
+        setData(targets);
       } catch (err) {
         console.error('Targets fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
