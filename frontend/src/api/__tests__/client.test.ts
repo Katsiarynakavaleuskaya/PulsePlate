@@ -144,4 +144,18 @@ describe("api client auth", () => {
       expect.objectContaining({ method: "POST" })
     );
   });
+
+  it("does not fall back when mockUrl is explicitly set to empty string", async () => {
+    const url = "/premium/plate";
+    const networkError = new TypeError("Network request failed");
+
+    // Mock fetch to reject
+    globalThis.fetch = vi.fn().mockRejectedValue(networkError);
+
+    // When mockUrl is explicitly set to empty string, should not try to use automatic mock
+    await expect(api(url, { method: "POST", body: {}, mockUrl: "", forceMock: false })).rejects.toThrow(networkError);
+
+    // Should only call fetch once (the primary request), not the mock fallback
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
 });

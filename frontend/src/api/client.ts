@@ -122,10 +122,10 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
   } catch (netErr) {
     // 🔁 Старое поведение: при сетевой ошибке и наличии mockUrl — фоллбэк
     const automaticMockUrl = getAutomaticMockUrl(url); // Try to get automatic mock URL
-    if (!forceMock && (mockUrl || automaticMockUrl)) {
+    if (!forceMock && (mockUrl !== undefined || automaticMockUrl)) {
       try { logError(netErr); } catch {}
       // Use explicit mockUrl if provided, otherwise use automatic mockUrl
-      const finalMockUrl = mockUrl || automaticMockUrl;
+      const finalMockUrl = mockUrl !== undefined ? mockUrl : automaticMockUrl;
       if (finalMockUrl) {
         const useAutoMock = async () => {
           try {
