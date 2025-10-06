@@ -4,6 +4,16 @@
 import { logError } from "../lib/analytics";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
+/**
+ * Custom error class for 401 Unauthorized responses
+ */
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
 if (!API_BASE) {
@@ -114,14 +124,14 @@ async function api<T>(path: string, init?: RequestInit, navigate?: (path: string
       if (res.status === 401) {
         // Clear invalid API key
         clearStoredApiKey();
-        // Redirect to enter key page (soft-gating) with small delay to allow state cleanup
-        if (typeof window !== "undefined") {
-          setTimeout(() => {
-            window.location.href = "/enter-key";
-          }, 100);
+        // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
+        if (navigate) {
+          navigate("/enter-key");
+        } else if (typeof window !== "undefined") {
+          window.location.replace("/enter-key");
         }
-        // Don't throw error immediately to allow redirect to complete
-        return Promise.reject(new Error("API key invalid or expired. Redirecting to authentication."));
+        // Reject with specific UnauthorizedError so callers can detect 401
+        return Promise.reject(new UnauthorizedError("API key invalid or expired."));
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
