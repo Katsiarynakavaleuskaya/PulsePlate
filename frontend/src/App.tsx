@@ -8,6 +8,7 @@ import TabBar from "./components/TabBar";
 import { Toaster, OfflineIndicator } from "./components/ui";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireKey } from "./auth/RequireKey";
+import { routes } from "./config/routes";
 
 function AppContent() {
   const location = useLocation();
@@ -15,17 +16,27 @@ function AppContent() {
   // Hide TabBar on enter-key page, show otherwise
   const showTabBar = location.pathname !== "/enter-key";
 
+  const renderRoute = (route: typeof routes[0]) => {
+    const element = route.path === "/" ? <Home /> :
+                   route.path === "/enter-key" ? <EnterKey /> :
+                   route.path === "/profile" ? <Profile /> :
+                   route.path === "/plate" ? <Plate /> :
+                   route.path === "/progress" ? <Progress /> :
+                   <div>Page not found</div>;
+
+    return (
+      <Route
+        key={route.path}
+        path={route.path}
+        element={route.requiresAuth ? <RequireKey>{element}</RequireKey> : element}
+      />
+    );
+  };
+
   return (
     <div className="min-h-dvh bg-navy text-text pb-14">
       <Routes>
-        {/* Публичные */}
-        <Route path="/" element={<Home />} />
-        <Route path="/enter-key" element={<EnterKey />} />
-        <Route path="/profile" element={<Profile />} />
-
-        {/* Приватные */}
-        <Route path="/plate" element={<RequireKey><Plate /></RequireKey>} />
-        <Route path="/progress" element={<RequireKey><Progress /></RequireKey>} />
+        {routes.map(renderRoute)}
       </Routes>
       {showTabBar && <TabBar />}
     </div>
