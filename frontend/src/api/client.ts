@@ -4,6 +4,10 @@
 import { logError } from "../lib/analytics";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
+// Allow overriding storage functions for testing
+const _getStoredApiKey = (globalThis as any).__TEST_getStoredApiKey__ || getStoredApiKey;
+const _clearStoredApiKey = (globalThis as any).__TEST_clearStoredApiKey__ || clearStoredApiKey;
+
 /**
  * Custom error class for 401 Unauthorized responses
  */
@@ -14,9 +18,10 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
+// Allow overriding API_BASE for testing
+export const API_BASE = (globalThis as any).__TEST_API_BASE__ || ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
-if (!API_BASE) {
+if (!API_BASE && !(globalThis as any).__TEST_API_BASE__) {
   const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
   logError(new Error(envHint));
 }
@@ -64,26 +69,51 @@ export async function validateApiKey(): Promise<boolean> {
   }
 }
 
-function mergeHeaders(init?: RequestInit): Headers {
-  const defaults = {
+function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
+  const defaults: Record<string, string> = {
     Accept: "application/json",
     "Accept-Language":
       (typeof navigator !== "undefined" && navigator.language) || "en",
-  } satisfies Record<string, string>;
+  };
 
   // Add API key if available
-  const apiKey = getStoredApiKey();
+  const apiKey = _getStoredApiKey();
   if (apiKey) {
     defaults["X-API-Key"] = apiKey;
   }
 
-  // Only set Content-Type for JSON bodies
-  if (init?.body && typeof init.body === "string") {
-    try {
-      JSON.parse(init.body.trim());
+  // Check if caller already provided Content-Type (case-insensitive)
+  const hasContentType = (() => {
+    if (!init?.headers) {
+      return false;
+    }
+
+    const incoming = init.headers instanceof Headers
+      ? init.headers
+      : new Headers(init.headers as HeadersInit);
+
+    // Check for Content-Type header case-insensitively
+    for (const [key] of incoming) {
+      if (key.toLowerCase() === "content-type") {
+        return true;
+      }
+    }
+    return false;
+  })();
+
+  // Only set Content-Type if caller didn't provide one
+  if (!hasContentType) {
+    if (forceJson === true) {
+      // Explicit flag takes priority
       defaults["Content-Type"] = "application/json";
-    } catch {
-      // Not valid JSON, don't set Content-Type
+    } else if (forceJson === undefined && init?.body && typeof init.body === "string") {
+      // Fall back to safe JSON detection only when flag is undefined
+      try {
+        JSON.parse(init.body.trim());
+        defaults["Content-Type"] = "application/json";
+      } catch {
+        // Not valid JSON, don't set Content-Type
+      }
     }
   }
 
@@ -110,28 +140,29 @@ function mergeHeaders(init?: RequestInit): Headers {
  * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
  * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
  * @param navigate - Optional React Router navigate function for SPA redirects.
+ * @param forceJson - Optional flag to explicitly set Content-Type to application/json, bypassing automatic detection.
  * @returns The parsed JSON response typed as `T`.
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
-async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void): Promise<T> {
+async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: mergeHeaders(init),
+      headers: mergeHeaders(init, forceJson),
     });
     if (!res.ok) {
       // Handle 401 Unauthorized - redirect to auth
       if (res.status === 401) {
         // Clear invalid API key
-        clearStoredApiKey();
+        _clearStoredApiKey();
         // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
         if (navigate) {
           navigate("/enter-key");
         } else if (typeof window !== "undefined") {
           window.location.replace("/enter-key");
         }
-        // Reject with specific UnauthorizedError so callers can detect 401
-        return Promise.reject(new UnauthorizedError("API key invalid or expired."));
+        // Throw specific UnauthorizedError so callers can detect 401
+        throw new UnauthorizedError("API key invalid or expired.");
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
@@ -168,6 +199,7 @@ async function api<T>(path: string, init?: RequestInit, navigate?: (path: string
   }
 }
 
+export { api };
 export const fetchJson = api;
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
@@ -198,19 +230,22 @@ export type WeekPlanResponse = {
 /**
  * Calculates Basal Metabolic Rate (BMR) based on user parameters
  * @param body - Request body with user parameters for BMR calculation
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<BmrResponse> - BMR calculation result
  */
-export const getBmr = (body: BmrRequest) =>
-  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
+export const getBmr = (body: BmrRequest, navigate?: (path: string) => void) =>
+  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) }, navigate, true);
 
 /**
  * Retrieves personalized nutrition plate recommendations
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<PlateResponse> - Nutrition plate data
  */
-export const getPlate = () => api<PlateResponse>("/premium/plate");
+export const getPlate = (navigate?: (path: string) => void) => api<PlateResponse>("/premium/plate", undefined, navigate);
 
 /**
  * Generates a weekly meal plan
+ * @param navigate - Optional React Router navigate function for SPA redirects
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
-export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
+export const getWeekPlan = (navigate?: (path: string) => void) => api<WeekPlanResponse>("/plan/week", undefined, navigate);
