@@ -42,22 +42,8 @@ export function useSetupCalc(values: SetupFormValues | null) {
           goal: values.goal,
           diet_flags: values.diet_flags,
         };
-        // For now, mock the plate result since API may not support these params yet
-        const plateResult = {
-          plate: {
-            carbs_pct: 50,
-            protein_pct: 25,
-            fat_pct: 25,
-            kcal: 2000,
-          },
-          macros: {
-            carbs_g: 250,
-            protein_g: 125,
-            fat_g: 55,
-            fiber_g: 25,
-          },
-          water_l: 2.5,
-        };
+        // Fetch Plate data from API
+        const plateResult = await getPlate(plateRequest);
         setPlateData(plateResult);
 
       } catch (err) {
