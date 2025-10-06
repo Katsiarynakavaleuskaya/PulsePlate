@@ -59,7 +59,7 @@ describe("api client auth", () => {
     expect(logMod.logError).toHaveBeenCalled();
   });
 
-  it("calls onAuthError + logs on 403", async () => {
+  it("calls onAuthError + logs on 403 Forbidden", async () => {
     const onAuthError = vi.fn();
     const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
     const url = "/premium/plate";
@@ -129,7 +129,7 @@ describe("api client auth", () => {
 
     await expect(api(url, { method: "POST", body: {}, onAuthError })).rejects.toBeTruthy();
     expect(onAuthError).toHaveBeenCalledWith(403, expect.objectContaining({ clearApiKey: expect.any(Function) }));
-    expect(logError).toHaveBeenCalled();
+    expect(logMod.logError).toHaveBeenCalled();
   });
 
   it("calls logError on 500 Internal Server Error", async () => {
@@ -148,7 +148,7 @@ describe("api client auth", () => {
 
     await expect(api(url, { method: "GET", onAuthError })).rejects.toBeTruthy();
     expect(onAuthError).not.toHaveBeenCalled();
-    expect(logError).toHaveBeenCalled();
+    expect(logMod.logError).toHaveBeenCalled();
   });
 
   it("calls logError on 404 Not Found", async () => {
@@ -167,7 +167,7 @@ describe("api client auth", () => {
 
     await expect(api(url, { method: "GET", onAuthError })).rejects.toBeTruthy();
     expect(onAuthError).not.toHaveBeenCalled();
-    expect(logError).toHaveBeenCalled();
+    expect(logMod.logError).toHaveBeenCalled();
   });
 
   it("falls back to mockUrl on network error when forceMock is false", async () => {
