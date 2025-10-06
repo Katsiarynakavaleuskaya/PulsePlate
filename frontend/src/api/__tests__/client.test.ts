@@ -113,6 +113,63 @@ describe("api client auth", () => {
     expect(logMod.logError).toHaveBeenCalled();
   });
 
+  it("calls onAuthError + logs on 403", async () => {
+    const onAuthError = vi.fn();
+    const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+    const url = "/premium/plate";
+
+    // Mock fetch to return 403
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+      text: () => Promise.resolve(""),
+      url: `${API_BASE}${url}`,
+    } as unknown as Response);
+
+    await expect(api(url, { method: "POST", body: {}, onAuthError })).rejects.toBeTruthy();
+    expect(onAuthError).toHaveBeenCalledWith(403, expect.objectContaining({ clearApiKey: expect.any(Function) }));
+    expect(logError).toHaveBeenCalled();
+  });
+
+  it("calls logError on 500 Internal Server Error", async () => {
+    const onAuthError = vi.fn();
+    const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+    const url = "/premium/plate";
+
+    // Mock fetch to return 500
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      text: () => Promise.resolve("Server error"),
+      url: `${API_BASE}${url}`,
+    } as unknown as Response);
+
+    await expect(api(url, { method: "GET", onAuthError })).rejects.toBeTruthy();
+    expect(onAuthError).not.toHaveBeenCalled();
+    expect(logError).toHaveBeenCalled();
+  });
+
+  it("calls logError on 404 Not Found", async () => {
+    const onAuthError = vi.fn();
+    const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+    const url = "/premium/plate";
+
+    // Mock fetch to return 404
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: () => Promise.resolve("Not found"),
+      url: `${API_BASE}${url}`,
+    } as unknown as Response);
+
+    await expect(api(url, { method: "GET", onAuthError })).rejects.toBeTruthy();
+    expect(onAuthError).not.toHaveBeenCalled();
+    expect(logError).toHaveBeenCalled();
+  });
+
   it("falls back to mockUrl on network error when forceMock is false", async () => {
     const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
     const url = "/premium/plate";

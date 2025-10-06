@@ -43,15 +43,18 @@ function buildHeaders(
   body?: unknown
 ) {
   const h: Record<string, string> = { ...base };
+function buildHeaders(
+  apiKey: string | undefined,
+  base: Record<string, string> = {},
+  hasBody: boolean
+) {
+  const h: Record<string, string> = { ...base };
   if (apiKey) h["X-API-Key"] = apiKey;
-  // Для GET/без тела не шлём Content-Type, и не шлём для FormData, URLSearchParams, Blob, ArrayBuffer (браузер сам установит правильный Content-Type)
-  if (hasBody && !("Content-Type" in h) &&
-      !(body instanceof FormData) &&
-      !(body instanceof URLSearchParams) &&
-      !(body instanceof Blob) &&
-      !(body instanceof ArrayBuffer)) {
-    h["Content-Type"] = "application/json";
-  }
+  // Для GET/без тела не шлём Content-Type
+
+  // Normalize header keys to lowercase for case-insensitive check
+  const lowerCaseKeys = Object.keys(h).map((k) => k.toLowerCase());
+  if (hasBody && !lowerCaseKeys.includes("content-type")) h["Content-Type"] = "application/json";
   return h;
 }
 
