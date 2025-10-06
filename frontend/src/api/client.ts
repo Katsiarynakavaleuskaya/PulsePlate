@@ -43,9 +43,12 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/Aut
  */
 export async function validateApiKey(): Promise<boolean> {
   try {
-    // Use health endpoint which is available without API key
-    await api<{ status: string }>("/health", { method: "GET" });
-    return true;
+    // Use direct fetch to avoid 401 error handling that clears keys and redirects
+    const res = await fetch(`${API_BASE}/health`, {
+      method: "GET",
+      headers: mergeHeaders(),
+    });
+    return res.ok;
   } catch (error) {
     return false;
   }
@@ -96,10 +99,11 @@ function mergeHeaders(init?: RequestInit): Headers {
  *
  * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
  * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
+ * @param navigate - Optional React Router navigate function for SPA redirects.
  * @returns The parsed JSON response typed as `T`.
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -110,9 +114,11 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       if (res.status === 401) {
         // Clear invalid API key
         clearStoredApiKey();
-        // Redirect to enter key page (soft-gating)
+        // Redirect to enter key page (soft-gating) with small delay to allow state cleanup
         if (typeof window !== "undefined") {
-          window.location.href = "/enter-key";
+          setTimeout(() => {
+            window.location.href = "/enter-key";
+          }, 100);
         }
         // Don't throw error immediately to allow redirect to complete
         return Promise.reject(new Error("API key invalid or expired. Redirecting to authentication."));
