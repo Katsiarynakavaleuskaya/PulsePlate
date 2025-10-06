@@ -5,7 +5,7 @@ export function useApiKey() {
   const [apiKey, setApiKeyState] = useState<string | undefined>(SettingsStore.getApiKey());
 
   useEffect(() => {
-    // Отписка возвращается, утечек слушателей не будет
+    // Return the unsubscribe function to avoid listener leaks
     return SettingsStore.subscribe((s) => setApiKeyState(s.apiKey));
   }, []);
 
