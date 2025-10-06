@@ -9,13 +9,6 @@ const testStorage = {
 };
 vi.mock('../../auth/storage', () => testStorage);
 
-// Set test API base globally for all tests
-(globalThis as any).__TEST_API_BASE__ = 'http://test-api.com';
-
-// Set test storage functions globally for all tests
-(globalThis as any).__TEST_getStoredApiKey__ = testStorage.getStoredApiKey;
-(globalThis as any).__TEST_clearStoredApiKey__ = testStorage.clearStoredApiKey;
-
 // Mock window.location.replace to prevent jsdom errors
 const originalLocation = window.location;
 Object.defineProperty(window, 'location', {
@@ -37,14 +30,28 @@ const createMockResponse = (data: any, options: { ok: boolean; status: number })
 };
 
 describe('API Client Auth', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
+    // Set up test dependencies using dependency injection
+    const { setApiClientDependencies } = await import('../client');
+    setApiClientDependencies({
+      getStoredApiKey: testStorage.getStoredApiKey,
+      clearStoredApiKey: testStorage.clearStoredApiKey,
+      apiBase: 'http://test-api.com',
+    });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    // Restore original window.location to prevent state leaks between tests
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
+    });
+    // Reset dependencies to prevent state leaks between tests
+    const { setApiClientDependencies } = await import('../client');
+    setApiClientDependencies(null);
   });
 
   describe('validateApiKey', () => {
