@@ -43,7 +43,14 @@ export const SettingsStore = {
     const onStorage = (e: StorageEvent) => {
       if (e.key === NS) fn(read());
     };
-    const onInTab = (e: Event) => fn((e as CustomEvent<Settings>).detail ?? read());
+    const onInTab = (e: Event) => {
+      const detail = (e as CustomEvent<Settings>).detail;
+      if (detail && typeof detail === "object") {
+        fn(detail);
+      } else {
+        fn(read());
+      }
+    };
     window.addEventListener("storage", onStorage);
     window.addEventListener("settings:changed", onInTab as EventListener);
     return () => {

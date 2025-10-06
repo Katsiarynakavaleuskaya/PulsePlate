@@ -56,7 +56,7 @@ function buildHeaders(
   return h;
 }
 
-export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Promise<T> {
+export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Promise<T | undefined> {
   const {
     method = "GET",
     body,
@@ -72,6 +72,22 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
   const hasBody = body !== undefined && method !== "GET";
   const finalHeaders = buildHeaders(apiKey, headers, hasBody);
 
+  // Prepare body once - only stringify if it's a plain object/array, leave strings/FormData as-is
+  let preparedBody: BodyInit | undefined;
+  if (hasBody && body !== undefined) {
+    if (
+      typeof body === "string" ||
+      body instanceof FormData ||
+      body instanceof URLSearchParams ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer
+    ) {
+      preparedBody = body;
+    } else {
+      preparedBody = JSON.stringify(body);
+    }
+  }
+
   const primary = `${API_BASE}${url}`;
   const useMock = async () => {
     if (!mockUrl) throw new Error("Mock URL not provided");
@@ -79,12 +95,12 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
       return await fetch(mockUrl, {
         method,
         headers: finalHeaders,
-        body: hasBody ? JSON.stringify(body) : undefined,
+        body: preparedBody,
         credentials,
         signal,
       });
     } catch (mockErr) {
-      try { logError(mockErr, { url, endpoint: mockUrl, phase: "mock" }); } catch {}
+      try { logError(mockErr); } catch {}
       throw mockErr;
     }
   };
@@ -99,7 +115,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
       res = await fetch(primary, {
         method,
         headers: finalHeaders,
-        body: hasBody ? JSON.stringify(body) : undefined,
+        body: preparedBody,
         credentials,
         signal,
       });
@@ -107,26 +123,27 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
   } catch (netErr) {
     // 🔁 Старое поведение: при сетевой ошибке и наличии mockUrl — фоллбэк
     if (!forceMock && mockUrl) {
-      try { logError(netErr, { url, endpoint: primary, phase: "network-fallback" }); } catch {}
+      try { logError(netErr); } catch {}
       res = await useMock();
     } else {
-      try { logError(netErr, { url, endpoint: primary, phase: "network-error" }); } catch {}
+      try { logError(netErr); } catch {}
       throw netErr;
     }
   }
 
   if (res.status === 401 || res.status === 403) {
-    try { logError(new Error(`Auth ${res.status}`), { url, endpoint: res.url || primary }); } catch {}
+    try { logError(new Error(`Auth ${res.status}`)); } catch {}
     onAuthError?.(res.status as 401 | 403, { clearApiKey: SettingsStore.clearApiKey });
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    try { logError(new Error(`HTTP ${res.status}`), { url, endpoint: res.url || primary, body: text || res.statusText }); } catch {}
+    try { logError(new Error(`HTTP ${res.status}`)); } catch {}
     throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
   }
 
-  if (res.status === 204) return undefined as T;
+  // Endpoints which may return 204 should call the API with a response type that includes undefined (e.g. api<Response | undefined>(...))
+  if (res.status === 204) return undefined;
   return (await res.json()) as T;
 }
 
@@ -156,9 +173,9 @@ export type WeekPlanResponse = {
 };
 
 // Endpoints
-export const getBmr = (body: BmrRequest) =>
+export const getBmr = (body: BmrRequest): Promise<BmrResponse | undefined> =>
   api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
 
-export const getPlate = () => api<PlateResponse>("/premium/plate");
+export const getPlate = (): Promise<PlateResponse | undefined> => api<PlateResponse>("/premium/plate");
 
-export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
+export const getWeekPlan = (): Promise<WeekPlanResponse | undefined> => api<WeekPlanResponse>("/plan/week");

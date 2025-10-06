@@ -1,6 +1,6 @@
 import React, { createContext, useMemo, useCallback } from "react";
 import { api as apiBase } from "../api/client";
-import { useToast } from "../components/ui/Toast";
+import { getToastHelpers } from "../components/ui/useToast";
 import { useApiKey } from "../settings/useApiKey";
 
 type AuthContextType = {
@@ -13,7 +13,7 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType>(null!);
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const toast = useToast();
+  const toast = getToastHelpers();
   const { apiKey, setApiKey, clearApiKey } = useApiKey();
 
   // общий onAuthError → решение принимает UI: тост + soft-гейтинг

@@ -1,12 +1,12 @@
 import { useContext, useState } from "react";
 import { AuthContext } from "../../auth/AuthContext";
-import { useToast } from "../../components/ui/Toast";
+import { getToastHelpers } from "../../components/ui/useToast";
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function EnterKey() {
   const { apiKey, setApiKey, clearApiKey } = useContext(AuthContext);
-  const [value, setValue] = useState(apiKey ?? "");
-  const toast = useToast();
+  const [value, setValue] = useState(apiKey?.trim() ?? "");
+  const toast = getToastHelpers();
   const nav = useNavigate();
   const loc = useLocation();
   const from = (loc.state as { from?: string } | null)?.from;
@@ -17,10 +17,16 @@ export default function EnterKey() {
       toast.error("Введите непустой API-ключ.");
       return;
     }
-    setApiKey(v);
-    toast.success("Ключ сохранён.");
-    // Автоматический возврат туда, откуда пришли (если был soft-гейт)
-    if (from && from !== "/enter-key") nav(from, { replace: true });
+    try {
+      setApiKey(v);
+      toast.success("Ключ сохранён.");
+      // Автоматический возврат туда, откуда пришли (если был soft-гейт)
+      if (from && from !== "/enter-key") {
+        nav(from, { replace: true });
+      }
+    } catch (error) {
+      toast.error("Не удалось сохранить ключ. Попробуйте ещё раз.");
+    }
   };
 
   const onClear = () => {
@@ -34,11 +40,14 @@ export default function EnterKey() {
       <h1 className="text-2xl font-semibold mb-2">API-ключ</h1>
       <p className="text-sm text-gray-500 mb-4">
         Ключ обязателен для работы Premium-функций. Где взять: см.{" "}
-        <a href="https://github.com/…/README.md#api-key" target="_blank" rel="noreferrer" className="text-blue-600 underline">
+        <a href="https://github.com/Katsiarynakavaleuskaya/PulsePlate/blob/main/README.md#feature-flags-and-auth" target="_blank" rel="noreferrer" className="text-blue-600 underline">
           README
         </a>.
       </p>
+      <label htmlFor="x-api-key" className="sr-only">X-API-Key</label>
       <input
+        type="text"
+        id="x-api-key"
         className="w-full border rounded-xl p-3 mb-3"
         placeholder="Вставьте X-API-Key"
         value={value}

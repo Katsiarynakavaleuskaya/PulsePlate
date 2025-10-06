@@ -133,11 +133,11 @@ class TestDatabaseUpdateManagerCoverage97:
         path_set = {wrapper1, wrapper1_copy}
         assert len(path_set) == 1  # Should be deduplicated
 
-    def test_calculate_checksum_with_cache_data(self) -> None:
+    def test_calculate_checksum_with_cache_data(self, tmp_path: Path) -> None:
         """Test checksum calculation with cache data (lines 497-498)."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
-        manager = DatabaseUpdateManager(cache_dir="/tmp")
+        manager = DatabaseUpdateManager(cache_dir=str(tmp_path))
         test_data = {"test": "checksum data"}  # Dict as expected by method
 
         checksum = manager._calculate_checksum(test_data)
