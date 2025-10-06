@@ -71,6 +71,17 @@ describe('API Client Auth', () => {
       expect(result).toBe(true);
     });
 
+    it('should return false for 401 Unauthorized response', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: 'Unauthorized' }),
+      });
+
+      const result = await validateApiKey();
+      expect(result).toBe(false);
+    });
+
     it('should return false for failed validation', async () => {
       fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
