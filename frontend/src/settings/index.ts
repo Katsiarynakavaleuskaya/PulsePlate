@@ -86,16 +86,12 @@ function write(next: Settings) {
           // Если toast недоступен, используем нативный alert как fallback
           alert(i18n.t("settings.storageQuotaExceeded"));
         });
-      } else if (error.name === "SecurityError") {
-        if (import.meta.env.DEV) {
-          console.warn("settings write blocked by security policy", error);
-        }
+      } else if (error.name === "SecurityError" && import.meta.env.DEV) {
+        console.warn("settings write blocked by security policy", error);
       }
-    } else {
+    } else if (import.meta.env.DEV) {
       // For other errors (e.g., JSON serialization) just log
-      if (import.meta.env.DEV) {
-        console.warn("unexpected settings write error", error);
-      }
+      console.warn("unexpected settings write error", error);
     }
   }
 }
