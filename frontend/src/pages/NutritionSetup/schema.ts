@@ -23,8 +23,11 @@ export type SetupFormValues = z.infer<typeof setupSchema>;
 
 export type BmrResponse = {
   bmr: number;
-  tdee: number;
   method: string;
+};
+
+export type EnrichedBmrResponse = BmrResponse & {
+  tdee: number;
 };
 
 export type PlateResponse = {

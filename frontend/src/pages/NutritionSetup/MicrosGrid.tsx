@@ -9,7 +9,7 @@ interface MicroItem {
 }
 
 interface MicrosGridProps {
-  items: MicroItem[];
+  items?: MicroItem[];
 }
 
 export default function MicrosGrid({ items }: MicrosGridProps) {

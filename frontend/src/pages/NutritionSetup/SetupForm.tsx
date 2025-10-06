@@ -13,8 +13,11 @@ interface SetupFormProps {
 export default function SetupForm({ onSubmit }: SetupFormProps) {
   const { settings, updateSetting } = useSettings();
 
-  // Get saved values or defaults
-  const saved = settings.setup as SetupFormValues | undefined;
+  // Get saved values or defaults with validation
+  const saved: SetupFormValues | undefined = (() => {
+    const result = setupSchema.safeParse(settings.setup);
+    return result.success ? result.data : undefined;
+  })();
 
   const { register, handleSubmit, formState: { errors } } = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),

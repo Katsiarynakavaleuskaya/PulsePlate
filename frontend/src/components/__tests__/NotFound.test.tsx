@@ -47,10 +47,10 @@ describe("NotFound", () => {
   });
 
   it("has working navigation buttons", () => {
-    // Mock window.history.back
-    const mockBack = vi.fn();
-    delete (window as any).history;
-    window.history = { back: mockBack } as any;
+    // Spy on window.history.back and mock its implementation
+    const mockBack = vi.spyOn(window.history, "back").mockImplementation(() => {
+      /* noop */
+    });
 
     render(
       <MemoryRouter>
@@ -68,5 +68,8 @@ describe("NotFound", () => {
     // without more complex setup, so we'll just verify the button exists and is clickable
     expect(goHomeButton).toBeInTheDocument();
     expect(goHomeButton).not.toBeDisabled();
+
+    // Restore the spy after the test (Vitest auto-restore should handle this, but being explicit)
+    mockBack.mockRestore();
   });
 });

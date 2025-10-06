@@ -265,8 +265,11 @@ export type BmrRequest = {
 
 export type BmrResponse = {
   bmr: number; // kcal/day
-  tdee: number; // total daily energy expenditure kcal/day
   method: string; // e.g., "Mifflin-St Jeor"
+};
+
+export type EnrichedBmrResponse = BmrResponse & {
+  tdee: number; // total daily energy expenditure kcal/day
 };
 
 export type PlateResponse = {

@@ -3,10 +3,10 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getBmr } from '../../api/client';
-import type { SetupFormValues, BmrResponse, PlateResponse, TargetsResponse } from './schema';
+import type { SetupFormValues, EnrichedBmrResponse, PlateResponse, TargetsResponse } from './schema';
 
 export function useSetupCalc(values: SetupFormValues | null) {
-  const [bmrData, setBmrData] = useState<BmrResponse | null>(null);
+  const [bmrData, setBmrData] = useState<EnrichedBmrResponse | null>(null);
   const [plateData, setPlateData] = useState<PlateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +177,7 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
     };
 
     fetchTargets();
-  }, [lang, localizedTargets]);
+  }, [lang]);
 
   return {
     data,
