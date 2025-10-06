@@ -1,6 +1,9 @@
 // RU: Центральная конфигурация моков для API эндпоинтов.
 // EN: Centralized mock configuration for API endpoints.
 
+/**
+ * Represents a mapping between API path patterns and mock file paths.
+ */
 export interface MockMapping {
   /** Pattern to match against the API path */
   pattern: string;
@@ -9,8 +12,8 @@ export interface MockMapping {
 }
 
 /**
- * Mapping of API route patterns to mock file paths.
- * Patterns are matched using String.includes() for simplicity.
+ * Predefined mapping of API route patterns to mock file paths.
+ * Patterns are matched using exact segment comparisons across a sliding window.
  * Order matters - first match wins.
  */
 export const MOCK_MAPPINGS: MockMapping[] = [
@@ -31,13 +34,14 @@ export const MOCK_MAPPINGS: MockMapping[] = [
 /**
  * Finds the mock file path for a given API path.
  * @param path - The API path to match against
+ * @param mappings - Optional mock mappings to use instead of default MOCK_MAPPINGS
  * @returns The mock file path if a pattern matches, null otherwise
  */
-export function getMockUrl(path: string): string | null {
+export function getMockUrl(path: string, mappings: MockMapping[] = MOCK_MAPPINGS): string | null {
   // Normalize path to ensure it starts with leading slash and remove query/hash
   const normalizedPath = path.split(/[?#]/)[0].replace(/^([^/])/, '/$1');
 
-  for (const mapping of MOCK_MAPPINGS) {
+  for (const mapping of mappings) {
     // Split both path and pattern into segments for precise matching
     const pathSegments = normalizedPath.split('/').filter(Boolean);
     const patternSegments = mapping.pattern.split('/').filter(Boolean);

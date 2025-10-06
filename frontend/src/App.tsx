@@ -21,11 +21,11 @@ function AppContent() {
         {/* Публичные */}
         <Route path="/" element={<Home />} />
         <Route path="/enter-key" element={<EnterKey />} />
+        <Route path="/profile" element={<Profile />} />
 
         {/* Приватные */}
         <Route path="/plate" element={<RequireKey><Plate /></RequireKey>} />
         <Route path="/progress" element={<RequireKey><Progress /></RequireKey>} />
-        <Route path="/profile" element={<Profile />} />
       </Routes>
       {showTabBar && <TabBar />}
     </div>

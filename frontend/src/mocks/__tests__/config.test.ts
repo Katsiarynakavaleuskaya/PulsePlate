@@ -33,7 +33,6 @@ describe("mock config", () => {
 
   it("should match first pattern in order for overlapping mappings", () => {
     // Test the first-match behavior with overlapping patterns
-    // Simulate getMockUrl logic with overlapping mappings
     const overlappingMappings = [
       {
         pattern: "/premium",
@@ -45,25 +44,8 @@ describe("mock config", () => {
       },
     ];
 
-    // Implement the same matching logic as getMockUrl
-    const testGetMockUrl = (path: string): string | null => {
-      const normalizedPath = path.split(/[?#]/)[0].replace(/^([^/])/, '/$1');
-
-      for (const mapping of overlappingMappings) {
-        const pathSegments = normalizedPath.split('/').filter(Boolean);
-        const patternSegments = mapping.pattern.split('/').filter(Boolean);
-
-        for (let i = 0; i <= pathSegments.length - patternSegments.length; i++) {
-          if (patternSegments.every((segment, j) => segment === pathSegments[i + j])) {
-            return mapping.mockPath;
-          }
-        }
-      }
-      return null;
-    };
-
-    // /premium/bmr should match "/premium" first since it appears earlier
-    expect(testGetMockUrl("/premium/bmr")).toBe("/mock/premium.json");
-    expect(testGetMockUrl("/premium")).toBe("/mock/premium.json");
+    // /premium/bmr should match "/premium" first since it appears earlier in the mappings array
+    expect(getMockUrl("/premium/bmr", overlappingMappings)).toBe("/mock/premium.json");
+    expect(getMockUrl("/premium", overlappingMappings)).toBe("/mock/premium.json");
   });
 });

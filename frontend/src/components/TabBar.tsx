@@ -1,4 +1,3 @@
-import React from "react";
 import { NavLink, useLocation, matchPath } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useTranslation } from "react-i18next";
@@ -22,14 +21,14 @@ export default function TabBar() {
     >
       {items.map(({ to, label, requiresAuth }) => {
         const isDisabled = requiresAuth && !apiKey;
-        const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
 
         if (isDisabled) {
+          const wouldBeActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
           return (
             <span
               key={to}
               role="tab"
-              aria-selected={false}
+              aria-selected={wouldBeActive}
               className="py-3 text-center text-muted/50 cursor-not-allowed"
               title={t("auth.requiresApiKey")}
             >
@@ -44,12 +43,15 @@ export default function TabBar() {
             to={to}
             end={to === "/"}
             role="tab"
-            aria-selected={isActive}
             className={({ isActive }) =>
               `py-3 text-center ${isActive ? "text-primary font-medium" : "text-muted"}`
             }
           >
-            {label}
+            {({ isActive }) => (
+              <span aria-selected={isActive}>
+                {label}
+              </span>
+            )}
           </NavLink>
         );
       })}
