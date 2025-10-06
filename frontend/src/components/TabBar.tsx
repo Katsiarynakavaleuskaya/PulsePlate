@@ -2,18 +2,35 @@ import { NavLink, useLocation, matchPath } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useTranslation } from "react-i18next";
 import { tabRoutes } from "../config/routes";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function TabBar() {
   const { pathname } = useLocation();
   const { apiKey } = useAuth();
   const { t } = useTranslation();
   const [clickedDisabled, setClickedDisabled] = useState<string | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleDisabledClick = (path: string) => {
+    // Clear any previous timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
     setClickedDisabled(path);
     // Show visual feedback for a short time
-    setTimeout(() => setClickedDisabled(null), 300);
+    timeoutRef.current = setTimeout(() => {
+      setClickedDisabled(null);
+      timeoutRef.current = null;
+    }, 300);
   };
 
   return (
