@@ -1,18 +1,12 @@
 import { NavLink, useLocation, matchPath } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useTranslation } from "react-i18next";
+import { tabRoutes } from "../config/routes";
 
 export default function TabBar() {
   const { pathname } = useLocation();
   const { apiKey } = useAuth();
   const { t } = useTranslation();
-
-  const items = [
-    { to: "/", label: "Home", requiresAuth: false },
-    { to: "/plate", label: "Plate", requiresAuth: true },
-    { to: "/progress", label: "Progress", requiresAuth: true },
-    { to: "/profile", label: "Profile", requiresAuth: false },
-  ];
 
   return (
     <nav
@@ -20,7 +14,7 @@ export default function TabBar() {
       aria-label="Main tabs"
       className="fixed bottom-0 inset-x-0 grid grid-cols-4 border-t border-muted/30 bg-navy"
     >
-      {items.map(({ to, label, requiresAuth }) => {
+      {tabRoutes.map(({ path: to, label, requiresAuth }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
         const isDisabled = requiresAuth && !apiKey;
 
@@ -31,6 +25,7 @@ export default function TabBar() {
               role="tab"
               aria-selected={isActive}
               aria-disabled="true"
+              tabIndex={-1}
               className="py-3 text-center text-muted/50 cursor-not-allowed"
               title={t("auth.requiresApiKey")}
             >
