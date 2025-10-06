@@ -196,4 +196,28 @@ describe("api client auth", () => {
     // Should only call fetch once (the primary request), not the mock fallback
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("uses mockUrl directly when forceMock is true", async () => {
+    const url = "/premium/plate";
+    const mockUrl = "/mocks/premium/plate.json";
+    const mockData = { calories: 2000, macros: { protein: 150, fat: 67, carbs: 250 } };
+
+    // Mock fetch to return mock data
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(mockData),
+      url: mockUrl,
+    } as unknown as Response);
+
+    const res = await api(url, { method: "POST", body: {}, mockUrl, forceMock: true });
+    expect(res).toEqual(mockData);
+
+    // Should only call fetch once with the mock URL, not the real API URL
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      mockUrl,
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 });

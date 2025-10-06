@@ -6,7 +6,7 @@ import EnterKey from "../EnterKey";
 import { SettingsStore } from "../../../settings/index";
 
 // Use a fake API key constant to avoid triggering security scanners
-const TEST_API_KEY = "pp_fake_key_12345678901234567890";
+const TEST_API_KEY = "sk-fake_key_12345678901234567890";
 
 let setItemSpy: ReturnType<typeof vi.spyOn>;
 
@@ -60,10 +60,18 @@ it("rejects invalid API key format", () => {
 });
 
 it("trims and saves key", () => {
+it("trims and saves key", () => {
+  const sessionSetSpy = vi.spyOn(window.sessionStorage.__proto__, 'setItem');
   render(<AuthProvider><EnterKey/></AuthProvider>);
-  fireEvent.change(screen.getByPlaceholderText(/Paste X-API-Key/i), { target: { value: ` ${TEST_API_KEY} ` } });
+  fireEvent.change(
+    screen.getByPlaceholderText(/Paste X-API-Key/i),
+    { target: { value: ` ${TEST_API_KEY} ` } }
+  );
   fireEvent.click(screen.getByText(/Save/i));
-  expect(setItemSpy).toHaveBeenCalledWith("pulseplate.settings.v1", JSON.stringify({ apiKey: TEST_API_KEY }));
+  expect(sessionSetSpy).toHaveBeenCalledWith(
+    "pulseplate.settings.v1.apiKey",
+    TEST_API_KEY
+  );
 });
 
 it("clears input and removes key on clear button click", () => {
@@ -105,7 +113,7 @@ it("navigates to from route after saving valid key", () => {
   const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
-  fireEvent.change(input, { target: { value: "TEST_API_KEY" } });
+  fireEvent.change(input, { target: { value: TEST_API_KEY } });
 
   // Click save
   fireEvent.click(saveButton);
@@ -141,7 +149,7 @@ it("displays error message when save fails", () => {
   const saveButton = screen.getByText(/Save/i);
 
   // Enter a valid key
-  fireEvent.change(input, { target: { value: "TEST_API_KEY" } });
+  fireEvent.change(input, { target: { value: TEST_API_KEY } });
 
   // Click save
   fireEvent.click(saveButton);

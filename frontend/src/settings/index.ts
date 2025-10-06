@@ -209,11 +209,11 @@ export const SettingsStore = {
       fn(read());
     };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("settings:changed", onInTab as EventListener);
+    window.addEventListener("settings:changed", onInTab);
     window.addEventListener("settings:apiKey:changed", onApiKeyChange);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("settings:changed", onInTab as EventListener);
+      window.removeEventListener("settings:changed", onInTab);
       window.removeEventListener("settings:apiKey:changed", onApiKeyChange);
     };
   },

@@ -45,7 +45,9 @@ function buildHeaders(
   const h: Record<string, string> = { ...base };
   if (apiKey) h["X-API-Key"] = apiKey;
   // Для GET/без тела не шлём Content-Type, и не шлём для FormData, URLSearchParams, Blob, ArrayBuffer (браузер сам установит правильный Content-Type)
-  if (hasBody && !("Content-Type" in h) &&
+  // Normalize header keys to lowercase for case-insensitive check
+  const lowerCaseKeys = Object.keys(h).map((k) => k.toLowerCase());
+  if (hasBody && !lowerCaseKeys.includes("content-type") &&
       !(body instanceof FormData) &&
       !(body instanceof URLSearchParams) &&
       !(body instanceof Blob) &&
@@ -61,7 +63,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     body,
     headers,
     mockUrl,
-    forceMock = GLOBAL_FORCE_MOCK,
+    forceMock = typeof GLOBAL_FORCE_MOCK !== 'undefined' ? GLOBAL_FORCE_MOCK : false,
     onAuthError,
     credentials,
     signal,

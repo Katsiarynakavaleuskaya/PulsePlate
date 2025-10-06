@@ -6,7 +6,6 @@ interface EyeIconProps {
 
 export const EyeIcon: React.FC<EyeIconProps> = ({ className = "w-5 h-5" }) => (
   <svg
--    width="20"
     width="24"
     height="24"
      viewBox="0 0 24 24"
