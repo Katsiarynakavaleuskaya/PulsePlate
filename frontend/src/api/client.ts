@@ -2,7 +2,7 @@
 // EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
-import { getStoredApiKey, clearStoredApiKey } from "../auth/AuthContext";
+import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
 
@@ -35,7 +35,7 @@ function mockUrl(path: string): string | null {
 
 // API Key management moved to auth context
 // Re-export for backward compatibility
-export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/AuthContext";
+export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 /**
  * Validates API key by making a lightweight request to the backend
@@ -184,9 +184,23 @@ export type WeekPlanResponse = {
 };
 
 // Endpoints
+
+/**
+ * Calculates Basal Metabolic Rate (BMR) based on user parameters
+ * @param body - Request body with user parameters for BMR calculation
+ * @returns Promise<BmrResponse> - BMR calculation result
+ */
 export const getBmr = (body: BmrRequest) =>
   api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body) });
 
+/**
+ * Retrieves personalized nutrition plate recommendations
+ * @returns Promise<PlateResponse> - Nutrition plate data
+ */
 export const getPlate = () => api<PlateResponse>("/premium/plate");
 
+/**
+ * Generates a weekly meal plan
+ * @returns Promise<WeekPlanResponse> - Weekly meal plan data
+ */
 export const getWeekPlan = () => api<WeekPlanResponse>("/plan/week");
