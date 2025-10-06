@@ -15,7 +15,7 @@ export class AuthError extends Error {
   }
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   apiKey: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -25,7 +25,7 @@ interface AuthContextType {
   setShowAuthPrompt: (show: boolean) => void;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
