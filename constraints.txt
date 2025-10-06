@@ -18,6 +18,6 @@ bandit==1.8.6
 # safety==3.6.1b0  # Disabled due to typer compatibility
 
 # Dev tools
-pre-commit==3.8.0
+pre-commit==4.3.0
 sourcery==2.0.0
 asgi-lifespan==2.1.0
