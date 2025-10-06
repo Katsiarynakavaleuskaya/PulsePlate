@@ -21,7 +21,7 @@ const searchParams = (() => {
 
 const forceMock = searchParams.get("mock") === "1";
 
-function mockUrl(path: string): string | null {
+function getAutomaticMockUrl(path: string): string | null {
   return getMockUrl(path);
 }
 
@@ -121,7 +121,7 @@ export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Prom
     }
   } catch (netErr) {
     // 🔁 Старое поведение: при сетевой ошибке и наличии mockUrl — фоллбэк
-    const automaticMockUrl = mockUrl(url); // Try to get automatic mock URL
+    const automaticMockUrl = getAutomaticMockUrl(url); // Try to get automatic mock URL
     if (!forceMock && (mockUrl || automaticMockUrl)) {
       try { logError(netErr); } catch {}
       // Use explicit mockUrl if provided, otherwise use automatic mockUrl
