@@ -15,7 +15,7 @@ export class AuthError extends Error {
   }
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   apiKey: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
