@@ -23,7 +23,6 @@ export default function TabBar() {
             <span
               key={to}
               role="tab"
-              aria-selected={isActive}
               aria-disabled="true"
               tabIndex={-1}
               className="py-3 text-center text-muted/50 cursor-not-allowed"
