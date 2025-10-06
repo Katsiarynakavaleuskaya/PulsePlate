@@ -24,6 +24,9 @@ describe('API Client Auth', () => {
 
   describe('401 Error Handling', () => {
     it('should clear API key and redirect on 401 response', async () => {
+      // Mock timers
+      vi.useFakeTimers();
+
       // Mock 401 response
       fetchMock.mockResolvedValueOnce({
         ok: false,
@@ -41,8 +44,13 @@ describe('API Client Auth', () => {
       // Attempt API call
       await expect(fetchJson('/test')).rejects.toThrow('API key invalid or expired');
 
+      // Fast-forward timers to trigger redirect
+      vi.advanceTimersByTime(100);
+
       // Verify redirect
       expect(window.location.href).toBe('/enter-key');
+
+      vi.useRealTimers();
     });
   });
 
