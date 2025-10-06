@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock auth context functions
-const mockAuthContext = {
+// Mock auth storage functions
+const mockStorage = {
   getStoredApiKey: vi.fn(() => 'test-api-key'),
   setStoredApiKey: vi.fn(),
   clearStoredApiKey: vi.fn(),
 };
-vi.mock('../auth/AuthContext', () => mockAuthContext);
+vi.mock('../auth/storage', () => mockStorage);
 
 import { validateApiKey } from '../client';
 
