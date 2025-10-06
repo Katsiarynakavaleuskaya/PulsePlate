@@ -88,7 +88,7 @@
   },
   "enterKey": {
     "title": "Clave API",
-    "description": "Clave requerida para funciones Premium. Dónde obtener: ver",
+    "description": "Clave requerida para funciones Premium. Para obtenerla, consulta el",
     "label": "X-API-Key",
     "placeholder": "Pegar X-API-Key",
     "save": "Guardar",

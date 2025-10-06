@@ -952,6 +952,19 @@ class DatabaseUpdateManager:
 
         return status
 
+    async def get_record_count(self, source: str) -> int:
+        """
+        RU: Получает количество записей в базе данных для указанного источника.
+        EN: Get the record count for the specified data source.
+
+        Args:
+            source: Data source name ("usda", "openfoodfacts")
+
+        Returns:
+            Number of records in the database
+        """
+        return await self._get_actual_record_count(source)
+
     async def close(self):
         """Close all connections."""
         await self.usda_client.close()

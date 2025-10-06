@@ -88,7 +88,7 @@
   },
   "enterKey": {
     "title": "API Key",
-    "description": "Key required for Premium features. Where to get: see",
+    "description": "Key required for Premium features. To obtain one, see the",
     "label": "X-API-Key",
     "placeholder": "Paste X-API-Key",
     "save": "Save",

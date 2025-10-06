@@ -24,7 +24,7 @@ export default function EnterKey() {
     try {
       setApiKey(v);
       toast.success(t("enterKey.saved"));
-      // Автоматический возврат туда, откуда пришли (если был soft-гейт)
+      // Automatically return to origin (if came from soft-gate)
       if (from && from !== "/enter-key") {
         nav(from, { replace: true });
       }

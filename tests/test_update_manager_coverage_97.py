@@ -243,64 +243,133 @@ class TestDatabaseUpdateManagerCoverage97:
             checksum2 = versions_data2["openfoodfacts"]["checksum"]
             assert checksum1 == checksum2  # Same data should produce same checksum
 
-            # Test uniqueness: different input should produce different checksum
-            # Configure different mock data
-            async def mock_search_products_different(query, page_size=25):
-                if query == "apple":
-                    return [
-                        OFFFoodItem(
-                            code="orange",
-                            product_name="Orange",
-                            categories=["Fruits"],
-                            nutrients_per_100g={
-                                "energy-kcal": 62,
-                                "protein_g": 1.2,
-                                "fat_g": 0.2,
-                                "carbs_g": 15.0,
-                            },
-                            ingredients_text="Orange",
-                            brands="Generic",
-                            labels=[],
-                            countries=["United States"],
-                            packaging=[],
-                            image_url=None,
-                            last_modified_t=1234567890,
-                        )
-                    ]
-                elif query == "banana":
-                    return [
-                        OFFFoodItem(
-                            code="grape",
-                            product_name="Grape",
-                            categories=["Fruits"],
-                            nutrients_per_100g={
-                                "energy-kcal": 69,
-                                "protein_g": 0.7,
-                                "fat_g": 0.2,
-                                "carbs_g": 18.0,
-                            },
-                            ingredients_text="Grape",
-                            brands="Generic",
-                            labels=[],
-                            countries=["United States"],
-                            packaging=[],
-                            image_url=None,
-                            last_modified_t=1234567890,
-                        )
-                    ]
-                else:
-                    return []
+    @pytest.mark.asyncio
+    async def test_checksum_uniqueness(self, tmp_path: Path, mock_off_client_setup) -> None:
+        """Test that different input data produces different checksums."""
+        from core.food_apis.update_manager import DatabaseUpdateManager
 
-            mock_off_client.search_products = mock_search_products_different
+        # Use original data for first update
+        async def mock_search_products_original(query, page_size=25):
+            if query == "apple":
+                return [
+                    OFFFoodItem(
+                        code="apple",
+                        product_name="Apple",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 95,
+                            "protein_g": 0.5,
+                            "fat_g": 0.3,
+                            "carbs_g": 25.0,
+                        },
+                        ingredients_text="Apple",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            elif query == "banana":
+                return [
+                    OFFFoodItem(
+                        code="banana",
+                        product_name="Banana",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 105,
+                            "protein_g": 1.3,
+                            "fat_g": 0.4,
+                            "carbs_g": 27.0,
+                        },
+                        ingredients_text="Banana",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            else:
+                return []
 
-            result3 = await manager.update_database("openfoodfacts", force=True)
-            assert result3.success
+        # Set up the mock search function with original data
+        mock_off_client_setup.search_products = mock_search_products_original
 
-            with open(versions_file, "r") as f:
-                versions_data3 = json.load(f)
+        manager = DatabaseUpdateManager(cache_dir=str(tmp_path))
 
-            checksum3 = versions_data3["openfoodfacts"]["checksum"]
-            assert checksum1 != checksum3  # Different data should produce different checksum
+        # First update with original data
+        result1 = await manager.update_database("openfoodfacts", force=True)
+        assert result1.success
+
+        # Read the versions file to get the first checksum
+        versions_file = tmp_path / "database_versions.json"
+        with open(versions_file, "r") as f:
+            versions_data1 = json.load(f)
+
+        checksum1 = versions_data1["openfoodfacts"]["checksum"]
+
+        # Now use different data for second update
+        async def mock_search_products_different(query, page_size=25):
+            if query == "apple":
+                return [
+                    OFFFoodItem(
+                        code="orange",
+                        product_name="Orange",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 62,
+                            "protein_g": 1.2,
+                            "fat_g": 0.2,
+                            "carbs_g": 15.0,
+                        },
+                        ingredients_text="Orange",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            elif query == "banana":
+                return [
+                    OFFFoodItem(
+                        code="grape",
+                        product_name="Grape",
+                        categories=["Fruits"],
+                        nutrients_per_100g={
+                            "energy-kcal": 69,
+                            "protein_g": 0.7,
+                            "fat_g": 0.2,
+                            "carbs_g": 18.0,
+                        },
+                        ingredients_text="Grape",
+                        brands="Generic",
+                        labels=[],
+                        countries=["United States"],
+                        packaging=[],
+                        image_url=None,
+                        last_modified_t=1234567890,
+                    )
+                ]
+            else:
+                return []
+
+        # Update mock with different data
+        mock_off_client_setup.search_products = mock_search_products_different
+
+        # Second update with different data should produce different checksum
+        result2 = await manager.update_database("openfoodfacts", force=True)
+        assert result2.success
+
+        with open(versions_file, "r") as f:
+            versions_data2 = json.load(f)
+
+        checksum2 = versions_data2["openfoodfacts"]["checksum"]
+        assert checksum1 != checksum2  # Different data should produce different checksum
 
     @pytest.mark.asyncio
     async def test_get_product_count_from_sqlite_database(self) -> None:
@@ -333,11 +402,10 @@ class TestDatabaseUpdateManagerCoverage97:
                 conn.close()
 
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
-            # Directly testing the private _get_actual_record_count method for coverage
-            # This private method is tested to ensure proper SQLite database record counting
-            # functionality, which is critical for database update validation but not exposed
-            # through public APIs
-            count = await manager._get_actual_record_count("openfoodfacts")
+            # Test the record counting functionality through the public API
+            # This ensures proper SQLite database record counting functionality is accessible
+            # and can be validated through the public interface
+            count = await manager.get_record_count("openfoodfacts")
 
             # Should return 3 products
             assert count == 3
@@ -363,10 +431,10 @@ class TestDatabaseUpdateManagerCoverage97:
                 mock_cursor.fetchone.return_value = (1,)
                 mock_connect.return_value = mock_conn
 
-                # Directly testing the private _get_actual_record_count method for coverage
+                # Test the record counting functionality through the public API
                 # This ensures proper SQLite connection handling is verified in the record counting
-                # logic, which is essential for database integrity but not accessible via public APIs
-                count = await manager._get_actual_record_count("openfoodfacts")
+                # logic, which is essential for database integrity and accessible via public interface
+                count = await manager.get_record_count("openfoodfacts")
 
                 # Verify connection was properly closed
                 mock_conn.close.assert_called_once()
@@ -394,10 +462,10 @@ class TestDatabaseUpdateManagerCoverage97:
                 mock_conn.execute.return_value = mock_cursor
                 mock_connect.return_value = mock_conn
 
-                # Directly testing the private _get_actual_record_count method for coverage
+                # Test the record counting functionality through the public API
                 # This verifies SQLite query execution correctness in the record counting method,
-                # ensuring database queries work properly but without exposing this through public APIs
-                count = await manager._get_actual_record_count("openfoodfacts")
+                # ensuring database queries work properly and are accessible through the public interface
+                count = await manager.get_record_count("openfoodfacts")
 
                 # Verify the correct SQL query was executed
                 mock_conn.execute.assert_called_once_with("SELECT COUNT(*) FROM products")
@@ -424,10 +492,10 @@ class TestDatabaseUpdateManagerCoverage97:
                 mock_conn.execute.side_effect = sqlite3.Error("Database error")
                 mock_connect.return_value = mock_conn
 
-                # Directly testing the private _get_actual_record_count method for coverage
+                # Test the record counting functionality through the public API
                 # This ensures proper error handling in SQLite operations within the record counting
-                # method, critical for robust database operations but not exposed through public APIs
-                count = await manager._get_actual_record_count("openfoodfacts")
+                # method, critical for robust database operations and accessible through the public interface
+                count = await manager.get_record_count("openfoodfacts")
 
                 # Verify the error handling behavior (adjust expected value based on actual implementation)
                 assert (

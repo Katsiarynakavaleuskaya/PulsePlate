@@ -24,14 +24,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const { t } = useTranslation();
   const toast = useToast();
 
-  // общий onAuthError → решение принимает UI: тост + soft-гейтинг
+  // shared onAuthError handler → UI decides response: toast + soft-gating
   const apiJson = useCallback<typeof apiBase>((url, opts = {}) => {
     return apiBase(url, {
       ...opts,
       onAuthError: (code, ctx) => {
         toast.error(code === 401 ? t("auth.invalidApiKey") : t("auth.accessDenied"));
-        // можно не очищать ключ автоматически — оставим пользователю выбор
-        // при желании: ctx.clearApiKey();
+        // We don't clear the key automatically — leave the choice to the user
+        // If desired: ctx.clearApiKey();
         opts.onAuthError?.(code, ctx);
       },
     });

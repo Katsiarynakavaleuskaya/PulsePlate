@@ -1,5 +1,5 @@
-// Единая точка правды для пользовательских настроек (вкл. API-ключ).
-// Безопасен для SSR/тестов. Слушает изменения между вкладками.
+// Single source of truth for user settings (including API key).
+// SSR/test-safe. Listens to changes across tabs.
 
 import i18n from "../i18n";
 
@@ -28,15 +28,15 @@ function write(next: Settings) {
   if (!isBrowser) return;
   try {
     localStorage.setItem(NS, JSON.stringify(next));
-    // уведомим текущую вкладку (storage-событие не срабатывает в той же вкладке)
+    // Notify current tab (storage event doesn't fire in the same tab)
     window.dispatchEvent(new CustomEvent("settings:changed", { detail: next }));
   } catch (error) {
-    // Логируем ошибку для диагностики
+    // Log error for diagnostics
     if (import.meta.env.DEV) {
       console.error("settings write failed", error);
     }
 
-    // Показываем пользовательское уведомление для storage-related ошибок
+    // Show user notification for storage-related errors
     if (error instanceof DOMException) {
       if (error.name === "QuotaExceededError") {
         // Ленивый импорт toast для избежания зависимостей
@@ -52,7 +52,7 @@ function write(next: Settings) {
         }
       }
     } else {
-      // Для других ошибок (например, JSON serialization) просто логируем
+      // For other errors (e.g., JSON serialization) just log
       if (import.meta.env.DEV) {
         console.warn("unexpected settings write error", error);
       }
@@ -62,8 +62,8 @@ function write(next: Settings) {
 
 export const SettingsStore = {
   get(): Settings { return read(); },
-  // Атомарный updater: читает текущее состояние, применяет чистую функцию обновления,
-  // возвращает новое состояние без мутаций, записывает результат.
+  // Atomic updater: reads current state, applies pure update function,
+  // returns new state without mutations, writes result.
   update(fn: (s: Settings) => Settings) { write(fn(read())); },
   set(patch: Partial<Settings>) { this.update(s => ({ ...s, ...patch })); },
   clear() { write({}); },
@@ -72,7 +72,7 @@ export const SettingsStore = {
   setApiKey(k: string) { this.update(s => ({ ...s, apiKey: k })); },
   clearApiKey() { this.update(s => ({ ...s, apiKey: undefined })); },
 
-  // Подписка на изменения из других вкладок/окна
+  // Subscribe to changes from other tabs/windows
   subscribe(fn: (s: Settings) => void) {
     if (!isBrowser) return () => {};
     const onStorage = (e: StorageEvent) => {

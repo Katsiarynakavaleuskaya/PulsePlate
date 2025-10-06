@@ -88,7 +88,7 @@
   },
   "enterKey": {
     "title": "API-ключ",
-    "description": "Ключ обязателен для работы Premium-функций. Где взять: см.",
+    "description": "Ключ обязателен для работы Premium-функций. Чтобы получить его, смотрите",
     "label": "X-API-Key",
     "placeholder": "Вставьте X-API-Key",
     "save": "Сохранить",
