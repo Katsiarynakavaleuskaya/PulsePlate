@@ -1,1 +1,1 @@
-export { AuthProvider, useAuth, AuthError } from '../lib/auth';
+export { AuthProvider, useAuth, AuthError, AuthContext } from '../lib/auth';
