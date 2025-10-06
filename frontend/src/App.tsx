@@ -10,8 +10,9 @@ import NotFound from "./components/NotFound";
 function AppContent() {
   const location = useLocation();
 
-  // Hide TabBar on enter-key and setup pages, show otherwise
-  const showTabBar = location.pathname !== "/enter-key" && location.pathname !== "/setup";
+  // Derive tab bar visibility from route configuration
+  const currentRoute = routes.find(route => route.path === location.pathname);
+  const showTabBar = !currentRoute?.hideTabBar;
 
   const renderRoute = (route: typeof routes[0]) => {
     const Component = route.component;
