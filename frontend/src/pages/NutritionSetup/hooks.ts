@@ -1,8 +1,8 @@
 // RU: Хуки для работы с API расчетов в Nutrition Setup
 // EN: Hooks for API calculations in Nutrition Setup
 
-import { useState, useEffect, useMemo } from 'react';
-import { getBmr, getPlate, getWeekPlan } from '../../api/client';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { getBmr } from '../../api/client';
 import type { SetupFormValues, BmrResponse, PlateResponse, TargetsResponse } from './schema';
 
 export function useSetupCalc(values: SetupFormValues | null) {
@@ -10,6 +10,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
   const [plateData, setPlateData] = useState<PlateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const enabled = !!values;
 
@@ -20,6 +21,14 @@ export function useSetupCalc(values: SetupFormValues | null) {
       setError(null);
       return;
     }
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
 
     const fetchData = async () => {
       setLoading(true);
@@ -35,18 +44,57 @@ export function useSetupCalc(values: SetupFormValues | null) {
         };
 
         const bmrResult = await getBmr(bmrRequest);
-        setBmrData(bmrResult);
 
-        // Fetch Plate (using goal and diet flags)
-        const plateRequest = {
-          goal: values.goal,
-          diet_flags: values.diet_flags,
+        // Calculate TDEE based on BMR and activity level
+        const activityMultipliers = {
+          sedentary: 1.2,
+          light: 1.375,
+          moderate: 1.55,
+          active: 1.725,
+          athlete: 1.9,
         };
-        // Fetch Plate data from API
-        const plateResult = await getPlate(plateRequest);
+<<<<<<< HEAD
+        // Calculate TDEE based on BMR and activity level
+        const activityMultipliers = {
+          sedentary: 1.2,
+          light: 1.375,
+          moderate: 1.55,
+          active: 1.725,
+          athlete: 1.9,
+        };
+
+        const multiplier = activityMultipliers[values.activity] || 1.55; // default to moderate
+        const tdee = Math.round(bmrResult.bmr * multiplier);
+
+        setBmrData({
+          ...bmrResult,
+          tdee,
+        });
+
+        // TODO: Replace with real getPlate() call once API supports goal/diet_flags parameters
+        // Currently using mock data because getPlate() API doesn't accept goal and diet_flags yet
+        const plateResult = {
+          plate: {
+            carbs_pct: 50,
+            protein_pct: 25,
+            fat_pct: 25,
+            kcal: 2000,
+          },
+          macros: {
+            carbs_g: 250,
+            protein_g: 125,
+            fat_g: 55,
+            fiber_g: 25,
+          },
+          water_l: 2.5,
+        };
         setPlateData(plateResult);
 
       } catch (err) {
+        // Don't set error state if request was aborted
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
         console.error('Nutrition setup calculation error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -55,6 +103,13 @@ export function useSetupCalc(values: SetupFormValues | null) {
     };
 
     fetchData();
+
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [enabled, values]);
 
   return {
@@ -71,12 +126,51 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Localized mock data - will be replaced with real API call when /premium/targets supports i18n
+  const localizedTargets = useMemo(() => {
+    const targetsData = {
+      ru: [
+        { id: 'fe', name: 'Железо', unit: 'мг', target: 18 },
+        { id: 'ca', name: 'Кальций', unit: 'мг', target: 1000 },
+        { id: 'k', name: 'Калий', unit: 'мг', target: 4700 },
+        { id: 'mg', name: 'Магний', unit: 'мг', target: 400 },
+        { id: 'zn', name: 'Цинк', unit: 'мг', target: 11 },
+        { id: 'i', name: 'Йод', unit: 'мкг', target: 150 },
+        { id: 'd', name: 'Витамин D', unit: 'МЕ', target: 600 },
+        { id: 'b12', name: 'Витамин B12', unit: 'мкг', target: 2.4 },
+      ],
+      en: [
+        { id: 'fe', name: 'Iron', unit: 'mg', target: 18 },
+        { id: 'ca', name: 'Calcium', unit: 'mg', target: 1000 },
+        { id: 'k', name: 'Potassium', unit: 'mg', target: 4700 },
+        { id: 'mg', name: 'Magnesium', unit: 'mg', target: 400 },
+        { id: 'zn', name: 'Zinc', unit: 'mg', target: 11 },
+        { id: 'i', name: 'Iodine', unit: 'mcg', target: 150 },
+        { id: 'd', name: 'Vitamin D', unit: 'IU', target: 600 },
+        { id: 'b12', name: 'Vitamin B12', unit: 'mcg', target: 2.4 },
+      ],
+      es: [
+        { id: 'fe', name: 'Hierro', unit: 'mg', target: 18 },
+        { id: 'ca', name: 'Calcio', unit: 'mg', target: 1000 },
+        { id: 'k', name: 'Potasio', unit: 'mg', target: 4700 },
+        { id: 'mg', name: 'Magnesio', unit: 'mg', target: 400 },
+        { id: 'zn', name: 'Zinc', unit: 'mg', target: 11 },
+        { id: 'i', name: 'Yodo', unit: 'mcg', target: 150 },
+        { id: 'd', name: 'Vitamina D', unit: 'IU', target: 600 },
+        { id: 'b12', name: 'Vitamina B12', unit: 'mcg', target: 2.4 },
+      ],
+    };
+
+    return targetsData[lang] || targetsData.ru;
+  }, [lang]);
+
   useEffect(() => {
     const fetchTargets = async () => {
       setLoading(true);
       setError(null);
 
       try {
+<<<<<<< HEAD
         // Fetch targets from mock API file
         const response = await fetch('/mocks/premium/targets.json');
         if (!response.ok) {
@@ -84,6 +178,15 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
         }
         const targets: TargetsResponse = await response.json();
         setData(targets);
+=======
+        // TODO: Replace with real /premium/targets API call when it supports i18n
+        // Currently using localized mock data
+        const mockTargets: TargetsResponse = {
+          micros: localizedTargets,
+        };
+
+        setData(mockTargets);
+>>>>>>> 3af6860 (fix: address all code review feedback from AI bots)
       } catch (err) {
         console.error('Targets fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -93,7 +196,7 @@ export function useTargets(lang: "ru" | "en" | "es" = "ru") {
     };
 
     fetchTargets();
-  }, [lang]);
+  }, [lang, localizedTargets]);
 
   return {
     data,

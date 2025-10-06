@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
 import type { SetupFormValues } from "../schema";
@@ -88,8 +88,9 @@ describe("ResultView", () => {
   });
 
   it("renders error state", () => {
+    const base = mockUseSetupCalc();
     mockUseSetupCalc.mockReturnValue({
-      ...mockUseSetupCalc(),
+      ...base,
       error: "API Error",
       bmrData: null,
       plateData: null,

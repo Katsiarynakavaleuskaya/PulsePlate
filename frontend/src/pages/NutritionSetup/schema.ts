@@ -3,6 +3,12 @@
 
 import { z } from "zod";
 
+// Valid diet flags enum
+const validDietFlags = [
+  "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
+  "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
+] as const;
+
 export const setupSchema = z.object({
   sex: z.enum(["male", "female"]),
   age: z.number().int().min(13).max(90),
@@ -10,7 +16,7 @@ export const setupSchema = z.object({
   weight_kg: z.number().min(30).max(300),
   activity: z.enum(["sedentary", "light", "moderate", "active", "athlete"]),
   goal: z.enum(["lose", "maintain", "gain"]),
-  diet_flags: z.array(z.string()).default([]),
+  diet_flags: z.array(z.enum(validDietFlags)).default([]),
 });
 
 export type SetupFormValues = z.infer<typeof setupSchema>;

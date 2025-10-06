@@ -13,6 +13,14 @@ interface MicrosGridProps {
 }
 
 export default function MicrosGrid({ items }: MicrosGridProps) {
+  if (!items || items.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted">
+        <p>Цели по микроэлементам недоступны</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
       {items.map((item) => (

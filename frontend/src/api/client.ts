@@ -194,10 +194,11 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
 async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
-  // Validate API base on first use
-  validateApiBase();
 
   const tryNetwork = async (): Promise<T> => {
+    // Validate API base before network request
+    validateApiBase();
+
     const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
       headers: mergeHeaders(init, forceJson),
@@ -264,6 +265,7 @@ export type BmrRequest = {
 
 export type BmrResponse = {
   bmr: number; // kcal/day
+  tdee: number; // total daily energy expenditure kcal/day
   method: string; // e.g., "Mifflin-St Jeor"
 };
 
