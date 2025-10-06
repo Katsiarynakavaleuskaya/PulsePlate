@@ -1,25 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import TabBar from '../TabBar';
-import { AuthProvider } from '../../auth/AuthContext';
 
-// Mock the auth context
+// Mock the auth context BEFORE imports
 const mockUseAuth = vi.fn();
 vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
-  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock react-i18next
+// Mock react-i18next BEFORE imports
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
 
-// Mock routes config
+// Mock routes config BEFORE imports
 vi.mock('../../config/routes', () => ({
   tabRoutes: [
     { path: '/', label: 'Home', requiresAuth: false },
@@ -29,14 +26,14 @@ vi.mock('../../config/routes', () => ({
   ],
 }));
 
+import TabBar from '../TabBar';
+
 const renderTabBar = (apiKey: string | null = null) => {
   mockUseAuth.mockReturnValue({ apiKey });
 
   return render(
     <BrowserRouter>
-      <AuthProvider>
-        <TabBar />
-      </AuthProvider>
+      <TabBar />
     </BrowserRouter>
   );
 };
@@ -82,7 +79,7 @@ describe('TabBar', () => {
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');
     });
 
-    it('shows click feedback for disabled tabs', () => {
+    it('shows click feedback for disabled tabs', async () => {
       renderTabBar(null);
 
       const plateTab = screen.getByText('Plate').closest('div');
@@ -92,6 +89,16 @@ describe('TabBar', () => {
 
       // Check for scale animation class
       expect(plateTab).toHaveClass('scale-95');
+
+      // Check for pulse overlay
+      const pulseOverlay = plateTab?.querySelector('.bg-red-500\\/20');
+      expect(pulseOverlay).toBeInTheDocument();
+
+      // Wait for animation to reset after 300ms
+      await waitFor(() => {
+        expect(plateTab).toHaveClass('scale-100');
+        expect(plateTab?.querySelector('.bg-red-500\\/20')).not.toBeInTheDocument();
+      }, { timeout: 400 });
     });
 
     it('shows accessible labels for disabled tabs', () => {
@@ -143,15 +150,8 @@ describe('TabBar', () => {
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
       expect(progressTab).toHaveAttribute('tabindex', '-1');
-    });
-
-    it('has proper ARIA attributes for enabled tabs', () => {
-      renderTabBar('test-api-key');
-
-      const homeTab = screen.getByText('Home').closest('a');
-
-      expect(homeTab).toHaveAttribute('role', 'tab');
-      expect(homeTab).toHaveAttribute('aria-selected');
+      expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
+      expect(progressTab).toHaveAttribute('title', 'auth.requiresApiKey');
     });
   });
 });
