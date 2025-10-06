@@ -16,13 +16,18 @@ function AppContent() {
   // Hide TabBar on enter-key page, show otherwise
   const showTabBar = location.pathname !== "/enter-key";
 
+  // Map route paths to components
+  const routeComponents: Record<string, React.ComponentType> = {
+    "/": Home,
+    "/enter-key": EnterKey,
+    "/profile": Profile,
+    "/plate": Plate,
+    "/progress": Progress,
+  };
+
   const renderRoute = (route: typeof routes[0]) => {
-    const element = route.path === "/" ? <Home /> :
-                   route.path === "/enter-key" ? <EnterKey /> :
-                   route.path === "/profile" ? <Profile /> :
-                   route.path === "/plate" ? <Plate /> :
-                   route.path === "/progress" ? <Progress /> :
-                   <div>Page not found</div>;
+    const Component = routeComponents[route.path];
+    const element = Component ? <Component /> : <div>Page not found</div>;
 
     return (
       <Route
