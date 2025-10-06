@@ -81,7 +81,7 @@ export default function TabBar() {
 
               {/* Pulse effect on click */}
               {isClicked && (
-                <div className="absolute inset-0 bg-red-500/20 rounded-lg animate-pulse" />
+                <div className="absolute inset-0 bg-primary/20 rounded-lg animate-pulse" />
               )}
             </div>
           );

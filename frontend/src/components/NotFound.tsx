@@ -1,9 +1,12 @@
 import React from 'react';
 import { Home, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export function NotFound() {
+  const navigate = useNavigate();
+
   const handleGoHome = () => {
-    window.location.href = '/';
+    navigate('/');
   };
 
   const handleGoBack = () => {

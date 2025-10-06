@@ -4,6 +4,7 @@ import { Toaster, OfflineIndicator } from "./components/ui";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireKey } from "./auth/RequireKey";
 import { routes } from "./config/routes";
+import NotFound from "./components/NotFound";
 
 function AppContent() {
   const location = useLocation();
@@ -19,7 +20,7 @@ function AppContent() {
         <Route
           key={route.path}
           path={route.path}
-          element={<div>Page not found</div>}
+          element={<NotFound />}
         />
       );
     }

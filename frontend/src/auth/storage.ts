@@ -4,7 +4,11 @@
 
 const API_KEY_STORAGE_KEY = 'pulseplate_api_key';
 
-// Checks localStorage first and returns if present, otherwise returns sessionStorage; setStoredApiKey clears the other storage when setting to avoid ambiguity
+/**
+ * Retrieves the stored API key from browser storage.
+ * Checks localStorage first and returns if present, otherwise returns sessionStorage.
+ * Note: setStoredApiKey clears the other storage when setting to avoid ambiguity.
+ */
 export function getStoredApiKey(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(API_KEY_STORAGE_KEY) || sessionStorage.getItem(API_KEY_STORAGE_KEY);
