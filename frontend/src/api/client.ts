@@ -4,9 +4,46 @@
 import { logError } from "../lib/analytics";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
-// Allow overriding storage functions for testing
-const _getStoredApiKey = (globalThis as any).__TEST_getStoredApiKey__ || getStoredApiKey;
-const _clearStoredApiKey = (globalThis as any).__TEST_clearStoredApiKey__ || clearStoredApiKey;
+/**
+ * Dependencies for API client that can be injected for testing
+ */
+export interface ApiClientDependencies {
+  getStoredApiKey: () => string | null;
+  clearStoredApiKey: () => void;
+  apiBase: string;
+}
+
+/**
+ * Default dependencies using production implementations
+ */
+const defaultDependencies: ApiClientDependencies = {
+  getStoredApiKey,
+  clearStoredApiKey,
+  apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
+};
+
+/**
+ * Current injected dependencies (mutable for testing)
+ */
+let injectedDependencies: ApiClientDependencies | null = null;
+
+/**
+ * Get the current dependencies (injected or default)
+ */
+function getDependencies(): ApiClientDependencies {
+  return injectedDependencies || defaultDependencies;
+}
+
+/**
+ * Set dependencies for testing. Pass null to reset to defaults.
+ */
+export function setApiClientDependencies(deps: ApiClientDependencies | null): void {
+  injectedDependencies = deps;
+}
+
+// Extract functions from current dependencies
+const _getStoredApiKey = () => getDependencies().getStoredApiKey();
+const _clearStoredApiKey = () => getDependencies().clearStoredApiKey();
 
 /**
  * Custom error class for 401 Unauthorized responses
@@ -18,10 +55,10 @@ export class UnauthorizedError extends Error {
   }
 }
 
-// Allow overriding API_BASE for testing
-export const API_BASE = (globalThis as any).__TEST_API_BASE__ || ((import.meta as any).env?.VITE_API_BASE || "") as string;
+// Get API base from injected dependencies (computed dynamically)
+export const getApiBase = () => getDependencies().apiBase;
 
-if (!API_BASE && !(globalThis as any).__TEST_API_BASE__) {
+if (!getApiBase()) {
   const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
   logError(new Error(envHint));
 }
@@ -59,7 +96,7 @@ export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/sto
 export async function validateApiKey(): Promise<boolean> {
   try {
     // Use direct fetch to avoid 401 error handling that clears keys and redirects
-    const res = await fetch(`${API_BASE}/health`, {
+    const res = await fetch(`${getApiBase()}/health`, {
       method: "GET",
       headers: mergeHeaders(),
     });
@@ -146,7 +183,7 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
  */
 async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
   const tryNetwork = async (): Promise<T> => {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
       headers: mergeHeaders(init, forceJson),
     });
