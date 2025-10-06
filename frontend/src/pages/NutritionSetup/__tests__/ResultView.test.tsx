@@ -5,6 +5,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
 import type { SetupFormValues } from "../schema";
+import { mockPlateData } from "../mocks";
 
 // Mock hooks
 const mockUseSetupCalc = vi.fn();
@@ -38,21 +39,7 @@ describe("ResultView", () => {
         tdee: 1800,
         method: "Mifflin-St Jeor",
       },
-      plateData: {
-        plate: {
-          carbs_pct: 50,
-          protein_pct: 25,
-          fat_pct: 25,
-          kcal: 2000,
-        },
-        macros: {
-          carbs_g: 250,
-          protein_g: 125,
-          fat_g: 55,
-          fiber_g: 25,
-        },
-        water_l: 2.5,
-      },
+      plateData: mockPlateData,
       loading: false,
       error: null,
     });
@@ -150,6 +137,72 @@ describe("ResultView", () => {
     expect(screen.getByText("Жиры: 25%")).toBeInTheDocument();
   });
 
+  it("displays non-standard macronutrient percentages", () => {
+    const base = mockUseSetupCalc();
+    mockUseSetupCalc.mockReturnValue({
+      ...base,
+      plateData: {
+        ...base.plateData,
+        plate: {
+          ...base.plateData.plate,
+          carbs_pct: 80,
+          protein_pct: 10,
+          fat_pct: 5,
+        },
+      },
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Углеводы: 80%")).toBeInTheDocument();
+    expect(screen.getByText("Белки: 10%")).toBeInTheDocument();
+    expect(screen.getByText("Жиры: 5%")).toBeInTheDocument();
+  });
+
+  it("handles macronutrient percentages totaling more than 100%", () => {
+    const base = mockUseSetupCalc();
+    mockUseSetupCalc.mockReturnValue({
+      ...base,
+      plateData: {
+        ...base.plateData,
+        plate: {
+          ...base.plateData.plate,
+          carbs_pct: 60,
+          protein_pct: 30,
+          fat_pct: 30,
+        },
+      },
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Углеводы: 60%")).toBeInTheDocument();
+    expect(screen.getByText("Белки: 30%")).toBeInTheDocument();
+    expect(screen.getByText("Жиры: 30%")).toBeInTheDocument();
+  });
+
+  it("handles macronutrient percentages with edge values (0% and 100%)", () => {
+    const base = mockUseSetupCalc();
+    mockUseSetupCalc.mockReturnValue({
+      ...base,
+      plateData: {
+        ...base.plateData,
+        plate: {
+          ...base.plateData.plate,
+          carbs_pct: 0,
+          protein_pct: 100,
+          fat_pct: 0,
+        },
+      },
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Углеводы: 0%")).toBeInTheDocument();
+    expect(screen.getByText("Белки: 100%")).toBeInTheDocument();
+    expect(screen.getByText("Жиры: 0%")).toBeInTheDocument();
+  });
+
   it("displays macro cards", () => {
     renderResult();
 
@@ -174,6 +227,67 @@ describe("ResultView", () => {
     expect(screen.getByText("Кальций")).toBeInTheDocument();
     // Check that we have the targets grid
     expect(screen.getByText("Цели по микроэлементам")).toBeInTheDocument();
+  });
+
+  it("handles missing bmrData gracefully", () => {
+    mockUseSetupCalc.mockReturnValue({
+      bmrData: null,
+      plateData: mockUseSetupCalc().plateData,
+      loading: false,
+      error: "BMR calculation failed",
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Ошибка расчета")).toBeInTheDocument();
+    expect(screen.queryByText("BMR (ккал)")).not.toBeInTheDocument();
+  });
+
+  it("handles missing plateData gracefully", () => {
+    mockUseSetupCalc.mockReturnValue({
+      bmrData: mockUseSetupCalc().bmrData,
+      plateData: null,
+      loading: false,
+      error: "Plate calculation failed",
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Ошибка расчета")).toBeInTheDocument();
+    expect(screen.queryByText("Ваша персональная тарелка")).not.toBeInTheDocument();
+  });
+
+  it("handles missing targetsData gracefully", () => {
+    mockUseTargets.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+    });
+
+    renderResult();
+
+    // Should still render main content, just without micronutrients section
+    expect(screen.getByText("Ваша персональная тарелка")).toBeInTheDocument();
+    expect(screen.queryByText("Цели по микроэлементам")).not.toBeInTheDocument();
+  });
+
+  it("handles undefined bmrData, plateData, and targetsData", () => {
+    mockUseSetupCalc.mockReturnValue({
+      bmrData: undefined,
+      plateData: undefined,
+      loading: false,
+      error: "All data undefined",
+    });
+    mockUseTargets.mockReturnValue({
+      data: undefined,
+      loading: false,
+      error: null,
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Ошибка расчета")).toBeInTheDocument();
+    expect(screen.getByText("All data undefined")).toBeInTheDocument();
   });
 
   it("calls onEdit when edit button is clicked", () => {
