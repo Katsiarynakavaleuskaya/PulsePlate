@@ -1,5 +1,7 @@
 """Tests to boost coverage for core/food_apis/update_manager.py to 97%."""
 
+import re
+
 import pytest
 from pathlib import Path
 from typing import Type
@@ -143,7 +145,7 @@ class TestDatabaseUpdateManagerCoverage97:
         # Verify checksum is a valid hex string
         assert isinstance(checksum, str)
         assert len(checksum) == 64  # SHA-256 produces 64 character hex string
-        assert checksum.isalnum() and checksum.islower()
+        assert re.fullmatch(r"^[0-9a-f]{64}$", checksum) is not None
 
     @pytest.mark.asyncio
     async def test_get_product_count_from_sqlite_database(self) -> None:
@@ -189,16 +191,9 @@ class TestDatabaseUpdateManagerCoverage97:
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a test SQLite database
+            # Create a lightweight placeholder file for the database path
             db_path = Path(temp_dir) / "off.sqlite"
-            conn = sqlite3.connect(str(db_path))
-
-            try:
-                conn.execute("CREATE TABLE products (id INTEGER PRIMARY KEY)")
-                conn.execute("INSERT INTO products DEFAULT VALUES")
-                conn.commit()
-            finally:
-                conn.close()
+            db_path.touch()
 
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
@@ -266,6 +261,11 @@ class TestDatabaseUpdateManagerCoverage97:
 
                 # Should fall back gracefully (return 0 or handle error)
                 count = await manager._get_actual_record_count("openfoodfacts")
+
+                # Verify the error handling behavior (adjust expected value based on actual implementation)
+                assert (
+                    count == 0
+                )  # or assert count is None, or use pytest.raises() if it should raise
 
                 # Connection should still be closed even on error
                 mock_conn.close.assert_called_once()

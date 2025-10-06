@@ -3796,6 +3796,7 @@ etapa
 Etapa
 evaluación
 excinfo
+executemany
 éxito
 facecolor
 fastapi
@@ -3830,6 +3831,7 @@ français
 fromisoformat
 fromlist
 fspath
+fullmatch
 ganar
 generada
 Género
@@ -3872,6 +3874,7 @@ iscoroutine
 isdir
 isfinite
 isinstance
+islower
 isoformat
 isort
 issubset
