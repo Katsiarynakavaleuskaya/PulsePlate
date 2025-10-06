@@ -17,4 +17,4 @@ alembic==1.16.5
 psycopg[binary]==3.2.10
 email-validator==2.3.0
 faker==37.8.0
-cryptography==44.0.0
+cryptography==46.0.2
