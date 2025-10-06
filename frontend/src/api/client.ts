@@ -59,13 +59,16 @@ export class UnauthorizedError extends Error {
 export const getApiBase = () => getDependencies().apiBase;
 
 /**
- * Validate API base is set and log error if not
+ * Validate API base is set and throw error if not
+ * Logs error and throws to prevent silent failures during API calls
  * Called lazily to allow for dependency injection in tests
  */
 const validateApiBase = () => {
   if (!getApiBase()) {
     const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
-    logError(new Error(envHint));
+    const error = new Error(envHint);
+    logError(error);
+    throw error;
   }
 };
 
@@ -191,6 +194,9 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
 async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
+  // Validate API base on first use
+  validateApiBase();
+
   const tryNetwork = async (): Promise<T> => {
     const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
@@ -262,9 +268,28 @@ export type BmrResponse = {
 };
 
 export type PlateResponse = {
-  calories: number;
-  macros: { protein: number; fat: number; carbs: number }; // grams
-  micros?: Record<string, number>; // optional micronutrients map
+  plate: {
+    carbs_pct: number;
+    protein_pct: number;
+    fat_pct: number;
+    kcal: number;
+  };
+  macros: {
+    carbs_g: number;
+    protein_g: number;
+    fat_g: number;
+    fiber_g: number;
+  };
+  water_l: number;
+};
+
+export type TargetsResponse = {
+  micros: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    target: number;
+  }>;
 };
 
 export type WeekPlanResponse = {
