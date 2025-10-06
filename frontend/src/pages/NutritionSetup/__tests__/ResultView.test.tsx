@@ -101,6 +101,26 @@ describe("ResultView", () => {
     expect(screen.getByText("API Error")).toBeInTheDocument();
   });
 
+  it("renders error state from useTargets", () => {
+    mockUseSetupCalc.mockReturnValue({
+      ...mockUseSetupCalc(),
+      error: null,
+      bmrData: { calories: 2000 },
+      plateData: { protein: 100, fat: 70, carbs: 250 },
+    });
+
+    mockUseTargets.mockReturnValue({
+      error: "Targets API Error",
+      targets: null,
+      loading: false,
+    });
+
+    renderResult();
+
+    expect(screen.getByText("Ошибка расчета")).toBeInTheDocument();
+    expect(screen.getByText("Targets API Error")).toBeInTheDocument();
+  });
+
   it("renders results successfully", () => {
     renderResult();
 
