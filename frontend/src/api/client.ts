@@ -1,9 +1,10 @@
-// RU: Минимальный клиент для FastAPI. Без моков и MSW на этом шаге.
-// EN: Minimal FastAPI client. No mocks/MSW in this step.
+// RU: Клиент для FastAPI с поддержкой API ключа и моков.
+// EN: FastAPI client with API key support and mocks.
 
+import { SettingsStore } from "../settings";
 import { logError } from "../lib/analytics";
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_BASE || "") as string;
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 if (!API_BASE) {
   const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
@@ -32,87 +33,101 @@ function mockUrl(path: string): string | null {
   return null;
 }
 
-function mergeHeaders(init?: RequestInit): Headers {
-  const defaults = {
-    Accept: "application/json",
-    "Accept-Language":
-      (typeof navigator !== "undefined" && navigator.language) || "en",
-  } satisfies Record<string, string>;
+type ApiOptions = {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  body?: unknown;
+  headers?: Record<string, string>;
+  mockUrl?: string;
+  forceMock?: boolean;
+  onAuthError?: (code: 401 | 403, ctx: { clearApiKey: () => void }) => void;
+  credentials?: RequestCredentials;
+  signal?: AbortSignal;
+};
 
-  // Only set Content-Type for JSON bodies
-  if (init?.body && typeof init.body === "string") {
-    try {
-      JSON.parse(init.body.trim());
-      defaults["Content-Type"] = "application/json";
-    } catch {
-      // Not valid JSON, don't set Content-Type
-    }
-  }
-
-  const headers = new Headers(defaults);
-
-  if (!init?.headers) {
-    return headers;
-  }
-
-  const incoming = init.headers instanceof Headers
-    ? init.headers
-    : new Headers(init.headers as HeadersInit);
-
-  incoming.forEach((value, key) => {
-    headers.set(key, value);
-  });
-
-  return headers;
+function buildHeaders(
+  apiKey: string | undefined,
+  base: Record<string, string> = {},
+  hasBody: boolean
+) {
+  const h: Record<string, string> = { ...base };
+  if (apiKey) h["X-API-Key"] = apiKey;
+  // Для GET/без тела не шлём Content-Type
+  if (hasBody && !("Content-Type" in h)) h["Content-Type"] = "application/json";
+  return h;
 }
 
-/**
- * Performs a fetch to the given API path and returns the parsed JSON, using a mock response when mocking is forced or the network request fails.
- *
- * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
- * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
- * @returns The parsed JSON response typed as `T`.
- * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
- */
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const tryNetwork = async (): Promise<T> => {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: mergeHeaders(init),
-    });
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => "<response body unavailable>");
-      throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
-    }
-    return res.json() as Promise<T>;
-  };
+export async function api<T = unknown>(url: string, opts: ApiOptions = {}): Promise<T> {
+  const {
+    method = "GET",
+    body,
+    headers,
+    mockUrl,
+    forceMock = false,
+    onAuthError,
+    credentials,
+    signal,
+  } = opts;
 
-  const tryMock = async (): Promise<T> => {
-    const url = mockUrl(path);
-    if (!url) {
-      throw new Error(`No mock mapped for ${path}`);
-    }
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
-    }
-        console.info(`[API] MOCK fallback ON → ${url}`);
-    return res.json() as Promise<T>;
-  };
+  const apiKey = SettingsStore.getApiKey();
+  const hasBody = body !== undefined && method !== "GET";
+  const finalHeaders = buildHeaders(apiKey, headers, hasBody);
 
-  if (forceMock) {
-    return tryMock();
-  }
-
-  try {
-    return await tryNetwork();
-  } catch (networkError) {
+  const primary = `${API_BASE}${url}`;
+  const useMock = async () => {
+    if (!mockUrl) throw new Error("Mock URL not provided");
     try {
-      return await tryMock();
-    } catch (mockError) {
-      throw networkError instanceof Error ? networkError : mockError;
+      return await fetch(mockUrl, {
+        method,
+        headers: finalHeaders,
+        body: hasBody ? JSON.stringify(body) : undefined,
+        credentials,
+        signal,
+      });
+    } catch (mockErr) {
+      try { logError(mockErr, { url, endpoint: mockUrl, phase: "mock" }); } catch {}
+      throw mockErr;
+    }
+  };
+
+  let res: Response;
+  try {
+    // Если forceMock — не трогаем сеть
+    if (forceMock && mockUrl) {
+      res = await useMock();
+    } else {
+      // Сначала — основной эндпойнт
+      res = await fetch(primary, {
+        method,
+        headers: finalHeaders,
+        body: hasBody ? JSON.stringify(body) : undefined,
+        credentials,
+        signal,
+      });
+    }
+  } catch (netErr) {
+    // 🔁 Старое поведение: при сетевой ошибке и наличии mockUrl — фоллбэк
+    if (!forceMock && mockUrl) {
+      try { logError(netErr, { url, endpoint: primary, phase: "network-fallback" }); } catch {}
+      res = await useMock();
+    } else {
+      try { logError(netErr, { url, endpoint: primary, phase: "network-error" }); } catch {}
+      throw netErr;
     }
   }
+
+  if (res.status === 401 || res.status === 403) {
+    try { logError(new Error(`Auth ${res.status}`), { url, endpoint: res.url || primary }); } catch {}
+    onAuthError?.(res.status as 401 | 403, { clearApiKey: SettingsStore.clearApiKey });
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    try { logError(new Error(`HTTP ${res.status}`), { url, endpoint: res.url || primary, body: text || res.statusText }); } catch {}
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
 }
 
 export const fetchJson = api;

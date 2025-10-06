@@ -145,7 +145,7 @@ class TestDatabaseUpdateManagerCoverage97:
         # Verify checksum is a valid hex string
         assert isinstance(checksum, str)
         assert len(checksum) == 64  # SHA-256 produces 64 character hex string
-        assert re.fullmatch(r"^[0-9a-f]{64}$", checksum) is not None
+        assert re.fullmatch(r"[0-9a-f]{64}", checksum) is not None
 
     @pytest.mark.asyncio
     async def test_get_product_count_from_sqlite_database(self) -> None:
