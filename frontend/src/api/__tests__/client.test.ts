@@ -24,8 +24,8 @@ describe('API Client Auth', () => {
 
   describe('validateApiKey', () => {
     it('returns false on network error', async () => {
-      const originalImport = global.import;
-      global.import = {
+      const originalImport = (globalThis as any).import;
+      (globalThis as any).import = {
         meta: {
           env: {
             VITE_API_BASE: 'http://test-api.com',
@@ -39,7 +39,7 @@ describe('API Client Auth', () => {
       const result = await validateApiKey();
       expect(result).toBe(false);
 
-      global.import = originalImport;
+      (globalThis as any).import = originalImport;
     });
 
     it('calls validateApiKey without throwing', async () => {
@@ -57,8 +57,8 @@ describe('API Client Auth', () => {
     });
 
     it('should return false for 401 on health check (mockResolvedValueOnce)', async () => {
-      const originalImport = global.import;
-      global.import = {
+      const originalImport = (globalThis as any).import;
+      (globalThis as any).import = {
         meta: {
           env: {
             VITE_API_BASE: 'http://test-api.com',
@@ -76,7 +76,7 @@ describe('API Client Auth', () => {
       const result = await validateApiKey();
       expect(result).toBe(false);
 
-      global.import = originalImport;
+      (globalThis as any).import = originalImport;
     });
   });
 });
