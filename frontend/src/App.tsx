@@ -3,14 +3,16 @@ import TabBar from "./components/TabBar";
 import { Toaster, OfflineIndicator } from "./components/ui";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireKey } from "./auth/RequireKey";
+import { SettingsProvider } from "./lib/settings";
 import { routes } from "./config/routes";
 import NotFound from "./components/NotFound";
 
 function AppContent() {
   const location = useLocation();
 
-  // Hide TabBar on enter-key page, show otherwise
-  const showTabBar = location.pathname !== "/enter-key";
+  // Derive tab bar visibility from route configuration
+  const currentRoute = routes.find(route => route.path === location.pathname);
+  const showTabBar = !currentRoute?.hideTabBar;
 
   const renderRoute = (route: typeof routes[0]) => {
     const Component = route.component;
@@ -49,9 +51,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent />
-        <OfflineIndicator />
-        <Toaster />
+        <SettingsProvider>
+          <AppContent />
+          <OfflineIndicator />
+          <Toaster />
+        </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );
