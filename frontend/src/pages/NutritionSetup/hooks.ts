@@ -362,7 +362,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleAuthError = (code: string, _helpers: { clearApiKey: () => void }) => {
+  const handleAuthError = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
     console.warn(`[auth] Premium API error: ${code}`);
   };
 
@@ -481,7 +481,7 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const effectiveLang = resolveSetupLang(lang, i18n.language, browserLang);
 
-  const handleAuthError = (code: string, _helpers: { clearApiKey: () => void }) => {
+  const handleAuthError = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
     console.warn(`[auth] Targets API error: ${code}`);
   };
 
