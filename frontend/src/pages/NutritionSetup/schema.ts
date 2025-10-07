@@ -3,8 +3,18 @@
 
 import { z } from "zod";
 
-// Valid diet flags enum
-const validDietFlags = [
+/**
+ * Valid diet flags that can be selected in the UI.
+ * All flags are supported by the backend API as of Oct 2025.
+ *
+ * Backend-supported flags (actively processed):
+ * - HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN: Adjust macro calculations
+ * - VEG, GF, DAIRY_FREE, LOW_COST: Used in recipe/food filtering
+ * - VEGAN, KETO, PALEO: Normalized to other flags (VEGAN→VEG, KETO→LOW_CARB+HIGH_PROTEIN, PALEO→HIGH_PROTEIN)
+ *
+ * Note: SUPPORTED_DIET_FLAGS in hooks.ts includes all validDietFlags.
+ */
+export const validDietFlags = [
   "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
   "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
 ] as const;
@@ -20,14 +30,27 @@ export const setupSchema = z.object({
 });
 
 export type SetupFormValues = z.infer<typeof setupSchema>;
+export type DietFlag = typeof validDietFlags[number];
 
-export type BmrResponse = {
+export const isValidSetupFormValues = (data: unknown): data is SetupFormValues =>
+  setupSchema.safeParse(data).success;
+
+export type NormalizedBmrMethod =
+  | "Mifflin-St Jeor"
+  | "Harris-Benedict"
+  | "Katch-McArdle"
+  | "BMR"
+  | "stub";
+
+/**
+ * Normalized BMR data for UI display.
+ * This is a simplified representation of BmrApiResponse from the premium API,
+ * containing the most relevant values (single BMR and TDEE numbers) for user display.
+ */
+export type NormalizedBmrData = {
   bmr: number;
-  method: string;
-};
-
-export type EnrichedBmrResponse = BmrResponse & {
   tdee: number;
+  method: NormalizedBmrMethod;
 };
 
 export type PlateResponse = {
@@ -43,7 +66,7 @@ export type PlateResponse = {
     fat_g: number;
     fiber_g: number;
   };
-  water_l: number;
+  water_l: number | null;
 };
 
 export type TargetsResponse = {
@@ -53,4 +76,5 @@ export type TargetsResponse = {
     unit: string;
     target: number;
   }>;
+  water_l: number | null;
 };

@@ -1,7 +1,9 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "retrying": "Retrying…",
+    "tryAgain": "Try again"
   },
   "auth": {
     "apiKey": {
@@ -96,6 +98,99 @@
         "micro_balance": "Micro-balance",
         "auto_shopping_list": "Auto shopping list"
       }
+    }
+  },
+  "nutritionSetup": {
+    "title": "Nutrition Survey",
+    "description": "Fill in your parameters for personalized plate calculation",
+    "calculateButton": "Calculate Personalized Plate",
+    "saveNote": "Data is stored locally and used for your diet calculation"
+  },
+  "nutrition": {
+    "sex": {
+      "label": "Sex",
+      "female": "Female",
+      "male": "Male"
+    },
+    "age": "Age",
+    "height_cm": "Height (cm)",
+    "weight_kg": "Weight (kg)",
+    "activity": {
+      "label": "Activity Level",
+      "options": {
+        "sedentary": "Sedentary",
+        "light": "Light",
+        "moderate": "Moderate",
+        "active": "Active",
+        "athlete": "Athlete"
+      }
+    },
+    "goal": {
+      "label": "Goal",
+      "options": {
+        "lose": "Lose weight",
+        "maintain": "Maintain weight",
+        "gain": "Gain weight"
+      }
+    },
+    "dietFlags": {
+      "label": "Dietary Preferences",
+      "description": "Select your dietary preferences or restrictions",
+      "optional": "Optional",
+      "VEG": "Vegetarian",
+      "VEGAN": "Vegan",
+      "GF": "Gluten-Free",
+      "DAIRY_FREE": "Dairy-Free",
+      "LOW_COST": "Budget-Friendly",
+      "HIGH_PROTEIN": "High-Protein",
+      "LOW_CARB": "Low-Carb",
+      "KETO": "Ketogenic",
+      "PALEO": "Paleo",
+      "MEDITERRANEAN": "Mediterranean"
+    },
+    "macros": {
+      "title": "Macronutrients and Calories",
+      "caloriesLabel": "Calories (goal)",
+      "carbsLabel": "Carbohydrates",
+      "proteinLabel": "Protein",
+      "fatLabel": "Fat",
+      "fiberLabel": "Fiber",
+      "bmrLabel": "BMR",
+      "tdeeLabel": "TDEE",
+      "bmrDescription": "basal metabolic rate (calories for basic life maintenance)",
+      "tdeeDescription": "total daily energy expenditure including activity"
+    },
+    "units": {
+      "kcalPerDay": "kcal/day",
+      "gPerDay": "g/day"
+    },
+    "loadingPlate": "Calculating your personalized plate…",
+    "header": {
+      "title": "Your Personal Plate",
+      "subtitle": "Calculation based on your parameters",
+      "editButton": "Edit Profile"
+    },
+    "summary": {
+      "bmr": "BMR (kcal)",
+      "tdee": "TDEE (kcal)",
+      "goal": "Goal (kcal)",
+      "method": "Method"
+    },
+    "micros": {
+      "unavailable": "Micronutrient targets are not available",
+      "title": "Micronutrient Targets",
+      "description": "Recommended daily allowances of vitamins and minerals for your age and gender"
+    },
+    "error": {
+      "title": "Calculation Error",
+      "description": "Failed to load data. Please check your internet connection.",
+      "editButton": "Edit Data"
+    },
+    "water": {
+      "title": "Water",
+      "subtitle": "Recommended daily water intake",
+      "unit": "L/day",
+      "tip": "💡 Tip: Drink water evenly throughout the day. Increase intake during physical activity or hot weather."
     }
   }
 }

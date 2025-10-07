@@ -3,8 +3,9 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { setupSchema, type SetupFormValues } from './schema';
+import { setupSchema, type SetupFormValues, validDietFlags, type DietFlag } from './schema';
 import { useSettings } from '../../lib/settings';
+import { useTranslation } from 'react-i18next';
 
 interface SetupFormProps {
   onSubmit: (values: SetupFormValues) => void;
@@ -12,6 +13,7 @@ interface SetupFormProps {
 
 export default function SetupForm({ onSubmit }: SetupFormProps) {
   const { settings, updateSetting } = useSettings();
+  const { t } = useTranslation();
 
   // Get saved values or defaults with validation
   const saved: SetupFormValues | undefined = (() => {
@@ -19,7 +21,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     return result.success ? result.data : undefined;
   })();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<SetupFormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),
     defaultValues: saved ?? {
       sex: 'female',
@@ -32,6 +34,18 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     },
   });
 
+  // Watch diet_flags to manage checkbox states
+  const watchedDietFlags = watch('diet_flags') || [];
+
+  // Handle checkbox changes for diet flags
+  const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
+    const currentFlags = watchedDietFlags || [];
+    const newFlags = checked
+      ? currentFlags.includes(flag) ? currentFlags : [...currentFlags, flag]
+      : currentFlags.filter(f => f !== flag);
+    setValue('diet_flags', newFlags as DietFlag[]);
+  };
+
   const submit = (values: SetupFormValues) => {
     // Save to settings
     updateSetting('setup', values);
@@ -41,26 +55,26 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text mb-2">Настройка питания</h1>
-        <p className="text-muted">Заполните информацию для персонального расчета калорий и макронутриентов</p>
+        <h1 className="text-2xl font-bold text-text mb-2">{t('nutritionSetup.title')}</h1>
+        <p className="text-muted">{t('nutritionSetup.description')}</p>
       </div>
 
       <form onSubmit={handleSubmit(submit)} className="space-y-6">
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Пол</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.sex.label')}</label>
             <select
               {...register('sex')}
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             >
-              <option value="female">Женский</option>
-              <option value="male">Мужской</option>
+              <option value="female">{t('nutrition.sex.female')}</option>
+              <option value="male">{t('nutrition.sex.male')}</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Возраст</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.age')}</label>
             <input
               type="number"
               {...register('age', { valueAsNumber: true })}
@@ -71,7 +85,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Рост (см)</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.height_cm')}</label>
             <input
               type="number"
               {...register('height_cm', { valueAsNumber: true })}
@@ -82,7 +96,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Вес (кг)</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.weight_kg')}</label>
             <input
               type="number"
               {...register('weight_kg', { valueAsNumber: true })}
@@ -95,44 +109,55 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
 
         {/* Activity Level */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Уровень активности</label>
+          <label className="block text-sm font-medium text-text">{t('nutrition.activity.label')}</label>
           <select
             {...register('activity')}
             className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           >
-            <option value="sedentary">Сидячий образ жизни</option>
-            <option value="light">Легкая активность (1-3 раза в неделю)</option>
-            <option value="moderate">Умеренная активность (3-5 раз в неделю)</option>
-            <option value="active">Высокая активность (6-7 раз в неделю)</option>
-            <option value="athlete">Профессиональный спортсмен</option>
+            <option value="sedentary">{t('nutrition.activity.options.sedentary')}</option>
+            <option value="light">{t('nutrition.activity.options.light')}</option>
+            <option value="moderate">{t('nutrition.activity.options.moderate')}</option>
+            <option value="active">{t('nutrition.activity.options.active')}</option>
+            <option value="athlete">{t('nutrition.activity.options.athlete')}</option>
           </select>
         </div>
 
         {/* Goal */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Цель</label>
+          <label className="block text-sm font-medium text-text">{t('nutrition.goal.label')}</label>
           <select
             {...register('goal')}
             className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           >
-            <option value="lose">Похудение</option>
-            <option value="maintain">Поддержание веса</option>
-            <option value="gain">Набор веса</option>
+            <option value="lose">{t('nutrition.goal.options.lose')}</option>
+            <option value="maintain">{t('nutrition.goal.options.maintain')}</option>
+            <option value="gain">{t('nutrition.goal.options.gain')}</option>
           </select>
         </div>
 
         {/* Diet Flags */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Особенности питания (необязательно)</label>
-        <input
-          placeholder="VEG, GF, DAIRY_FREE, LOW_COST (через запятую)"
-          {...register('diet_flags', {
-            setValueAs: (value: string | undefined) =>
-              value && value.trim() ? value.split(',').map(s => s.trim()) : []
-          })}
-          className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
-        />
-          <p className="text-xs text-muted">Укажите предпочтения или ограничения в питании</p>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text">
+              {t('nutrition.dietFlags.label')}
+              <span className="text-xs text-muted"> ({t('nutrition.dietFlags.optional')})</span>
+            </label>
+            <p className="text-xs text-muted">{t('nutrition.dietFlags.description')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {validDietFlags.map((flag) => (
+              <label key={flag} className="flex items-center space-x-3 p-3 border border-muted rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={watchedDietFlags.includes(flag)}
+                  onChange={(e) => handleDietFlagChange(flag, e.target.checked)}
+                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary focus:ring-2"
+                />
+                <span className="text-sm text-text">{t(`nutrition.dietFlags.${flag}`)}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Submit */}
@@ -140,11 +165,11 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           type="submit"
           className="w-full py-4 px-6 bg-primary text-navy rounded-xl font-semibold text-base hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors min-h-[44px]"
         >
-          Рассчитать персональную тарелку
+          {t('nutritionSetup.calculateButton')}
         </button>
 
         <p className="text-xs text-muted text-center">
-          Данные сохраняются локально и используются для расчета вашего рациона
+          {t('nutritionSetup.saveNote')}
         </p>
       </form>
     </div>

@@ -7,7 +7,7 @@ from core import recommendations as R
 from core.exports_simple import to_pdf_day, to_pdf_week
 from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.menu_engine_new import DayPlan, build_plate_day
-from core.plate import _macros_by_rules
+from core.plate import macros_by_rules
 from core.rag import simple_rag as RAG
 from core.recipe_db import Recipe as OldRecipe
 from core.recipe_db import (
@@ -21,7 +21,7 @@ from core.recipe_db_new import RecipeDB as RecipeDBNew
 
 def test_plate_macros_negative_remaining_kcal_triggers_reduction():
     # Force a case where kcal is low relative to protein/fat heuristics
-    macros = _macros_by_rules(weight_kg=150.0, kcal=900, goal="loss")
+    macros = macros_by_rules(weight_kg=150.0, kcal=900, goal="loss")
     # Should still produce positive, bounded integers with adjustments applied
     assert macros["protein_g"] > 0
     assert macros["fat_g"] > 0

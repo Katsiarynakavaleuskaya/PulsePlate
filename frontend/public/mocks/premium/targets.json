@@ -1,12 +1,100 @@
 {
   "micros": [
-    { "id": "fe", "name": "Железо", "unit": "мг", "target": 18 },
-    { "id": "ca", "name": "Кальций", "unit": "мг", "target": 1000 },
-    { "id": "k", "name": "Калий", "unit": "мг", "target": 4700 },
-    { "id": "mg", "name": "Магний", "unit": "мг", "target": 400 },
-    { "id": "zn", "name": "Цинк", "unit": "мг", "target": 11 },
-    { "id": "i", "name": "Йод", "unit": "мкг", "target": 150 },
-    { "id": "d", "name": "Витамин D", "unit": "МЕ", "target": 600 },
-    { "id": "b12", "name": "Витамин B12", "unit": "мкг", "target": 2.4 }
+    {
+      "id": "fe",
+      "name": "Железо",
+      "unit": "мг",
+      "targets": {
+        "male_adult": 8,
+        "female_adult_premenopausal": 18,
+        "female_adult_postmenopausal": 8
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": "Iron requirements vary by gender and menopausal status"
+    },
+    {
+      "id": "ca",
+      "name": "Кальций",
+      "unit": "мг",
+      "targets": {
+        "male_adult": 1000,
+        "female_adult_premenopausal": 1000,
+        "female_adult_postmenopausal": 1000
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    },
+    {
+      "id": "k",
+      "name": "Калий",
+      "unit": "мг",
+      "targets": {
+        "male_adult": 4700,
+        "female_adult_premenopausal": 4700,
+        "female_adult_postmenopausal": 4700
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": "Uses Adequate Intake (AI) of 4700 mg from IOM Dietary Reference Intakes. The lower RDA of 3400 mg for adults 19+ is superseded by the AI recommendation."
+    },
+    {
+      "id": "mg",
+      "name": "Магний",
+      "unit": "мг",
+      "targets": {
+        "male_adult": 400,
+        "female_adult_premenopausal": 310,
+        "female_adult_postmenopausal": 320
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    },
+    {
+      "id": "zn",
+      "name": "Цинк",
+      "unit": "мг",
+      "targets": {
+        "male_adult": 11,
+        "female_adult_premenopausal": 8,
+        "female_adult_postmenopausal": 8
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    },
+    {
+      "id": "i",
+      "name": "Йод",
+      "unit": "мкг",
+      "targets": {
+        "male_adult": 150,
+        "female_adult_premenopausal": 150,
+        "female_adult_postmenopausal": 150
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    },
+    {
+      "id": "d",
+      "name": "Витамин D",
+      "unit": "МЕ",
+      "targets": {
+        "male_adult": 600,
+        "female_adult_premenopausal": 600,
+        "female_adult_postmenopausal": 600
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    },
+    {
+      "id": "b12",
+      "name": "Витамин B12",
+      "unit": "мкг",
+      "targets": {
+        "male_adult": 2.4,
+        "female_adult_premenopausal": 2.4,
+        "female_adult_postmenopausal": 2.4
+      },
+      "source": "IOM Dietary Reference Intakes",
+      "note": ""
+    }
   ]
 }

@@ -1,6 +1,8 @@
 // RU: Сетка с целями по микроэлементам
 // EN: Grid displaying micronutrient targets
 
+import { useTranslation } from 'react-i18next';
+
 interface MicroItem {
   id: string;
   name: string;
@@ -13,10 +15,12 @@ interface MicrosGridProps {
 }
 
 export default function MicrosGrid({ items }: MicrosGridProps) {
+  const { t } = useTranslation();
+
   if (!items || items.length === 0) {
     return (
       <div className="text-center py-8 text-muted">
-        <p>Цели по микроэлементам недоступны</p>
+        <p>{t('nutrition.micros.unavailable')}</p>
       </div>
     );
   }
