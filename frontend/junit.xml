@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="34" failures="0" errors="0" time="0.166601959">
+    <testsuite name="src/api/__tests__/client.test.ts" timestamp="2025-10-07T20:53:24.754Z" hostname="MacBook-Air-katsiaryna.local" tests="10" failures="0" errors="0" skipped="0" time="0.052324375">
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; returns false on network error" time="0.038313541">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; should return false for 401 on health check (mockResolvedValueOnce)" time="0.00286">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; throws error when API base is not set" time="0.001032292">
+            <system-err>
+[analytics] error VITE_API_BASE is not set. Create frontend/.env from .env.example
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; throws error when API base is not set" time="0.000289584">
+            <system-err>
+[analytics] error VITE_API_BASE is not set. Create frontend/.env from .env.example
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; includes X-API-Key header when API key is set in storage" time="0.001644875">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; clears storage and calls navigate callback on 401 response" time="0.001471541">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; clears storage and uses window.location.replace when no navigate callback on 401" time="0.000994666">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; throws UnauthorizedError on 401 response" time="0.000995584">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; uses mock fallback on network failure" time="0.002352666">
+            <system-out>
+[API] MOCK fallback ON → /mock/bmr.json
+
+            </system-out>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; resolves successfully on authenticated request" time="0.000914417">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/Onboarding/__tests__/EnterKey.test.tsx" timestamp="2025-10-07T20:53:24.755Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="0.03898875">
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; renders the API key input form" time="0.016625291">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; shows error for empty API key" time="0.006324292">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; shows error for API key shorter than minimum length" time="0.005538">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; saves API key when valid" time="0.003690667">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; clears API key when clear button is clicked" time="0.0035285">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; does not show success message when clearing empty API key" time="0.00144825">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" timestamp="2025-10-07T20:53:24.755Z" hostname="MacBook-Air-katsiaryna.local" tests="18" failures="0" errors="0" skipped="0" time="0.075288834">
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders loading state" time="0.012467292">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders error state" time="0.005038083">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders error state from useTargets" time="0.001382833">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders results successfully" time="0.007057125">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays BMR and TDEE values" time="0.007380125">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays macronutrient distribution" time="0.003299625">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays non-standard macronutrient percentages" time="0.003632125">
+            <system-err>
+Plate percentages sum to 95.0%, expected 100%
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles macronutrient percentages totaling more than 100%" time="0.005013208">
+            <system-err>
+Plate percentages sum to 120.0%, expected 100%
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles macronutrient percentages with edge values (0% and 100%)" time="0.003291542">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays macro cards" time="0.003489125">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays water recommendation" time="0.002207625">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays micronutrient targets" time="0.00679325">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing bmrData gracefully" time="0.001213875">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing plateData gracefully" time="0.000730542">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing targetsData gracefully" time="0.002227">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles undefined bmrData, plateData, and targetsData" time="0.000500167">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; calls onEdit when edit button is clicked" time="0.003238042">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles retry functionality correctly" time="0.00456475">
+        </testcase>
+    </testsuite>
+</testsuites>
