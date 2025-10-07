@@ -1,7 +1,26 @@
+import { api } from '../client';
+
+export type SupportedPremiumLang = 'ru' | 'en' | 'es';
+
 export type PremiumRequestOptions = {
   navigate?: (path: string) => void;
   signal?: AbortSignal;
 };
+
+/**
+ * Generic factory for creating premium API endpoints that use POST requests
+ * @param endpoint - The API endpoint path (e.g., '/api/v1/premium/plate')
+ * @returns A function that takes request body and options, and returns a Promise of the response
+ */
+export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
+  return (body: TReq, options?: PremiumRequestOptions) =>
+    api<TRes>(
+      endpoint,
+      { method: 'POST', body: JSON.stringify(body), signal: options?.signal },
+      options?.navigate,
+      true,
+    );
+}
 
 export type BmrRequest = {
   sex: 'male' | 'female';
@@ -10,14 +29,57 @@ export type BmrRequest = {
   weight_kg: number;
   activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
   bodyfat?: number | null;
-  lang?: string;
+  lang?: SupportedPremiumLang | string;
+};
+
+export type BmrValues = {
+  mifflin: number;
+  harris: number;
+  katch?: number;
+};
+
+export type TdeeValues = {
+  mifflin: number;
+  harris: number;
+  katch?: number;
+};
+
+export type RecommendedIntake = {
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+};
+
+export type Portion = {
+  protein_palm: number;
+  fat_thumbs: number;
+  carb_cups: number;
+  veg_cups: number;
+  meals_per_day: number;
+};
+
+export type LayoutItem = {
+  kind: 'plate_sector' | 'bowl' | 'marker';
+  fraction: number;
+  label: string;
+  tooltip: string;
+};
+
+export type Meal = {
+  title: string;
+  kcal: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  micros?: Record<string, number>;
 };
 
 export type BmrApiResponse = {
-  bmr: Record<string, number>;
-  tdee: Record<string, number>;
+  bmr: BmrValues;
+  tdee: TdeeValues;
   activity_level: string;
-  recommended_intake: Record<string, number>;
+  recommended_intake: RecommendedIntake;
   formulas_used: string[];
   notes: string[];
 };
@@ -38,9 +100,9 @@ export type PlateRequest = {
 export type PlateApiResponse = {
   kcal: number;
   macros: Record<string, number>;
-  portions: Record<string, unknown>;
-  layout: Array<Record<string, unknown>>;
-  meals: Array<Record<string, unknown>>;
+  portions: Portion;
+  layout: LayoutItem[];
+  meals: Meal[];
   day_micros?: Record<string, number>;
 };
 

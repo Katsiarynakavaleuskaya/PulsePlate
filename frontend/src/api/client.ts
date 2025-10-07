@@ -28,6 +28,12 @@ const defaultDependencies: ApiClientDependencies = {
 let injectedDependencies: ApiClientDependencies | null = null;
 
 /**
+ * Cached validation flag to avoid redundant API base validation
+ * Set to true after first successful validation
+ */
+let isApiBaseValidated = false;
+
+/**
  * Get the current dependencies (injected or default)
  */
 function getDependencies(): ApiClientDependencies {
@@ -39,6 +45,8 @@ function getDependencies(): ApiClientDependencies {
  */
 export function setApiClientDependencies(deps: ApiClientDependencies | null): void {
   injectedDependencies = deps;
+  // Reset validation cache when dependencies change
+  isApiBaseValidated = false;
 }
 
 // Extract functions from current dependencies
@@ -62,14 +70,23 @@ export const getApiBase = () => getDependencies().apiBase;
  * Validate API base is set and throw error if not
  * Logs error and throws to prevent silent failures during API calls
  * Called lazily to allow for dependency injection in tests
+ * Uses cached validation flag to avoid redundant checks
  */
 const validateApiBase = () => {
+  // Return early if already validated
+  if (isApiBaseValidated) {
+    return;
+  }
+
   if (!getApiBase()) {
     const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
     const error = new Error(envHint);
     logError(error);
     throw error;
   }
+
+  // Cache successful validation to avoid redundant checks
+  isApiBaseValidated = true;
 };
 
 const searchParams = (() => {

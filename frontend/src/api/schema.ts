@@ -2012,15 +2012,11 @@ export interface components {
                 [key: string]: number;
             };
             /** Portions */
-            portions: {
-                [key: string]: unknown;
-            };
+            portions: components["schemas"]["Portion"];
             /** Layout */
-            layout: components["schemas"]["VisualShape"][];
+            layout: components["schemas"]["LayoutItem"][];
             /** Meals */
-            meals: {
-                [key: string]: unknown;
-            }[];
+            meals: components["schemas"]["Meal"][];
             /**
              * Day Micros
              * @default {}
@@ -2193,6 +2189,50 @@ export interface components {
             label: string;
             /** Tooltip */
             tooltip: string;
+        };
+        /** Portion */
+        Portion: {
+            /** Protein Palm */
+            protein_palm: number;
+            /** Fat Thumbs */
+            fat_thumbs: number;
+            /** Carb Cups */
+            carb_cups: number;
+            /** Veg Cups */
+            veg_cups: number;
+            /** Meals Per Day */
+            meals_per_day: number;
+        };
+        /** LayoutItem */
+        LayoutItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "plate_sector" | "bowl" | "marker";
+            /** Fraction */
+            fraction: number;
+            /** Label */
+            label: string;
+            /** Tooltip */
+            tooltip: string;
+        };
+        /** Meal */
+        Meal: {
+            /** Title */
+            title: string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number;
+            /** Fat G */
+            fat_g: number;
+            /** Carbs G */
+            carbs_g: number;
+            /** Micros */
+            micros?: {
+                [key: string]: number;
+            };
         };
         /**
          * WHOTargetsRequest

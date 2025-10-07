@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { setupSchema, type SetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
+import { useTranslation } from 'react-i18next';
 
 interface SetupFormProps {
   onSubmit: (values: SetupFormValues) => void;
@@ -12,6 +13,7 @@ interface SetupFormProps {
 
 export default function SetupForm({ onSubmit }: SetupFormProps) {
   const { settings, updateSetting } = useSettings();
+  const { t } = useTranslation();
 
   // Get saved values or defaults with validation
   const saved: SetupFormValues | undefined = (() => {
@@ -19,7 +21,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     return result.success ? result.data : undefined;
   })();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<SetupFormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),
     defaultValues: saved ?? {
       sex: 'female',
@@ -31,6 +33,24 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
       diet_flags: [],
     },
   });
+
+  // Watch diet_flags to manage checkbox states
+  const watchedDietFlags = watch('diet_flags') || [];
+
+  // Valid diet flags from schema
+  const validDietFlags = [
+    "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
+    "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
+  ] as const;
+
+  // Handle checkbox changes for diet flags
+  const handleDietFlagChange = (flag: typeof validDietFlags[number], checked: boolean) => {
+    const currentFlags = watchedDietFlags || [];
+    const newFlags = checked
+      ? [...currentFlags, flag]
+      : currentFlags.filter(f => f !== flag);
+    setValue('diet_flags', newFlags as typeof validDietFlags[number][]);
+  };
 
   const submit = (values: SetupFormValues) => {
     // Save to settings
@@ -122,17 +142,27 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
         </div>
 
         {/* Diet Flags */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Особенности питания (необязательно)</label>
-        <input
-          placeholder="VEG, GF, DAIRY_FREE, LOW_COST (через запятую)"
-          {...register('diet_flags', {
-            setValueAs: (value: string | undefined) =>
-              value && value.trim() ? value.split(',').map(s => s.trim()) : []
-          })}
-          className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
-        />
-          <p className="text-xs text-muted">Укажите предпочтения или ограничения в питании</p>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text">
+              {t('nutrition.dietFlags.label')} (необязательно)
+            </label>
+            <p className="text-xs text-muted">{t('nutrition.dietFlags.description')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {validDietFlags.map((flag) => (
+              <label key={flag} className="flex items-center space-x-3 p-3 border border-muted rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={watchedDietFlags.includes(flag)}
+                  onChange={(e) => handleDietFlagChange(flag, e.target.checked)}
+                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary focus:ring-2"
+                />
+                <span className="text-sm text-text">{t(`nutrition.dietFlags.${flag}`)}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Submit */}

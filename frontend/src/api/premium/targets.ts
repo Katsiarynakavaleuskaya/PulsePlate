@@ -1,12 +1,6 @@
-import { api } from '../client';
-import type { PremiumRequestOptions, TargetsRequest, TargetsApiResponse } from './types';
+import { createPremiumEndpoint } from './types';
+import type { TargetsRequest, TargetsApiResponse } from './types';
 
-export const getTargets = (body: TargetsRequest, options?: PremiumRequestOptions) =>
-  api<TargetsApiResponse>(
-    '/api/v1/premium/targets',
-    { method: 'POST', body: JSON.stringify(body), signal: options?.signal },
-    options?.navigate,
-    true,
-  );
+export const getTargets = createPremiumEndpoint<TargetsRequest, TargetsApiResponse>('/api/v1/premium/targets');
 
 export type { TargetsRequest, TargetsApiResponse } from './types';

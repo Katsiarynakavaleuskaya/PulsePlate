@@ -5,7 +5,14 @@ import { useState, useEffect } from 'react';
 import SetupForm from './SetupForm';
 import ResultView from './ResultView';
 import type { SetupFormValues } from './schema';
+import { setupSchema } from './schema';
 import { useSettings } from '../../lib/settings';
+
+// Runtime type guard for SetupFormValues
+function isValidSetupFormValues(data: unknown): data is SetupFormValues {
+  const result = setupSchema.safeParse(data);
+  return result.success;
+}
 
 export default function NutritionSetupPage() {
   const { settings } = useSettings();
@@ -13,9 +20,8 @@ export default function NutritionSetupPage() {
 
   // Initialize values from saved settings on mount
   useEffect(() => {
-    const saved = settings.setup as SetupFormValues | undefined;
-    if (saved) {
-      setValues(saved);
+    if (isValidSetupFormValues(settings.setup)) {
+      setValues(settings.setup);
     }
   }, [settings.setup]);
 

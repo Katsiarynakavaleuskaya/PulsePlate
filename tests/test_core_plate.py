@@ -190,6 +190,14 @@ class TestCorePlateLogic:
 
     def test_diet_flags_modifications(self):
         """Test diet flags modify meal suggestions."""
+        base_plate = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags=None,
+        )
         # Test VEG flag
         plate_veg = make_plate(
             weight_kg=70,
@@ -228,6 +236,40 @@ class TestCorePlateLogic:
 
         meals_text = " ".join([meal["title"] for meal in plate_budget["meals"]])
         assert "(бюджет)" in meals_text
+
+        # Test HIGH_PROTEIN flag increases protein
+        plate_high_protein = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"HIGH_PROTEIN"},
+        )
+        assert plate_high_protein["macros"]["protein_g"] > base_plate["macros"]["protein_g"]
+
+        # Test LOW_CARB reduces carbs
+        plate_low_carb = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"LOW_CARB"},
+        )
+        assert plate_low_carb["macros"]["carbs_g"] < base_plate["macros"]["carbs_g"]
+
+        # Test MEDITERRANEAN increases healthy fats and fiber
+        plate_med = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"MEDITERRANEAN"},
+        )
+        assert plate_med["macros"]["fat_g"] >= base_plate["macros"]["fat_g"]
+        assert plate_med["macros"]["fiber_g"] >= base_plate["macros"]["fiber_g"]
 
     def test_plate_goal_consistency(self):
         """Test different goals produce consistent results."""

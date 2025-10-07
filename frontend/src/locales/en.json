@@ -97,5 +97,37 @@
         "auto_shopping_list": "Auto shopping list"
       }
     }
+  },
+  "nutrition": {
+    "macros": {
+      "title": "Macronutrients and Calories",
+      "caloriesLabel": "Calories (goal)",
+      "carbsLabel": "Carbohydrates",
+      "proteinLabel": "Protein",
+      "fatLabel": "Fat",
+      "fiberLabel": "Fiber",
+      "bmrLabel": "BMR",
+      "tdeeLabel": "TDEE",
+      "bmrDescription": "basal metabolic rate (calories for basic life maintenance)",
+      "tdeeDescription": "total daily energy expenditure including activity"
+    },
+    "units": {
+      "kcalPerDay": "kcal/day",
+      "gPerDay": "g/day"
+    },
+    "dietFlags": {
+      "label": "Dietary Preferences",
+      "description": "Select your dietary preferences or restrictions",
+      "VEG": "Vegetarian",
+      "VEGAN": "Vegan",
+      "GF": "Gluten-Free",
+      "DAIRY_FREE": "Dairy-Free",
+      "LOW_COST": "Budget-Friendly",
+      "HIGH_PROTEIN": "High-Protein",
+      "LOW_CARB": "Low-Carb",
+      "KETO": "Ketogenic",
+      "PALEO": "Paleo",
+      "MEDITERRANEAN": "Mediterranean"
+    }
   }
 }

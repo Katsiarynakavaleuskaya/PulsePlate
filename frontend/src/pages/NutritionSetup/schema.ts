@@ -3,7 +3,11 @@
 
 import { z } from "zod";
 
-// Valid diet flags enum
+/**
+ * Valid diet flags that can be selected in the UI.
+ * Note: Not all flags are currently supported by the backend API.
+ * See SUPPORTED_DIET_FLAGS in hooks.ts for the subset that works.
+ */
 const validDietFlags = [
   "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
   "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
@@ -21,13 +25,15 @@ export const setupSchema = z.object({
 
 export type SetupFormValues = z.infer<typeof setupSchema>;
 
-export type BmrResponse = {
+/**
+ * Normalized BMR data for UI display.
+ * This is a simplified representation of BmrApiResponse from the premium API,
+ * containing the most relevant values (single BMR and TDEE numbers) for user display.
+ */
+export type NormalizedBmrData = {
   bmr: number;
-  method: string;
-};
-
-export type EnrichedBmrResponse = BmrResponse & {
   tdee: number;
+  method: string;
 };
 
 export type PlateResponse = {
