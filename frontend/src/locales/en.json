@@ -101,12 +101,52 @@
     }
   },
   "nutritionSetup": {
-    "title": "Nutrition Profile",
-    "description": "Let's create your personalized nutrition plan"
+    "title": "Nutrition Survey",
+    "description": "Fill in your parameters for personalized plate calculation",
+    "calculateButton": "Calculate Personalized Plate",
+    "saveNote": "Data is stored locally and used for your diet calculation"
   },
   "nutrition": {
-    "calculatePlate": "Calculate Personal Plate",
-    "dataStoredLocal": "Data is stored locally and used to calculate your diet",
+    "sex": {
+      "female": "Female",
+      "male": "Male"
+    },
+    "age": "Age",
+    "height_cm": "Height (cm)",
+    "weight_kg": "Weight (kg)",
+    "activity": {
+      "label": "Activity Level",
+      "options": {
+        "sedentary": "Sedentary",
+        "light": "Light",
+        "moderate": "Moderate",
+        "active": "Active",
+        "athlete": "Athlete"
+      }
+    },
+    "goal": {
+      "label": "Goal",
+      "options": {
+        "lose": "Lose weight",
+        "maintain": "Maintain weight",
+        "gain": "Gain weight"
+      }
+    },
+    "dietFlags": {
+      "label": "Dietary Preferences",
+      "description": "Select your dietary preferences or restrictions",
+      "optional": "Optional",
+      "VEG": "Vegetarian",
+      "VEGAN": "Vegan",
+      "GF": "Gluten-Free",
+      "DAIRY_FREE": "Dairy-Free",
+      "LOW_COST": "Budget-Friendly",
+      "HIGH_PROTEIN": "High-Protein",
+      "LOW_CARB": "Low-Carb",
+      "KETO": "Ketogenic",
+      "PALEO": "Paleo",
+      "MEDITERRANEAN": "Mediterranean"
+    },
     "macros": {
       "title": "Macronutrients and Calories",
       "caloriesLabel": "Calories (goal)",
@@ -122,20 +162,6 @@
     "units": {
       "kcalPerDay": "kcal/day",
       "gPerDay": "g/day"
-    },
-    "dietFlags": {
-      "label": "Dietary Preferences",
-      "description": "Select your dietary preferences or restrictions",
-      "VEG": "Vegetarian",
-      "VEGAN": "Vegan",
-      "GF": "Gluten-Free",
-      "DAIRY_FREE": "Dairy-Free",
-      "LOW_COST": "Budget-Friendly",
-      "HIGH_PROTEIN": "High-Protein",
-      "LOW_CARB": "Low-Carb",
-      "KETO": "Ketogenic",
-      "PALEO": "Paleo",
-      "MEDITERRANEAN": "Mediterranean"
     },
     "loadingPlate": "Calculating your personalized plate…",
     "header": {
