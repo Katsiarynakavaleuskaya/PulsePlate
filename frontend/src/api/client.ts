@@ -269,7 +269,8 @@ export async function api<T = unknown>(
       (typeof Response !== "undefined" && body instanceof Response) ||
       (typeof Request !== "undefined" && body instanceof Request);
 
-    if (isPlainObjectOrArray) {
+    // Serialize only plain JSON-like bodies; never serialize binary/stream-like:
+    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
       serializedBody = JSON.stringify(body);
       forceJsonForBody = true;
     }
