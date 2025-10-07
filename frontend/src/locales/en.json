@@ -77,5 +77,35 @@
         "auto_shopping_list": "Auto shopping list"
       }
     }
+  },
+  "auth": {
+    "apiKey": {
+      "tooShort": "API key must be at least 20 characters",
+      "invalidFormat": "API key format is invalid. Only alphanumeric characters, dashes, and underscores are allowed."
+    },
+    "errors": {
+      "unauthorized": "API key invalid or expired. Please enter a new key."
+    }
+  },
+  "onboarding": {
+    "enterKey": {
+      "title": "API Key",
+      "description": "Key required for Premium sections.",
+      "label": "API Key",
+      "placeholder": "Paste X-API-Key",
+      "save": "Save",
+      "clear": "Clear",
+      "errorEmpty": "Please enter a non-empty API key.",
+      "successSaved": "Key saved.",
+      "keyCleared": "Key cleared.",
+      "changesNote": "Changes apply instantly.",
+      "errorGeneric": "Invalid API key. Please try again."
+    }
+  },
+  "tabs": {
+    "home": "Home",
+    "plate": "Plate",
+    "progress": "Progress",
+    "profile": "Profile"
   }
 }
