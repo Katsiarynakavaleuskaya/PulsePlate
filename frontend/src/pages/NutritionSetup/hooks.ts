@@ -18,6 +18,11 @@ const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 
 type SetupSupportedLang = SupportedPremiumLang;
 
+// Shared auth error handler (logging-only; UI decides next steps)
+const handleAuthErrorShared = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
+  console.warn(`[auth] Premium API error: ${code}`);
+};
+
 const ACTIVITY_MAP: Record<SetupFormValues['activity'], 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'> = {
   sedentary: 'sedentary',
   light: 'light',
@@ -404,7 +409,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
             activity: apiActivity,
             lang: currentLang,
           },
-          { signal: abortController.signal },
+          { signal: abortController.signal, onAuthError: handleAuthErrorShared },
         );
 
         const platePromise = getPlate(
@@ -419,7 +424,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
             surplus_pct: goalPayload.surplus_pct ?? null,
             diet_flags: dietFlags,
           },
-          { signal: abortController.signal },
+          { signal: abortController.signal, onAuthError: handleAuthErrorShared },
         );
 
         const [bmrResult, plateResult] = await Promise.all([bmrPromise, platePromise]);
@@ -516,7 +521,7 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
             life_stage: determineLifeStage(values.age),
             lang: effectiveLang,
           },
-          { signal: abortController.signal },
+          { signal: abortController.signal, onAuthError: handleAuthErrorShared },
         );
 
         // Only update state if this is still the latest request
