@@ -141,6 +141,11 @@ describe('Locale JSON Structure and Content', () => {
 
         const checkValue = (value: any, currentPath: string) => {
           if (typeof value === 'string') {
+            // Skip legitimate placeholder translations (keys ending with .placeholder)
+            if (currentPath.endsWith('.placeholder')) {
+              return;
+            }
+
             for (const pattern of PLACEHOLDER_PATTERNS) {
               if (pattern.test(value)) {
                 issues.push({

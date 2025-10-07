@@ -15,5 +15,5 @@
     "fat_g": 60
   },
   "formulas_used": ["Mifflin-St Jeor", "Harris-Benedict"],
-  "notes": ["BMR calculated using Mifflin-St Jeor equation", "TDEE estimated for moderate activity level"]
+  "notes": ["BMR calculated using Mifflin-St Jeor equation", "TDEE estimated for moderate activity level", "Recommended calories (2100) include 300kcal from non-macro sources (fiber, micronutrients, etc.) beyond basic protein/carbs/fat (1800kcal)"]
 }

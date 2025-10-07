@@ -37,20 +37,14 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   // Watch diet_flags to manage checkbox states
   const watchedDietFlags = watch('diet_flags') || [];
 
-  // Valid diet flags from schema
-  const validDietFlags = [
-    "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
-    "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
-  ] as const;
-
   // Handle checkbox changes for diet flags
-const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
-  const currentFlags = watchedDietFlags || [];
-  const newFlags = checked
-    ? [...currentFlags, flag]
-    : currentFlags.filter(f => f !== flag);
-  setValue('diet_flags', newFlags as DietFlag[]);
-};
+  const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
+    const currentFlags = watchedDietFlags || [];
+    const newFlags = checked
+      ? [...currentFlags, flag]
+      : currentFlags.filter(f => f !== flag);
+    setValue('diet_flags', newFlags as DietFlag[]);
+  };
 
   const submit = (values: SetupFormValues) => {
     // Save to settings
@@ -170,11 +164,11 @@ const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
           type="submit"
           className="w-full py-4 px-6 bg-primary text-navy rounded-xl font-semibold text-base hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors min-h-[44px]"
         >
-          Рассчитать персональную тарелку
+          {t('nutrition.calculatePlate')}
         </button>
 
         <p className="text-xs text-muted text-center">
-          Данные сохраняются локально и используются для расчета вашего рациона
+          {t('nutrition.dataStoredLocal')}
         </p>
       </form>
     </div>

@@ -35,15 +35,16 @@ vi.mock("react-i18next", () => ({
 }));
 
 // Mock hooks
-const mockUseSetupCalc = vi.fn();
-const mockUseTargets = vi.fn();
-const mockResolveSetupLang = vi.fn(() => 'ru');
-
 vi.mock("../hooks", () => ({
-  useSetupCalc: mockUseSetupCalc,
-  useTargets: mockUseTargets,
-  resolveSetupLang: mockResolveSetupLang,
+  useSetupCalc: vi.fn(),
+  useTargets: vi.fn(),
+  resolveSetupLang: vi.fn(() => 'ru'),
 }));
+
+// Get references to mocked functions for test manipulation
+const mockUseSetupCalc = vi.mocked(require("../hooks")).useSetupCalc;
+const mockUseTargets = vi.mocked(require("../hooks")).useTargets;
+const mockResolveSetupLang = vi.mocked(require("../hooks")).resolveSetupLang;
 
 describe("ResultView", () => {
   const mockValues: SetupFormValues = {

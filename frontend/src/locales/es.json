@@ -100,7 +100,13 @@
       }
     }
   },
+  "nutritionSetup": {
+    "title": "Perfil Nutricional",
+    "description": "Vamos a crear tu plan nutricional personalizado"
+  },
   "nutrition": {
+    "calculatePlate": "Calcular Plato Personal",
+    "dataStoredLocal": "Los datos se almacenan localmente y se usan para calcular tu dieta",
     "macros": {
       "title": "Macronutrientes y Calorías",
       "caloriesLabel": "Calorías (objetivo)",
@@ -152,6 +158,12 @@
       "title": "Error de Cálculo",
       "description": "Error al cargar los datos. Verifica tu conexión a internet.",
       "editButton": "Editar Datos"
+    },
+    "water": {
+      "title": "Agua",
+      "subtitle": "Consumo diario recomendado de agua",
+      "unit": "L/día",
+      "tip": "💡 Consejo: Bebe agua uniformemente durante el día. Aumenta la ingesta durante actividad física o clima caluroso."
     }
   }
 }
