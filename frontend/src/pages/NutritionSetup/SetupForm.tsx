@@ -61,26 +61,26 @@ const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text mb-2">Настройка питания</h1>
-        <p className="text-muted">Заполните информацию для персонального расчета калорий и макронутриентов</p>
+        <h1 className="text-2xl font-bold text-text mb-2">{t('nutritionSetup.title')}</h1>
+        <p className="text-muted">{t('nutritionSetup.description')}</p>
       </div>
 
       <form onSubmit={handleSubmit(submit)} className="space-y-6">
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Пол</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.sex')}</label>
             <select
               {...register('sex')}
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             >
-              <option value="female">Женский</option>
-              <option value="male">Мужской</option>
+              <option value="female">{t('nutrition.sex.female')}</option>
+              <option value="male">{t('nutrition.sex.male')}</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Возраст</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.age')}</label>
             <input
               type="number"
               {...register('age', { valueAsNumber: true })}
@@ -91,7 +91,7 @@ const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Рост (см)</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.height_cm')}</label>
             <input
               type="number"
               {...register('height_cm', { valueAsNumber: true })}
@@ -102,7 +102,7 @@ const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">Вес (кг)</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.weight_kg')}</label>
             <input
               type="number"
               {...register('weight_kg', { valueAsNumber: true })}
@@ -115,29 +115,29 @@ const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
 
         {/* Activity Level */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Уровень активности</label>
+          <label className="block text-sm font-medium text-text">{t('nutrition.activity.label')}</label>
           <select
             {...register('activity')}
             className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           >
-            <option value="sedentary">Сидячий образ жизни</option>
-            <option value="light">Легкая активность (1-3 раза в неделю)</option>
-            <option value="moderate">Умеренная активность (3-5 раз в неделю)</option>
-            <option value="active">Высокая активность (6-7 раз в неделю)</option>
-            <option value="athlete">Профессиональный спортсмен</option>
+            <option value="sedentary">{t('nutrition.activity.options.sedentary')}</option>
+            <option value="light">{t('nutrition.activity.options.light')}</option>
+            <option value="moderate">{t('nutrition.activity.options.moderate')}</option>
+            <option value="active">{t('nutrition.activity.options.active')}</option>
+            <option value="athlete">{t('nutrition.activity.options.athlete')}</option>
           </select>
         </div>
 
         {/* Goal */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">Цель</label>
+          <label className="block text-sm font-medium text-text">{t('nutrition.goal.label')}</label>
           <select
             {...register('goal')}
             className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           >
-            <option value="lose">Похудение</option>
-            <option value="maintain">Поддержание веса</option>
-            <option value="gain">Набор веса</option>
+            <option value="lose">{t('nutrition.goal.options.lose')}</option>
+            <option value="maintain">{t('nutrition.goal.options.maintain')}</option>
+            <option value="gain">{t('nutrition.goal.options.gain')}</option>
           </select>
         </div>
 

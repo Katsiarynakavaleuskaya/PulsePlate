@@ -63,9 +63,9 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-text mb-2">Ошибка расчета</h2>
+        <h2 className="text-xl font-semibold text-text mb-2">{t('nutrition.error.title')}</h2>
         <p className="text-muted mb-6">
-          {error || targetsError || 'Не удалось загрузить данные. Проверьте подключение к интернету.'}
+          {error || targetsError || t('nutrition.error.description')}
         </p>
         <div className="flex gap-4 justify-center">
           <button
@@ -79,7 +79,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
             onClick={onEdit}
             className="px-6 py-3 bg-muted/20 text-text rounded-xl font-medium hover:bg-muted/30 transition-colors"
           >
-            Изменить данные
+            {t('nutrition.error.editButton')}
           </button>
         </div>
       </div>
@@ -97,14 +97,14 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-text">Ваша персональная тарелка</h1>
-            <p className="text-muted mt-1">Расчет основан на ваших параметрах</p>
+            <h1 className="text-2xl font-bold text-text">{t('nutrition.header.title')}</h1>
+            <p className="text-muted mt-1">{t('nutrition.header.subtitle')}</p>
           </div>
           <button
             onClick={onEdit}
             className="px-4 py-2 text-primary hover:text-primary/80 underline font-medium transition-colors"
           >
-            Изменить анкету
+            {t('nutrition.header.editButton')}
           </button>
         </div>
 
@@ -112,19 +112,19 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-navy/5 rounded-xl">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{Math.round(bmrData.bmr)}</div>
-            <div className="text-sm text-muted">BMR (ккал)</div>
+            <div className="text-sm text-muted">{t('nutrition.summary.bmr')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{Math.round(bmrData.tdee)}</div>
-            <div className="text-sm text-muted">TDEE (ккал)</div>
+            <div className="text-sm text-muted">{t('nutrition.summary.tdee')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{Math.round(plateData.plate.kcal)}</div>
-            <div className="text-sm text-muted">Цель (ккал)</div>
+            <div className="text-sm text-muted">{t('nutrition.summary.goal')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{bmrData.method}</div>
-            <div className="text-sm text-muted">Метод</div>
+            <div className="text-sm text-muted">{t('nutrition.summary.method')}</div>
           </div>
         </div>
       </div>
@@ -133,7 +133,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-text mb-4 text-center">Распределение макронутриентов</h2>
+            <h2 className="text-lg font-semibold text-text mb-4 text-center">{t('nutrition.macros.title')}</h2>
             <PlateChart
               carbsPct={plateData.plate.carbs_pct}
               proteinPct={plateData.plate.protein_pct}
@@ -160,9 +160,9 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       {/* Micros */}
       {targetsData && (
         <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-text mb-4">Цели по микроэлементам</h2>
+          <h2 className="text-lg font-semibold text-text mb-4">{t('nutrition.micros.title')}</h2>
           <p className="text-muted mb-6 text-sm">
-            Рекомендуемые суточные нормы витаминов и минералов для вашего возраста и пола
+            {t('nutrition.micros.description')}
           </p>
           <MicrosGrid items={targetsData.micros} />
         </div>

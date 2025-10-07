@@ -202,7 +202,6 @@ const normalizeBmrResponse = (
   response: BmrApiResponse,
   uiActivity: SetupFormValues['activity'],
 ): NormalizedBmrData => {
-  const apiActivity = mapActivityToApi(uiActivity);
 
   const bmrValues = collectNumericValues(response.bmr);
   const mifflin = safeNumber(response.bmr.mifflin);

@@ -131,6 +131,27 @@
       "PALEO": "Paleo",
       "MEDITERRANEAN": "Mediterranean"
     },
-    "loadingPlate": "Calculating your personalized plate…"
+    "loadingPlate": "Calculating your personalized plate…",
+    "header": {
+      "title": "Your Personal Plate",
+      "subtitle": "Calculation based on your parameters",
+      "editButton": "Edit Profile"
+    },
+    "summary": {
+      "bmr": "BMR (kcal)",
+      "tdee": "TDEE (kcal)",
+      "goal": "Goal (kcal)",
+      "method": "Method"
+    },
+    "micros": {
+      "unavailable": "Micronutrient targets are not available",
+      "title": "Micronutrient Targets",
+      "description": "Recommended daily allowances of vitamins and minerals for your age and gender"
+    },
+    "error": {
+      "title": "Calculation Error",
+      "description": "Failed to load data. Please check your internet connection.",
+      "editButton": "Edit Data"
+    }
   }
 }
