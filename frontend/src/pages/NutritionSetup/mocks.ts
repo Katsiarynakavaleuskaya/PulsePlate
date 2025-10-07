@@ -13,7 +13,7 @@ export const mockPlateData: PlateResponse = {
   macros: {
     carbs_g: 250,
     protein_g: 125,
-    fat_g: 55,
+    fat_g: 56,
     fiber_g: 25,
   },
   water_l: 2.5,
