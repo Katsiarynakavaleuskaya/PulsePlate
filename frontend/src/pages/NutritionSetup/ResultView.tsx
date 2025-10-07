@@ -16,7 +16,7 @@ interface ResultViewProps {
 }
 
 export default function ResultView({ values, onEdit }: ResultViewProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [retryKey, setRetryKey] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -48,7 +48,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted">
-            {isRetrying ? 'Повторный расчет...' : 'Рассчитываем вашу персональную тарелку...'}
+            {isRetrying ? t('common.retrying') : t('nutrition.loadingPlate')}
           </p>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
             disabled={isRetrying}
             className="px-6 py-3 bg-primary text-navy rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isRetrying ? 'Повторная попытка...' : 'Попробовать снова'}
+            {isRetrying ? t('common.retrying') : t('common.tryAgain')}
           </button>
           <button
             onClick={onEdit}

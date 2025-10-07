@@ -5,14 +5,8 @@ import { useState, useEffect } from 'react';
 import SetupForm from './SetupForm';
 import ResultView from './ResultView';
 import type { SetupFormValues } from './schema';
-import { setupSchema } from './schema';
+import { isValidSetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
-
-// Runtime type guard for SetupFormValues
-function isValidSetupFormValues(data: unknown): data is SetupFormValues {
-  const result = setupSchema.safeParse(data);
-  return result.success;
-}
 
 export default function NutritionSetupPage() {
   const { settings } = useSettings();
@@ -22,6 +16,8 @@ export default function NutritionSetupPage() {
   useEffect(() => {
     if (isValidSetupFormValues(settings.setup)) {
       setValues(settings.setup);
+    } else {
+      setValues(null);
     }
   }, [settings.setup]);
 

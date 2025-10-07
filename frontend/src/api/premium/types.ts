@@ -82,6 +82,7 @@ export type BmrApiResponse = {
   recommended_intake: RecommendedIntake;
   formulas_used: string[];
   notes: string[];
+  method?: string;
 };
 
 export type PlateRequest = {

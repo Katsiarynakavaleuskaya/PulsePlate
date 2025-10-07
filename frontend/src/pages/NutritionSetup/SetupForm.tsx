@@ -3,7 +3,7 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { setupSchema, type SetupFormValues } from './schema';
+import { setupSchema, type SetupFormValues, validDietFlags, type DietFlag } from './schema';
 import { useSettings } from '../../lib/settings';
 import { useTranslation } from 'react-i18next';
 
@@ -44,13 +44,13 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   ] as const;
 
   // Handle checkbox changes for diet flags
-  const handleDietFlagChange = (flag: typeof validDietFlags[number], checked: boolean) => {
-    const currentFlags = watchedDietFlags || [];
-    const newFlags = checked
-      ? [...currentFlags, flag]
-      : currentFlags.filter(f => f !== flag);
-    setValue('diet_flags', newFlags as typeof validDietFlags[number][]);
-  };
+const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
+  const currentFlags = watchedDietFlags || [];
+  const newFlags = checked
+    ? [...currentFlags, flag]
+    : currentFlags.filter(f => f !== flag);
+  setValue('diet_flags', newFlags as DietFlag[]);
+};
 
   const submit = (values: SetupFormValues) => {
     // Save to settings
