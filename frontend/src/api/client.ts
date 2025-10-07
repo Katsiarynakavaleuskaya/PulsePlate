@@ -151,6 +151,9 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
     defaults["X-API-Key"] = apiKey;
   }
 
+  // NOTE: api() сам сериализует body в JSON для методов ≠ GET.
+  // Высшим слоям (createPremiumEndpoint, hooks) нужно передавать body как объект.
+
   // Check if caller already provided Content-Type (case-insensitive)
   const hasContentType = (() => {
     if (!init?.headers) {
@@ -203,37 +206,13 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   return headers;
 }
 
-/**
- * Request init for the app API client.
- * - Accepts plain object/array bodies (auto-JSON by api()).
- * - Preserves native BodyInit types (FormData/Blob/ArrayBuffer/etc).
- */
-export type ApiRequestInit = Omit<RequestInit, "body"> & {
-  /** Plain objects/arrays are allowed; api() will JSON.stringify them. */
-  body?: unknown;
-  /** Local helpers for mocks */
-  mockUrl?: string;
-  forceMock?: boolean;
-};
-
-/**
- * Options for API client behavior.
- * onAuthError: called for 401/403 with helper clearApiKey().
- */
 export type ApiOptions = {
   onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
 };
 
-/**
- * Core fetch helper for the app.
- * - Adds X-API-Key when present.
- * - Auto-serializes plain JSON bodies for non-GET.
- * - Handles 401/403: uses onAuthError if provided, else clears key and redirects.
- * - Falls back to mockUrl on network error when configured.
- */
 export async function api<T = unknown>(
   path: string,
-  init?: ApiRequestInit,
+  init?: RequestInit & { mockUrl?: string; forceMock?: boolean },
   options?: ApiOptions,
   forceJson?: boolean
 ): Promise<T> {
@@ -243,50 +222,48 @@ export async function api<T = unknown>(
     validateApiBase();
 
     /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
-     *  Callers should pass body as a plain object/array. Binary/stream bodies pass through unchanged.
-     *  GET without body must not set Content-Type.
+     *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
      */
-    const rawBody = init?.body as unknown;
+    let serializedBody = init?.body;
+    let forceJsonForBody = forceJson;
+
+    // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
+    const body = init?.body as any;
     const isPlainObjectOrArray =
-      rawBody &&
-      typeof rawBody === "object" &&
-      (Array.isArray(rawBody) || Object.prototype.toString.call(rawBody) === "[object Object]");
+      body &&
+      typeof body === "object" &&
+      (
+        Array.isArray(body) ||
+        body?.constructor === Object ||
+        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
+      );
 
     const isForbiddenBinaryLike =
-      rawBody instanceof FormData ||
-      rawBody instanceof Blob ||
-      rawBody instanceof ArrayBuffer ||
-      ArrayBuffer.isView?.(rawBody) === true || // typed arrays & DataView
-      (typeof URLSearchParams !== "undefined" && rawBody instanceof URLSearchParams) ||
-      (typeof ReadableStream !== "undefined" && rawBody instanceof ReadableStream) ||
-      (typeof File !== "undefined" && rawBody instanceof File) ||
-      (typeof Response !== "undefined" && rawBody instanceof Response) ||
-      (typeof Request !== "undefined" && rawBody instanceof Request);
+      body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
+      body instanceof ReadableStream ||
+      typeof body?.arrayBuffer === "function";
 
-    // Decide whether this request will send JSON (affects Content-Type)
-    const willSendJson = Boolean(forceJson || (isPlainObjectOrArray && !isForbiddenBinaryLike));
+    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
+      serializedBody = JSON.stringify(body);
+      forceJsonForBody = true;
+    }
 
-    // Merge headers BEFORE serializing, using a boolean contract
-    const mergedHeaders = mergeHeaders(init?.headers, willSendJson);
-
-    // Serialize only when needed
-    const serializedBody: BodyInit | undefined =
-      willSendJson && rawBody != null
-        ? (JSON.stringify(rawBody) as unknown as BodyInit)
-        : (rawBody as BodyInit | undefined);
-
-    const res = await fetch(`${getApiBase()}${path}`, {
+    const requestInit = {
       ...init,
-      headers: mergedHeaders,
-      credentials: init?.credentials ?? "include",
-      // AbortSignal must only be provided via RequestInit, not ApiOptions.
-      signal: init?.signal,
       body: serializedBody,
-    });
+      headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),
+      credentials: init?.credentials ?? 'include',
+      signal: init?.signal,
+    };
+
+    const res = await fetch(`${getApiBase()}${path}`, requestInit);
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401 || res.status === 403) {
-        const errorCode = res.status; // narrowed by the if (401 || 403)
+        const errorCode = (res.status === 401 ? 401 : 403) as 401 | 403;
         // Call onAuthError callback if provided
         if (options?.onAuthError) {
           options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });

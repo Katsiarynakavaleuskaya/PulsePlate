@@ -2,15 +2,7 @@ import { api, ApiOptions } from '../client';
 
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 
-/**
- * Premium API request options.
- * - onAuthError: auth error callback (401/403)
- * - signal: AbortSignal for cancellation (passed to RequestInit)
- */
-export type PremiumRequestOptions = {
-  onAuthError?: ApiOptions["onAuthError"];
-  signal?: AbortSignal;
-};
+export type PremiumRequestOptions = Pick<ApiOptions, "onAuthError"> & { signal?: AbortSignal };
 
 /**
  * Factory to build typed Premium endpoints (POST).
@@ -21,11 +13,9 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      // Body + AbortSignal go into RequestInit
       { method: "POST", body, signal: options?.signal },
-      // AuthError handler goes into ApiOptions
       options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
-      true
+      true // explicitly force JSON Content-Type for Premium POSTs
     );
 }
 
