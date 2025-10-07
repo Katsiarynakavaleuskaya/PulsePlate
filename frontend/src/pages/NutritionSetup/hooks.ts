@@ -12,11 +12,19 @@ import type {
   TargetsResponse,
 } from './schema';
 import { validDietFlags } from './schema';
-import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang, PremiumRequestOptions } from '../../api/premium';
+import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 
 type SetupSupportedLang = SupportedPremiumLang;
+
+// Shared auth error handler for observability.
+// Intentionally DOES NOT call clearApiKey() or redirect:
+// when no custom handler is provided, the API client's fallback
+// will clear the stored key and redirect to /enter-key on 401/403.
+const handleAuthErrorShared = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
+  console.warn(`[auth] Premium API error: ${code}`);
+};
 
 const ACTIVITY_MAP: Record<SetupFormValues['activity'], 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'> = {
   sedentary: 'sedentary',
@@ -362,6 +370,8 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const handleAuthError = handleAuthErrorShared;
+
   // Use provided lang or fallback to i18n.language or navigator.language
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const currentLang = resolveSetupLang(lang, i18n.language, browserLang);
@@ -404,7 +414,10 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
             activity: apiActivity,
             lang: currentLang,
           },
-          { signal: abortController.signal },
+          {
+            signal: abortController.signal,
+            onAuthError: handleAuthError,
+          },
         );
 
         const platePromise = getPlate(
@@ -419,7 +432,10 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
             surplus_pct: goalPayload.surplus_pct ?? null,
             diet_flags: dietFlags,
           },
-          { signal: abortController.signal },
+          {
+            signal: abortController.signal,
+            onAuthError: handleAuthError,
+          },
         );
 
         const [bmrResult, plateResult] = await Promise.all([bmrPromise, platePromise]);
@@ -471,6 +487,10 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const effectiveLang = resolveSetupLang(lang, i18n.language, browserLang);
 
+  const handleAuthError = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
+    console.warn(`[auth] Targets API error: ${code}`);
+  };
+
   useEffect(() => {
     if (!values) {
       setData(null);
@@ -516,7 +536,10 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
             life_stage: determineLifeStage(values.age),
             lang: effectiveLang,
           },
-          { signal: abortController.signal },
+          {
+            signal: abortController.signal,
+            onAuthError: handleAuthError,
+          },
         );
 
         // Only update state if this is still the latest request
