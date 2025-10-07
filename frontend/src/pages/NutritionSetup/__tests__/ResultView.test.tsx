@@ -156,7 +156,7 @@ describe("ResultView", () => {
     expect(screen.getByText("BMR (ккал)")).toBeInTheDocument();
     expect(screen.getByText("TDEE (ккал)")).toBeInTheDocument();
     expect(screen.getByText("Цель (ккал)")).toBeInTheDocument();
-    expect(screen.getByText("Распределение макронутриентов")).toBeInTheDocument();
+    expect(screen.getByText("Макронутриенты и калории")).toBeInTheDocument();
     expect(screen.getByText("Цели по микроэлементам")).toBeInTheDocument();
   });
 
