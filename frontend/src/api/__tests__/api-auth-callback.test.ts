@@ -60,4 +60,31 @@ describe('API Auth Error Callbacks', () => {
 
     expect(handler).toHaveBeenCalledWith(403, expect.objectContaining({ clearApiKey: expect.any(Function) }));
   });
+
+  it('falls back to clear+redirect when onAuthError is not provided (401)', async () => {
+    fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
+      ok: false,
+      status: 401,
+    })));
+
+    const clearSpy = vi.fn();
+    // inject dependencies to simulate stored key behavior
+    setApiClientDependencies({
+      apiBase: 'http://test-api.com',
+      getStoredApiKey: () => 'TEST_KEY',
+      clearStoredApiKey: clearSpy,
+    });
+
+    // mock location.replace
+    const replaceSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { replace: replaceSpy },
+      writable: true
+    });
+
+    await expect(api('/probe')).rejects.toBeTruthy();
+
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+    expect(replaceSpy).toHaveBeenCalledWith('/enter-key');
+  });
 });
