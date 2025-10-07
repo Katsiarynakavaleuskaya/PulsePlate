@@ -203,6 +203,11 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   return headers;
 }
 
+/**
+ * Request init for the app API client.
+ * - Accepts plain object/array bodies (auto-JSON by api()).
+ * - Preserves native BodyInit types (FormData/Blob/ArrayBuffer/etc).
+ */
 export type ApiRequestInit = Omit<RequestInit, "body"> & {
   /** Plain objects/arrays are allowed; api() will JSON.stringify them. */
   body?: unknown;
@@ -211,10 +216,21 @@ export type ApiRequestInit = Omit<RequestInit, "body"> & {
   forceMock?: boolean;
 };
 
+/**
+ * Options for API client behavior.
+ * onAuthError: called for 401/403 with helper clearApiKey().
+ */
 export type ApiOptions = {
   onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
 };
 
+/**
+ * Core fetch helper for the app.
+ * - Adds X-API-Key when present.
+ * - Auto-serializes plain JSON bodies for non-GET.
+ * - Handles 401/403: uses onAuthError if provided, else clears key and redirects.
+ * - Falls back to mockUrl on network error when configured.
+ */
 export async function api<T = unknown>(
   path: string,
   init?: ApiRequestInit,
