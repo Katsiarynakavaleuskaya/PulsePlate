@@ -132,8 +132,7 @@ describe('API Client Auth', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-
-    it('clears storage and uses window.location.replace when no navigate callback on 401', async () => {
+    it('clears storage and uses window.location.replace when no onAuthError callback on 401', async () => {
       const { api } = await import('../client');
       fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
         ok: false,

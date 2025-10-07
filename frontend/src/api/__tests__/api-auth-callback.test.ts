@@ -33,8 +33,6 @@ describe('API Auth Error Callbacks', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-    // Reset dependencies
-    setApiClientDependencies(null);
   });
 
   it('invokes onAuthError from 3rd param on 401', async () => {
