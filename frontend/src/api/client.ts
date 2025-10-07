@@ -82,11 +82,14 @@ const searchParams = (() => {
 const forceMock = searchParams.get("mock") === "1";
 
 function mockUrl(path: string): string | null {
-  if (path.includes("/premium/bmr")) {
+  if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
     return "/mock/bmr.json";
   }
-  if (path.includes("/premium/plate")) {
+  if (path.includes("/api/v1/premium/plate") || path.includes("/premium/plate")) {
     return "/mock/plate.json";
+  }
+  if (path.includes("/api/v1/premium/targets") || path.includes("/premium/targets")) {
+    return "/mock/targets.json";
   }
   if (path.includes("/plan/week")) {
     return "/mock/week.json";
@@ -254,70 +257,22 @@ async function api<T>(path: string, init?: RequestInit, navigate?: (path: string
 
 export { api };
 export const fetchJson = api;
+export { getBmr, getPlate, getTargets } from "./premium";
+export type {
+  BmrRequest,
+  BmrApiResponse,
+  PlateRequest,
+  PlateApiResponse,
+  TargetsRequest,
+  TargetsApiResponse,
+} from "./premium";
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
-export type BmrRequest = {
-  sex: "male" | "female";
-  age: number; // years
-  height: number; // cm
-  weight: number; // kg
-};
-
-export type BmrResponse = {
-  bmr: number; // kcal/day
-  method: string; // e.g., "Mifflin-St Jeor"
-};
-
-export type EnrichedBmrResponse = BmrResponse & {
-  tdee: number; // total daily energy expenditure kcal/day
-};
-
-export type PlateResponse = {
-  plate: {
-    carbs_pct: number;
-    protein_pct: number;
-    fat_pct: number;
-    kcal: number;
-  };
-  macros: {
-    carbs_g: number;
-    protein_g: number;
-    fat_g: number;
-    fiber_g: number;
-  };
-  water_l: number;
-};
-
-export type TargetsResponse = {
-  micros: Array<{
-    id: string;
-    name: string;
-    unit: string;
-    target: number;
-  }>;
-};
-
 export type WeekPlanResponse = {
   days: Array<{ date: string; meals: Array<{ name: string; kcal: number }> }>;
 };
 
 // Endpoints
-
-/**
- * Calculates Basal Metabolic Rate (BMR) based on user parameters
- * @param body - Request body with user parameters for BMR calculation
- * @param navigate - Optional React Router navigate function for SPA redirects
- * @returns Promise<BmrResponse> - BMR calculation result
- */
-export const getBmr = (body: BmrRequest, options?: { navigate?: (path: string) => void; signal?: AbortSignal }) =>
-  api<BmrResponse>("/premium/bmr", { method: "POST", body: JSON.stringify(body), signal: options?.signal }, options?.navigate, true);
-
-/**
- * Retrieves personalized nutrition plate recommendations
- * @param navigate - Optional React Router navigate function for SPA redirects
- * @returns Promise<PlateResponse> - Nutrition plate data
- */
-export const getPlate = (navigate?: (path: string) => void) => api<PlateResponse>("/premium/plate", undefined, navigate);
 
 /**
  * Generates a weekly meal plan
