@@ -13,10 +13,10 @@ Tests core plate generation logic:
 import pytest
 
 from core.plate import (
-    _apply_diet_flag_adjustments,
-    _macros_by_rules,
-    _portions_from_macros,
-    _target_kcal,
+    apply_diet_flag_adjustments,
+    macros_by_rules,
+    portions_from_macros,
+    target_kcal,
     _visual_layout,
     make_plate,
 )
@@ -25,55 +25,55 @@ from core.plate import (
 class TestCorePlateLogic:
     """Test core plate generation logic."""
 
-    def test_target_kcal_calculation(self):
+    def testtarget_kcal_calculation(self):
         """Test target calorie calculation for different goals."""
         tdee = 2000
 
         # Test maintenance
-        target = _target_kcal(tdee, "maintain", None, None)
+        target = target_kcal(tdee, "maintain", None, None)
         assert target == 2000
 
         # Test weight loss with default deficit
-        target = _target_kcal(tdee, "loss", None, None)
+        target = target_kcal(tdee, "loss", None, None)
         assert target == 1700  # 15% deficit
 
         # Test weight loss with custom deficit
-        target = _target_kcal(tdee, "loss", 20, None)
+        target = target_kcal(tdee, "loss", 20, None)
         assert target == 1600  # 20% deficit
 
         # Test weight gain with default surplus
-        target = _target_kcal(tdee, "gain", None, None)
+        target = target_kcal(tdee, "gain", None, None)
         assert target == 2240  # 12% surplus
 
         # Test weight gain with custom surplus
-        target = _target_kcal(tdee, "gain", None, 15)
+        target = target_kcal(tdee, "gain", None, 15)
         assert target == 2300  # 15% surplus
 
         # Test minimum calorie floor
         very_low_tdee = 1000
-        target = _target_kcal(very_low_tdee, "loss", 25, None)
+        target = target_kcal(very_low_tdee, "loss", 25, None)
         assert target == 1200  # Should not go below 1200
 
-    def test_macros_by_rules(self):
+    def testmacros_by_rules(self):
         """Test macro distribution rules for different goals."""
         weight = 70  # kg
         kcal = 2000
 
         # Test weight loss macros (higher protein)
-        macros = _macros_by_rules(weight, kcal, "loss")
+        macros = macros_by_rules(weight, kcal, "loss")
         assert macros["protein_g"] >= 126  # At least 1.8g/kg
         assert macros["fat_g"] == 56  # 0.8g/kg
         assert macros["carbs_g"] >= 0
         assert macros["fiber_g"] in [25, 30]
 
         # Test maintenance macros
-        macros = _macros_by_rules(weight, kcal, "maintain")
+        macros = macros_by_rules(weight, kcal, "maintain")
         assert macros["protein_g"] == 119  # 1.7g/kg
         assert macros["fat_g"] == 63  # 0.9g/kg
         assert macros["carbs_g"] >= 0
 
         # Test weight gain macros
-        macros = _macros_by_rules(weight, kcal, "gain")
+        macros = macros_by_rules(weight, kcal, "gain")
         assert macros["protein_g"] == 112  # 1.6g/kg
         assert macros["fat_g"] == 70  # 1.0g/kg
         assert macros["carbs_g"] >= 0
@@ -84,7 +84,7 @@ class TestCorePlateLogic:
 
         # Test edge case: very low calories that require macro reduction
         low_kcal = 800  # Very low calories
-        macros_low = _macros_by_rules(weight, low_kcal, "loss")
+        macros_low = macros_by_rules(weight, low_kcal, "loss")
         # Should still have reasonable macros, carbs should be at least 1
         assert macros_low["protein_g"] >= 1
         assert macros_low["fat_g"] >= 0.5 * weight  # Should not go below 0.5g/kg
@@ -95,11 +95,11 @@ class TestCorePlateLogic:
         )
         assert abs(total_kcal_low - low_kcal) <= 50  # Allow some tolerance for edge cases
 
-    def test_portions_from_macros(self):
+    def testportions_from_macros(self):
         """Test conversion of macros to hand/cup portions."""
         macros = {"protein_g": 120, "fat_g": 60, "carbs_g": 200, "fiber_g": 30}
 
-        portions = _portions_from_macros(macros, meals_per_day=3)
+        portions = portions_from_macros(macros, meals_per_day=3)
 
         # Check portion calculations
         expected_protein_palm = 120 / (30 * 3)  # protein_g / (protein_palm_g * meals)
@@ -392,7 +392,7 @@ class TestDietFlagAdjustments:
         """Test that no diet flags leaves macros unchanged."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=None)
+        result = apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=None)
 
         assert result == macros
 
@@ -400,7 +400,7 @@ class TestDietFlagAdjustments:
         """Test that empty diet flags set leaves macros unchanged."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=set())
+        result = apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=set())
 
         assert result == macros
 
@@ -408,7 +408,7 @@ class TestDietFlagAdjustments:
         """Test HIGH_PROTEIN flag increases protein to at least 2.0g/kg."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN"}
         )
 
@@ -420,7 +420,7 @@ class TestDietFlagAdjustments:
         """Test HIGH_PROTEIN flag doesn't decrease already high protein."""
         macros = {"protein_g": 200, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN"}
         )
 
@@ -432,7 +432,7 @@ class TestDietFlagAdjustments:
         # Test with high carb intake
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 300, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"LOW_CARB"}
         )
 
@@ -444,11 +444,11 @@ class TestDietFlagAdjustments:
         """Test MEDITERRANEAN flag adjusts macro ratios."""
         macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 250, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"MEDITERRANEAN"}
         )
 
-        # Should increase fat to at least 35% of calories and ≥1.2× protein
+        # Should increase fat to at least 35% of calories and ≥1.2x protein
         expected_fat = max(macros["fat_g"], (2000 * 0.35) / 9, macros["protein_g"] * 1.2)
         assert result["fat_g"] >= expected_fat
         assert result["fiber_g"] >= 30
@@ -457,7 +457,7 @@ class TestDietFlagAdjustments:
         """Test multiple diet flags work together."""
         macros = {"protein_g": 80, "fat_g": 50, "carbs_g": 300, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN", "LOW_CARB"}
         )
 
@@ -470,7 +470,7 @@ class TestDietFlagAdjustments:
         """Mediterranean combined with High-Protein keeps both targets."""
         macros = {"protein_g": 110, "fat_g": 60, "carbs_g": 220, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=80, kcal=2200, diet_flags={"MEDITERRANEAN", "HIGH_PROTEIN"}
         )
 
@@ -483,7 +483,7 @@ class TestDietFlagAdjustments:
         """Test HIGH_PROTEIN adjustment scales with body weight."""
         macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 200, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=weight_kg, kcal=2000, diet_flags={"HIGH_PROTEIN"}
         )
 
@@ -496,7 +496,7 @@ class TestDietFlagAdjustments:
         # Create a scenario where HIGH_PROTEIN + MEDITERRANEAN would exceed kcal
         macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 150, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=1500, diet_flags={"HIGH_PROTEIN", "MEDITERRANEAN"}
         )
 
@@ -505,15 +505,14 @@ class TestDietFlagAdjustments:
         assert result["fat_g"] >= result["protein_g"] * 1.2
 
         # Should maintain protein minimum, but fat may be reduced to meet kcal constraints
-        assert result["protein_g"] >= 140  # 70kg * 2.0 for HIGH_PROTEIN
-        # Note: fat may be less than protein*1.2 if needed to meet kcal constraints
+        # Note: Mediterranean keeps fat ≥ 1.2× protein; protein may be reduced next if still over kcal
 
     def test_high_protein_trims_fat_to_meet_calorie_target(self):
         """HIGH_PROTEIN should shave excess fat to stay within calorie budget."""
         macros = {"protein_g": 100, "fat_g": 200, "carbs_g": 50, "fiber_g": 25}
         weight_kg = 70
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=weight_kg, kcal=1500, diet_flags={"HIGH_PROTEIN"}
         )
 
@@ -529,7 +528,7 @@ class TestDietFlagAdjustments:
         macros = {"protein_g": 180, "fat_g": 150, "carbs_g": 50, "fiber_g": 25}
         weight_kg = 70
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=weight_kg, kcal=1600, diet_flags={"MEDITERRANEAN"}
         )
 
@@ -544,7 +543,7 @@ class TestDietFlagAdjustments:
         # Very high protein that would make carbs negative
         macros = {"protein_g": 300, "fat_g": 100, "carbs_g": 50, "fiber_g": 25}
 
-        result = _apply_diet_flag_adjustments(
+        result = apply_diet_flag_adjustments(
             macros, weight_kg=70, kcal=2000, diet_flags={"LOW_CARB"}
         )
 

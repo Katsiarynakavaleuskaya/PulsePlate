@@ -1,6 +1,8 @@
 // RU: Простая SVG-диаграмма распределения макронутриентов в тарелке
 // EN: Simple SVG chart showing macronutrient distribution in the plate
 
+import { useTranslation } from 'react-i18next';
+
 interface PlateChartProps {
   carbsPct: number;
   proteinPct: number;
@@ -8,8 +10,15 @@ interface PlateChartProps {
 }
 
 export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartProps) {
+  const { t } = useTranslation();
+
+  // Ensure all values are numbers (defensive programming)
+  const safeCarbsPct = Number(carbsPct) || 0;
+  const safeProteinPct = Number(proteinPct) || 0;
+  const safeFatPct = Number(fatPct) || 0;
+
   // Validate percentages sum to 100% (allow small floating-point tolerance)
-  const total = carbsPct + proteinPct + fatPct;
+  const total = safeCarbsPct + safeProteinPct + safeFatPct;
   if (Math.abs(total - 100) > 0.1) {
     console.warn(`Plate percentages sum to ${total.toFixed(1)}%, expected 100%`);
   }
@@ -18,9 +27,9 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
   const radius = 45;
   const circumference = 2 * Math.PI * radius;
 
-  const carbsAngle = (carbsPct / 100) * 360;
-  const proteinAngle = (proteinPct / 100) * 360;
-  const fatAngle = (fatPct / 100) * 360;
+  const carbsAngle = (safeCarbsPct / 100) * 360;
+  const proteinAngle = (safeProteinPct / 100) * 360;
+  const fatAngle = (safeFatPct / 100) * 360;
 
   const carbsDash = (carbsAngle / 360) * circumference;
   const proteinDash = (proteinAngle / 360) * circumference;
@@ -34,7 +43,11 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
         viewBox="0 0 110 110"
         className="drop-shadow-sm"
         role="img"
-        aria-label={`Диаграмма тарелки: углеводы ${Math.round(carbsPct)}%, белки ${Math.round(proteinPct)}%, жиры ${Math.round(fatPct)}%`}
+        aria-label={t('nutrition.plate.ariaLabel', {
+          carbs: Math.round(safeCarbsPct),
+          protein: Math.round(safeProteinPct),
+          fat: Math.round(safeFatPct),
+        })}
       >
         {/* Background circle */}
         <circle
@@ -90,15 +103,15 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
       <div className="mt-4 space-y-2 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-text">Углеводы: {Math.round(carbsPct)}%</span>
+          <span className="text-text">{t('nutrition.macros.carbs')}: {Math.round(carbsPct)}%</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-text">Белки: {Math.round(proteinPct)}%</span>
+          <span className="text-text">{t('nutrition.macros.protein')}: {Math.round(proteinPct)}%</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <span className="text-text">Жиры: {Math.round(fatPct)}%</span>
+          <span className="text-text">{t('nutrition.macros.fat')}: {Math.round(fatPct)}%</span>
         </div>
       </div>
     </div>

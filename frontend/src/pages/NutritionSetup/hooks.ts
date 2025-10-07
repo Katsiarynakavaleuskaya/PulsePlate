@@ -55,7 +55,8 @@ const DEFAULT_ACTIVITY_MULTIPLIERS: Record<keyof typeof ACTIVITY_MAP, number> = 
 };
 
 /**
- * Diet flags supported by the premium nutrition API (mirrors backend DietFlag).
+ * Diet flags for frontend validation. Note: Backend may not support all flags.
+ * Filter against backend capabilities before API calls.
  */
 const SUPPORTED_DIET_FLAGS = new Set(validDietFlags);
 
@@ -368,7 +369,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const enabled = !!values;
 
   useEffect(() => {
-    if (!enabled || !values) {
+    if (!enabled) {
       setBmrData(null);
       setPlateData(null);
       setError(null);

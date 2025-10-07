@@ -79,5 +79,8 @@ describe("NotFound", () => {
     expect(locationElement).toHaveTextContent("/some-page");
     fireEvent.click(goHomeButton);
     expect(locationElement).toHaveTextContent("/");
+
+    // Explicitly restore the spy for clarity and maintainability
+    mockBack.mockRestore();
   });
 });

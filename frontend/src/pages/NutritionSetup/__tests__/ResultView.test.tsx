@@ -11,8 +11,11 @@ import { mockValues } from "./test-utils";
 const translations: Record<string, string> = {
   "nutrition.macros.title": "Макронутриенты и калории",
   "nutrition.macros.caloriesLabel": "Калории (цель)",
+  "nutrition.macros.carbs": "Углеводы",
   "nutrition.macros.carbsLabel": "Углеводы",
+  "nutrition.macros.protein": "Белки",
   "nutrition.macros.proteinLabel": "Белки",
+  "nutrition.macros.fat": "Жиры",
   "nutrition.macros.fatLabel": "Жиры",
   "nutrition.macros.fiberLabel": "Клетчатка",
   "nutrition.macros.bmrLabel": "BMR",
@@ -47,7 +50,7 @@ const translate = (key: string) => translations[key] || key;
 // Mock react-i18next
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    i18n: { language: "en" },
+    i18n: { language: "ru" },
     t: translate,
   }),
 }));
@@ -67,6 +70,13 @@ const mockResolveSetupLang = setupHooks.resolveSetupLang as unknown as Mock;
 
 describe("ResultView", () => {
   const mockOnEdit = vi.fn();
+
+  const renderResult = () =>
+    render(
+      <MemoryRouter>
+        <ResultView values={mockValues} onEdit={mockOnEdit} />
+      </MemoryRouter>
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -97,22 +107,29 @@ describe("ResultView", () => {
     });
   });
 
-  const renderResult = () =>
-    render(
-      <MemoryRouter>
-        <ResultView values={mockValues} onEdit={mockOnEdit} />
-      </MemoryRouter>
-    );
-
   it("renders loading state", () => {
+    const baseMock = {
+      bmrData: { bmr: 1400, tdee: 1800, method: "Mifflin-St Jeor" },
+      plateData: mockPlateData,
+      loading: false,
+      error: null,
+    };
     mockUseSetupCalc.mockReturnValue({
-      ...mockUseSetupCalc(),
+      bmrData: null,
+      plateData: null,
       loading: true,
+      error: null,
+    });
+    mockUseTargets.mockReturnValue({
+      data: null,
+      loading: true,
+      error: null,
     });
 
     renderResult();
 
-    expect(screen.getByText("Рассчитываем вашу персональную тарелку...")).toBeInTheDocument();
+    // Check that loading spinner is present
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
   it("renders error state", () => {
@@ -341,33 +358,79 @@ describe("ResultView", () => {
 
   it("handles retry functionality correctly", () => {
     // Start with error state
-    mockUseSetupCalc.mockImplementation(() => ({
+    mockUseSetupCalc.mockReturnValue({
       bmrData: null,
       plateData: null,
       loading: false,
       error: "Network Error",
-    }));
-    mockUseTargets.mockImplementation(() => ({
+    });
+    mockUseTargets.mockReturnValue({
       data: null,
       loading: false,
       error: null,
-    }));
+    });
 
     renderResult();
 
-    // Check that retry button is present
+    // Check that retry button is present and enabled
     const retryButton = screen.getByText("Попробовать снова");
     expect(retryButton).toBeInTheDocument();
     expect(retryButton).not.toBeDisabled();
 
+    // Setup mocks to return loading state for the retry
+    mockUseSetupCalc.mockImplementationOnce(() => ({
+      bmrData: null,
+      plateData: null,
+      loading: true,
+      error: null,
+    }));
+    mockUseTargets.mockImplementationOnce(() => ({
+      data: null,
+      loading: true,
+      error: null,
+    }));
+
     // Click retry - should trigger hooks with new retryKey
     fireEvent.click(retryButton);
 
-    // After retry, hooks should be called with retryKey = 1
+    // After retry click, hooks should be called with retryKey = 1
     expect(mockUseSetupCalc).toHaveBeenLastCalledWith(mockValues, "en", 1);
     expect(mockUseTargets).toHaveBeenLastCalledWith(mockValues, "en", 1);
 
-    // Verify the button is still there (component handles retry state internally)
-    expect(screen.getByText("Попробовать снова")).toBeInTheDocument();
+    // Should show loading state with retry message
+    expect(screen.getByText("Повторная попытка...")).toBeInTheDocument();
+
+    // Setup mocks to return success data for subsequent renders
+    mockUseSetupCalc.mockReturnValue({
+      bmrData: {
+        bmr: 1400,
+        tdee: 1800,
+        method: "Mifflin-St Jeor",
+      },
+      plateData: mockPlateData,
+      loading: false,
+      error: null,
+    });
+    mockUseTargets.mockReturnValue({
+      data: {
+        micros: [
+          { id: "fe", name: "Железо", unit: "мг", target: 18 },
+          { id: "ca", name: "Кальций", unit: "мг", target: 1000 },
+        ],
+        water_l: 2.5,
+      },
+      loading: false,
+      error: null,
+    });
+
+    // Re-render to simulate successful data load (component will re-render when hooks return success)
+    renderResult();
+
+    // Should now show success UI
+    expect(screen.getByText("Ваша персональная тарелка")).toBeInTheDocument();
+    expect(screen.getByText("BMR (ккал)")).toBeInTheDocument();
+    expect(screen.getByText("TDEE (ккал)")).toBeInTheDocument();
+    expect(screen.getByText("Цель (ккал)")).toBeInTheDocument();
+    expect(screen.getByText("Цели по микроэлементам")).toBeInTheDocument();
   });
 });

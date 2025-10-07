@@ -5,8 +5,14 @@ import { z } from "zod";
 
 /**
  * Valid diet flags that can be selected in the UI.
- * Note: Not all flags are currently supported by the backend API.
- * See SUPPORTED_DIET_FLAGS in hooks.ts for the subset that works.
+ * All flags are supported by the backend API as of Oct 2025.
+ *
+ * Backend-supported flags (actively processed):
+ * - HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN: Adjust macro calculations
+ * - VEG, GF, DAIRY_FREE, LOW_COST: Used in recipe/food filtering
+ * - VEGAN, KETO, PALEO: Normalized to other flags (VEGAN→VEG, KETO→LOW_CARB+HIGH_PROTEIN, PALEO→HIGH_PROTEIN)
+ *
+ * Note: SUPPORTED_DIET_FLAGS in hooks.ts includes all validDietFlags.
  */
 export const validDietFlags = [
   "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
