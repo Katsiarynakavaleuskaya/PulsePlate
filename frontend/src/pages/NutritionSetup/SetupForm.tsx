@@ -63,7 +63,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">{t('nutrition.sex')}</label>
+            <label className="block text-sm font-medium text-text">{t('nutrition.sex.label')}</label>
             <select
               {...register('sex')}
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
@@ -165,11 +165,11 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           type="submit"
           className="w-full py-4 px-6 bg-primary text-navy rounded-xl font-semibold text-base hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors min-h-[44px]"
         >
-          {t('nutrition.calculatePlate')}
+          {t('nutritionSetup.calculateButton')}
         </button>
 
         <p className="text-xs text-muted text-center">
-          {t('nutrition.dataStoredLocal')}
+          {t('nutritionSetup.saveNote')}
         </p>
       </form>
     </div>

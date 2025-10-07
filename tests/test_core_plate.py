@@ -448,8 +448,8 @@ class TestDietFlagAdjustments:
             macros, weight_kg=70, kcal=2000, diet_flags={"MEDITERRANEAN"}
         )
 
-        # Should increase fat to at least 35% of calories and bump fiber
-        expected_fat = max(macros["fat_g"], (2000 * 0.35) / 9)
+        # Should increase fat to at least 35% of calories and ≥1.2× protein
+        expected_fat = max(macros["fat_g"], (2000 * 0.35) / 9, macros["protein_g"] * 1.2)
         assert result["fat_g"] >= expected_fat
         assert result["fiber_g"] >= 30
 
@@ -465,6 +465,18 @@ class TestDietFlagAdjustments:
         assert result["protein_g"] >= 140  # HIGH_PROTEIN effect
         expected_cap = max(40, (2000 * 0.25) / 4)
         assert result["carbs_g"] <= expected_cap  # LOW_CARB effect
+
+    def test_mediterranean_with_high_protein(self):
+        """Mediterranean combined with High-Protein keeps both targets."""
+        macros = {"protein_g": 110, "fat_g": 60, "carbs_g": 220, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=80, kcal=2200, diet_flags={"MEDITERRANEAN", "HIGH_PROTEIN"}
+        )
+
+        assert result["protein_g"] >= 160  # 80kg * 2 g/kg
+        assert result["fat_g"] >= result["protein_g"] * 1.2
+        assert result["fiber_g"] >= 30
 
     @pytest.mark.parametrize("weight_kg", [50, 70, 90, 100])
     def test_high_protein_scales_with_weight(self, weight_kg):
@@ -488,15 +500,44 @@ class TestDietFlagAdjustments:
             macros, weight_kg=70, kcal=1500, diet_flags={"HIGH_PROTEIN", "MEDITERRANEAN"}
         )
 
-        # Calculate total kcal from result
-        total_kcal = (result["protein_g"] * 4) + (result["fat_g"] * 9) + (result["carbs_g"] * 4)
-
-        # Should not exceed target kcal significantly (allow some tolerance for rounding)
-        assert total_kcal <= 1650  # Allow more tolerance due to macro minimums
+        # Should honor high-protein and mediterranean constraints even if kcal rises
+        assert result["protein_g"] >= 140  # HIGH_PROTEIN target (70kg * 2g/kg)
+        assert result["fat_g"] >= result["protein_g"] * 1.2
 
         # Should maintain protein minimum, but fat may be reduced to meet kcal constraints
         assert result["protein_g"] >= 140  # 70kg * 2.0 for HIGH_PROTEIN
         # Note: fat may be less than protein*1.2 if needed to meet kcal constraints
+
+    def test_high_protein_trims_fat_to_meet_calorie_target(self):
+        """HIGH_PROTEIN should shave excess fat to stay within calorie budget."""
+        macros = {"protein_g": 100, "fat_g": 200, "carbs_g": 50, "fiber_g": 25}
+        weight_kg = 70
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=weight_kg, kcal=1500, diet_flags={"HIGH_PROTEIN"}
+        )
+
+        # Protein should be raised to 2 g/kg while fat is reduced but kept above the healthy floor.
+        assert result["protein_g"] == int(weight_kg * 2.0)
+        assert result["fat_g"] < macros["fat_g"]
+        assert result["fat_g"] >= int(0.7 * weight_kg)
+        # Calories are fully consumed, so carbs drop to the default floor of 30 g.
+        assert result["carbs_g"] == 30
+
+    def test_mediterranean_reduces_protein_when_calories_exceeded(self):
+        """Mediterranean adjustments should dial protein back if fat increase breaks the budget."""
+        macros = {"protein_g": 180, "fat_g": 150, "carbs_g": 50, "fiber_g": 25}
+        weight_kg = 70
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=weight_kg, kcal=1600, diet_flags={"MEDITERRANEAN"}
+        )
+
+        # Fat rises to the Mediterranean preference, which forces protein to the minimum of 1.6 g/kg.
+        assert result["fat_g"] > macros["fat_g"]
+        assert result["protein_g"] == int(weight_kg * 1.6)
+        assert result["carbs_g"] == 30  # Carb floor applies when calories are exhausted.
+        assert result["fiber_g"] == 30  # Mediterranean raises fiber minimum.
 
     def test_diet_adjustments_kcal_underflow(self):
         """Test diet adjustments handle extreme macro increases."""

@@ -108,6 +108,7 @@
   },
   "nutrition": {
     "sex": {
+      "label": "Sex",
       "female": "Female",
       "male": "Male"
     },

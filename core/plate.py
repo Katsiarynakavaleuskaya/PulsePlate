@@ -44,8 +44,8 @@ def _target_kcal(
 
 
 def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
-    """RU: Макросы из простых правил: белок 1.6–2.0 g/kg, жир 0.8–1.0 g/kg, углеводы — остаток.
-    EN: Macros via rules: protein 1.6–2.0 g/kg, fat 0.8–1.0 g/kg, carbs = rest.
+    """RU: Макросы из простых правил: белок 1.6-2.0 g/kg, жир 0.8-1.0 g/kg, углеводы — остаток.
+    EN: Macros via rules: protein 1.6-2.0 g/kg, fat 0.8-1.0 g/kg, carbs = rest.
     """
     # Чуть варьируем по цели
     # Align with tests: loss emphasizes protein (≥1.8 g/kg) and lower fat (0.8 g/kg),
@@ -131,8 +131,7 @@ def _apply_diet_flag_adjustments(
     if "MEDITERRANEAN" in diet_flags:
         # Средиземноморское питание: больше полезных жиров и клетчатки
         # Жир должен быть минимум в 1.2 раза больше белка (здоровая пропорция)
-        min_fat_for_med = protein * 1.2
-        desired_fat = max(fat, min_fat_for_med, (kcal * 0.35) / 9)
+        desired_fat = max(fat, protein * 1.2, (kcal * 0.35) / 9)
         if desired_fat > fat:
             fat = desired_fat
             changed = True
@@ -150,6 +149,8 @@ def _apply_diet_flag_adjustments(
         deficit = -remaining_kcal
         # Сначала уменьшаем жир, но не ниже 0.7 g/kg (здоровый минимум)
         min_fat = 0.7 * weight_kg
+        if "MEDITERRANEAN" in diet_flags:
+            min_fat = max(min_fat, protein * 1.2)
         if fat > min_fat:
             reduc = min(deficit / 9, fat - min_fat)
             if reduc > 0:
@@ -160,6 +161,8 @@ def _apply_diet_flag_adjustments(
         if remaining_kcal < 0:
             # Затем при необходимости слегка уменьшаем белок, но не ниже 1.6 g/kg
             min_protein = 1.6 * weight_kg
+            if "HIGH_PROTEIN" in diet_flags:
+                min_protein = max(min_protein, 2.0 * weight_kg)
             if protein > min_protein:
                 reduc = min(-remaining_kcal / 4, protein - min_protein)
                 if reduc > 0:
@@ -167,17 +170,19 @@ def _apply_diet_flag_adjustments(
                     protein_kcal = protein * 4
                     remaining_kcal = kcal - protein_kcal - fat_kcal
 
-    computed_carbs = max(30.0, remaining_kcal / 4 if remaining_kcal > 0 else 30.0)
+    # Use 40g floor if LOW_CARB is active, otherwise 30g
+    carb_floor = 40.0 if carb_ceiling is not None else 30.0
+    computed_carbs = max(carb_floor, remaining_kcal / 4 if remaining_kcal > 0 else carb_floor)
     if carb_ceiling is not None:
         carbs = min(carb_ceiling, computed_carbs)
     else:
         carbs = computed_carbs
 
     return {
-        "protein_g": int(round(protein)),
-        "fat_g": int(round(fat)),
-        "carbs_g": int(round(carbs)),
-        "fiber_g": int(round(fiber)),
+        "protein_g": round(protein),
+        "fat_g": round(fat),
+        "carbs_g": round(carbs),
+        "fiber_g": round(fiber),
     }
 
 

@@ -108,6 +108,7 @@
   },
   "nutrition": {
     "sex": {
+      "label": "Sexo",
       "female": "Femenino",
       "male": "Masculino"
     },
@@ -163,20 +164,6 @@
       "kcalPerDay": "kcal/día",
       "gPerDay": "g/día"
     },
-    "dietFlags": {
-      "label": "Preferencias Dietéticas",
-      "description": "Selecciona tus preferencias o restricciones dietéticas",
-      "VEG": "Vegetariano",
-      "VEGAN": "Vegano",
-      "GF": "Sin Gluten",
-      "DAIRY_FREE": "Sin Lácteos",
-      "LOW_COST": "Económico",
-      "HIGH_PROTEIN": "Alto en Proteína",
-      "LOW_CARB": "Bajo en Carbohidratos",
-      "KETO": "Cetogénico",
-      "PALEO": "Paleo",
-      "MEDITERRANEAN": "Mediterráneo"
-    },
     "loadingPlate": "Calculando tu plato personalizado…",
     "header": {
       "title": "Tu Plato Personal",
@@ -187,7 +174,7 @@
       "bmr": "BMR (kcal)",
       "tdee": "TDEE (kcal)",
       "goal": "Objetivo (kcal)",
-      "method": "Método"
+      "method": "Fórmula"
     },
     "micros": {
       "unavailable": "Los objetivos de micronutrientes no están disponibles",

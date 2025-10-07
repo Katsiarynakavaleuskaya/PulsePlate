@@ -5,14 +5,52 @@ import type { Mock } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
-import type { SetupFormValues } from "../schema";
 import { mockPlateData } from "../mocks";
+import { mockValues } from "./test-utils";
+
+const translations: Record<string, string> = {
+  "nutrition.macros.title": "Макронутриенты и калории",
+  "nutrition.macros.caloriesLabel": "Калории (цель)",
+  "nutrition.macros.carbsLabel": "Углеводы",
+  "nutrition.macros.proteinLabel": "Белки",
+  "nutrition.macros.fatLabel": "Жиры",
+  "nutrition.macros.fiberLabel": "Клетчатка",
+  "nutrition.macros.bmrLabel": "BMR",
+  "nutrition.macros.tdeeLabel": "TDEE",
+  "nutrition.macros.bmrDescription": "базовый метаболизм",
+  "nutrition.macros.tdeeDescription": "общий расход калорий",
+  "nutrition.units.kcalPerDay": "ккал/день",
+  "nutrition.units.gPerDay": "г/день",
+  "nutrition.loadingPlate": "Рассчитываем вашу персональную тарелку...",
+  "nutrition.error.title": "Ошибка расчета",
+  "nutrition.error.description": "Не удалось загрузить данные. Проверьте подключение к интернету.",
+  "nutrition.error.editButton": "Изменить данные",
+  "nutrition.header.title": "Ваша персональная тарелка",
+  "nutrition.header.subtitle": "Расчет основан на ваших параметрах",
+  "nutrition.header.editButton": "Изменить анкету",
+  "nutrition.summary.bmr": "BMR (ккал)",
+  "nutrition.summary.tdee": "TDEE (ккал)",
+  "nutrition.summary.goal": "Цель (ккал)",
+  "nutrition.summary.method": "Метод",
+  "nutrition.micros.title": "Цели по микроэлементам",
+  "nutrition.micros.description": "Рекомендуемые суточные нормы витаминов и минералов для вашего возраста и пола",
+  "nutrition.water.title": "Вода",
+  "nutrition.water.subtitle": "Рекомендуемое суточное потребление воды",
+  "nutrition.water.unit": "л/день",
+  "nutrition.water.tip": "💡 Совет: Пейте воду равномерно в течение дня. Увеличивайте потребление при физической активности или жаркой погоде.",
+  "common.retrying": "Повторная попытка...",
+  "common.tryAgain": "Попробовать снова",
+};
+
+const translate = (key: string) => translations[key] || key;
 
 // Mock react-i18next
-vi.mock("react-i18next", async () => {
-  const { createMockI18n } = await import("./test-utils");
-  return createMockI18n();
-});
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    i18n: { language: "en" },
+    t: translate,
+  }),
+}));
 
 // Mock hooks
 vi.mock("../hooks", () => ({
@@ -28,16 +66,6 @@ const mockUseTargets = setupHooks.useTargets as unknown as Mock;
 const mockResolveSetupLang = setupHooks.resolveSetupLang as unknown as Mock;
 
 describe("ResultView", () => {
-  const mockValues: SetupFormValues = {
-    sex: "female",
-    age: 30,
-    height_cm: 170,
-    weight_kg: 65,
-    activity: "moderate",
-    goal: "maintain",
-    diet_flags: [],
-  };
-
   const mockOnEdit = vi.fn();
 
   beforeEach(() => {

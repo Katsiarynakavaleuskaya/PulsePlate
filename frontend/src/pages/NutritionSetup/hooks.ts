@@ -288,30 +288,16 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
 
   return {
     plate: {
-      carbs_pct:   toPct(macroKcal.carbs),
+      carbs_pct: toPct(macroKcal.carbs),
       protein_pct: toPct(macroKcal.protein),
-      fat_pct:     toPct(macroKcal.fat),
-      kcal:        Math.round(totalKcal),
+      fat_pct: toPct(macroKcal.fat),
+      kcal: Math.round(totalKcal),
     },
     macros: {
-      carbs_g:   carbsG,
+      carbs_g: carbsG,
       protein_g: proteinG,
-      fat_g:     fatG,
-      fiber_g:   fiberG,
-    },
-    water_l: null,
-  };
-};
-      carbs_pct:   toPct(macroKcal.carbs),
-      protein_pct: toPct(macroKcal.protein),
-      fat_pct:     toPct(macroKcal.fat),
-      kcal:        Math.round(totalKcal),
-    },
-    macros: {
-      carbs_g:   carbsG,
-      protein_g: proteinG,
-      fat_g:     fatG,
-      fiber_g:   fiberG,
+      fat_g: fatG,
+      fiber_g: fiberG,
     },
     water_l: null,
   };
@@ -480,6 +466,7 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const latestRequestIdRef = useRef(0);
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const effectiveLang = resolveSetupLang(lang, i18n.language, browserLang);
 
@@ -498,7 +485,14 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
+    // Increment request ID to track this specific request
+    latestRequestIdRef.current += 1;
+    const requestId = latestRequestIdRef.current;
+
     const fetchTargets = async () => {
+      // Only update state if this is still the latest request
+      if (requestId !== latestRequestIdRef.current) return;
+
       setLoading(true);
       setError(null);
 
@@ -524,15 +518,24 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
           { signal: abortController.signal },
         );
 
-        setData(normalizeTargetsResponse(response, effectiveLang));
+        // Only update state if this is still the latest request
+        if (requestId === latestRequestIdRef.current) {
+          setData(normalizeTargetsResponse(response, effectiveLang));
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
-        console.error('Targets fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        // Only update state if this is still the latest request
+        if (requestId === latestRequestIdRef.current) {
+          console.error('Targets fetch error:', err);
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
       } finally {
-        setLoading(false);
+        // Only update state if this is still the latest request
+        if (requestId === latestRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 
