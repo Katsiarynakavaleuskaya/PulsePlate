@@ -247,8 +247,9 @@ export async function api<T = unknown>(
       body instanceof FormData ||
       body instanceof Blob ||
       body instanceof ArrayBuffer ||
+      ArrayBuffer.isView?.(body) === true || // typed arrays & DataView
       // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
-      body instanceof ReadableStream ||
+      (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) ||
       typeof body?.arrayBuffer === "function";
 
     if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
@@ -337,7 +338,7 @@ export type WeekPlanResponse = {
 
 /**
  * Generates a weekly meal plan
- * @param navigate - Optional React Router navigate function for SPA redirects
+ * @param options - Optional API options for auth error handling
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
-export const getWeekPlan = (navigate?: (path: string) => void) => api<WeekPlanResponse>("/plan/week", undefined, navigate);
+export const getWeekPlan = (options?: ApiOptions) => api<WeekPlanResponse>("/plan/week", undefined, options);
