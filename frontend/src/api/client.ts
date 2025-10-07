@@ -253,7 +253,7 @@ export async function api<T = unknown>(
       (typeof Response !== "undefined" && body instanceof Response) ||
       (typeof Request !== "undefined" && body instanceof Request);
 
-    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
+    if (isPlainObjectOrArray) {
       serializedBody = JSON.stringify(body);
       forceJsonForBody = true;
     }
@@ -268,7 +268,7 @@ export async function api<T = unknown>(
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401 || res.status === 403) {
-        const errorCode = res.status as 401 | 403; // already in if (status === 401 || status === 403)
+        const errorCode = res.status; // narrowed by the if (401 || 403)
         // Call onAuthError callback if provided
         if (options?.onAuthError) {
           options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
