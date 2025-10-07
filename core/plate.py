@@ -130,7 +130,9 @@ def _apply_diet_flag_adjustments(
 
     if "MEDITERRANEAN" in diet_flags:
         # Средиземноморское питание: больше полезных жиров и клетчатки
-        desired_fat = max(fat, (kcal * 0.35) / 9)
+        # Жир должен быть минимум в 1.2 раза больше белка (здоровая пропорция)
+        min_fat_for_med = protein * 1.2
+        desired_fat = max(fat, min_fat_for_med, (kcal * 0.35) / 9)
         if desired_fat > fat:
             fat = desired_fat
             changed = True

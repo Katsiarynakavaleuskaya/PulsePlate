@@ -34,7 +34,7 @@
         "female_adult_postmenopausal": 4700
       },
       "source": "IOM Dietary Reference Intakes",
-      "note": "4700 mg is the Adequate Intake (AI) from IOM Dietary Reference Intakes; the RDA for adults 19+ is 3400 mg — AI is used here as the target per source"
+    "note": "Uses Adequate Intake (AI) of 4700 mg from IOM Dietary Reference Intakes. The lower RDA of 3400 mg for adults 19+ is superseded by the AI recommendation."
     },
     {
       "id": "mg",

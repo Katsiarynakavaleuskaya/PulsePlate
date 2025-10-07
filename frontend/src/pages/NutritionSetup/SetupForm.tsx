@@ -139,7 +139,8 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
         <div className="space-y-3">
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text">
-              {t('nutrition.dietFlags.label')} (необязательно)
+              {t('nutrition.dietFlags.label')}
+              <span className="text-xs text-muted"> ({t('nutrition.dietFlags.optional')})</span>
             </label>
             <p className="text-xs text-muted">{t('nutrition.dietFlags.description')}</p>
           </div>

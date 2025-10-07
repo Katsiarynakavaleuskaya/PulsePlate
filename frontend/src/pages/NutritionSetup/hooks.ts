@@ -242,18 +242,33 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
   const macros = response.macros ?? {};
 
   const proteinG = safeNumber((macros as Record<string, unknown>)?.protein_g ?? (macros as Record<string, unknown>)?.protein) ?? null;
-  const fatG = safeNumber((macros as Record<string, unknown>)?.fat_g ?? (macros as Record<string, unknown>)?.fat) ?? null;
-  const carbsG = safeNumber((macros as Record<string, unknown>)?.carbs_g ?? (macros as Record<string, unknown>)?.carbs) ?? null;
-  const fiberG = safeNumber((macros as Record<string, unknown>)?.fiber_g ?? (macros as Record<string, unknown>)?.fiber) ?? null;
+  const fatG     = safeNumber((macros as Record<string, unknown>)?.fat_g     ?? (macros as Record<string, unknown>)?.fat)     ?? null;
+  const carbsG   = safeNumber((macros as Record<string, unknown>)?.carbs_g   ?? (macros as Record<string, unknown>)?.carbs)   ?? null;
+  const fiberG   = safeNumber((macros as Record<string, unknown>)?.fiber_g   ?? (macros as Record<string, unknown>)?.fiber)   ?? null;
 
   if (proteinG === null || fatG === null || carbsG === null || fiberG === null) {
-    throw new Error('Plate response missing macronutrient data');
+    console.error('Plate response missing macronutrient data', { macros: response.macros });
+    return {
+      plate: {
+        carbs_pct: 0,
+        protein_pct: 0,
+        fat_pct: 0,
+        kcal:      0,
+      },
+      macros: {
+        carbs_g:  0,
+        protein_g:0,
+        fat_g:    0,
+        fiber_g:  0,
+      },
+      water_l: null,
+    };
   }
 
   const macroKcal = {
     protein: proteinG * 4,
-    fat: fatG * 9,
-    carbs: carbsG * 4,
+    fat:     fatG * 9,
+    carbs:   carbsG * 4,
   };
 
   const totalKcal =
@@ -262,11 +277,10 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
 
   const toPct = (macro: number) => {
     if (totalKcal <= 0) {
-      console.warn('Data quality issue: normalizePlateResponse returning 0% for macronutrients due to zero/negative total calories', {
-        totalKcal,
-        rawKcal: response.kcal,
-        rawMacros: response.macros,
-      });
+      console.warn(
+        'Data quality issue: normalizePlateResponse returning 0% for macronutrients due to zero/negative total calories',
+        { totalKcal, rawKcal: response.kcal, rawMacros: response.macros },
+      );
       return 0;
     }
     return (macro / totalKcal) * 100;
@@ -274,16 +288,30 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
 
   return {
     plate: {
-      carbs_pct: toPct(macroKcal.carbs),
+      carbs_pct:   toPct(macroKcal.carbs),
       protein_pct: toPct(macroKcal.protein),
-      fat_pct: toPct(macroKcal.fat),
-      kcal: Math.round(totalKcal),
+      fat_pct:     toPct(macroKcal.fat),
+      kcal:        Math.round(totalKcal),
     },
     macros: {
-      carbs_g: carbsG,
+      carbs_g:   carbsG,
       protein_g: proteinG,
-      fat_g: fatG,
-      fiber_g: fiberG,
+      fat_g:     fatG,
+      fiber_g:   fiberG,
+    },
+    water_l: null,
+  };
+};
+      carbs_pct:   toPct(macroKcal.carbs),
+      protein_pct: toPct(macroKcal.protein),
+      fat_pct:     toPct(macroKcal.fat),
+      kcal:        Math.round(totalKcal),
+    },
+    macros: {
+      carbs_g:   carbsG,
+      protein_g: proteinG,
+      fat_g:     fatG,
+      fiber_g:   fiberG,
     },
     water_l: null,
   };

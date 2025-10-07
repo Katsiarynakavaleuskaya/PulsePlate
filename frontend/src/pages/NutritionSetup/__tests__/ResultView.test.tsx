@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi } from "vitest";
+import type { Mock } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
@@ -8,31 +9,10 @@ import type { SetupFormValues } from "../schema";
 import { mockPlateData } from "../mocks";
 
 // Mock react-i18next
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    i18n: { language: 'en' },
-    t: (key: string) => {
-      const translations: Record<string, string> = {
-        "nutrition.macros.title": "Макронутриенты",
-        "nutrition.macros.caloriesLabel": "Калории (цель)",
-        "nutrition.macros.carbsLabel": "Углеводы",
-        "nutrition.macros.proteinLabel": "Белки",
-        "nutrition.macros.fatLabel": "Жиры",
-        "nutrition.macros.fiberLabel": "Клетчатка",
-        "nutrition.macros.bmrLabel": "BMR",
-        "nutrition.macros.tdeeLabel": "TDEE",
-        "nutrition.macros.bmrDescription": "базовый метаболизм",
-        "nutrition.macros.tdeeDescription": "общий расход калорий",
-        "nutrition.units.kcalPerDay": "ккал/день",
-        "nutrition.units.gPerDay": "г/день",
-        "nutrition.loadingPlate": "Рассчитываем вашу персональную тарелку...",
-        "common.retrying": "Повторная попытка...",
-        "common.tryAgain": "Попробовать снова",
-      };
-      return translations[key] || key;
-    },
-  }),
-}));
+vi.mock("react-i18next", async () => {
+  const { createMockI18n } = await import("./test-utils");
+  return createMockI18n();
+});
 
 // Mock hooks
 vi.mock("../hooks", () => ({
@@ -42,9 +22,10 @@ vi.mock("../hooks", () => ({
 }));
 
 // Get references to mocked functions for test manipulation
-const mockUseSetupCalc = vi.mocked(require("../hooks")).useSetupCalc;
-const mockUseTargets = vi.mocked(require("../hooks")).useTargets;
-const mockResolveSetupLang = vi.mocked(require("../hooks")).resolveSetupLang;
+import * as setupHooks from "../hooks";
+const mockUseSetupCalc = setupHooks.useSetupCalc as unknown as Mock;
+const mockUseTargets = setupHooks.useTargets as unknown as Mock;
+const mockResolveSetupLang = setupHooks.resolveSetupLang as unknown as Mock;
 
 describe("ResultView", () => {
   const mockValues: SetupFormValues = {
@@ -107,13 +88,12 @@ describe("ResultView", () => {
   });
 
   it("renders error state", () => {
-    const base = mockUseSetupCalc();
-    mockUseSetupCalc.mockReturnValue({
-      ...base,
-      error: "API Error",
+    mockUseSetupCalc.mockImplementationOnce(() => ({
       bmrData: null,
       plateData: null,
-    });
+      loading: false,
+      error: "API Error",
+    }));
 
     renderResult();
 
@@ -122,12 +102,12 @@ describe("ResultView", () => {
   });
 
   it("renders error state from useTargets", () => {
-    mockUseSetupCalc.mockReturnValue({
-      ...mockUseSetupCalc(),
-      error: null,
+    mockUseSetupCalc.mockImplementationOnce(() => ({
       bmrData: { bmr: 1400, tdee: 1800, method: "Mifflin-St Jeor" },
       plateData: mockPlateData,
-    });
+      loading: false,
+      error: null,
+    }));
 
     mockUseTargets.mockReturnValue({
       error: "Targets API Error",

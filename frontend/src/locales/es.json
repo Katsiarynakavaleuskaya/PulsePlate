@@ -101,12 +101,52 @@
     }
   },
   "nutritionSetup": {
-    "title": "Perfil Nutricional",
-    "description": "Vamos a crear tu plan nutricional personalizado"
+    "title": "Encuesta Nutricional",
+    "description": "Complete sus parámetros para el cálculo del plato personalizado",
+    "calculateButton": "Calcular Plato Personalizado",
+    "saveNote": "Los datos se almacenan localmente y se utilizan para calcular su dieta"
   },
   "nutrition": {
-    "calculatePlate": "Calcular Plato Personal",
-    "dataStoredLocal": "Los datos se almacenan localmente y se usan para calcular tu dieta",
+    "sex": {
+      "female": "Femenino",
+      "male": "Masculino"
+    },
+    "age": "Edad",
+    "height_cm": "Altura (cm)",
+    "weight_kg": "Peso (kg)",
+    "activity": {
+      "label": "Nivel de Actividad",
+      "options": {
+        "sedentary": "Sedentario",
+        "light": "Ligero",
+        "moderate": "Moderado",
+        "active": "Activo",
+        "athlete": "Atleta"
+      }
+    },
+    "goal": {
+      "label": "Objetivo",
+      "options": {
+        "lose": "Perder peso",
+        "maintain": "Mantener peso",
+        "gain": "Ganar peso"
+      }
+    },
+    "dietFlags": {
+      "label": "Preferencias Alimentarias",
+      "description": "Seleccione sus preferencias o restricciones alimentarias",
+      "optional": "Opcional",
+      "VEG": "Vegetariano",
+      "VEGAN": "Vegano",
+      "GF": "Sin gluten",
+      "DAIRY_FREE": "Sin lácteos",
+      "LOW_COST": "Económico",
+      "HIGH_PROTEIN": "Alto en Proteína",
+      "LOW_CARB": "Bajo en Carbohidratos",
+      "KETO": "Cetogénico",
+      "PALEO": "Paleo",
+      "MEDITERRANEAN": "Mediterránea"
+    },
     "macros": {
       "title": "Macronutrientes y Calorías",
       "caloriesLabel": "Calorías (objetivo)",

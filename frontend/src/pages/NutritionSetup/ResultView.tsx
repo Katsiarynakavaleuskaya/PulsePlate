@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSetupCalc, useTargets, resolveSetupLang } from './hooks';
+import * as setupHooks from './hooks';
 import PlateChart from './PlateChart';
 import MacroCards from './MacroCards';
 import WaterCard from './WaterCard';
@@ -21,14 +21,14 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
   const [isRetrying, setIsRetrying] = useState(false);
 
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
-  const currentLang = resolveSetupLang(undefined, i18n.language, browserLang);
+  const currentLang = setupHooks.resolveSetupLang(undefined, i18n.language, browserLang);
 
-  const { bmrData, plateData, loading, error } = useSetupCalc(values, currentLang, retryKey);
+  const { bmrData, plateData, loading, error } = setupHooks.useSetupCalc(values, currentLang, retryKey);
   const {
     data: targetsData,
     loading: targetsLoading,
     error: targetsError,
-  } = useTargets(values, currentLang, retryKey);
+  } = setupHooks.useTargets(values, currentLang, retryKey);
 
   const handleRetry = () => {
     setIsRetrying(true);

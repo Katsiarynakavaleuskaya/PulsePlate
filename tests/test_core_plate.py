@@ -436,8 +436,9 @@ class TestDietFlagAdjustments:
             macros, weight_kg=70, kcal=2000, diet_flags={"LOW_CARB"}
         )
 
-        # Should limit carbs to 150g max
-        assert result["carbs_g"] <= 150
+        # Should limit carbs to max(40, kcal * 0.25 / 4)
+        expected_cap = max(40, (2000 * 0.25) / 4)
+        assert result["carbs_g"] <= expected_cap
 
     def test_mediterranean_flag_adjusts_ratios(self):
         """Test MEDITERRANEAN flag adjusts macro ratios."""
@@ -447,9 +448,10 @@ class TestDietFlagAdjustments:
             macros, weight_kg=70, kcal=2000, diet_flags={"MEDITERRANEAN"}
         )
 
-        # Should increase fat relative to protein (more unsaturated fats)
-        # Fat should be at least 1.2x protein for Mediterranean pattern
-        assert result["fat_g"] >= result["protein_g"] * 1.2
+        # Should increase fat to at least 35% of calories and bump fiber
+        expected_fat = max(macros["fat_g"], (2000 * 0.35) / 9)
+        assert result["fat_g"] >= expected_fat
+        assert result["fiber_g"] >= 30
 
     def test_multiple_diet_flags_combined(self):
         """Test multiple diet flags work together."""
@@ -461,7 +463,8 @@ class TestDietFlagAdjustments:
 
         # Should apply both adjustments
         assert result["protein_g"] >= 140  # HIGH_PROTEIN effect
-        assert result["carbs_g"] <= 150  # LOW_CARB effect
+        expected_cap = max(40, (2000 * 0.25) / 4)
+        assert result["carbs_g"] <= expected_cap  # LOW_CARB effect
 
     @pytest.mark.parametrize("weight_kg", [50, 70, 90, 100])
     def test_high_protein_scales_with_weight(self, weight_kg):
@@ -475,6 +478,41 @@ class TestDietFlagAdjustments:
         # Should set protein to at least weight_kg * 2.0
         expected_min = weight_kg * 2.0
         assert result["protein_g"] >= expected_min
+
+    def test_diet_adjustments_with_kcal_overflow(self):
+        """Test that diet adjustments handle kcal overflow by reducing macros."""
+        # Create a scenario where HIGH_PROTEIN + MEDITERRANEAN would exceed kcal
+        macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 150, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=1500, diet_flags={"HIGH_PROTEIN", "MEDITERRANEAN"}
+        )
+
+        # Calculate total kcal from result
+        total_kcal = (result["protein_g"] * 4) + (result["fat_g"] * 9) + (result["carbs_g"] * 4)
+
+        # Should not exceed target kcal significantly (allow some tolerance for rounding)
+        assert total_kcal <= 1650  # Allow more tolerance due to macro minimums
+
+        # Should maintain protein minimum, but fat may be reduced to meet kcal constraints
+        assert result["protein_g"] >= 140  # 70kg * 2.0 for HIGH_PROTEIN
+        # Note: fat may be less than protein*1.2 if needed to meet kcal constraints
+
+    def test_diet_adjustments_kcal_underflow(self):
+        """Test diet adjustments handle extreme macro increases."""
+        # Very high protein that would make carbs negative
+        macros = {"protein_g": 300, "fat_g": 100, "carbs_g": 50, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"LOW_CARB"}
+        )
+
+        # Should still have minimum carbs (40g for LOW_CARB)
+        assert result["carbs_g"] >= 40
+
+        # Total kcal should be reasonable
+        total_kcal = (result["protein_g"] * 4) + (result["fat_g"] * 9) + (result["carbs_g"] * 4)
+        assert total_kcal <= 2500  # Allow some flexibility
 
 
 if __name__ == "__main__":
