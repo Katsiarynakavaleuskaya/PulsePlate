@@ -233,13 +233,12 @@ export async function api<T = unknown>(
     let forceJsonForBody = forceJson;
 
     // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
-    const body = init?.body as any;
+    const body = init?.body as unknown;
     const isPlainObjectOrArray =
       body &&
       typeof body === "object" &&
       (
         Array.isArray(body) ||
-        body?.constructor === Object ||
         Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
       );
 
@@ -248,9 +247,11 @@ export async function api<T = unknown>(
       body instanceof Blob ||
       body instanceof ArrayBuffer ||
       ArrayBuffer.isView?.(body) === true || // typed arrays & DataView
-      // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
+      (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) ||
       (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) ||
-      typeof body?.arrayBuffer === "function";
+      (typeof File !== "undefined" && body instanceof File) ||
+      (typeof Response !== "undefined" && body instanceof Response) ||
+      (typeof Request !== "undefined" && body instanceof Request);
 
     if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
       serializedBody = JSON.stringify(body);
@@ -267,7 +268,7 @@ export async function api<T = unknown>(
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401 || res.status === 403) {
-        const errorCode = (res.status === 401 ? 401 : 403) as 401 | 403;
+        const errorCode = res.status as 401 | 403; // already in if (status === 401 || status === 403)
         // Call onAuthError callback if provided
         if (options?.onAuthError) {
           options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
