@@ -68,8 +68,5 @@ describe("NotFound", () => {
     // without more complex setup, so we'll just verify the button exists and is clickable
     expect(goHomeButton).toBeInTheDocument();
     expect(goHomeButton).not.toBeDisabled();
-
-    // Restore the spy after the test (Vitest auto-restore should handle this, but being explicit)
-    mockBack.mockRestore();
   });
 });

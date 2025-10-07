@@ -2,14 +2,19 @@
 // EN: Hooks interacting with live Nutrition Setup APIs
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getBmr, getPlate, getTargets } from '../../api/premium';
 import type {
   SetupFormValues,
-  EnrichedBmrResponse,
+  NormalizedBmrData,
   PlateResponse,
   TargetsResponse,
 } from './schema';
-import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse } from '../../api/premium';
+import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
+
+const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
+
+type SetupSupportedLang = SupportedPremiumLang;
 
 const ACTIVITY_MAP: Record<SetupFormValues['activity'], 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'> = {
   sedentary: 'sedentary',
@@ -40,7 +45,50 @@ const DEFAULT_ACTIVITY_MULTIPLIERS: Record<keyof typeof ACTIVITY_MAP, number> = 
   athlete: 1.9,
 };
 
-const SUPPORTED_DIET_FLAGS = new Set(['VEG', 'GF', 'DAIRY_FREE', 'LOW_COST']);
+/**
+ * Diet flags supported by the premium nutrition API (mirrors backend DietFlag).
+ */
+const SUPPORTED_DIET_FLAGS = new Set([
+  'VEG', 'GF', 'DAIRY_FREE', 'LOW_COST',
+  'HIGH_PROTEIN', 'LOW_CARB', 'MEDITERRANEAN',
+  'VEGAN', 'KETO', 'PALEO',
+]);
+
+const FALLBACK_LANG: SetupSupportedLang = 'en';
+
+const normalizeLang = (value?: string): SetupSupportedLang | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const root = value.toLowerCase().slice(0, 2);
+  if (root === 'ru') return 'ru';
+  if (root === 'es') return 'es';
+  if (root === 'en') return 'en';
+  return undefined;
+};
+
+export const resolveSetupLang = (
+  explicit?: SetupSupportedLang,
+  i18nLang?: string,
+  browserLang?: string,
+): SetupSupportedLang => {
+  if (explicit && SUPPORTED_LANGS.includes(explicit)) {
+    return explicit;
+  }
+
+  const normalizedFromI18n = normalizeLang(i18nLang);
+  if (normalizedFromI18n) {
+    return normalizedFromI18n;
+  }
+
+  const normalizedFromBrowser = normalizeLang(browserLang);
+  if (normalizedFromBrowser) {
+    return normalizedFromBrowser;
+  }
+
+  return FALLBACK_LANG;
+};
 
 const MICRO_CONFIG: Record<
   string,
@@ -116,8 +164,8 @@ const mapGoalToApi = (goal: SetupFormValues['goal']) => {
 };
 
 const filterDietFlags = (flags: SetupFormValues['diet_flags']) => {
-  const filtered = flags.filter(flag => SUPPORTED_DIET_FLAGS.has(flag));
-  return filtered.length ? filtered : null;
+  const supported = flags.filter(flag => SUPPORTED_DIET_FLAGS.has(flag));
+  return supported.length ? supported : null;
 };
 
 const determineLifeStage = (age: number): 'child' | 'teen' | 'adult' | 'elderly' => {
@@ -127,27 +175,49 @@ const determineLifeStage = (age: number): 'child' | 'teen' | 'adult' | 'elderly'
   return 'adult';
 };
 
+const collectNumericValues = (source: unknown): number[] => {
+  if (typeof source === 'number') {
+    const value = safeNumber(source);
+    return value === null ? [] : [value];
+  }
+  if (source && typeof source === 'object') {
+    const values: number[] = [];
+    for (const entry of Object.values(source as Record<string, unknown>)) {
+      const numeric = safeNumber(entry);
+      if (numeric !== null) {
+        values.push(numeric);
+      }
+    }
+    return values;
+  }
+  return [];
+};
+
 const normalizeBmrResponse = (
   response: BmrApiResponse,
   uiActivity: SetupFormValues['activity'],
-  apiActivity: ReturnType<typeof mapActivityToApi>,
-): EnrichedBmrResponse => {
-  const mifflin = safeNumber(response.bmr?.mifflin);
-  const firstBmr = Object.values(response.bmr ?? {}).find(value => safeNumber(value) !== null);
-  const bmr = Math.round(mifflin ?? (safeNumber(firstBmr) ?? 0));
+): NormalizedBmrData => {
+  const apiActivity = mapActivityToApi(uiActivity);
+
+  const bmrValues = collectNumericValues(response.bmr as unknown);
+  const mifflin = safeNumber((response.bmr as Record<string, unknown> | undefined)?.mifflin);
+  const rawBmr = mifflin ?? bmrValues[0] ?? null;
+  const bmr = Math.round(rawBmr ?? 0);
+
+  const tdeeValues = collectNumericValues(response.tdee as unknown);
+  const activitySpecificTdee = safeNumber((response.tdee as Record<string, unknown> | undefined)?.[apiActivity]);
+  const rawTdee = activitySpecificTdee ?? tdeeValues[0] ?? null;
+  const fallbackMultiplier = DEFAULT_ACTIVITY_MULTIPLIERS[uiActivity] ?? DEFAULT_ACTIVITY_MULTIPLIERS.moderate;
+  const tdee = Math.round(rawTdee ?? bmr * fallbackMultiplier);
 
   const method =
-    response.formulas_used?.[0] ??
-    (mifflin !== null ? 'Mifflin-St Jeor' : 'BMR');
-
-  const tdeeFromApi = safeNumber(response.tdee?.[apiActivity]);
-  const fallbackMultiplier = DEFAULT_ACTIVITY_MULTIPLIERS[uiActivity] ?? DEFAULT_ACTIVITY_MULTIPLIERS.moderate;
-  const tdee =
-    Math.round(
-      tdeeFromApi ??
-        (safeNumber(Object.values(response.tdee ?? {})[0]) ??
-          bmr * fallbackMultiplier),
-    ) || Math.round(bmr * fallbackMultiplier);
+    (Array.isArray((response as any).formulas_used) && (response as any).formulas_used.length > 0
+      ? (response as any).formulas_used[0]
+      : typeof (response as any).method === 'string'
+        ? (response as any).method
+        : rawBmr !== null
+          ? (mifflin !== null ? 'Mifflin-St Jeor' : 'BMR')
+          : 'BMR');
 
   return {
     bmr,
@@ -157,12 +227,14 @@ const normalizeBmrResponse = (
 };
 
 const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
-  const proteinG = safeNumber(response.macros?.protein_g) ?? safeNumber(response.macros?.protein) ?? null;
-  const fatG = safeNumber(response.macros?.fat_g) ?? safeNumber(response.macros?.fat) ?? null;
-  const carbsG = safeNumber(response.macros?.carbs_g) ?? safeNumber(response.macros?.carbs) ?? null;
-  const fiberG = safeNumber(response.macros?.fiber_g) ?? 0;
+  const macros = response.macros ?? {};
 
-  if (proteinG === null || fatG === null || carbsG === null) {
+  const proteinG = safeNumber((macros as Record<string, unknown>)?.protein_g ?? (macros as Record<string, unknown>)?.protein) ?? null;
+  const fatG = safeNumber((macros as Record<string, unknown>)?.fat_g ?? (macros as Record<string, unknown>)?.fat) ?? null;
+  const carbsG = safeNumber((macros as Record<string, unknown>)?.carbs_g ?? (macros as Record<string, unknown>)?.carbs) ?? null;
+  const fiberG = safeNumber((macros as Record<string, unknown>)?.fiber_g ?? (macros as Record<string, unknown>)?.fiber) ?? null;
+
+  if (proteinG === null || fatG === null || carbsG === null || fiberG === null) {
     throw new Error('Plate response missing macronutrient data');
   }
 
@@ -177,7 +249,14 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
     (macroKcal.protein + macroKcal.fat + macroKcal.carbs);
 
   const toPct = (macro: number) => {
-    if (totalKcal <= 0) return 0;
+    if (totalKcal <= 0) {
+      console.warn('Data quality issue: normalizePlateResponse returning 0% for macronutrients due to zero/negative total calories', {
+        totalKcal,
+        rawKcal: response.kcal,
+        rawMacros: response.macros,
+      });
+      return 0;
+    }
     return (macro / totalKcal) * 100;
   };
 
@@ -192,7 +271,7 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
       carbs_g: carbsG,
       protein_g: proteinG,
       fat_g: fatG,
-      fiber_g: fiberG ?? 0,
+      fiber_g: fiberG,
     },
     water_l: null,
   };
@@ -248,12 +327,17 @@ const normalizeTargetsResponse = (
   };
 };
 
-export function useSetupCalc(values: SetupFormValues | null) {
-  const [bmrData, setBmrData] = useState<EnrichedBmrResponse | null>(null);
+export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupportedLang, retryKey?: number) {
+  const { i18n } = useTranslation();
+  const [bmrData, setBmrData] = useState<NormalizedBmrData | null>(null);
   const [plateData, setPlateData] = useState<PlateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Use provided lang or fallback to i18n.language or navigator.language
+  const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const currentLang = resolveSetupLang(lang, i18n.language, browserLang);
 
   const enabled = !!values;
 
@@ -291,7 +375,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
             height_cm: values.height_cm,
             weight_kg: values.weight_kg,
             activity: apiActivity,
-            lang: 'ru',
+            lang: currentLang,
           },
           { signal: abortController.signal },
         );
@@ -321,7 +405,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
           throw new Error('Plate API returned empty response');
         }
 
-        setBmrData(normalizeBmrResponse(bmrResult, values.activity, apiActivity));
+        setBmrData(normalizeBmrResponse(bmrResult, values.activity));
         setPlateData(normalizePlateResponse(plateResult));
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
@@ -339,7 +423,7 @@ export function useSetupCalc(values: SetupFormValues | null) {
     return () => {
       abortController.abort();
     };
-  }, [enabled, values]);
+  }, [enabled, values, currentLang, retryKey]);
 
   return {
     bmrData,
@@ -350,11 +434,14 @@ export function useSetupCalc(values: SetupFormValues | null) {
   };
 }
 
-export function useTargets(values: SetupFormValues | null, lang: 'ru' | 'en' | 'es' = 'ru') {
+export function useTargets(values: SetupFormValues | null, lang?: SetupSupportedLang, retryKey?: number) {
+  const { i18n } = useTranslation();
   const [data, setData] = useState<TargetsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const effectiveLang = resolveSetupLang(lang, i18n.language, browserLang);
 
   useEffect(() => {
     if (!values) {
@@ -392,12 +479,12 @@ export function useTargets(values: SetupFormValues | null, lang: 'ru' | 'en' | '
             surplus_pct: goalPayload.surplus_pct ?? null,
             diet_flags: dietFlags,
             life_stage: determineLifeStage(values.age),
-            lang,
+            lang: effectiveLang,
           },
           { signal: abortController.signal },
         );
 
-        setData(normalizeTargetsResponse(response, lang));
+        setData(normalizeTargetsResponse(response, effectiveLang));
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
@@ -414,7 +501,7 @@ export function useTargets(values: SetupFormValues | null, lang: 'ru' | 'en' | '
     return () => {
       abortController.abort();
     };
-  }, [values, lang]);
+  }, [values, effectiveLang, retryKey]);
 
   return {
     data,

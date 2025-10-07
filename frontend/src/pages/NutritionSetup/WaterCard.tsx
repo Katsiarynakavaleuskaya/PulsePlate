@@ -7,7 +7,7 @@ interface WaterCardProps {
 
 export default function WaterCard({ liters }: WaterCardProps) {
   // Handle edge cases for water intake value
-  const displayLiters = typeof liters === 'number' && liters > 0 && !isNaN(liters)
+  const displayLiters = Number.isFinite(liters) && liters > 0
     ? liters.toFixed(1)
     : '2.0'; // fallback value
 

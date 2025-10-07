@@ -1,7 +1,9 @@
 // RU: Компонент отображения результатов расчета - тарелка + макро/микро/вода
 // EN: Results display component - plate + macro/micro/water
 
-import { useSetupCalc, useTargets } from './hooks';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSetupCalc, useTargets, resolveSetupLang } from './hooks';
 import PlateChart from './PlateChart';
 import MacroCards from './MacroCards';
 import WaterCard from './WaterCard';
@@ -14,19 +16,40 @@ interface ResultViewProps {
 }
 
 export default function ResultView({ values, onEdit }: ResultViewProps) {
-  const { bmrData, plateData, loading, error } = useSetupCalc(values);
+  const { i18n } = useTranslation();
+  const [retryKey, setRetryKey] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const currentLang = resolveSetupLang(undefined, i18n.language, browserLang);
+
+  const { bmrData, plateData, loading, error } = useSetupCalc(values, currentLang, retryKey);
   const {
     data: targetsData,
     loading: targetsLoading,
     error: targetsError,
-  } = useTargets(values, 'ru');
+  } = useTargets(values, currentLang, retryKey);
 
-  if (loading || targetsLoading) {
+  const handleRetry = () => {
+    setIsRetrying(true);
+    setRetryKey(prev => prev + 1);
+  };
+
+  // Reset retry state when loading completes
+  useEffect(() => {
+    if (!loading && !targetsLoading && isRetrying) {
+      setIsRetrying(false);
+    }
+  }, [loading, targetsLoading, isRetrying]);
+
+  if (loading || targetsLoading || isRetrying) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted">Рассчитываем вашу персональную тарелку...</p>
+          <p className="text-muted">
+            {isRetrying ? 'Повторный расчет...' : 'Рассчитываем вашу персональную тарелку...'}
+          </p>
         </div>
       </div>
     );
@@ -46,10 +69,11 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
         </p>
         <div className="flex gap-4 justify-center">
           <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-primary text-navy rounded-xl font-medium hover:bg-primary/90 transition-colors"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="px-6 py-3 bg-primary text-navy rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Попробовать снова
+            {isRetrying ? 'Повторная попытка...' : 'Попробовать снова'}
           </button>
           <button
             onClick={onEdit}
@@ -62,7 +86,10 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
     );
   }
 
-  const waterLiters = targetsData?.water_l ?? plateData.water_l ?? 0;
+  const fallbackWaterLiters = Number.isFinite(values.weight_kg)
+    ? Math.max(1.5, Number((values.weight_kg * 0.03).toFixed(1)))
+    : 2;
+  const waterLiters = targetsData?.water_l ?? plateData.water_l ?? fallbackWaterLiters;
 
   return (
     <div className="space-y-6">

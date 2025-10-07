@@ -7,13 +7,39 @@ import ResultView from "../ResultView";
 import type { SetupFormValues } from "../schema";
 import { mockPlateData } from "../mocks";
 
+// Mock react-i18next
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    i18n: { language: 'en' },
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        "nutrition.macros.title": "Макронутриенты",
+        "nutrition.macros.caloriesLabel": "Калории (цель)",
+        "nutrition.macros.carbsLabel": "Углеводы",
+        "nutrition.macros.proteinLabel": "Белки",
+        "nutrition.macros.fatLabel": "Жиры",
+        "nutrition.macros.fiberLabel": "Клетчатка",
+        "nutrition.macros.bmrLabel": "BMR",
+        "nutrition.macros.tdeeLabel": "TDEE",
+        "nutrition.macros.bmrDescription": "базовый метаболизм",
+        "nutrition.macros.tdeeDescription": "общий расход калорий",
+        "nutrition.units.kcalPerDay": "ккал/день",
+        "nutrition.units.gPerDay": "г/день",
+      };
+      return translations[key] || key;
+    },
+  }),
+}));
+
 // Mock hooks
 const mockUseSetupCalc = vi.fn();
 const mockUseTargets = vi.fn();
+const mockResolveSetupLang = vi.fn(() => 'ru');
 
 vi.mock("../hooks", () => ({
   useSetupCalc: (...args: any[]) => mockUseSetupCalc(...args),
   useTargets: (...args: any[]) => mockUseTargets(...args),
+  resolveSetupLang: (...args: any[]) => mockResolveSetupLang(...args),
 }));
 
 describe("ResultView", () => {
@@ -31,6 +57,7 @@ describe("ResultView", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockResolveSetupLang.mockReturnValue('en');
 
     // Default mock implementations
     mockUseSetupCalc.mockReturnValue({
@@ -298,5 +325,33 @@ describe("ResultView", () => {
     fireEvent.click(editButton);
 
     expect(mockOnEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles retry functionality correctly", () => {
+    // Start with error state
+    const base = mockUseSetupCalc();
+    mockUseSetupCalc.mockReturnValue({
+      ...base,
+      error: "Network Error",
+      bmrData: null,
+      plateData: null,
+    });
+
+    renderResult();
+
+    // Check that retry button is present
+    const retryButton = screen.getByText("Попробовать снова");
+    expect(retryButton).toBeInTheDocument();
+    expect(retryButton).not.toBeDisabled();
+
+    // Click retry - should trigger hooks with new retryKey
+    fireEvent.click(retryButton);
+
+    // After retry, hooks should be called with retryKey = 1
+    expect(mockUseSetupCalc).toHaveBeenLastCalledWith(mockValues, "en", 1);
+    expect(mockUseTargets).toHaveBeenLastCalledWith(mockValues, "en", 1);
+
+    // Verify the button is still there (component handles retry state internally)
+    expect(screen.getByText("Попробовать снова")).toBeInTheDocument();
   });
 });

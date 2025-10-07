@@ -1188,7 +1188,18 @@ if "repair_week_plan" not in globals():
 Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
-DietFlag = Literal["VEG", "GF", "DAIRY_FREE", "LOW_COST"]
+DietFlag = Literal[
+    "VEG",
+    "GF",
+    "DAIRY_FREE",
+    "LOW_COST",
+    "HIGH_PROTEIN",
+    "LOW_CARB",
+    "MEDITERRANEAN",
+    "VEGAN",
+    "KETO",
+    "PALEO",
+]
 
 
 class PlateRequest(BaseModel):
