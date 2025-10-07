@@ -1,4 +1,19 @@
 {
-  "bmr": 1470,
-  "method": "Mifflin-St Jeor"
+  "bmr": {
+    "mifflin": 1470,
+    "harris": 1490
+  },
+  "tdee": {
+    "mifflin": 2278,
+    "harris": 2309
+  },
+  "activity_level": "moderate",
+  "recommended_intake": {
+    "calories": 1950,
+    "protein_g": 95,
+    "carbs_g": 245,
+    "fat_g": 65
+  },
+  "formulas_used": ["Mifflin-St Jeor", "Harris-Benedict"],
+  "notes": ["Mock BMR response using modern premium schema"]
 }

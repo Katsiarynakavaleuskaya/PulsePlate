@@ -24,7 +24,7 @@ SERVE = {
 }
 
 
-def _target_kcal(
+def target_kcal(
     tdee_val: float,
     goal: Goal,
     deficit_pct: Optional[float],
@@ -43,9 +43,9 @@ def _target_kcal(
     return int(round(tdee_val * (1 + pct)))
 
 
-def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
-    """RU: Макросы из простых правил: белок 1.6–2.0 г/кг, жир 0.8–1.0 г/кг, углеводы — остаток.
-    EN: Macros via rules: protein 1.6–2.0 g/kg, fat 0.8–1.0 g/kg, carbs = rest.
+def macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
+    """RU: Макросы из простых правил: белок 1.6-2.0 g/kg, жир 0.8-1.0 g/kg, углеводы — остаток.
+    EN: Macros via rules: protein 1.6-2.0 g/kg, fat 0.8-1.0 g/kg, carbs = rest.
     """
     # Чуть варьируем по цели
     # Align with tests: loss emphasizes protein (≥1.8 g/kg) and lower fat (0.8 g/kg),
@@ -66,19 +66,23 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     remaining_kcal = kcal - kcal_pro - kcal_fat
 
     if remaining_kcal < 0:
-        # Если белок + жир превышают калории, уменьшаем белок и жир
+        # Если белок + жир превышают калории, уменьшаем белок и жир с полами в g/kg
         excess_kcal = -remaining_kcal
-        protein_reduction = min(excess_kcal / 4, protein_g - 1.0)  # Не меньше 1г/кг
-        protein_g -= protein_reduction
-        kcal_pro = protein_g * 4
-        remaining_kcal = kcal - kcal_pro - kcal_fat
+        protein_floor = 1.0 * weight_kg
+        reduc_pro = min(excess_kcal / 4, max(0.0, protein_g - protein_floor))
+        if reduc_pro > 0:
+            protein_g -= reduc_pro
+            kcal_pro = protein_g * 4
+            remaining_kcal = kcal - kcal_pro - kcal_fat
 
         if remaining_kcal < 0:
             # Если всё ещё отрицательно, уменьшаем жир
-            fat_reduction = min(-remaining_kcal / 9, fat_g - 0.5)  # Не меньше 0.5г/кг
-            fat_g -= fat_reduction
-            kcal_fat = fat_g * 9
-            remaining_kcal = kcal - kcal_pro - kcal_fat
+            fat_floor = 0.5 * weight_kg
+            reduc_fat = min((-remaining_kcal) / 9, max(0.0, fat_g - fat_floor))
+            if reduc_fat > 0:
+                fat_g -= reduc_fat
+                kcal_fat = fat_g * 9
+                remaining_kcal = kcal - kcal_pro - kcal_fat
 
     carbs_g = max(1, round(remaining_kcal / 4))
     # Клетчатка целимся 25–35 г/сут (зависит от калорийности, дадим минимум 25)
@@ -92,7 +96,99 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     }
 
 
-def _portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def apply_diet_flag_adjustments(
+    macros: Dict[str, int],
+    *,
+    weight_kg: float,
+    kcal: int,
+    diet_flags: Optional[Set[str]],
+) -> Dict[str, int]:
+    """
+    RU: Адаптирует макросы под флаги питания (HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN).
+    EN: Adjust macros for dietary flags (HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN).
+    """
+    if not diet_flags:
+        return macros
+
+    protein = float(macros["protein_g"])
+    fat = float(macros["fat_g"])
+    carbs = float(macros["carbs_g"])
+    fiber = float(macros["fiber_g"])
+    changed = False
+
+    if "HIGH_PROTEIN" in diet_flags:
+        target_protein = max(protein, weight_kg * 2.0)
+        if target_protein > protein:
+            protein = target_protein
+            changed = True
+
+    carb_ceiling: Optional[float] = None
+
+    if "LOW_CARB" in diet_flags:
+        # Стремимся к 25% калорий из углеводов, но не ниже 40 г
+        low_carb_cap = max(40.0, (kcal * 0.25) / 4)
+        if carbs > low_carb_cap:
+            carbs = low_carb_cap
+            changed = True
+        carb_ceiling = low_carb_cap
+
+    if "MEDITERRANEAN" in diet_flags:
+        # Средиземноморское питание: больше полезных жиров и клетчатки
+        # Жир должен быть минимум в 1.2 раза больше белка (здоровая пропорция)
+        desired_fat = max(fat, protein * 1.2, (kcal * 0.35) / 9)
+        if desired_fat > fat:
+            fat = desired_fat
+            changed = True
+        fiber = max(fiber, 30.0)
+
+    if not changed:
+        return macros
+
+    # Перерасчитываем углеводы, чтобы не выходить за предел калорий
+    protein_kcal = protein * 4
+    fat_kcal = fat * 9
+    remaining_kcal = kcal - protein_kcal - fat_kcal
+
+    if remaining_kcal < 0:
+        # Сначала уменьшаем жир, но не ниже 0.7 g/kg (здоровый минимум)
+        min_fat = 0.7 * weight_kg
+        if "MEDITERRANEAN" in diet_flags:
+            min_fat = max(min_fat, protein * 1.2)
+        if fat > min_fat:
+            reduc = min((-remaining_kcal) / 9, fat - min_fat)
+            if reduc > 0:
+                fat -= reduc
+                fat_kcal = fat * 9
+                remaining_kcal = kcal - protein_kcal - fat_kcal
+        if remaining_kcal < 0:
+            # Затем при необходимости слегка уменьшаем белок, но не ниже 1.6 g/kg
+            min_protein = 1.6 * weight_kg
+            if "HIGH_PROTEIN" in diet_flags:
+                min_protein = max(min_protein, 2.0 * weight_kg)
+            if protein > min_protein:
+                reduc = min((-remaining_kcal) / 4, protein - min_protein)
+                if reduc > 0:
+                    protein -= reduc
+                    protein_kcal = protein * 4
+                    remaining_kcal = kcal - protein_kcal - fat_kcal
+
+    # Use 40g floor if LOW_CARB is active, otherwise 30g
+    carb_floor = 40.0 if carb_ceiling is not None else 30.0
+    computed_carbs = max(carb_floor, remaining_kcal / 4 if remaining_kcal > 0 else carb_floor)
+    if carb_ceiling is not None:
+        carbs = min(carb_ceiling, computed_carbs)
+    else:
+        carbs = computed_carbs
+
+    return {
+        "protein_g": round(protein),
+        "fat_g": round(fat),
+        "carbs_g": round(carbs),
+        "fiber_g": round(fiber),
+    }
+
+
+def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
     """
@@ -180,9 +276,28 @@ def make_plate(
     """RU: Главная функция: целевые калории → макросы → порции → визуалка.
     EN: Main: target kcal → macros → portions → visual.
     """
-    target = _target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
-    macros = _macros_by_rules(weight_kg, target, goal)
-    portions = _portions_from_macros(macros, meals_per_day=3)
+    target = target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
+    normalized_flags: Optional[Set[str]] = None
+    if diet_flags:
+        normalized_flags = set(diet_flags)
+        # Resolve incompatible combinations for predictable UX
+        if {"KETO", "VEGAN"}.issubset(normalized_flags):
+            # Prefer vegan-friendly low-carb/high-protein without keto labeling
+            normalized_flags.discard("KETO")
+        if "VEGAN" in normalized_flags:
+            normalized_flags.add("VEG")
+        if "KETO" in normalized_flags:
+            normalized_flags.update({"LOW_CARB", "HIGH_PROTEIN"})
+        if "PALEO" in normalized_flags:
+            normalized_flags.add("HIGH_PROTEIN")
+    macros = macros_by_rules(weight_kg, target, goal)
+    macros = apply_diet_flag_adjustments(
+        macros,
+        weight_kg=weight_kg,
+        kcal=target,
+        diet_flags=normalized_flags,
+    )
+    portions = portions_from_macros(macros, meals_per_day=3)
     layout = _visual_layout(macros)
 
     # Пример простых блюд под флаги; фронт может показывать карточки
@@ -211,22 +326,57 @@ def make_plate(
     ]
 
     # Упрощённые замены под флаги
-    if diet_flags:
-        if "VEG" in diet_flags:
+    if normalized_flags:
+        if "VEG" in normalized_flags:
             for m in meals:
                 title = str(m.get("title", ""))
                 m["title"] = title.replace("курица/тофу", "тофу").replace("рыба/нут", "нут")
-        if "GF" in diet_flags:
+        if "VEGAN" in normalized_flags:
+            for m in meals:
+                title = str(m.get("title", ""))
+                m["title"] = title.replace("тофу", "тофу/нут").replace("йогурт", "соевый йогурт")
+        if "GF" in normalized_flags:
             for m in meals:
                 title = str(m.get("title", ""))
                 m["title"] = title.replace("Овсянка", "Гречка").replace("Рис", "Гречка")
-        if "DAIRY_FREE" in diet_flags:
+        if "DAIRY_FREE" in normalized_flags:
             # просто не добавляем молочку в названиях/рецептах
             pass
-        if "LOW_COST" in diet_flags:
+        if "LOW_COST" in normalized_flags:
             for m in meals:
                 title = str(m.get("title", ""))
                 m["title"] = title + " (бюджет)"
+        if "HIGH_PROTEIN" in normalized_flags:
+            for m in meals:
+                m["title"] = f"{m.get('title', '')} (высокобелковое)"
+        if "LOW_CARB" in normalized_flags:
+            replacements = {
+                "Овсянка + орехи + ягоды": "Омлет + овощи + авокадо",
+                "Гречка + курица/тофу + салат": "Цветная капуста + курица/тофу + салат",
+                "Рис + рыба/нут + овощи": "Киноа + рыба/нут + овощи",
+            }
+            for m in meals:
+                current = str(m.get("title", ""))
+                m["title"] = replacements.get(current, current + " (низкоуглеводное)")
+        if "MEDITERRANEAN" in normalized_flags:
+            mediterranean_upgrades = [
+                "с оливковым маслом",
+                "с орехами и зеленью",
+                "с хумусом и цельнозерновыми",
+            ]
+            for idx, m in enumerate(meals):
+                base = str(m.get("title", ""))
+                suffix = mediterranean_upgrades[idx % len(mediterranean_upgrades)]
+                m["title"] = f"{base} ({suffix})"
+        if "KETO" in normalized_flags:
+            for m in meals:
+                title = str(m.get("title", ""))
+                if "Омлет" not in title and "яйца" not in title.lower():
+                    m["title"] = title + " (кето-версия)"
+        if "PALEO" in normalized_flags:
+            for m in meals:
+                title = str(m.get("title", ""))
+                m["title"] = title.replace("Гречка", "батат").replace("Овсянка", "чиа пудинг")
 
     return {
         "kcal": int(target),

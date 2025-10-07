@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import SetupForm from './SetupForm';
 import ResultView from './ResultView';
 import type { SetupFormValues } from './schema';
+import { isValidSetupFormValues } from './schema';
 import { useSettings } from '../../lib/settings';
 
 export default function NutritionSetupPage() {
@@ -13,9 +14,10 @@ export default function NutritionSetupPage() {
 
   // Initialize values from saved settings on mount
   useEffect(() => {
-    const saved = settings.setup as SetupFormValues | undefined;
-    if (saved) {
-      setValues(saved);
+    if (isValidSetupFormValues(settings.setup)) {
+      setValues(settings.setup);
+    } else {
+      setValues(null);
     }
   }, [settings.setup]);
 

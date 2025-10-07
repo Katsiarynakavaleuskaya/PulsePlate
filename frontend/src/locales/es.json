@@ -1,7 +1,9 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "retrying": "Reintentando…",
+    "tryAgain": "Inténtalo de nuevo"
   },
   "auth": {
     "apiKey": {
@@ -96,6 +98,99 @@
         "micro_balance": "Equilibrio nutricional",
         "auto_shopping_list": "Lista automática"
       }
+    }
+  },
+  "nutritionSetup": {
+    "title": "Encuesta Nutricional",
+    "description": "Complete sus parámetros para el cálculo del plato personalizado",
+    "calculateButton": "Calcular Plato Personalizado",
+    "saveNote": "Los datos se almacenan localmente y se utilizan para calcular su dieta"
+  },
+  "nutrition": {
+    "sex": {
+      "label": "Sexo",
+      "female": "Femenino",
+      "male": "Masculino"
+    },
+    "age": "Edad",
+    "height_cm": "Altura (cm)",
+    "weight_kg": "Peso (kg)",
+    "activity": {
+      "label": "Nivel de Actividad",
+      "options": {
+        "sedentary": "Sedentario",
+        "light": "Ligero",
+        "moderate": "Moderado",
+        "active": "Activo",
+        "athlete": "Atleta"
+      }
+    },
+    "goal": {
+      "label": "Objetivo",
+      "options": {
+        "lose": "Perder peso",
+        "maintain": "Mantener peso",
+        "gain": "Ganar peso"
+      }
+    },
+    "dietFlags": {
+      "label": "Preferencias Alimentarias",
+      "description": "Seleccione sus preferencias o restricciones alimentarias",
+      "optional": "Opcional",
+      "VEG": "Vegetariano",
+      "VEGAN": "Vegano",
+      "GF": "Sin gluten",
+      "DAIRY_FREE": "Sin lácteos",
+      "LOW_COST": "Económico",
+      "HIGH_PROTEIN": "Alto en Proteína",
+      "LOW_CARB": "Bajo en Carbohidratos",
+      "KETO": "Cetogénico",
+      "PALEO": "Paleo",
+      "MEDITERRANEAN": "Mediterránea"
+    },
+    "macros": {
+      "title": "Macronutrientes y Calorías",
+      "caloriesLabel": "Calorías (objetivo)",
+      "carbsLabel": "Carbohidratos",
+      "proteinLabel": "Proteínas",
+      "fatLabel": "Grasas",
+      "fiberLabel": "Fibra",
+      "bmrLabel": "BMR",
+      "tdeeLabel": "TDEE",
+      "bmrDescription": "tasa metabólica basal (calorías para el mantenimiento básico de la vida)",
+      "tdeeDescription": "gasto total diario de energía incluyendo actividad"
+    },
+    "units": {
+      "kcalPerDay": "kcal/día",
+      "gPerDay": "g/día"
+    },
+    "loadingPlate": "Calculando tu plato personalizado…",
+    "header": {
+      "title": "Tu Plato Personal",
+      "subtitle": "Cálculo basado en tus parámetros",
+      "editButton": "Editar Perfil"
+    },
+    "summary": {
+      "bmr": "BMR (kcal)",
+      "tdee": "TDEE (kcal)",
+      "goal": "Objetivo (kcal)",
+      "method": "Fórmula"
+    },
+    "micros": {
+      "unavailable": "Los objetivos de micronutrientes no están disponibles",
+      "title": "Objetivos de Micronutrientes",
+      "description": "Cantidades diarias recomendadas de vitaminas y minerales para tu edad y género"
+    },
+    "error": {
+      "title": "Error de Cálculo",
+      "description": "Error al cargar los datos. Verifica tu conexión a internet.",
+      "editButton": "Editar Datos"
+    },
+    "water": {
+      "title": "Agua",
+      "subtitle": "Consumo diario recomendado de agua",
+      "unit": "L/día",
+      "tip": "💡 Consejo: Bebe agua uniformemente durante el día. Aumenta la ingesta durante actividad física o clima caluroso."
     }
   }
 }

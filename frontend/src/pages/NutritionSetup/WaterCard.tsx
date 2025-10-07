@@ -1,13 +1,17 @@
 // RU: Карточка с рекомендацией по потреблению воды
 // EN: Card displaying water intake recommendation
 
+import { useTranslation } from 'react-i18next';
+
 interface WaterCardProps {
   liters: number;
 }
 
 export default function WaterCard({ liters }: WaterCardProps) {
+  const { t } = useTranslation();
+
   // Handle edge cases for water intake value
-  const displayLiters = typeof liters === 'number' && liters > 0 && !isNaN(liters)
+  const displayLiters = Number.isFinite(liters) && liters > 0
     ? liters.toFixed(1)
     : '2.0'; // fallback value
 
@@ -23,20 +27,19 @@ export default function WaterCard({ liters }: WaterCardProps) {
         </div>
 
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-text">Вода</h3>
+          <h3 className="text-lg font-semibold text-text">{t('nutrition.water.title')}</h3>
           <p className="text-muted text-sm mb-2">
-            Рекомендуемое суточное потребление воды
+            {t('nutrition.water.subtitle')}
           </p>
           <div className="text-2xl font-bold text-blue-600">
-            {displayLiters} л/день
+            {displayLiters} {t('nutrition.water.unit')}
           </div>
         </div>
       </div>
 
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-xs text-blue-800">
-          💡 <strong>Совет:</strong> Пейте воду равномерно в течение дня.
-          Увеличивайте потребление при физической активности или жаркой погоде.
+          {t('nutrition.water.tip')}
         </p>
       </div>
     </div>

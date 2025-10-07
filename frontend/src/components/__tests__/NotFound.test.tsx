@@ -2,7 +2,8 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import React from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import NotFound from "../NotFound";
 
 describe("NotFound", () => {
@@ -17,9 +18,14 @@ describe("NotFound", () => {
 
   afterEach(() => {
     // Restore originals to prevent state leaks between tests
-    window.history = originalHistory;
     Object.defineProperty(window, 'location', {
       value: originalLocation,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(window, 'history', {
+      value: originalHistory,
+      configurable: true,
       writable: true,
     });
   });
@@ -35,16 +41,6 @@ describe("NotFound", () => {
     expect(screen.getByText(/Let's get you back on track with your health journey/)).toBeInTheDocument();
   });
 
-  it("renders action buttons", () => {
-    render(
-      <MemoryRouter>
-        <NotFound />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText("Go Back")).toBeInTheDocument();
-    expect(screen.getByText("Go Home")).toBeInTheDocument();
-  });
 
   it("has working navigation buttons", () => {
     // Spy on window.history.back and mock its implementation
@@ -52,24 +48,39 @@ describe("NotFound", () => {
       /* noop */
     });
 
+    // Create a wrapper component to expose the current location
+    const LocationWrapper = ({ children }: { children: React.ReactNode }) => {
+      const location = useLocation();
+      return (
+        <>
+          <div data-testid="location-pathname">{location.pathname}</div>
+          {children}
+        </>
+      );
+    };
+
     render(
-      <MemoryRouter>
-        <NotFound />
+      <MemoryRouter initialEntries={["/some-page"]}>
+        <LocationWrapper>
+          <NotFound />
+        </LocationWrapper>
       </MemoryRouter>
     );
 
     const goBackButton = screen.getByText("Go Back");
     const goHomeButton = screen.getByText("Go Home");
+    const locationElement = screen.getByTestId("location-pathname");
 
+    // Test Go Back button
     fireEvent.click(goBackButton);
     expect(mockBack).toHaveBeenCalled();
 
-    // For the "Go Home" button, we can't easily test router navigation in isolation
-    // without more complex setup, so we'll just verify the button exists and is clickable
-    expect(goHomeButton).toBeInTheDocument();
-    expect(goHomeButton).not.toBeDisabled();
+    // Test Go Home button navigation
+    expect(locationElement).toHaveTextContent("/some-page");
+    fireEvent.click(goHomeButton);
+    expect(locationElement).toHaveTextContent("/");
 
-    // Restore the spy after the test (Vitest auto-restore should handle this, but being explicit)
+    // Explicitly restore the spy for clarity and maintainability
     mockBack.mockRestore();
   });
 });
