@@ -203,39 +203,84 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   return headers;
 }
 
-/**
- * Performs a fetch to the given API path and returns the parsed JSON, using a mock response when mocking is forced or the network request fails.
- *
- * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
- * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
- * @param navigate - Optional React Router navigate function for SPA redirects.
- * @param forceJson - Optional flag to explicitly set Content-Type to application/json, bypassing automatic detection.
- * @returns The parsed JSON response typed as `T`.
- * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
- */
-async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
+export type ApiRequestInit = Omit<RequestInit, "body"> & {
+  /** Plain objects/arrays are allowed; api() will JSON.stringify them. */
+  body?: unknown;
+  /** Local helpers for mocks */
+  mockUrl?: string;
+  forceMock?: boolean;
+};
+
+export type ApiOptions = {
+  onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
+};
+
+export async function api<T = unknown>(
+  path: string,
+  init?: ApiRequestInit,
+  options?: ApiOptions,
+  forceJson?: boolean
+): Promise<T> {
 
   const tryNetwork = async (): Promise<T> => {
     // Validate API base before network request
     validateApiBase();
 
+    /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
+     *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
+     */
+    let serializedBody = init?.body;
+    let forceJsonForBody = forceJson;
+
+    // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
+    const body = init?.body as any;
+    const isPlainObjectOrArray =
+      body &&
+      typeof body === "object" &&
+      (
+        Array.isArray(body) ||
+        body?.constructor === Object ||
+        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
+      );
+
+    const isForbiddenBinaryLike =
+      body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
+      body instanceof ReadableStream ||
+      typeof body?.arrayBuffer === "function";
+
+    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
+      serializedBody = JSON.stringify(body);
+      forceJsonForBody = true;
+    }
+
     const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
-      headers: mergeHeaders(init, forceJson),
+      body: serializedBody as BodyInit | undefined,
+      headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),
+      credentials: init?.credentials ?? 'include',
+      signal: init?.signal,
     });
     if (!res.ok) {
-      // Handle 401 Unauthorized - redirect to auth
-      if (res.status === 401) {
-        // Clear invalid API key
-        _clearStoredApiKey();
-        // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
-        if (navigate) {
-          navigate("/enter-key");
-        } else if (typeof window !== "undefined") {
-          window.location.replace("/enter-key");
+      // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
+      if (res.status === 401 || res.status === 403) {
+        const errorCode = (res.status === 401 ? 401 : 403) as 401 | 403;
+        // Call onAuthError callback if provided
+        if (options?.onAuthError) {
+          options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
+        } else {
+          // Fallback behavior: clear key and redirect
+          _clearStoredApiKey();
+          if (typeof window !== "undefined") {
+            window.location.replace("/enter-key");
+          }
         }
-        // Throw specific UnauthorizedError so callers can detect 401
-        throw new UnauthorizedError("API key invalid or expired.");
+        // Log the auth error
+        logError(new UnauthorizedError(`API key invalid or expired (${res.status}).`));
+        // Throw specific UnauthorizedError so callers can detect auth errors
+        throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
@@ -272,7 +317,6 @@ async function api<T>(path: string, init?: RequestInit, navigate?: (path: string
   }
 }
 
-export { api };
 export const fetchJson = api;
 export { getBmr, getPlate, getTargets } from "./premium";
 export type {
