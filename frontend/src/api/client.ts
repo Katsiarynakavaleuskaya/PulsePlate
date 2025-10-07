@@ -334,7 +334,7 @@ export type WeekPlanResponse = {
 
 /**
  * Generates a weekly meal plan
- * @param navigate - Optional React Router navigate function for SPA redirects
+ * @param options - Optional API options for auth error handling
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
-export const getWeekPlan = (navigate?: (path: string) => void) => api<WeekPlanResponse>("/plan/week", undefined, navigate);
+export const getWeekPlan = (options?: ApiOptions) => api<WeekPlanResponse>("/plan/week", undefined, options);
