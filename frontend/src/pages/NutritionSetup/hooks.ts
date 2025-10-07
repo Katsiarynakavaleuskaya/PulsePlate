@@ -18,6 +18,14 @@ const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 
 type SetupSupportedLang = SupportedPremiumLang;
 
+// Shared auth error handler for observability.
+// Intentionally DOES NOT call clearApiKey() or redirect:
+// when no custom handler is provided, the API client's fallback
+// will clear the stored key and redirect to /enter-key on 401/403.
+const handleAuthErrorShared = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
+  console.warn(`[auth] Premium API error: ${code}`);
+};
+
 const ACTIVITY_MAP: Record<SetupFormValues['activity'], 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'> = {
   sedentary: 'sedentary',
   light: 'light',
@@ -362,9 +370,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleAuthError = (code: 401 | 403, _helpers: { clearApiKey: () => void }) => {
-    console.warn(`[auth] Premium API error: ${code}`);
-  };
+  const handleAuthError = handleAuthErrorShared;
 
   // Use provided lang or fallback to i18n.language or navigator.language
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
