@@ -232,7 +232,11 @@ export async function api<T = unknown>(
     const isPlainObjectOrArray =
       body &&
       typeof body === "object" &&
-      (Array.isArray(body) || body.constructor === Object);
+      (
+        Array.isArray(body) ||
+        body?.constructor === Object ||
+        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
+      );
 
     const isForbiddenBinaryLike =
       body instanceof FormData ||
