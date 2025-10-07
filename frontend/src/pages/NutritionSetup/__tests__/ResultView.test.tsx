@@ -40,9 +40,9 @@ const mockUseTargets = vi.fn();
 const mockResolveSetupLang = vi.fn(() => 'ru');
 
 vi.mock("../hooks", () => ({
-  useSetupCalc: (...args: any[]) => mockUseSetupCalc(...args),
-  useTargets: (...args: any[]) => mockUseTargets(...args),
-  resolveSetupLang: (...args: any[]) => mockResolveSetupLang(...args),
+  useSetupCalc: mockUseSetupCalc,
+  useTargets: mockUseTargets,
+  resolveSetupLang: mockResolveSetupLang,
 }));
 
 describe("ResultView", () => {
