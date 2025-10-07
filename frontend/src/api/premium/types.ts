@@ -16,9 +16,12 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      { method: 'POST', body: JSON.stringify(body), signal: options?.signal },
-      options ? { onAuthError: options.onAuthError } : undefined,
-      true,
+      {
+        method: 'POST',
+        body, // ← объект, без JSON.stringify
+        signal: options?.signal,
+        ...(options?.onAuthError ? { onAuthError: options.onAuthError } : {}),
+      }
     );
 }
 

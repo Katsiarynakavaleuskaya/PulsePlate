@@ -10,5 +10,6 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 10000,
     teardownTimeout: 5000,
+    reporters: ["default", ["junit", { outputFile: "junit.xml" }]],
   },
 });
