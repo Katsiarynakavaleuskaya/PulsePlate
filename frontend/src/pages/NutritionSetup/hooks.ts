@@ -12,7 +12,7 @@ import type {
   TargetsResponse,
 } from './schema';
 import { validDietFlags } from './schema';
-import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
+import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang, PremiumRequestOptions } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 

@@ -3,7 +3,7 @@ import { api } from '../client';
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 
 export type PremiumRequestOptions = {
-  navigate?: (path: string) => void;
+  onAuthError?: (code: string, helpers: { clearApiKey: () => void }) => void;
   signal?: AbortSignal;
 };
 
@@ -17,7 +17,7 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
     api<TRes>(
       endpoint,
       { method: 'POST', body: JSON.stringify(body), signal: options?.signal },
-      options?.navigate,
+      options ? { onAuthError: options.onAuthError } : undefined,
       true,
     );
 }
