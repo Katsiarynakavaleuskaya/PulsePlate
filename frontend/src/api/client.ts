@@ -279,7 +279,8 @@ export async function api<T = unknown>(
       ...init,
       headers: mergedHeaders,
       credentials: init?.credentials ?? "include",
-      signal: init?.signal ?? options?.signal,
+      // AbortSignal must only be provided via RequestInit, not ApiOptions.
+      signal: init?.signal,
       body: serializedBody,
     });
     if (!res.ok) {
