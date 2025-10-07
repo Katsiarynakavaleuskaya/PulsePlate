@@ -50,6 +50,7 @@ describe("ResultView", () => {
           { id: "fe", name: "Железо", unit: "мг", target: 18 },
           { id: "ca", name: "Кальций", unit: "мг", target: 1000 },
         ],
+        water_l: 2.5,
       },
       loading: false,
       error: null,
@@ -99,7 +100,7 @@ describe("ResultView", () => {
 
     mockUseTargets.mockReturnValue({
       error: "Targets API Error",
-      targets: null,
+      data: null,
       loading: false,
     });
 

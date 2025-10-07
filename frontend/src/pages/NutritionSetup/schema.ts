@@ -43,7 +43,7 @@ export type PlateResponse = {
     fat_g: number;
     fiber_g: number;
   };
-  water_l: number;
+  water_l: number | null;
 };
 
 export type TargetsResponse = {
@@ -53,4 +53,5 @@ export type TargetsResponse = {
     unit: string;
     target: number;
   }>;
+  water_l: number | null;
 };

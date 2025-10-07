@@ -15,7 +15,11 @@ interface ResultViewProps {
 
 export default function ResultView({ values, onEdit }: ResultViewProps) {
   const { bmrData, plateData, loading, error } = useSetupCalc(values);
-  const { data: targetsData, loading: targetsLoading, error: targetsError } = useTargets('ru');
+  const {
+    data: targetsData,
+    loading: targetsLoading,
+    error: targetsError,
+  } = useTargets(values, 'ru');
 
   if (loading || targetsLoading) {
     return (
@@ -57,6 +61,8 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       </div>
     );
   }
+
+  const waterLiters = targetsData?.water_l ?? plateData.water_l ?? 0;
 
   return (
     <div className="space-y-6">
@@ -120,7 +126,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
             tdee={bmrData.tdee}
           />
 
-          <WaterCard liters={plateData.water_l} />
+          <WaterCard liters={waterLiters} />
         </div>
       </div>
 
