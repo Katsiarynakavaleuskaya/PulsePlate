@@ -106,7 +106,7 @@ function mockUrl(path: string): string | null {
     return "/mock/plate.json";
   }
   if (path.includes("/api/v1/premium/targets") || path.includes("/premium/targets")) {
-    return "/mock/targets.json";
+    return "/mocks/targets.json";
   }
   if (path.includes("/plan/week")) {
     return "/mock/week.json";

@@ -41,7 +41,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
     const currentFlags = watchedDietFlags || [];
     const newFlags = checked
-      ? [...currentFlags, flag]
+      ? currentFlags.includes(flag) ? currentFlags : [...currentFlags, flag]
       : currentFlags.filter(f => f !== flag);
     setValue('diet_flags', newFlags as DietFlag[]);
   };

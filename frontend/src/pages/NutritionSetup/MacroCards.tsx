@@ -36,9 +36,7 @@ export default function MacroCards({
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm">
-      <h3 className="text-lg font-semibold text-text mb-4">{t('nutrition.macros.title')}</h3>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
         <Item label={t('nutrition.macros.caloriesLabel')} value={kcal} unit={t('nutrition.units.kcalPerDay')} />
         <Item label={t('nutrition.macros.carbsLabel')} value={carbsG} unit={t('nutrition.units.gPerDay')} />
         <Item label={t('nutrition.macros.proteinLabel')} value={proteinG} unit={t('nutrition.units.gPerDay')} />
