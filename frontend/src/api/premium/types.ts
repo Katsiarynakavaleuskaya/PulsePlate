@@ -5,9 +5,9 @@ export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 export type PremiumRequestOptions = Pick<ApiOptions, "onAuthError"> & { signal?: AbortSignal };
 
 /**
- * Generic factory for creating premium API endpoints that use POST requests
- * @param endpoint - The API endpoint path (e.g., '/api/v1/premium/plate')
- * @returns A function that takes request body and options, and returns a Promise of the response
+ * Factory to build typed Premium endpoints (POST).
+ * Body should be a plain object (api() serializes JSON internally).
+ * onAuthError is forwarded as api() options (3rd arg).
  */
 export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
