@@ -13,6 +13,7 @@ Tests core plate generation logic:
 import pytest
 
 from core.plate import (
+    _apply_diet_flag_adjustments,
     _macros_by_rules,
     _portions_from_macros,
     _target_kcal,
@@ -382,6 +383,98 @@ class TestCorePlateLogic:
         assert "Гречка" in meals_text or "гречка" in meals_text
         # Should mark as budget
         assert "(бюджет)" in meals_text
+
+
+class TestDietFlagAdjustments:
+    """Test diet flag macro adjustments."""
+
+    def test_no_diet_flags_returns_original(self):
+        """Test that no diet flags leaves macros unchanged."""
+        macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=None)
+
+        assert result == macros
+
+    def test_empty_diet_flags_returns_original(self):
+        """Test that empty diet flags set leaves macros unchanged."""
+        macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(macros, weight_kg=70, kcal=2000, diet_flags=set())
+
+        assert result == macros
+
+    def test_high_protein_flag_increases_protein(self):
+        """Test HIGH_PROTEIN flag increases protein to at least 2.0g/kg."""
+        macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN"}
+        )
+
+        # Should increase protein to at least 70kg * 2.0g = 140g
+        assert result["protein_g"] >= 140
+        assert result["protein_g"] > macros["protein_g"]  # Should be increased
+
+    def test_high_protein_flag_preserves_if_already_high(self):
+        """Test HIGH_PROTEIN flag doesn't decrease already high protein."""
+        macros = {"protein_g": 200, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN"}
+        )
+
+        # Should preserve existing high protein (200 > 140 required)
+        assert result["protein_g"] == 200
+
+    def test_low_carb_flag_limits_carbs(self):
+        """Test LOW_CARB flag limits carbs to maximum values."""
+        # Test with high carb intake
+        macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 300, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"LOW_CARB"}
+        )
+
+        # Should limit carbs to 150g max
+        assert result["carbs_g"] <= 150
+
+    def test_mediterranean_flag_adjusts_ratios(self):
+        """Test MEDITERRANEAN flag adjusts macro ratios."""
+        macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 250, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"MEDITERRANEAN"}
+        )
+
+        # Should increase fat relative to protein (more unsaturated fats)
+        # Fat should be at least 1.2x protein for Mediterranean pattern
+        assert result["fat_g"] >= result["protein_g"] * 1.2
+
+    def test_multiple_diet_flags_combined(self):
+        """Test multiple diet flags work together."""
+        macros = {"protein_g": 80, "fat_g": 50, "carbs_g": 300, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=70, kcal=2000, diet_flags={"HIGH_PROTEIN", "LOW_CARB"}
+        )
+
+        # Should apply both adjustments
+        assert result["protein_g"] >= 140  # HIGH_PROTEIN effect
+        assert result["carbs_g"] <= 150  # LOW_CARB effect
+
+    @pytest.mark.parametrize("weight_kg", [50, 70, 90, 100])
+    def test_high_protein_scales_with_weight(self, weight_kg):
+        """Test HIGH_PROTEIN adjustment scales with body weight."""
+        macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 200, "fiber_g": 25}
+
+        result = _apply_diet_flag_adjustments(
+            macros, weight_kg=weight_kg, kcal=2000, diet_flags={"HIGH_PROTEIN"}
+        )
+
+        # Should set protein to at least weight_kg * 2.0
+        expected_min = weight_kg * 2.0
+        assert result["protein_g"] >= expected_min
 
 
 if __name__ == "__main__":

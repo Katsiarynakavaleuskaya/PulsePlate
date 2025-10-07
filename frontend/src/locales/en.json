@@ -100,7 +100,13 @@
       }
     }
   },
+  "nutritionSetup": {
+    "title": "Nutrition Profile",
+    "description": "Let's create your personalized nutrition plan"
+  },
   "nutrition": {
+    "calculatePlate": "Calculate Personal Plate",
+    "dataStoredLocal": "Data is stored locally and used to calculate your diet",
     "macros": {
       "title": "Macronutrients and Calories",
       "caloriesLabel": "Calories (goal)",
@@ -152,6 +158,12 @@
       "title": "Calculation Error",
       "description": "Failed to load data. Please check your internet connection.",
       "editButton": "Edit Data"
+    },
+    "water": {
+      "title": "Water",
+      "subtitle": "Recommended daily water intake",
+      "unit": "L/day",
+      "tip": "💡 Tip: Drink water evenly throughout the day. Increase intake during physical activity or hot weather."
     }
   }
 }
