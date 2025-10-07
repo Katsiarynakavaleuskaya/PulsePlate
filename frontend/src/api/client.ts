@@ -151,6 +151,9 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
     defaults["X-API-Key"] = apiKey;
   }
 
+  // NOTE: api() сам сериализует body в JSON для методов ≠ GET.
+  // Высшим слоям (createPremiumEndpoint, hooks) нужно передавать body как объект.
+
   // Check if caller already provided Content-Type (case-insensitive)
   const hasContentType = (() => {
     if (!init?.headers) {
@@ -208,32 +211,57 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
  *
  * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
  * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
- * @param navigate - Optional React Router navigate function for SPA redirects.
+ * @param options - Optional configuration object with onAuthError callback and other options.
  * @param forceJson - Optional flag to explicitly set Content-Type to application/json, bypassing automatic detection.
  * @returns The parsed JSON response typed as `T`.
  * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
  */
-async function api<T>(path: string, init?: RequestInit, navigate?: (path: string) => void, forceJson?: boolean): Promise<T> {
+async function api<T>(
+  path: string,
+  init?: RequestInit,
+  options?: {
+    onAuthError?: (code: string, helpers: { clearApiKey: () => void }) => void;
+  },
+  forceJson?: boolean
+): Promise<T> {
 
   const tryNetwork = async (): Promise<T> => {
     // Validate API base before network request
     validateApiBase();
 
-    const res = await fetch(`${getApiBase()}${path}`, {
+    // Serialize body if it's an object and prepare Content-Type
+    let serializedBody = init?.body;
+    let forceJsonForBody = forceJson;
+    if (init?.body && typeof init.body === 'object') {
+      serializedBody = JSON.stringify(init.body);
+      forceJsonForBody = true; // Force JSON content type for object bodies
+    }
+
+    const requestInit = {
       ...init,
-      headers: mergeHeaders(init, forceJson),
-    });
+      body: serializedBody,
+      headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),
+      credentials: init?.credentials ?? 'include',
+      signal: init?.signal,
+    };
+
+    const res = await fetch(`${getApiBase()}${path}`, requestInit);
     if (!res.ok) {
-      // Handle 401 Unauthorized - redirect to auth
+      // Handle 401 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401) {
-        // Clear invalid API key
-        _clearStoredApiKey();
-        // Redirect to enter key page (SPA redirect if navigate provided, otherwise sync location)
-        if (navigate) {
-          navigate("/enter-key");
-        } else if (typeof window !== "undefined") {
-          window.location.replace("/enter-key");
+        const errorCode = '401';
+        // Call onAuthError callback if provided
+        if (options?.onAuthError) {
+          options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
+        } else {
+          // Fallback behavior: clear key and redirect
+          _clearStoredApiKey();
+          if (typeof window !== "undefined") {
+            window.location.replace("/enter-key");
+          }
         }
+        // Log the auth error
+        logError(new UnauthorizedError("API key invalid or expired."));
         // Throw specific UnauthorizedError so callers can detect 401
         throw new UnauthorizedError("API key invalid or expired.");
       }

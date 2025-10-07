@@ -132,22 +132,7 @@ describe('API Client Auth', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('clears storage and calls navigate callback on 401 response', async () => {
-      const mockNavigate = vi.fn();
-
-      const { api } = await import('../client');
-      fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
-        ok: false,
-        status: 401,
-      })));
-
-      await expect(api('/test-endpoint', {}, mockNavigate)).rejects.toThrow('API key invalid or expired.');
-
-      expect(testStorage.clearStoredApiKey).toHaveBeenCalled();
-      expect(mockNavigate).toHaveBeenCalledWith('/enter-key');
-    });
-
-    it('clears storage and uses window.location.replace when no navigate callback on 401', async () => {
+    it('clears storage and uses window.location.replace when no onAuthError callback on 401', async () => {
       const { api } = await import('../client');
       fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
         ok: false,
