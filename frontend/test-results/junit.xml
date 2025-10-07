@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="154" failures="0" errors="0" time="3.194967916">
+    <testsuite name="src/lib/shareFile.test.ts" timestamp="2025-10-07T22:04:56.562Z" hostname="MacBook-Air-katsiaryna.local" tests="7" failures="0" errors="0" skipped="0" time="0.006741625">
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; falls back to browser download when not on a native platform" time="0.001421166">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; uses default title when sharing natively without an explicit title" time="0.001145584">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; fetches, stores, and shares the file on native platforms" time="0.000472541">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; throws an error when the fetch request is unsuccessful" time="0.000540125">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; propagates file system write errors" time="0.000387292">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; propagates share API errors" time="0.000328333">
+        </testcase>
+        <testcase classname="src/lib/shareFile.test.ts" name="shareFile &gt; encodes buffers of varying lengths to valid base64 strings" time="0.001052584">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/__tests__/api-auth-callback.test.ts" timestamp="2025-10-07T22:04:56.563Z" hostname="MacBook-Air-katsiaryna.local" tests="3" failures="0" errors="0" skipped="0" time="0.035696625">
+        <testcase classname="src/api/__tests__/api-auth-callback.test.ts" name="API Auth Error Callbacks &gt; invokes onAuthError from 3rd param on 401" time="0.024545584">
+            <system-err>
+[analytics] error API key invalid or expired (401).
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/api-auth-callback.test.ts" name="API Auth Error Callbacks &gt; invokes onAuthError from 3rd param on 403" time="0.00344625">
+            <system-err>
+[analytics] error API key invalid or expired (403).
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/api-auth-callback.test.ts" name="API Auth Error Callbacks &gt; falls back to clear+redirect when onAuthError is not provided (401)" time="0.004654292">
+            <system-err>
+[analytics] error API key invalid or expired (401).
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/__tests__/api-serialization.test.ts" timestamp="2025-10-07T22:04:56.563Z" hostname="MacBook-Air-katsiaryna.local" tests="2" failures="0" errors="0" skipped="0" time="0.002790708">
+        <testcase classname="src/api/__tests__/api-serialization.test.ts" name="API Body Serialization &gt; serializes body to JSON in api() and sets Content-Type only when needed" time="0.00123175">
+        </testcase>
+        <testcase classname="src/api/__tests__/api-serialization.test.ts" name="API Body Serialization &gt; does not set Content-Type for GET without body" time="0.000194583">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/__tests__/client.test.ts" timestamp="2025-10-07T22:04:56.563Z" hostname="MacBook-Air-katsiaryna.local" tests="9" failures="0" errors="0" skipped="0" time="0.138058417">
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; returns false on network error" time="0.1141925">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; should return false for 401 on health check (mockResolvedValueOnce)" time="0.002999625">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; validateApiKey &gt; throws error when API base is not set" time="0.001756125">
+            <system-err>
+[analytics] error VITE_API_BASE is not set. Create frontend/.env from .env.example
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; throws error when API base is not set" time="0.000389708">
+            <system-err>
+[analytics] error VITE_API_BASE is not set. Create frontend/.env from .env.example
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; includes X-API-Key header when API key is set in storage" time="0.002566333">
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; clears storage and uses window.location.replace when no onAuthError callback on 401" time="0.005876">
+            <system-err>
+[analytics] error API key invalid or expired (401).
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; throws UnauthorizedError on 401 response" time="0.002888833">
+            <system-err>
+[analytics] error API key invalid or expired (401).
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; uses mock fallback on network failure" time="0.004706666">
+            <system-out>
+[API] MOCK fallback ON → /mock/bmr.json
+
+            </system-out>
+        </testcase>
+        <testcase classname="src/api/__tests__/client.test.ts" name="API Client Auth &gt; api() function &gt; resolves successfully on authenticated request" time="0.000968583">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/locales/__tests__/locales.test.ts" timestamp="2025-10-07T22:04:56.564Z" hostname="MacBook-Air-katsiaryna.local" tests="30" failures="0" errors="0" skipped="0" time="0.011994041">
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Structural Validation &gt; should have consistent keys across all locales" time="0.002876792">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Structural Validation &gt; should not contain null or undefined values" time="0.001574958">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Structural Validation &gt; should not contain empty strings" time="0.000689167">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Structural Validation &gt; should not contain HTML tags" time="0.000807833">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Structural Validation &gt; should contain only valid Unicode characters" time="0.000503291">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; should not contain placeholder patterns" time="0.00059375">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; should have reasonable string lengths" time="0.000305541">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should allow strings exactly at the max length for &apos;description&apos;" time="0.000061125">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should allow strings exactly at the max length for &apos;legal&apos;" time="0.000047708">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should allow strings exactly at the max length for &apos;disclaimer&apos;" time="0.000056292">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should allow strings exactly at the max length for &apos;title&apos;" time="0.000035875">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should allow strings exactly at the max length for &apos;name&apos;" time="0.000035584">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should report strings just above the max length for &apos;description&apos;" time="0.00011075">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should report strings just above the max length for &apos;legal&apos;" time="0.000053042">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should report strings just above the max length for &apos;disclaimer&apos;" time="0.000030167">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should report strings just above the max length for &apos;title&apos;" time="0.00003">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; String length validation &gt; should report strings just above the max length for &apos;name&apos;" time="0.00002925">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; should not have problematic duplicate values" time="0.000477291">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; duplicate logging and threshold &gt; logs a warning when problematic duplicates are detected" time="0.000104834">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; duplicate logging and threshold &gt; does not log a warning when no problematic duplicates are detected" time="0.000059541">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Content Validation &gt; duplicate logging and threshold &gt; respects the configurable duplicate threshold" time="0.000069541">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Paywall Section &gt; should have consistent paywall structure" time="0.000127625">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Paywall Section &gt; should have proper before/after structure" time="0.000100916">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Paywall Section &gt; should have consistent items structure" time="0.00011725">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Spanish Translation Quality &gt; should use professional nutrition terminology" time="0.000074791">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Spanish Translation Quality &gt; should have proper subtitle" time="0.000023375">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Spanish Translation Quality &gt; should use correct legal text" time="0.000024208">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Spanish Translation Quality &gt; should have proper empty state" time="0.000021875">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Russian Translation Quality &gt; should use professional nutrition terminology" time="0.000037667">
+        </testcase>
+        <testcase classname="src/locales/__tests__/locales.test.ts" name="Locale JSON Structure and Content &gt; Domain-Specific Validation &gt; Russian Translation Quality &gt; should have proper subtitle" time="0.000026917">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/mocks/__tests__/purchase.test.ts" timestamp="2025-10-07T22:04:56.566Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="1.575889583">
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/purchase responds ok" time="0.320689375">
+        </testcase>
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/purchase handles server error" time="0.332729667">
+        </testcase>
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/purchase handles payment error" time="0.306496291">
+        </testcase>
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/restore responds ok" time="0.206331625">
+        </testcase>
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/restore handles server error" time="0.203857333">
+        </testcase>
+        <testcase classname="src/mocks/__tests__/purchase.test.ts" name="msw /api/restore handles not found error" time="0.204107834">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/__tests__/GlassCard.test.tsx" timestamp="2025-10-07T22:04:56.566Z" hostname="MacBook-Air-katsiaryna.local" tests="14" failures="0" errors="0" skipped="0" time="0.099888083">
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; renders children without crashing" time="0.017120208">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies default tone and padding classes" time="0.001914958">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies tone styles for tone=&quot;neutral&quot;" time="0.000846958">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies tone styles for tone=&quot;light&quot;" time="0.000667334">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies tone styles for tone=&quot;dark&quot;" time="0.000569375">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies padding styles for padding=&quot;none&quot;" time="0.00056325">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies padding styles for padding=&quot;sm&quot;" time="0.003196041">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies padding styles for padding=&quot;md&quot;" time="0.0011485">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies padding styles for padding=&quot;lg&quot;" time="0.001668">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; prefers aria-labelledby when both aria props provided" time="0.06733725">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; does not set aria attributes when not provided" time="0.000680291">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; merges custom class names and forwards misc props" time="0.000514208">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies default tone styles when tone is undefined" time="0.000344">
+        </testcase>
+        <testcase classname="src/components/__tests__/GlassCard.test.tsx" name="GlassCard &gt; applies default padding class for invalid padding value" time="0.000308125">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/__tests__/NotFound.test.tsx" timestamp="2025-10-07T22:04:56.566Z" hostname="MacBook-Air-katsiaryna.local" tests="2" failures="0" errors="0" skipped="0" time="0.069624959">
+        <testcase classname="src/components/__tests__/NotFound.test.tsx" name="NotFound &gt; renders the 404 page with proper content" time="0.020348875">
+        </testcase>
+        <testcase classname="src/components/__tests__/NotFound.test.tsx" name="NotFound &gt; has working navigation buttons" time="0.044799542">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/__tests__/PremiumGate.test.tsx" timestamp="2025-10-07T22:04:56.567Z" hostname="MacBook-Air-katsiaryna.local" tests="2" failures="0" errors="0" skipped="0" time="0.062712375">
+        <testcase classname="src/components/__tests__/PremiumGate.test.tsx" name="PremiumGate &gt; shows children directly when premium" time="0.014700334">
+        </testcase>
+        <testcase classname="src/components/__tests__/PremiumGate.test.tsx" name="PremiumGate &gt; dims and gates content when not premium, opens Paywall on click" time="0.046191917">
+            <system-err>
+Warning: Received `true` for a non-boolean attribute `inert`.
+
+If you want to write it to the DOM, pass a string instead: inert=&quot;true&quot; or inert={value.toString()}.
+    at div
+    at PremiumGate (/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/components/PremiumGate.tsx:9:24)
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/__tests__/TabBar.test.tsx" timestamp="2025-10-07T22:04:56.567Z" hostname="MacBook-Air-katsiaryna.local" tests="8" failures="0" errors="0" skipped="0" time="0.371716708">
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; without API key &gt; shows lock icons for protected routes" time="0.040022417">
+            <system-err>
+Warning: Received `true` for a non-boolean attribute `end`.
+
+If you want to write it to the DOM, pass a string instead: end=&quot;true&quot; or end={value.toString()}.
+    at a
+    at NavLink (/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/components/__tests__/TabBar.test.tsx:30:15)
+    at nav
+    at TabBar (/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/components/TabBar.tsx:17:71)
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; without API key &gt; shows disabled styling for protected routes" time="0.002510292">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; without API key &gt; shows click feedback for disabled tabs" time="0.312009084">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; without API key &gt; shows accessible labels for disabled tabs" time="0.004177833">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; with API key &gt; shows all tabs as accessible" time="0.0037745">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; with API key &gt; shows active tab indicator bar for the active route" time="0.003555166">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; with API key &gt; shows hover effects for available tabs" time="0.000954208">
+        </testcase>
+        <testcase classname="src/components/__tests__/TabBar.test.tsx" name="TabBar &gt; accessibility &gt; has proper ARIA attributes for disabled tabs" time="0.001116625">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/premium/__tests__/types.test.ts" timestamp="2025-10-07T22:04:56.567Z" hostname="MacBook-Air-katsiaryna.local" tests="8" failures="0" errors="0" skipped="0" time="0.003430333">
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; Portion &gt; should accept valid portion data" time="0.000482708">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; Portion &gt; should enforce required fields on Portion (type-level)" time="0.000124542">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; LayoutItem &gt; should accept valid layout item" time="0.000058625">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; LayoutItem &gt; should only accept valid kinds" time="0.000126292">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; Meal &gt; should accept valid meal data" time="0.000049">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; Meal &gt; should accept meal data with micros" time="0.000052583">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; PlateApiResponse &gt; should accept valid plate API response" time="0.000060792">
+        </testcase>
+        <testcase classname="src/api/premium/__tests__/types.test.ts" name="Premium Types &gt; PlateApiResponse &gt; should enforce PlateApiResponse required fields (type-level)" time="0.0000395">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/features/progress/__tests__/ProgressCharts.test.tsx" timestamp="2025-10-07T22:04:56.567Z" hostname="MacBook-Air-katsiaryna.local" tests="7" failures="0" errors="0" skipped="0" time="0.099350084">
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; renders progress tracking header" time="0.060960042">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; renders export PDF button" time="0.006544333">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; renders weight and BMI progress chart" time="0.003486625">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; renders calorie balance chart" time="0.003110625">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; renders macronutrient distribution chart" time="0.005466209">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; displays weight change indicator" time="0.005700959">
+        </testcase>
+        <testcase classname="src/features/progress/__tests__/ProgressCharts.test.tsx" name="ProgressCharts &gt; displays macronutrient breakdown" time="0.012160042">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" timestamp="2025-10-07T22:04:56.568Z" hostname="MacBook-Air-katsiaryna.local" tests="18" failures="0" errors="0" skipped="0" time="0.112450125">
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders loading state" time="0.020475166">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders error state" time="0.00605">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders error state from useTargets" time="0.003969417">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; renders results successfully" time="0.008877375">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays BMR and TDEE values" time="0.005345958">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays macronutrient distribution" time="0.00453425">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays non-standard macronutrient percentages" time="0.00444175">
+            <system-err>
+Plate percentages sum to 95.0%, expected 100%
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles macronutrient percentages totaling more than 100%" time="0.004698583">
+            <system-err>
+Plate percentages sum to 120.0%, expected 100%
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles macronutrient percentages with edge values (0% and 100%)" time="0.0085615">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays macro cards" time="0.009577208">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays water recommendation" time="0.003507042">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; displays micronutrient targets" time="0.00420975">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing bmrData gracefully" time="0.003157584">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing plateData gracefully" time="0.001972208">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles missing targetsData gracefully" time="0.006291208">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles undefined bmrData, plateData, and targetsData" time="0.004026083">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; calls onEdit when edit button is clicked" time="0.003924">
+        </testcase>
+        <testcase classname="src/pages/NutritionSetup/__tests__/ResultView.test.tsx" name="ResultView &gt; handles retry functionality correctly" time="0.006881625">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/Onboarding/__tests__/EnterKey.test.tsx" timestamp="2025-10-07T22:04:56.569Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="0.11323575">
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; renders the API key input form" time="0.066699833">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; shows error for empty API key" time="0.013525875">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; shows error for API key shorter than minimum length" time="0.007902375">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; saves API key when valid" time="0.004952875">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; clears API key when clear button is clicked" time="0.00960775">
+        </testcase>
+        <testcase classname="src/pages/Onboarding/__tests__/EnterKey.test.tsx" name="EnterKey &gt; does not show success message when clearing empty API key" time="0.005991334">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/Paywall/__tests__/BeforeAfter.test.tsx" timestamp="2025-10-07T22:04:56.569Z" hostname="MacBook-Air-katsiaryna.local" tests="4" failures="0" errors="0" skipped="0" time="0.173512334">
+        <testcase classname="src/components/Paywall/__tests__/BeforeAfter.test.tsx" name="Paywall BeforeAfter &gt; renders dialog and logs view" time="0.040665709">
+        </testcase>
+        <testcase classname="src/components/Paywall/__tests__/BeforeAfter.test.tsx" name="Paywall BeforeAfter &gt; fires purchase_attempt on CTA click" time="0.035663792">
+        </testcase>
+        <testcase classname="src/components/Paywall/__tests__/BeforeAfter.test.tsx" name="Paywall BeforeAfter &gt; fires purchase_cancel on Cancel click" time="0.022844041">
+        </testcase>
+        <testcase classname="src/components/Paywall/__tests__/BeforeAfter.test.tsx" name="Paywall BeforeAfter &gt; disables body scroll when modal opens and restores on unmount" time="0.071380542">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ui/__tests__/ErrorBoundary.test.tsx" timestamp="2025-10-07T22:04:56.570Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="0.049386208">
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; renders children when no error occurs" time="0.017597792">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; renders error UI when error occurs" time="0.011302">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; renders custom fallback when provided" time="0.002583083">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; refresh button triggers page reload" time="0.009341375">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; shows error details in development mode" time="0.00339625">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/ErrorBoundary.test.tsx" name="ErrorBoundary &gt; does not show error details in production mode" time="0.002301042">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ui/__tests__/PullToRefresh.test.tsx" timestamp="2025-10-07T22:04:56.570Z" hostname="MacBook-Air-katsiaryna.local" tests="5" failures="0" errors="0" skipped="0" time="0.036234083">
+        <testcase classname="src/components/ui/__tests__/PullToRefresh.test.tsx" name="PullToRefresh &gt; renders children correctly" time="0.015652541">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/PullToRefresh.test.tsx" name="PullToRefresh &gt; calls onRefresh when pulled beyond threshold" time="0.0128015">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/PullToRefresh.test.tsx" name="PullToRefresh &gt; does not call onRefresh when pulled below threshold" time="0.001660042">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/PullToRefresh.test.tsx" name="PullToRefresh &gt; does not trigger when disabled" time="0.000942625">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/PullToRefresh.test.tsx" name="PullToRefresh &gt; respects custom threshold" time="0.001655292">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ui/__tests__/Skeleton.test.tsx" timestamp="2025-10-07T22:04:56.570Z" hostname="MacBook-Air-katsiaryna.local" tests="5" failures="0" errors="0" skipped="0" time="0.074703083">
+        <testcase classname="src/components/ui/__tests__/Skeleton.test.tsx" name="Skeleton Components &gt; Skeleton &gt; renders with default styles" time="0.015613625">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Skeleton.test.tsx" name="Skeleton Components &gt; Skeleton &gt; renders with custom className" time="0.003732542">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Skeleton.test.tsx" name="Skeleton Components &gt; ChartSkeleton &gt; renders chart skeleton structure" time="0.037397041">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Skeleton.test.tsx" name="Skeleton Components &gt; CardSkeleton &gt; renders card skeleton structure" time="0.005415333">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Skeleton.test.tsx" name="Skeleton Components &gt; ProgressPageSkeleton &gt; renders complete progress page skeleton" time="0.00932275">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ui/__tests__/SwipeContainer.test.tsx" timestamp="2025-10-07T22:04:56.571Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="0.061386042">
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; renders children correctly" time="0.020219084">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; calls onSwipeRight when swiped right beyond threshold" time="0.023646875">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; calls onSwipeLeft when swiped left beyond threshold" time="0.006779542">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; does not call swipe handlers when swipe is below threshold" time="0.005566166">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; respects custom threshold" time="0.001639083">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/SwipeContainer.test.tsx" name="SwipeContainer &gt; handles both swipe directions" time="0.001054375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ui/__tests__/Toggle.test.tsx" timestamp="2025-10-07T22:04:56.571Z" hostname="MacBook-Air-katsiaryna.local" tests="6" failures="0" errors="0" skipped="0" time="0.09616675">
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; has proper accessibility attributes" time="0.077458125">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; toggles state when clicked" time="0.004796416">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; toggles from checked to unchecked" time="0.006001584">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; toggles when Space key is pressed" time="0.002454208">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; does not toggle when disabled" time="0.001575167">
+        </testcase>
+        <testcase classname="src/components/ui/__tests__/Toggle.test.tsx" name="Toggle &gt; does not toggle when disabled via label click" time="0.0021795">
+        </testcase>
+    </testsuite>
+</testsuites>
