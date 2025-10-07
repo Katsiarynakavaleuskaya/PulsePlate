@@ -139,7 +139,7 @@ describe('API Client Auth', () => {
         status: 401,
       })));
 
-      await expect(api('/test-endpoint')).rejects.toThrow('API key invalid or expired.');
+      await expect(api('/test-endpoint')).rejects.toThrow('API key invalid or expired (401).');
 
       expect(testStorage.clearStoredApiKey).toHaveBeenCalled();
       expect(window.location.replace).toHaveBeenCalledWith('/enter-key');
