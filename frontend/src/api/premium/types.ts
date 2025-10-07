@@ -13,8 +13,9 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      { method: 'POST', body, signal: options?.signal },
+      { method: "POST", body, signal: options?.signal },
       options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
+      true // explicitly force JSON Content-Type for Premium POSTs
     );
 }
 
