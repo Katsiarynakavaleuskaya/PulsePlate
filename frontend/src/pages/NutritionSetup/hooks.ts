@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBmr, getPlate, getTargets } from '../../api/premium';
-import { useAuth } from '../../lib/auth';
 import type {
   SetupFormValues,
   NormalizedBmrData,
@@ -357,18 +356,14 @@ const normalizeTargetsResponse = (
 
 export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupportedLang, retryKey?: number) {
   const { i18n } = useTranslation();
-  const { clearApiKey } = useAuth();
   const [bmrData, setBmrData] = useState<NormalizedBmrData | null>(null);
   const [plateData, setPlateData] = useState<PlateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleAuthError = (code: string, helpers: { clearApiKey: () => void }) => {
-    // мягко: не чистим автоматически, но логируем
-    console.warn(`Premium API auth error: ${code}`);
-    // при желании активируй:
-    // helpers.clearApiKey();
+  const handleAuthError = (code: string, _helpers: { clearApiKey: () => void }) => {
+    console.warn(`[auth] Premium API error: ${code}`);
   };
 
   // Use provided lang or fallback to i18n.language or navigator.language
@@ -478,7 +473,6 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
 
 export function useTargets(values: SetupFormValues | null, lang?: SetupSupportedLang, retryKey?: number) {
   const { i18n } = useTranslation();
-  const { clearApiKey } = useAuth();
   const [data, setData] = useState<TargetsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -487,11 +481,8 @@ export function useTargets(values: SetupFormValues | null, lang?: SetupSupported
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const effectiveLang = resolveSetupLang(lang, i18n.language, browserLang);
 
-  const handleAuthError = (code: string, helpers: { clearApiKey: () => void }) => {
-    // мягко: не чистим автоматически, но логируем
-    console.warn(`Targets API auth error: ${code}`);
-    // при желании активируй:
-    // helpers.clearApiKey();
+  const handleAuthError = (code: string, _helpers: { clearApiKey: () => void }) => {
+    console.warn(`[auth] Targets API error: ${code}`);
   };
 
   useEffect(() => {
