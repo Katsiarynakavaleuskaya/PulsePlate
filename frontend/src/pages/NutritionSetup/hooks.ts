@@ -192,7 +192,7 @@ const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
       carbs_g: carbsG,
       protein_g: proteinG,
       fat_g: fatG,
-      fiber_g: fiberG ?? 0,
+      fiber_g: fiberG,
     },
     water_l: null,
   };
