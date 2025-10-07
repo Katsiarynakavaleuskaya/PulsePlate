@@ -44,7 +44,7 @@ def _target_kcal(
 
 
 def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
-    """RU: Макросы из простых правил: белок 1.6–2.0 г/кг, жир 0.8–1.0 г/кг, углеводы — остаток.
+    """RU: Макросы из простых правил: белок 1.6–2.0 g/kg, жир 0.8–1.0 g/kg, углеводы — остаток.
     EN: Macros via rules: protein 1.6–2.0 g/kg, fat 0.8–1.0 g/kg, carbs = rest.
     """
     # Чуть варьируем по цели
@@ -68,14 +68,14 @@ def _macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
     if remaining_kcal < 0:
         # Если белок + жир превышают калории, уменьшаем белок и жир
         excess_kcal = -remaining_kcal
-        protein_reduction = min(excess_kcal / 4, protein_g - 1.0)  # Не меньше 1г/кг
+        protein_reduction = min(excess_kcal / 4, protein_g - 1.0)  # Не меньше 1 g/kg
         protein_g -= protein_reduction
         kcal_pro = protein_g * 4
         remaining_kcal = kcal - kcal_pro - kcal_fat
 
         if remaining_kcal < 0:
             # Если всё ещё отрицательно, уменьшаем жир
-            fat_reduction = min(-remaining_kcal / 9, fat_g - 0.5)  # Не меньше 0.5г/кг
+            fat_reduction = min(-remaining_kcal / 9, fat_g - 0.5)  # Не меньше 0.5 g/kg
             fat_g -= fat_reduction
             kcal_fat = fat_g * 9
             remaining_kcal = kcal - kcal_pro - kcal_fat
@@ -146,8 +146,8 @@ def _apply_diet_flag_adjustments(
 
     if remaining_kcal < 0:
         deficit = -remaining_kcal
-        # Сначала уменьшаем жир, но не ниже 0.7 г/кг (здоровый минимум)
-        min_fat = max(0.7 * weight_kg, 35.0)
+        # Сначала уменьшаем жир, но не ниже 0.7 g/kg (здоровый минимум)
+        min_fat = 0.7 * weight_kg
         if fat > min_fat:
             reduc = min(deficit / 9, fat - min_fat)
             if reduc > 0:
@@ -156,8 +156,8 @@ def _apply_diet_flag_adjustments(
                 remaining_kcal = kcal - protein_kcal - fat_kcal
                 deficit = -remaining_kcal if remaining_kcal < 0 else 0
         if remaining_kcal < 0:
-            # Затем при необходимости слегка уменьшаем белок, но не ниже 1.6 г/кг
-            min_protein = max(1.6 * weight_kg, 80.0)
+            # Затем при необходимости слегка уменьшаем белок, но не ниже 1.6 g/kg
+            min_protein = 1.6 * weight_kg
             if protein > min_protein:
                 reduc = min(-remaining_kcal / 4, protein - min_protein)
                 if reduc > 0:

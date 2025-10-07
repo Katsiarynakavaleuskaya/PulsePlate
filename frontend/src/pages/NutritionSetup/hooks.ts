@@ -7,9 +7,11 @@ import { getBmr, getPlate, getTargets } from '../../api/premium';
 import type {
   SetupFormValues,
   NormalizedBmrData,
+  NormalizedBmrMethod,
   PlateResponse,
   TargetsResponse,
 } from './schema';
+import { validDietFlags } from './schema';
 import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
@@ -37,6 +39,13 @@ const GOAL_DEFAULTS: Record<'loss' | 'maintain' | 'gain', { deficit_pct?: number
     gain: { surplus_pct: 10 },
   };
 
+const KNOWN_BMR_METHODS: ReadonlySet<NormalizedBmrMethod> = new Set([
+  'Mifflin-St Jeor',
+  'Harris-Benedict',
+  'Katch-McArdle',
+  'BMR',
+]);
+
 const DEFAULT_ACTIVITY_MULTIPLIERS: Record<keyof typeof ACTIVITY_MAP, number> = {
   sedentary: 1.2,
   light: 1.375,
@@ -48,11 +57,7 @@ const DEFAULT_ACTIVITY_MULTIPLIERS: Record<keyof typeof ACTIVITY_MAP, number> = 
 /**
  * Diet flags supported by the premium nutrition API (mirrors backend DietFlag).
  */
-const SUPPORTED_DIET_FLAGS = new Set([
-  'VEG', 'GF', 'DAIRY_FREE', 'LOW_COST',
-  'HIGH_PROTEIN', 'LOW_CARB', 'MEDITERRANEAN',
-  'VEGAN', 'KETO', 'PALEO',
-]);
+const SUPPORTED_DIET_FLAGS = new Set(validDietFlags);
 
 const FALLBACK_LANG: SetupSupportedLang = 'en';
 
@@ -199,25 +204,33 @@ const normalizeBmrResponse = (
 ): NormalizedBmrData => {
   const apiActivity = mapActivityToApi(uiActivity);
 
-  const bmrValues = collectNumericValues(response.bmr as unknown);
-  const mifflin = safeNumber((response.bmr as Record<string, unknown> | undefined)?.mifflin);
+  const bmrValues = collectNumericValues(response.bmr);
+  const mifflin = safeNumber(response.bmr.mifflin);
   const rawBmr = mifflin ?? bmrValues[0] ?? null;
   const bmr = Math.round(rawBmr ?? 0);
 
-  const tdeeValues = collectNumericValues(response.tdee as unknown);
-  const activitySpecificTdee = safeNumber((response.tdee as Record<string, unknown> | undefined)?.[apiActivity]);
-  const rawTdee = activitySpecificTdee ?? tdeeValues[0] ?? null;
+  const tdeeValues = collectNumericValues(response.tdee);
+  const primaryTdee = safeNumber(response.tdee.mifflin);
+  const rawTdee = primaryTdee ?? tdeeValues[0] ?? null;
   const fallbackMultiplier = DEFAULT_ACTIVITY_MULTIPLIERS[uiActivity] ?? DEFAULT_ACTIVITY_MULTIPLIERS.moderate;
   const tdee = Math.round(rawTdee ?? bmr * fallbackMultiplier);
 
-  const method =
-    (Array.isArray((response as any).formulas_used) && (response as any).formulas_used.length > 0
-      ? (response as any).formulas_used[0]
-      : typeof (response as any).method === 'string'
-        ? (response as any).method
-        : rawBmr !== null
-          ? (mifflin !== null ? 'Mifflin-St Jeor' : 'BMR')
-          : 'BMR');
+  const formulasUsed = Array.isArray(response.formulas_used) ? response.formulas_used : [];
+  const responseMethod = typeof response.method === 'string' ? response.method : null;
+
+  const method: NormalizedBmrMethod = (() => {
+    const methodFromFormulas = formulasUsed.find(method => typeof method === 'string') as string | undefined;
+    if (methodFromFormulas && KNOWN_BMR_METHODS.has(methodFromFormulas as NormalizedBmrMethod)) {
+      return methodFromFormulas as NormalizedBmrMethod;
+    }
+    if (responseMethod && KNOWN_BMR_METHODS.has(responseMethod as NormalizedBmrMethod)) {
+      return responseMethod as NormalizedBmrMethod;
+    }
+    if (rawBmr !== null) {
+      return mifflin !== null ? 'Mifflin-St Jeor' : 'BMR';
+    }
+    return 'stub';
+  })();
 
   return {
     bmr,

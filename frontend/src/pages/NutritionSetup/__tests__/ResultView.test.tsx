@@ -25,6 +25,9 @@ vi.mock("react-i18next", () => ({
         "nutrition.macros.tdeeDescription": "общий расход калорий",
         "nutrition.units.kcalPerDay": "ккал/день",
         "nutrition.units.gPerDay": "г/день",
+        "nutrition.loadingPlate": "Рассчитываем вашу персональную тарелку...",
+        "common.retrying": "Повторная попытка...",
+        "common.tryAgain": "Попробовать снова",
       };
       return translations[key] || key;
     },
@@ -329,13 +332,17 @@ describe("ResultView", () => {
 
   it("handles retry functionality correctly", () => {
     // Start with error state
-    const base = mockUseSetupCalc();
-    mockUseSetupCalc.mockReturnValue({
-      ...base,
-      error: "Network Error",
+    mockUseSetupCalc.mockImplementation(() => ({
       bmrData: null,
       plateData: null,
-    });
+      loading: false,
+      error: "Network Error",
+    }));
+    mockUseTargets.mockImplementation(() => ({
+      data: null,
+      loading: false,
+      error: null,
+    }));
 
     renderResult();
 

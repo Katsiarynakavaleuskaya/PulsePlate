@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
 import type { PlateApiResponse, Portion, LayoutItem, Meal } from "../types";
 
 describe("Premium Types", () => {
@@ -15,14 +15,15 @@ describe("Premium Types", () => {
       expect(validPortion).toBeDefined();
     });
 
-    it("should reject portion data with missing fields", () => {
-      // This should cause a TypeScript error if uncommented
-      // const invalidPortion: Portion = {
-      //   protein_palm: 2.5,
-      //   fat_thumbs: 1.8,
-      //   // missing carb_cups, veg_cups, meals_per_day
-      // };
-      expect(true).toBe(true); // Placeholder test
+    it("should enforce required fields on Portion (type-level)", () => {
+      const valid: Portion = {
+        protein_palm: 2.5,
+        fat_thumbs: 1.8,
+        carb_cups: 3.2,
+        veg_cups: 2.0,
+        meals_per_day: 3,
+      };
+      expectTypeOf(valid).toMatchTypeOf<Portion>();
     });
   });
 
@@ -155,14 +156,26 @@ describe("Premium Types", () => {
       expect(validResponse).toBeDefined();
     });
 
-    it("should enforce required fields", () => {
-      // This should cause a TypeScript error if uncommented
-      // const invalidResponse: PlateApiResponse = {
-      //   kcal: 2000,
-      //   macros: { protein_g: 125 },
-      //   // missing portions, layout, meals
-      // };
-      expect(true).toBe(true); // Placeholder test
+    it("should enforce PlateApiResponse required fields (type-level)", () => {
+      const sample: PlateApiResponse = {
+        kcal: 2000,
+        macros: {
+          protein_g: 125,
+          fat_g: 67,
+          carbs_g: 250,
+          fiber_g: 25,
+        },
+        portions: {
+          protein_palm: 2.1,
+          fat_thumbs: 1.3,
+          carb_cups: 4.2,
+          veg_cups: 3.0,
+          meals_per_day: 3,
+        },
+        layout: [],
+        meals: [],
+      };
+      expectTypeOf(sample).toMatchTypeOf<PlateApiResponse>();
     });
   });
 });

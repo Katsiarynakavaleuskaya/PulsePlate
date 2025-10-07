@@ -8,7 +8,7 @@ import { z } from "zod";
  * Note: Not all flags are currently supported by the backend API.
  * See SUPPORTED_DIET_FLAGS in hooks.ts for the subset that works.
  */
-const validDietFlags = [
+export const validDietFlags = [
   "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
   "LOW_CARB", "KETO", "PALEO", "MEDITERRANEAN", "VEGAN"
 ] as const;
@@ -24,6 +24,17 @@ export const setupSchema = z.object({
 });
 
 export type SetupFormValues = z.infer<typeof setupSchema>;
+export type DietFlag = typeof validDietFlags[number];
+
+export const isValidSetupFormValues = (data: unknown): data is SetupFormValues =>
+  setupSchema.safeParse(data).success;
+
+export type NormalizedBmrMethod =
+  | "Mifflin-St Jeor"
+  | "Harris-Benedict"
+  | "Katch-McArdle"
+  | "BMR"
+  | "stub";
 
 /**
  * Normalized BMR data for UI display.
@@ -33,7 +44,7 @@ export type SetupFormValues = z.infer<typeof setupSchema>;
 export type NormalizedBmrData = {
   bmr: number;
   tdee: number;
-  method: string;
+  method: NormalizedBmrMethod;
 };
 
 export type PlateResponse = {

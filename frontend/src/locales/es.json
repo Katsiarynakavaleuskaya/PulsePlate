@@ -1,7 +1,9 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "retrying": "Reintentando…",
+    "tryAgain": "Inténtalo de nuevo"
   },
   "auth": {
     "apiKey": {
@@ -128,6 +130,7 @@
       "KETO": "Cetogénico",
       "PALEO": "Paleo",
       "MEDITERRANEAN": "Mediterráneo"
-    }
+    },
+    "loadingPlate": "Calculando tu plato personalizado…"
   }
 }

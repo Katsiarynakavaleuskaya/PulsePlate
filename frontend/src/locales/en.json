@@ -1,7 +1,9 @@
 {
   "common": {
     "ok": "OK",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "retrying": "Retrying…",
+    "tryAgain": "Try again"
   },
   "auth": {
     "apiKey": {
@@ -128,6 +130,7 @@
       "KETO": "Ketogenic",
       "PALEO": "Paleo",
       "MEDITERRANEAN": "Mediterranean"
-    }
+    },
+    "loadingPlate": "Calculating your personalized plate…"
   }
 }

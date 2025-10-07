@@ -271,6 +271,44 @@ class TestCorePlateLogic:
         assert plate_med["macros"]["fat_g"] >= base_plate["macros"]["fat_g"]
         assert plate_med["macros"]["fiber_g"] >= base_plate["macros"]["fiber_g"]
 
+        # Test VEGAN inherits vegetarian adjustments
+        plate_vegan = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"VEGAN"},
+        )
+        vegan_meals = " ".join(meal["title"] for meal in plate_vegan["meals"])
+        assert "тофу" in vegan_meals or "соевый" in vegan_meals or "нут" in vegan_meals
+
+        # Test KETO applies both high-protein and low-carb adjustments
+        plate_keto = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"KETO"},
+        )
+        assert plate_keto["macros"]["protein_g"] >= plate_high_protein["macros"]["protein_g"]
+        assert plate_keto["macros"]["carbs_g"] <= plate_low_carb["macros"]["carbs_g"]
+        assert any("кето-версия" in meal["title"] for meal in plate_keto["meals"])
+
+        # Test PALEO boosts protein-focused meals with substitutions
+        plate_paleo = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"PALEO"},
+        )
+        paleo_meals = " ".join(meal["title"] for meal in plate_paleo["meals"])
+        assert "батат" in paleo_meals or "чиа" in paleo_meals
+        assert plate_paleo["macros"]["protein_g"] >= base_plate["macros"]["protein_g"]
+
     def test_plate_goal_consistency(self):
         """Test different goals produce consistent results."""
         base_params = {"weight_kg": 70, "tdee_val": 2000, "diet_flags": None}
