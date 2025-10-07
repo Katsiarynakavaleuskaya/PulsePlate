@@ -243,44 +243,44 @@ export async function api<T = unknown>(
     validateApiBase();
 
     /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
-     *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
+     *  Callers should pass body as a plain object/array. Binary/stream bodies pass through unchanged.
+     *  GET without body must not set Content-Type.
      */
-    let serializedBody = init?.body;
-    let forceJsonForBody = forceJson;
-
-    // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
-    const body = init?.body as unknown;
+    const rawBody = init?.body as unknown;
     const isPlainObjectOrArray =
-      body &&
-      typeof body === "object" &&
-      (
-        Array.isArray(body) ||
-        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
-      );
+      rawBody &&
+      typeof rawBody === "object" &&
+      (Array.isArray(rawBody) || Object.prototype.toString.call(rawBody) === "[object Object]");
 
     const isForbiddenBinaryLike =
-      body instanceof FormData ||
-      body instanceof Blob ||
-      body instanceof ArrayBuffer ||
-      ArrayBuffer.isView?.(body) === true || // typed arrays & DataView
-      (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) ||
-      (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) ||
-      (typeof File !== "undefined" && body instanceof File) ||
-      (typeof Response !== "undefined" && body instanceof Response) ||
-      (typeof Request !== "undefined" && body instanceof Request);
+      rawBody instanceof FormData ||
+      rawBody instanceof Blob ||
+      rawBody instanceof ArrayBuffer ||
+      ArrayBuffer.isView?.(rawBody) === true || // typed arrays & DataView
+      (typeof URLSearchParams !== "undefined" && rawBody instanceof URLSearchParams) ||
+      (typeof ReadableStream !== "undefined" && rawBody instanceof ReadableStream) ||
+      (typeof File !== "undefined" && rawBody instanceof File) ||
+      (typeof Response !== "undefined" && rawBody instanceof Response) ||
+      (typeof Request !== "undefined" && rawBody instanceof Request);
 
-    // Serialize only plain JSON-like bodies; never serialize binary/stream-like:
-    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
-      serializedBody = JSON.stringify(body);
-      forceJsonForBody = true;
-    }
+    // Decide whether this request will send JSON (affects Content-Type)
+    const willSendJson = Boolean(forceJson || (isPlainObjectOrArray && !isForbiddenBinaryLike));
+
+    // Merge headers BEFORE serializing, using a boolean contract
+    const mergedHeaders = mergeHeaders(init?.headers, willSendJson);
+
+    // Serialize only when needed
+    const serializedBody: BodyInit | undefined =
+      willSendJson && rawBody != null
+        ? (JSON.stringify(rawBody) as unknown as BodyInit)
+        : (rawBody as BodyInit | undefined);
 
     const res = await fetch(`${getApiBase()}${path}`, {
       ...init,
-      body: serializedBody as BodyInit | undefined,
-      headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),
-      credentials: init?.credentials ?? 'include',
-      signal: init?.signal,
+      headers: mergedHeaders,
+      credentials: init?.credentials ?? "include",
+      signal: init?.signal ?? options?.signal,
+      body: serializedBody,
     });
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
