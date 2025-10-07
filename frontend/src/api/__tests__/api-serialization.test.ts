@@ -17,7 +17,7 @@ describe('API Body Serialization', () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     // Reset dependencies
-    setApiClientDependencies(undefined);
+    setApiClientDependencies(null);
   });
 
   it('serializes body to JSON in api() and sets Content-Type only when needed', async () => {
