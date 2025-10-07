@@ -49,7 +49,8 @@ describe('API Body Serialization', () => {
     await api('/ping', { method: 'GET' });
 
     const [, init] = fetchSpy.mock.calls[0];
-    expect(init.headers['Content-Type']).toBeUndefined();
+    const headers = init.headers instanceof Headers ? init.headers : new Headers(init.headers);
+    expect(headers.has('Content-Type')).toBe(false);
 
     fetchSpy.mockRestore();
   });

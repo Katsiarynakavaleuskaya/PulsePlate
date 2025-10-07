@@ -1,11 +1,8 @@
-import { api } from '../client';
+import { api, ApiOptions } from '../client';
 
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 
-export type PremiumRequestOptions = {
-  onAuthError?: (code: string, helpers: { clearApiKey: () => void }) => void;
-  signal?: AbortSignal;
-};
+export type PremiumRequestOptions = Pick<ApiOptions, "onAuthError"> & { signal?: AbortSignal };
 
 /**
  * Generic factory for creating premium API endpoints that use POST requests
@@ -16,12 +13,8 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      {
-        method: 'POST',
-        body, // ← объект, без JSON.stringify
-        signal: options?.signal,
-        ...(options?.onAuthError ? { onAuthError: options.onAuthError } : {}),
-      }
+      { method: 'POST', body, signal: options?.signal },
+      options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
     );
 }
 

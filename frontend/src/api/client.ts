@@ -206,22 +206,14 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   return headers;
 }
 
-/**
- * Performs a fetch to the given API path and returns the parsed JSON, using a mock response when mocking is forced or the network request fails.
- *
- * @param path - The endpoint path relative to the configured API base (e.g., "/premium/bmr").
- * @param init - Optional fetch init options to apply to the network request; request headers are merged with defaults.
- * @param options - Optional configuration object with onAuthError callback and other options.
- * @param forceJson - Optional flag to explicitly set Content-Type to application/json, bypassing automatic detection.
- * @returns The parsed JSON response typed as `T`.
- * @throws Error when the network request fails with a non-OK response, when no mock is mapped for the path, or when both the network request and mock fallback fail.
- */
-async function api<T>(
+export type ApiOptions = {
+  onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
+};
+
+export async function api<T = unknown>(
   path: string,
-  init?: RequestInit,
-  options?: {
-    onAuthError?: (code: string, helpers: { clearApiKey: () => void }) => void;
-  },
+  init?: RequestInit & { mockUrl?: string; forceMock?: boolean },
+  options?: ApiOptions,
   forceJson?: boolean
 ): Promise<T> {
 
@@ -229,12 +221,30 @@ async function api<T>(
     // Validate API base before network request
     validateApiBase();
 
-    // Serialize body if it's an object and prepare Content-Type
+    /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
+     *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
+     */
     let serializedBody = init?.body;
     let forceJsonForBody = forceJson;
-    if (init?.body && typeof init.body === 'object') {
-      serializedBody = JSON.stringify(init.body);
-      forceJsonForBody = true; // Force JSON content type for object bodies
+
+    // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
+    const body = init?.body as any;
+    const isPlainObjectOrArray =
+      body &&
+      typeof body === "object" &&
+      (Array.isArray(body) || body.constructor === Object);
+
+    const isForbiddenBinaryLike =
+      body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
+      body instanceof ReadableStream ||
+      typeof body?.arrayBuffer === "function";
+
+    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
+      serializedBody = JSON.stringify(body);
+      forceJsonForBody = true;
     }
 
     const requestInit = {
@@ -247,9 +257,9 @@ async function api<T>(
 
     const res = await fetch(`${getApiBase()}${path}`, requestInit);
     if (!res.ok) {
-      // Handle 401 Unauthorized - call onAuthError callback or fallback behavior
-      if (res.status === 401) {
-        const errorCode = '401';
+      // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
+      if (res.status === 401 || res.status === 403) {
+        const errorCode = (res.status === 401 ? 401 : 403) as 401 | 403;
         // Call onAuthError callback if provided
         if (options?.onAuthError) {
           options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
@@ -261,9 +271,9 @@ async function api<T>(
           }
         }
         // Log the auth error
-        logError(new UnauthorizedError("API key invalid or expired."));
-        // Throw specific UnauthorizedError so callers can detect 401
-        throw new UnauthorizedError("API key invalid or expired.");
+        logError(new UnauthorizedError(`API key invalid or expired (${res.status}).`));
+        // Throw specific UnauthorizedError so callers can detect auth errors
+        throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");
@@ -300,7 +310,6 @@ async function api<T>(
   }
 }
 
-export { api };
 export const fetchJson = api;
 export { getBmr, getPlate, getTargets } from "./premium";
 export type {
