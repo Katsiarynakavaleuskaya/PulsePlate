@@ -166,7 +166,7 @@ class FoodDatabaseBuilder:
             f"{canonical_name}_{record.get('source', '')}_"
             f"{record.get('fdc_id', '')}_{record.get('gtin', '')}"
         )
-            return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]
+        return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]
 
     def save_parquet(self, foods: List[FoodItem]) -> None:
         """
