@@ -17,6 +17,19 @@ Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
 
+# Activity level multipliers for TDEE calculation
+ACTIVITY_MULTIPLIERS = {
+    "sedentary": 1.2,
+    "light": 1.375,
+    "moderate": 1.55,
+    "active": 1.725,
+    "very_active": 1.9,
+    # Support both naming schemes for backward compatibility
+    "lightly_active": 1.375,
+    "moderately_active": 1.55,
+    "extremely_active": 1.9,
+}
+
 
 def calculate_bmr(
     age: int,
@@ -80,9 +93,7 @@ def get_bmr_formula(user_data: Dict[str, Any]) -> str:
     Returns:
         Best formula name ("katch" if body_fat available, otherwise "mifflin")
     """
-    if "body_fat" in user_data and user_data["body_fat"] is not None:
-        return "katch"
-    return "mifflin"
+    return "katch" if "body_fat" in user_data and user_data["body_fat"] is not None else "mifflin"
 
 
 def adjust_for_activity(bmr: float, activity: Activity) -> float:
@@ -98,18 +109,7 @@ def adjust_for_activity(bmr: float, activity: Activity) -> float:
     Returns:
         TDEE in kcal/day
     """
-    multipliers = {
-        "sedentary": 1.2,
-        "light": 1.375,
-        "moderate": 1.55,
-        "active": 1.725,
-        "very_active": 1.9,
-        # Support both naming schemes for backward compatibility
-        "lightly_active": 1.375,
-        "moderately_active": 1.55,
-        "extremely_active": 1.9,
-    }
-    return bmr * multipliers[activity]
+    return bmr * ACTIVITY_MULTIPLIERS[activity]
 
 
 def calculate_tdee(
