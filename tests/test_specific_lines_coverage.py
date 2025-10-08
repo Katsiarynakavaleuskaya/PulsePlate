@@ -2,6 +2,7 @@
 Тесты для покрытия конкретных непокрытых строк
 """
 
+import logging
 from unittest.mock import patch
 
 
@@ -28,7 +29,8 @@ class TestSpecificLinesCoverage:
 
                 # Просто импортируем функцию для покрытия
                 assert get_unified_food_db is not None
-            except Exception:
+            except Exception as e:
+                logging.exception("Unexpected exception in tests: test_specific_lines_coverage.py")
                 pass
 
     def test_update_manager_lines_64_68_653_655_671_672_675_682_686_coverage(self):

@@ -240,7 +240,7 @@ Requirements:
             return {"error": f"Code generation failed: {str(e)}"}
 
 
-async def main():
+async def main() -> None:
     """Main function for MCP server"""
     server = PulsePlateMCPServer()
 
