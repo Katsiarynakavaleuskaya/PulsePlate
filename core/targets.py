@@ -572,7 +572,7 @@ def get_macro_ratios(goal: str, restriction: str) -> dict:
         Dictionary with macro percentages
     """
     if goal == "muscle_gain":
-        return {"protein": 0.35, "carbs": 0.45, "fat": 0.2}
+        return {"protein": 0.4, "carbs": 0.35, "fat": 0.25}
     elif goal == "fat_loss":
         return {"protein": 0.4, "carbs": 0.3, "fat": 0.3}
     else:  # maintain

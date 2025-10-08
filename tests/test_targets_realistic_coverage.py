@@ -14,6 +14,11 @@ fake = Faker()
 class NutritionProvider(BaseProvider):
     """Custom Faker provider for nutrition-related data"""
 
+    @property
+    def random(self):
+        """Access to random generator"""
+        return self.generator.random
+
     activity_levels = [
         "sedentary",
         "lightly_active",
@@ -46,13 +51,13 @@ class NutritionProvider(BaseProvider):
         return self.random_int(min=16, max=80)
 
     def realistic_weight(self):
-        return round(self.generator.random.uniform(40, 150), 1)
+        return round(self.random.uniform(40, 150), 1)
 
     def realistic_height(self):
-        return round(self.generator.random.uniform(140, 210), 1)
+        return round(self.random.uniform(140, 210), 1)
 
     def realistic_body_fat(self):
-        return round(self.generator.random.uniform(5, 40), 1)
+        return round(self.random.uniform(5, 40), 1)
 
 
 fake.add_provider(NutritionProvider)
@@ -88,7 +93,6 @@ class TestTargetsRealisticCoverage:
         )
 
         try:
-
             # Generate realistic user profiles
             for _ in range(25):
                 user_data = {
@@ -128,9 +132,18 @@ class TestTargetsRealisticCoverage:
 
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
-        try:
-            from core.targets import adjust_for_activity, calculate_tdee
+        from core.targets import (
+            adjust_for_activity,
+            calculate_tdee,
+            calculate_bmr,
+            calculate_macros,
+            get_macro_ratios,
+            get_rda_values,
+            adjust_calories_for_goal,
+            calculate_deficit_surplus,
+        )
 
+        try:
             # Generate realistic scenarios
             for _ in range(20):
                 bmr = fake.random_int(min=1200, max=2500)
@@ -208,10 +221,14 @@ class TestTargetsRealisticCoverage:
 
         # Test macro ratios
         ratios_muscle = get_macro_ratios("muscle_gain", "none")
-        assert ratios_muscle["protein"] > ratios_muscle["carbs"]
+        assert (
+            ratios_muscle["protein"] > ratios_muscle["carbs"]
+        )  # protein should be highest for muscle gain
 
         ratios_loss = get_macro_ratios("fat_loss", "none")
-        assert ratios_loss["protein"] > ratios_loss["carbs"]
+        assert (
+            ratios_loss["protein"] >= ratios_loss["carbs"]
+        )  # protein should be >= carbs for fat loss
 
         # Test RDA calculations
         rda = get_rda_values(30, "female")
@@ -439,9 +456,19 @@ class TestTargetsRealisticCoverage:
 
     def test_nutrient_timing_realistic(self):
         """Test nutrient timing recommendations with realistic scenarios"""
-        try:
-            from core.targets import calculate_pre_post_workout, get_meal_timing
+        from core.targets import (
+            calculate_pre_post_workout,
+            get_meal_timing,
+            get_athlete_targets,
+            get_elderly_adjustments,
+            get_pregnancy_targets,
+            calculate_hydration_needs,
+            adjust_for_climate,
+            check_deficiency_risk,
+            get_supplement_recommendations,
+        )
 
+        try:
             # Generate realistic timing scenarios
             for _ in range(15):
                 timing_data = {

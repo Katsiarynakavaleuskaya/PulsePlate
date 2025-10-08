@@ -83,7 +83,7 @@ class OFFAdapter(BaseAdapter):
             fat_g = float(row.get("fat_100g", 0) or 0)
             carbs_g = float(row.get("carbohydrates_100g", 0) or 0)
             fiber_g = float(row.get("fiber_100g", 0) or 0)
-            sugars = float(row.get("sugars_100g", 0) or 0)
+            sugar_g = float(row.get("sugars_100g", 0) or 0)
 
             # Micro nutrients (often empty in OFF)
             Fe_mg = float(row.get("iron_100g", 0) or 0)
@@ -115,7 +115,7 @@ class OFFAdapter(BaseAdapter):
                 fat_g=fat_g,
                 carbs_g=carbs_g,
                 fiber_g=fiber_g,
-                sugar_g=sugars,
+                sugar_g=sugar_g,
                 Fe_mg=Fe_mg,
                 Ca_mg=Ca_mg,
                 VitD_IU=VitD_IU,

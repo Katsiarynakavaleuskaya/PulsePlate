@@ -3719,6 +3719,7 @@ cadera
 Cadera
 calcio
 Calcular
+cals
 cand
 canvasmaker
 caplog
@@ -3760,12 +3761,14 @@ contextmanager
 coro
 coveragerc
 csvfile
+cunningham
 Databonsai
 dataclass
 dataclasses
 davinci
 debe
 Deberías
+dedupe
 dejavu
 delenv
 deriat
@@ -4176,6 +4179,7 @@ testtarget
 TEXTCOLOR
 Tienes
 timedelta
+timeframe
 Tomate
 TOPPADDING
 transferrables
@@ -4197,6 +4201,7 @@ Uvicorn
 validkey
 válido
 venv
+verylonglanguagecode
 Visualización
 visx
 vitamina

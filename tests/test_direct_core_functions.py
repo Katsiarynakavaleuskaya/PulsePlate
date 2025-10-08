@@ -47,8 +47,6 @@ class TestDirectCoreFunctions:
             pytest.skip("targets functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_auto_repair_functions_direct(self):
@@ -102,8 +100,6 @@ class TestDirectCoreFunctions:
             pytest.skip("auto_repair functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_menu_engine_functions_direct(self):

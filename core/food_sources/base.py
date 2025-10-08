@@ -26,6 +26,7 @@ class FoodRecord:
     fat_g: float  # fat in grams
     carbs_g: float  # carbohydrates in grams
     fiber_g: float  # fiber in grams
+    sugar_g: float = 0.0  # sugar in grams (safe default for legacy callers)
     Fe_mg: float = 0.0  # iron in mg
     Ca_mg: float = 0.0  # calcium in mg
     VitD_IU: float = 0.0  # vitamin D in IU
@@ -38,7 +39,6 @@ class FoodRecord:
     price: float = 0.0  # price per 100g
     source: str = ""  # data source
     version_date: str = ""  # ISO date
-    sugar_g: float = 0.0  # sugar in grams (safe default for legacy callers)
 
 
 class BaseAdapter:
