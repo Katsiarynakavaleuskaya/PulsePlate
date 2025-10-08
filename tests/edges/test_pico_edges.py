@@ -1,7 +1,10 @@
-from typing import Any, Dict
+from typing import Any, Dict, TypeVar, Union
+from collections.abc import Coroutine
+
+T = TypeVar("T")
 
 
-def _await_or_value(x):
+def _await_or_value(x: Union[T, Coroutine[Any, Any, T]]) -> T:
     import asyncio
 
     if asyncio.iscoroutine(x):
