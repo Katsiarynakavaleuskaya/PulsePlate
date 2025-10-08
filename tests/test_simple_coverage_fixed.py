@@ -1,9 +1,9 @@
 """
-import logging
 Простые тесты для покрытия недостающих строк в модулях
 Фокус: безопасные импорты и тестирование реально существующих функций
 """
 
+import logging
 from unittest.mock import patch
 
 import pytest

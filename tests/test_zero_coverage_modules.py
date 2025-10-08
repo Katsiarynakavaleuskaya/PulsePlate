@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-import logging
 Zero Coverage Modules Tests
 
 RU: Тесты для модулей с нулевым покрытием
 EN: Tests for modules with zero coverage
 """
 
+import logging
 import pytest
 
 

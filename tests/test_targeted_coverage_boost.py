@@ -1,8 +1,8 @@
 """
-import logging
 Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 """
 
+import logging
 import os
 import sys
 from unittest.mock import AsyncMock, patch

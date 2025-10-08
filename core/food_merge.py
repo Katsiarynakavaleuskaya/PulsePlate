@@ -134,15 +134,22 @@ def _classify_food_group(record: Dict) -> str:
     Returns:
         Food group classification
     """
-    protein_pct = (
-        (record["protein_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
-    )
-    fat_pct = (record["fat_g"] * 9 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
-    carb_pct = (record["carbs_g"] * 4 / max(1, record["kcal"])) * 100 if record["kcal"] > 0 else 0
+    protein_g = record.get("protein_g", 0)
+    fat_g = record.get("fat_g", 0)
+    carbs_g = record.get("carbs_g", 0)
+    fiber_g = record.get("fiber_g", 0)
+    kcal = record.get("kcal", 0)
+    sugar_g = record.get("sugar_g", 0)
+    flags = record.get("flags", [])
+    name = record.get("name", "")
+
+    protein_pct = (protein_g * 4 / max(1, kcal)) * 100 if kcal > 0 else 0
+    fat_pct = (fat_g * 9 / max(1, kcal)) * 100 if kcal > 0 else 0
+    carb_pct = (carbs_g * 4 / max(1, kcal)) * 100 if kcal > 0 else 0
 
     # High protein foods (>15% of calories from protein)
     if protein_pct > 15:
-        if record["fat_g"] > 5:  # High fat protein (e.g., nuts, seeds)
+        if fat_g > 5:  # High fat protein (e.g., nuts, seeds)
             return "protein"
         else:  # Lean protein (e.g., chicken, fish)
             return "protein"
@@ -153,27 +160,25 @@ def _classify_food_group(record: Dict) -> str:
 
     # High carb foods (>50% of calories from carbs)
     if carb_pct > 50:
-        if record["fiber_g"] > 3:  # High fiber carbs (e.g., whole grains, legumes)
-            if "legume" in record["name"] or any(
-                legume in record["name"] for legume in ["lentil", "bean", "chickpea"]
-            ):
+        if fiber_g > 3:  # High fiber carbs (e.g., whole grains, legumes)
+            if "legume" in name or any(legume in name for legume in ["lentil", "bean", "chickpea"]):
                 return "legume"
             return "grain"
-        elif record["sugar_g"] > 10 if "sugar_g" in record else False:  # High sugar carbs
+        elif sugar_g > 10:  # High sugar carbs
             return "fruit"
         else:  # Starchy carbs
             return "grain"
 
     # Vegetables (moderate carbs, high fiber, low calories)
-    if record["fiber_g"] > 2 and record["kcal"] < 100:
+    if fiber_g > 2 and kcal < 100:
         return "veg"
 
     # Fruits (moderate carbs, natural sugars)
-    if record["sugar_g"] > 5 if "sugar_g" in record else False:
+    if sugar_g > 5:
         return "fruit"
 
     # Dairy (if has dairy flags)
-    if any("DAIRY" in flag for flag in record["flags"]):
+    if any("DAIRY" in flag for flag in flags):
         return "dairy"
 
     # Default classification

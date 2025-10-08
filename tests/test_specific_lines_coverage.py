@@ -1,8 +1,8 @@
 """
-import logging
 Тесты для покрытия конкретных непокрытых строк
 """
 
+import logging
 from unittest.mock import patch
 
 
