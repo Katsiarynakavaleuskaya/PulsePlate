@@ -13,6 +13,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Set
 
+from core.metabolism import (
+    adjust_calories_for_goal,
+    adjust_for_activity,
+    calculate_bmr,
+    calculate_deficit_surplus,
+    calculate_macros,
+    calculate_tdee,
+    get_bmr_formula,
+    get_macro_ratios,
+)
+
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -445,146 +456,6 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
     return warnings
 
 
-def calculate_bmr(
-    age: int,
-    weight: float,
-    height: int,
-    gender: str,
-    body_fat: Optional[float] = None,
-    formula: str = "mifflin",
-) -> float:
-    """Calculate Basal Metabolic Rate (BMR) using various formulas.
-
-    Args:
-        age: Age in years
-        weight: Weight in kg
-        height: Height in cm
-        gender: "male" or "female"
-        body_fat: Body fat percentage (0-100), required for katch/cunningham formulas
-        formula: Formula to use ("mifflin", "harris", "katch", "cunningham")
-
-    Returns:
-        BMR in kcal/day
-
-    Raises:
-        ValueError: If unknown formula or missing body_fat for katch/cunningham
-    """
-    if formula == "mifflin":
-        if gender == "male":
-            return 10 * weight + 6.25 * height - 5 * age + 5
-        else:
-            return 10 * weight + 6.25 * height - 5 * age - 161
-    elif formula == "harris":
-        if gender == "male":
-            return 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
-        else:
-            return 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age
-    elif formula == "katch":
-        if body_fat is None:
-            raise ValueError("Body fat percentage required for Katch-McArdle formula")
-        lean_body_mass = weight * (1 - body_fat / 100)
-        return 370 + (21.6 * lean_body_mass)
-    elif formula == "cunningham":
-        if body_fat is None:
-            raise ValueError("Body fat percentage required for Cunningham formula")
-        lean_body_mass = weight * (1 - body_fat / 100)
-        return 500 + (22 * lean_body_mass)
-    else:
-        raise ValueError(f"Unknown BMR formula: {formula}")
-
-
-def get_bmr_formula(user_data: dict) -> str:
-    """Select the best BMR formula based on available user data.
-
-    Args:
-        user_data: Dictionary with user information
-
-    Returns:
-        Best formula name ("katch" if body_fat available, otherwise "mifflin")
-    """
-    if "body_fat" in user_data and user_data["body_fat"] is not None:
-        return "katch"
-    return "mifflin"
-
-
-# Additional functions for comprehensive testing
-
-
-def adjust_for_activity(bmr: float, activity_level: str) -> float:
-    """Adjust BMR for activity level to get TDEE estimate.
-
-    Args:
-        bmr: Basal Metabolic Rate
-        activity_level: Activity level string
-
-    Returns:
-        Adjusted TDEE estimate
-    """
-    multipliers = {
-        "sedentary": 1.2,
-        "lightly_active": 1.375,
-        "moderately_active": 1.55,
-        "very_active": 1.725,
-        "extremely_active": 1.9,
-    }
-    multiplier = multipliers.get(activity_level, 1.2)
-    return bmr * multiplier
-
-
-def calculate_tdee(bmr: float, activity_level: str, **_kwargs) -> float:
-    """Calculate Total Daily Energy Expenditure.
-
-    Args:
-        bmr: Basal Metabolic Rate
-        activity_level: Activity level
-        **kwargs: Additional factors
-
-    Returns:
-        TDEE in kcal/day
-    """
-    return adjust_for_activity(bmr, activity_level)
-
-
-def calculate_macros(calories: int, **_user_profile) -> dict:
-    """Calculate macronutrient distribution.
-
-    Args:
-        calories: Total daily calories
-        **user_profile: User profile data
-
-    Returns:
-        Dictionary with macro grams
-    """
-    # Simple 40/30/30 split
-    protein_g = calories * 0.3 / 4
-    carbs_g = calories * 0.4 / 4
-    fat_g = calories * 0.3 / 9
-
-    return {
-        "protein": round(protein_g, 1),
-        "carbs": round(carbs_g, 1),
-        "fat": round(fat_g, 1),
-    }
-
-
-def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
-    """Get macro ratios based on goal and dietary restriction.
-
-    Args:
-        goal: Fitness goal
-        restriction: Dietary restriction
-
-    Returns:
-        Dictionary with macro percentages
-    """
-    if goal == "muscle_gain":
-        return {"protein": 0.4, "carbs": 0.35, "fat": 0.25}
-    elif goal == "fat_loss":
-        return {"protein": 0.4, "carbs": 0.3, "fat": 0.3}
-    else:  # maintain
-        return {"protein": 0.3, "carbs": 0.4, "fat": 0.3}
-
-
 def calculate_micronutrient_targets(**user_data) -> dict:
     """Calculate micronutrient targets based on user data.
 
@@ -615,44 +486,6 @@ def get_rda_values(age: int, gender: str) -> dict:
         Dictionary with RDA values
     """
     return calculate_micronutrient_targets(age=age, gender=gender)
-
-
-def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
-    """Adjust calories based on weight goal.
-
-    Args:
-        current_calories: Current daily calories
-        **goal_data: Goal parameters
-
-    Returns:
-        Adjusted calories
-    """
-    goal_type = goal_data.get("goal_type", "maintain")
-    if goal_type == "lose":
-        return current_calories - 500
-    elif goal_type == "gain":
-        return current_calories + 500
-    else:
-        return current_calories
-
-
-def calculate_deficit_surplus(**goal_data) -> float:
-    """
-    Calculate calorie deficit or surplus.
-
-    Args:
-        **goal_data: Goal parameters
-
-    Returns:
-        Calorie adjustment
-    """
-    goal_type = goal_data.get("goal_type", "maintain")
-    if goal_type == "lose":
-        return -500
-    elif goal_type == "gain":
-        return 500
-    else:
-        return 0
 
 
 def get_athlete_targets(**_profile) -> dict:

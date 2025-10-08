@@ -32,11 +32,19 @@ class TestDbRealisticCoverage:
                 "",
             ]
 
-            for path in invalid_paths:
-                with contextlib.suppress(Exception):
-                    with patch("core.db.DB_PATH", path):
-                        if conn := get_db_connection():
-                            conn.close()
+            # Test each invalid path individually to avoid loops in tests
+            with contextlib.suppress(Exception):
+                with patch("core.db.DB_PATH", invalid_paths[0]):
+                    if conn := get_db_connection():
+                        conn.close()
+            with contextlib.suppress(Exception):
+                with patch("core.db.DB_PATH", invalid_paths[1]):
+                    if conn := get_db_connection():
+                        conn.close()
+            with contextlib.suppress(Exception):
+                with patch("core.db.DB_PATH", invalid_paths[2]):
+                    if conn := get_db_connection():
+                        conn.close()
         except ImportError:
             # Module might not exist
             pass
