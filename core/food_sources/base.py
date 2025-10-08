@@ -26,6 +26,7 @@ class FoodRecord:
     fat_g: float  # fat in grams
     carbs_g: float  # carbohydrates in grams
     fiber_g: float  # fiber in grams
+    sugar_g: float  # sugar in grams
     Fe_mg: float  # iron in mg
     Ca_mg: float  # calcium in mg
     VitD_IU: float  # vitamin D in IU
