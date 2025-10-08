@@ -89,7 +89,7 @@ class _FakeFood:
 
 
 class _FakeFoodDB:
-    def get_food(self, name: str) -> _FakeFood:
+    def get_food(self, _name: str) -> _FakeFood:
         return _FakeFood()
 
 
@@ -117,7 +117,9 @@ def test_recipe_db_new_get_by_id_and_search_and_scale(tmp_path: Path):
     # scale when kcal computed as zero -> still returns a Meal
     recipe = db.get_recipe_by_id("Oats")
     assert recipe is not None
-    meal: Meal = db.scale_recipe_to_kcal(recipe, kcal_goal=500, lang="en")  # pyright: ignore[reportArgumentType]
+    meal: Meal = db.scale_recipe_to_kcal(
+        recipe, kcal_goal=500, lang="en"
+    )  # pyright: ignore[reportArgumentType]
     assert isinstance(meal, Meal)
 
 
@@ -192,7 +194,7 @@ def test_recipe_db_parser_and_scaler_with_malformed_entries(tmp_path: Path):
 
     # Fake food db mapping implementing get_nutrient_amount
     class _FF:
-        def get_nutrient_amount(self, key: str, grams: float) -> float:
+        def get_nutrient_amount(self, _key: str, _grams: float) -> float:
             return 0.0
 
     food_db = {"oats": _FF(), "milk": _FF()}
@@ -279,10 +281,10 @@ async def test_unified_db_off_exception_and_invalid_ids(
     db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
     class OffMock:
-        async def search_products(self, *args: Any, **kwargs: Any):  # noqa: D401
+        async def search_products(self, *_args: Any, **_kwargs: Any):  # noqa: D401
             raise RuntimeError("OFF boom")
 
-        async def get_product_details(self, code: str):  # noqa: D401
+        async def get_product_details(self, _code: str):  # noqa: D401
             raise RuntimeError("detail boom")
 
         async def close(self) -> None:
@@ -385,7 +387,9 @@ def test_menu_engine_default_strategy_and_boosters_branch():
             availability_regions=[],
         )
     }
-    boosters = _find_booster_foods({"iron_mg": 10.0}, None, food_db)  # pyright: ignore[reportArgumentType]
+    boosters = _find_booster_foods(
+        {"iron_mg": 10.0}, None, food_db
+    )  # pyright: ignore[reportArgumentType]
     assert "iron_mg" in boosters and boosters["iron_mg"][0].name == "spinach"
 
 
@@ -404,21 +408,21 @@ class _StubFoodDB:
         self._donor = donor
         self._kcal_zero = kcal_zero
 
-    def pick_booster_for(self, mk: str, diet_flags: list[str]) -> str | None:
+    def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
         return self._donor
 
-    def get_food(self, name: str) -> _StubFood:
+    def get_food(self, _name: str) -> _StubFood:
         return _StubFood(kcal_zero=self._kcal_zero)
 
-    def get_translated_food_name(self, name: str, lang: str) -> str:
-        return name
+    def get_translated_food_name(self, _name: str, _lang: str) -> str:
+        return _name
 
 
 class _StubRecipeDB:
-    def pick_base_recipe(self, diet_flags: list[str], i: int) -> Any:
+    def pick_base_recipe(self, _diet_flags: list[str], _i: int) -> Any:
         return None  # no base recipes
 
-    def scale_recipe_to_kcal(self, *args: Any, **kwargs: Any) -> Any:
+    def scale_recipe_to_kcal(self, *_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("should not be called without base recipe")
 
 
