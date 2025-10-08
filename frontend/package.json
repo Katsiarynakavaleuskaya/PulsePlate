@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 10",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 25",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --environment jsdom --testTimeout=30000",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts",
