@@ -62,27 +62,15 @@ class TestTargetsCoverage97:
 
     def test_get_minimum_valid_nutrient(self):
         """Test get_minimum with valid nutrient."""
-        try:
-            result = self.targets.get_minimum("calcium")
-            assert isinstance(result, float)
-        except ValueError:
-            try:
-                result = self.targets.get_minimum("iron")
-                assert isinstance(result, float)
-            except ValueError:
-                pytest.skip("No valid nutrients found for testing")
+        result = self.targets.get_minimum("iron_mg")
+        assert isinstance(result, float)
+        assert result == 8.0  # min value from tuple
 
     def test_get_maximum_valid_nutrient(self):
         """Test get_maximum with valid nutrient."""
-        try:
-            result = self.targets.get_maximum("calcium")
-            assert isinstance(result, float)
-        except ValueError:
-            try:
-                result = self.targets.get_maximum("iron")
-                assert isinstance(result, float)
-            except ValueError:
-                pytest.skip("No valid nutrients found for testing")
+        result = self.targets.get_maximum("iron_mg")
+        assert isinstance(result, float)
+        assert result == 45.0  # max value from tuple
 
     def test_is_deficient_true(self):
         """Test is_deficient with deficient value."""

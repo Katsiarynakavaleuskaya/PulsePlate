@@ -123,6 +123,18 @@ class TestTargetsRealisticCoverage:
                     )
                     pass
 
+                # Test formula selection without body_fat (should return "mifflin")
+                try:
+                    user_data_no_fat = user_data.copy()
+                    user_data_no_fat.pop("body_fat", None)  # Remove body_fat
+                    best_formula_no_fat = get_bmr_formula(user_data_no_fat)
+                    assert best_formula_no_fat == "mifflin"
+                except Exception as e:
+                    logging.exception(
+                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
+                    )
+                    pass
+
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
 

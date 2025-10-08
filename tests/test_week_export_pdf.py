@@ -78,6 +78,22 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     assert plan.FONT_NAME in registered
 
 
+def test_register_font_falls_back_on_exception(monkeypatch, tmp_path) -> None:
+    """Test _register_font returns 'Helvetica' when font registration fails."""
+    font_file = tmp_path / "dejavu.ttf"
+    font_file.write_bytes(b"dummy")
+    monkeypatch.setattr(plan, "FONT_PATH", font_file)
+
+    def fake_register(font_obj: Any) -> None:
+        raise ValueError("Font registration failed")
+
+    monkeypatch.setattr(plan.pdfmetrics, "registerFont", fake_register)
+    monkeypatch.setattr(plan, "TTFont", lambda name, path: (name, path))
+
+    # Should return "Helvetica" when registration fails
+    assert plan._register_font() == "Helvetica"  # type: ignore[access-private-member]
+
+
 def test_pdf_uses_page_breaks(export_client: TestClient, monkeypatch) -> None:
     def fake_plan() -> dict[str, Any]:
         return {
