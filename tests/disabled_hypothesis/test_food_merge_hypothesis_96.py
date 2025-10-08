@@ -51,7 +51,7 @@ class TestFoodMergeHypothesis96:
         assert isinstance(result, float)
         assert result >= 0.0
 
-        if valid_values := [v for v in values if v > 0]:
+        if valid_values := [v for v in values if v is not None and v >= 0]:
             assert min(valid_values) <= result <= max(valid_values)
         else:
             assert result == 0.0
@@ -75,7 +75,7 @@ class TestFoodMergeHypothesis96:
         """Test first strategy property."""
         result = _merge_values(values, strategy="first")
 
-        if valid_values := [v for v in values if v > 0]:
+        if valid_values := [v for v in values if v is not None and v >= 0]:
             assert result == valid_values[0]
 
     @given(
@@ -386,7 +386,7 @@ class TestFoodMergeHypothesis96:
             # Check that micronutrients match USDA values (or median of USDA values)
             for micro in MICROS:
                 usda_values = [getattr(r, micro) for r in usda_records]
-                if usda_values := [v for v in usda_values if v > 0]:
+                if usda_values := [v for v in usda_values if v is not None and v >= 0]:
                     # Should use USDA values, not all values
                     assert merged_record[micro] in usda_values
 

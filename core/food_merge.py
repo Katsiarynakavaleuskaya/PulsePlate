@@ -77,9 +77,9 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         sugar = _merge_values([r.sugar_g for r in rows])
 
         # Priority for micronutrients: if USDA present, take from USDA, otherwise median
-        def micro_pick(key: str, records: list) -> float:
+        def micro_pick(key: str, rows: list) -> float:
             # Get values from USDA source first
-            usda_vals = [getattr(r, key) for r in records if r.source == "USDA"]
+            usda_vals = [getattr(r, key) for r in rows if r.source == "USDA"]
             usda_vals = [v for v in usda_vals if v is not None and v >= 0]
 
             if usda_vals:
@@ -87,7 +87,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
                 return _merge_values(usda_vals, "median")
 
             # Otherwise, use median of all values
-            all_vals = [getattr(r, key) for r in records]
+            all_vals = [getattr(r, key) for r in rows]
             all_vals = [v for v in all_vals if v is not None and v >= 0]
             return _merge_values(all_vals, "median")
 
