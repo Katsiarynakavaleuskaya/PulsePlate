@@ -214,7 +214,6 @@ class TestApplicationStartupPaths:
             test_app.add_middleware(type("TestMiddleware", (), {}))
             middleware_added = True
         except Exception:
-
             logging.exception("Unexpected exception in tests: test_import_errors_coverage.py")
             # Если middleware не может быть добавлен, это нормально для теста
             pass

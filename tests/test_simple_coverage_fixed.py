@@ -230,7 +230,6 @@ class TestSimpleCoverageBoost:
                         result = list(adapter.fetch())
                         assert isinstance(result, list)
                     except Exception:
-
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
@@ -245,7 +244,6 @@ class TestSimpleCoverageBoost:
                         result = list(adapter.normalize())
                         assert isinstance(result, list)
                     except Exception:
-
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
@@ -270,7 +268,6 @@ class TestSimpleCoverageBoost:
                         result = list(adapter.fetch())
                         assert isinstance(result, list)
                     except Exception:
-
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
@@ -310,7 +307,6 @@ class TestSimpleCoverageBoost:
                     engine = auto_repair_module.get_auto_repair_engine()
                     assert engine is not None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -328,7 +324,6 @@ class TestSimpleCoverageBoost:
                     func = auto_repair_module.auto_repair_week_plan
                     assert callable(func)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -346,7 +341,6 @@ class TestSimpleCoverageBoost:
                     func = auto_repair_module.suggest_manual_fixes
                     assert callable(func)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -369,7 +363,6 @@ class TestSimpleCoverageBoost:
                         history = engine.get_repair_history()
                         assert isinstance(history, list)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -399,7 +392,6 @@ class TestSimpleCoverageBoost:
                     result = food_merge_module.merge_records([])
                     assert isinstance(result, list)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -423,7 +415,6 @@ class TestSimpleCoverageBoost:
                     empty_result = food_merge_module._merge_values([])
                     assert isinstance(empty_result, float)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -446,7 +437,6 @@ class TestSimpleCoverageBoost:
                     empty_result = food_merge_module._classify_food_group({})
                     assert isinstance(empty_result, str)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -473,7 +463,6 @@ class TestSimpleCoverageBoost:
                     func = menu_engine_module.make_weekly_menu
                     assert callable(func)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -490,7 +479,6 @@ class TestSimpleCoverageBoost:
                     func = menu_engine_module.make_daily_menu
                     assert callable(func)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -508,7 +496,6 @@ class TestSimpleCoverageBoost:
                     result = menu_engine_module._get_default_food_db()
                     assert isinstance(result, dict)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -525,7 +512,6 @@ class TestSimpleCoverageBoost:
                     result = menu_engine_module._get_default_recipe_db()
                     assert isinstance(result, dict)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -543,7 +529,6 @@ class TestSimpleCoverageBoost:
                     # Не создаем экземпляр, просто проверяем что класс есть
                     assert menu_engine_module.FoodItem is not None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -559,7 +544,6 @@ class TestSimpleCoverageBoost:
                 try:
                     assert menu_engine_module.Recipe is not None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -575,7 +559,6 @@ class TestSimpleCoverageBoost:
                 try:
                     assert menu_engine_module.DayMenu is not None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -591,7 +574,6 @@ class TestSimpleCoverageBoost:
                 try:
                     assert menu_engine_module.WeekMenu is not None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )

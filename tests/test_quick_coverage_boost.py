@@ -317,7 +317,6 @@ class TestQuickCoverageBoost:
                 try:
                     await manager.update_database("usda")
                 except Exception:
-
                     logging.exception("Unexpected exception in tests: test_quick_coverage_boost.py")
                     pass  # Ожидаем ошибку
 

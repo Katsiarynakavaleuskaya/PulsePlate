@@ -176,7 +176,6 @@ class TestI18nFinalCoverage:
                     result = normalize_lang(case)
                     print(f"Edge case {case} -> {result}")
                 except Exception:
-
                     logging.exception("Unexpected exception in tests: test_i18n_final_coverage.py")
                     print(f"Edge case {case} failed")
 

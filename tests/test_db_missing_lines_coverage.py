@@ -230,7 +230,6 @@ class TestDbMissingLinesCoverage:
                 try:
                     session_gen.throw(Exception("Test exception"))
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_missing_lines_coverage.py"
                     )

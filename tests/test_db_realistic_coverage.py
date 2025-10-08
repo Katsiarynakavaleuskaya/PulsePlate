@@ -38,7 +38,6 @@ class TestDbRealisticCoverage:
                         if conn := get_db_connection():
                             conn.close()
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -67,7 +66,6 @@ class TestDbRealisticCoverage:
                     result = execute_query(query)
                     # Some might succeed with fallbacks
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -86,7 +84,6 @@ class TestDbRealisticCoverage:
                 try:
                     init_db()
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -99,7 +96,6 @@ class TestDbRealisticCoverage:
             try:
                 create_tables()
             except Exception:
-
                 logging.exception("Unexpected exception in tests: test_db_realistic_coverage.py")
                 logging.exception("Suppressed exception in tests: test_db_realistic_coverage.py")
 
@@ -125,7 +121,6 @@ class TestDbRealisticCoverage:
                         conn.close()
                         return result
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -152,7 +147,6 @@ class TestDbRealisticCoverage:
                     conn = get_db_connection()
                     # Should handle error gracefully
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -166,7 +160,6 @@ class TestDbRealisticCoverage:
                 try:
                     conn = get_db_connection()
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -196,7 +189,6 @@ class TestDbRealisticCoverage:
                     with patch("core.db.get_schema_version", return_value=version):
                         migrate_db()
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -225,7 +217,6 @@ class TestDbRealisticCoverage:
                     backup_db(path)
                     restore_db(path)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -258,7 +249,6 @@ class TestDbRealisticCoverage:
                 try:
                     execute_query(query)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -282,7 +272,6 @@ class TestDbRealisticCoverage:
                     if conn := get_db_connection():
                         connections.append(conn)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -295,7 +284,6 @@ class TestDbRealisticCoverage:
             try:
                 close_all_connections()
             except Exception:
-
                 logging.exception("Unexpected exception in tests: test_db_realistic_coverage.py")
                 logging.exception("Suppressed exception in tests: test_db_realistic_coverage.py")
 
@@ -305,7 +293,6 @@ class TestDbRealisticCoverage:
                 try:
                     conn.close()
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
@@ -336,7 +323,6 @@ class TestDbRealisticCoverage:
                     validate_schema(table)
                     get_table_info(table)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )

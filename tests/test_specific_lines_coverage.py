@@ -31,7 +31,6 @@ class TestSpecificLinesCoverage:
                 # Просто импортируем функцию для покрытия
                 assert get_unified_food_db is not None
             except Exception:
-
                 logging.exception("Unexpected exception in tests: test_specific_lines_coverage.py")
                 logging.exception("Unexpected exception in tests: test_specific_lines_coverage.py")
 

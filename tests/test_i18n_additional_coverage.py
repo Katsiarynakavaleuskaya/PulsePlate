@@ -210,7 +210,6 @@ class TestI18nAdditionalCoverage:
                 try:
                     return t(lang, key)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_additional_coverage.py"
                     )

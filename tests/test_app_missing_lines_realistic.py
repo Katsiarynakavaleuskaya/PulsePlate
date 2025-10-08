@@ -134,7 +134,6 @@ class TestAppMissingLinesTargeted:
                 response = self.client.post("/bmi", json=case)
                 assert response.status_code in [200, 400, 422, 500]
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_app_missing_lines_realistic.py"
                 )
@@ -379,7 +378,6 @@ class TestAppSpecificMissingBlocks:
                 response = self.client.post("/bmi", json=test_data)
                 assert response.status_code in [200, 400, 422]
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_app_missing_lines_realistic.py"
                 )

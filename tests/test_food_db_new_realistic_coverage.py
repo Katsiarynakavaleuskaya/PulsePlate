@@ -103,7 +103,6 @@ class TestFoodDbNewRealisticCoverage:
                     # Should handle all cases gracefully
                     assert isinstance(results, (list, dict, type(None)))
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -117,7 +116,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     search_by_barcode(barcode)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -160,7 +158,6 @@ class TestFoodDbNewRealisticCoverage:
                     validate_food_data(food)
                     normalize_food_data(food)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -176,7 +173,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     validate_food_data(invalid)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -195,7 +191,6 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 update_food_database()
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                 )
@@ -208,7 +203,6 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 sync_external_sources()
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                 )
@@ -230,7 +224,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     update_food_database(**scenario)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -271,7 +264,6 @@ class TestFoodDbNewRealisticCoverage:
                     cached_again = get_cached_food(food_id)
 
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -284,7 +276,6 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 clear_cache()
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                 )
@@ -313,7 +304,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     result = fetch_from_usda(query)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -329,7 +319,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     result = fetch_from_openfood(barcode)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -369,7 +358,6 @@ class TestFoodDbNewRealisticCoverage:
                         scaled = scale_nutrition(base_nutrition, size)
                         calculated = calculate_nutrition([base_nutrition, scaled])
                     except Exception:
-
                         logging.exception(
                             "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                         )
@@ -393,7 +381,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     exported = export_foods(format=format_type, limit=100)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -418,7 +405,6 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 import_foods(import_data)
             except Exception:
-
                 logging.exception(
                     "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                 )
@@ -447,7 +433,6 @@ class TestFoodDbNewRealisticCoverage:
                     fuzzy_results = fuzzy_search(variation)
                     exact_results = exact_search(original)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -462,7 +447,6 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     category_results = category_search(category)
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )
@@ -494,7 +478,6 @@ class TestFoodDbNewRealisticCoverage:
                         "duration": duration,
                     }
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
                     )

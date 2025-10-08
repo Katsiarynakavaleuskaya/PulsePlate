@@ -225,7 +225,6 @@ class TestLifespanCoverage:
             async with lifespan(mock_app):
                 pass  # Просто проверяем что не падает
         except Exception:
-
             logging.exception("Unexpected exception in tests: test_app_simple_coverage_clean.py")
             # Если есть ошибка, она должна быть обработана gracefully
             print("Lifespan error handled")

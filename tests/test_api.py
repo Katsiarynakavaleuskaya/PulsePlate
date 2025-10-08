@@ -32,7 +32,6 @@ def _test_app_import_with_assertions(original_app, test_assertions):
 
         test_assertions(app)
     except Exception:
-
         logging.exception("Unexpected exception in tests: test_api.py")
         pytest.skip("App import failed unexpectedly")
     finally:

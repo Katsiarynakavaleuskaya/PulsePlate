@@ -414,7 +414,6 @@ class TestUnifiedFoodDatabaseComprehensive:
                     result = await db.get_food_by_id("usda", "12345")
                     assert result is None
                 except Exception:
-
                     logging.exception(
                         "Unexpected exception in tests: test_food_apis_comprehensive_coverage.py"
                     )
