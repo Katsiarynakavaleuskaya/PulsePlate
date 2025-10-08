@@ -1,3 +1,6 @@
 # Test reports
 test-results/
 junit.xml
+
+*storybook.log
+storybook-static
