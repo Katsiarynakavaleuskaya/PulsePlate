@@ -306,4 +306,11 @@ docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
+## Bandit full scan (CI-friendly with safe excludes)
+bandit-full: ## Run Bandit on repository (excluding heavy/non-Python paths)
+	@echo "Running Bandit on repository (excluding heavy/non-Python paths)..."
+	bandit -q -r . \
+		--exclude frontend,node_modules,dist,build,test-results,.venv,venv \
+		--severity-level MEDIUM --confidence-level HIGH || true
+
+.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit-full
