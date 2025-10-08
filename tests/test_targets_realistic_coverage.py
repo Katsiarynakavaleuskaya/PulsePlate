@@ -46,13 +46,13 @@ class NutritionProvider(BaseProvider):
         return self.random_int(min=16, max=80)
 
     def realistic_weight(self):
-        return round(self.random.uniform(40, 150), 1)
+        return round(self.generator.random.uniform(40, 150), 1)
 
     def realistic_height(self):
-        return round(self.random.uniform(140, 210), 1)
+        return round(self.generator.random.uniform(140, 210), 1)
 
     def realistic_body_fat(self):
-        return round(self.random.uniform(5, 40), 1)
+        return round(self.generator.random.uniform(5, 40), 1)
 
 
 fake.add_provider(NutritionProvider)
