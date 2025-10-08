@@ -3,69 +3,60 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      - id: check-merge-conflict
       - id: check-yaml
-      - id: check-added-large-files
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-added-large-files
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-        name: black (python)
+        name: black (format)
+        language_version: python3
         files: ^(?!frontend/).+\.py$
-        args: [--line-length=100]
 
   # --- Lint: Ruff (fast flake8 + isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
-        name: ruff (lint)
+        name: ruff (lint, local)
         files: ^(?!frontend/).+\.py$
         args: [--fix]
-      # - id: ruff-format
-      #   name: ruff (format)
-      #   files: ^(?!frontend/).+\.py$
+      - id: ruff-format
+        name: ruff (format, local)
+        files: ^(?!frontend/).+\.py$
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+    rev: v1.11.2
     hooks:
       - id: mypy
         name: mypy (type-check)
-        # Keep scope narrow to avoid legacy noise; previous config had routers-only scope.
-        files: ^app/routers/.*\.py$
         args:
           - --pretty
           - --show-error-codes
           - --implicit-optional
+          - --ignore-missing-imports
           - --install-types
           - --non-interactive
-          - --ignore-missing-imports
+        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security)
+        name: bandit (security, changed files)
         types: [python]
-        # Rely on pre-commit to pass only changed files; DO NOT scan repo root here.
-        # Exclude heavy or non-Python trees to avoid accidental directory args.
+        # Bandit should scan only staged/changed files in pre-commit.
+        # Avoid implicit repo-wide scan by NOT passing "." or "-r .".
         exclude: |
-          ^frontend/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/
-        args:
-          - -q
-          - -s
-          - "B101"  # (optional) assert-used if it's too noisy
-          - --severity-level
-          - "medium"
-          - --confidence-level
-          - "high"
-        stages: [pre-commit]
+          ^frontend/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+        args: ["-q","-s","B101"]
 
   # --- Vulnerabilities: safety (requirements scan)
   # Temporarily disabled - safety hook manifest issue
@@ -79,15 +70,14 @@ repos:
   #       stages: [pre-push]
 
   # --- Docstrings: pydocstyle
-  # Temporarily disabled for final push
-  # - repo: https://github.com/PyCQA/pydocstyle
-  #   rev: 6.3.0
-  #   hooks:
-  #     - id: pydocstyle
-  #       name: pydocstyle (docstrings)
-  #       files: ^(?!frontend/).+\.py$
-  #       # Customize conventions/ignore codes in pyproject.toml if needed
-  #       args: [--convention=google]
+  - repo: https://github.com/PyCQA/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        name: pydocstyle (docstrings)
+        files: ^(?!frontend/).+\.py$
+        # Customize conventions/ignore codes in pyproject.toml if needed
+        args: [--convention=google]
 
   # --- Commit message lint (commitizen)
   - repo: https://github.com/commitizen-tools/commitizen
@@ -99,16 +89,22 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
-  # --- Local: run pytest only on pre-push (fast gate)
-  # Temporarily disabled for push
-  # - repo: local
-  #   hooks:
-  #     - id: pytest
-  #       name: pytest (unit/integration)
-  #       entry: bash -c "pytest -q --maxfail=1 --disable-warnings"
-  #       language: system
-  #       pass_filenames: false
-  #       stages: [pre-push]
+  # --- Local hooks for stricter CI-like checks on pre-push (optional)
+  - repo: local
+    hooks:
+      - id: ruff-pre-push
+        name: ruff (lint, pre-push strict)
+        entry: bash -c "ruff check . --fix --exit-non-zero-on-fix"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      # Enable later if needed (kept commented to avoid blocking merge now):
+      # - id: pytest
+      #   name: pytest (unit/integration)
+      #   entry: bash -c "pytest -q --maxfail=1 --disable-warnings"
+      #   language: system
+      #   pass_filenames: false
+      #   stages: [pre-push]
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"
