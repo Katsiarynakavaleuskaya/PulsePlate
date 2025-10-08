@@ -16,6 +16,11 @@ class FoodRecord:
     """
     RU: Запись о продукте питания.
     EN: Food record.
+
+    Note: This class uses 0.0 as a sentinel value for "not available" across all
+    nutrient fields. Downstream code must treat 0.0 as potentially missing data
+    rather than measured zero. This design choice prioritizes backward compatibility
+    over semantic precision.
     """
 
     name: str  # canonical name

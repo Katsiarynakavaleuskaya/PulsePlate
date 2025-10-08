@@ -39,7 +39,7 @@ def _merge_values(values: List[float], strategy: str = "median") -> float:
     Returns:
         Merged value
     """
-    vals = [v for v in values if v is not None and v > 0]
+    vals = [v for v in values if v is not None and v >= 0]
     if not vals:
         return 0.0
     if strategy == "median":
@@ -77,18 +77,18 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         sugar = _merge_values([r.sugar_g for r in rows])
 
         # Priority for micronutrients: if USDA present, take from USDA, otherwise median
-        def micro_pick(key: str) -> float:
+        def micro_pick(key: str, records: list) -> float:
             # Get values from USDA source first
-            usda_vals = [getattr(r, key) for r in rows if r.source == "USDA"]
-            usda_vals = [v for v in usda_vals if v > 0]
+            usda_vals = [getattr(r, key) for r in records if r.source == "USDA"]
+            usda_vals = [v for v in usda_vals if v is not None and v >= 0]
 
             if usda_vals:
                 # If we have USDA values, use median of USDA values
                 return _merge_values(usda_vals, "median")
 
             # Otherwise, use median of all values
-            all_vals = [getattr(r, key) for r in rows]
-            all_vals = [v for v in all_vals if v > 0]
+            all_vals = [getattr(r, key) for r in records]
+            all_vals = [v for v in all_vals if v is not None and v >= 0]
             return _merge_values(all_vals, "median")
 
         # Collect all flags
@@ -110,7 +110,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
             "carbs_g": round(carbs, 2),
             "fiber_g": round(fiber, 2),
             "sugar_g": round(sugar, 2),
-            **{k: round(micro_pick(k), 3) for k in MICROS},
+            **{k: round(micro_pick(k, rows), 3) for k in MICROS},
             "flags": list(sorted(all_flags)),
             "price": 0.0,  # Can be populated from OFF later
             "source": "MERGED(" + ",".join(sources) + ")",
