@@ -568,8 +568,7 @@ def calculate_macros(calories: int, **_user_profile) -> dict:
 
 
 def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
-    """
-    Get macro ratios based on goal and dietary restriction.
+    """Get macro ratios based on goal and dietary restriction.
 
     Args:
         goal: Fitness goal
@@ -587,8 +586,7 @@ def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
 
 
 def calculate_micronutrient_targets(**user_data) -> dict:
-    """
-    Calculate micronutrient targets based on user data.
+    """Calculate micronutrient targets based on user data.
 
     Args:
         **user_data: User profile data
@@ -607,8 +605,7 @@ def calculate_micronutrient_targets(**user_data) -> dict:
 
 
 def get_rda_values(age: int, gender: str) -> dict:
-    """
-    Get RDA values for age and gender.
+    """Get RDA values for age and gender.
 
     Args:
         age: Age in years
@@ -621,8 +618,7 @@ def get_rda_values(age: int, gender: str) -> dict:
 
 
 def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
-    """
-    Adjust calories based on weight goal.
+    """Adjust calories based on weight goal.
 
     Args:
         current_calories: Current daily calories

@@ -4227,6 +4227,7 @@ yodo
 yogur
 Yogur
 yourco
+ypos
 yticks
 zoneinfo
 αβγδε
