@@ -2,6 +2,8 @@
 Additional tests to improve coverage to 97%+.
 """
 
+import logging
+
 import os
 import sys
 from unittest.mock import AsyncMock, patch
@@ -145,6 +147,7 @@ class TestCoverageImprovement:
                 _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
+            logging.exception("Unexpected exception in tests: test_coverage_improvement.py")
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -161,6 +164,7 @@ class TestCoverageImprovement:
                 db._save_cache()
                 # Should not crash, just log error
         except Exception:
+            logging.exception("Unexpected exception in tests: test_coverage_improvement.py")
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -184,6 +188,7 @@ class TestCoverageImprovement:
                     )
                     # Should handle gracefully
         except Exception:
+            logging.exception("Unexpected exception in tests: test_coverage_improvement.py")
             # Exception is expected, but the code should handle it gracefully
             pass
 

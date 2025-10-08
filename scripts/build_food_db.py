@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import hashlib
 import json
+import logging
 import sqlite3
 from datetime import datetime
 from typing import Dict, List
@@ -21,6 +22,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from core.food_merge import merge_records
+from core.food_sources.base import FoodRecord
 from core.food_sources.off import OFFAdapter
 from core.food_sources.usda import USDAAdapter
 from core.schemas import FoodItem
@@ -32,12 +34,12 @@ class FoodDatabaseBuilder:
     EN: Food database builder with full provenance tracking.
     """
 
-    def __init__(self, project_root: str = None):
+    def __init__(self, project_root: str | None = None):
         """Initialize builder with project paths."""
         if project_root is None:
-            project_root = Path(__file__).parent.parent
-
-        self.project_root = Path(project_root)
+            self.project_root = Path(__file__).parent.parent
+        else:
+            self.project_root = Path(project_root)
         self.data_dir = self.project_root / "data"
         self.external_dir = self.project_root / "external"
         self.usda_chunks_dir = self.external_dir / "usda_chunks"
@@ -52,7 +54,7 @@ class FoodDatabaseBuilder:
         self.data_dir.mkdir(exist_ok=True)
         self.external_dir.mkdir(exist_ok=True)
 
-    def load_source_data(self) -> tuple[List[Dict], List[Dict]]:
+    def load_source_data(self) -> tuple[list[FoodRecord], list[FoodRecord]]:
         """
         RU: Загрузить данные из всех источников (USDA + OFF).
         EN: Load data from all sources (USDA + OFF).
@@ -63,35 +65,37 @@ class FoodDatabaseBuilder:
         usda_data = []
         if self.usda_chunks_dir.exists() and any(self.usda_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading USDA chunks from {self.usda_chunks_dir}")
-            adapter = USDAAdapter(str(self.usda_chunks_dir))
+            usda_adapter = USDAAdapter(str(self.usda_chunks_dir))
         else:
             print("  📊 Loading USDA from single file")
-            adapter = USDAAdapter()
+            usda_adapter = USDAAdapter()
 
         try:
-            usda_data = list(adapter.normalize())
+            usda_data = list(usda_adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except Exception as e:
-            print(f"  ❌ USDA error: {e}")
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            logging.exception("USDA data loading failed")
 
         # Load OFF data (from chunks or single file)
         off_data = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
-            adapter = OFFAdapter(str(self.off_chunks_dir))
+            off_adapter = OFFAdapter(str(self.off_chunks_dir))
         else:
             print("  📊 Loading OFF from single file")
-            adapter = OFFAdapter()
+            off_adapter = OFFAdapter()
 
         try:
-            off_data = list(adapter.normalize())
+            off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
-        except Exception as e:
-            print(f"  ❌ OFF error: {e}")
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            logging.exception("OFF data loading failed")
 
         return usda_data, off_data
 
-    def merge_and_validate(self, usda_data: List[Dict], off_data: List[Dict]) -> List[FoodItem]:
+    def merge_and_validate(
+        self, usda_data: list[FoodRecord], off_data: list[FoodRecord]
+    ) -> List[FoodItem]:
         """
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
@@ -163,7 +167,7 @@ class FoodDatabaseBuilder:
             f"{canonical_name}_{record.get('source', '')}_"
             f"{record.get('fdc_id', '')}_{record.get('gtin', '')}"
         )
-        return hashlib.md5(key_data.encode()).hexdigest()[:12]
+        return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]
 
     def save_parquet(self, foods: List[FoodItem]) -> None:
         """
@@ -175,7 +179,7 @@ class FoodDatabaseBuilder:
         # Convert to DataFrame
         data = []
         for food in foods:
-            row = food.dict()
+            row = food.model_dump()
             # Convert lists to JSON strings for Parquet compatibility
             row["flags"] = json.dumps(row["flags"])
             data.append(row)
@@ -307,9 +311,9 @@ class FoodDatabaseBuilder:
 
         # Calculate statistics
         total_foods = len(foods)
-        sources = {}
-        groups = {}
-        micronutrient_coverage = {}
+        sources: dict[str, int] = {}
+        groups: dict[str, int] = {}
+        micronutrient_coverage: dict[str, float] = {}
 
         for food in foods:
             # Source distribution

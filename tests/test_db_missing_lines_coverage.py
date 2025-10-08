@@ -3,6 +3,8 @@ Targeted tests for core/db.py missing lines 56-65, 136.
 Focus on error handling and edge cases.
 """
 
+import logging
+
 import os
 from unittest.mock import Mock, patch
 
@@ -228,8 +230,9 @@ class TestDbMissingLinesCoverage:
                 try:
                     session_gen.throw(Exception("Test exception"))
                 except Exception:
-                    pass
-
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_missing_lines_coverage.py"
+                    )
                 # Session should still be closed
                 mock_session.close.assert_called_once()
 

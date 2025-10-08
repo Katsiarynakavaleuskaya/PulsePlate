@@ -3,6 +3,8 @@ Realistic tests for core/i18n.py using Faker library.
 Simple tests focusing on actual functionality.
 """
 
+import logging
+
 from faker import Faker
 
 fake = Faker()
@@ -28,6 +30,10 @@ class TestI18nRealisticCoverage:
                     assert isinstance(result, str)
                     assert len(result) > 0
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -62,6 +68,10 @@ class TestI18nRealisticCoverage:
                     result = t(lang, common_key)
                     assert isinstance(result, str)
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -83,6 +93,10 @@ class TestI18nRealisticCoverage:
                         assert isinstance(result_es, str)
                         assert result_ru != result_es  # Should be different
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -104,6 +118,10 @@ class TestI18nRealisticCoverage:
                     assert isinstance(result, str)
                     assert len(result) > 10  # Validation messages should be descriptive
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -125,6 +143,10 @@ class TestI18nRealisticCoverage:
                     result = t("ru", key)
                     assert isinstance(result, str)
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -141,6 +163,10 @@ class TestI18nRealisticCoverage:
                     result = t("ru", key)
                     assert isinstance(result, str)
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_realistic_simple.py"
+                    )
+
                     pass
         except ImportError:
             pass
@@ -159,6 +185,8 @@ class TestI18nRealisticCoverage:
                 result2 = t(lang, key)
                 assert result1 == result2
             except Exception:
+                logging.exception("Unexpected exception in tests: test_i18n_realistic_simple.py")
+
                 pass
         except ImportError:
             pass

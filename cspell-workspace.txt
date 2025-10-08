@@ -655,6 +655,8 @@
 доведения
 доза
 дозы
+докстринг
+докстринга
 Доктора
 документации
 документация
@@ -3717,6 +3719,7 @@ cadera
 Cadera
 calcio
 Calcular
+cals
 cand
 canvasmaker
 caplog
@@ -3740,7 +3743,9 @@ classmethod
 claude
 cloudflared
 Cobalamin
+codemod
 codepoint
+commitizen
 completa
 completado
 compras
@@ -3757,12 +3762,14 @@ contextmanager
 coro
 coveragerc
 csvfile
+cunningham
 Databonsai
 dataclass
 dataclasses
 davinci
 debe
 Deberías
+dedupe
 dejavu
 delenv
 deriat
@@ -3898,6 +3905,7 @@ katsiarynakavaleuskaya
 keyerror
 keyval
 kwargs
+lact
 lactancia
 Lactancia
 lactat
@@ -4007,7 +4015,6 @@ openfoodfacts
 oración
 osascript
 pagesizes
-passдулей
 pathlib
 pathsep
 pbxproj
@@ -4077,6 +4084,7 @@ pycache
 pydantic
 Pydantic
 pyenv
+pyfloat
 pylint
 pymysql
 pyplot
@@ -4172,6 +4180,7 @@ testtarget
 TEXTCOLOR
 Tienes
 timedelta
+timeframe
 Tomate
 TOPPADDING
 transferrables
@@ -4193,6 +4202,8 @@ Uvicorn
 validkey
 válido
 venv
+verylonglanguagecode
+verylongregioncode
 Visualización
 visx
 vitamina
@@ -4219,6 +4230,7 @@ yodo
 yogur
 Yogur
 yourco
+ypos
 yticks
 zoneinfo
 αβγδε

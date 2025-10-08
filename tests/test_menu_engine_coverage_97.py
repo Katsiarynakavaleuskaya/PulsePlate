@@ -1,5 +1,7 @@
 """Tests to boost coverage for core/menu_engine.py to 97%."""
 
+import logging
+
 from unittest.mock import patch
 
 from core.menu_engine import _get_default_food_db, _get_default_recipe_db, make_weekly_menu
@@ -18,6 +20,7 @@ class TestMenuEngineCoverage97:
             # Result should be None or a valid food database
             assert result is None or hasattr(result, "__getitem__")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # It's okay if it raises an exception in test environment
             pass
 
@@ -31,6 +34,7 @@ class TestMenuEngineCoverage97:
             # Result should be None or a valid recipe database
             assert result is None or hasattr(result, "__getitem__")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # It's okay if it raises an exception in test environment
             pass
 
@@ -58,6 +62,7 @@ class TestMenuEngineCoverage97:
                 # Should return a list of daily menus
                 assert isinstance(result, list)
             except Exception:
+                logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
                 # It's okay if it raises an exception due to missing dependencies
                 pass
 
@@ -73,6 +78,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with invalid parameters
             pass
 
@@ -88,6 +94,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with invalid parameters
             pass
 
@@ -99,6 +106,7 @@ class TestMenuEngineCoverage97:
                 weight_kg=70, height_cm=175, age=30, sex="male", activity="invalid_activity"
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with invalid activity
             pass
 
@@ -110,6 +118,7 @@ class TestMenuEngineCoverage97:
                 weight_kg=70, height_cm=175, age=30, sex="invalid_sex", activity="moderate"
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with invalid sex
             pass
 
@@ -125,6 +134,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",  # Invalid age
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with invalid age
             pass
 
@@ -140,6 +150,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with extreme values
             pass
 
@@ -155,6 +166,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with extreme values
             pass
 
@@ -170,6 +182,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",  # Extreme age
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with extreme values
             pass
 
@@ -185,5 +198,6 @@ class TestMenuEngineCoverage97:
                 # Missing activity parameter
             )
         except Exception:
+            logging.exception("Unexpected exception in tests: test_menu_engine_coverage_97.py")
             # Expected to raise an exception with missing parameters
             pass

@@ -2,6 +2,8 @@
 Test coverage for setup_custom_mcp.py
 """
 
+import logging
+
 import pytest
 import tempfile
 import json
@@ -156,9 +158,10 @@ class TestSetupCustomMcpCoverage:
             setup_custom_mcp.setup_custom_mcp(argv=["--force"])
         except OSError as e:
             pytest.skip(f"insufficient permissions or filesystem error: {e}")
-        except Exception as e:
+        except Exception:
+            logging.exception("Unexpected exception in tests: test_setup_custom_mcp_coverage.py")
             # Log unexpected errors but don't fail the test
-            print(f"Unexpected error during setup_custom_mcp execution: {e}")
+            print("Unexpected error during setup_custom_mcp execution")
             # Re-raise to ensure we catch unexpected issues
             raise
 

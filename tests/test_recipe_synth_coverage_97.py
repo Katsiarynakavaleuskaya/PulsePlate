@@ -1,5 +1,7 @@
 """Tests to boost coverage for core/recipe_synth.py to 97%."""
 
+import logging
+
 import pytest
 
 from core.recipe_synth import RecipeStep, RecipeSynthesizer, RecipeTemplate
@@ -64,6 +66,7 @@ class TestRecipeSynthCoverage97:
             # Should return empty list or handle gracefully
             assert isinstance(result, list)
         except Exception:
+            logging.exception("Unexpected exception in tests: test_recipe_synth_coverage_97.py")
             # It's okay if it raises an exception
             pass
 
@@ -89,6 +92,7 @@ class TestRecipeSynthCoverage97:
             # Should return empty list or handle gracefully
             assert isinstance(result, list)
         except Exception:
+            logging.exception("Unexpected exception in tests: test_recipe_synth_coverage_97.py")
             # It's okay if it raises an exception
             pass
 
@@ -114,6 +118,7 @@ class TestRecipeSynthCoverage97:
             # Should handle gracefully
             assert isinstance(result, list)
         except Exception:
+            logging.exception("Unexpected exception in tests: test_recipe_synth_coverage_97.py")
             # It's okay if it raises an exception
             pass
 
@@ -139,5 +144,6 @@ class TestRecipeSynthCoverage97:
             # Should return list with one step
             assert isinstance(result, list)
         except Exception:
+            logging.exception("Unexpected exception in tests: test_recipe_synth_coverage_97.py")
             # It's okay if it raises an exception
             pass

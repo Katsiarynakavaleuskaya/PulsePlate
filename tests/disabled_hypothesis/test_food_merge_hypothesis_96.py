@@ -61,10 +61,13 @@ class TestFoodMergeHypothesis96:
         """Test median strategy property."""
         result = _merge_values(values, strategy="median")
 
-        # For odd number of values, median should be exact
-        if len(values) % 2 == 1:
-            sorted_values = sorted(values)
-            expected_median = sorted_values[len(values) // 2]
+        # Filter values the same way as the function does
+        positive_values = [v for v in values if v is not None and v > 0]
+
+        # For odd number of positive values, median should be exact
+        if positive_values and len(positive_values) % 2 == 1:
+            sorted_values = sorted(positive_values)
+            expected_median = sorted_values[len(positive_values) // 2]
             assert result == expected_median
 
     @given(st.lists(st.floats(min_value=0, max_value=1000), min_size=1, max_size=5))

@@ -6,6 +6,8 @@ RU: Прямые тесты функций core модулей для повыш
 EN: Direct core function tests to improve coverage
 """
 
+import logging
+
 import pytest
 
 
@@ -44,6 +46,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("targets functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_auto_repair_functions_direct(self):
@@ -96,6 +99,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("auto_repair functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_menu_engine_functions_direct(self):
@@ -140,6 +144,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("menu_engine functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_plate_functions_direct(self):
@@ -184,6 +189,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("plate functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_i18n_functions_direct(self):
@@ -233,6 +239,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("i18n functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_food_sources_functions_direct(self):
@@ -275,6 +282,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("food_sources functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_rag_functions_direct(self):
@@ -319,6 +327,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("RAG functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_db_functions_direct(self):
@@ -352,6 +361,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("db functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_region_catalog_functions_direct(self):
@@ -395,6 +405,7 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("region_catalog functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass
 
     def test_utils_functions_direct(self):
@@ -440,4 +451,5 @@ class TestDirectCoreFunctions:
         except ImportError:
             pytest.skip("utils functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
             pass

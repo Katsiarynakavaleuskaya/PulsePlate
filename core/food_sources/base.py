@@ -7,7 +7,7 @@ EN: Base adapter interface.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Iterable
 
 
@@ -16,6 +16,11 @@ class FoodRecord:
     """
     RU: Запись о продукте питания.
     EN: Food record.
+
+    Note: This class uses 0.0 as a sentinel value for "not available" across all
+    nutrient fields. Downstream code must treat 0.0 as potentially missing data
+    rather than measured zero. This design choice prioritizes backward compatibility
+    over semantic precision.
     """
 
     name: str  # canonical name
@@ -26,18 +31,19 @@ class FoodRecord:
     fat_g: float  # fat in grams
     carbs_g: float  # carbohydrates in grams
     fiber_g: float  # fiber in grams
-    Fe_mg: float  # iron in mg
-    Ca_mg: float  # calcium in mg
-    VitD_IU: float  # vitamin D in IU
-    B12_ug: float  # vitamin B12 in µg
-    Folate_ug: float  # folate in µg
-    Iodine_ug: float  # iodine in µg
-    K_mg: float  # potassium in mg
-    Mg_mg: float  # magnesium in mg
-    flags: list  # dietary flags
-    price: float  # price per 100g
-    source: str  # data source
-    version_date: str  # ISO date
+    sugar_g: float = 0.0  # sugar in grams (safe default for legacy callers)
+    Fe_mg: float = 0.0  # iron in mg (0.0 = not available)
+    Ca_mg: float = 0.0  # calcium in mg (0.0 = not available)
+    VitD_IU: float = 0.0  # vitamin D in IU (0.0 = not available)
+    B12_ug: float = 0.0  # vitamin B12 in µg (0.0 = not available)
+    Folate_ug: float = 0.0  # folate in µg (0.0 = not available)
+    Iodine_ug: float = 0.0  # iodine in µg (0.0 = not available)
+    K_mg: float = 0.0  # potassium in mg (0.0 = not available)
+    Mg_mg: float = 0.0  # magnesium in mg (0.0 = not available)
+    flags: list = field(default_factory=list)  # dietary flags
+    price: float = 0.0  # price per 100g
+    source: str = ""  # data source
+    version_date: str = ""  # ISO date
 
 
 class BaseAdapter:

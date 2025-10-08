@@ -3,6 +3,8 @@ Target missing lines in main.py with realistic tests.
 Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 """
 
+import logging
+
 from faker import Faker
 from fastapi.testclient import TestClient
 from unittest.mock import patch
@@ -132,6 +134,9 @@ class TestAppMissingLinesTargeted:
                 response = self.client.post("/bmi", json=case)
                 assert response.status_code in [200, 400, 422, 500]
             except Exception:
+                logging.exception(
+                    "Unexpected exception in tests: test_app_missing_lines_realistic.py"
+                )
                 # Some cases might cause JSON serialization errors, which is expected
                 pass
 
@@ -373,5 +378,8 @@ class TestAppSpecificMissingBlocks:
                 response = self.client.post("/bmi", json=test_data)
                 assert response.status_code in [200, 400, 422]
             except Exception:
+                logging.exception(
+                    "Unexpected exception in tests: test_app_missing_lines_realistic.py"
+                )
                 # Some language values might cause JSON errors
                 pass

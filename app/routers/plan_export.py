@@ -337,9 +337,9 @@ def _register_font() -> str:
         if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
+        return "Helvetica"
     except Exception:
-        pass
-    return "Helvetica"
+        return "Helvetica"
 
 
 def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:

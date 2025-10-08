@@ -148,7 +148,7 @@ def _register_font_if_available() -> str:
             return FONT_NAME
         except Exception:
             # Fall back to default Helvetica if registration fails for any reason.
-            pass
+            return "Helvetica"
     return "Helvetica"
 
 

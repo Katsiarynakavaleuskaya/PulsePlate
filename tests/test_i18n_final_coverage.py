@@ -3,6 +3,8 @@ Final coverage tests for core/i18n.py lines 420 and 427.
 These lines require very specific conditions to execute.
 """
 
+import logging
+
 from faker import Faker
 
 fake = Faker()
@@ -173,8 +175,9 @@ class TestI18nFinalCoverage:
                 try:
                     result = normalize_lang(case)
                     print(f"Edge case {case} -> {result}")
-                except Exception as e:
-                    print(f"Edge case {case} failed: {e}")
+                except Exception:
+                    logging.exception("Unexpected exception in tests: test_i18n_final_coverage.py")
+                    print(f"Edge case {case} failed")
 
             # Try to create conditions for line 427
             # Languages that are in the direct check but not in special cases

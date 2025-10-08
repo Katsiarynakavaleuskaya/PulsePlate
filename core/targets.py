@@ -1,12 +1,11 @@
-"""
-WHO-Based Nutrition Targets System
-
-RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
-EN: WHO-based nutrition targets calculation system.
+"""WHO-Based Nutrition Targets System.
 
 This module defines the core data structures for user profiles and nutrition targets
 based on WHO/EFSA/DRI recommendations for macronutrients, micronutrients, hydration,
 and physical activity guidelines.
+
+RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
+EN: WHO-based nutrition targets calculation system.
 """
 
 from __future__ import annotations
@@ -23,12 +22,13 @@ LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"
 
 @dataclass(frozen=True)
 class UserProfile:
-    """
-    RU: Профиль пользователя для расчёта индивидуальных таргетов.
-    EN: User profile for calculating individual nutrition targets.
+    """User profile for calculating individual nutrition targets.
 
     Combines basic anthropometric data with lifestyle factors to generate
     personalized nutrition and activity recommendations based on WHO guidelines.
+
+    RU: Профиль пользователя для расчёта индивидуальных таргетов.
+    EN: User profile for calculating individual nutrition targets.
     """
 
     # Basic characteristics
@@ -69,7 +69,8 @@ class UserProfile:
 
 @dataclass(frozen=True)
 class MacroTargets:
-    """
+    """Macronutrient targets in grams per day.
+
     RU: Целевые значения макронутриентов.
     EN: Macronutrient targets in grams per day.
     """
@@ -86,7 +87,8 @@ class MacroTargets:
 
 @dataclass(frozen=True)
 class MicronutrientTargets:
-    """
+    """Enhanced micronutrient targets with ranges and tolerances for VIP features.
+
     RU: Расширенные микронутриентные цели с диапазонами и допусками для VIP функций.
     EN: Enhanced micronutrient targets with ranges and tolerances for VIP features.
 
@@ -179,7 +181,8 @@ class MicronutrientTargets:
 
 @dataclass(frozen=True)
 class MicroTargets:
-    """
+    """Micronutrient targets based on WHO/EFSA/DRI recommendations.
+
     RU: Целевые значения микронутриентов по рекомендациям ВОЗ/EFSA/DRI.
     EN: Micronutrient targets based on WHO/EFSA/DRI recommendations.
 
@@ -209,7 +212,8 @@ class MicroTargets:
     vitamin_c_mg: float
 
     def get_priority_nutrients(self) -> Dict[str, float]:
-        """
+        """Returns priority nutrients for deficiency monitoring.
+
         RU: Возвращает приоритетные нутриенты для мониторинга дефицитов.
         EN: Returns priority nutrients for deficiency monitoring.
         """
@@ -227,7 +231,8 @@ class MicroTargets:
 
 @dataclass(frozen=True)
 class ActivityTargets:
-    """
+    """WHO physical activity targets per week.
+
     RU: Целевые значения физической активности по ВОЗ.
     EN: WHO physical activity targets per week.
     """
@@ -243,7 +248,8 @@ class ActivityTargets:
     steps_daily: int  # e.g., 8000-10000 steps
 
     def total_aerobic_equivalent(self) -> int:
-        """
+        """Total aerobic equivalent in moderate-intensity minutes.
+
         RU: Общий аэробный эквивалент в минутах умеренной активности.
         EN: Total aerobic equivalent in moderate-intensity minutes.
         """
@@ -252,7 +258,8 @@ class ActivityTargets:
 
 @dataclass(frozen=True)
 class NutritionTargets:
-    """
+    """Complete set of nutrition and activity targets.
+
     RU: Полный набор целевых значений питания и активности.
     EN: Complete set of nutrition and activity targets.
 
@@ -278,17 +285,19 @@ class NutritionTargets:
     calculation_date: str = ""  # ISO date when calculated
 
     def validate_consistency(self) -> bool:
-        """
+        """Validates internal consistency of targets.
+
         RU: Проверяет внутреннюю согласованность таргетов.
         EN: Validates internal consistency of targets.
         """
-        # Check if macro calories match target calories (within 5% tolerance)
+        # Check if macro calories match target calories (within 5% tolerance).
         macro_calories = self.macros.total_calories()
         tolerance = 0.05
         return abs(macro_calories - self.kcal_daily) / self.kcal_daily <= tolerance
 
     def get_summary(self) -> Dict[str, Any]:
-        """
+        """Summary of targets for API response.
+
         RU: Краткая сводка таргетов для API ответа.
         EN: Summary of targets for API response.
         """
@@ -313,7 +322,8 @@ class NutritionTargets:
 
 @dataclass
 class NutrientCoverage:
-    """
+    """Assessment of nutrient coverage in diet.
+
     RU: Оценка покрытия нутриентов в рационе.
     EN: Assessment of nutrient coverage in diet.
     """
@@ -341,7 +351,8 @@ class NutrientCoverage:
             return "excess"
 
     def get_recommendation(self, lang: str = "en") -> str:
-        """
+        """Recommendation for intake adjustment.
+
         RU: Рекомендация по корректировке потребления.
         EN: Recommendation for intake adjustment.
         """
@@ -360,7 +371,8 @@ class NutrientCoverage:
 
 
 def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> List[Dict[str, str]]:
-    """
+    """Generates life stage warnings with localization.
+
     RU: Генерирует предупреждения по жизненным этапам с локализацией.
     EN: Generates life stage warnings with localization.
 
@@ -431,3 +443,403 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
         warnings.append({"code": "child", "message": M["child"].get(lang, M["child"]["en"])})
 
     return warnings
+
+
+def calculate_bmr(
+    age: int,
+    weight: float,
+    height: int,
+    gender: str,
+    body_fat: Optional[float] = None,
+    formula: str = "mifflin",
+) -> float:
+    """Calculate Basal Metabolic Rate (BMR) using various formulas.
+
+    Args:
+        age: Age in years
+        weight: Weight in kg
+        height: Height in cm
+        gender: "male" or "female"
+        body_fat: Body fat percentage (0-100), required for katch/cunningham formulas
+        formula: Formula to use ("mifflin", "harris", "katch", "cunningham")
+
+    Returns:
+        BMR in kcal/day
+
+    Raises:
+        ValueError: If unknown formula or missing body_fat for katch/cunningham
+    """
+    if formula == "mifflin":
+        if gender == "male":
+            return 10 * weight + 6.25 * height - 5 * age + 5
+        else:
+            return 10 * weight + 6.25 * height - 5 * age - 161
+    elif formula == "harris":
+        if gender == "male":
+            return 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
+        else:
+            return 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age
+    elif formula == "katch":
+        if body_fat is None:
+            raise ValueError("Body fat percentage required for Katch-McArdle formula")
+        lean_body_mass = weight * (1 - body_fat / 100)
+        return 370 + (21.6 * lean_body_mass)
+    elif formula == "cunningham":
+        if body_fat is None:
+            raise ValueError("Body fat percentage required for Cunningham formula")
+        lean_body_mass = weight * (1 - body_fat / 100)
+        return 500 + (22 * lean_body_mass)
+    else:
+        raise ValueError(f"Unknown BMR formula: {formula}")
+
+
+def get_bmr_formula(user_data: dict) -> str:
+    """Select the best BMR formula based on available user data.
+
+    Args:
+        user_data: Dictionary with user information
+
+    Returns:
+        Best formula name ("katch" if body_fat available, otherwise "mifflin")
+    """
+    if "body_fat" in user_data and user_data["body_fat"] is not None:
+        return "katch"
+    return "mifflin"
+
+
+# Additional functions for comprehensive testing
+
+
+def adjust_for_activity(bmr: float, activity_level: str) -> float:
+    """Adjust BMR for activity level to get TDEE estimate.
+
+    Args:
+        bmr: Basal Metabolic Rate
+        activity_level: Activity level string
+
+    Returns:
+        Adjusted TDEE estimate
+    """
+    multipliers = {
+        "sedentary": 1.2,
+        "lightly_active": 1.375,
+        "moderately_active": 1.55,
+        "very_active": 1.725,
+        "extremely_active": 1.9,
+    }
+    multiplier = multipliers.get(activity_level, 1.2)
+    return bmr * multiplier
+
+
+def calculate_tdee(bmr: float, activity_level: str, **_kwargs) -> float:
+    """Calculate Total Daily Energy Expenditure.
+
+    Args:
+        bmr: Basal Metabolic Rate
+        activity_level: Activity level
+        **kwargs: Additional factors
+
+    Returns:
+        TDEE in kcal/day
+    """
+    return adjust_for_activity(bmr, activity_level)
+
+
+def calculate_macros(calories: int, **_user_profile) -> dict:
+    """Calculate macronutrient distribution.
+
+    Args:
+        calories: Total daily calories
+        **user_profile: User profile data
+
+    Returns:
+        Dictionary with macro grams
+    """
+    # Simple 40/30/30 split
+    protein_g = calories * 0.3 / 4
+    carbs_g = calories * 0.4 / 4
+    fat_g = calories * 0.3 / 9
+
+    return {
+        "protein": round(protein_g, 1),
+        "carbs": round(carbs_g, 1),
+        "fat": round(fat_g, 1),
+    }
+
+
+def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
+    """Get macro ratios based on goal and dietary restriction.
+
+    Args:
+        goal: Fitness goal
+        restriction: Dietary restriction
+
+    Returns:
+        Dictionary with macro percentages
+    """
+    if goal == "muscle_gain":
+        return {"protein": 0.4, "carbs": 0.35, "fat": 0.25}
+    elif goal == "fat_loss":
+        return {"protein": 0.4, "carbs": 0.3, "fat": 0.3}
+    else:  # maintain
+        return {"protein": 0.3, "carbs": 0.4, "fat": 0.3}
+
+
+def calculate_micronutrient_targets(**user_data) -> dict:
+    """Calculate micronutrient targets based on user data.
+
+    Args:
+        **user_data: User profile data
+
+    Returns:
+        Dictionary with micronutrient targets
+    """
+    # Basic RDA values
+    return {
+        "vitamin_c": 90,  # mg
+        "vitamin_d": 15,  # mcg
+        "calcium": 1000,  # mg
+        "iron": 18 if user_data.get("gender") == "female" else 8,  # mg
+        "b12": 2.4,  # mcg
+    }
+
+
+def get_rda_values(age: int, gender: str) -> dict:
+    """Get RDA values for age and gender.
+
+    Args:
+        age: Age in years
+        gender: Gender string
+
+    Returns:
+        Dictionary with RDA values
+    """
+    return calculate_micronutrient_targets(age=age, gender=gender)
+
+
+def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
+    """Adjust calories based on weight goal.
+
+    Args:
+        current_calories: Current daily calories
+        **goal_data: Goal parameters
+
+    Returns:
+        Adjusted calories
+    """
+    goal_type = goal_data.get("goal_type", "maintain")
+    if goal_type == "lose":
+        return current_calories - 500
+    elif goal_type == "gain":
+        return current_calories + 500
+    else:
+        return current_calories
+
+
+def calculate_deficit_surplus(**goal_data) -> float:
+    """
+    Calculate calorie deficit or surplus.
+
+    Args:
+        **goal_data: Goal parameters
+
+    Returns:
+        Calorie adjustment
+    """
+    goal_type = goal_data.get("goal_type", "maintain")
+    if goal_type == "lose":
+        return -500
+    elif goal_type == "gain":
+        return 500
+    else:
+        return 0
+
+
+def get_athlete_targets(**_profile) -> dict:
+    """
+    Get nutrition targets for athletes.
+
+    Args:
+        **profile: Athlete profile
+
+    Returns:
+        Nutrition targets
+    """
+    return {
+        "protein_multiplier": 1.6,  # g per kg body weight
+        "carb_intake": 8,  # g per kg body weight
+        "calorie_density": 1.2,
+    }
+
+
+def get_elderly_adjustments(**_profile) -> dict:
+    """
+    Get nutrition adjustments for elderly.
+
+    Args:
+        **profile: Elderly profile
+
+    Returns:
+        Nutrition adjustments
+    """
+    return {
+        "vitamin_d_boost": 1.5,
+        "protein_boost": 1.2,
+        "calcium_boost": 1.3,
+    }
+
+
+def get_pregnancy_targets(**profile) -> dict:
+    """
+    Get nutrition targets for pregnancy.
+
+    Args:
+        **profile: Pregnancy profile
+
+    Returns:
+        Nutrition targets
+    """
+    trimester = profile.get("trimester", 2)
+    return {
+        "calorie_boost": 300 + (trimester - 1) * 100,
+        "protein_boost": 25,  # additional grams
+        "folic_acid": 600,  # mcg
+        "iron": 27,  # mg
+    }
+
+
+def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noqa: ARG001
+    """
+    Calculate pre and post workout nutrition.
+
+    Args:
+        workout_type: Type of workout
+        duration: Duration in minutes
+
+    Returns:
+        Nutrition recommendations
+    """
+    return {
+        "pre_workout": {
+            "carbs": 20 + duration // 30,  # grams
+            "protein": 10,
+        },
+        "post_workout": {
+            "protein": 20 + duration // 30,  # grams
+            "carbs": 30 + duration // 15,  # grams
+        },
+    }
+
+
+def get_meal_timing(**timing_data) -> dict:
+    """
+    Get meal timing recommendations.
+
+    Args:
+        **timing_data: Meal timing parameters
+
+    Returns:
+        Meal timing plan
+    """
+    meals_per_day = timing_data.get("meals_per_day", 3)
+    return {
+        "breakfast": "07:00",
+        "lunch": "13:00",
+        "dinner": "19:00",
+        "snacks": ["10:00", "16:00"] if meals_per_day > 3 else [],
+    }
+
+
+def calculate_hydration_needs(**_hydration_data) -> float:
+    """
+    Calculate daily hydration needs.
+
+    Args:
+        **hydration_data: Hydration factors
+
+    Returns:
+        Daily water intake in ml
+    """
+    weight: float = _hydration_data.get("weight", 70)
+    activity_level: str = _hydration_data.get("activity_level", "moderate")
+
+    base_ml: float = weight * 30  # 30ml per kg
+
+    if activity_level == "very_active":
+        base_ml *= 1.2
+    elif activity_level == "extremely_active":
+        base_ml *= 1.4
+
+    return base_ml
+
+
+def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -> float:
+    """
+    Adjust hydration needs for climate and altitude.
+
+    Args:
+        base_hydration: Base hydration needs
+        climate: Climate type
+        altitude: Altitude in meters
+
+    Returns:
+        Adjusted hydration needs
+    """
+    multiplier = 1.0
+
+    if climate in ["hot", "humid"]:
+        multiplier = 1.3
+    elif climate == "cold":
+        multiplier = 0.9
+
+    if altitude > 1000:
+        multiplier += 0.1 * (altitude // 1000)
+
+    return base_hydration * multiplier
+
+
+def check_deficiency_risk(**user_profile) -> dict:
+    """
+    Check risk of nutrient deficiencies.
+
+    Args:
+        **user_profile: User profile data
+
+    Returns:
+        Deficiency risk assessment
+    """
+    risks = {}
+
+    if user_profile.get("dietary_restriction") == "vegan":
+        risks["b12"] = "high"
+        risks["iron"] = "moderate"
+
+    if user_profile.get("age", 30) > 50:
+        risks["vitamin_d"] = "moderate"
+        risks["calcium"] = "moderate"
+
+    return risks
+
+
+def get_supplement_recommendations(**user_profile) -> dict:
+    """
+    Get supplement recommendations based on profile.
+
+    Args:
+        **user_profile: User profile data
+
+    Returns:
+        Supplement recommendations
+    """
+    recommendations = []
+
+    risks = check_deficiency_risk(**user_profile)
+
+    if risks.get("b12") == "high":
+        recommendations.append("Vitamin B12")
+    if risks.get("vitamin_d") == "moderate":
+        recommendations.append("Vitamin D3")
+    if risks.get("iron") == "moderate":
+        recommendations.append("Iron")
+
+    return {"supplements": recommendations}

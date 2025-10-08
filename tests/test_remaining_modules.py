@@ -6,6 +6,8 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
+import logging
+
 from unittest.mock import patch
 
 import pytest
@@ -111,6 +113,7 @@ class TestWeeklyPlanModule:
         except ImportError:
             pytest.skip("weekly_plan module not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_remaining_modules.py")
             # Function may fail due to missing dependencies
             pass
 
@@ -135,6 +138,7 @@ class TestWeeklyPlanModule:
         except ImportError:
             pytest.skip("weekly_plan module not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_remaining_modules.py")
             pass
 
     def test_daily_plan_functions(self):
@@ -168,6 +172,7 @@ class TestWeeklyPlanModule:
         except ImportError:
             pytest.skip("weekly_plan helper functions not available")
         except Exception:
+            logging.exception("Unexpected exception in tests: test_remaining_modules.py")
             pass
 
 

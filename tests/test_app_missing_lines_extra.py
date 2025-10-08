@@ -1,3 +1,4 @@
+import logging
 import os
 from unittest.mock import patch
 
@@ -27,6 +28,7 @@ class TestAppMissingLinesExtra:
                 obj = asyncio.get_event_loop().run_until_complete(app_mod.get_update_scheduler())
                 assert obj is not None
             except Exception:
+                logging.exception("Unexpected exception in tests: test_app_missing_lines_extra.py")
                 # If it fails, that's also acceptable for coverage
                 pass
         else:

@@ -2,6 +2,8 @@
 Простые тесты для покрытия main.py недостающих веток
 """
 
+import logging
+
 import os
 
 # Импортируем app на уровне модуля
@@ -222,9 +224,10 @@ class TestLifespanCoverage:
         try:
             async with lifespan(mock_app):
                 pass  # Просто проверяем что не падает
-        except Exception as e:
+        except Exception:
+            logging.exception("Unexpected exception in tests: test_app_simple_coverage_clean.py")
             # Если есть ошибка, она должна быть обработана gracefully
-            print(f"Lifespan error handled: {e}")
+            print("Lifespan error handled")
 
 
 class TestBMIEndpoints:

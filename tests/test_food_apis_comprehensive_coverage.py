@@ -3,6 +3,8 @@ Comprehensive tests to improve coverage for food_apis modules to 97%+.
 These tests target the uncovered lines to maximize coverage improvement.
 """
 
+import logging
+
 import asyncio
 import json
 import os
@@ -412,6 +414,9 @@ class TestUnifiedFoodDatabaseComprehensive:
                     result = await db.get_food_by_id("usda", "12345")
                     assert result is None
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_apis_comprehensive_coverage.py"
+                    )
                     # If an exception is raised, that's also acceptable behavior
                     assert True
 

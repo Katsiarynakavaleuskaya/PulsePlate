@@ -3,6 +3,8 @@
 Фокус: достижение 97% покрытия через тестирование недостающих веток
 """
 
+import logging
+
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -315,6 +317,7 @@ class TestQuickCoverageBoost:
                 try:
                     await manager.update_database("usda")
                 except Exception:
+                    logging.exception("Unexpected exception in tests: test_quick_coverage_boost.py")
                     pass  # Ожидаем ошибку
 
         except ImportError:

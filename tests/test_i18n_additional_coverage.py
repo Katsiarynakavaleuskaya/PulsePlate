@@ -3,6 +3,8 @@ Additional tests for core/i18n.py missing lines coverage.
 Focus on error handling and template formatting.
 """
 
+import logging
+
 import pytest
 from faker import Faker
 
@@ -208,6 +210,9 @@ class TestI18nAdditionalCoverage:
                 try:
                     return t(lang, key)
                 except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_additional_coverage.py"
+                    )
                     return None
 
             def normalize_worker():
