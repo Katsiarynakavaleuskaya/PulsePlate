@@ -25,7 +25,8 @@ class TestSimpleCoverageBoost:
                     targets = MicronutrientTargets()
                     result = auto_repair_module.auto_repair_week_plan({}, targets)
                     assert isinstance(result, (dict, type(None)))
-                except Exception:
+                except Exception as e:
+                    logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
@@ -39,7 +40,8 @@ class TestSimpleCoverageBoost:
                     targets = MicronutrientTargets()
                     suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
                     assert isinstance(suggestions, list)
-                except Exception:
+                except Exception as e:
+                    logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
