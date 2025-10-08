@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
-import { getClientLocale } from "../../lib/i18n";
 
 /**
  * Represents a single shopping list item with optional properties

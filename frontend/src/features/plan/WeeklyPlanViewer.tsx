@@ -15,7 +15,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (error) {
+  } catch {
     // Will fall back to the legacy approach below
   }
 

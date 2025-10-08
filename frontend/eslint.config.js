@@ -55,7 +55,8 @@ export default tseslint.config({
     'no-cond-assign': 'warn',
     'no-func-assign': 'warn',
     'no-prototype-builtins': 'warn',
-    '@typescript-eslint/no-this-alias': 'warn'
+    '@typescript-eslint/no-this-alias': 'warn',
+    'storybook/no-renderer-packages': 'off' // Allow @storybook/react import in stories
   },
 }, {
   files: ['src/**/*.test.{ts,tsx}', 'src/**/__tests__/**/*.{ts,tsx}'],
@@ -63,4 +64,10 @@ export default tseslint.config({
     '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
     '@typescript-eslint/no-unused-vars': 'off' // Allow unused vars in tests
   },
-}, storybook.configs["flat/recommended"]);
+}, storybook.configs["flat/recommended"].map(config => ({
+  ...config,
+  rules: {
+    ...config.rules,
+    'storybook/no-renderer-packages': 'off'
+  }
+})));
