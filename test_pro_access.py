@@ -43,7 +43,7 @@ def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
         }
 
 
-def main():
+def main() -> None:
     """Main function to test OpenAI Pro access"""
     print("🔍 Testing OpenAI Pro Access...")
     print("=" * 50)
