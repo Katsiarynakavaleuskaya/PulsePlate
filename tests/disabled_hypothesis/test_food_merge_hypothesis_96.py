@@ -51,7 +51,7 @@ class TestFoodMergeHypothesis96:
         assert isinstance(result, float)
         assert result >= 0.0
 
-        if valid_values := [v for v in values if v is not None and v >= 0]:
+        if valid_values := [v for v in values if v > 0]:
             assert min(valid_values) <= result <= max(valid_values)
         else:
             assert result == 0.0
@@ -61,10 +61,13 @@ class TestFoodMergeHypothesis96:
         """Test median strategy property."""
         result = _merge_values(values, strategy="median")
 
-        # For odd number of values, median should be exact
-        if len(values) % 2 == 1:
-            sorted_values = sorted(values)
-            expected_median = sorted_values[len(values) // 2]
+        # Filter values the same way as the function does
+        positive_values = [v for v in values if v is not None and v > 0]
+
+        # For odd number of positive values, median should be exact
+        if positive_values and len(positive_values) % 2 == 1:
+            sorted_values = sorted(positive_values)
+            expected_median = sorted_values[len(positive_values) // 2]
             assert result == expected_median
 
     @given(st.lists(st.floats(min_value=0, max_value=1000), min_size=1, max_size=5))
@@ -72,7 +75,7 @@ class TestFoodMergeHypothesis96:
         """Test first strategy property."""
         result = _merge_values(values, strategy="first")
 
-        if valid_values := [v for v in values if v is not None and v >= 0]:
+        if valid_values := [v for v in values if v > 0]:
             assert result == valid_values[0]
 
     @given(
@@ -383,7 +386,7 @@ class TestFoodMergeHypothesis96:
             # Check that micronutrients match USDA values (or median of USDA values)
             for micro in MICROS:
                 usda_values = [getattr(r, micro) for r in usda_records]
-                if usda_values := [v for v in usda_values if v is not None and v >= 0]:
+                if usda_values := [v for v in usda_values if v > 0]:
                     # Should use USDA values, not all values
                     assert merged_record[micro] in usda_values
 

@@ -80,7 +80,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         def micro_pick(key: str) -> float:
             # Get values from USDA source first
             usda_vals = [getattr(r, key) for r in rows if r.source == "USDA"]
-            usda_vals = [v for v in usda_vals if v is not None and v > 0]
+            usda_vals = [v for v in usda_vals if v > 0]
 
             if usda_vals:
                 # If we have USDA values, use median of USDA values
@@ -88,7 +88,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
 
             # Otherwise, use median of all values
             all_vals = [getattr(r, key) for r in rows]
-            all_vals = [v for v in all_vals if v is not None and v > 0]
+            all_vals = [v for v in all_vals if v > 0]
             return _merge_values(all_vals, "median")
 
         # Collect all flags

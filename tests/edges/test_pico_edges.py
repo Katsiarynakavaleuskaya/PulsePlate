@@ -5,8 +5,7 @@ def _await_or_value(x):
     import asyncio
 
     if asyncio.iscoroutine(x):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(x)
+        return asyncio.run(x)
     return x
 
 
