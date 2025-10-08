@@ -73,7 +73,7 @@ class FoodDatabaseBuilder:
         try:
             usda_data = list(usda_adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except (OSError, ValueError, UnicodeDecodeError, ValidationError):
+        except (OSError, ValueError, UnicodeDecodeError, ValidationError) as e:
             logging.exception("USDA data loading failed")
 
         # Load OFF data (from chunks or single file)

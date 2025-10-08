@@ -333,13 +333,13 @@ def export_week_csv(request: Request, _guard: None = Depends(_require_valid_toke
 
 
 def _register_font() -> str:
-    if not FONT_PATH.exists():
-        return "Helvetica"
-    try:
-        pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
-        return FONT_NAME
-    except (OSError, IOError):
-        return "Helvetica"
+    if FONT_PATH.exists():
+        try:
+            pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
+            return FONT_NAME
+        except (OSError, IOError):
+            pass
+    return "Helvetica"
 
 
 def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
