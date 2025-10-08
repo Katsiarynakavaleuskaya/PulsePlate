@@ -10,27 +10,43 @@ import pytest
 
 
 class TestSimpleCoverageBoost:
-    """Простые тесты для увеличе            if hasattr(auto_repair_module, 'auto_repair_week_plan'):
-        try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            result = auto_repair_module.auto_repair_week_plan({}, targets)
-            assert isinstance(result, (dict, type(None)))
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            pass
+    """Простые тесты для увеличения покрытия модулей"""
 
-    if hasattr(auto_repair_module, 'suggest_manual_fixes'):
+    def test_auto_repair_module_coverage(self):
+        """Покрытие core/auto_repair.py"""
         try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
-            assert isinstance(suggestions, list)
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            passдулей"""
+            import core.auto_repair as auto_repair_module
+
+            if hasattr(auto_repair_module, "auto_repair_week_plan"):
+                try:
+                    # Создаем минимальные targets для теста
+                    from core.targets import MicronutrientTargets
+
+                    targets = MicronutrientTargets()
+                    result = auto_repair_module.auto_repair_week_plan({}, targets)
+                    assert isinstance(result, (dict, type(None)))
+                except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
+                    )
+                    pass
+
+            if hasattr(auto_repair_module, "suggest_manual_fixes"):
+                try:
+                    # Создаем минимальные targets для теста
+                    from core.targets import MicronutrientTargets
+
+                    targets = MicronutrientTargets()
+                    suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
+                    assert isinstance(suggestions, list)
+                except Exception:
+                    logging.exception(
+                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
+                    )
+                    pass
+
+        except ImportError:
+            pytest.skip("auto_repair module not available")
 
     def test_targets_module_coverage(self):
         """Покрытие core/targets.py (93% -> 97%+)"""

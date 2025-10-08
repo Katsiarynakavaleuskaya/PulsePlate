@@ -75,6 +75,12 @@ def replace_bare_except(text: str, file_hint: str) -> str:
     result = "\n".join(updated_lines)
     if changed:
         result = ensure_logging_import(result)
+        # Уберём случайные соседние дубликаты одинаковых logging.exception(...)
+        result = re.sub(
+            r"(\\s*logging\\.exception\\([^\\n]+\\)\\s*){2,}",
+            lambda m: m.group(0).splitlines(keepends=True)[0],
+            result,
+        )
     return result
 
 

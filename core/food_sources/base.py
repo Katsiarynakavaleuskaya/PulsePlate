@@ -26,19 +26,19 @@ class FoodRecord:
     fat_g: float  # fat in grams
     carbs_g: float  # carbohydrates in grams
     fiber_g: float  # fiber in grams
-    sugar_g: float  # sugar in grams
-    Fe_mg: float  # iron in mg
-    Ca_mg: float  # calcium in mg
-    VitD_IU: float  # vitamin D in IU
-    B12_ug: float  # vitamin B12 in µg
-    Folate_ug: float  # folate in µg
-    Iodine_ug: float  # iodine in µg
-    K_mg: float  # potassium in mg
-    Mg_mg: float  # magnesium in mg
-    flags: list  # dietary flags
-    price: float  # price per 100g
-    source: str  # data source
-    version_date: str  # ISO date
+    Fe_mg: float = 0.0  # iron in mg
+    Ca_mg: float = 0.0  # calcium in mg
+    VitD_IU: float = 0.0  # vitamin D in IU
+    B12_ug: float = 0.0  # vitamin B12 in µg
+    Folate_ug: float = 0.0  # folate in µg
+    Iodine_ug: float = 0.0  # iodine in µg
+    K_mg: float = 0.0  # potassium in mg
+    Mg_mg: float = 0.0  # magnesium in mg
+    flags: list = None  # type: ignore  # dietary flags
+    price: float = 0.0  # price per 100g
+    source: str = ""  # data source
+    version_date: str = ""  # ISO date
+    sugar_g: float = 0.0  # sugar in grams (safe default for legacy callers)
 
 
 class BaseAdapter:
