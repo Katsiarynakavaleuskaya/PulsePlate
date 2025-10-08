@@ -8,7 +8,7 @@ EN: Base adapter interface.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 
 @dataclass
@@ -27,14 +27,14 @@ class FoodRecord:
     carbs_g: float  # carbohydrates in grams
     fiber_g: float  # fiber in grams
     sugar_g: float = 0.0  # sugar in grams (safe default for legacy callers)
-    Fe_mg: float = 0.0  # iron in mg
-    Ca_mg: float = 0.0  # calcium in mg
-    VitD_IU: float = 0.0  # vitamin D in IU
-    B12_ug: float = 0.0  # vitamin B12 in µg
-    Folate_ug: float = 0.0  # folate in µg
-    Iodine_ug: float = 0.0  # iodine in µg
-    K_mg: float = 0.0  # potassium in mg
-    Mg_mg: float = 0.0  # magnesium in mg
+    Fe_mg: Optional[float] = None  # iron in mg (None = not available)
+    Ca_mg: Optional[float] = None  # calcium in mg (None = not available)
+    VitD_IU: Optional[float] = None  # vitamin D in IU (None = not available)
+    B12_ug: Optional[float] = None  # vitamin B12 in µg (None = not available)
+    Folate_ug: Optional[float] = None  # folate in µg (None = not available)
+    Iodine_ug: Optional[float] = None  # iodine in µg (None = not available)
+    K_mg: Optional[float] = None  # potassium in mg (None = not available)
+    Mg_mg: Optional[float] = None  # magnesium in mg (None = not available)
     flags: list = field(default_factory=list)  # dietary flags
     price: float = 0.0  # price per 100g
     source: str = ""  # data source
