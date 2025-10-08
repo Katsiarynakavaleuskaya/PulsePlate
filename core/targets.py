@@ -69,13 +69,13 @@ class UserProfile:
     def __post_init__(self):
         """Validate profile parameters."""
         if self.age < 1 or self.age > 120:
-            raise ValueError("Age must be between 1 and 120 years")
+            raise ValueError("Invalid age")
         if self.height_cm <= 0 or self.weight_kg <= 0:
-            raise ValueError("Height and weight must be positive")
+            raise ValueError("Invalid height or weight")
         if self.deficit_pct is not None and not (5 <= self.deficit_pct <= 25):
-            raise ValueError("Deficit percentage must be between 5-25%")
+            raise ValueError("Invalid deficit percentage")
         if self.surplus_pct is not None and not (5 <= self.surplus_pct <= 20):
-            raise ValueError("Surplus percentage must be between 5-20%")
+            raise ValueError("Invalid surplus percentage")
 
 
 @dataclass(frozen=True)

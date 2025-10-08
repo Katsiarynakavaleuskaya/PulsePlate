@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -11,6 +12,8 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -337,7 +340,8 @@ def _register_font() -> str:
         try:
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except (OSError, IOError):
+        except (OSError, IOError) as e:
+            logger.warning(f"Failed to register font {FONT_NAME}: {e}")
             pass
     return "Helvetica"
 

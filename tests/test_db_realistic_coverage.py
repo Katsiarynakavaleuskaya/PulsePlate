@@ -72,22 +72,15 @@ class TestDbRealisticCoverage:
 
     def test_database_initialization_edge_cases(self):
         """Test database initialization edge cases"""
-        try:
-            from core.db import create_tables, init_db
+        from core.db import create_tables, init_db
 
-            # Test initialization with various conditions
-            with patch("os.path.exists", return_value=False):
-                try:
-                    init_db()
-                except Exception:
-                    pass  # Expected for missing database
+        # Test initialization with various conditions
+        with patch("os.path.exists", return_value=False):
+            with contextlib.suppress(Exception):
+                init_db()
             # Test table creation
-            try:
+            with contextlib.suppress(Exception):
                 create_tables()
-            except Exception:
-                pass
-        except ImportError:
-            pass
 
     def test_database_concurrent_access_realistic(self):
         """Test concurrent database access with realistic scenarios"""
@@ -188,10 +181,8 @@ class TestDbRealisticCoverage:
                     if conn := get_db_connection():
                         connections.append(conn)
             # Close all connections
-            try:
+            with contextlib.suppress(Exception):
                 close_all_connections()
-            except Exception:
-                pass
             # Clean up manually if needed
             for conn in connections:
                 with contextlib.suppress(Exception):
