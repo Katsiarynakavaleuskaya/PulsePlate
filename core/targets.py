@@ -1,11 +1,11 @@
 """WHO-Based Nutrition Targets System.
 
-RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
-EN: WHO-based nutrition targets calculation system.
-
 This module defines the core data structures for user profiles and nutrition targets
 based on WHO/EFSA/DRI recommendations for macronutrients, micronutrients, hydration,
 and physical activity guidelines.
+
+RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
+EN: WHO-based nutrition targets calculation system.
 """
 
 from __future__ import annotations
@@ -24,12 +24,12 @@ LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"
 class UserProfile:
     """User profile for calculating individual nutrition targets.
 
-    RU: Профиль пользователя для расчёта индивидуальных таргетов.
-    EN: User profile for calculating individual nutrition targets.
-
     Combines basic anthropometric data with lifestyle factors to generate
     personalized nutrition and activity recommendations based on WHO guidelines.
-"""
+
+    RU: Профиль пользователя для расчёта индивидуальных таргетов.
+    EN: User profile for calculating individual nutrition targets.
+    """
 
     # Basic characteristics
     sex: Sex
@@ -73,7 +73,7 @@ class MacroTargets:
 
     RU: Целевые значения макронутриентов.
     EN: Macronutrient targets in grams per day.
-"""
+    """
 
     protein_g: int
     fat_g: int
@@ -94,7 +94,7 @@ class MicronutrientTargets:
 
     Includes WHO/EFSA-based daily requirements with deficiency thresholds
     and priority levels for auto-repair functionality.
-"""
+    """
 
     # Core micronutrients with ranges (min, target, max)
     iron_mg: tuple[float, float, float]  # (min, target, max)
@@ -285,20 +285,22 @@ class NutritionTargets:
     calculation_date: str = ""  # ISO date when calculated
 
     def validate_consistency(self) -> bool:
-    """
+        """Validates internal consistency of targets.
+
         RU: Проверяет внутреннюю согласованность таргетов.
         EN: Validates internal consistency of targets.
-    """
-        # Check if macro calories match target calories (within 5% tolerance)
+        """
+        # Check if macro calories match target calories (within 5% tolerance).
         macro_calories = self.macros.total_calories()
         tolerance = 0.05
         return abs(macro_calories - self.kcal_daily) / self.kcal_daily <= tolerance
 
     def get_summary(self) -> Dict[str, Any]:
-    """
+        """Summary of targets for API response.
+
         RU: Краткая сводка таргетов для API ответа.
         EN: Summary of targets for API response.
-    """
+        """
         return {
             "kcal_daily": self.kcal_daily,
             "macros": {
@@ -320,10 +322,11 @@ class NutritionTargets:
 
 @dataclass
 class NutrientCoverage:
-"""
+    """Assessment of nutrient coverage in diet.
+
     RU: Оценка покрытия нутриентов в рационе.
     EN: Assessment of nutrient coverage in diet.
-"""
+    """
 
     nutrient_name: str
     target_amount: float
@@ -348,10 +351,11 @@ class NutrientCoverage:
             return "excess"
 
     def get_recommendation(self, lang: str = "en") -> str:
-    """
+        """Recommendation for intake adjustment.
+
         RU: Рекомендация по корректировке потребления.
         EN: Recommendation for intake adjustment.
-    """
+        """
         if lang == "ru":
             if self.status == "deficient":
                 return f"Увеличьте потребление {self.nutrient_name}"
@@ -367,7 +371,8 @@ class NutrientCoverage:
 
 
 def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> List[Dict[str, str]]:
-"""
+    """Generates life stage warnings with localization.
+
     RU: Генерирует предупреждения по жизненным этапам с локализацией.
     EN: Generates life stage warnings with localization.
 
@@ -378,7 +383,7 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
 
     Returns:
         Список предупреждений с кодами и локализованными сообщениями
-"""
+    """
     # Локализованные сообщения
     M = {
         "teen": {
@@ -463,7 +468,7 @@ def calculate_bmr(
 
     Raises:
         ValueError: If unknown formula or missing body_fat for katch/cunningham
-"""
+    """
     if formula == "mifflin":
         if gender == "male":
             return 10 * weight + 6.25 * height - 5 * age + 5
@@ -496,7 +501,7 @@ def get_bmr_formula(user_data: dict) -> str:
 
     Returns:
         Best formula name ("katch" if body_fat available, otherwise "mifflin")
-"""
+    """
     if "body_fat" in user_data and user_data["body_fat"] is not None:
         return "katch"
     return "mifflin"
@@ -506,8 +511,7 @@ def get_bmr_formula(user_data: dict) -> str:
 
 
 def adjust_for_activity(bmr: float, activity_level: str) -> float:
-"""
-    Adjust BMR for activity level to get TDEE estimate.
+    """Adjust BMR for activity level to get TDEE estimate.
 
     Args:
         bmr: Basal Metabolic Rate
@@ -515,7 +519,7 @@ def adjust_for_activity(bmr: float, activity_level: str) -> float:
 
     Returns:
         Adjusted TDEE estimate
-"""
+    """
     multipliers = {
         "sedentary": 1.2,
         "lightly_active": 1.375,
@@ -528,8 +532,7 @@ def adjust_for_activity(bmr: float, activity_level: str) -> float:
 
 
 def calculate_tdee(bmr: float, activity_level: str, **_kwargs) -> float:
-"""
-    Calculate Total Daily Energy Expenditure.
+    """Calculate Total Daily Energy Expenditure.
 
     Args:
         bmr: Basal Metabolic Rate
@@ -538,13 +541,12 @@ def calculate_tdee(bmr: float, activity_level: str, **_kwargs) -> float:
 
     Returns:
         TDEE in kcal/day
-"""
+    """
     return adjust_for_activity(bmr, activity_level)
 
 
 def calculate_macros(calories: int, **_user_profile) -> dict:
-"""
-    Calculate macronutrient distribution.
+    """Calculate macronutrient distribution.
 
     Args:
         calories: Total daily calories
@@ -552,7 +554,7 @@ def calculate_macros(calories: int, **_user_profile) -> dict:
 
     Returns:
         Dictionary with macro grams
-"""
+    """
     # Simple 40/30/30 split
     protein_g = calories * 0.3 / 4
     carbs_g = calories * 0.4 / 4
@@ -566,7 +568,7 @@ def calculate_macros(calories: int, **_user_profile) -> dict:
 
 
 def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
-"""
+    """
     Get macro ratios based on goal and dietary restriction.
 
     Args:
@@ -575,7 +577,7 @@ def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
 
     Returns:
         Dictionary with macro percentages
-"""
+    """
     if goal == "muscle_gain":
         return {"protein": 0.4, "carbs": 0.35, "fat": 0.25}
     elif goal == "fat_loss":
@@ -585,7 +587,7 @@ def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
 
 
 def calculate_micronutrient_targets(**user_data) -> dict:
-"""
+    """
     Calculate micronutrient targets based on user data.
 
     Args:
@@ -593,7 +595,7 @@ def calculate_micronutrient_targets(**user_data) -> dict:
 
     Returns:
         Dictionary with micronutrient targets
-"""
+    """
     # Basic RDA values
     return {
         "vitamin_c": 90,  # mg
@@ -605,7 +607,7 @@ def calculate_micronutrient_targets(**user_data) -> dict:
 
 
 def get_rda_values(age: int, gender: str) -> dict:
-"""
+    """
     Get RDA values for age and gender.
 
     Args:
@@ -614,12 +616,12 @@ def get_rda_values(age: int, gender: str) -> dict:
 
     Returns:
         Dictionary with RDA values
-"""
+    """
     return calculate_micronutrient_targets(age=age, gender=gender)
 
 
 def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
-"""
+    """
     Adjust calories based on weight goal.
 
     Args:
@@ -628,7 +630,7 @@ def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
 
     Returns:
         Adjusted calories
-"""
+    """
     goal_type = goal_data.get("goal_type", "maintain")
     if goal_type == "lose":
         return current_calories - 500
@@ -639,7 +641,7 @@ def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
 
 
 def calculate_deficit_surplus(**goal_data) -> float:
-"""
+    """
     Calculate calorie deficit or surplus.
 
     Args:
@@ -647,7 +649,7 @@ def calculate_deficit_surplus(**goal_data) -> float:
 
     Returns:
         Calorie adjustment
-"""
+    """
     goal_type = goal_data.get("goal_type", "maintain")
     if goal_type == "lose":
         return -500
@@ -658,7 +660,7 @@ def calculate_deficit_surplus(**goal_data) -> float:
 
 
 def get_athlete_targets(**_profile) -> dict:
-"""
+    """
     Get nutrition targets for athletes.
 
     Args:
@@ -666,7 +668,7 @@ def get_athlete_targets(**_profile) -> dict:
 
     Returns:
         Nutrition targets
-"""
+    """
     return {
         "protein_multiplier": 1.6,  # g per kg body weight
         "carb_intake": 8,  # g per kg body weight
@@ -675,7 +677,7 @@ def get_athlete_targets(**_profile) -> dict:
 
 
 def get_elderly_adjustments(**_profile) -> dict:
-"""
+    """
     Get nutrition adjustments for elderly.
 
     Args:
@@ -683,7 +685,7 @@ def get_elderly_adjustments(**_profile) -> dict:
 
     Returns:
         Nutrition adjustments
-"""
+    """
     return {
         "vitamin_d_boost": 1.5,
         "protein_boost": 1.2,
@@ -692,7 +694,7 @@ def get_elderly_adjustments(**_profile) -> dict:
 
 
 def get_pregnancy_targets(**profile) -> dict:
-"""
+    """
     Get nutrition targets for pregnancy.
 
     Args:
@@ -700,7 +702,7 @@ def get_pregnancy_targets(**profile) -> dict:
 
     Returns:
         Nutrition targets
-"""
+    """
     trimester = profile.get("trimester", 2)
     return {
         "calorie_boost": 300 + (trimester - 1) * 100,
@@ -711,7 +713,7 @@ def get_pregnancy_targets(**profile) -> dict:
 
 
 def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noqa: ARG001
-"""
+    """
     Calculate pre and post workout nutrition.
 
     Args:
@@ -720,7 +722,7 @@ def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noq
 
     Returns:
         Nutrition recommendations
-"""
+    """
     return {
         "pre_workout": {
             "carbs": 20 + duration // 30,  # grams
@@ -734,7 +736,7 @@ def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noq
 
 
 def get_meal_timing(**timing_data) -> dict:
-"""
+    """
     Get meal timing recommendations.
 
     Args:
@@ -742,7 +744,7 @@ def get_meal_timing(**timing_data) -> dict:
 
     Returns:
         Meal timing plan
-"""
+    """
     meals_per_day = timing_data.get("meals_per_day", 3)
     return {
         "breakfast": "07:00",
@@ -753,7 +755,7 @@ def get_meal_timing(**timing_data) -> dict:
 
 
 def calculate_hydration_needs(**_hydration_data) -> float:
-"""
+    """
     Calculate daily hydration needs.
 
     Args:
@@ -761,7 +763,7 @@ def calculate_hydration_needs(**_hydration_data) -> float:
 
     Returns:
         Daily water intake in ml
-"""
+    """
     weight: float = _hydration_data.get("weight", 70)
     activity_level: str = _hydration_data.get("activity_level", "moderate")
 
@@ -776,7 +778,7 @@ def calculate_hydration_needs(**_hydration_data) -> float:
 
 
 def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -> float:
-"""
+    """
     Adjust hydration needs for climate and altitude.
 
     Args:
@@ -786,7 +788,7 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
 
     Returns:
         Adjusted hydration needs
-"""
+    """
     multiplier = 1.0
 
     if climate in ["hot", "humid"]:
@@ -801,7 +803,7 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
 
 
 def check_deficiency_risk(**user_profile) -> dict:
-"""
+    """
     Check risk of nutrient deficiencies.
 
     Args:
@@ -809,7 +811,7 @@ def check_deficiency_risk(**user_profile) -> dict:
 
     Returns:
         Deficiency risk assessment
-"""
+    """
     risks = {}
 
     if user_profile.get("dietary_restriction") == "vegan":
@@ -824,7 +826,7 @@ def check_deficiency_risk(**user_profile) -> dict:
 
 
 def get_supplement_recommendations(**user_profile) -> dict:
-"""
+    """
     Get supplement recommendations based on profile.
 
     Args:
@@ -832,7 +834,7 @@ def get_supplement_recommendations(**user_profile) -> dict:
 
     Returns:
         Supplement recommendations
-"""
+    """
     recommendations = []
 
     risks = check_deficiency_risk(**user_profile)
