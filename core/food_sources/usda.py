@@ -96,6 +96,7 @@ class USDAAdapter(BaseAdapter):
                 fat_g=fat_g,
                 carbs_g=carbs_g,
                 fiber_g=fiber_g,
+                sugar_g=float(row.get("sugar_g", 0) or 0),
                 Fe_mg=Fe_mg,
                 Ca_mg=Ca_mg,
                 VitD_IU=VitD_IU,

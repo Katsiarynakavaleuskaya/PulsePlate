@@ -89,7 +89,7 @@ class _FakeFood:
 
 
 class _FakeFoodDB:
-    def get_food(self, name: str) -> _FakeFood:  # type: ignore[override]
+    def get_food(self, name: str) -> _FakeFood:
         return _FakeFood()
 
 
@@ -101,7 +101,7 @@ def test_recipe_db_new_get_by_id_and_search_and_scale(tmp_path: Path):
             {"name": "Chicken", "meal": "dinner", "ingredients": "chicken:200", "tags": "OMNI"},
         ],
     )
-    db = RecipeDBNew(str(csv_path), _FakeFoodDB())  # pyright: ignore[reportArgumentType]
+    db = RecipeDBNew(str(csv_path), _FakeFoodDB())  # type: ignore[arg-type]
 
     # get by name
     assert db.get_recipe_by_id("Oats").name == "Oats"  # type: ignore[union-attr]
@@ -117,7 +117,9 @@ def test_recipe_db_new_get_by_id_and_search_and_scale(tmp_path: Path):
     # scale when kcal computed as zero -> still returns a Meal
     recipe = db.get_recipe_by_id("Oats")
     assert recipe is not None
-    meal: Meal = db.scale_recipe_to_kcal(recipe, kcal_goal=500, lang="en")  # pyright: ignore[reportArgumentType]
+    meal: Meal = db.scale_recipe_to_kcal(
+        recipe, kcal_goal=500, lang="en"
+    )  # pyright: ignore[reportArgumentType]
     assert isinstance(meal, Meal)
 
 
@@ -197,7 +199,7 @@ def test_recipe_db_parser_and_scaler_with_malformed_entries(tmp_path: Path):
 
     food_db = {"oats": _FF(), "milk": _FF()}
 
-    db = parse_recipe_db(str(csv_path), food_db)  # pyright: ignore[reportArgumentType]
+    db = parse_recipe_db(str(csv_path), food_db)  # type: ignore[arg-type]
     assert "GoodRow" in db and "BadRow" in db
 
     # Nutrients calc returns zeros with our fake db
@@ -330,6 +332,7 @@ def test_product_finder_error_paths_and_csv(tmp_path: Path, monkeypatch: pytest.
             fat_g=5.0,
             carbs_g=20.0,
             fiber_g=3.0,
+            sugar_g=5.0,
             Fe_mg=1.0,
             Ca_mg=10.0,
             VitD_IU=0.0,
@@ -384,7 +387,9 @@ def test_menu_engine_default_strategy_and_boosters_branch():
             availability_regions=[],
         )
     }
-    boosters = _find_booster_foods({"iron_mg": 10.0}, None, food_db)  # pyright: ignore[reportArgumentType]
+    boosters = _find_booster_foods(
+        {"iron_mg": 10.0}, None, food_db
+    )  # pyright: ignore[reportArgumentType]
     assert "iron_mg" in boosters and boosters["iron_mg"][0].name == "spinach"
 
 
@@ -403,21 +408,21 @@ class _StubFoodDB:
         self._donor = donor
         self._kcal_zero = kcal_zero
 
-    def pick_booster_for(self, mk: str, diet_flags: list[str]) -> str | None:  # type: ignore[override]
+    def pick_booster_for(self, mk: str, diet_flags: list[str]) -> str | None:
         return self._donor
 
-    def get_food(self, name: str) -> _StubFood:  # type: ignore[override]
+    def get_food(self, name: str) -> _StubFood:
         return _StubFood(kcal_zero=self._kcal_zero)
 
-    def get_translated_food_name(self, name: str, lang: str) -> str:  # type: ignore[override]
+    def get_translated_food_name(self, name: str, lang: str) -> str:
         return name
 
 
 class _StubRecipeDB:
-    def pick_base_recipe(self, diet_flags: list[str], i: int) -> Any:  # type: ignore[override]
+    def pick_base_recipe(self, diet_flags: list[str], i: int) -> Any:
         return None  # no base recipes
 
-    def scale_recipe_to_kcal(self, *args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+    def scale_recipe_to_kcal(self, *args: Any, **kwargs: Any) -> Any:
         raise AssertionError("should not be called without base recipe")
 
 
