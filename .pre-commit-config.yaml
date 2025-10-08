@@ -36,8 +36,10 @@ repos:
     hooks:
       - id: mypy
         name: mypy (type-check)
-        # Keep scope narrow to avoid legacy noise; previous config had routers-only scope.
-        files: ^app/routers/.*\.py$
+        # Staged rollout: Start with well-typed app modules (routers, services, schemas)
+        # Roadmap: Q4 2025 - Expand to core/ (models.py, db.py, food_apis/)
+        #          Q1 2026 - Full codebase coverage with targeted # type: ignore for legacy files
+        files: ^app/.*\.py$
         args:
           - --pretty
           - --show-error-codes
@@ -55,16 +57,15 @@ repos:
         files: ^(?!frontend/).+\.py$
         args: [-q, -r, .]
 
-  # --- Vulnerabilities: safety (requirements scan)
-  # Temporarily disabled - safety hook manifest issue
-  # - repo: https://github.com/pyupio/safety
-  #   rev: 3.2.8
-  #   hooks:
-  #     - id: safety
-  #       name: safety (pip vulns)
-  #       files: ^(?!frontend/).+requirements.*\.txt$
-  #       args: [--full-report]
-  #       stages: [pre-push]
+  # --- Vulnerabilities: pip-audit (requirements scan)
+  - repo: https://github.com/trailofbits/pip-audit
+    rev: v2.7.2
+    hooks:
+      - id: pip-audit
+        name: pip-audit (pip vulns)
+        files: ^(?!frontend/).+requirements.*\.txt$
+        args: [--full-report]
+        stages: [pre-push]
 
   # --- Docstrings: pydocstyle
   - repo: https://github.com/PyCQA/pydocstyle
