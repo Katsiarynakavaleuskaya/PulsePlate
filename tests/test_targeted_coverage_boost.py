@@ -2,6 +2,8 @@
 Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 """
 
+import logging
+
 import os
 import sys
 from unittest.mock import AsyncMock, patch
@@ -167,6 +169,10 @@ class TestTargetedCoverageBoost:
                 _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -184,6 +190,10 @@ class TestTargetedCoverageBoost:
             )  # Use _ to indicate we're not using the variable
             # Should handle invalid ID gracefully
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -199,6 +209,10 @@ class TestTargetedCoverageBoost:
                 _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -231,6 +245,10 @@ class TestTargetedCoverageBoost:
             errors = loop.run_until_complete(manager._validate_food_data(foods))
             assert len(errors) >= 0  # Should not crash
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+
             # Exception is expected, but the code should handle it gracefully
             pass
 
@@ -253,6 +271,10 @@ class TestTargetedCoverageBoost:
                     manager._cleanup_old_backups("usda")
                 )  # Should not crash, just log error
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+
             # Exception is expected, but the code should handle it gracefully
             pass
 

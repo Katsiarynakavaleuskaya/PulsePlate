@@ -5,6 +5,7 @@ Final Core Coverage Enhancement Tests
 RU: Финальные тесты для максимального покрытия core модулей
 EN: Final tests for maximum core modules coverage
 """
+import logging
 
 from unittest.mock import patch
 
@@ -37,6 +38,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("food sources not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_food_categories_coverage(self):
@@ -68,6 +73,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("food_categories not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_nutrition_analysis_coverage(self):
@@ -99,6 +108,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("nutrition_analysis not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_config_management_coverage(self):
@@ -129,6 +142,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("config management not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_edge_case_coverage(self):
@@ -146,8 +163,11 @@ class TestFinalCoreCoverage:
         except ImportError:
             pass
         except Exception:
-            pass
 
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
+            pass
         # Test with empty strings
         try:
             from core.i18n import t
@@ -158,8 +178,11 @@ class TestFinalCoreCoverage:
         except ImportError:
             pass
         except Exception:
-            pass
 
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
+            pass
         # Test with unicode
         try:
             from core.rag.simple_rag import _tokenize
@@ -170,6 +193,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pass
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_comprehensive_core_modules(self):
@@ -203,6 +230,8 @@ class TestFinalCoreCoverage:
             except ImportError:
                 pass  # Module not available
             except Exception:
+
+                logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
                 pass  # Other import error
 
         # We should be able to import at least some core modules
@@ -232,6 +261,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("menu_engine not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_auto_repair_comprehensive(self):
@@ -262,6 +295,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("auto_repair not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_plate_comprehensive(self):
@@ -294,6 +331,10 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("plate not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass
 
     def test_targets_comprehensive(self):
@@ -322,4 +363,8 @@ class TestFinalCoreCoverage:
         except ImportError:
             pytest.skip("targets not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
+            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
+
             pass

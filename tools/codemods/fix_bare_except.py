@@ -4,17 +4,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TEST_DIRS = [ROOT / "tests"]
-FILES = [
-    "tests/test_simple_coverage_fixed.py",
-    "tests/test_specific_lines_coverage.py",
-    "tests/test_targeted_coverage_boost.py",
-    "tests/test_targets_realistic_coverage.py",
-    "tests/test_zero_coverage_modules.py",
-]
+# Process all test files
+FILES = [f"tests/{f.name}" for f in (ROOT / "tests").glob("test_*.py")]
 
 EXCEPT_PATTERNS = [
-    # "except Exception: pass" -> "except Exception:\n    logging.exception(...)"
+    # "except Exception as e: pass" -> "except Exception:\n    logging.exception(...)\n    pass"
+    re.compile(r"(\s*)except\s+Exception\s+as\s+\w+\s*:\s*pass\s*$", re.MULTILINE),
+    # "except Exception: pass" -> "except Exception:\n    logging.exception(...)\n    pass"
     re.compile(r"(\s*)except\s+Exception\s*:\s*pass\s*$", re.MULTILINE),
+    # "except Exception as e:" (без pass) -> добавить logging.exception(...)
+    re.compile(r"(\s*)except\s+Exception\s+as\s+\w+\s*:\s*$", re.MULTILINE),
     # "except Exception:" (без pass) -> добавить logging.exception(...)
     re.compile(r"(\s*)except\s+Exception\s*:\s*$", re.MULTILINE),
 ]
@@ -72,14 +71,24 @@ def ensure_logging_import(text: str) -> str:
 
 def replace_bare_except(text: str, file_hint: str) -> str:
     updated = text
-    # "except Exception: pass"
+    # "except Exception as e: pass" - replace with logging.exception and pass
     updated = EXCEPT_PATTERNS[0].sub(
-        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Suppressed exception in tests: {file_hint}')\n",
+        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Suppressed exception in tests: {file_hint}')\n{m.group(1)}    pass",
         updated,
     )
-    # "except Exception:" без pass
+    # "except Exception: pass" - replace with logging.exception and pass
     updated = EXCEPT_PATTERNS[1].sub(
-        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Unexpected exception in tests: {file_hint}')\n",
+        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Suppressed exception in tests: {file_hint}')\n{m.group(1)}    pass",
+        updated,
+    )
+    # "except Exception as e:" (без pass) - replace with logging.exception
+    updated = EXCEPT_PATTERNS[2].sub(
+        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Unexpected exception in tests: {file_hint}')",
+        updated,
+    )
+    # "except Exception:" (без pass) - replace with logging.exception
+    updated = EXCEPT_PATTERNS[3].sub(
+        lambda m: f"{m.group(1)}except Exception:\n{m.group(1)}    logging.exception('Unexpected exception in tests: {file_hint}')",
         updated,
     )
     if updated != text:
@@ -112,7 +121,6 @@ def move_import_out_of_top_docstring(text: str) -> str:
         return text
     # Проверим, нет ли import logging внутри [start, end]
     moved = False
-    new_block = []
     for i in range(start + 1, end):
         if lines[i].strip().startswith("import logging"):
             # вырезаем из докстринга

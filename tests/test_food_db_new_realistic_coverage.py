@@ -3,6 +3,8 @@ Realistic tests for core/food_db_new.py using Faker library.
 Target 86% coverage improvement with realistic food data scenarios.
 """
 
+import logging
+
 import random
 
 from faker import Faker
@@ -101,6 +103,10 @@ class TestFoodDbNewRealisticCoverage:
                     # Should handle all cases gracefully
                     assert isinstance(results, (list, dict, type(None)))
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
                     # Some edge cases might fail gracefully
                     pass
 
@@ -111,8 +117,15 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     search_by_barcode(barcode)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -147,8 +160,15 @@ class TestFoodDbNewRealisticCoverage:
                     validate_food_data(food)
                     normalize_food_data(food)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
             # Test with invalid data
             invalid_samples = [{}, {"name": ""}, {"calories": -1}, {"protein": "invalid"}, None, []]
 
@@ -156,6 +176,10 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     validate_food_data(invalid)
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
                     # Expected to fail
                     pass
 
@@ -171,14 +195,28 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 update_food_database()
             except Exception:
-                pass
 
+                logging.exception(
+                    "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+                logging.exception(
+                    "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+
+                pass
             # Test external source sync
             try:
                 sync_external_sources()
             except Exception:
-                pass
 
+                logging.exception(
+                    "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+                logging.exception(
+                    "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+
+                pass
             # Test with realistic update scenarios
             update_scenarios = [
                 {"incremental": True, "force": False},
@@ -192,8 +230,15 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     update_food_database(**scenario)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -226,14 +271,28 @@ class TestFoodDbNewRealisticCoverage:
                     cached_again = get_cached_food(food_id)
 
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
             # Test cache clearing
             try:
                 clear_cache()
             except Exception:
-                pass
 
+                logging.exception(
+                    "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+                logging.exception(
+                    "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+
+                pass
         except ImportError:
             pass
 
@@ -254,8 +313,15 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     result = fetch_from_usda(query)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
             # Test OpenFood API calls
             openfood_barcodes = [fake.food_barcode(), "3017620422003", "invalid"]  # Real barcode
 
@@ -263,8 +329,15 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     result = fetch_from_openfood(barcode)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -296,8 +369,15 @@ class TestFoodDbNewRealisticCoverage:
                         scaled = scale_nutrition(base_nutrition, size)
                         calculated = calculate_nutrition([base_nutrition, scaled])
                     except Exception:
-                        pass
 
+                        logging.exception(
+                            "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                        )
+                        logging.exception(
+                            "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                        )
+
+                        pass
         except ImportError:
             pass
 
@@ -313,8 +393,15 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     exported = export_foods(format=format_type, limit=100)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
             # Generate realistic import data
             import_data = []
             for _ in range(5):
@@ -331,8 +418,15 @@ class TestFoodDbNewRealisticCoverage:
             try:
                 import_foods(import_data)
             except Exception:
-                pass
 
+                logging.exception(
+                    "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+                logging.exception(
+                    "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                )
+
+                pass
         except ImportError:
             pass
 
@@ -353,16 +447,30 @@ class TestFoodDbNewRealisticCoverage:
                     fuzzy_results = fuzzy_search(variation)
                     exact_results = exact_search(original)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
             # Test category search
             categories = [fake.food_category() for _ in range(5)]
             for category in categories:
                 try:
                     category_results = category_search(category)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -386,6 +494,10 @@ class TestFoodDbNewRealisticCoverage:
                         "duration": duration,
                     }
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_food_db_new_realistic_coverage.py"
+                    )
                     return {"query": query, "results": 0, "duration": 0}
 
             # Concurrent search performance test

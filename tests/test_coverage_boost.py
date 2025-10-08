@@ -4,6 +4,8 @@ Quick Coverage Booster Tests
 Simple tests to improve coverage for main modules.
 """
 
+import logging
+
 import os
 from unittest.mock import Mock
 
@@ -268,6 +270,8 @@ class TestErrorHandling:
             # If no validation, at least profile should be created
             assert profile.age == -5
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_coverage_boost.py")
             # Exception is acceptable for invalid input
             pass
 
@@ -289,6 +293,8 @@ class TestErrorHandling:
             menu = make_daily_menu(profile)
             assert menu is not None
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_coverage_boost.py")
             # Database access might fail, that's ok
             pass
 

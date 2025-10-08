@@ -5,6 +5,7 @@ Core Database and Food APIs Coverage Tests
 RU: Тесты покрытия для core database и food APIs модулей
 EN: Coverage tests for core database and food APIs modules
 """
+import logging
 
 from unittest.mock import patch
 
@@ -35,6 +36,8 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("core.db module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
             pass  # Function may have requirements we can't meet
 
     def test_food_apis_base_coverage(self):
@@ -54,6 +57,10 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("food_apis.base module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_usda_api_coverage(self):
@@ -74,6 +81,10 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("usda module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_openfoodfacts_api_coverage(self):
@@ -94,6 +105,10 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("openfoodfacts module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_unified_db_coverage(self):
@@ -116,6 +131,10 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("unified_db module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_update_manager_coverage(self):
@@ -143,6 +162,10 @@ class TestCoreDatabaseCoverage:
         except ImportError:
             pytest.skip("update_manager module not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
 
@@ -178,6 +201,10 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("auto_repair advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_menu_engine_advanced_coverage(self):
@@ -209,6 +236,10 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("menu_engine advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_plate_advanced_coverage(self):
@@ -236,6 +267,10 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("plate advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_targets_advanced_coverage(self):
@@ -267,6 +302,10 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("targets advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_i18n_advanced_coverage(self):
@@ -298,6 +337,10 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("i18n advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass
 
     def test_rag_advanced_coverage(self):
@@ -325,4 +368,8 @@ class TestCoreModulesAdvanced:
         except ImportError:
             pytest.skip("RAG advanced features not available")
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
+            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
+
             pass

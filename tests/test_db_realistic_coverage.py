@@ -3,6 +3,8 @@ Realistic tests for core/db.py using Faker library.
 Target 85% coverage, missing lines 56-65, 136.
 """
 
+import logging
+
 import sqlite3
 from unittest.mock import patch
 
@@ -36,6 +38,10 @@ class TestDbRealisticCoverage:
                         if conn := get_db_connection():
                             conn.close()
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
                     # Expected for invalid paths
                     pass
         except ImportError:
@@ -61,6 +67,10 @@ class TestDbRealisticCoverage:
                     result = execute_query(query)
                     # Some might succeed with fallbacks
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
                     # Expected for problematic queries
                     pass
         except ImportError:
@@ -76,14 +86,24 @@ class TestDbRealisticCoverage:
                 try:
                     init_db()
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
             # Test table creation
             try:
                 create_tables()
             except Exception:
-                pass
 
+                logging.exception("Unexpected exception in tests: test_db_realistic_coverage.py")
+                logging.exception("Suppressed exception in tests: test_db_realistic_coverage.py")
+
+                pass
         except ImportError:
             pass
 
@@ -105,6 +125,10 @@ class TestDbRealisticCoverage:
                         conn.close()
                         return result
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
                     return None
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -128,15 +152,29 @@ class TestDbRealisticCoverage:
                     conn = get_db_connection()
                     # Should handle error gracefully
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
             # Simulate permission errors
             with patch("sqlite3.connect", side_effect=PermissionError("Access denied")):
                 try:
                     conn = get_db_connection()
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -158,8 +196,15 @@ class TestDbRealisticCoverage:
                     with patch("core.db.get_schema_version", return_value=version):
                         migrate_db()
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -180,8 +225,15 @@ class TestDbRealisticCoverage:
                     backup_db(path)
                     restore_db(path)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -206,8 +258,15 @@ class TestDbRealisticCoverage:
                 try:
                     execute_query(query)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -223,21 +282,38 @@ class TestDbRealisticCoverage:
                     if conn := get_db_connection():
                         connections.append(conn)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
             # Close all connections
             try:
                 close_all_connections()
             except Exception:
-                pass
 
+                logging.exception("Unexpected exception in tests: test_db_realistic_coverage.py")
+                logging.exception("Suppressed exception in tests: test_db_realistic_coverage.py")
+
+                pass
             # Clean up manually if needed
             for conn in connections:
                 try:
                     conn.close()
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -260,7 +336,14 @@ class TestDbRealisticCoverage:
                     validate_schema(table)
                     get_table_info(table)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_db_realistic_coverage.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_db_realistic_coverage.py"
+                    )
+
+                    pass
         except ImportError:
             pass

@@ -5,6 +5,7 @@ Core DB Tests
 RU: Тесты для основных функций базы данных
 EN: Tests for core database functionality
 """
+import logging
 
 import os
 import tempfile
@@ -149,6 +150,8 @@ class TestCoreDB:
             from sqlalchemy import text as sa_text
         except Exception:
 
+            logging.exception("Unexpected exception in tests: test_core_db_coverage.py")
+
             def sa_text(s):
                 return s  # fallback for environments without SQLAlchemy types
 
@@ -157,6 +160,8 @@ class TestCoreDB:
                 # Force an exception to test rollback
                 session.execute(sa_text("INVALID SQL"))
         except Exception:
+
+            logging.exception("Unexpected exception in tests: test_core_db_coverage.py")
             # Exception is expected
             pass
 

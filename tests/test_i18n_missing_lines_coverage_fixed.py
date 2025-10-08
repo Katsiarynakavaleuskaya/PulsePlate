@@ -3,6 +3,8 @@ Targeted tests for core/i18n.py missing lines 416-423, 427.
 Focus on normalize_lang function edge cases and fallback mechanisms.
 """
 
+import logging
+
 from faker import Faker
 
 fake = Faker()
@@ -38,8 +40,15 @@ class TestI18nMissingLines:
                     # Line 420: if region in config["exceptions"]: return base
                     assert result in ["zh", "en", "es", "pt", "fr"]
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -65,8 +74,15 @@ class TestI18nMissingLines:
                     # Should return configured default (line 423)
                     assert result in ["zh", "en", "es", "pt", "fr"]
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -84,8 +100,15 @@ class TestI18nMissingLines:
                     # Should return the same language (line 427)
                     assert result == lang
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -112,8 +135,15 @@ class TestI18nMissingLines:
                     # Should fallback to "en" (line 430)
                     assert result == "en"
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -149,8 +179,15 @@ class TestI18nMissingLines:
                     assert isinstance(result, str)
                     assert len(result) >= 2
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -175,8 +212,15 @@ class TestI18nMissingLines:
                     # Should normalize and process correctly
                     assert isinstance(result, str)
                 except Exception:
-                    pass
 
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+                    logging.exception(
+                        "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
+
+                    pass
         except ImportError:
             pass
 
@@ -202,6 +246,10 @@ class TestI18nMissingLines:
                     assert isinstance(result, str)
                     assert len(result) >= 2
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
                     # Expected for some edge cases
                     pass
 
@@ -230,8 +278,15 @@ class TestI18nMissingLines:
                         assert isinstance(result, str)
                         assert len(result) >= 2
                     except Exception:
-                        pass
 
+                        logging.exception(
+                            "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                        )
+                        logging.exception(
+                            "Suppressed exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                        )
+
+                        pass
         except ImportError:
             pass
 
@@ -249,6 +304,10 @@ class TestI18nMissingLines:
                 try:
                     return normalize_lang(locale)
                 except Exception:
+
+                    logging.exception(
+                        "Unexpected exception in tests: test_i18n_missing_lines_coverage_fixed.py"
+                    )
                     return "en"  # Fallback
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:

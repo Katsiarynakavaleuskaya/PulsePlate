@@ -5,6 +5,7 @@ Zero Coverage Modules Tests
 RU: Тесты для модулей с нулевым покрытием
 EN: Tests for modules with zero coverage
 """
+import logging
 
 import pytest
 
@@ -43,7 +44,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("sports_nutrition module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_exports_module(self):
         """Test core.exports module."""
@@ -87,7 +92,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("exports module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_recipe_synth_module(self):
         """Test core.recipe_synth module."""
@@ -140,7 +149,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("recipe_synth module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_product_finder_module(self):
         """Test core.product_finder module."""
@@ -185,7 +198,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("product_finder module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_product_varieties_module(self):
         """Test core.product_varieties module."""
@@ -233,7 +250,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("product_varieties module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_exports_simple_module(self):
         """Test core.exports_simple module."""
@@ -268,7 +289,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("exports_simple module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_lifestage_nutrition_module(self):
         """Test core.lifestage_nutrition module."""
@@ -305,7 +330,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("lifestage_nutrition module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_disclaimers_module(self):
         """Test core.disclaimers module."""
@@ -336,7 +365,11 @@ class TestZeroCoverageModules:
         except ImportError:
             pytest.skip("disclaimers module not available")
         except Exception:
-            pass
+
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+            logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
+            logging.exception("Suppressed exception in tests: test_zero_coverage_modules.py")
 
     def test_comprehensive_import_coverage(self):
         """Test importing all core modules to increase import coverage."""
@@ -372,6 +405,10 @@ class TestZeroCoverageModules:
             except ImportError:
                 pass  # Module not available
             except Exception:
+
+                logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+                logging.exception("Unexpected exception in tests: test_zero_coverage_modules.py")
+
                 pass  # Other import error
 
         # Just test that we can import some modules
