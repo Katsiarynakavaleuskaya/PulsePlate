@@ -7,7 +7,7 @@ EN: Base adapter interface.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Iterable
 
 
@@ -34,7 +34,7 @@ class FoodRecord:
     Iodine_ug: float = 0.0  # iodine in µg
     K_mg: float = 0.0  # potassium in mg
     Mg_mg: float = 0.0  # magnesium in mg
-    flags: list = None  # type: ignore  # dietary flags
+    flags: list = field(default_factory=list)  # dietary flags
     price: float = 0.0  # price per 100g
     source: str = ""  # data source
     version_date: str = ""  # ISO date
