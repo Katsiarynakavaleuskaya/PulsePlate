@@ -431,3 +431,67 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
         warnings.append({"code": "child", "message": M["child"].get(lang, M["child"]["en"])})
 
     return warnings
+
+
+def calculate_bmr(
+    age: int,
+    weight: float,
+    height: int,
+    gender: str,
+    body_fat: float = None,
+    formula: str = "mifflin",
+) -> float:
+    """
+    Calculate Basal Metabolic Rate (BMR) using various formulas.
+
+    Args:
+        age: Age in years
+        weight: Weight in kg
+        height: Height in cm
+        gender: "male" or "female"
+        body_fat: Body fat percentage (0-100), required for katch/cunningham formulas
+        formula: Formula to use ("mifflin", "harris", "katch", "cunningham")
+
+    Returns:
+        BMR in kcal/day
+
+    Raises:
+        ValueError: If unknown formula or missing body_fat for katch/cunningham
+    """
+    if formula == "mifflin":
+        if gender == "male":
+            return 10 * weight + 6.25 * height - 5 * age + 5
+        else:
+            return 10 * weight + 6.25 * height - 5 * age - 161
+    elif formula == "harris":
+        if gender == "male":
+            return 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
+        else:
+            return 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age
+    elif formula == "katch":
+        if body_fat is None:
+            raise ValueError("Body fat percentage required for Katch-McArdle formula")
+        lean_body_mass = weight * (1 - body_fat / 100)
+        return 370 + (21.6 * lean_body_mass)
+    elif formula == "cunningham":
+        if body_fat is None:
+            raise ValueError("Body fat percentage required for Cunningham formula")
+        lean_body_mass = weight * (1 - body_fat / 100)
+        return 500 + (22 * lean_body_mass)
+    else:
+        raise ValueError(f"Unknown BMR formula: {formula}")
+
+
+def get_bmr_formula(user_data: dict) -> str:
+    """
+    Select the best BMR formula based on available user data.
+
+    Args:
+        user_data: Dictionary with user information
+
+    Returns:
+        Best formula name ("katch" if body_fat available, otherwise "mifflin")
+    """
+    if "body_fat" in user_data and user_data["body_fat"] is not None:
+        return "katch"
+    return "mifflin"
