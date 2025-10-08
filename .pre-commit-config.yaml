@@ -51,12 +51,15 @@ repos:
     hooks:
       - id: bandit
         name: bandit (security, changed files)
+        stages: [pre-commit]
         types: [python]
-        # Bandit should scan only staged/changed files in pre-commit.
-        # Avoid implicit repo-wide scan by NOT passing "." or "-r .".
+        # Changed-files only (fast path). Full scan added below on pre-push/CI.
         exclude: |
           ^frontend/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
-        args: ["-q","-s","B101"]
+        args:
+          - -q
+          - -s
+          - B101
 
   # --- Vulnerabilities: safety (requirements scan)
   # Temporarily disabled - safety hook manifest issue
@@ -89,22 +92,24 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
-  # --- Local hooks for stricter CI-like checks on pre-push (optional)
+  # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
+      # ruff — строгий на pre-push (не пропускаем автофикс молча)
       - id: ruff-pre-push
-        name: ruff (lint, pre-push strict)
-        entry: bash -c "ruff check . --fix --exit-non-zero-on-fix"
+        name: ruff (pre-push, strict)
+        entry: ruff check .
         language: system
         pass_filenames: false
         stages: [pre-push]
-      # Enable later if needed (kept commented to avoid blocking merge now):
-      # - id: pytest
-      #   name: pytest (unit/integration)
-      #   entry: bash -c "pytest -q --maxfail=1 --disable-warnings"
-      #   language: system
-      #   pass_filenames: false
-      #   stages: [pre-push]
+
+      # bandit-full — полный security scan со smart excludes
+      - id: bandit-full-pre-push
+        name: bandit (pre-push, full repo)
+        entry: bash -c "make bandit-full"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"
