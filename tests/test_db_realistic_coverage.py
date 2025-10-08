@@ -4,7 +4,6 @@ Target 85% coverage, missing lines 56-65, 136.
 """
 
 import contextlib
-import logging
 
 import sqlite3
 from unittest.mock import patch
@@ -101,7 +100,7 @@ class TestDbRealisticCoverage:
             # Simulate permission errors
             with patch("sqlite3.connect", side_effect=PermissionError("Access denied")):
                 with contextlib.suppress(Exception):
-                    conn = get_db_connection()
+                    get_db_connection()
         except ImportError:
             pass
 

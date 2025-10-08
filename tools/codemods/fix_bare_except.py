@@ -49,7 +49,7 @@ def ensure_logging_import(text: str) -> str:
         else:
             break
     lines.insert(insert_at, "import logging")
-    return "\n".join(lines) + ("\n" if not text.endswith("\n") else "")
+    return "\n".join(lines) + ("" if text.endswith("\n") else "\n")
 
 
 def replace_bare_except(text: str, file_hint: str) -> str:

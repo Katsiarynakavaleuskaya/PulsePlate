@@ -4,7 +4,6 @@ Target 86% coverage improvement with realistic food data scenarios.
 """
 
 import contextlib
-import logging
 
 import random
 
@@ -319,8 +318,8 @@ class TestFoodDbNewRealisticCoverage:
 
             for original, variation in search_variations:
                 with contextlib.suppress(Exception):
-                    fuzzy_results = fuzzy_search(variation)
-                    exact_results = exact_search(original)
+                    fuzzy_search(variation)
+                    exact_search(original)
             # Test category search
             categories = [fake.food_category() for _ in range(5)]
             for category in categories:

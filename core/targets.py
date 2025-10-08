@@ -438,7 +438,7 @@ def calculate_bmr(
     weight: float,
     height: int,
     gender: str,
-    body_fat: float = None,
+    body_fat: Optional[float] = None,
     formula: str = "mifflin",
 ) -> float:
     """
@@ -522,7 +522,7 @@ def adjust_for_activity(bmr: float, activity_level: str) -> float:
     return bmr * multiplier
 
 
-def calculate_tdee(bmr: float, activity_level: str, **kwargs) -> float:
+def calculate_tdee(bmr: float, activity_level: str, **_kwargs) -> float:
     """
     Calculate Total Daily Energy Expenditure.
 
@@ -537,7 +537,7 @@ def calculate_tdee(bmr: float, activity_level: str, **kwargs) -> float:
     return adjust_for_activity(bmr, activity_level)
 
 
-def calculate_macros(calories: int, **user_profile) -> dict:
+def calculate_macros(calories: int, **_user_profile) -> dict:
     """
     Calculate macronutrient distribution.
 
@@ -560,7 +560,7 @@ def calculate_macros(calories: int, **user_profile) -> dict:
     }
 
 
-def get_macro_ratios(goal: str, restriction: str) -> dict:
+def get_macro_ratios(goal: str, restriction: str) -> dict:  # noqa: ARG001
     """
     Get macro ratios based on goal and dietary restriction.
 
@@ -652,7 +652,7 @@ def calculate_deficit_surplus(**goal_data) -> float:
         return 0
 
 
-def get_athlete_targets(**profile) -> dict:
+def get_athlete_targets(**_profile) -> dict:
     """
     Get nutrition targets for athletes.
 
@@ -669,7 +669,7 @@ def get_athlete_targets(**profile) -> dict:
     }
 
 
-def get_elderly_adjustments(**profile) -> dict:
+def get_elderly_adjustments(**_profile) -> dict:
     """
     Get nutrition adjustments for elderly.
 
@@ -705,7 +705,7 @@ def get_pregnancy_targets(**profile) -> dict:
     }
 
 
-def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:
+def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noqa: ARG001
     """
     Calculate pre and post workout nutrition.
 

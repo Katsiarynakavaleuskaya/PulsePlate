@@ -14,11 +14,6 @@ fake = Faker()
 class NutritionProvider(BaseProvider):
     """Custom Faker provider for nutrition-related data"""
 
-    @property
-    def random(self):
-        """Access to random generator"""
-        return self.generator.random
-
     activity_levels = [
         "sedentary",
         "lightly_active",
@@ -51,13 +46,13 @@ class NutritionProvider(BaseProvider):
         return self.random_int(min=16, max=80)
 
     def realistic_weight(self):
-        return round(self.random.uniform(40, 150), 1)
+        return round(self.generator.random.uniform(40, 150), 1)
 
     def realistic_height(self):
-        return round(self.random.uniform(140, 210), 1)
+        return round(self.generator.random.uniform(140, 210), 1)
 
     def realistic_body_fat(self):
-        return round(self.random.uniform(5, 40), 1)
+        return round(self.generator.random.uniform(5, 40), 1)
 
 
 fake.add_provider(NutritionProvider)
@@ -71,6 +66,7 @@ class TestTargetsRealisticCoverage:
 
     def test_bmr_calculations_realistic(self):
         """Test BMR calculations with realistic demographic data"""
+        pytest.importorskip("core.targets")
         from core.targets import (
             calculate_bmr,
             get_bmr_formula,
@@ -132,6 +128,7 @@ class TestTargetsRealisticCoverage:
 
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
+        pytest.importorskip("core.targets")
         from core.targets import (
             adjust_for_activity,
             calculate_tdee,
@@ -176,26 +173,14 @@ class TestTargetsRealisticCoverage:
             pytest.skip("core.targets module is unavailable in this environment")
 
         # Test error cases for BMR calculations
-        try:
-            # Test Katch formula without body fat
+        with pytest.raises(ValueError, match="Body fat percentage required"):
             calculate_bmr(30, 70, 175, "male", formula="katch")
-            assert False, "Should raise ValueError for missing body fat"
-        except ValueError as e:
-            assert "Body fat percentage required" in str(e)
 
-        try:
-            # Test Cunningham formula without body fat
+        with pytest.raises(ValueError, match="Body fat percentage required"):
             calculate_bmr(30, 70, 175, "male", formula="cunningham")
-            assert False, "Should raise ValueError for missing body fat"
-        except ValueError as e:
-            assert "Body fat percentage required" in str(e)
 
-        try:
-            # Test unknown formula
+        with pytest.raises(ValueError, match="Unknown BMR formula"):
             calculate_bmr(30, 70, 175, "male", formula="unknown")
-            assert False, "Should raise ValueError for unknown formula"
-        except ValueError as e:
-            assert "Unknown BMR formula" in str(e)
 
         # Test all activity levels
         bmr = 1700
@@ -456,6 +441,7 @@ class TestTargetsRealisticCoverage:
 
     def test_nutrient_timing_realistic(self):
         """Test nutrient timing recommendations with realistic scenarios"""
+        pytest.importorskip("core.targets")
         from core.targets import (
             calculate_pre_post_workout,
             get_meal_timing,

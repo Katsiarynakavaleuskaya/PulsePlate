@@ -4,7 +4,6 @@ Focus on normalize_lang function edge cases and fallback mechanisms.
 """
 
 import contextlib
-import logging
 
 from faker import Faker
 

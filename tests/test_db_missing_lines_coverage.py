@@ -233,8 +233,6 @@ class TestDbMissingLinesCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_missing_lines_coverage.py"
                     )
-
-                    pass
                 # Session should still be closed
                 mock_session.close.assert_called_once()
 

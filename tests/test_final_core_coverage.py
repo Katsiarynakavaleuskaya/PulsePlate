@@ -41,8 +41,6 @@ class TestFinalCoreCoverage:
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
 
-            pass
-
     def test_food_categories_coverage(self):
         """Test food categories and classification."""
         try:
@@ -73,8 +71,6 @@ class TestFinalCoreCoverage:
             pytest.skip("food_categories not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass
 
     def test_nutrition_analysis_coverage(self):
         """Test nutrition analysis modules."""
@@ -107,8 +103,6 @@ class TestFinalCoreCoverage:
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
 
-            pass
-
     def test_config_management_coverage(self):
         """Test configuration management."""
         try:
@@ -139,8 +133,6 @@ class TestFinalCoreCoverage:
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
 
-            pass
-
     def test_edge_case_coverage(self):
         """Test edge cases and error handling."""
         # Test with None inputs
@@ -157,8 +149,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass
         # Test with empty strings
         try:
             from core.i18n import t
@@ -170,8 +160,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass
         # Test with unicode
         try:
             from core.rag.simple_rag import _tokenize
@@ -183,8 +171,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass
 
     def test_comprehensive_core_modules(self):
         """Comprehensive test of all available core modules."""
@@ -249,8 +235,6 @@ class TestFinalCoreCoverage:
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
 
-            pass
-
     def test_auto_repair_comprehensive(self):
         """Comprehensive auto repair testing."""
         try:
@@ -280,8 +264,6 @@ class TestFinalCoreCoverage:
             pytest.skip("auto_repair not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass
 
     def test_plate_comprehensive(self):
         """Comprehensive plate testing."""
@@ -315,8 +297,6 @@ class TestFinalCoreCoverage:
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
 
-            pass
-
     def test_targets_comprehensive(self):
         """Comprehensive targets testing."""
         try:
@@ -344,5 +324,3 @@ class TestFinalCoreCoverage:
             pytest.skip("targets not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-
-            pass

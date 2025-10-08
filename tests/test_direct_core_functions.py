@@ -145,8 +145,6 @@ class TestDirectCoreFunctions:
             pytest.skip("menu_engine functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_plate_functions_direct(self):
@@ -192,8 +190,6 @@ class TestDirectCoreFunctions:
             pytest.skip("plate functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_i18n_functions_direct(self):
@@ -244,8 +240,6 @@ class TestDirectCoreFunctions:
             pytest.skip("i18n functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_food_sources_functions_direct(self):
@@ -289,8 +283,6 @@ class TestDirectCoreFunctions:
             pytest.skip("food_sources functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_rag_functions_direct(self):
@@ -336,8 +328,6 @@ class TestDirectCoreFunctions:
             pytest.skip("RAG functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_db_functions_direct(self):
@@ -372,8 +362,6 @@ class TestDirectCoreFunctions:
             pytest.skip("db functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_region_catalog_functions_direct(self):
@@ -418,8 +406,6 @@ class TestDirectCoreFunctions:
             pytest.skip("region_catalog functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
 
     def test_utils_functions_direct(self):
@@ -466,6 +452,4 @@ class TestDirectCoreFunctions:
             pytest.skip("utils functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_direct_core_functions.py")
-            logging.exception("Suppressed exception in tests: test_direct_core_functions.py")
-
             pass
