@@ -149,6 +149,7 @@ def _register_font_if_available() -> str:
         except Exception:
             # Fall back to default Helvetica if registration fails for any reason.
             return "Helvetica"
+    return "Helvetica"
 
 
 def _render_pdf(shop: Dict[str, Any]) -> bytes:
