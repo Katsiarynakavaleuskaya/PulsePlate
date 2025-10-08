@@ -3745,6 +3745,7 @@ cloudflared
 Cobalamin
 codemod
 codepoint
+commitizen
 completa
 completado
 compras
