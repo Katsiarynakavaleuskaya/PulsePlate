@@ -8,7 +8,7 @@ profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.13"
 strict = false
 warn_unused_ignores = true
 warn_redundant_casts = true
@@ -60,7 +60,7 @@ ignore = [
 "releases/**/*.py" = ["E402"]
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 reportMissingImports = false
 pythonPath = "."
 
