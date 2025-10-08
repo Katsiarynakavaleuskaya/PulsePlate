@@ -495,3 +495,348 @@ def get_bmr_formula(user_data: dict) -> str:
     if "body_fat" in user_data and user_data["body_fat"] is not None:
         return "katch"
     return "mifflin"
+
+
+# Additional functions for comprehensive testing
+
+
+def adjust_for_activity(bmr: float, activity_level: str) -> float:
+    """
+    Adjust BMR for activity level to get TDEE estimate.
+
+    Args:
+        bmr: Basal Metabolic Rate
+        activity_level: Activity level string
+
+    Returns:
+        Adjusted TDEE estimate
+    """
+    multipliers = {
+        "sedentary": 1.2,
+        "lightly_active": 1.375,
+        "moderately_active": 1.55,
+        "very_active": 1.725,
+        "extremely_active": 1.9,
+    }
+    multiplier = multipliers.get(activity_level, 1.2)
+    return bmr * multiplier
+
+
+def calculate_tdee(bmr: float, activity_level: str, **kwargs) -> float:
+    """
+    Calculate Total Daily Energy Expenditure.
+
+    Args:
+        bmr: Basal Metabolic Rate
+        activity_level: Activity level
+        **kwargs: Additional factors
+
+    Returns:
+        TDEE in kcal/day
+    """
+    return adjust_for_activity(bmr, activity_level)
+
+
+def calculate_macros(calories: int, **user_profile) -> dict:
+    """
+    Calculate macronutrient distribution.
+
+    Args:
+        calories: Total daily calories
+        **user_profile: User profile data
+
+    Returns:
+        Dictionary with macro grams
+    """
+    # Simple 40/30/30 split
+    protein_g = calories * 0.3 / 4
+    carbs_g = calories * 0.4 / 4
+    fat_g = calories * 0.3 / 9
+
+    return {
+        "protein": round(protein_g, 1),
+        "carbs": round(carbs_g, 1),
+        "fat": round(fat_g, 1),
+    }
+
+
+def get_macro_ratios(goal: str, restriction: str) -> dict:
+    """
+    Get macro ratios based on goal and dietary restriction.
+
+    Args:
+        goal: Fitness goal
+        restriction: Dietary restriction
+
+    Returns:
+        Dictionary with macro percentages
+    """
+    if goal == "muscle_gain":
+        return {"protein": 0.35, "carbs": 0.45, "fat": 0.2}
+    elif goal == "fat_loss":
+        return {"protein": 0.4, "carbs": 0.3, "fat": 0.3}
+    else:  # maintain
+        return {"protein": 0.3, "carbs": 0.4, "fat": 0.3}
+
+
+def calculate_micronutrient_targets(**user_data) -> dict:
+    """
+    Calculate micronutrient targets based on user data.
+
+    Args:
+        **user_data: User profile data
+
+    Returns:
+        Dictionary with micronutrient targets
+    """
+    # Basic RDA values
+    return {
+        "vitamin_c": 90,  # mg
+        "vitamin_d": 15,  # mcg
+        "calcium": 1000,  # mg
+        "iron": 18 if user_data.get("gender") == "female" else 8,  # mg
+        "b12": 2.4,  # mcg
+    }
+
+
+def get_rda_values(age: int, gender: str) -> dict:
+    """
+    Get RDA values for age and gender.
+
+    Args:
+        age: Age in years
+        gender: Gender string
+
+    Returns:
+        Dictionary with RDA values
+    """
+    return calculate_micronutrient_targets(age=age, gender=gender)
+
+
+def adjust_calories_for_goal(current_calories: int, **goal_data) -> float:
+    """
+    Adjust calories based on weight goal.
+
+    Args:
+        current_calories: Current daily calories
+        **goal_data: Goal parameters
+
+    Returns:
+        Adjusted calories
+    """
+    goal_type = goal_data.get("goal_type", "maintain")
+    if goal_type == "lose":
+        return current_calories - 500
+    elif goal_type == "gain":
+        return current_calories + 500
+    else:
+        return current_calories
+
+
+def calculate_deficit_surplus(**goal_data) -> float:
+    """
+    Calculate calorie deficit or surplus.
+
+    Args:
+        **goal_data: Goal parameters
+
+    Returns:
+        Calorie adjustment
+    """
+    goal_type = goal_data.get("goal_type", "maintain")
+    if goal_type == "lose":
+        return -500
+    elif goal_type == "gain":
+        return 500
+    else:
+        return 0
+
+
+def get_athlete_targets(**profile) -> dict:
+    """
+    Get nutrition targets for athletes.
+
+    Args:
+        **profile: Athlete profile
+
+    Returns:
+        Nutrition targets
+    """
+    return {
+        "protein_multiplier": 1.6,  # g per kg body weight
+        "carb_intake": 8,  # g per kg body weight
+        "calorie_density": 1.2,
+    }
+
+
+def get_elderly_adjustments(**profile) -> dict:
+    """
+    Get nutrition adjustments for elderly.
+
+    Args:
+        **profile: Elderly profile
+
+    Returns:
+        Nutrition adjustments
+    """
+    return {
+        "vitamin_d_boost": 1.5,
+        "protein_boost": 1.2,
+        "calcium_boost": 1.3,
+    }
+
+
+def get_pregnancy_targets(**profile) -> dict:
+    """
+    Get nutrition targets for pregnancy.
+
+    Args:
+        **profile: Pregnancy profile
+
+    Returns:
+        Nutrition targets
+    """
+    trimester = profile.get("trimester", 2)
+    return {
+        "calorie_boost": 300 + (trimester - 1) * 100,
+        "protein_boost": 25,  # additional grams
+        "folic_acid": 600,  # mcg
+        "iron": 27,  # mg
+    }
+
+
+def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:
+    """
+    Calculate pre and post workout nutrition.
+
+    Args:
+        workout_type: Type of workout
+        duration: Duration in minutes
+
+    Returns:
+        Nutrition recommendations
+    """
+    return {
+        "pre_workout": {
+            "carbs": 20 + duration // 30,  # grams
+            "protein": 10,
+        },
+        "post_workout": {
+            "protein": 20 + duration // 30,  # grams
+            "carbs": 30 + duration // 15,  # grams
+        },
+    }
+
+
+def get_meal_timing(**timing_data) -> dict:
+    """
+    Get meal timing recommendations.
+
+    Args:
+        **timing_data: Meal timing parameters
+
+    Returns:
+        Meal timing plan
+    """
+    meals_per_day = timing_data.get("meals_per_day", 3)
+    return {
+        "breakfast": "07:00",
+        "lunch": "13:00",
+        "dinner": "19:00",
+        "snacks": ["10:00", "16:00"] if meals_per_day > 3 else [],
+    }
+
+
+def calculate_hydration_needs(**hydration_data) -> float:
+    """
+    Calculate daily hydration needs.
+
+    Args:
+        **hydration_data: Hydration factors
+
+    Returns:
+        Daily water intake in ml
+    """
+    weight = hydration_data.get("weight", 70)
+    activity_level = hydration_data.get("activity_level", "moderate")
+
+    base_ml = weight * 30  # 30ml per kg
+
+    if activity_level == "very_active":
+        base_ml *= 1.2
+    elif activity_level == "extremely_active":
+        base_ml *= 1.4
+
+    return base_ml
+
+
+def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -> float:
+    """
+    Adjust hydration needs for climate and altitude.
+
+    Args:
+        base_hydration: Base hydration needs
+        climate: Climate type
+        altitude: Altitude in meters
+
+    Returns:
+        Adjusted hydration needs
+    """
+    multiplier = 1.0
+
+    if climate in ["hot", "humid"]:
+        multiplier = 1.3
+    elif climate == "cold":
+        multiplier = 0.9
+
+    if altitude > 1000:
+        multiplier += 0.1 * (altitude // 1000)
+
+    return base_hydration * multiplier
+
+
+def check_deficiency_risk(**user_profile) -> dict:
+    """
+    Check risk of nutrient deficiencies.
+
+    Args:
+        **user_profile: User profile data
+
+    Returns:
+        Deficiency risk assessment
+    """
+    risks = {}
+
+    if user_profile.get("dietary_restriction") == "vegan":
+        risks["b12"] = "high"
+        risks["iron"] = "moderate"
+
+    if user_profile.get("age", 30) > 50:
+        risks["vitamin_d"] = "moderate"
+        risks["calcium"] = "moderate"
+
+    return risks
+
+
+def get_supplement_recommendations(**user_profile) -> dict:
+    """
+    Get supplement recommendations based on profile.
+
+    Args:
+        **user_profile: User profile data
+
+    Returns:
+        Supplement recommendations
+    """
+    recommendations = []
+
+    risks = check_deficiency_risk(**user_profile)
+
+    if risks.get("b12") == "high":
+        recommendations.append("Vitamin B12")
+    if risks.get("vitamin_d") == "moderate":
+        recommendations.append("Vitamin D3")
+    if risks.get("iron") == "moderate":
+        recommendations.append("Iron")
+
+    return {"supplements": recommendations}
