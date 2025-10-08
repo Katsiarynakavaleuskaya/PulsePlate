@@ -66,8 +66,28 @@ class TestTargetsRealisticCoverage:
 
     def test_bmr_calculations_realistic(self):
         """Test BMR calculations with realistic demographic data"""
+        from core.targets import (
+            calculate_bmr,
+            get_bmr_formula,
+            adjust_for_activity,
+            calculate_tdee,
+            calculate_macros,
+            get_macro_ratios,
+            get_rda_values,
+            adjust_calories_for_goal,
+            calculate_deficit_surplus,
+            get_athlete_targets,
+            get_elderly_adjustments,
+            get_pregnancy_targets,
+            calculate_pre_post_workout,
+            get_meal_timing,
+            calculate_hydration_needs,
+            adjust_for_climate,
+            check_deficiency_risk,
+            get_supplement_recommendations,
+        )
+
         try:
-            from core.targets import calculate_bmr, get_bmr_formula
 
             # Generate realistic user profiles
             for _ in range(25):
@@ -141,6 +161,75 @@ class TestTargetsRealisticCoverage:
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
+
+        # Test error cases for BMR calculations
+        try:
+            # Test Katch formula without body fat
+            calculate_bmr(30, 70, 175, "male", formula="katch")
+            assert False, "Should raise ValueError for missing body fat"
+        except ValueError as e:
+            assert "Body fat percentage required" in str(e)
+
+        try:
+            # Test Cunningham formula without body fat
+            calculate_bmr(30, 70, 175, "male", formula="cunningham")
+            assert False, "Should raise ValueError for missing body fat"
+        except ValueError as e:
+            assert "Body fat percentage required" in str(e)
+
+        try:
+            # Test unknown formula
+            calculate_bmr(30, 70, 175, "male", formula="unknown")
+            assert False, "Should raise ValueError for unknown formula"
+        except ValueError as e:
+            assert "Unknown BMR formula" in str(e)
+
+        # Test all activity levels
+        bmr = 1700
+        for activity in [
+            "sedentary",
+            "lightly_active",
+            "moderately_active",
+            "very_active",
+            "extremely_active",
+        ]:
+            adjusted = adjust_for_activity(bmr, activity)
+            assert adjusted >= bmr
+
+        # Test TDEE calculation
+        tdee = calculate_tdee(bmr, "moderately_active")
+        assert tdee >= bmr
+
+        # Test macro calculations
+        macros = calculate_macros(2000)
+        assert "protein" in macros and "carbs" in macros and "fat" in macros
+        total = macros["protein"] * 4 + macros["carbs"] * 4 + macros["fat"] * 9
+        assert abs(total - 2000) < 50  # Within reasonable range
+
+        # Test macro ratios
+        ratios_muscle = get_macro_ratios("muscle_gain", "none")
+        assert ratios_muscle["protein"] > ratios_muscle["carbs"]
+
+        ratios_loss = get_macro_ratios("fat_loss", "none")
+        assert ratios_loss["protein"] > ratios_loss["carbs"]
+
+        # Test RDA calculations
+        rda = get_rda_values(30, "female")
+        assert "iron" in rda and rda["iron"] > 0
+
+        # Test calorie adjustments
+        adjusted = adjust_calories_for_goal(2000, goal_type="lose")
+        assert adjusted < 2000
+
+        adjusted = adjust_calories_for_goal(2000, goal_type="gain")
+        assert adjusted > 2000
+
+        # Test deficit/surplus
+        deficit = calculate_deficit_surplus(goal_type="lose")
+        assert deficit < 0
+
+        surplus = calculate_deficit_surplus(goal_type="gain")
+        assert surplus > 0
 
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
@@ -381,6 +470,46 @@ class TestTargetsRealisticCoverage:
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
+
+        # Test athlete targets
+        athlete_targets = get_athlete_targets(sport="endurance", training_hours=10)
+        assert isinstance(athlete_targets, dict)
+        assert "protein_multiplier" in athlete_targets
+
+        # Test elderly adjustments
+        elderly_adj = get_elderly_adjustments(
+            age=70, gender="male", chronic_conditions=["diabetes"]
+        )
+        assert isinstance(elderly_adj, dict)
+        assert "vitamin_d_boost" in elderly_adj
+
+        # Test pregnancy targets
+        pregnancy_targets = get_pregnancy_targets(trimester=2, current_weight=65)
+        assert isinstance(pregnancy_targets, dict)
+        assert "calorie_boost" in pregnancy_targets
+
+        # Test meal timing
+        meal_plan = get_meal_timing(total_calories=2500, meals_per_day=4)
+        assert isinstance(meal_plan, dict)
+        assert "breakfast" in meal_plan
+
+        # Test hydration needs
+        hydration = calculate_hydration_needs(weight=70, activity_level="moderate")
+        assert isinstance(hydration, (int, float))
+        assert hydration > 0
+
+        # Test climate adjustment
+        adjusted_hydration = adjust_for_climate(hydration, "hot", altitude=1000)
+        assert adjusted_hydration > hydration
+
+        # Test deficiency risk
+        risks = check_deficiency_risk(dietary_restriction="vegan", age=25)
+        assert isinstance(risks, dict)
+
+        # Test supplement recommendations
+        supplements = get_supplement_recommendations(dietary_restriction="vegan", age=25)
+        assert isinstance(supplements, dict)
+        assert "supplements" in supplements
 
     def test_hydration_targets_realistic(self):
         """Test hydration recommendations with realistic scenarios"""
