@@ -188,19 +188,25 @@ class TestPremiumWeekRouter:
         # Test kcal too low
         with pytest.raises(ValueError):
             TargetsIn(
-                kcal=400, macros={"protein_g": 150.0}, micro={"vitamin_c_mg": 90.0}  # Too low
+                kcal=400,
+                macros={"protein_g": 150.0},
+                micro={"vitamin_c_mg": 90.0},  # Too low
             )
 
         # Test kcal too high
         with pytest.raises(ValueError):
             TargetsIn(
-                kcal=7000, macros={"protein_g": 150.0}, micro={"vitamin_c_mg": 90.0}  # Too high
+                kcal=7000,
+                macros={"protein_g": 150.0},
+                micro={"vitamin_c_mg": 90.0},  # Too high
             )
 
         # Test negative macro value
         with pytest.raises(ValueError):
             TargetsIn(
-                kcal=2000, macros={"protein_g": -150.0}, micro={"vitamin_c_mg": 90.0}  # Negative
+                kcal=2000,
+                macros={"protein_g": -150.0},
+                micro={"vitamin_c_mg": 90.0},  # Negative
             )
 
     def test_week_plan_request_model(self):

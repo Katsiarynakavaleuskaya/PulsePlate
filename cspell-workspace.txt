@@ -4165,7 +4165,10 @@ TDEE
 testclient
 testdb
 testid
+testmacros
 testpaths
+testportions
+testtarget
 TEXTCOLOR
 Tienes
 timedelta
