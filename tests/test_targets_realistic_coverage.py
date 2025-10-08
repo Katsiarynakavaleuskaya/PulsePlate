@@ -4,7 +4,6 @@ Target 93% coverage improvement with realistic nutrition target scenarios.
 """
 
 import logging
-
 from faker import Faker
 from faker.providers import BaseProvider
 
@@ -87,33 +86,21 @@ class TestTargetsRealisticCoverage:
                         bmr = calculate_bmr(**user_data, formula=formula)
                         assert isinstance(bmr, (int, float))
                         assert bmr > 0
-                    except Exception:
+                    except Exception as e:
                         logging.exception(
                             "Unexpected exception in tests: test_targets_realistic_coverage.py"
                         )
-                        logging.exception(
-                            "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                        )
-
-                        logging.exception(
-                            "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                        )
+                        pass
 
                 # Test formula selection
                 try:
                     best_formula = get_bmr_formula(user_data)
                     assert best_formula in formulas
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -145,17 +132,11 @@ class TestTargetsRealisticCoverage:
                     adjusted = adjust_for_activity(bmr, activity_level)
                     assert adjusted >= bmr
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -198,17 +179,11 @@ class TestTargetsRealisticCoverage:
                     ratios = get_macro_ratios(goal, restriction)
                     assert isinstance(ratios, dict)
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -251,17 +226,11 @@ class TestTargetsRealisticCoverage:
                     rda = get_rda_values(user_data["age"], user_data["gender"])
                     assert isinstance(rda, dict)
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -291,17 +260,11 @@ class TestTargetsRealisticCoverage:
                     deficit_surplus = calculate_deficit_surplus(**goal_data)
                     assert isinstance(deficit_surplus, (int, float))
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -332,17 +295,11 @@ class TestTargetsRealisticCoverage:
                 try:
                     adjustments = get_elderly_adjustments(**profile)
                     assert isinstance(adjustments, dict)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
             # Test athlete targets
             athlete_profiles = []
@@ -360,17 +317,11 @@ class TestTargetsRealisticCoverage:
                 try:
                     targets = get_athlete_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
             # Test pregnancy targets
             pregnancy_profiles = []
@@ -387,17 +338,11 @@ class TestTargetsRealisticCoverage:
                 try:
                     targets = get_pregnancy_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -427,17 +372,11 @@ class TestTargetsRealisticCoverage:
                     )
                     assert isinstance(workout_nutrition, dict)
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -469,17 +408,11 @@ class TestTargetsRealisticCoverage:
                     )
                     assert adjusted_hydration >= base_hydration
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass
@@ -511,17 +444,11 @@ class TestTargetsRealisticCoverage:
                     risk_assessment = check_deficiency_risk(**user_profile)
                     assert isinstance(risk_assessment, dict)
 
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    pass
 
         except ImportError:
             pass

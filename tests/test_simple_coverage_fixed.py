@@ -4,7 +4,6 @@
 """
 
 import logging
-
 from unittest.mock import patch
 
 import pytest
@@ -18,12 +17,9 @@ class TestSimpleCoverageBoost:
             targets = MicronutrientTargets()
             result = auto_repair_module.auto_repair_week_plan({}, targets)
             assert isinstance(result, (dict, type(None)))
-        except Exception:
-
+        except Exception as e:
             logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-
-            logging.exception('Suppressed exception in tests: test_simple_coverage_fixed.py')
+            pass
 
     if hasattr(auto_repair_module, 'suggest_manual_fixes'):
         try:
@@ -32,11 +28,8 @@ class TestSimpleCoverageBoost:
             targets = MicronutrientTargets()
             suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
             assert isinstance(suggestions, list)
-        except Exception:
-
+        except Exception as e:
             logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-
             passдулей"""
 
     def test_targets_module_coverage(self):
@@ -229,28 +222,20 @@ class TestSimpleCoverageBoost:
                     try:
                         result = list(adapter.fetch())
                         assert isinstance(result, list)
-                    except Exception:
+                    except Exception as e:
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-
                         pass  # Может не работать без данных
 
                 if hasattr(adapter, "normalize"):
                     try:
                         result = list(adapter.normalize())
                         assert isinstance(result, list)
-                    except Exception:
+                    except Exception as e:
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-
                         pass  # Может не работать без данных
 
             # OFF client coverage - простое тестирование импорта и создания
@@ -267,14 +252,10 @@ class TestSimpleCoverageBoost:
                     try:
                         result = list(adapter.fetch())
                         assert isinstance(result, list)
-                    except Exception:
+                    except Exception as e:
                         logging.exception(
                             "Unexpected exception in tests: test_simple_coverage_fixed.py"
                         )
-                        logging.exception(
-                            "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                        )
-
                         pass  # Может не работать без данных
 
             # Base client coverage - тестируем базовый класс
@@ -306,51 +287,33 @@ class TestSimpleCoverageBoost:
                 try:
                     engine = auto_repair_module.get_auto_repair_engine()
                     assert engine is not None
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(auto_repair_module, "auto_repair_week_plan"):
                 try:
                     # Просто тестируем что функция есть
                     func = auto_repair_module.auto_repair_week_plan
                     assert callable(func)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(auto_repair_module, "suggest_manual_fixes"):
                 try:
                     # Просто тестируем что функция есть
                     func = auto_repair_module.suggest_manual_fixes
                     assert callable(func)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # Тест классов если доступны
             if hasattr(auto_repair_module, "AutoRepairEngine"):
@@ -362,17 +325,11 @@ class TestSimpleCoverageBoost:
                     if hasattr(engine, "get_repair_history"):
                         history = engine.get_repair_history()
                         assert isinstance(history, list)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(auto_repair_module, "RepairStrategy"):
                 assert auto_repair_module.RepairStrategy is not None
@@ -391,17 +348,11 @@ class TestSimpleCoverageBoost:
                     # Тест с пустыми данными
                     result = food_merge_module.merge_records([])
                     assert isinstance(result, list)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # Тест приватных функций для покрытия
             if hasattr(food_merge_module, "_merge_values"):
@@ -414,17 +365,11 @@ class TestSimpleCoverageBoost:
                     # Тест с пустым списком
                     empty_result = food_merge_module._merge_values([])
                     assert isinstance(empty_result, float)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(food_merge_module, "_classify_food_group"):
                 try:
@@ -436,17 +381,11 @@ class TestSimpleCoverageBoost:
                     # Тест с пустой записью
                     empty_result = food_merge_module._classify_food_group({})
                     assert isinstance(empty_result, str)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # Тест констант модуля
             if hasattr(food_merge_module, "MICROS"):
@@ -462,128 +401,80 @@ class TestSimpleCoverageBoost:
                 try:
                     func = menu_engine_module.make_weekly_menu
                     assert callable(func)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(menu_engine_module, "make_daily_menu"):
                 try:
                     func = menu_engine_module.make_daily_menu
                     assert callable(func)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # Тест helper функций для покрытия
             if hasattr(menu_engine_module, "_get_default_food_db"):
                 try:
                     result = menu_engine_module._get_default_food_db()
                     assert isinstance(result, dict)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(menu_engine_module, "_get_default_recipe_db"):
                 try:
                     result = menu_engine_module._get_default_recipe_db()
                     assert isinstance(result, dict)
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # Тест классов
             if hasattr(menu_engine_module, "FoodItem"):
                 try:
                     # Не создаем экземпляр, просто проверяем что класс есть
                     assert menu_engine_module.FoodItem is not None
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(menu_engine_module, "Recipe"):
                 try:
                     assert menu_engine_module.Recipe is not None
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(menu_engine_module, "DayMenu"):
                 try:
                     assert menu_engine_module.DayMenu is not None
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             if hasattr(menu_engine_module, "WeekMenu"):
                 try:
                     assert menu_engine_module.WeekMenu is not None
-                except Exception:
+                except Exception as e:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
                     )
-                    logging.exception(
-                        "Unexpected exception in tests: test_simple_coverage_fixed.py"
-                    )
-
-                    logging.exception(
-                        "Suppressed exception in tests: test_simple_coverage_fixed.py"
-                    )
+                    pass
 
             # recommendations module
             import core.recommendations as recommendations_module
