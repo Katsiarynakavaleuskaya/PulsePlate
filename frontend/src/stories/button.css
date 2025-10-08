@@ -1,20 +1,29 @@
+:root {
+  --button-font-family: 'Nunito Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --button-primary-bg: #555ab9;
+  --button-primary-color: white;
+  --button-secondary-border: rgba(0, 0, 0, 0.15);
+  --button-secondary-color: #333;
+  --button-border-radius: 3em;
+}
+
 .storybook-button {
   display: inline-block;
   cursor: pointer;
   border: 0;
-  border-radius: 3em;
+  border-radius: var(--button-border-radius);
   font-weight: 700;
   line-height: 1;
-  font-family: 'Nunito Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--button-font-family);
 }
 .storybook-button--primary {
-  background-color: #555ab9;
-  color: white;
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-color);
 }
 .storybook-button--secondary {
-  box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 0px 1px inset;
+  box-shadow: var(--button-secondary-border) 0px 0px 0px 1px inset;
   background-color: transparent;
-  color: #333;
+  color: var(--button-secondary-color);
 }
 .storybook-button--small {
   padding: 10px 16px;

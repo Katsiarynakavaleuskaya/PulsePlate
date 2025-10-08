@@ -77,8 +77,10 @@ class TestDbRealisticCoverage:
 
             # Test initialization with various conditions
             with patch("os.path.exists", return_value=False):
-                with contextlib.suppress(Exception):
+                try:
                     init_db()
+                except Exception:
+                    pass  # Expected for missing database
             # Test table creation
             try:
                 create_tables()

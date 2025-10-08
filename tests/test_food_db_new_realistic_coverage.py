@@ -98,10 +98,12 @@ class TestFoodDbNewRealisticCoverage:
             ]
 
             for term in search_terms:
-                with contextlib.suppress(Exception):
+                try:
                     results = search_foods(term)
-                    # Should handle all cases gracefully
-                    assert isinstance(results, (list, dict, type(None)))
+                except Exception:
+                    results = None  # Expected for invalid search terms
+                # Should handle all cases gracefully
+                assert isinstance(results, (list, dict, type(None)))
 
             # Test barcode searches
             barcodes = [fake.food_barcode(), "123456789012", "", None, "invalid_barcode"]

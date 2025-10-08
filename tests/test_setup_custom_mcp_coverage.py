@@ -160,9 +160,7 @@ class TestSetupCustomMcpCoverage:
             pytest.skip(f"insufficient permissions or filesystem error: {e}")
         except Exception:
             logging.exception("Unexpected exception in tests: test_setup_custom_mcp_coverage.py")
-            # Log unexpected errors but don't fail the test
-            print("Unexpected error during setup_custom_mcp execution")
-            # Re-raise to ensure we catch unexpected issues
+            # Log unexpected errors for debugging before re-raising
             raise
 
     def test_file_creation_sequence(self):
