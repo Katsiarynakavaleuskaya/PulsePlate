@@ -62,7 +62,7 @@ class TestFoodMergeHypothesis96:
         result = _merge_values(values, strategy="median")
 
         # Filter values the same way as the function does
-        positive_values = [v for v in values if v is not None and v > 0]
+        positive_values = [v for v in values if v is not None and v >= 0]
 
         # For odd number of positive values, median should be exact
         if positive_values and len(positive_values) % 2 == 1:

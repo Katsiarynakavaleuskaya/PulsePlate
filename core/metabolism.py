@@ -104,6 +104,10 @@ def adjust_for_activity(bmr: float, activity: Activity) -> float:
         "moderate": 1.55,
         "active": 1.725,
         "very_active": 1.9,
+        # Support both naming schemes for backward compatibility
+        "lightly_active": 1.375,
+        "moderately_active": 1.55,
+        "extremely_active": 1.9,
     }
     return bmr * multipliers[activity]
 
