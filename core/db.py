@@ -294,3 +294,33 @@ async def init_db_async() -> None:
 
     async with _ASYNC_ENGINE.begin() as conn:
         await conn.run_sync(metadata.create_all)
+
+
+# Legacy aliases for backward compatibility
+def create_tables() -> None:
+    """Legacy alias for init_db()."""
+    init_db()
+
+
+def init_database() -> None:
+    """Legacy alias for init_db()."""
+    init_db()
+
+
+def get_unified_food_db() -> Any:
+    """Legacy function for unified food database access."""
+    # Return a mock/placeholder for now since unified food db is not implemented
+    return None
+
+
+def get_db_connection() -> Any:
+    """Legacy function for database connection access."""
+    # Return a session from the session maker
+    return get_session()
+
+
+def close_all_connections() -> None:
+    """Legacy function to close all database connections."""
+    # For SQLite, connections are managed by SQLAlchemy session
+    # This is a no-op for now
+    pass
