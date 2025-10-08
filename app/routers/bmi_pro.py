@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -58,6 +58,11 @@ def bmi_pro(req: BMIProRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(
-        bmi=bmi_val, whtr=v_whtr, whr=v_whr, ffmi=v_ffmi, risk_level=risk, notes=notes  # type: ignore
+        bmi=bmi_val,
+        whtr=v_whtr,
+        whr=v_whr,
+        ffmi=v_ffmi,
+        risk_level=cast(Literal["low", "moderate", "high"], risk),
+        notes=notes,
     )
     return BMIProResponse(**card.__dict__)

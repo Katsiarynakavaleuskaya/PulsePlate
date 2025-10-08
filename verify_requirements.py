@@ -2,6 +2,7 @@
 """
 Verify that package versions are consistent across requirements files.
 """
+
 import re
 import sys
 from pathlib import Path

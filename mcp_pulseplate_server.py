@@ -3,6 +3,7 @@
 MCP Server for PulsePlate Project
 Integrates ChatGPT with project-specific context
 """
+
 import asyncio
 import json
 import os

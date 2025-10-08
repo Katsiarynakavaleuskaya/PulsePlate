@@ -2,6 +2,7 @@
 """
 Custom MCP setup for PulsePlate with ChatGPT integration
 """
+
 import json
 import os
 import sys

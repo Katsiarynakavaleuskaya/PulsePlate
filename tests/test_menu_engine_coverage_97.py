@@ -118,7 +118,11 @@ class TestMenuEngineCoverage97:
         # Test with invalid age
         try:
             make_weekly_menu(
-                weight_kg=70, height_cm=175, age=-1, sex="male", activity="moderate"  # Invalid age
+                weight_kg=70,
+                height_cm=175,
+                age=-1,
+                sex="male",
+                activity="moderate",  # Invalid age
             )
         except Exception:
             # Expected to raise an exception with invalid age
@@ -159,7 +163,11 @@ class TestMenuEngineCoverage97:
         # Test with extreme age
         try:
             make_weekly_menu(
-                weight_kg=70, height_cm=175, age=200, sex="male", activity="moderate"  # Extreme age
+                weight_kg=70,
+                height_cm=175,
+                age=200,
+                sex="male",
+                activity="moderate",  # Extreme age
             )
         except Exception:
             # Expected to raise an exception with extreme values

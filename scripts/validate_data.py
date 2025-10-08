@@ -5,6 +5,7 @@ Lightweight data validator for CI.
 RU: Быстрые проверки целостности данных (CSV/JSON) без сетевых вызовов.
 EN: Fast CI checks for local data consistency (CSV/JSON) without network calls.
 """
+
 from __future__ import annotations
 
 import csv

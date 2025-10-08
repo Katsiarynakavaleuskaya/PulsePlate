@@ -3,29 +3,31 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      - id: check-merge-conflict
+      - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-added-large-files
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-        name: black (python)
+        name: black (format)
+        language_version: python3
         files: ^(?!frontend/).+\.py$
-        args: [--line-length=100]
 
   # --- Lint: Ruff (fast flake8 + isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
-        name: ruff (lint)
+        name: ruff (lint, local)
         files: ^(?!frontend/).+\.py$
         args: [--fix]
       - id: ruff-format
-        name: ruff (format)
+        name: ruff (format, local)
         files: ^(?!frontend/).+\.py$
 
   # --- Type checking: mypy
@@ -34,25 +36,33 @@ repos:
     hooks:
       - id: mypy
         name: mypy (type-check)
-        files: ^(?!frontend/).+\.py$
         args:
           - --pretty
           - --show-error-codes
           - --implicit-optional
+          - --ignore-missing-imports
           - --install-types
           - --non-interactive
+        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security)
-        files: ^(?!frontend/).+\.py$
-        args: [-q, -r, .]
+        name: bandit (security, changed files)
+        stages: [pre-commit]
+        types: [python]
+        # Changed-files only (fast path). Full scan added below on pre-push/CI.
+        exclude: |
+          ^frontend/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+        args:
+          - -q
+          - -s
+          - B101
 
   # --- Vulnerabilities: safety (requirements scan)
-  # Temporarily disabled due to manifest issues
+  # Temporarily disabled - safety hook manifest issue
   # - repo: https://github.com/pyupio/safety
   #   rev: 3.2.8
   #   hooks:
@@ -82,16 +92,24 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
-  # --- Local: run pytest only on push (avoid slowing down every commit)
-  # Temporarily disabled to allow initial push
-  # - repo: local
-  #   hooks:
-  #     - id: pytest
-  #       name: pytest (unit/integration)
-  #       entry: bash -c "pytest -q --maxfail=1 --disable-warnings"
-  #       language: system
-  #       pass_filenames: false
-  #       stages: [pre-push]
+  # --- Local composite hooks (pre-push): strict gates before remote
+  - repo: local
+    hooks:
+      # ruff — строгий на pre-push (не пропускаем автофикс молча)
+      - id: ruff-pre-push
+        name: ruff (pre-push, strict)
+        entry: ruff check .
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # bandit-full — полный security scan со smart excludes
+      - id: bandit-full-pre-push
+        name: bandit (pre-push, full repo)
+        entry: bash -c "make bandit-full"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"

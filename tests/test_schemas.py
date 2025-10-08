@@ -245,7 +245,9 @@ def test_recipe_preview_request_validation():
     # Test minimum ingredients requirement
     with pytest.raises(ValidationError):
         schemas.RecipePreviewRequest(
-            title="Empty", ingredients=[], servings=1  # Should have min_length=1
+            title="Empty",
+            ingredients=[],
+            servings=1,  # Should have min_length=1
         )
 
     # Test positive servings requirement
