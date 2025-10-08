@@ -62,9 +62,9 @@ repos:
           - -s
           - "B101"  # (optional) assert-used if it's too noisy
           - --severity-level
-          - "MEDIUM"
+          - "medium"
           - --confidence-level
-          - "HIGH"
+          - "high"
         stages: [pre-commit]
 
   # --- Vulnerabilities: safety (requirements scan)
