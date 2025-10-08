@@ -211,7 +211,11 @@ def stage_obesity(
     bmi_category = (
         "obese"
         if bmi >= 30
-        else "overweight" if bmi >= 25 else "normal" if bmi >= 18.5 else "underweight"
+        else "overweight"
+        if bmi >= 25
+        else "normal"
+        if bmi >= 18.5
+        else "underweight"
     )
 
     return {
