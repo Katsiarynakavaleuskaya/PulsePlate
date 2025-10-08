@@ -26,10 +26,9 @@ repos:
         name: ruff (lint)
         files: ^(?!frontend/).+\.py$
         args: [--fix, --exit-non-zero-on-fix]
-      # Temporarily disabled ruff-format to avoid conflict with black
-      # - id: ruff-format
-      #   name: ruff (format)
-      #   files: ^(?!frontend/).+\.py$
+      - id: ruff-format
+        name: ruff (format)
+        files: ^(?!frontend/).+\.py$
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -48,14 +47,13 @@ repos:
           - --ignore-missing-imports
 
   # --- Security: bandit
-  # Temporarily disabled for auto-fix commit
-  # - repo: https://github.com/PyCQA/bandit
-  #   rev: 1.7.9
-  #   hooks:
-  #     - id: bandit
-  #       name: bandit (security)
-  #       files: ^(?!frontend/).+\.py$
-  #       args: [-q, -r, .]
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        name: bandit (security)
+        files: ^(?!frontend/).+\.py$
+        args: [-q, -r, .]
 
   # --- Vulnerabilities: safety (requirements scan)
   # Temporarily disabled - safety hook manifest issue
@@ -69,15 +67,14 @@ repos:
   #       stages: [pre-push]
 
   # --- Docstrings: pydocstyle
-  # Temporarily disabled for auto-fix commit
-  # - repo: https://github.com/PyCQA/pydocstyle
-  #   rev: 6.3.0
-  #   hooks:
-  #     - id: pydocstyle
-  #       name: pydocstyle (docstrings)
-  #       files: ^(?!frontend/).+\.py$
-  #       # Customize conventions/ignore codes in pyproject.toml if needed
-  #       args: [--convention=google]
+  - repo: https://github.com/PyCQA/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        name: pydocstyle (docstrings)
+        files: ^(?!frontend/).+\.py$
+        # Customize conventions/ignore codes in pyproject.toml if needed
+        args: [--convention=google]
 
   # --- Commit message lint (commitizen)
   - repo: https://github.com/commitizen-tools/commitizen
