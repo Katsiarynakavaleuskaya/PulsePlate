@@ -58,8 +58,6 @@ class TestCoreDatabaseCoverage:
             pytest.skip("food_apis.base module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_usda_api_coverage(self):
@@ -81,8 +79,6 @@ class TestCoreDatabaseCoverage:
             pytest.skip("usda module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_openfoodfacts_api_coverage(self):
@@ -104,8 +100,6 @@ class TestCoreDatabaseCoverage:
             pytest.skip("openfoodfacts module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_unified_db_coverage(self):
@@ -129,8 +123,6 @@ class TestCoreDatabaseCoverage:
             pytest.skip("unified_db module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_update_manager_coverage(self):
@@ -159,8 +151,6 @@ class TestCoreDatabaseCoverage:
             pytest.skip("update_manager module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
 
@@ -197,8 +187,6 @@ class TestCoreModulesAdvanced:
             pytest.skip("auto_repair advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_menu_engine_advanced_coverage(self):
@@ -231,8 +219,6 @@ class TestCoreModulesAdvanced:
             pytest.skip("menu_engine advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_plate_advanced_coverage(self):
@@ -261,8 +247,6 @@ class TestCoreModulesAdvanced:
             pytest.skip("plate advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_targets_advanced_coverage(self):
@@ -295,8 +279,6 @@ class TestCoreModulesAdvanced:
             pytest.skip("targets advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_i18n_advanced_coverage(self):
@@ -329,8 +311,6 @@ class TestCoreModulesAdvanced:
             pytest.skip("i18n advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass
 
     def test_rag_advanced_coverage(self):
@@ -359,6 +339,4 @@ class TestCoreModulesAdvanced:
             pytest.skip("RAG advanced features not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_database_apis_coverage.py")
-            logging.exception("Suppressed exception in tests: test_database_apis_coverage.py")
-
             pass

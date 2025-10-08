@@ -33,9 +33,6 @@ class TestI18nRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
-                    )
 
                     pass
         except ImportError:
@@ -74,9 +71,6 @@ class TestI18nRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
-                    )
 
                     pass
         except ImportError:
@@ -101,9 +95,6 @@ class TestI18nRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
                     )
 
                     pass
@@ -130,9 +121,6 @@ class TestI18nRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
-                    )
 
                     pass
         except ImportError:
@@ -158,9 +146,6 @@ class TestI18nRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
-                    )
 
                     pass
         except ImportError:
@@ -180,9 +165,6 @@ class TestI18nRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_i18n_realistic_simple.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_i18n_realistic_simple.py"
                     )
 
                     pass
@@ -204,7 +186,6 @@ class TestI18nRealisticCoverage:
                 assert result1 == result2
             except Exception:
                 logging.exception("Unexpected exception in tests: test_i18n_realistic_simple.py")
-                logging.exception("Suppressed exception in tests: test_i18n_realistic_simple.py")
 
                 pass
         except ImportError:

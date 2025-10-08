@@ -65,21 +65,43 @@ def replace_bare_except(text: str, file_hint: str) -> str:
         if stripped == "except Exception: pass":
             # Replace "except Exception: pass" with proper logging
             indent = line[: len(line) - len(stripped)]
-            updated_lines.append(f"{indent}except Exception as e:")
+            updated_lines.append(f"{indent}except Exception:")
             updated_lines.append(
                 f"{indent}    logging.exception('Suppressed exception in tests: {file_hint}')"
             )
+            updated_lines.append(f"{indent}    pass")
             changed = True
             i += 1
         elif stripped == "except Exception:":
-            # Replace "except Exception:" with proper logging
-            indent = line[: len(line) - len(stripped)]
-            updated_lines.append(f"{indent}except Exception as e:")
-            updated_lines.append(
-                f"{indent}    logging.exception('Unexpected exception in tests: {file_hint}')"
-            )
-            changed = True
-            i += 1
+            # Check if logging.exception is already present in this except block
+            # Look ahead to see if there's already logging in the next few lines
+            has_logging = False
+            look_ahead = 0
+            while i + look_ahead + 1 < len(lines) and look_ahead < 5:  # Look up to 5 lines ahead
+                next_line = lines[i + look_ahead + 1]
+                if "logging.exception(" in next_line:
+                    has_logging = True
+                    break
+                # Stop if we hit another except or end of indented block
+                if next_line.strip().startswith("except ") or (
+                    next_line.strip() and not next_line.startswith(" ")
+                ):
+                    break
+                look_ahead += 1
+
+            if not has_logging:
+                # Add logging if not present
+                indent = line[: len(line) - len(stripped)]
+                updated_lines.append(f"{indent}except Exception:")
+                updated_lines.append(
+                    f"{indent}    logging.exception('Unexpected exception in tests: {file_hint}')"
+                )
+                changed = True
+                i += 1
+            else:
+                # Keep existing except block as is
+                updated_lines.append(line)
+                i += 1
         else:
             updated_lines.append(line)
             i += 1
@@ -87,21 +109,6 @@ def replace_bare_except(text: str, file_hint: str) -> str:
     result = "\n".join(updated_lines)
     if changed:
         result = ensure_logging_import(result)
-
-        # Уберём случайные соседние дубликаты одинаковых logging.exception(...)
-        def dedupe_match(m):
-            lines = m.group(0).splitlines()
-            # Найдем первую строку с logging.exception
-            for line in lines:
-                if "logging.exception(" in line:
-                    return line.rstrip() + "\n"
-            return ""  # fallback
-
-        result = re.sub(
-            r"(\s*logging\.exception\([^\n]+\)\s*\n){2,}",
-            dedupe_match,
-            result,
-        )
     return result
 
 

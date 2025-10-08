@@ -87,9 +87,6 @@ class TestDbRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
-                    )
 
                     pass
             # Test table creation
@@ -150,9 +147,6 @@ class TestDbRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
-                    )
 
                     pass
             # Simulate permission errors
@@ -162,9 +156,6 @@ class TestDbRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
                     )
 
                     pass
@@ -192,9 +183,6 @@ class TestDbRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
-                    )
 
                     pass
         except ImportError:
@@ -219,9 +207,6 @@ class TestDbRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
                     )
 
                     pass
@@ -252,9 +237,6 @@ class TestDbRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
-                    )
 
                     pass
         except ImportError:
@@ -275,9 +257,6 @@ class TestDbRealisticCoverage:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
                     )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
-                    )
 
                     pass
             # Close all connections
@@ -295,9 +274,6 @@ class TestDbRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
                     )
 
                     pass
@@ -325,9 +301,6 @@ class TestDbRealisticCoverage:
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_db_realistic_coverage.py"
-                    )
-                    logging.exception(
-                        "Suppressed exception in tests: test_db_realistic_coverage.py"
                     )
 
                     pass

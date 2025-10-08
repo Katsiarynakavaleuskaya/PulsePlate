@@ -139,8 +139,6 @@ class TestWeeklyPlanModule:
             pytest.skip("weekly_plan module not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_remaining_modules.py")
-            logging.exception("Suppressed exception in tests: test_remaining_modules.py")
-
             pass
 
     def test_daily_plan_functions(self):
@@ -175,8 +173,6 @@ class TestWeeklyPlanModule:
             pytest.skip("weekly_plan helper functions not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_remaining_modules.py")
-            logging.exception("Suppressed exception in tests: test_remaining_modules.py")
-
             pass
 
 

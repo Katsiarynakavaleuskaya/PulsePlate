@@ -40,7 +40,6 @@ class TestFinalCoreCoverage:
             pytest.skip("food sources not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -74,7 +73,6 @@ class TestFinalCoreCoverage:
             pytest.skip("food_categories not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -108,7 +106,6 @@ class TestFinalCoreCoverage:
             pytest.skip("nutrition_analysis not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -141,7 +138,6 @@ class TestFinalCoreCoverage:
             pytest.skip("config management not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -161,7 +157,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
         # Test with empty strings
@@ -175,7 +170,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
         # Test with unicode
@@ -189,7 +183,6 @@ class TestFinalCoreCoverage:
             pass
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -255,7 +248,6 @@ class TestFinalCoreCoverage:
             pytest.skip("menu_engine not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -288,7 +280,6 @@ class TestFinalCoreCoverage:
             pytest.skip("auto_repair not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -323,7 +314,6 @@ class TestFinalCoreCoverage:
             pytest.skip("plate not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
 
@@ -354,6 +344,5 @@ class TestFinalCoreCoverage:
             pytest.skip("targets not available")
         except Exception:
             logging.exception("Unexpected exception in tests: test_final_core_coverage.py")
-            logging.exception("Suppressed exception in tests: test_final_core_coverage.py")
 
             pass
