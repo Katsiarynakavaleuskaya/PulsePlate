@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import hashlib
 import json
+import logging
 import sqlite3
 from datetime import datetime
 from typing import Dict, List
@@ -72,8 +73,8 @@ class FoodDatabaseBuilder:
         try:
             usda_data = list(usda_adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except Exception as e:
-            print(f"  ❌ USDA error: {e}")
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            logging.exception("USDA data loading failed")
 
         # Load OFF data (from chunks or single file)
         off_data = []
@@ -87,8 +88,8 @@ class FoodDatabaseBuilder:
         try:
             off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
-        except Exception as e:
-            print(f"  ❌ OFF error: {e}")
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            logging.exception("OFF data loading failed")
 
         return usda_data, off_data
 
@@ -178,7 +179,7 @@ class FoodDatabaseBuilder:
         # Convert to DataFrame
         data = []
         for food in foods:
-            row = food.dict()
+            row = food.model_dump()
             # Convert lists to JSON strings for Parquet compatibility
             row["flags"] = json.dumps(row["flags"])
             data.append(row)

@@ -747,7 +747,7 @@ def get_meal_timing(**timing_data) -> dict:
     }
 
 
-def calculate_hydration_needs(**hydration_data) -> float:
+def calculate_hydration_needs(**_hydration_data) -> float:
     """
     Calculate daily hydration needs.
 
@@ -757,8 +757,8 @@ def calculate_hydration_needs(**hydration_data) -> float:
     Returns:
         Daily water intake in ml
     """
-    weight = hydration_data.get("weight", 70)
-    activity_level = hydration_data.get("activity_level", "moderate")
+    weight = _hydration_data.get("weight", 70)
+    activity_level = _hydration_data.get("activity_level", "moderate")
 
     base_ml = weight * 30  # 30ml per kg
 
