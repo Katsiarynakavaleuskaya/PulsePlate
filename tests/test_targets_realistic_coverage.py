@@ -103,7 +103,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
@@ -139,7 +139,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
@@ -186,7 +186,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_micronutrient_targets_realistic(self):
         """Test micronutrient targets with realistic user data"""
@@ -233,7 +233,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_calorie_adjustment_realistic(self):
         """Test calorie adjustments for realistic weight goals"""
@@ -267,7 +267,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_special_populations_realistic(self):
         """Test nutrition targets for special populations"""
@@ -345,7 +345,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_nutrient_timing_realistic(self):
         """Test nutrient timing recommendations with realistic scenarios"""
@@ -379,7 +379,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_hydration_targets_realistic(self):
         """Test hydration recommendations with realistic scenarios"""
@@ -415,7 +415,7 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")
 
     def test_supplement_recommendations_realistic(self):
         """Test supplement recommendations with realistic user profiles"""
@@ -451,4 +451,4 @@ class TestTargetsRealisticCoverage:
                     pass
 
         except ImportError:
-            pass
+            pytest.skip("core.targets module is unavailable in this environment")

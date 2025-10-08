@@ -27,15 +27,27 @@ def ensure_logging_import(text: str) -> str:
             return text
     # Вставим после возможной строки с будущим __future__/docstring/encoding
     insert_at = 0
-    # пропустим шебанг / кодировку / __future__ / docstring блок
-    while insert_at < len(lines) and (
-        lines[insert_at].startswith("#!")
-        or "coding:" in lines[insert_at]
-        or lines[insert_at].strip().startswith("from __future__")
-        or lines[insert_at].strip().startswith('"""')
-        or lines[insert_at].strip().startswith("'''")
-    ):
-        insert_at += 1
+    in_docstring = False
+    docstring_delim = None
+    while insert_at < len(lines):
+        line = lines[insert_at].strip()
+        if (
+            line.startswith("#!")
+            or "coding:" in lines[insert_at]
+            or line.startswith("from __future__")
+        ):
+            insert_at += 1
+        elif not in_docstring and (line.startswith('"""') or line.startswith("'''")):
+            in_docstring = True
+            docstring_delim = '"""' if line.startswith('"""') else "'''"
+            if line.count(docstring_delim) >= 2:  # single-line docstring
+                in_docstring = False
+            insert_at += 1
+        elif in_docstring and docstring_delim in line:
+            in_docstring = False
+            insert_at += 1
+        else:
+            break
     lines.insert(insert_at, "import logging")
     return "\n".join(lines) + ("\n" if not text.endswith("\n") else "")
 
@@ -79,14 +91,14 @@ def replace_bare_except(text: str, file_hint: str) -> str:
         # Уберём случайные соседние дубликаты одинаковых logging.exception(...)
         def dedupe_match(m):
             lines = m.group(0).splitlines()
-            # Найдём первую строку с logging.exception
+            # Найдем первую строку с logging.exception
             for line in lines:
                 if "logging.exception(" in line:
                     return line.rstrip() + "\n"
             return ""  # fallback
 
         result = re.sub(
-            r"(\s*logging\.exception\([^\\n]+\)\s*){2,}",
+            r"(\s*logging\.exception\([^\n]+\)\s*\n){2,}",
             dedupe_match,
             result,
         )
