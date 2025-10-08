@@ -188,13 +188,17 @@ class TestBmiExtrasComprehensive:
         """Test interpret_whr_ratio case handling."""
         result_male = interpret_whr_ratio(0.9, "male", "en")
         result_male_upper = interpret_whr_ratio(
-            0.9, "MALE", "en"  # pyright: ignore[reportArgumentType]
+            0.9,
+            "MALE",
+            "en",  # pyright: ignore[reportArgumentType]
         )  # Use uppercase to verify case-insensitivity
         assert result_male["risk"] == result_male_upper["risk"]
 
         result_female = interpret_whr_ratio(0.75, "female", "en")
         result_female_upper = interpret_whr_ratio(
-            0.75, "FEMALE", "en"  # pyright: ignore[reportArgumentType]
+            0.75,
+            "FEMALE",
+            "en",  # pyright: ignore[reportArgumentType]
         )  # Use uppercase to verify case-insensitivity
         assert result_female["risk"] == result_female_upper["risk"]
 

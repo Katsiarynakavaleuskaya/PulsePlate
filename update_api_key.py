@@ -22,6 +22,7 @@ Platform Notes:
     additional platform-specific handling is required (e.g., using pywin32's
     win32security module or calling icacls.exe via subprocess).
 """
+
 import argparse
 import json
 from pathlib import Path

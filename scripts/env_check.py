@@ -6,6 +6,7 @@ Environment diagnostic script for PulsePlate.
 - Does NOT mutate environment variables or PYTHONPATH
 - Not collected by pytest (placed under scripts/)
 """
+
 from __future__ import annotations
 
 import sys

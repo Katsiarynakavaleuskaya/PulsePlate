@@ -117,9 +117,7 @@ def test_recipe_db_new_get_by_id_and_search_and_scale(tmp_path: Path):
     # scale when kcal computed as zero -> still returns a Meal
     recipe = db.get_recipe_by_id("Oats")
     assert recipe is not None
-    meal: Meal = db.scale_recipe_to_kcal(
-        recipe, 500, lang="en"
-    )  # pyright: ignore[reportArgumentType]
+    meal: Meal = db.scale_recipe_to_kcal(recipe, 500, lang="en")  # pyright: ignore[reportArgumentType]
     assert isinstance(meal, Meal)
 
 
@@ -208,7 +206,9 @@ def test_recipe_db_parser_and_scaler_with_malformed_entries(tmp_path: Path):
 
     # Scale with zero calories returns original
     scaled = scale_recipe_to_kcal(
-        db["GoodRow"], kcal_goal=500, food_db=food_db  # type: ignore[arg-type]
+        db["GoodRow"],
+        kcal_goal=500,
+        food_db=food_db,  # type: ignore[arg-type]
     )
     assert isinstance(scaled, OldRecipe) and scaled.name == "GoodRow"
 
@@ -384,9 +384,7 @@ def test_menu_engine_default_strategy_and_boosters_branch():
             availability_regions=[],
         )
     }
-    boosters = _find_booster_foods(
-        {"iron_mg": 10.0}, None, food_db
-    )  # pyright: ignore[reportArgumentType]
+    boosters = _find_booster_foods({"iron_mg": 10.0}, None, food_db)  # pyright: ignore[reportArgumentType]
     assert "iron_mg" in boosters and boosters["iron_mg"][0].name == "spinach"
 
 

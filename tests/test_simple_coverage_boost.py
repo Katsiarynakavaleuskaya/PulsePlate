@@ -2,6 +2,7 @@
 """
 Simple coverage boost tests.
 """
+
 import os
 import sys
 from unittest.mock import MagicMock, patch
