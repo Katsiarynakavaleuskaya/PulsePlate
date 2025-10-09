@@ -67,16 +67,19 @@ class TestTargetsRealisticCoverage:
     def test_bmr_calculations_realistic(self):
         """Test BMR calculations with realistic demographic data"""
         pytest.importorskip("core.targets")
-        from core.targets import (
+        pytest.importorskip("core.metabolism")
+        from core.metabolism import (
             calculate_bmr,
             get_bmr_formula,
             adjust_for_activity,
             calculate_tdee,
             calculate_macros,
             get_macro_ratios,
-            get_rda_values,
             adjust_calories_for_goal,
             calculate_deficit_surplus,
+        )
+        from core.targets import (
+            get_rda_values,
             get_athlete_targets,
             get_elderly_adjustments,
             get_pregnancy_targets,
