@@ -145,9 +145,17 @@ class TestCoreDatabaseCoverage:
             )
 
             # Test database version
-            version = DatabaseVersion(version="1.0", checksum="abc123")
+            version = DatabaseVersion(
+                source="test",
+                version="1.0",
+                last_updated="2024-01-01T00:00:00Z",
+                record_count=100,
+                checksum="abc123",
+                metadata={},
+            )
             assert version.version == "1.0"
             assert version.checksum == "abc123"
+            assert version.source == "test"
 
             # Test update manager
             manager = UpdateManager()

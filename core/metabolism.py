@@ -200,8 +200,12 @@ def calculate_macros(
         protein_g = protein_grams_per_kg * body_weight
         protein_kcal = protein_g * 4
         remaining_kcal = tdee - protein_kcal
-        carbs_g = (remaining_kcal * ratios["carbs"]) / 4
-        fat_g = (remaining_kcal * ratios["fat"]) / 9
+        if remaining_kcal <= 0:
+            carbs_g = 0.0
+            fat_g = 0.0
+        else:
+            carbs_g = (remaining_kcal * ratios["carbs"]) / 4
+            fat_g = (remaining_kcal * ratios["fat"]) / 9
     else:
         # Standard calculation
         protein_g = (tdee * ratios["protein"]) / 4

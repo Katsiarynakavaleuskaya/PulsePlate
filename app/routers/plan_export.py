@@ -193,7 +193,7 @@ def _week_start(week_dict: Dict[str, Any]) -> str:
         first = (week_dict.get("days") or [])[0].get("date")
     except Exception:  # pragma: no cover - defensive
         first = None
-    return str(first or datetime.utcnow().date())
+    return str(first or datetime.now(timezone.utc).date())
 
 
 def _draw_footer(canvas: Canvas, doc: SimpleDocTemplate, text_left: str) -> None:
