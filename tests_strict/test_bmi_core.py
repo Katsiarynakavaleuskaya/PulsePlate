@@ -44,8 +44,8 @@ def test_bmi_value_invalid_inputs():
 
 def test_bmi_category_edges_ru():
     assert bmi_category(18.49, "ru") == "Недостаточная масса"
-    assert bmi_category(18.5, "ru") == "Нормальный вес"
-    assert bmi_category(24.99, "ru") == "Нормальный вес"
+    assert bmi_category(18.5, "ru") == "Норма"
+    assert bmi_category(24.99, "ru") == "Норма"
     assert bmi_category(25.0, "ru") == "Избыточный вес"
     assert bmi_category(29.99, "ru") == "Избыточный вес"
     assert bmi_category(30.0, "ru") == "Ожирение"
