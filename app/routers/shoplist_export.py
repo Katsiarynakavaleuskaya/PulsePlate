@@ -29,7 +29,6 @@ FONT_NAME = "DejaVuSans"
 
 def _export_timestamp() -> str:
     """Return an RFC3339-like timestamp usable in filenames."""
-
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
@@ -39,7 +38,6 @@ def _demo_shoplist() -> Dict[str, Any]:
     Once the full profile-aware generator is ready we can replace this helper
     with a real service call but the shape of the response will remain stable.
     """
-
     groups: List[Dict[str, Any]] = [
         {
             "aisle": "Produce",
@@ -104,7 +102,6 @@ def _demo_shoplist() -> Dict[str, Any]:
 
 def _flatten_shop_items(groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Flatten grouped shoplist items into a single list."""
-
     rows: List[Dict[str, Any]] = []
     for group in groups:
         aisle = group.get("aisle", "") if isinstance(group, dict) else ""
@@ -128,7 +125,6 @@ def _flatten_shop_items(groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]
 
 def _iter_flat_rows(items: Iterable[Dict[str, Any]]) -> Iterable[List[str]]:
     """Yield CSV rows as lists of strings."""
-
     for item in items:
         yield [
             str(item.get("aisle", "") or ""),
@@ -141,7 +137,6 @@ def _iter_flat_rows(items: Iterable[Dict[str, Any]]) -> Iterable[List[str]]:
 
 def _register_font_if_available() -> str:
     """Register the bundled DejaVuSans font to support Cyrillic text."""
-
     if FONT_PATH.exists():
         try:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
@@ -156,7 +151,6 @@ def _register_font_if_available() -> str:
 
 def _render_pdf(shop: Dict[str, Any]) -> bytes:
     """Render a printable PDF representation of *shop*."""
-
     buf = BytesIO()
     page_w, page_h = A4
     font = _register_font_if_available()
@@ -227,14 +221,12 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
 @router.get("")
 def get_shoplist() -> Dict[str, Any]:
     """Return the current shoplist in JSON form."""
-
     return _demo_shoplist()
 
 
 @router.get("/export.csv")
 def export_shoplist_csv() -> Response:
     """Export the current shoplist as a CSV attachment."""
-
     shop = _demo_shoplist()
     items = shop.get("items", [])
 
@@ -255,7 +247,6 @@ def export_shoplist_csv() -> Response:
 @router.get("/export.pdf")
 def export_shoplist_pdf() -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
-
     shop = _demo_shoplist()
     pdf_bytes = _render_pdf(shop)
     filename = f"shoplist_{_export_timestamp()}.pdf"

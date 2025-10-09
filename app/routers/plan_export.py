@@ -212,7 +212,6 @@ def _get_week_plan() -> Dict[str, Any]:
 
     Replace this stub with the real planner integration when available.
     """
-
     return {
         "days": [
             {
