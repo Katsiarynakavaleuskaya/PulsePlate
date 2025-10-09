@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -12,8 +11,6 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -336,15 +333,13 @@ def export_week_csv(request: Request, _guard: None = Depends(_require_valid_toke
 
 
 def _register_font() -> str:
-    if FONT_PATH.exists():
-        try:
+    try:
+        if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except (OSError, IOError, ValueError) as e:
-            logger.warning(f"Failed to register font {FONT_NAME}: {e}")
-    else:
         return "Helvetica"
-    return "Helvetica"
+    except Exception:
+        return "Helvetica"
 
 
 def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
