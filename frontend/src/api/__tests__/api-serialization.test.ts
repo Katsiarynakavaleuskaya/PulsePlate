@@ -29,11 +29,11 @@ describe('API Body Serialization', () => {
     } as Response);
 
     const body = { a: 1, b: 'x' };
-    await api('/test', { method: 'POST', body });
+    await api('/test', { method: 'POST', body: body as any });
 
-    const [, init] = fetchSpy.mock.calls[0];
-    expect(typeof init.body).toBe('string');
-    expect(init.headers.get('Content-Type')).toBe('application/json');
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(typeof (init as any).body).toBe('string');
+    expect((init as any).headers.get('Content-Type')).toBe('application/json');
 
     fetchSpy.mockRestore();
   });
@@ -48,8 +48,8 @@ describe('API Body Serialization', () => {
 
     await api('/ping', { method: 'GET' });
 
-    const [, init] = fetchSpy.mock.calls[0];
-    const headers = init.headers instanceof Headers ? init.headers : new Headers(init.headers);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const headers = (init as any).headers instanceof Headers ? (init as any).headers : new Headers((init as any).headers);
     expect(headers.has('Content-Type')).toBe(false);
 
     fetchSpy.mockRestore();

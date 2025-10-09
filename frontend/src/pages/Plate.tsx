@@ -1,4 +1,3 @@
-import React from "react";
 import PremiumGate from "../components/PremiumGate";
 import { usePremium } from "../lib/usePremium";
 

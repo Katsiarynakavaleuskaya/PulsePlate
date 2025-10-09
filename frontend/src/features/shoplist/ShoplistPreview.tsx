@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
@@ -71,7 +71,7 @@ export default function ShoplistPreview() {
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
+  const cleanupRef = useRef<Array<{ id: ReturnType<typeof setTimeout>; cleanup: () => void }>>([]);
 
   useEffect(() => {
     (async () => {

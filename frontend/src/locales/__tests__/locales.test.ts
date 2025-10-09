@@ -6,7 +6,6 @@ import es from '../es.json';
 import {
   collectKeyPaths,
   checkLengths,
-  getMaxLength,
   MAX_ALLOWED_DUPLICATES,
   STRING_LENGTH_LIMITS,
   TestLogger
@@ -23,7 +22,7 @@ describe('Locale JSON Structure and Content', () => {
       const enKeyPaths = collectKeyPaths(en).sort();
 
       for (const lang of languages) {
-        const keyPaths = collectKeyPaths(locales[lang]).sort();
+        const keyPaths = collectKeyPaths((locales as any)[lang]).sort();
         expect(keyPaths).toEqual(enKeyPaths);
       }
     });
@@ -46,7 +45,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkForNulls(locales[lang]);
+        const issues = checkForNulls((locales as any)[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -69,7 +68,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkEmptyStrings(locales[lang]);
+        const issues = checkEmptyStrings((locales as any)[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -92,7 +91,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkForHtml(locales[lang]);
+        const issues = checkForHtml((locales as any)[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -119,7 +118,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkUnicode(locales[lang]);
+        const issues = checkUnicode((locales as any)[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -162,14 +161,14 @@ describe('Locale JSON Structure and Content', () => {
           }
         };
 
-        checkValue(locales[lang], '');
+        checkValue((locales as any)[lang], '');
         expect(issues).toHaveLength(0);
       }
     });
 
     it('should have reasonable string lengths', () => {
       for (const lang of languages) {
-        const issues = checkLengths(locales[lang]);
+        const issues = checkLengths((locales as any)[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -215,7 +214,7 @@ describe('Locale JSON Structure and Content', () => {
 
       for (const lang of languages) {
         allValues.length = 0; // Reset array
-        collectValues(locales[lang]);
+        collectValues((locales as any)[lang]);
 
         // Find duplicates
         const valueCount: Record<string, number> = {};
@@ -319,7 +318,7 @@ describe('Locale JSON Structure and Content', () => {
       it('should have consistent paywall structure', () => {
         const paywallKeys = ['title', 'subtitle', 'cta', 'legal', 'before', 'after', 'items'];
         for (const lang of languages) {
-          const { paywall } = locales[lang];
+          const { paywall } = (locales as any)[lang];
           expect(paywall).toBeDefined();
           expect(Object.keys(paywall).sort()).toEqual(paywallKeys.sort());
         }
@@ -329,7 +328,7 @@ describe('Locale JSON Structure and Content', () => {
         const sectionKeys = ['label', 'randomPlate', 'macrosOnly', 'manualShopping'];
         const afterKeys = ['label', 'personalPlate', 'microBalance', 'autoShoppingList'];
         for (const lang of languages) {
-          const { paywall } = locales[lang];
+          const { paywall } = (locales as any)[lang];
           expect(Object.keys(paywall.before).sort()).toEqual(sectionKeys.sort());
           expect(Object.keys(paywall.after).sort()).toEqual(afterKeys.sort());
         }
@@ -339,7 +338,7 @@ describe('Locale JSON Structure and Content', () => {
         const itemKeys = ['random_plate', 'macros_only', 'manual_shopping'];
         const afterItemKeys = ['personal_plate', 'micro_balance', 'auto_shopping_list'];
         for (const lang of languages) {
-          const { items } = locales[lang].paywall;
+          const { items } = (locales as any)[lang].paywall;
           expect(items.before).toBeDefined();
           expect(items.after).toBeDefined();
           expect(Object.keys(items.before).sort()).toEqual(itemKeys.sort());

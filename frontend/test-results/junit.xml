@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="7" failures="7" errors="0" time="0">
+    <testsuite name="src/stories/Button.stories.ts" timestamp="2025-10-09T08:59:14.358Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/stories/Button.stories.ts" name="src/stories/Button.stories.ts" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/stories/Header.stories.ts" timestamp="2025-10-09T08:59:14.359Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/stories/Header.stories.ts" name="src/stories/Header.stories.ts" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/stories/Page.stories.ts" timestamp="2025-10-09T08:59:14.360Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/stories/Page.stories.ts" name="src/stories/Page.stories.ts" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/MacroCards.stories.tsx" timestamp="2025-10-09T08:59:14.360Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/pages/NutritionSetup/MacroCards.stories.tsx" name="src/pages/NutritionSetup/MacroCards.stories.tsx" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/MicrosGrid.stories.tsx" timestamp="2025-10-09T08:59:14.360Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/pages/NutritionSetup/MicrosGrid.stories.tsx" name="src/pages/NutritionSetup/MicrosGrid.stories.tsx" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/PlateChart.stories.tsx" timestamp="2025-10-09T08:59:14.361Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/pages/NutritionSetup/PlateChart.stories.tsx" name="src/pages/NutritionSetup/PlateChart.stories.tsx" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/pages/NutritionSetup/WaterCard.stories.tsx" timestamp="2025-10-09T08:59:14.361Z" hostname="MacBook-Air-katsiaryna.local" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/pages/NutritionSetup/WaterCard.stories.tsx" name="src/pages/NutritionSetup/WaterCard.stories.tsx" time="0">
+            <failure message="Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts" type="Error">
+Error: Failed to import test file /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend/src/setupTests.ts
+Caused by: TypeError: Cannot redefine property: location
+ ❯ src/setupTests.ts:6:7
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>
