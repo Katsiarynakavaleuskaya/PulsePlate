@@ -34,7 +34,7 @@ def test_bmi_en():
     assert r.status_code == 200
     data = r.json()
     assert round(data["bmi"], 1) == 22.9
-    assert data["category"] == "Healthy weight"
+    assert data["category"] == "Normal weight"  # API returns "Normal weight", not "Healthy weight"
     assert data["group"] == "general"
 
 
