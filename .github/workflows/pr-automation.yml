@@ -13,12 +13,16 @@ jobs:
     steps:
       - name: Wait for CodeRabbit review completion
         id: check-review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Waiting for CodeRabbit review..."
+          status=""
           for i in {1..60}; do  # Wait up to 30 minutes
             # Check if CodeRabbit review exists and is completed
             if gh pr view ${{ github.event.pull_request.number }} --json reviews | jq -e '.reviews[] | select(.author.login == "coderabbitai[bot]") | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")' > /dev/null; then
               echo "status=completed" >> $GITHUB_OUTPUT
+              status="completed"
               break
             fi
             echo "Still waiting for CodeRabbit review... ($i/60)"

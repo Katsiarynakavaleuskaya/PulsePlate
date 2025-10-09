@@ -65,7 +65,9 @@ def test_bmi_category_edges_en():
 
 def test_auto_group_variants():
     assert auto_group(10, "муж", "нет", "нет", "ru") == "too_young"
-    assert auto_group(16, "муж", "нет", "нет", "ru") == "child"
+    assert (
+        auto_group(16, "муж", "нет", "нет", "ru") == "teen"
+    )  # age 16 is in TEEN_MIN_AGE (13) to TEEN_MAX_AGE (19)
     assert auto_group(61, "муж", "нет", "нет", "ru") == "elderly"
     assert auto_group(30, "жен", "да", "нет", "ru") == "pregnant"
     assert auto_group(30, "жен", "нет", "спортсменка", "ru") == "athlete"

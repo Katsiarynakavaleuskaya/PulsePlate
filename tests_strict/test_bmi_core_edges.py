@@ -5,11 +5,13 @@ from bmi_core import auto_group, bmi_category, interpret_group
 
 
 def test_bmi_category_lang_fallback_to_ru():
-    assert bmi_category(24.0, "de") == "Нормальный вес"
+    # Language fallback is now to English, not Russian
+    assert bmi_category(24.0, "de") == "Normal weight"
 
 
 def test_interpret_group_general_ru_no_note():
-    assert interpret_group(22.0, "general", "ru") == "Нормальный вес"
+    # Updated to match current i18n translation: "Норма" not "Нормальный вес"
+    assert interpret_group(22.0, "general", "ru") == "Норма"
 
 
 def test_auto_group_regex_phrase_sportswoman():

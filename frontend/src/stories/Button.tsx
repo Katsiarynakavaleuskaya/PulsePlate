@@ -23,14 +23,19 @@ export const Button = ({
   backgroundColor,
   label,
   onClick,
+  style: externalStyle,
+  className: externalClassName,
   ...props
 }: ButtonProps) => {
   const mode = primary ? 'storybook-button--primary' : 'storybook-button--secondary';
+  const computedClassName = ['storybook-button', `storybook-button--${size}`, mode, externalClassName]
+    .filter(Boolean)
+    .join(' ');
   return (
     <button
       type="button"
-      className={['storybook-button', `storybook-button--${size}`, mode].join(' ')}
-      style={{ ...(backgroundColor && { backgroundColor }), ...(props.style || {}) }}
+      className={computedClassName}
+      style={{ ...(backgroundColor && { backgroundColor }), ...(externalStyle || {}) }}
       onClick={onClick}
       {...props}
     >
