@@ -144,11 +144,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Typecheck
         run: npm run typecheck
-        continue-on-error: true
 
       - name: Unit tests (jsdom)
         run: npm run test
