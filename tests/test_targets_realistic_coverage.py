@@ -141,15 +141,18 @@ class TestTargetsRealisticCoverage:
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
         pytest.importorskip("core.targets")
-        from core.targets import (
+        pytest.importorskip("core.metabolism")
+        from core.metabolism import (
             adjust_for_activity,
             calculate_tdee,
             calculate_bmr,
             calculate_macros,
             get_macro_ratios,
-            get_rda_values,
             adjust_calories_for_goal,
             calculate_deficit_surplus,
+        )
+        from core.targets import (
+            get_rda_values,
         )
 
         # Generate realistic scenarios
@@ -239,7 +242,7 @@ class TestTargetsRealisticCoverage:
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
         try:
-            from core.targets import calculate_macros, get_macro_ratios
+            from core.metabolism import calculate_macros, get_macro_ratios
 
             # Generate realistic nutrition scenarios
             for _ in range(30):
@@ -333,7 +336,7 @@ class TestTargetsRealisticCoverage:
     def test_calorie_adjustment_realistic(self):
         """Test calorie adjustments for realistic weight goals"""
         try:
-            from core.targets import adjust_calories_for_goal, calculate_deficit_surplus
+            from core.metabolism import adjust_calories_for_goal, calculate_deficit_surplus
 
             # Generate realistic weight goal scenarios
             for _ in range(25):
