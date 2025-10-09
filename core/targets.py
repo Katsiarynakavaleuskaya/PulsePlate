@@ -11,7 +11,7 @@ EN: WHO-based nutrition targets calculation system.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 
 
 # Type definitions for user characteristics
@@ -19,6 +19,29 @@ Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
 LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
+
+
+# TypedDict definitions for function parameters
+class HydrationData(TypedDict, total=False):
+    """Hydration calculation parameters."""
+
+    weight: float
+    activity_level: str
+    climate: str
+    altitude: int
+    caffeine_intake: int
+    alcohol_intake: int
+
+
+class UserProfileData(TypedDict, total=False):
+    """User profile data for deficiency and supplement calculations."""
+
+    age: int
+    gender: str
+    dietary_restriction: str
+    location: str
+    sun_exposure: str
+    medical_conditions: List[str]
 
 
 @dataclass(frozen=True)
@@ -446,11 +469,11 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
     return warnings
 
 
-def calculate_micronutrient_targets(**user_data: Any) -> Dict[str, float]:
+def calculate_micronutrient_targets(user_data: UserProfileData) -> Dict[str, float]:
     """Calculate micronutrient targets based on user data.
 
     Args:
-        **user_data: User profile data
+        user_data: User profile data
 
     Returns:
         Dictionary with micronutrient targets
@@ -475,7 +498,7 @@ def get_rda_values(age: int, gender: str) -> dict:
     Returns:
         Dictionary with RDA values
     """
-    return calculate_micronutrient_targets(**{"age": age, "gender": gender})
+    return calculate_micronutrient_targets({"age": age, "gender": gender})
 
 
 def get_athlete_targets(**_profile) -> dict:
@@ -573,17 +596,17 @@ def get_meal_timing(**timing_data) -> dict:
     }
 
 
-def calculate_hydration_needs(**hydration_data) -> float:
+def calculate_hydration_needs(hydration_data: HydrationData) -> float:
     """
     Calculate daily hydration needs.
 
     Args:
-        **hydration_data: Hydration factors
+        hydration_data: Hydration calculation parameters
 
     Returns:
         Daily water intake in ml
     """
-    weight: float = hydration_data.get("weight", 70)
+    weight: float = hydration_data.get("weight", 70.0)
     activity_level: str = hydration_data.get("activity_level", "moderate")
 
     base_ml: float = weight * 30  # 30ml per kg
@@ -610,7 +633,7 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
     """
     multiplier = 1.0
 
-    if climate in ["hot", "humid"]:
+    if climate in {"hot", "humid"}:
         multiplier = 1.3
     elif climate == "cold":
         multiplier = 0.9
@@ -621,12 +644,12 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
     return base_hydration * multiplier
 
 
-def check_deficiency_risk(**user_profile: Any) -> Dict[str, str]:
+def check_deficiency_risk(user_profile: UserProfileData) -> Dict[str, str]:
     """
     Check risk of nutrient deficiencies.
 
     Args:
-        **user_profile: User profile data
+        user_profile: User profile data
 
     Returns:
         Deficiency risk assessment
@@ -644,19 +667,19 @@ def check_deficiency_risk(**user_profile: Any) -> Dict[str, str]:
     return risks
 
 
-def get_supplement_recommendations(**user_profile: Any) -> Dict[str, List[str]]:
+def get_supplement_recommendations(user_profile: UserProfileData) -> Dict[str, List[str]]:
     """
     Get supplement recommendations based on profile.
 
     Args:
-        **user_profile: User profile data
+        user_profile: User profile data
 
     Returns:
         Supplement recommendations
     """
     recommendations = []
 
-    risks = check_deficiency_risk(**user_profile)
+    risks = check_deficiency_risk(user_profile)
 
     if risks.get("b12") == "high":
         recommendations.append("Vitamin B12")

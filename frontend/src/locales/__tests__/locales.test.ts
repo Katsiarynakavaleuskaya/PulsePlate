@@ -132,7 +132,7 @@ describe('Locale JSON Structure and Content', () => {
         /\btodo\b/i,
         /\bfixme\b/i,
         /\bxxx\b/i,
-        /\btbd\b/i
+        /\btest\b/i
       ];
 
       for (const lang of languages) {

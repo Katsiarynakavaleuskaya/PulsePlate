@@ -238,7 +238,7 @@ def test_insight_import_failure(client):
             )
             assert response.status_code == 503
             data = response.json()
-            assert "insight provider not configured" in data["detail"]
+            assert "FEATURE_INSIGHT is disabled" in data["detail"]
 
         _test_app_import_with_assertions(original_app, test_assertions)
 
@@ -364,8 +364,8 @@ def test_slowapi_import_failure(client):
         mock_import.side_effect = side_effect
 
         def test_assertions(app):
-            # Check that limiter is None
-            assert app.limiter is None
+            # Check that Limiter class is None when slowapi import fails
+            assert app.Limiter is None
 
         _test_app_import_with_assertions(original_app, test_assertions)
 

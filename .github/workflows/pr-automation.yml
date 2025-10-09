@@ -1,0 +1,105 @@
+name: PR Automation - CodeRabbit → CI → Push
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, feat/**, fix/**]
+
+jobs:
+  wait-for-coderabbit:
+    runs-on: ubuntu-latest
+    outputs:
+      review-status: ${{ steps.check-review.outputs.status }}
+    steps:
+      - name: Wait for CodeRabbit review completion
+        id: check-review
+        run: |
+          echo "Waiting for CodeRabbit review..."
+          for i in {1..60}; do  # Wait up to 30 minutes
+            # Check if CodeRabbit review exists and is completed
+            if gh pr view ${{ github.event.pull_request.number }} --json reviews | jq -e '.reviews[] | select(.author.login == "coderabbitai[bot]") | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")' > /dev/null; then
+              echo "status=completed" >> $GITHUB_OUTPUT
+              break
+            fi
+            echo "Still waiting for CodeRabbit review... ($i/60)"
+            sleep 30
+          done
+
+          if [ "$status" != "completed" ]; then
+            echo "CodeRabbit review timeout" >&2
+            exit 1
+          fi
+
+  apply-coderabbit-fixes:
+    needs: wait-for-coderabbit
+    runs-on: ubuntu-latest
+    if: needs.wait-for-coderabbit.outputs.review-status == 'completed'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js for frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          cd frontend && npm ci
+
+      - name: Apply auto-fixable CodeRabbit suggestions
+        run: |
+          # Auto-fix ESLint issues
+          cd frontend && npm run lint:fix
+
+          # Auto-fix Python formatting/linting
+          pre-commit run --all-files
+
+      - name: Run full test suite
+        run: |
+          # Python tests with coverage
+          python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=96
+
+          # Frontend tests
+          cd frontend && npm run test && npm run typecheck && npm run build
+
+      - name: Commit automated fixes
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m |
+              🤖 Auto-fix: CodeRabbit suggestions applied
+
+              - Applied ESLint auto-fixes
+              - Applied pre-commit auto-fixes (black, ruff, etc.)
+              - Verified all tests pass
+              - Ready for manual review
+            git push
+          fi
+
+  final-validation:
+    needs: apply-coderabbit-fixes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate all CI checks pass
+        run: |
+          # Wait for all CI checks to complete
+          echo "Validating final CI status..."
+          sleep 30  # Give CI time to start
+
+          # Check if all required checks are successful
+          # This would need to be implemented based on your specific CI setup

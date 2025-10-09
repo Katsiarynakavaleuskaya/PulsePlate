@@ -145,7 +145,7 @@ def main() -> int:
     backups, dup_groups = plan_removals(files)
 
     print("Backup twins (candidate for removal if identical):")
-    removed: list[str] = []
+    removed: List[str] = []
     for backup, base in backups:
         try:
             if sha256_of(backup) == sha256_of(base):

@@ -178,14 +178,25 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
     if (forceJson === true) {
       // Explicit flag takes priority
       defaults["Content-Type"] = "application/json";
-    } else if (forceJson === undefined && init?.body && typeof init.body === "string") {
-      // Fall back to safe JSON detection only when flag is undefined
-      try {
-        JSON.parse(init.body.trim());
-        defaults["Content-Type"] = "application/json";
-      } catch {
-        // Not valid JSON, don't set Content-Type
+    } else if (forceJson === undefined && init?.body) {
+      if (typeof init.body === "string") {
+        // Fall back to safe JSON detection only when flag is undefined
+        try {
+          JSON.parse(init.body.trim());
+          defaults["Content-Type"] = "application/json";
+        } catch {
+          // Not valid JSON, don't set Content-Type
+        }
+      } else if (init.body instanceof Blob) {
+        // Set Content-Type from blob's type if available
+        if (init.body.type) {
+          defaults["Content-Type"] = init.body.type;
+        }
+      } else if (init.body instanceof URLSearchParams) {
+        // Set standard form encoding for URLSearchParams
+        defaults["Content-Type"] = "application/x-www-form-urlencoded";
       }
+      // Note: FormData Content-Type is handled by browser automatically
     }
   }
 
@@ -238,30 +249,35 @@ export async function api<T = unknown>(
 
     // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
     const body = init?.body;
-    const isPlainObjectOrArray =
-      body &&
-      typeof body === "object" &&
-      (
-        Array.isArray(body) ||
-        body?.constructor === Object ||
-        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
-      );
 
-    const isForbiddenBinaryLike =
-      body instanceof FormData ||
-      body instanceof Blob ||
-      body instanceof ArrayBuffer ||
-      // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
-      body instanceof ReadableStream ||
-      (typeof body === "object" && body !== null && "arrayBuffer" in body && typeof body.arrayBuffer === "function");
+    // Type-guard helper: checks if value is a plain object or array with cross-realm compatibility
+    const isPlainObjectOrArray = (value: unknown): value is Record<string, unknown> | unknown[] => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+      return Array.isArray(value) ||
+        (value.constructor === Object) ||
+        Object.prototype.toString.call(value) === "[object Object]"; // handles cross-realm & Object.create(null)
+    };
 
-    if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
-      serializedBody = JSON.stringify(body);
-      forceJsonForBody = true;
-    } else if (body instanceof FormData || body instanceof Blob || body instanceof ArrayBuffer ||
-               body instanceof ReadableStream || body instanceof URLSearchParams ||
-               typeof body === "string") {
-      serializedBody = body;
+    // Type-guard helper: detects binary-like data that should be passed through without JSON serialization
+    const isBinaryLike = (value: unknown): boolean => {
+      return value instanceof FormData ||
+        value instanceof Blob ||
+        value instanceof ArrayBuffer ||
+        value instanceof ReadableStream ||
+        value instanceof URLSearchParams ||
+        // Any object exposing arrayBuffer() (e.g., File/Response/Request):
+        (typeof value === "object" && value !== null && "arrayBuffer" in value && typeof value.arrayBuffer === "function");
+    };
+
+    if (body !== null && body !== undefined) {
+      if (isPlainObjectOrArray(body) && !isBinaryLike(body)) {
+        serializedBody = JSON.stringify(body);
+        forceJsonForBody = true;
+      } else if (isBinaryLike(body) || typeof body === "string") {
+        serializedBody = body as BodyInit;
+      }
     }
 
     const requestInit: RequestInit = {

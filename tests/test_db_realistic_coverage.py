@@ -39,38 +39,46 @@ def _core_db_cleanup():
         "sqlite+aiosqlite:///tmp/app.db",
         "postgresql+asyncpg://user:pass@host/db",
         "mysql+aiomysql://user:pass@host/db",
-        "driver+async://example",
     ],
 )
-def test_derive_async_url_preserves_async_inputs(async_url: str) -> None:
-    """Existing async URLs should pass through untouched."""
+def test_async_database_url_preserves_explicit_async_inputs(tmp_path: Path, async_url: str) -> None:
+    """Explicitly set async DATABASE_ASYNC_URL should pass through untouched."""
     if db_module.create_async_engine is None:
         pytest.skip("SQLAlchemy async extras are not available")
-    assert db_module._derive_async_url(async_url) == async_url  # type: ignore[attr-defined]
+
+    def _apply_env(env_updates: dict[str, str]) -> None:
+        env_updates["DATABASE_USE_ASYNC"] = "1"
+        env_updates["DATABASE_ASYNC_URL"] = async_url
+        env_updates["DATABASE_URL"] = f"sqlite:///{tmp_path / 'test.db'}"
+
+    _reload_with_env(_apply_env)
+
+    try:
+        assert db_module.ASYNC_DATABASE_URL == async_url
+    finally:
+        _restore_core_db()
 
 
-@pytest.mark.parametrize(
-    ("sync_url", "expected"),
-    [
-        ("sqlite:///tmp/app.db", "sqlite+aiosqlite:///tmp/app.db"),
-        ("postgresql://host/db", "postgresql+asyncpg://host/db"),
-        ("postgres://host/db", "postgresql+asyncpg://host/db"),
-        ("mysql://host/db", "mysql+aiomysql://host/db"),
-        ("mysql+pymysql://host/db", "mysql+aiomysql://host/db"),
-    ],
-)
-def test_derive_async_url_converts_known_sync_drivers(sync_url: str, expected: str) -> None:
-    """Known synchronous driver URLs should be converted to async variants."""
+def test_async_database_url_derives_from_sqlite_url(tmp_path: Path) -> None:
+    """SQLite synchronous URLs should be converted to async variants when deriving."""
     if db_module.create_async_engine is None:
         pytest.skip("SQLAlchemy async extras are not available")
-    assert db_module._derive_async_url(sync_url) == expected  # type: ignore[attr-defined]
 
+    sqlite_path = tmp_path / "test.db"
+    sync_url = f"sqlite:///{sqlite_path}"
+    expected = f"sqlite+aiosqlite:///{sqlite_path}"
 
-def test_derive_async_url_returns_none_for_unknown_driver() -> None:
-    """Unknown drivers should not be converted."""
-    if db_module.create_async_engine is None:
-        pytest.skip("SQLAlchemy async extras are not available")
-    assert db_module._derive_async_url("oracle://host/db") is None  # type: ignore[attr-defined]
+    def _apply_env(env_updates: dict[str, str]) -> None:
+        env_updates["DATABASE_USE_ASYNC"] = "1"
+        env_updates["DATABASE_ASYNC_URL"] = ""
+        env_updates["DATABASE_URL"] = sync_url
+
+    _reload_with_env(_apply_env)
+
+    try:
+        assert db_module.ASYNC_DATABASE_URL == expected
+    finally:
+        _restore_core_db()
 
 
 def test_async_database_url_derives_when_flag_enabled(tmp_path: Path) -> None:

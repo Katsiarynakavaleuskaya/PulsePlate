@@ -219,7 +219,12 @@ def calculate_macros(
     }
 
 
-def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[float] = None) -> float:
+def adjust_calories_for_goal(
+    tdee: float,
+    goal: Goal,
+    deficit_pct: Optional[float] = None,
+    surplus_pct: Optional[float] = None,
+) -> float:
     """Adjust TDEE based on goal (weight loss/maintenance/gain).
 
     EN: Adjust TDEE based on goal.
@@ -228,6 +233,7 @@ def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[floa
         tdee: Total daily energy expenditure
         goal: Fitness goal
         deficit_pct: Deficit percentage for weight loss (5-25%)
+        surplus_pct: Surplus percentage for weight gain (5-25%)
 
     Returns:
         Adjusted daily calories
@@ -240,7 +246,9 @@ def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[floa
             raise ValueError("Deficit percentage must be between 5 and 25")
         return tdee * (1 - deficit / 100)
     elif goal == "gain":
-        surplus = 10  # 10% surplus for muscle gain
+        surplus = surplus_pct or 10  # Default 10% surplus for muscle gain
+        if surplus < 5 or surplus > 25:
+            raise ValueError("Surplus percentage must be between 5 and 25")
         return tdee * (1 + surplus / 100)
     else:
         raise ValueError(f"Unknown goal: {goal}")  # noqa: TRY003
@@ -302,15 +310,9 @@ def calculate_all_bmr(
     }
 
     if bodyfat_percent is not None:
-        # Katch-McArdle calculation
-        if weight <= 0:
-            raise ValueError("Weight must be a positive value")
-        if not 0 <= bodyfat_percent <= 50:
-            raise ValueError("Body fat percentage must be between 0 and 50")
-
-        lean_mass = weight * (1 - bodyfat_percent / 100)
-        bmr = 370 + 21.6 * lean_mass
-        results["katch"] = round(bmr, 1)
+        results["katch"] = calculate_bmr(
+            age, weight, int(height), sex, bodyfat_percent, formula="katch"
+        )
 
     return results
 

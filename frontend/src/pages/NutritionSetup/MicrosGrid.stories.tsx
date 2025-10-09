@@ -1,4 +1,4 @@
-import type { StoryObj } from "@storybook/react";
+import type { StoryObj, Meta } from "@storybook/react";
 import MicrosGrid from "./MicrosGrid";
 
 const sampleItems = [
@@ -12,7 +12,7 @@ const sampleItems = [
   { id: "magnesium", name: "Magnesium", unit: "mg", target: 400 },
 ];
 
-const meta = {
+const meta: Meta<typeof MicrosGrid> = {
   title: "Nutrition/MicrosGrid",
   component: MicrosGrid,
   args: {

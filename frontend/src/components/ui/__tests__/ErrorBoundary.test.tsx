@@ -1,16 +1,15 @@
 /** @vitest-environment jsdom */
-import React from 'react';
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 // Component that throws an error
-function ErrorComponent(): React.ReactElement {
+function ErrorComponent(): JSX.Element {
   throw new Error('Test error');
 }
 
 // Component that doesn't throw
-function SafeComponent(): React.ReactElement {
+function SafeComponent(): JSX.Element {
   return <div>Safe component</div>;
 }
 

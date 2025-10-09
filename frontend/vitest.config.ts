@@ -14,11 +14,13 @@ export default defineConfig({
       reportsDirectory: './coverage',
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['**/*.stories.*', '**/*.mdx', 'src/**/__tests__/**/utils.*'],
-      lines: 70,
-      functions: 70,
-      branches: 60,
-      statements: 70,
+      exclude: ['**/*.stories.*', '**/*.mdx', 'src/**/__tests__/**/{utils,helpers,setup}.*', 'src/**/**test-utils*.*', 'src/**/test-utilities/**'],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
     },
   },
 });

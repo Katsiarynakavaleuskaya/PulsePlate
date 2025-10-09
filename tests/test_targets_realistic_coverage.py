@@ -305,7 +305,7 @@ class TestTargetsRealisticCoverage:
                     "activity_level": fake.activity_level(),
                 }
 
-                micro_targets = calculate_micronutrient_targets(**user_data)
+                micro_targets = calculate_micronutrient_targets(user_data)
                 assert isinstance(micro_targets, dict)
 
                 # Check for essential nutrients
@@ -476,7 +476,8 @@ class TestTargetsRealisticCoverage:
         assert "breakfast" in meal_plan
 
         # Test hydration needs
-        hydration = calculate_hydration_needs(weight=70, activity_level="moderate")
+        hydration_data = {"weight": 70.0, "activity_level": "moderate"}
+        hydration = calculate_hydration_needs(hydration_data)
         assert isinstance(hydration, (int, float))
         assert hydration > 0
 
@@ -485,11 +486,12 @@ class TestTargetsRealisticCoverage:
         assert adjusted_hydration > hydration
 
         # Test deficiency risk
-        risks = check_deficiency_risk(dietary_restriction="vegan", age=25)
+        user_profile = {"dietary_restriction": "vegan", "age": 25}
+        risks = check_deficiency_risk(user_profile)
         assert isinstance(risks, dict)
 
         # Test supplement recommendations
-        supplements = get_supplement_recommendations(dietary_restriction="vegan", age=25)
+        supplements = get_supplement_recommendations(user_profile)
         assert isinstance(supplements, dict)
         assert "supplements" in supplements
 
@@ -509,7 +511,7 @@ class TestTargetsRealisticCoverage:
                     "alcohol_intake": fake.random_int(min=0, max=50),
                 }
 
-                base_hydration = calculate_hydration_needs(**hydration_data)
+                base_hydration = calculate_hydration_needs(hydration_data)
                 assert isinstance(base_hydration, (int, float))
                 assert base_hydration > 0
 
@@ -543,11 +545,11 @@ class TestTargetsRealisticCoverage:
                     ),
                 }
 
-                supplements = get_supplement_recommendations(**user_profile)
+                supplements = get_supplement_recommendations(user_profile)
                 assert isinstance(supplements, dict)
 
                 # Test deficiency risk assessment
-                risk_assessment = check_deficiency_risk(**user_profile)
+                risk_assessment = check_deficiency_risk(user_profile)
                 assert isinstance(risk_assessment, dict)
 
         except ImportError:

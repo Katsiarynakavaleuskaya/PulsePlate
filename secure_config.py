@@ -101,8 +101,7 @@ def get_or_create_encryption_key() -> bytes:
                 temp_file.unlink()
             except Exception as cleanup_error:
                 # Best effort cleanup - ignore errors
-                logging.debug(f"Failed to cleanup temp file: {cleanup_error}")
-                pass
+                logger.debug("Failed to cleanup temp file: %s", cleanup_error)
         raise OSError(
             f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"
         ) from e

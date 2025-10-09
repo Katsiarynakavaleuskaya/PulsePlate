@@ -13,7 +13,10 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   label: string;
 }
 
-/** Primary UI component for user interaction */
+/**
+ * Primary UI component for user interaction.
+ * Note: props.style will override the backgroundColor prop if both are provided.
+ */
 export const Button = ({
   primary = false,
   size = 'medium',
@@ -27,7 +30,7 @@ export const Button = ({
     <button
       type="button"
       className={['storybook-button', `storybook-button--${size}`, mode].join(' ')}
-      style={{ ...(props.style || {}), ...(backgroundColor && { backgroundColor }) }}
+      style={{ ...(backgroundColor && { backgroundColor }), ...(props.style || {}) }}
       onClick={onClick}
       {...props}
     >
