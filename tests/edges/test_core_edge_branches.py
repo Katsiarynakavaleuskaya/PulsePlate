@@ -279,11 +279,11 @@ async def test_unified_db_off_exception_and_invalid_ids(
     db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
     class OffMock:
-        async def search_products(self, *_args: Any, **_kwargs: Any):  # noqa: D401
-            raise RuntimeError("OFF boom")
+        async def search_products(self, *_args: Any, **_kwargs: Any):
+            raise RuntimeError("Mock error")
 
-        async def get_product_details(self, _code: str):  # noqa: D401
-            raise RuntimeError("detail boom")
+        async def get_product_details(self, _code: str):
+            raise RuntimeError("Mock error")
 
         async def close(self) -> None:
             return None

@@ -14,7 +14,7 @@ Note: Activity level calculations and higher-level convenience functions
 to avoid circular imports and ensure consistency.
 """
 
-from typing import Dict, Literal, Union
+from typing import Dict, Literal
 
 # Import activity multipliers from core.metabolism to ensure consistency
 # This is imported directly to avoid circular imports with core modules
@@ -103,7 +103,7 @@ def bmr_katch(weight: float, bodyfat_percent: float) -> float:
 
     Args:
         weight: Weight in kilograms
-        bodyfat_percent: Body fat percentage (0-50)
+        bodyfat_percent: Body fat percentage (0-100)
 
     Returns:
         BMR in calories per day
@@ -114,8 +114,8 @@ def bmr_katch(weight: float, bodyfat_percent: float) -> float:
     """
     if weight <= 0:
         raise ValueError("Weight must be a positive value")
-    if not 0 <= bodyfat_percent <= 50:
-        raise ValueError("Body fat percentage must be between 0 and 50")
+    if not 0 <= bodyfat_percent <= 100:
+        raise ValueError("Body fat percentage must be between 0 and 100")
 
     lean_mass = weight * (1 - bodyfat_percent / 100)
     bmr = 370 + 21.6 * lean_mass

@@ -82,13 +82,19 @@ class UserProfile:
     def __post_init__(self):
         """Validate profile parameters."""
         if self.age < 1 or self.age > 120:
-            raise ValueError("Invalid age")
+            raise ValueError(f"Age must be between 1 and 120 (got {self.age})")
         if self.height_cm <= 0 or self.weight_kg <= 0:
-            raise ValueError("Invalid height or weight")
+            raise ValueError(
+                f"Height and weight must be positive (height_cm={self.height_cm}, weight_kg={self.weight_kg})"
+            )
         if self.deficit_pct is not None and not (5 <= self.deficit_pct <= 25):
-            raise ValueError("Invalid deficit percentage")
+            raise ValueError(
+                f"Deficit percentage must be between 5 and 25 if provided (got {self.deficit_pct})"
+            )
         if self.surplus_pct is not None and not (5 <= self.surplus_pct <= 20):
-            raise ValueError("Invalid surplus percentage")
+            raise ValueError(
+                f"Surplus percentage must be between 5 and 20 if provided (got {self.surplus_pct})"
+            )
 
 
 @dataclass(frozen=True)
@@ -554,17 +560,21 @@ def get_pregnancy_targets(**profile) -> dict:
     }
 
 
-def calculate_pre_post_workout(_workout_type: str, duration: int) -> dict:  # noqa: ARG001
+def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:
     """
     Calculate pre and post workout nutrition.
 
     Args:
-        workout_type: Type of workout
+        workout_type: Type of workout (reserved for future workout-specific adjustments)
         duration: Duration in minutes
 
     Returns:
         Nutrition recommendations
     """
+    # workout_type is currently unused but reserved for future workout-specific logic
+    # (e.g., strength vs. endurance might require different macro ratios)
+    _ = workout_type  # Explicitly mark as intentionally unused for now
+
     return {
         "pre_workout": {
             "carbs": 20 + duration // 30,  # grams

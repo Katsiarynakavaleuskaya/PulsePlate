@@ -11,6 +11,7 @@ labels: [frontend, feat]
 **What & Why:** [Brief description of changes and business rationale]
 
 **Related Components/Pages:**
+
 - Modified: `ComponentName.tsx`, `PageName.tsx`
 - New: `NewComponent.tsx`, `CustomHook.ts`
 - Updated: API types, i18n keys, test mocks
@@ -44,20 +45,20 @@ labels: [frontend, feat]
 - [ ] `npm run build` (Vite production build)
 - [ ] `npm run sb:build` (Storybook accessibility check)
 - [ ] **Unit/Integration Tests (Vitest + @testing-library + MSW):**
-  - [ ] Компонент рендерится без ошибок
+  - [ ] Component renders without errors
   - [ ] User interactions (click, form submit, navigation)
-  - [ ] API calls с MSW моками (success/error states)
+  - [ ] API calls with MSW mocks (success/error states)
   - [ ] Form validation (react-hook-form + zod)
-  - [ ] i18n переключение языков (en/ru/es)
-  - [ ] Premium/paywall gates и auth states
-  - [ ] Error boundaries и fallback states
-  - [ ] Accessibility (axe-core в Storybook)
+  - [ ] i18n language switching (en/ru/es)
+  - [ ] Premium/paywall gates and auth states
+  - [ ] Error boundaries and fallback states
+  - [ ] Accessibility (axe-core in Storybook)
   - [ ] Responsive design (mobile/desktop breakpoints)
-  - [ ] Loading states и skeleton screens
+  - [ ] Loading states and skeleton screens
 
 ```bash
 cd frontend
-cp .env.example .env   # если нужен VITE_API_BASE
+cp .env.example .env   # if VITE_API_BASE is needed
 npm ci
 npm run dev
 ```

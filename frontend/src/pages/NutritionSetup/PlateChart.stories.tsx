@@ -21,15 +21,15 @@ const meta = {
   argTypes: {
     carbsPct: {
       control: { type: "range", min: 0, max: 100 },
-      description: "Percentage of carbohydrates (component will normalize if sums don't equal 100%)",
+      description: "Percentage of carbohydrates. Values should sum to 100%.",
     },
     proteinPct: {
       control: { type: "range", min: 0, max: 100 },
-      description: "Percentage of protein (component will normalize if sums don't equal 100%)",
+      description: "Percentage of protein. Values should sum to 100%.",
     },
     fatPct: {
       control: { type: "range", min: 0, max: 100 },
-      description: "Percentage of fat (component will normalize if sums don't equal 100%)",
+      description: "Percentage of fat. Values should sum to 100%.",
     },
   },
 };
@@ -62,7 +62,7 @@ export const Balanced: StoryObj<typeof PlateChart> = {
   },
 };
 
-export const AutoNormalized: StoryObj<typeof PlateChart> = {
+export const InvalidSum: StoryObj<typeof PlateChart> = {
   args: {
     carbsPct: 50,
     proteinPct: 50,

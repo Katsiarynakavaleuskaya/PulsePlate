@@ -133,7 +133,8 @@ export async function validateApiKey(): Promise<boolean> {
       headers: mergeHeaders(),
     });
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.error('API key validation failed:', err);
     return false;
   }
 }
@@ -225,7 +226,7 @@ export type ApiOptions = {
  * Extended RequestInit that allows plain objects as body (they get JSON serialized)
  */
 export interface ApiRequestInit extends Omit<RequestInit, 'body'> {
-  body?: BodyInit | Record<string, any> | any[] | null;
+  body?: BodyInit | Record<string, unknown> | unknown[] | null;
   mockUrl?: string;
   forceMock?: boolean;
 }

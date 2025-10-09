@@ -361,13 +361,17 @@ def get_unified_food_db() -> Any:
     # Check if we're already in an async context
     try:
         asyncio.get_running_loop()
+    except RuntimeError as e:
+        # Only swallow the expected "no running event loop" error
+        if "no running event loop" not in str(e).lower():
+            # Unexpected RuntimeError, re-raise it
+            raise
+        # No running loop, we can proceed with asyncio.run()
+    else:
         raise RuntimeError(
             "get_unified_food_db() cannot be called from async code. "
             "Import and await get_unified_food_db from core.food_apis.unified_db directly instead."
         )
-    except RuntimeError:
-        # No running loop, we can proceed with asyncio.run()
-        pass
 
     from .food_apis.unified_db import get_unified_food_db as _get_unified_food_db
 

@@ -2,32 +2,16 @@
 // EN: Extend expect with jest-dom matchers for RTL.
 import "@testing-library/jest-dom";
 
-// Setup window.location for React Router tests
-// Temporarily disabled due to jsdom issues
-/*
-Object.defineProperty(window, 'location', {
-  writable: true,
-  value: {
-  href: 'http://localhost:3000/',
-  origin: 'http://localhost:3000',
-  protocol: 'http:',
-  host: 'localhost',
-  port: '3000',
-  pathname: '/',
-  search: '',
-  hash: '',
-  replace: vi.fn(),
-  assign: vi.fn(),
-  reload: vi.fn(),
-  toString: function() { return this.href; }
-  }
-});
-*/
+// Note: window.location is non-configurable in jsdom.
+// If you need to test location changes, use:
+// - window.location.href = "..." for simple URL changes
+// - history.pushState/replaceState for navigation
+// - vi.spyOn(window.location, 'assign') for mocking navigation
 
 // MSW temporarily disabled due to version conflicts
-// TODO(#<issue-number>): Fix MSW setup for jsdom environment
+// TODO(#136): Fix MSW setup for jsdom environment
 // MSW 2.x has compatibility issues with jsdom 22.x in Vitest
-// Target: Sprint X or Q2 2025
+// Target: Q2 2025 or earlier
 /*
 import { server } from "./mocks/server";
 

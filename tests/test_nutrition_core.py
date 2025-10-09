@@ -135,11 +135,11 @@ class TestBMRKatch:
         with pytest.raises(ValueError, match="Weight must be a positive value"):
             bmr_katch(0, 15)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
+        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 100"):
             bmr_katch(70, -5)
 
-        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 50"):
-            bmr_katch(70, 60)
+        with pytest.raises(ValueError, match="Body fat percentage must be between 0 and 100"):
+            bmr_katch(70, 101)
 
     @given(
         weight=st.floats(min_value=30, max_value=200),

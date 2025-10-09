@@ -204,8 +204,16 @@ def calculate_macros(
             carbs_g = 0.0
             fat_g = 0.0
         else:
-            carbs_g = (remaining_kcal * ratios["carbs"]) / 4
-            fat_g = (remaining_kcal * ratios["fat"]) / 9
+            # Renormalize carbs/fat split to use all remaining calories
+            residual_ratio = ratios["carbs"] + ratios["fat"]
+            if residual_ratio <= 0:
+                carbs_g = 0.0
+                fat_g = 0.0
+            else:
+                carbs_kcal = remaining_kcal * (ratios["carbs"] / residual_ratio)
+                fat_kcal = remaining_kcal * (ratios["fat"] / residual_ratio)
+                carbs_g = carbs_kcal / 4
+                fat_g = fat_kcal / 9
     else:
         # Standard calculation
         protein_g = (tdee * ratios["protein"]) / 4
@@ -233,7 +241,7 @@ def adjust_calories_for_goal(
         tdee: Total daily energy expenditure
         goal: Fitness goal
         deficit_pct: Deficit percentage for weight loss (5-25%)
-        surplus_pct: Surplus percentage for weight gain (5-25%)
+        surplus_pct: Surplus percentage for weight gain (5-20%)
 
     Returns:
         Adjusted daily calories
@@ -247,8 +255,8 @@ def adjust_calories_for_goal(
         return tdee * (1 - deficit / 100)
     elif goal == "gain":
         surplus = surplus_pct or 10  # Default 10% surplus for muscle gain
-        if surplus < 5 or surplus > 25:
-            raise ValueError("Surplus percentage must be between 5 and 25")
+        if surplus < 5 or surplus > 20:
+            raise ValueError("Surplus percentage must be between 5 and 20")
         return tdee * (1 + surplus / 100)
     else:
         raise ValueError(f"Unknown goal: {goal}")  # noqa: TRY003

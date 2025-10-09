@@ -11,18 +11,26 @@ import {
   TestLogger
 } from './test-utils';
 
+// Type definition for locale data structure
+type LocaleData = typeof en;
+
+// Type-safe locales object with language code keys
+type LocalesMap = {
+  [K in 'en' | 'ru' | 'es']: LocaleData;
+};
+
 // Test constants imported from test-utils
 
 describe('Locale JSON Structure and Content', () => {
-  const locales = { en, ru, es };
-  const languages = Object.keys(locales);
+  const locales: LocalesMap = { en, ru, es };
+  const languages = Object.keys(locales) as Array<keyof LocalesMap>;
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
       const enKeyPaths = collectKeyPaths(en).sort();
 
       for (const lang of languages) {
-        const keyPaths = collectKeyPaths((locales as any)[lang]).sort();
+        const keyPaths = collectKeyPaths(locales[lang]).sort();
         expect(keyPaths).toEqual(enKeyPaths);
       }
     });
@@ -45,7 +53,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkForNulls((locales as any)[lang]);
+        const issues = checkForNulls(locales[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -68,7 +76,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkEmptyStrings((locales as any)[lang]);
+        const issues = checkEmptyStrings(locales[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -91,7 +99,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkForHtml((locales as any)[lang]);
+        const issues = checkForHtml(locales[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -118,7 +126,7 @@ describe('Locale JSON Structure and Content', () => {
       };
 
       for (const lang of languages) {
-        const issues = checkUnicode((locales as any)[lang]);
+        const issues = checkUnicode(locales[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -161,14 +169,14 @@ describe('Locale JSON Structure and Content', () => {
           }
         };
 
-        checkValue((locales as any)[lang], '');
+        checkValue(locales[lang], '');
         expect(issues).toHaveLength(0);
       }
     });
 
     it('should have reasonable string lengths', () => {
       for (const lang of languages) {
-        const issues = checkLengths((locales as any)[lang]);
+        const issues = checkLengths(locales[lang]);
         expect(issues).toHaveLength(0);
       }
     });
@@ -214,7 +222,7 @@ describe('Locale JSON Structure and Content', () => {
 
       for (const lang of languages) {
         allValues.length = 0; // Reset array
-        collectValues((locales as any)[lang]);
+        collectValues(locales[lang]);
 
         // Find duplicates
         const valueCount: Record<string, number> = {};
@@ -318,7 +326,7 @@ describe('Locale JSON Structure and Content', () => {
       it('should have consistent paywall structure', () => {
         const paywallKeys = ['title', 'subtitle', 'cta', 'legal', 'before', 'after', 'items'];
         for (const lang of languages) {
-          const { paywall } = (locales as any)[lang];
+          const { paywall } = locales[lang];
           expect(paywall).toBeDefined();
           expect(Object.keys(paywall).sort()).toEqual(paywallKeys.sort());
         }
@@ -328,7 +336,7 @@ describe('Locale JSON Structure and Content', () => {
         const sectionKeys = ['label', 'randomPlate', 'macrosOnly', 'manualShopping'];
         const afterKeys = ['label', 'personalPlate', 'microBalance', 'autoShoppingList'];
         for (const lang of languages) {
-          const { paywall } = (locales as any)[lang];
+          const { paywall } = locales[lang];
           expect(Object.keys(paywall.before).sort()).toEqual(sectionKeys.sort());
           expect(Object.keys(paywall.after).sort()).toEqual(afterKeys.sort());
         }
@@ -338,7 +346,7 @@ describe('Locale JSON Structure and Content', () => {
         const itemKeys = ['random_plate', 'macros_only', 'manual_shopping'];
         const afterItemKeys = ['personal_plate', 'micro_balance', 'auto_shopping_list'];
         for (const lang of languages) {
-          const { items } = (locales as any)[lang].paywall;
+          const { items } = locales[lang].paywall;
           expect(items.before).toBeDefined();
           expect(items.after).toBeDefined();
           expect(Object.keys(items.before).sort()).toEqual(itemKeys.sort());

@@ -383,16 +383,11 @@ class TestUpdateAPIKey:
 
     def test_main_empty_input(self, capsys, monkeypatch):
         """Test main() function with empty input"""
-        import sys
-
         monkeypatch.setattr("builtins.input", lambda _: "")
-        print(f"DEBUG: sys.argv before main(): {sys.argv}")
 
         update_api_key.main()
 
         captured = capsys.readouterr()
-        print(f"DEBUG: captured.out: {repr(captured.out)}")
-        print(f"DEBUG: captured.err: {repr(captured.err)}")
         assert "🔑 PulsePlate API Key Configuration" in captured.out
         assert "❌ No API key provided" in captured.out
 

@@ -109,7 +109,23 @@ def test_bmi_missing_fields():
     # API now handles missing fields gracefully with defaults
     assert r.status_code == 200
     data = r.json()
+
+    # Assert explicit default values match API spec
     assert "bmi" in data
+    expected_bmi = 70 / (1.75**2)  # weight / height^2
+    assert abs(data["bmi"] - expected_bmi) < 0.1  # tolerance for float comparison
+
+    # Verify response structure and types
+    assert "category" in data or "bmi_category" in data
+    assert isinstance(data["bmi"], (int, float))
+
+    # Check risk_flags if present in response
+    if "risk_flags" in data:
+        assert isinstance(data["risk_flags"], (list, dict))
+
+    # Verify group classification
+    assert "group" in data
+    assert data["group"] in ["general", "athlete", "pregnancy"]
 
 
 def test_plan_non_premium():

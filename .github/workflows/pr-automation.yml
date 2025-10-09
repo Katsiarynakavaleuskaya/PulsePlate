@@ -5,12 +5,21 @@ on:
     types: [opened, synchronize, reopened]
     branches: [main, feat/**, fix/**]
 
+permissions:
+  contents: write  # Needed to push commits
+  pull-requests: read  # Needed to read PR reviews
+
 jobs:
   wait-for-coderabbit:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read  # Needed to read PR reviews
     outputs:
       review-status: ${{ steps.check-review.outputs.status }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Wait for CodeRabbit review completion
         id: check-review
         env:
@@ -38,11 +47,15 @@ jobs:
     needs: wait-for-coderabbit
     runs-on: ubuntu-latest
     if: needs.wait-for-coderabbit.outputs.review-status == 'completed'
+    permissions:
+      contents: write  # Needed to push automated fixes
+      pull-requests: read  # Needed to read PR context
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js for frontend
         uses: actions/setup-node@v4
@@ -50,7 +63,7 @@ jobs:
           node-version: '20'
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -71,7 +84,7 @@ jobs:
       - name: Run full test suite
         run: |
           # Python tests with coverage
-          python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=96
+          python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=97
 
           # Frontend tests
           cd frontend && npm run test && npm run typecheck && npm run build
@@ -85,19 +98,23 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m |
-              🤖 Auto-fix: CodeRabbit suggestions applied
+            cat > /tmp/commit_msg << 'COMMIT_MSG_EOF'
+          🤖 Auto-fix: CodeRabbit suggestions applied
 
-              - Applied ESLint auto-fixes
-              - Applied pre-commit auto-fixes (black, ruff, etc.)
-              - Verified all tests pass
-              - Ready for manual review
+          - Applied ESLint auto-fixes
+          - Applied pre-commit auto-fixes (black, ruff, etc.)
+          - Verified all tests pass
+          - Ready for manual review
+          COMMIT_MSG_EOF
+            git commit -F /tmp/commit_msg
             git push
           fi
 
   final-validation:
     needs: apply-coderabbit-fixes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Minimal read access for validation
     steps:
       - name: Validate all CI checks pass
         run: |

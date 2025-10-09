@@ -17,11 +17,6 @@ from unittest.mock import patch
 
 import pytest
 
-# Configure logging for test output
-logging.basicConfig(
-    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
 
 def _test_with_exception_handling(test_func: Callable[[], None], skip_message: str) -> None:
     """Helper to run test functions with consistent exception handling."""

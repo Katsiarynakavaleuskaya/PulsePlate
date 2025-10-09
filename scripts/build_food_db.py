@@ -74,6 +74,11 @@ class FoodDatabaseBuilder:
             usda_data = list(usda_adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
         except (OSError, ValueError, UnicodeDecodeError):
+            print(
+                "  ❌ USDA data source failed - resulting database will be incomplete. "
+                "Check logs for details.",
+                file=sys.stderr,
+            )
             logging.exception("USDA data loading failed")
 
         # Load OFF data (from chunks or single file)

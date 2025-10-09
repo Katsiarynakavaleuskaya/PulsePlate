@@ -1,12 +1,12 @@
 coverage:
   precision: 2
   round: down
-  # We target 96% coverage as required by project standards
+  # We target 97% coverage as required by project standards
   range: 97..100
   status:
     project:
       default:
-        target: 96%
+        target: 97%
         threshold: 1%
 ignore:
   - "example_nutrition_api.py"

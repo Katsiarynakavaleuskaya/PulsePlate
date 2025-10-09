@@ -266,13 +266,13 @@ class TestTargetsRealisticCoverage:
 
                 # Verify macro totals approximately equal calories
                 total_cals = (
-                    macros.get("protein", 0) * 4
-                    + macros.get("carbs", 0) * 4
-                    + macros.get("fat", 0) * 9
+                    macros.get("protein_g", 0) * 4
+                    + macros.get("carbs_g", 0) * 4
+                    + macros.get("fat_g", 0) * 9
                 )
 
                 if total_cals > 0:
-                    assert abs(total_cals - calories) / calories < 0.1  # Within 10%
+                    assert abs(total_cals - tdee) / tdee < 0.1  # Within 10%
 
                 # Test macro ratios
                 ratios = get_macro_ratios(normalized_goal)

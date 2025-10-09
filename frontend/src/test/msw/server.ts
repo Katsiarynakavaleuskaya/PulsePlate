@@ -53,10 +53,16 @@ interface TargetsRequest {
 
 // Request validation helpers
 function validateBmrRequest(req: BmrRequest): { isValid: boolean; error?: string } {
-  if (!req.weight_kg || req.weight_kg <= 0) {
+  if (req.weight_kg == null) {
+    return { isValid: false, error: 'weight_kg is required' };
+  }
+  if (req.weight_kg <= 0) {
     return { isValid: false, error: 'weight_kg must be > 0' };
   }
-  if (!req.height_cm || req.height_cm <= 0) {
+  if (req.height_cm == null) {
+    return { isValid: false, error: 'height_cm is required' };
+  }
+  if (req.height_cm <= 0) {
     return { isValid: false, error: 'height_cm must be > 0' };
   }
   if (req.age === undefined || req.age < 0 || req.age > 120) {
@@ -78,13 +84,19 @@ function validatePlateRequest(req: PlateRequest): { isValid: boolean; error?: st
   if (!['male', 'female'].includes(req.sex)) {
     return { isValid: false, error: 'sex must be male or female' };
   }
-  if (req.age < 10 || req.age > 100) {
+  if (req.age === undefined || !Number.isFinite(req.age) || req.age < 10 || req.age > 100) {
     return { isValid: false, error: 'age must be 10-100' };
   }
-  if (!req.height_cm || req.height_cm <= 0) {
+  if (req.height_cm == null) {
+    return { isValid: false, error: 'height_cm is required' };
+  }
+  if (req.height_cm <= 0) {
     return { isValid: false, error: 'height_cm must be > 0' };
   }
-  if (!req.weight_kg || req.weight_kg <= 0) {
+  if (req.weight_kg == null) {
+    return { isValid: false, error: 'weight_kg is required' };
+  }
+  if (req.weight_kg <= 0) {
     return { isValid: false, error: 'weight_kg must be > 0' };
   }
   if (!['sedentary', 'light', 'moderate', 'active', 'very_active'].includes(req.activity)) {
@@ -109,13 +121,19 @@ function validateTargetsRequest(req: TargetsRequest): { isValid: boolean; error?
   if (!['male', 'female'].includes(req.sex)) {
     return { isValid: false, error: 'sex must be male or female' };
   }
-  if (req.age < 1 || req.age > 120) {
+  if (req.age === undefined || !Number.isFinite(req.age) || req.age < 1 || req.age > 120) {
     return { isValid: false, error: 'age must be 1-120' };
   }
-  if (!req.height_cm || req.height_cm <= 0) {
+  if (req.height_cm == null) {
+    return { isValid: false, error: 'height_cm is required' };
+  }
+  if (req.height_cm <= 0) {
     return { isValid: false, error: 'height_cm must be > 0' };
   }
-  if (!req.weight_kg || req.weight_kg <= 0) {
+  if (req.weight_kg == null) {
+    return { isValid: false, error: 'weight_kg is required' };
+  }
+  if (req.weight_kg <= 0) {
     return { isValid: false, error: 'weight_kg must be > 0' };
   }
   if (!['sedentary', 'light', 'moderate', 'active', 'very_active'].includes(req.activity)) {
@@ -262,6 +280,7 @@ export const handlers = [
           {
             title: 'Dinner',
             kcal: Math.round(baseKcal * 0.3),
+            // Use subtraction to absorb rounding errors from breakfast/lunch
             protein_g: 131 - Math.round(131 * 0.7),
             fat_g: 70 - Math.round(70 * 0.7),
             carbs_g: 236 - Math.round(236 * 0.7),
