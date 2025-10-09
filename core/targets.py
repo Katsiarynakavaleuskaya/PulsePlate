@@ -4,7 +4,7 @@ This module defines the core data structures for user profiles and nutrition tar
 based on WHO/EFSA/DRI recommendations for macronutrients, micronutrients, hydration,
 and physical activity guidelines.
 
-RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
+RU: Sistema rascheta tselevykh znacheniy nutrientov na osnove rekomendatsiy VOZ.
 EN: WHO-based nutrition targets calculation system.
 """
 
@@ -69,13 +69,13 @@ class UserProfile:
     def __post_init__(self):
         """Validate profile parameters."""
         if self.age < 1 or self.age > 120:
-            raise ValueError("Invalid age")
+            raise ValueError("Invalid age")  # noqa: TRY003
         if self.height_cm <= 0 or self.weight_kg <= 0:
-            raise ValueError("Invalid height or weight")
+            raise ValueError("Invalid height or weight")  # noqa: TRY003
         if self.deficit_pct is not None and not (5 <= self.deficit_pct <= 25):
-            raise ValueError("Invalid deficit percentage")
+            raise ValueError("Invalid deficit percentage")  # noqa: TRY003
         if self.surplus_pct is not None and not (5 <= self.surplus_pct <= 20):
-            raise ValueError("Invalid surplus percentage")
+            raise ValueError("Invalid surplus percentage")  # noqa: TRY003
 
 
 @dataclass(frozen=True)
@@ -155,21 +155,21 @@ class MicronutrientTargets:
         if hasattr(self, nutrient):
             val = getattr(self, nutrient)[1]  # middle value is target
             return float(val)
-        raise ValueError(f"Unknown nutrient: {nutrient}")
+        raise ValueError(f"Unknown nutrient: {nutrient}")  # noqa: TRY003
 
     def get_minimum(self, nutrient: str) -> float:
         """Get minimum acceptable value for a nutrient."""
         if hasattr(self, nutrient):
             val = getattr(self, nutrient)[0]  # first value is minimum
             return float(val)
-        raise ValueError(f"Unknown nutrient: {nutrient}")  # pragma: no cover
+        raise ValueError(f"Unknown nutrient: {nutrient}")  # noqa: TRY003  # pragma: no cover
 
     def get_maximum(self, nutrient: str) -> float:
         """Get maximum safe value for a nutrient."""
         if hasattr(self, nutrient):
             val = getattr(self, nutrient)[2]  # third value is maximum
             return float(val)
-        raise ValueError(f"Unknown nutrient: {nutrient}")  # pragma: no cover
+        raise ValueError(f"Unknown nutrient: {nutrient}")  # noqa: TRY003  # pragma: no cover
 
     def is_deficient(self, nutrient: str, actual_value: float) -> bool:
         """Check if actual intake is deficient."""

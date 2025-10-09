@@ -340,9 +340,10 @@ def _register_font() -> str:
         try:
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except (OSError, IOError) as e:
+        except (OSError, IOError, ValueError) as e:
             logger.warning(f"Failed to register font {FONT_NAME}: {e}")
-            pass
+    else:
+        return "Helvetica"
     return "Helvetica"
 
 

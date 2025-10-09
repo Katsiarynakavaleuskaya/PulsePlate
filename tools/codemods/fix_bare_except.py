@@ -33,10 +33,10 @@ def dedupe_match(match: Match[str]) -> str:
 
 def ensure_logging_import(text: str) -> str:
     lines = text.splitlines()
-    for _i, line in enumerate(lines[:30]):  # ищем в первой трети для скорости
+    for line in lines[:30]:  # search in first third for speed
         if line.strip().startswith("import logging") or line.strip().startswith("from logging"):
             return text
-    # Вставим после возможной строки с будущим __future__/docstring/encoding
+    # Insert after possible shebang/__future__/docstring/encoding line
     insert_at = 0
     in_docstring = False
     docstring_delim = None
