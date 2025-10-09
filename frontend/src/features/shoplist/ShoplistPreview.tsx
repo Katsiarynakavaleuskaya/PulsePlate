@@ -125,9 +125,9 @@ export default function ShoplistPreview() {
 
     // Schedule URL revocation with a reasonable timeout
     // The browser will initiate download before this fires
-    const revokeTimeout = setTimeout(() => {
+    const revokeTimeout = window.setTimeout(() => {
       URL.revokeObjectURL(url);
-    }, 1000);
+    }, 1000) as number;
 
     cleanupRef.current.push({
       id: revokeTimeout,
