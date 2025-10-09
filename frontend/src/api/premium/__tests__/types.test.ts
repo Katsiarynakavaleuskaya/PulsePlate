@@ -178,4 +178,5 @@ describe("Premium Types", () => {
       expectTypeOf(sample).toMatchTypeOf<PlateApiResponse>();
     });
   });
+
 });
