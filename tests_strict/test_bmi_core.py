@@ -53,11 +53,11 @@ def test_bmi_category_edges_ru():
 
 def test_bmi_category_edges_en():
     assert bmi_category(18.49, "en") == "Underweight"
-    assert bmi_category(18.5, "en") == "Healthy weight"
-    assert bmi_category(24.99, "en") == "Healthy weight"
+    assert bmi_category(18.5, "en") == "Normal weight"
+    assert bmi_category(24.99, "en") == "Normal weight"
     assert bmi_category(25.0, "en") == "Overweight"
     assert bmi_category(29.99, "en") == "Overweight"
-    assert bmi_category(30.0, "en") == "Obesity"
+    assert bmi_category(30.0, "en") == "Obese Class I"
 
 
 # ---------- Группы пользователей ----------
