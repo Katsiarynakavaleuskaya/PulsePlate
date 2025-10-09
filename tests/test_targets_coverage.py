@@ -81,7 +81,7 @@ class TestUserProfile:
 
     def test_user_profile_weight_validation(self):
         """Test weight validation."""
-        with pytest.raises(ValueError, match="Invalid height or weight"):
+        with pytest.raises(ValueError, match="Height and weight must be positive"):
             UserProfile(
                 sex="female",
                 age=25,
@@ -93,7 +93,7 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_low(self):
         """Test deficit percentage validation - too low."""
-        with pytest.raises(ValueError, match="Invalid deficit percentage"):
+        with pytest.raises(ValueError, match="Deficit percentage must be between 5 and 25"):
             UserProfile(
                 sex="female",
                 age=25,
@@ -106,7 +106,7 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_high(self):
         """Test deficit percentage validation - too high."""
-        with pytest.raises(ValueError, match="Invalid deficit percentage"):
+        with pytest.raises(ValueError, match="Deficit percentage must be between 5 and 25"):
             UserProfile(
                 sex="female",
                 age=25,

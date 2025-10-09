@@ -281,9 +281,9 @@ export const handlers = [
             title: 'Dinner',
             kcal: Math.round(baseKcal * 0.3),
             // Use subtraction to absorb rounding errors from breakfast/lunch
-            protein_g: 131 - Math.round(131 * 0.7),
-            fat_g: 70 - Math.round(70 * 0.7),
-            carbs_g: 236 - Math.round(236 * 0.7),
+            protein_g: 131 - Math.round(131 * 0.3) - Math.round(131 * 0.4),
+            fat_g: 70 - Math.round(70 * 0.3) - Math.round(70 * 0.4),
+            carbs_g: 236 - Math.round(236 * 0.3) - Math.round(236 * 0.4),
             micros: {
               iron_mg: 2.5,
               calcium_mg: 150,

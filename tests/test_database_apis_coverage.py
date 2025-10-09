@@ -24,6 +24,8 @@ def _test_with_exception_handling(test_func: Callable[[], None], skip_message: s
         test_func()
     except ImportError:
         pytest.skip(skip_message)
+    except AssertionError:
+        raise
     except Exception as e:
         logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
         pytest.fail(f"Unexpected exception: {e}")

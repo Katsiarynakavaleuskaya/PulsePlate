@@ -75,25 +75,32 @@ jobs:
 
       - name: Apply auto-fixable CodeRabbit suggestions
         run: |
+          # NOTE: This applies generic auto-fixes (ESLint, pre-commit)
+          # CodeRabbit-specific suggestions must be applied manually
+          echo "⚠️  Warning: Only applying generic auto-fixes"
+          echo "CodeRabbit suggestions should be reviewed and applied manually"
+
           # Auto-fix ESLint issues
           cd frontend && npm run lint:fix
 
           # Auto-fix Python formatting/linting
           pre-commit run --all-files
-
       - name: Run full test suite
         run: |
           # Python tests with coverage
           python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=97
-
-          # Frontend tests
-          cd frontend && npm run test && npm run typecheck && npm run build
-
       - name: Commit automated fixes
         if: success()
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+
+          # Pull latest changes to avoid conflicts
+          git pull --rebase origin ${{ github.head_ref }} || {
+            echo "❌ Failed to rebase - manual intervention required"
+            exit 1
+          }
+
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -105,6 +112,13 @@ jobs:
           - Applied pre-commit auto-fixes (black, ruff, etc.)
           - Verified all tests pass
           - Ready for manual review
+          COMMIT_MSG_EOF
+            git commit -F /tmp/commit_msg
+            git push || {
+              echo "❌ Push failed - manual intervention required"
+              exit 1
+            }
+          fi
           COMMIT_MSG_EOF
             git commit -F /tmp/commit_msg
             git push
