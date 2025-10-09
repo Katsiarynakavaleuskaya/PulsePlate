@@ -11,10 +11,10 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
-logger = logging.getLogger(__name__)
-
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import (
