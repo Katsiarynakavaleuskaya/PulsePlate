@@ -119,7 +119,7 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_low(self):
         """Test surplus percentage validation - too low."""
-        with pytest.raises(ValueError, match="Invalid surplus percentage"):
+        with pytest.raises(ValueError, match="Surplus percentage must be between 5 and 20"):
             UserProfile(
                 sex="male",
                 age=25,
@@ -132,7 +132,7 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_high(self):
         """Test surplus percentage validation - too high."""
-        with pytest.raises(ValueError, match="Invalid surplus percentage"):
+        with pytest.raises(ValueError, match="Surplus percentage must be between 5 and 20"):
             UserProfile(
                 sex="male",
                 age=25,
