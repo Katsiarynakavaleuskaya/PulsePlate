@@ -38,7 +38,6 @@ except ImportError:  # pragma: no cover - async extras not installed
 
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
-
     default_path = os.path.join("cache", "app.db")
     # Use file-based SQLite by default so the data survives across runs.
     return os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
@@ -46,13 +45,11 @@ def _build_engine_url() -> str:
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
-
     return {"check_same_thread": False} if url.startswith("sqlite") else {}
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:
     """Derive an async-capable URL from a synchronous URL when possible."""
-
     # Only derive async URLs if async support is available
     if create_async_engine is None:
         return None
@@ -91,10 +88,12 @@ class EngineCompat:
     """
 
     def __init__(self, engine: Any) -> None:
+        """Initialize the EngineCompat wrapper with an SQLAlchemy engine."""
         self._engine = engine
 
     # Delegate unknown attributes to the underlying Engine
     def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to the underlying SQLAlchemy engine."""
         return getattr(self._engine, name)
 
     def execute(self, statement: Any, *args: Any, **kwargs: Any):
@@ -184,7 +183,6 @@ def get_session() -> Generator[Session, None, None]:
 
     EN: FastAPI dependency that yields a scoped database session.
     """
-
     session = SessionLocal()
     try:
         yield session
@@ -198,7 +196,6 @@ def session_scope() -> Generator[Session, None, None]:
 
     EN: Context manager that wraps short-lived database operations.
     """
-
     session = SessionLocal()
     try:
         yield session
@@ -212,7 +209,6 @@ def session_scope() -> Generator[Session, None, None]:
 
 async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
-
     if AsyncSessionLocal is None:
         if create_async_engine is None:
             raise ImportError(
@@ -232,7 +228,6 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
 @asynccontextmanager
 async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
     """Async context manager for atomic DB operations."""
-
     if AsyncSessionLocal is None:
         raise RuntimeError(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
@@ -254,7 +249,6 @@ def init_db() -> None:
 
     EN: Creates database schema for all registered models (used during startup).
     """
-
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
@@ -286,7 +280,6 @@ def init_db() -> None:
 
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
-
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
     metadata = Base.metadata
