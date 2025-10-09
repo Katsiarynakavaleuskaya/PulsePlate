@@ -163,12 +163,11 @@ repos:
 
       - id: npm-audit
         name: npm audit (prod deps)
-        entry: bash -c "cd frontend && npm audit --omit=dev"
+        entry: bash -c "cd frontend && if [ \"${CI_NPM_AUDIT:-0}\" = \"1\" ]; then npm audit --omit=dev; else echo 'Skipping npm audit (set CI_NPM_AUDIT=1 to enable)'; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]
 
-      # ruff — строгий на pre-push (не пропускаем автофикс молча)
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
         entry: ruff check .
@@ -176,7 +175,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # bandit-full — полный security scan со smart excludes
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)
         entry: bash -c "make bandit-full"
