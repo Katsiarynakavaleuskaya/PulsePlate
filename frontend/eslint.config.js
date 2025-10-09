@@ -29,6 +29,19 @@ export default tseslint.config(
       "**/mockServiceWorker.js",
     ],
   },
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      globals: {
+        module: "readonly",
+        require: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

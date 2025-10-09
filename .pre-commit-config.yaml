@@ -43,7 +43,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
-        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+        files: ^(app/|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -92,9 +92,82 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
-  # --- Local composite hooks (pre-push): strict gates before remote
+  # --- Frontend linting and testing: mandatory quality gates
   - repo: local
     hooks:
+      - id: frontend-lint
+        name: frontend lint (ESLint)
+        entry: bash -c "cd frontend && npm run lint"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+        files: ^frontend/
+
+      - id: frontend-lint-fix
+        name: frontend lint (autofix)
+        entry: bash -c "cd frontend && npm run lint -- --fix"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/
+
+      - id: python-tests
+        name: python tests (pytest, fast)
+        entry: python -m pytest tests/ -x --tb=line --disable-warnings --maxfail=3
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        types: [python]
+
+      - id: frontend-tests
+        name: frontend tests (Vitest, fast)
+        entry: bash -c "cd frontend && npm run test -- --run --reporter=basic"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+
+  # --- Additional quality gates (pre-push only)
+  - repo: local
+    hooks:
+      - id: frontend-typecheck
+        name: frontend typecheck (tsc)
+        entry: bash -c "cd frontend && npm run typecheck"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+
+      - id: frontend-build
+        name: frontend build (vite)
+        entry: bash -c "cd frontend && npm run build"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+
+      - id: python-tests-strict
+        name: python tests (tests_strict)
+        entry: python -m pytest tests_strict/ --maxfail=1 --tb=short --disable-warnings
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        types: [python]
+
+      - id: pip-check
+        name: pip dependency check
+        entry: python -m pip check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: npm-audit
+        name: npm audit (prod deps)
+        entry: bash -c "cd frontend && npm audit --omit=dev"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
       # ruff — строгий на pre-push (не пропускаем автофикс молча)
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
