@@ -163,7 +163,7 @@ repos:
 
       - id: npm-audit
         name: npm audit (prod deps)
-        entry: bash -c "cd frontend && npm audit --omit=dev --audit-level=high || echo 'npm audit found vulnerabilities'"
+        entry: bash -c "cd frontend && npm audit --omit=dev --audit-level=high"
         language: system
         pass_filenames: false
         stages: [pre-push]

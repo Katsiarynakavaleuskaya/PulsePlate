@@ -109,7 +109,7 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except (InvalidRequestError, SQLAlchemyError) as e:
+            except (InvalidRequestError, SQLAlchemyError, Exception) as e:
                 # Not all statements require/allow commit; log and ignore commit errors
                 logger.debug("Commit failed (expected for non-transactional statements): %s", e)
             return result

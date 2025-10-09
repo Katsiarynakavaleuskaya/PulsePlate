@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 
-def setup_custom_mcp(argv: list[str] | None = None) -> None:
+def setup_custom_mcp(argv: list[str] | None = None) -> bool:
     """Setup custom MCP configuration for PulsePlate
 
     Args:

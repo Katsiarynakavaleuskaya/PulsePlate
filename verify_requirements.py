@@ -11,7 +11,7 @@ from typing import Dict, List, Tuple
 
 def parse_requirements(file_path: Path) -> Dict[str, str]:
     """Parse requirements file and return dict of package:version."""
-    packages = {}
+    packages: Dict[str, str] = {}
 
     if not file_path.exists():
         return packages

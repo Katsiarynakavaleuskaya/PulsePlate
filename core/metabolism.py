@@ -297,8 +297,8 @@ def calculate_all_bmr(
         Dictionary with BMR values from different formulas
     """
     results = {
-        "mifflin": calculate_bmr(age, weight, height, sex, formula="mifflin"),
-        "harris": calculate_bmr(age, weight, height, sex, formula="harris"),
+        "mifflin": calculate_bmr(age, weight, int(height), sex, formula="mifflin"),
+        "harris": calculate_bmr(age, weight, int(height), sex, formula="harris"),
     }
 
     if bodyfat_percent is not None:

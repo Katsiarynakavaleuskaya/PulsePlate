@@ -11,10 +11,6 @@ export interface PageProps {
   user?: User;
 }
 
-export interface PageProps {
-  user?: User;
-}
-
 export const Page: React.FC<PageProps> = ({ user: initialUser }) => {
   const [user, setUser] = React.useState<User | undefined>(initialUser);
 
