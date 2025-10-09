@@ -6,6 +6,7 @@ RU: Тесты покрытия для core database и food APIs модулей
 EN: Coverage tests for core database and food APIs modules
 """
 
+import asyncio
 import logging
 import os
 
@@ -39,7 +40,7 @@ class TestCoreDatabaseCoverage:
             assert session is not None
 
             # Test unified food db
-            db = get_unified_food_db()
+            db = asyncio.run(get_unified_food_db())
             assert db is not None
 
         except ImportError:
@@ -64,9 +65,9 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("food_apis.base module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_usda_api_coverage(self) -> None:
         """Test USDA API functionality."""
@@ -85,9 +86,9 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("usda module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_openfoodfacts_api_coverage(self) -> None:
         """Test OpenFoodFacts API functionality."""
@@ -106,9 +107,9 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("openfoodfacts module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_unified_db_coverage(self) -> None:
         """Test unified database functionality."""
@@ -129,9 +130,9 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("unified_db module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_update_manager_coverage(self) -> None:
         """Test update manager functionality."""
@@ -157,9 +158,9 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("update_manager module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
 
 class TestCoreModulesAdvanced:
@@ -193,9 +194,9 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("auto_repair advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_menu_engine_advanced_coverage(self) -> None:
         """Test advanced menu_engine functionality."""
@@ -225,9 +226,9 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("menu_engine advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_plate_advanced_coverage(self) -> None:
         """Test advanced plate functionality."""
@@ -253,9 +254,9 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("plate advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_targets_advanced_coverage(self) -> None:
         """Test advanced targets functionality."""
@@ -285,9 +286,9 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("targets advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_i18n_advanced_coverage(self) -> None:
         """Test advanced i18n functionality."""
@@ -317,9 +318,9 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("i18n advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_rag_advanced_coverage(self) -> None:
         """Test advanced RAG functionality."""
@@ -345,6 +346,6 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("RAG advanced features not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass
+            pytest.fail(f"Unexpected exception: {e}")

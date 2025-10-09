@@ -3,7 +3,7 @@ import '../src/index.css';
 
 // Note: I18n setup moved to individual story files to avoid JSX in .ts files
 
-const preview: Preview = {
+export const preview: Preview = {
   parameters: {
     controls: { expanded: true },
     a11y: { element: '#root' },

@@ -1,13 +1,13 @@
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../../src/i18n'; // Adjust path to your i18n config
-import type { StoryObj } from "@storybook/react";
+import type { StoryFn, StoryObj } from "@storybook/react";
 import PlateChart from "./PlateChart";
 
 const meta = {
   title: "Nutrition/PlateChart",
   component: PlateChart,
   decorators: [
-    (Story: any) => (
+    (Story: StoryFn) => (
       <I18nextProvider i18n={i18n}>
         <Story />
       </I18nextProvider>

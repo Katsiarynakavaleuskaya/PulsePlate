@@ -76,11 +76,11 @@ class TestDbRealisticCoverage:
 
         # Test initialization with various conditions
         with patch("os.path.exists", return_value=False):
-            with contextlib.suppress(Exception):
-                init_db()
+            init_db()  # Should succeed or raise a specific exception
+            # Verify tables were created (or not, if that's expected behavior)
             # Test table creation
-            with contextlib.suppress(Exception):
-                create_tables()
+            create_tables()
+            # Add assertion to verify schema creation
 
     def test_database_concurrent_access_realistic(self):
         """Test concurrent database access with realistic scenarios"""
