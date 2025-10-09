@@ -5,6 +5,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    env: {
+      VITE_API_BASE: 'http://localhost:3000',
+      VITE_APP_TITLE: 'PulsePlate',
+    },
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
