@@ -114,19 +114,11 @@ class TestCoreDatabaseCoverage:
     def test_unified_db_coverage(self) -> None:
         """Test unified database functionality."""
         try:
-            from core.food_apis.unified_db import (
-                UnifiedFoodDB,
-                merge_food_sources,
-                update_unified_db,
-            )
+            from core.food_apis.unified_db import UnifiedFoodDatabase
 
             # Test unified DB
-            db = UnifiedFoodDB()
+            db = UnifiedFoodDatabase()
             assert db is not None
-
-            # Test merge function
-            result = merge_food_sources([], [])
-            assert isinstance(result, (list, dict, type(None)))
 
         except ImportError:
             pytest.skip("unified_db module not available")
