@@ -1,5 +1,5 @@
-// MSW setup for testing - using browser version for jsdom
-import { setupWorker } from "msw";
+// MSW setup for testing - using server version for jsdom
+import { setupServer } from "msw";
 import { handlers } from "./handlers";
 
-export const worker = setupWorker(...handlers);
+export const server = setupServer(...handlers);

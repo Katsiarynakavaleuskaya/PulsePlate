@@ -27,7 +27,7 @@ export default function TabBar() {
 
     setClickedDisabled(path);
     // Show visual feedback for a short time
-    timeoutRef.current = window.setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       setClickedDisabled(null);
       timeoutRef.current = null;
     }, 300);

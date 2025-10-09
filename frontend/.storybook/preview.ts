@@ -1,53 +1,25 @@
-import type { Preview } from "@storybook/react";
-import "../src/index.css";
+import type { Preview } from '@storybook/react';
+import React from 'react';
+import { I18nextProvider } from 'react-i18next';
+import i18n from '../src/i18n'; // твоя инициализация i18n
+import '../src/index.css';
 
-// Mock i18next for stories
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
-
-export const setupI18nForStorybook = () => {
-  i18n
-    .use(initReactI18next)
-    .init({
-      lng: "en",
-      fallbackLng: "en",
-      debug: false,
-      interpolation: {
-        escapeValue: false,
-      },
-      resources: {
-        en: {
-          translation: {
-            nutrition: {
-              water: {
-                title: "Daily Water Intake",
-                subtitle: "Stay hydrated for optimal health",
-              },
-              micros: {
-                unavailable: "Micronutrient targets not available",
-              },
-            },
-          },
-        },
-      },
-    });
-};
-
-setupI18nForStorybook();
+export const decorators = [
+  (Story) => (
+    <I18nextProvider i18n={i18n}>
+      <Story />
+    </I18nextProvider>
+  ),
+];
 
 const preview: Preview = {
   parameters: {
-    actions: { argTypesRegex: "^on[A-Z].*" },
-    controls: {
-      matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
-      },
-    },
+    controls: { expanded: true },
+    a11y: { element: '#root' },
     docs: {
       toc: true,
     },
-  },
+  }
 };
 
 export default preview;

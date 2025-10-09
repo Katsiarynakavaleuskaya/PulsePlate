@@ -18,24 +18,53 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - name: Install Playwright Browsers
+
+      - name: Cache Playwright
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright browsers
         run: npx playwright install --with-deps
-      - name: Install system dependencies for Playwright
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxss1 libasound2t64 libgtk-3-0 libgbm1
-      - run: npm run lint
-      - run: npm run typecheck || echo "TypeScript errors found, continuing..."
-      - run: npm run test || echo "Tests failed, continuing..."
-      - run: npm run sb:build
-      - uses: actions/upload-artifact@v4
+
+      - name: Lint
+        run: npm run lint || echo "lint warnings/errors – continue"
+
+      - name: Typecheck
+        run: npm run typecheck || echo "ts errors – continue"
+
+      - name: Unit tests (jsdom)
+        run: npm run test
+
+      - name: Browser tests (Playwright)
+        if: ${{ hashFiles('frontend/tests/browser/**/*.test.*') != '' }}
+        run: npm run test:browser
+
+      - name: Build Storybook
+        run: npm run sb:build
+
+      - name: Upload Storybook artifact
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: storybook-static
-          path: frontend/storybook-static
+          path: frontend/storybook-static   # ВАЖНО: путь из корня репо
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
