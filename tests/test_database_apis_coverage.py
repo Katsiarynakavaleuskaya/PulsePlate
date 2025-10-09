@@ -9,6 +9,7 @@ EN: Coverage tests for core database and food APIs modules
 import asyncio
 import logging
 import os
+from typing import Callable
 
 TEST_FILE = os.path.basename(__file__)
 
@@ -20,6 +21,17 @@ import pytest
 logging.basicConfig(
     level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+def _test_with_exception_handling(test_func: Callable[[], None], skip_message: str) -> None:
+    """Helper to run test functions with consistent exception handling."""
+    try:
+        test_func()
+    except ImportError:
+        pytest.skip(skip_message)
+    except Exception as e:
+        logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
+        pytest.fail(f"Unexpected exception: {e}")
 
 
 class TestCoreDatabaseCoverage:
@@ -51,7 +63,8 @@ class TestCoreDatabaseCoverage:
 
     def test_food_apis_base_coverage(self) -> None:
         """Test food APIs base functionality."""
-        try:
+
+        def test_impl():
             from core.food_apis.base import FoodAPIBase, FoodDataProvider
 
             # Test base class
@@ -63,11 +76,7 @@ class TestCoreDatabaseCoverage:
                 result = provider.search_food("apple")
                 assert result is not None
 
-        except ImportError:
-            pytest.skip("food_apis.base module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        _test_with_exception_handling(test_impl, "food_apis.base module not available")
 
     def test_usda_api_coverage(self) -> None:
         """Test USDA API functionality."""
