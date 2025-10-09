@@ -8,26 +8,52 @@ labels: [frontend, feat]
 
 ## Summary
 
-- Что меняем и зачем (ссылка на задачу).
-- Связанные экраны/компоненты.
+**What & Why:** [Brief description of changes and business rationale]
+
+**Related Components/Pages:**
+- Modified: `ComponentName.tsx`, `PageName.tsx`
+- New: `NewComponent.tsx`, `CustomHook.ts`
+- Updated: API types, i18n keys, test mocks
+
+**Linked Issues:** #123, #456
 
 ## Scope
 
-- Основные файлы/папки.
-- Out of scope / TODO.
+- **Modified Files:** `src/components/`, `src/pages/`, `src/features/`, `src/lib/`
+- **New Components:** UI components, custom hooks, utilities
+- **API Changes:** Request/response types, MSW handlers, error handling
+- **Styling:** Tailwind classes, responsive design, theme consistency
+- **Out of Scope:** Backend changes, database schema, CI/CD pipelines
 
 ## Acceptance Criteria
 
-- Роуты / состояния / API вызовы.
-- a11y: `role`, `aria-*`, контраст ≥4.5:1, клавиатура.
-- MSW / fallback (если изменяли API).
+- **Routes & Navigation:** React Router states, protected routes, redirects
+- **API Integration:** REST calls via custom hooks, error handling, loading states
+- **Forms & Validation:** react-hook-form + zod schemas, error messages
+- **Auth & Premium:** API key validation, paywall logic, feature gates
+- **i18n:** Text translation in en/ru/es, locale switching
+- **Accessibility:** axe-core compliance, keyboard navigation, screen reader support
+- **Responsive:** Mobile-first design, Tailwind breakpoints, touch interactions
+- **Performance:** Lazy loading, code splitting, bundle size impact
+- **MSW Mocks:** API mocking for development/testing, fallback states
 
 ## Tests
 
-- [ ] `npm run lint`
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] Vitest / @testing-library / axe (укажи основные сценарии)
+- [ ] `npm run lint` (ESLint + TypeScript rules)
+- [ ] `npm run typecheck` (TypeScript compilation check)
+- [ ] `npm run build` (Vite production build)
+- [ ] `npm run sb:build` (Storybook accessibility check)
+- [ ] **Unit/Integration Tests (Vitest + @testing-library + MSW):**
+  - [ ] Компонент рендерится без ошибок
+  - [ ] User interactions (click, form submit, navigation)
+  - [ ] API calls с MSW моками (success/error states)
+  - [ ] Form validation (react-hook-form + zod)
+  - [ ] i18n переключение языков (en/ru/es)
+  - [ ] Premium/paywall gates и auth states
+  - [ ] Error boundaries и fallback states
+  - [ ] Accessibility (axe-core в Storybook)
+  - [ ] Responsive design (mobile/desktop breakpoints)
+  - [ ] Loading states и skeleton screens
 
 ```bash
 cd frontend
@@ -38,7 +64,21 @@ npm run dev
 
 ## QA Notes
 
-- Скриншоты / видео (если UI).
-- Проверка ручных сценариев.
+- **Visual Changes:** Screenshots/videos of UI changes, responsive testing
+- **Manual Testing Scenarios:**
+  - Happy path user flows
+  - Error states and edge cases
+  - Form validation scenarios
+  - Cross-browser testing (Chrome, Firefox, Safari)
+  - Mobile responsiveness (iOS Safari, Chrome Mobile)
+- **Accessibility Testing:** Screen reader navigation, keyboard-only usage
+- **Performance:** Lighthouse scores, bundle size impact
 
-👉 Доп. чек-листы: [docs/pr-checks.md](../../docs/pr-checks.md)
+## Deployment Checklist
+
+- [ ] Feature flags configured for gradual rollout
+- [ ] Environment variables documented
+- [ ] API endpoints deployed and tested
+- [ ] Database migrations (if applicable)
+
+👉 Additional checklists: [docs/pr-checks.md](../../docs/pr-checks.md)

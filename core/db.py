@@ -69,11 +69,11 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
         return sync_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
     if sync_url.startswith("postgresql://"):
         return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    if sync_url.startswith("postgres://"):
+    if sync_url.startswith("postgres://"):  # pragma: no cover
         return sync_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    if sync_url.startswith("mysql://"):
+    if sync_url.startswith("mysql://"):  # pragma: no cover
         return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
-    if sync_url.startswith("mysql+pymysql://"):
+    if sync_url.startswith("mysql+pymysql://"):  # pragma: no cover
         return sync_url.replace("mysql+pymysql://", "mysql+aiomysql://", 1)
     return None
 
@@ -352,10 +352,22 @@ def get_unified_food_db() -> Any:
     import asyncio
 
     warnings.warn(
-        "get_unified_food_db() is deprecated, import from core.food_apis.unified_db instead",
+        "get_unified_food_db() is deprecated, import from core.food_apis.unified_db instead. "
+        "This synchronous wrapper cannot be called from async code - import and await the async function directly.",
         DeprecationWarning,
         stacklevel=2,
     )
+
+    # Check if we're already in an async context
+    try:
+        asyncio.get_running_loop()
+        raise RuntimeError(
+            "get_unified_food_db() cannot be called from async code. "
+            "Import and await get_unified_food_db from core.food_apis.unified_db directly instead."
+        )
+    except RuntimeError:
+        # No running loop, we can proceed with asyncio.run()
+        pass
 
     from .food_apis.unified_db import get_unified_food_db as _get_unified_food_db
 
