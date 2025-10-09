@@ -54,7 +54,7 @@ def test_bmi_ru_athlete():
     )
     assert r.status_code == 200
     data = r.json()
-    assert "Избыточный вес" in data["category"]
+    assert "Норма" in data["category"]  # BMI 26.23 < 27.0 athlete threshold
 
 
 def test_bmi_ru_general():
