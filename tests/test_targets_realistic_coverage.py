@@ -155,19 +155,19 @@ class TestTargetsRealisticCoverage:
         try:
             # Generate realistic scenarios
             for _ in range(20):
-                bmr = fake.random_int(min=1200, max=2500)
+                age = fake.random_int(min=18, max=80)
+                weight = fake.random_int(min=50, max=120)
+                height = fake.random_int(min=150, max=200)
+                gender = fake.random_element(["male", "female"])
                 activity_level = fake.activity_level()
 
-                # Additional activity factors
-                exercise_data = {
-                    "cardio_minutes": fake.random_int(min=0, max=120),
-                    "strength_training": fake.random_int(min=0, max=90),
-                    "steps": fake.random_int(min=2000, max=20000),
-                    "active_job": fake.boolean(),
-                }
-
                 try:
-                    tdee = calculate_tdee(bmr, activity_level, **exercise_data)
+                    # Calculate BMR first
+                    bmr = calculate_bmr(age, weight, height, gender)
+                    assert isinstance(bmr, (int, float))
+
+                    # Calculate TDEE
+                    tdee = calculate_tdee(age, weight, height, gender, activity_level)
                     assert isinstance(tdee, (int, float))
                     assert tdee >= bmr  # TDEE should be >= BMR
 
@@ -185,10 +185,10 @@ class TestTargetsRealisticCoverage:
             pytest.skip("core.targets module is unavailable in this environment")
 
         # Test error cases for BMR calculations
-        with pytest.raises(ValueError, match="Body fat percentage required"):
+        with pytest.raises(ValueError, match="body_fat required for katch formula"):
             calculate_bmr(30, 70, 175, "male", formula="katch")
 
-        with pytest.raises(ValueError, match="Body fat percentage required"):
+        with pytest.raises(ValueError, match="body_fat required for cunningham formula"):
             calculate_bmr(30, 70, 175, "male", formula="cunningham")
 
         with pytest.raises(ValueError, match="Unknown BMR formula"):
@@ -207,43 +207,45 @@ class TestTargetsRealisticCoverage:
             assert adjusted >= bmr
 
         # Test TDEE calculation
-        tdee = calculate_tdee(bmr, "moderately_active")
+        tdee = calculate_tdee(30, 70, 175, "male", "moderately_active")
         assert tdee >= bmr
 
         # Test macro calculations
-        macros = calculate_macros(2000)
-        assert "protein" in macros and "carbs" in macros and "fat" in macros
-        total = macros["protein"] * 4 + macros["carbs"] * 4 + macros["fat"] * 9
+        macros = calculate_macros(2000, "maintain")
+        assert "protein_g" in macros and "carbs_g" in macros and "fat_g" in macros
+        total = macros["protein_g"] * 4 + macros["carbs_g"] * 4 + macros["fat_g"] * 9
         assert abs(total - 2000) < 50  # Within reasonable range
 
         # Test macro ratios
-        ratios_muscle = get_macro_ratios("muscle_gain", "none")
+        ratios_gain = get_macro_ratios("gain")
         assert (
-            ratios_muscle["protein"] > ratios_muscle["carbs"]
-        )  # protein should be highest for muscle gain
+            ratios_gain["carbs"] > ratios_gain["protein"]
+        )  # carbs should be highest for muscle gain
 
-        ratios_loss = get_macro_ratios("fat_loss", "none")
+        ratios_loss = get_macro_ratios("loss")
         assert (
-            ratios_loss["protein"] >= ratios_loss["carbs"]
-        )  # protein should be >= carbs for fat loss
+            ratios_loss["protein"] > ratios_loss["fat"]
+        )  # protein should be higher than fat for fat loss
 
         # Test RDA calculations
         rda = get_rda_values(30, "female")
         assert "iron" in rda and rda["iron"] > 0
 
         # Test calorie adjustments
-        adjusted = adjust_calories_for_goal(2000, goal_type="lose")
+        adjusted = adjust_calories_for_goal(2000, "loss")
         assert adjusted < 2000
 
-        adjusted = adjust_calories_for_goal(2000, goal_type="gain")
+        adjusted = adjust_calories_for_goal(2000, "gain")
         assert adjusted > 2000
 
         # Test deficit/surplus
-        deficit = calculate_deficit_surplus(goal_type="lose")
-        assert deficit < 0
+        deficit_info = calculate_deficit_surplus(2000, 1800)
+        assert deficit_info["kcal_difference"] < 0
+        assert deficit_info["is_deficit"]
 
-        surplus = calculate_deficit_surplus(goal_type="gain")
-        assert surplus > 0
+        surplus_info = calculate_deficit_surplus(2000, 2200)
+        assert surplus_info["kcal_difference"] > 0
+        assert surplus_info["is_surplus"]
 
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""

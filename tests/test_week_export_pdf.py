@@ -85,7 +85,7 @@ def test_register_font_falls_back_on_exception(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(plan, "FONT_PATH", font_file)
 
     def fake_register(font_obj: Any) -> None:
-        raise ValueError("Font registration failed")
+        raise OSError("Font registration failed")
 
     monkeypatch.setattr(plan.pdfmetrics, "registerFont", fake_register)
     monkeypatch.setattr(plan, "TTFont", lambda name, path: (name, path))
