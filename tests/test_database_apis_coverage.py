@@ -37,22 +37,23 @@ def _test_with_exception_handling(test_func: Callable[[], None], skip_message: s
 class TestCoreDatabaseCoverage:
     """Test core database modules for better coverage."""
 
-    def test_database_models_coverage(self) -> None:
+    @pytest.mark.asyncio
+    async def test_database_models_coverage(self) -> None:
         """Test database models functionality."""
         try:
             from core.db import (
                 create_tables,
                 get_session,
-                get_unified_food_db,
                 init_database,
             )
+            from core.food_apis.unified_db import get_unified_food_db
 
             # Test session functions
             session = get_session()
             assert session is not None
 
             # Test unified food db
-            db = asyncio.run(get_unified_food_db())
+            db = await get_unified_food_db()
             assert db is not None
 
         except ImportError:
@@ -140,7 +141,7 @@ class TestCoreDatabaseCoverage:
         try:
             from core.food_apis.update_manager import (
                 DatabaseVersion,
-                UpdateManager,
+                DatabaseUpdateManager,
                 check_for_updates,
             )
 
@@ -158,7 +159,7 @@ class TestCoreDatabaseCoverage:
             assert version.source == "test"
 
             # Test update manager
-            manager = UpdateManager()
+            manager = DatabaseUpdateManager()
             assert manager is not None
 
             # Test check function
