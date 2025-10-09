@@ -48,7 +48,7 @@ def test_bmi_category_edges_ru():
     assert bmi_category(24.99, "ru") == "Норма"
     assert bmi_category(25.0, "ru") == "Избыточная масса"
     assert bmi_category(29.99, "ru") == "Избыточная масса"
-    assert bmi_category(30.0, "ru") == "Ожирение"
+    assert bmi_category(30.0, "ru") == "Ожирение I степени"
 
 
 def test_bmi_category_edges_en():
