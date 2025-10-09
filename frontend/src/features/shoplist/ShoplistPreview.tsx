@@ -127,7 +127,7 @@ export default function ShoplistPreview() {
     // The browser will initiate download before this fires
     const revokeTimeout = window.setTimeout(() => {
       URL.revokeObjectURL(url);
-    }, 1000) as number;
+    }, 1000);
 
     cleanupRef.current.push({
       id: revokeTimeout,
