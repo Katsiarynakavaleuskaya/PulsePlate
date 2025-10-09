@@ -5,6 +5,7 @@ Target 85% coverage, missing lines 56-65, 136.
 
 import contextlib
 
+import pytest
 import sqlite3
 from unittest.mock import patch
 
@@ -32,19 +33,17 @@ class TestDbRealisticCoverage:
                 "",
             ]
 
-            # Test each invalid path individually to avoid loops in tests
-            with contextlib.suppress(Exception):
-                with patch("core.db.DB_PATH", invalid_paths[0]):
-                    if conn := get_db_connection():
-                        conn.close()
-            with contextlib.suppress(Exception):
-                with patch("core.db.DB_PATH", invalid_paths[1]):
-                    if conn := get_db_connection():
-                        conn.close()
-            with contextlib.suppress(Exception):
-                with patch("core.db.DB_PATH", invalid_paths[2]):
-                    if conn := get_db_connection():
-                        conn.close()
+            # Test each invalid path and verify expected behavior
+            for path in invalid_paths:
+                with patch("core.db.DB_PATH", path):
+                    try:
+                        conn = get_db_connection()
+                        # If connection succeeds, verify it can be closed
+                        if conn:
+                            conn.close()
+                    except (sqlite3.OperationalError, OSError):
+                        # Expected for invalid paths
+                        pass
         except ImportError:
             # Module might not exist
             pass
@@ -77,10 +76,19 @@ class TestDbRealisticCoverage:
         # Test initialization with various conditions
         with patch("os.path.exists", return_value=False):
             init_db()  # Should succeed or raise a specific exception
-            # Verify tables were created (or not, if that's expected behavior)
+            # Verify tables were created
+            from core.db import engine
+            from core.models import Base
+
+            inspector = engine.dialect.get_inspector(engine._engine)
+            tables = inspector.get_table_names()
+            assert len(tables) > 0, "Expected tables to be created"
+
             # Test table creation
             create_tables()
-            # Add assertion to verify schema creation
+            # Verify no errors and tables still exist
+            tables_after = inspector.get_table_names()
+            assert len(tables_after) > 0, "Tables should exist after create_tables()"
 
     def test_database_concurrent_access_realistic(self):
         """Test concurrent database access with realistic scenarios"""
@@ -176,17 +184,23 @@ class TestDbRealisticCoverage:
 
             # Create multiple connections
             connections = []
-            for _ in range(fake.random_int(min=5, max=15)):
-                with contextlib.suppress(Exception):
-                    if conn := get_db_connection():
-                        connections.append(conn)
+            num_connections = fake.random_int(min=5, max=15)
+            for _ in range(num_connections):
+                conn = get_db_connection()
+                assert conn is not None, "Connection should be created"
+                connections.append(conn)
+
+            assert len(connections) == num_connections, "All connections should succeed"
+
             # Close all connections
-            with contextlib.suppress(Exception):
-                close_all_connections()
+            close_all_connections()  # Should not raise
+
             # Clean up manually if needed
             for conn in connections:
-                with contextlib.suppress(Exception):
+                try:
                     conn.close()
+                except Exception as e:
+                    pytest.fail(f"Connection close failed: {e}")
         except ImportError:
             pass
 

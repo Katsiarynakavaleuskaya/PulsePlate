@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -338,10 +339,8 @@ def _register_font() -> str:
     try:
         pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
         return FONT_NAME
-    except (OSError, IOError, Exception) as exc:
+    except Exception as exc:
         # Fall back to Helvetica for any registration error
-        import logging
-
         logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
         return "Helvetica"
 

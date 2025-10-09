@@ -8,6 +8,7 @@ integration with the richer generator pipeline.
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -146,10 +147,8 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME  # Success: return custom font
-        except (OSError, IOError, Exception) as exc:
+        except Exception as exc:
             # Registration failed, fall back to default Helvetica
-            import logging
-
             logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
 
     return "Helvetica"  # Fallback: file doesn't exist or registration failed

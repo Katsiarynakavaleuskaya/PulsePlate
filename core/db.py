@@ -342,15 +342,13 @@ def close_all_connections() -> None:
 
 
 def get_unified_food_db() -> Any:
-    """Legacy alias for unified food database access.
+    """Legacy synchronous wrapper for unified food database access.
 
     .. deprecated::
         Import from core.food_apis.unified_db instead.
-
-    .. warning::
-        This returns a coroutine. Use await or asyncio.run() to get the result.
     """
     import warnings
+    import asyncio
 
     warnings.warn(
         "get_unified_food_db() is deprecated, import from core.food_apis.unified_db instead",
@@ -360,4 +358,4 @@ def get_unified_food_db() -> Any:
 
     from .food_apis.unified_db import get_unified_food_db as _get_unified_food_db
 
-    return _get_unified_food_db()
+    return asyncio.run(_get_unified_food_db())
