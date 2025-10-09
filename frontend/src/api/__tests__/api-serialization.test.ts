@@ -33,7 +33,8 @@ describe('API Body Serialization', () => {
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(typeof init.body).toBe('string');
-    expect(init.headers instanceof Headers && init.headers.get('Content-Type')).toBe('application/json');
+    const headers = new Headers(init.headers as HeadersInit);
+    expect(headers.get('Content-Type')).toBe('application/json');
 
     fetchSpy.mockRestore();
   });

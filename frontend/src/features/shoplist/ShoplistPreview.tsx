@@ -92,7 +92,7 @@ export default function ShoplistPreview() {
     return () => {
       cleanupRef.current.forEach(({ id, cleanup }) => {
         cleanup(); // Execute cleanup first to remove DOM nodes and revoke URLs
-        clearTimeout(id); // Then clear the timeout to prevent any potential firing
+        window.clearTimeout(id); // Then clear the timeout to prevent any potential firing
       });
       cleanupRef.current = [];
     };

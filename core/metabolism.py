@@ -70,13 +70,18 @@ def calculate_bmr(
     if body_fat is not None and not (0 <= body_fat <= 100):
         raise ValueError("Body fat percentage must be between 0 and 100")
 
+    # Normalize and validate gender
+    gender_norm = gender.strip().lower()
+    if gender_norm not in ("male", "female"):
+        raise ValueError(f"Gender must be 'male' or 'female', got: {gender}")
+
     if formula == "mifflin":
-        if gender == "male":
+        if gender_norm == "male":
             return 10 * weight + 6.25 * height - 5 * age + 5
         else:
             return 10 * weight + 6.25 * height - 5 * age - 161
     elif formula == "harris":
-        if gender == "male":
+        if gender_norm == "male":
             return 66.5 + 13.75 * weight + 5.003 * height - 6.755 * age
         else:
             return 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age

@@ -95,8 +95,9 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          # Pull latest changes to avoid conflicts
-          git pull --rebase origin ${{ github.head_ref }} || {
+          # Pull latest changes to avoid conflicts (safe from command injection)
+          BRANCH_NAME="${GITHUB_HEAD_REF}"
+          git pull --rebase origin "$BRANCH_NAME" || {
             echo "❌ Failed to rebase - manual intervention required"
             exit 1
           }
@@ -105,23 +106,19 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            cat > /tmp/commit_msg << 'COMMIT_MSG_EOF'
+            cat >/tmp/commit_msg <<'EOF'
           🤖 Auto-fix: CodeRabbit suggestions applied
 
-          - Applied ESLint auto-fixes
-          - Applied pre-commit auto-fixes (black, ruff, etc.)
-          - Verified all tests pass
-          - Ready for manual review
-          COMMIT_MSG_EOF
+          * Applied ESLint auto-fixes
+          * Applied pre-commit auto-fixes (black, ruff, etc.)
+          * Verified all tests pass
+          * Ready for manual review
+          EOF
             git commit -F /tmp/commit_msg
             git push || {
               echo "❌ Push failed - manual intervention required"
               exit 1
             }
-          fi
-          COMMIT_MSG_EOF
-            git commit -F /tmp/commit_msg
-            git push
           fi
 
   final-validation:

@@ -65,7 +65,7 @@ function validateBmrRequest(req: BmrRequest): { isValid: boolean; error?: string
   if (req.height_cm <= 0) {
     return { isValid: false, error: 'height_cm must be > 0' };
   }
-  if (req.age === undefined || req.age < 0 || req.age > 120) {
+  if (req.age == null || !Number.isFinite(req.age) || req.age < 0 || req.age > 120) {
     return { isValid: false, error: 'age must be 0-120' };
   }
   if (!['male', 'female'].includes(req.sex)) {
@@ -84,7 +84,7 @@ function validatePlateRequest(req: PlateRequest): { isValid: boolean; error?: st
   if (!['male', 'female'].includes(req.sex)) {
     return { isValid: false, error: 'sex must be male or female' };
   }
-  if (req.age === undefined || !Number.isFinite(req.age) || req.age < 10 || req.age > 100) {
+  if (req.age == null || !Number.isFinite(req.age) || req.age < 10 || req.age > 100) {
     return { isValid: false, error: 'age must be 10-100' };
   }
   if (req.height_cm == null) {
@@ -121,7 +121,7 @@ function validateTargetsRequest(req: TargetsRequest): { isValid: boolean; error?
   if (!['male', 'female'].includes(req.sex)) {
     return { isValid: false, error: 'sex must be male or female' };
   }
-  if (req.age === undefined || !Number.isFinite(req.age) || req.age < 1 || req.age > 120) {
+  if (req.age == null || !Number.isFinite(req.age) || req.age < 1 || req.age > 120) {
     return { isValid: false, error: 'age must be 1-120' };
   }
   if (req.height_cm == null) {
@@ -185,16 +185,16 @@ export const handlers = [
 
       // Success response matching BMRResponse schema
       return HttpResponse.json({
-        bmr: { mifflin: 1500, harris: 1480, katch: req.bodyfat ? 1520 : undefined },
-        tdee: { mifflin: 2100, harris: 2080, katch: req.bodyfat ? 2120 : undefined },
+        bmr: { mifflin: 1500, harris: 1480, katch: req.bodyfat != null ? 1520 : undefined },
+        tdee: { mifflin: 2100, harris: 2080, katch: req.bodyfat != null ? 2120 : undefined },
         activity_level: `${req.activity} activity`,
         recommended_intake: {
           maintenance: 2100,
           weight_loss: 1680,
           weight_gain: 2310
         },
-        formulas_used: req.bodyfat ? ['mifflin', 'harris', 'katch'] : ['mifflin', 'harris'],
-        notes: req.bodyfat ? ['Katch-McArdle formula used for body fat percentage'] : []
+        formulas_used: req.bodyfat != null ? ['mifflin', 'harris', 'katch'] : ['mifflin', 'harris'],
+        notes: req.bodyfat != null ? ['Katch-McArdle formula used for body fat percentage'] : []
       });
     } catch {
       // Handle JSON parsing errors

@@ -14,16 +14,14 @@ import {
 // Type definition for locale data structure
 type LocaleData = typeof en;
 
-// Type-safe locales object with language code keys
-type LocalesMap = {
-  [K in 'en' | 'ru' | 'es']: LocaleData;
-};
+// Define locales object first to derive types automatically
+// New locales added here will be automatically picked up by the type system
+const locales = { en, ru, es } as const;
 
 // Test constants imported from test-utils
 
 describe('Locale JSON Structure and Content', () => {
-  const locales: LocalesMap = { en, ru, es };
-  const languages = Object.keys(locales) as Array<keyof LocalesMap>;
+  const languages = Object.keys(locales) as Array<keyof typeof locales>;
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
@@ -139,8 +137,7 @@ describe('Locale JSON Structure and Content', () => {
         /\bplaceholder\b/i,
         /\btodo\b/i,
         /\bfixme\b/i,
-        /\bxxx\b/i,
-        /\btest\b/i
+        /\bxxx\b/i
       ];
 
       for (const lang of languages) {

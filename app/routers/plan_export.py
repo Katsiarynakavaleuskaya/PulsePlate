@@ -333,13 +333,20 @@ def export_week_csv(request: Request, _guard: None = Depends(_require_valid_toke
 
 
 def _register_font() -> str:
+    # Check if font is already registered
+    if FONT_NAME in pdfmetrics.getRegisteredFontNames():
+        return FONT_NAME
+
     if not FONT_PATH.exists():
         return "Helvetica"
     try:
         pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
         return FONT_NAME
+    except KeyError:
+        # Duplicate registration is OK, font is already available
+        return FONT_NAME
     except Exception as exc:
-        # Fall back to Helvetica for any registration error
+        # Fall back to Helvetica for any other registration error
         logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
         return "Helvetica"
 

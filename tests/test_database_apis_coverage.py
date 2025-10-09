@@ -45,9 +45,11 @@ class TestCoreDatabaseCoverage:
             )
             from core.food_apis.unified_db import get_unified_food_db
 
-            # Test session functions
-            session = get_session()
+            # Test session functions (get_session returns a generator)
+            session_gen = get_session()
+            session = next(session_gen)
             assert session is not None
+            session.close()
 
             # Test unified food db
             db = await get_unified_food_db()
@@ -62,7 +64,7 @@ class TestCoreDatabaseCoverage:
     def test_food_apis_base_coverage(self) -> None:
         """Test food APIs base functionality."""
 
-        def test_impl():
+        def test_impl() -> None:
             from core.food_apis.base import FoodAPIBase, FoodDataProvider
 
             # Test base class

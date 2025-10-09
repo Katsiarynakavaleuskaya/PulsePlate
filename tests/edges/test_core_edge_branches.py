@@ -280,10 +280,10 @@ async def test_unified_db_off_exception_and_invalid_ids(
 
     class OffMock:
         async def search_products(self, *_args: Any, **_kwargs: Any):
-            raise RuntimeError("Mock error")
+            raise RuntimeError("Mock OFF search error")
 
         async def get_product_details(self, _code: str):
-            raise RuntimeError("Mock error")
+            raise RuntimeError("Mock OFF details error")
 
         async def close(self) -> None:
             return None
