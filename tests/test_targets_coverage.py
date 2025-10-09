@@ -45,7 +45,7 @@ class TestUserProfile:
 
     def test_user_profile_age_validation_low(self):
         """Test age validation - too low."""
-        with pytest.raises(ValueError, match="Invalid age"):
+        with pytest.raises(ValueError, match="Age must be between 1 and 120"):
             UserProfile(
                 sex="male",
                 age=0,  # Invalid age
@@ -57,7 +57,7 @@ class TestUserProfile:
 
     def test_user_profile_age_validation_high(self):
         """Test age validation - too high."""
-        with pytest.raises(ValueError, match="Invalid age"):
+        with pytest.raises(ValueError, match="Age must be between 1 and 120"):
             UserProfile(
                 sex="male",
                 age=121,  # Invalid age
@@ -69,7 +69,7 @@ class TestUserProfile:
 
     def test_user_profile_height_validation(self):
         """Test height validation."""
-        with pytest.raises(ValueError, match="Invalid height or weight"):
+        with pytest.raises(ValueError, match="Height and weight must be positive"):
             UserProfile(
                 sex="female",
                 age=25,
