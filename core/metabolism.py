@@ -4,7 +4,7 @@ This module provides functions for calculating Basal Metabolic Rate (BMR),
 Total Daily Energy Expenditure (TDEE), macronutrient distributions, and
 related metabolic calculations based on WHO/EFSA guidelines.
 
-RU: Расчёты метаболизма и энергозатрат.
+RU: Metabolism and energy expenditure calculations.
 EN: Metabolism and energy expenditure calculations.
 """
 
@@ -70,7 +70,7 @@ def calculate_bmr(
             return 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age
     elif formula in ("katch", "cunningham"):
         if body_fat is None:
-            raise ValueError(f"body_fat required for {formula} formula")
+            raise ValueError(f"body_fat required for {formula} formula")  # noqa: TRY003
         if formula == "katch":
             lean_mass = weight * (1 - body_fat / 100)
             return 370 + 21.6 * lean_mass
@@ -78,7 +78,7 @@ def calculate_bmr(
             lean_mass = weight * (1 - body_fat / 100)
             return 500 + 22 * lean_mass
     else:
-        raise ValueError(f"Unknown BMR formula: {formula}")
+        raise ValueError(f"Unknown BMR formula: {formula}")  # noqa: TRY003
 
 
 def get_bmr_formula(user_data: Dict[str, Any]) -> str:
@@ -227,7 +227,7 @@ def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[floa
         surplus = 10  # 10% surplus for muscle gain
         return tdee * (1 + surplus / 100)
     else:
-        raise ValueError(f"Unknown goal: {goal}")
+        raise ValueError(f"Unknown goal: {goal}")  # noqa: TRY003
 
 
 def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[str, float]:

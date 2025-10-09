@@ -7,6 +7,8 @@ export interface ButtonProps {
   primary?: boolean;
   /** How large should the button be? */
   size?: 'small' | 'medium' | 'large';
+  /** Optional background color */
+  backgroundColor?: string;
   /** Button contents */
   label: string;
   /** Optional click handler */
@@ -17,6 +19,7 @@ export interface ButtonProps {
 export const Button = ({
   primary = false,
   size = 'medium',
+  backgroundColor,
   label,
   onClick,
   ...props
@@ -26,6 +29,7 @@ export const Button = ({
     <button
       type="button"
       className={['storybook-button', `storybook-button--${size}`, mode].join(' ')}
+      style={{ ...(props.style || {}), ...(backgroundColor && { backgroundColor }) }}
       onClick={onClick}
       {...props}
     >

@@ -4,7 +4,7 @@ This module defines the core data structures for user profiles and nutrition tar
 based on WHO/EFSA/DRI recommendations for macronutrients, micronutrients, hydration,
 and physical activity guidelines.
 
-RU: Система расчёта целевых значений нутриентов на основе рекомендаций ВОЗ.
+RU: Calculation system for nutrient targets based on WHO recommendations.
 EN: WHO-based nutrition targets calculation system.
 """
 
@@ -13,16 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Set
 
-from core.metabolism import (
-    adjust_calories_for_goal,
-    adjust_for_activity,
-    calculate_bmr,
-    calculate_deficit_surplus,
-    calculate_macros,
-    calculate_tdee,
-    get_bmr_formula,
-    get_macro_ratios,
-)
 
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]

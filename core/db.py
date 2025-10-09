@@ -106,7 +106,7 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Not all statements require/allow commit; ignore commit errors
                 pass
             return result
@@ -307,20 +307,39 @@ def init_database() -> None:
     init_db()
 
 
-def get_unified_food_db() -> Any:
-    """Legacy function for unified food database access."""
-    # Return a mock/placeholder for now since unified food db is not implemented
-    return None
-
-
 def get_db_connection() -> Any:
-    """Legacy function for database connection access."""
-    # Return a session from the session maker
-    return get_session()
+    """Legacy function for database connection access.
+
+    .. deprecated::
+        Use :func:`get_session` or :func:`session_scope` instead.
+
+    .. warning::
+        Caller is responsible for closing the session via ``.close()``.
+    """
+    import warnings
+
+    warnings.warn(
+        "get_db_connection() is deprecated, use get_session() or session_scope() instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return SessionLocal()
 
 
 def close_all_connections() -> None:
-    """Legacy function to close all database connections."""
-    # For SQLite, connections are managed by SQLAlchemy session
-    # This is a no-op for now
-    pass
+    """Legacy function to close all database connections.
+
+    .. deprecated::
+        Connection lifecycle is managed by SQLAlchemy sessions and context managers.
+
+    .. note::
+        This is a no-op. SQLAlchemy automatically manages connection pooling.
+        Use ``engine.dispose()`` if you need to close all pooled connections.
+    """
+    import warnings
+
+    warnings.warn(
+        "close_all_connections() is deprecated and has no effect",
+        DeprecationWarning,
+        stacklevel=2,
+    )

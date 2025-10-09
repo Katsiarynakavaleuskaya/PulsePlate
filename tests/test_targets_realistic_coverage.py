@@ -152,37 +152,26 @@ class TestTargetsRealisticCoverage:
             calculate_deficit_surplus,
         )
 
-        try:
-            # Generate realistic scenarios
-            for _ in range(20):
-                age = fake.random_int(min=18, max=80)
-                weight = fake.random_int(min=50, max=120)
-                height = fake.random_int(min=150, max=200)
-                gender = fake.random_element(["male", "female"])
-                activity_level = fake.activity_level()
+        # Generate realistic scenarios
+        for _ in range(20):
+            age = fake.random_int(min=18, max=80)
+            weight = fake.random_int(min=50, max=120)
+            height = fake.random_int(min=150, max=200)
+            gender = fake.random_element(["male", "female"])
+            activity_level = fake.activity_level()
 
-                try:
-                    # Calculate BMR first
-                    bmr = calculate_bmr(age, weight, height, gender)
-                    assert isinstance(bmr, (int, float))
+            # Calculate BMR first
+            bmr = calculate_bmr(age, weight, height, gender)
+            assert isinstance(bmr, (int, float))
 
-                    # Calculate TDEE
-                    tdee = calculate_tdee(age, weight, height, gender, activity_level)
-                    assert isinstance(tdee, (int, float))
-                    assert tdee >= bmr  # TDEE should be >= BMR
+            # Calculate TDEE
+            tdee = calculate_tdee(age, weight, height, gender, activity_level)
+            assert isinstance(tdee, (int, float))
+            assert tdee >= bmr  # TDEE should be >= BMR
 
-                    # Test activity adjustment
-                    adjusted = adjust_for_activity(bmr, activity_level)
-                    assert adjusted >= bmr
-
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pytest.skip("core.targets module is unavailable in this environment")
+            # Test activity adjustment
+            adjusted = adjust_for_activity(bmr, activity_level)
+            assert adjusted >= bmr
 
         # Test error cases for BMR calculations
         with pytest.raises(ValueError, match="body_fat required for katch formula"):
