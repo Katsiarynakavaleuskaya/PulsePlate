@@ -17,10 +17,12 @@ from nutrition_core import (
     bmr_harris,
     bmr_katch,
     bmr_mifflin,
-    calculate_all_bmr,
-    calculate_all_tdee,
     get_activity_descriptions,
     tdee,
+)
+from core.metabolism import (
+    calculate_all_bmr,
+    calculate_all_tdee,
 )
 
 

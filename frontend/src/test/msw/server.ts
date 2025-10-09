@@ -1,7 +1,7 @@
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 
-// пример моков — подправь под свои эндпойнты
+// Example mocks - adjust to match your endpoints
 export const handlers = [
   http.post('/api/v1/premium/bmr', async () => {
     return HttpResponse.json({ bmr: 1500, tdee: 2100, method: 'mifflin' });

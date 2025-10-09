@@ -8,10 +8,6 @@ import logging
 import pytest
 from faker import Faker
 
-# Configure logging for test output
-logging.basicConfig(
-    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 
 fake = Faker()
 

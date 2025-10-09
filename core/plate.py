@@ -11,6 +11,7 @@ converting macro targets into understandable visual portions using the hand/cup 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Set
+from core.metabolism import adjust_calories_for_goal
 
 Goal = Literal["loss", "maintain", "gain"]
 
@@ -32,13 +33,22 @@ def target_kcal(
 ) -> int:
     """RU: Выставляем целевую калорийность под цель.
     EN: Set target kcal per goal.
+
+    Note: Delegates to core.metabolism.adjust_calories_for_goal for maintain/loss goals,
+    but applies custom logic for gain goals and minimum calorie limits.
     """
     if goal == "maintain":
-        return int(round(tdee_val))
+        # Use core.metabolism for maintain goal
+        adjusted = adjust_calories_for_goal(tdee_val, goal)
+        return int(round(adjusted))
+
     if goal == "loss":
-        pct = (deficit_pct or 15) / 100.0
-        return max(1200, int(round(tdee_val * (1 - pct))))
-    # gain
+        # Use core.metabolism but apply minimum calorie limit for safety
+        adjusted = adjust_calories_for_goal(tdee_val, goal, deficit_pct)
+        return max(1200, int(round(adjusted)))
+
+    # gain - custom logic with configurable surplus percentage
+    # (core.metabolism uses fixed 10%, but plate logic allows custom surplus_pct)
     pct = (surplus_pct or 12) / 100.0
     return int(round(tdee_val * (1 + pct)))
 

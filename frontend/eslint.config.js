@@ -88,7 +88,6 @@ export default tseslint.config(
       "no-func-assign": "warn",
       "no-prototype-builtins": "warn",
       "@typescript-eslint/no-this-alias": "warn",
-      "storybook/no-renderer-packages": "off",
     },
   },
   {

@@ -99,8 +99,12 @@ def get_or_create_encryption_key() -> bytes:
         if temp_file.exists():
             try:
                 temp_file.unlink()
-            except Exception:
-                pass  # Best effort cleanup
+            except Exception as e:
+                # Best effort cleanup - ignore errors
+                import logging
+
+                logging.debug(f"Failed to cleanup temp file: {e}")
+                pass
         raise OSError(
             f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"
         ) from e
@@ -204,8 +208,7 @@ def decrypt_value(value: str) -> str:
 
 
 def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
-    """
-    Get API key from environment, decrypting if necessary.
+    """Get API key from environment, decrypting if necessary.
 
     Args:
         env_var: Environment variable name

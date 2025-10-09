@@ -25,7 +25,9 @@ Object.defineProperty(window, 'location', {
 */
 
 // MSW temporarily disabled due to version conflicts
-// TODO: Fix MSW setup for jsdom environment
+// TODO(#<issue-number>): Fix MSW setup for jsdom environment
+// MSW 2.x has compatibility issues with jsdom 22.x in Vitest
+// Target: Sprint X or Q2 2025
 /*
 import { server } from "./mocks/server";
 

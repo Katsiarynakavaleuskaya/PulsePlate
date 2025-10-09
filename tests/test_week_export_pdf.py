@@ -97,8 +97,6 @@ def test_register_font_falls_back_on_exception(monkeypatch, tmp_path) -> None:
 def test_register_font_falls_back_on_missing_file(monkeypatch) -> None:
     """Test _register_font returns 'Helvetica' when font file doesn't exist."""
     # Mock FONT_PATH to return non-existent path
-    from pathlib import Path
-
     fake_path = Path("/non/existent/font.ttf")
     monkeypatch.setattr(plan, "FONT_PATH", fake_path)
 

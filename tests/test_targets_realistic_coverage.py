@@ -106,37 +106,19 @@ class TestTargetsRealisticCoverage:
                 formulas = ["mifflin", "harris", "katch", "cunningham"]
 
                 for formula in formulas:
-                    try:
-                        bmr = calculate_bmr(**user_data, formula=formula)
-                        assert isinstance(bmr, (int, float))
-                        assert bmr > 0
-                    except Exception:
-                        logging.exception(
-                            "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                        )
-                        pass
+                    bmr = calculate_bmr(**user_data, formula=formula)
+                    assert isinstance(bmr, (int, float))
+                    assert bmr > 0
 
                 # Test formula selection
-                try:
-                    best_formula = get_bmr_formula(user_data)
-                    assert best_formula in formulas
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                best_formula = get_bmr_formula(user_data)
+                assert best_formula in formulas
 
                 # Test formula selection without body_fat (should return "mifflin")
-                try:
-                    user_data_no_fat = user_data.copy()
-                    user_data_no_fat.pop("body_fat", None)  # Remove body_fat
-                    best_formula_no_fat = get_bmr_formula(user_data_no_fat)
-                    assert best_formula_no_fat == "mifflin"
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                user_data_no_fat = user_data.copy()
+                user_data_no_fat.pop("body_fat", None)  # Remove body_fat
+                best_formula_no_fat = get_bmr_formula(user_data_no_fat)
+                assert best_formula_no_fat == "mifflin"
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -245,7 +227,12 @@ class TestTargetsRealisticCoverage:
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
         try:
-            from core.metabolism import calculate_macros, get_macro_ratios
+            from core.metabolism import (
+                calculate_bmr,
+                calculate_tdee,
+                calculate_macros,
+                get_macro_ratios,
+            )
 
             # Generate realistic nutrition scenarios
             for _ in range(30):
@@ -253,38 +240,43 @@ class TestTargetsRealisticCoverage:
                 goal = fake.fitness_goal()
                 restriction = fake.dietary_restriction()
 
+                # Map fake goal values to expected format
+                goal_mapping = {"lose": "loss", "gain": "gain", "maintain": "maintain"}
+                normalized_goal = goal_mapping.get(goal, "maintain")
+
                 user_profile = {
                     "age": fake.realistic_age(),
                     "weight": fake.realistic_weight(),
                     "gender": fake.random_element(["male", "female"]),
                     "activity_level": fake.activity_level(),
-                    "goal": goal,
+                    "goal": normalized_goal,
                     "dietary_restriction": restriction,
                 }
 
-                try:
-                    macros = calculate_macros(calories, **user_profile)
-                    assert isinstance(macros, dict)
+                # Calculate TDEE directly
+                tdee = calculate_tdee(
+                    age=user_profile["age"],
+                    weight=user_profile["weight"],
+                    height=170,  # Default height for test
+                    gender=user_profile["gender"],
+                    activity=user_profile["activity_level"],
+                )
+                macros = calculate_macros(tdee, user_profile["goal"])
+                assert isinstance(macros, dict)
 
-                    # Verify macro totals approximately equal calories
-                    total_cals = (
-                        macros.get("protein", 0) * 4
-                        + macros.get("carbs", 0) * 4
-                        + macros.get("fat", 0) * 9
-                    )
+                # Verify macro totals approximately equal calories
+                total_cals = (
+                    macros.get("protein", 0) * 4
+                    + macros.get("carbs", 0) * 4
+                    + macros.get("fat", 0) * 9
+                )
 
-                    if total_cals > 0:
-                        assert abs(total_cals - calories) / calories < 0.1  # Within 10%
+                if total_cals > 0:
+                    assert abs(total_cals - calories) / calories < 0.1  # Within 10%
 
-                    # Test macro ratios
-                    ratios = get_macro_ratios(goal, restriction)
-                    assert isinstance(ratios, dict)
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test macro ratios
+                ratios = get_macro_ratios(normalized_goal)
+                assert isinstance(ratios, dict)
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -313,25 +305,18 @@ class TestTargetsRealisticCoverage:
                     "activity_level": fake.activity_level(),
                 }
 
-                try:
-                    micro_targets = calculate_micronutrient_targets(**user_data)
-                    assert isinstance(micro_targets, dict)
+                micro_targets = calculate_micronutrient_targets(**user_data)
+                assert isinstance(micro_targets, dict)
 
-                    # Check for essential nutrients
-                    essential_nutrients = ["vitamin_c", "vitamin_d", "calcium", "iron", "b12"]
-                    for nutrient in essential_nutrients:
-                        if nutrient in micro_targets:
-                            assert micro_targets[nutrient] > 0
+                # Check for essential nutrients
+                essential_nutrients = ["vitamin_c", "vitamin_d", "calcium", "iron", "b12"]
+                for nutrient in essential_nutrients:
+                    if nutrient in micro_targets:
+                        assert micro_targets[nutrient] > 0
 
-                    # Test RDA values
-                    rda = get_rda_values(user_data["age"], user_data["gender"])
-                    assert isinstance(rda, dict)
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test RDA values
+                rda = get_rda_values(user_data["age"], user_data["gender"])
+                assert isinstance(rda, dict)
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -344,28 +329,28 @@ class TestTargetsRealisticCoverage:
             # Generate realistic weight goal scenarios
             for _ in range(25):
                 current_calories = fake.random_int(min=1500, max=3500)
+                goal_type = fake.fitness_goal()
+                goal_mapping = {"lose": "loss", "gain": "gain", "maintain": "maintain"}
+                normalized_goal = goal_mapping.get(goal_type, "maintain")
+
                 goal_data = {
                     "current_weight": fake.realistic_weight(),
                     "target_weight": fake.realistic_weight(),
                     "timeframe_weeks": fake.random_int(min=4, max=52),
-                    "goal_type": fake.fitness_goal(),
+                    "goal_type": normalized_goal,
                     "conservative": fake.boolean(),
                 }
 
-                try:
-                    adjusted_calories = adjust_calories_for_goal(current_calories, **goal_data)
-                    assert isinstance(adjusted_calories, (int, float))
-                    assert adjusted_calories > 800  # Minimum safe calories
+                adjusted_calories = adjust_calories_for_goal(current_calories, normalized_goal)
+                assert isinstance(adjusted_calories, (int, float))
+                assert adjusted_calories > 800  # Minimum safe calories
 
-                    # Test deficit/surplus calculation
-                    deficit_surplus = calculate_deficit_surplus(**goal_data)
-                    assert isinstance(deficit_surplus, (int, float))
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test deficit/surplus calculation
+                deficit_surplus = calculate_deficit_surplus(current_calories, adjusted_calories)
+                assert isinstance(deficit_surplus, dict)
+                assert "kcal_difference" in deficit_surplus
+                assert "is_deficit" in deficit_surplus
+                assert "is_surplus" in deficit_surplus
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -393,14 +378,8 @@ class TestTargetsRealisticCoverage:
                 elderly_profiles.append(profile)
 
             for profile in elderly_profiles:
-                try:
-                    adjustments = get_elderly_adjustments(**profile)
-                    assert isinstance(adjustments, dict)
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                adjustments = get_elderly_adjustments(**profile)
+                assert isinstance(adjustments, dict)
 
             # Test athlete targets
             athlete_profiles = []
@@ -415,14 +394,8 @@ class TestTargetsRealisticCoverage:
                 athlete_profiles.append(profile)
 
             for profile in athlete_profiles:
-                try:
-                    targets = get_athlete_targets(**profile)
-                    assert isinstance(targets, dict)
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                targets = get_athlete_targets(**profile)
+                assert isinstance(targets, dict)
 
             # Test pregnancy targets
             pregnancy_profiles = []
@@ -436,14 +409,8 @@ class TestTargetsRealisticCoverage:
                 pregnancy_profiles.append(profile)
 
             for profile in pregnancy_profiles:
-                try:
-                    targets = get_pregnancy_targets(**profile)
-                    assert isinstance(targets, dict)
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                targets = get_pregnancy_targets(**profile)
+                assert isinstance(targets, dict)
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -474,21 +441,14 @@ class TestTargetsRealisticCoverage:
                     "workout_type": fake.random_element(["cardio", "strength", "mixed"]),
                 }
 
-                try:
-                    meal_plan = get_meal_timing(**timing_data)
-                    assert isinstance(meal_plan, dict)
+                meal_plan = get_meal_timing(**timing_data)
+                assert isinstance(meal_plan, dict)
 
-                    # Test pre/post workout nutrition
-                    workout_nutrition = calculate_pre_post_workout(
-                        timing_data["workout_type"], timing_data["workout_duration"]
-                    )
-                    assert isinstance(workout_nutrition, dict)
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test pre/post workout nutrition
+                workout_nutrition = calculate_pre_post_workout(
+                    timing_data["workout_type"], timing_data["workout_duration"]
+                )
+                assert isinstance(workout_nutrition, dict)
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -549,22 +509,17 @@ class TestTargetsRealisticCoverage:
                     "alcohol_intake": fake.random_int(min=0, max=50),
                 }
 
-                try:
-                    base_hydration = calculate_hydration_needs(**hydration_data)
-                    assert isinstance(base_hydration, (int, float))
-                    assert base_hydration > 0
+                base_hydration = calculate_hydration_needs(**hydration_data)
+                assert isinstance(base_hydration, (int, float))
+                assert base_hydration > 0
 
-                    # Test climate adjustments
-                    adjusted_hydration = adjust_for_climate(
-                        base_hydration, hydration_data["climate"], hydration_data.get("altitude", 0)
-                    )
-                    assert adjusted_hydration >= base_hydration
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test climate adjustments
+                adjusted_hydration = adjust_for_climate(
+                    base_hydration, hydration_data["climate"], hydration_data.get("altitude", 0)
+                )
+                assert isinstance(adjusted_hydration, (int, float))
+                assert adjusted_hydration > 0  # Should always be positive
+                # Note: Cold climates reduce hydration needs, so we don't assert >= base_hydration
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
@@ -588,19 +543,12 @@ class TestTargetsRealisticCoverage:
                     ),
                 }
 
-                try:
-                    supplements = get_supplement_recommendations(**user_profile)
-                    assert isinstance(supplements, dict)
+                supplements = get_supplement_recommendations(**user_profile)
+                assert isinstance(supplements, dict)
 
-                    # Test deficiency risk assessment
-                    risk_assessment = check_deficiency_risk(**user_profile)
-                    assert isinstance(risk_assessment, dict)
-
-                except Exception:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
+                # Test deficiency risk assessment
+                risk_assessment = check_deficiency_risk(**user_profile)
+                assert isinstance(risk_assessment, dict)
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")

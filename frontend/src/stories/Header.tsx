@@ -11,9 +11,10 @@ export interface HeaderProps {
   onLogin?: () => void;
   onLogout?: () => void;
   onCreateAccount?: () => void;
+  title?: string;
 }
 
-export const Header = ({ user, onLogin, onLogout, onCreateAccount }: HeaderProps) => (
+export const Header = ({ user, onLogin, onLogout, onCreateAccount, title = 'PulsePlate' }: HeaderProps) => (
   <header>
     <div className="storybook-header">
       <div>
@@ -33,7 +34,7 @@ export const Header = ({ user, onLogin, onLogout, onCreateAccount }: HeaderProps
             />
           </g>
         </svg>
-        <h1>Acme</h1>
+        <h1>{title}</h1>
       </div>
       <div>
         {user ? (

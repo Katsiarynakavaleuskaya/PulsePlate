@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception as e:  # noqa: BLE001
+            except InvalidRequestError as e:
                 # Not all statements require/allow commit; log and ignore commit errors
                 logger.debug("Commit failed (expected for non-transactional statements): %s", e)
             return result

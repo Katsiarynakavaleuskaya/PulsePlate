@@ -9,7 +9,7 @@ export default function TabBar() {
   const { apiKey } = useAuth();
   const { t } = useTranslation();
   const [clickedDisabled, setClickedDisabled] = useState<string | null>(null);
-  const timeoutRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -27,7 +27,7 @@ export default function TabBar() {
 
     setClickedDisabled(path);
     // Show visual feedback for a short time
-    timeoutRef.current = window.setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       setClickedDisabled(null);
       timeoutRef.current = null;
     }, 300);

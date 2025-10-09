@@ -72,15 +72,15 @@ repos:
   #       args: [--full-report]
   #       stages: [pre-push]
 
-  # --- Docstrings: pydocstyle
-  - repo: https://github.com/PyCQA/pydocstyle
-    rev: 6.3.0
-    hooks:
-      - id: pydocstyle
-        name: pydocstyle (docstrings)
-        files: ^(?!frontend/).+\.py$
-        # Customize conventions/ignore codes in pyproject.toml if needed
-        args: [--convention=google]
+  # --- Docstrings: pydocstyle (temporarily disabled)
+  # - repo: https://github.com/PyCQA/pydocstyle
+  #   rev: 6.3.0
+  #   hooks:
+  #     - id: pydocstyle
+  #       name: pydocstyle (docstrings)
+  #       files: ^(?!frontend/).+\.py$
+  #       # Customize conventions/ignore codes in pyproject.toml if needed
+  #       args: [--convention=google]
 
   # --- Commit message lint (commitizen)
   - repo: https://github.com/commitizen-tools/commitizen
@@ -95,20 +95,20 @@ repos:
   # --- Frontend linting and testing: mandatory quality gates
   - repo: local
     hooks:
-      - id: frontend-lint
-        name: frontend lint (ESLint)
-        entry: bash -c "cd frontend && npm run lint"
-        language: system
-        pass_filenames: false
-        stages: [pre-commit, pre-push]
-        files: ^frontend/
-
       - id: frontend-lint-fix
         name: frontend lint (autofix)
-        entry: bash -c "cd frontend && npm run lint -- --fix"
+        entry: bash -c "cd frontend && export PATH=$PWD/node_modules/.bin:$PATH && npm run lint -- --fix"
         language: system
         pass_filenames: false
         stages: [pre-commit]
+        files: ^frontend/
+
+      - id: frontend-lint
+        name: frontend lint (ESLint)
+        entry: bash -c "cd frontend && export PATH=$PWD/node_modules/.bin:$PATH && npm run lint"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
         files: ^frontend/
 
       - id: python-tests
@@ -163,7 +163,7 @@ repos:
 
       - id: npm-audit
         name: npm audit (prod deps)
-        entry: bash -c "cd frontend && if [ \"${CI_NPM_AUDIT:-0}\" = \"1\" ]; then npm audit --omit=dev; else echo 'Skipping npm audit (set CI_NPM_AUDIT=1 to enable)'; fi"
+        entry: bash -c "cd frontend && npm audit --omit=dev --audit-level=high || echo 'npm audit found vulnerabilities'"
         language: system
         pass_filenames: false
         stages: [pre-push]

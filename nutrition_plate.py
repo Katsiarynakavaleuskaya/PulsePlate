@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, field_validator
 from nutrition_core import (
     ActivityLevel,
     Sex,
+)
+from core.metabolism import (
     calculate_all_bmr,
     calculate_all_tdee,
 )

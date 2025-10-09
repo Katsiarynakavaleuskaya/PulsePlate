@@ -37,7 +37,7 @@ from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
 from core.i18n import Language, t
 from core.utils import get_activity_factor, resolve_attr
-from nutrition_core import calculate_all_bmr, calculate_all_tdee
+from core.metabolism import calculate_all_bmr, calculate_all_tdee
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
@@ -2032,8 +2032,9 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except Exception:
+            except Exception as e:
                 # Safety validation is optional; ignore errors
+                logger.debug(f"Safety validation failed (optional): {e}")
                 pass
 
         return WHOTargetsResponse(

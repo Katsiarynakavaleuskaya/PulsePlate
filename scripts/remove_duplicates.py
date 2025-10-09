@@ -81,7 +81,8 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
         # Full duplicates hash collection
         try:
             h = sha256_of(f)
-        except Exception:
+        except Exception as e:
+            print(f"   ! error hashing {f}: {e}")
             continue
         by_hash.setdefault(h, []).append(f)
 
@@ -144,7 +145,7 @@ def main() -> int:
     backups, dup_groups = plan_removals(files)
 
     print("Backup twins (candidate for removal if identical):")
-    removed = []
+    removed: list[str] = []
     for backup, base in backups:
         try:
             if sha256_of(backup) == sha256_of(base):

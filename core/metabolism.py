@@ -268,3 +268,70 @@ def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[s
         "is_deficit": difference < 0,
         "is_surplus": difference > 0,
     }
+
+
+# Higher-level convenience functions for BMR/TDEE calculations
+# These are moved here from nutrition_core.py to avoid circular imports
+
+
+def calculate_all_bmr(
+    weight: float,
+    height: float,
+    age: int,
+    sex: str,
+    bodyfat_percent: Optional[float] = None,
+) -> Dict[str, float]:
+    """
+    Calculate BMR using all available formulas.
+
+    EN: Calculate BMR using all available formulas.
+
+    Args:
+        weight: Weight in kilograms
+        height: Height in centimeters
+        age: Age in years
+        sex: Biological sex ("male" or "female")
+        bodyfat_percent: Optional body fat percentage for Katch-McArdle
+
+    Returns:
+        Dictionary with BMR values from different formulas
+    """
+    results = {
+        "mifflin": calculate_bmr(age, weight, height, sex, formula="mifflin"),
+        "harris": calculate_bmr(age, weight, height, sex, formula="harris"),
+    }
+
+    if bodyfat_percent is not None:
+        # Katch-McArdle calculation
+        if weight <= 0:
+            raise ValueError("Weight must be a positive value")
+        if not 0 <= bodyfat_percent <= 50:
+            raise ValueError("Body fat percentage must be between 0 and 50")
+
+        lean_mass = weight * (1 - bodyfat_percent / 100)
+        bmr = 370 + 21.6 * lean_mass
+        results["katch"] = round(bmr, 1)
+
+    return results
+
+
+def calculate_all_tdee(
+    bmr_results: Dict[str, float],
+    activity: Activity,
+) -> Dict[str, float]:
+    """
+    Calculate TDEE for all BMR formulas.
+
+    EN: Calculate TDEE for all BMR formulas.
+
+    Args:
+        bmr_results: Dictionary of BMR values from different formulas
+        activity: Activity level
+
+    Returns:
+        Dictionary with TDEE values for each formula
+    """
+    return {
+        formula: round(adjust_for_activity(bmr_value, activity), 0)
+        for formula, bmr_value in bmr_results.items()
+    }

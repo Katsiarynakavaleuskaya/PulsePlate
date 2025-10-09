@@ -410,8 +410,8 @@ class _StubFoodDB:
     def get_food(self, _name: str) -> _StubFood:
         return _StubFood(kcal_zero=self._kcal_zero)
 
-    def get_translated_food_name(self, _name: str, _lang: str) -> str:
-        return _name
+    def get_translated_food_name(self, name: str, _lang: str) -> str:
+        return name
 
 
 class _StubRecipeDB:

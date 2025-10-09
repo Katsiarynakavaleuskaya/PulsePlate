@@ -1,7 +1,7 @@
 """
-Nutrition Core Module - BMR/TDEE Calculations
+Nutrition Core Module - Basic BMR/TDEE Calculations
 
-This module provides basal metabolic rate (BMR) and total daily energy expenditure (TDEE)
+This module provides basic basal metabolic rate (BMR) and total daily energy expenditure (TDEE)
 calculations using multiple validated formulas.
 
 Supported BMR formulas:
@@ -9,22 +9,27 @@ Supported BMR formulas:
 - Harris-Benedict (traditional formula)
 - Katch-McArdle (for athletes with known body fat percentage)
 
-Activity levels based on Physical Activity Level (PAL) factors.
+Note: Activity level calculations and higher-level convenience functions
+(calculate_all_bmr, calculate_all_tdee) are delegated to core.metabolism module
+to avoid circular imports and ensure consistency.
 """
 
 from typing import Dict, Literal, Union
+
+# Import activity multipliers from core.metabolism to ensure consistency
+# This is imported directly to avoid circular imports with core modules
+from core.metabolism import ACTIVITY_MULTIPLIERS
 
 # Type definitions
 Sex = Literal["female", "male"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
 
-# Physical Activity Level (PAL) factors
+# Physical Activity Level (PAL) factors - delegated from core.metabolism.ACTIVITY_MULTIPLIERS
+# Only includes the standard activity levels (not backward compatibility aliases)
 PAL: Dict[str, float] = {
-    "sedentary": 1.2,  # Little to no exercise
-    "light": 1.375,  # Light exercise 1-3 days/week
-    "moderate": 1.55,  # Moderate exercise 3-5 days/week
-    "active": 1.725,  # Heavy exercise 6-7 days/week
-    "very_active": 1.9,  # Very heavy exercise, physical job, or training twice a day
+    activity: multiplier
+    for activity, multiplier in ACTIVITY_MULTIPLIERS.items()
+    if activity in ["sedentary", "light", "moderate", "active", "very_active"]
 }
 
 
@@ -130,8 +135,8 @@ def tdee(bmr: float, activity: ActivityLevel) -> float:
     Returns:
         TDEE in calories per day
 
-    Formula:
-        TDEE = BMR × PAL_factor
+    Note:
+        This function uses PAL factors from core.metabolism for consistency.
     """
     if bmr <= 0:
         raise ValueError("BMR must be a positive value")
@@ -140,51 +145,6 @@ def tdee(bmr: float, activity: ActivityLevel) -> float:
 
     tdee_value = bmr * PAL[activity]
     return round(tdee_value, 0)
-
-
-def calculate_all_bmr(
-    weight: float,
-    height: float,
-    age: int,
-    sex: Sex,
-    bodyfat_percent: Union[float, None] = None,
-) -> Dict[str, float]:
-    """
-    Calculate BMR using all available formulas.
-
-    Args:
-        weight: Weight in kilograms
-        height: Height in centimeters
-        age: Age in years
-        sex: Biological sex ("male" or "female")
-        bodyfat_percent: Optional body fat percentage for Katch-McArdle
-
-    Returns:
-        Dictionary with BMR values from different formulas
-    """
-    results = {
-        "mifflin": bmr_mifflin(weight, height, age, sex),
-        "harris": bmr_harris(weight, height, age, sex),
-    }
-
-    if bodyfat_percent is not None:
-        results["katch"] = bmr_katch(weight, bodyfat_percent)
-
-    return results
-
-
-def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -> Dict[str, float]:
-    """
-    Calculate TDEE for all BMR formulas.
-
-    Args:
-        bmr_results: Dictionary of BMR values from different formulas
-        activity: Activity level
-
-    Returns:
-        Dictionary with TDEE values for each formula
-    """
-    return {formula: tdee(bmr_value, activity) for formula, bmr_value in bmr_results.items()}
 
 
 def get_activity_descriptions() -> Dict[str, str]:

@@ -143,10 +143,12 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Lint
-        run: npm run lint || echo "lint warnings/errors – continue"
+        run: npm run lint
+        continue-on-error: true
 
       - name: Typecheck
-        run: npm run typecheck || echo "ts errors – continue"
+        run: npm run typecheck
+        continue-on-error: true
 
       - name: Unit tests (jsdom)
         run: npm run test

@@ -7,13 +7,16 @@ labels: [chore, ci]
 # chore(frontend): <scope>
 
 ## Summary
+
 - Что меняем (скрипты, конфиги, workflow) и зачем.
 
 ## Scope
+
 - package.json / конфиги / workflows.
 - Out of scope (если есть).
 
 ## Tests
+
 - [ ] `npm ci`
 - [ ] `npm run lint`
 - [ ] `npm test -- --ci`
@@ -21,6 +24,7 @@ labels: [chore, ci]
 - Логи GitHub Actions приложены / проверены.
 
 ## Notes
+
 - Кэш npm / Node version / matrix.
 - Правила защиты ветки, требуемые статусы.
 
