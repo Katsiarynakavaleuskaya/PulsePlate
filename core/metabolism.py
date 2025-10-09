@@ -29,6 +29,7 @@ ACTIVITY_MULTIPLIERS = {
     "extremely_active": 1.9,
 }
 
+
 # Approximate kcal per kg of body fat (used for weight change estimates)
 # Note: This is a rough approximation; actual values vary (7000-8000 kcal/kg)
 KCAL_PER_KG_FAT = 7700
@@ -231,6 +232,8 @@ def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[floa
         return tdee
     elif goal == "loss":
         deficit = deficit_pct or 15  # Default 15% deficit
+        if deficit < 5 or deficit > 25:
+            raise ValueError("Deficit percentage must be between 5 and 25")
         return tdee * (1 - deficit / 100)
     elif goal == "gain":
         surplus = 10  # 10% surplus for muscle gain

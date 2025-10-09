@@ -8,7 +8,7 @@ import '@testing-library/jest-dom/vitest';
 setProjectAnnotations(projectAnnotations as any);
 
 // MSW setup
-import { server } from '../src/test/msw/server';
+import { server } from './src/test/msw/server';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());

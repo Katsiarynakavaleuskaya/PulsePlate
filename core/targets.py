@@ -446,7 +446,7 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
     return warnings
 
 
-def calculate_micronutrient_targets(**user_data) -> dict:
+def calculate_micronutrient_targets(**user_data: Any) -> Dict[str, float]:
     """Calculate micronutrient targets based on user data.
 
     Args:
@@ -621,7 +621,7 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
     return base_hydration * multiplier
 
 
-def check_deficiency_risk(**user_profile) -> dict:
+def check_deficiency_risk(**user_profile: Any) -> Dict[str, str]:
     """
     Check risk of nutrient deficiencies.
 
@@ -644,7 +644,7 @@ def check_deficiency_risk(**user_profile) -> dict:
     return risks
 
 
-def get_supplement_recommendations(**user_profile) -> dict:
+def get_supplement_recommendations(**user_profile: Any) -> Dict[str, List[str]]:
     """
     Get supplement recommendations based on profile.
 
