@@ -29,8 +29,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = cast(Any, None)
-    create_async_engine = cast(Any, None)
+    async_sessionmaker = None
+    create_async_engine = None
 
 
 def _build_engine_url() -> str:
