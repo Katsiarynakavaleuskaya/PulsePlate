@@ -110,7 +110,7 @@ class TestTargetsRealisticCoverage:
                         bmr = calculate_bmr(**user_data, formula=formula)
                         assert isinstance(bmr, (int, float))
                         assert bmr > 0
-                    except Exception as e:
+                    except Exception:
                         logging.exception(
                             "Unexpected exception in tests: test_targets_realistic_coverage.py"
                         )
@@ -120,7 +120,7 @@ class TestTargetsRealisticCoverage:
                 try:
                     best_formula = get_bmr_formula(user_data)
                     assert best_formula in formulas
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -132,7 +132,7 @@ class TestTargetsRealisticCoverage:
                     user_data_no_fat.pop("body_fat", None)  # Remove body_fat
                     best_formula_no_fat = get_bmr_formula(user_data_no_fat)
                     assert best_formula_no_fat == "mifflin"
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -280,7 +280,7 @@ class TestTargetsRealisticCoverage:
                     ratios = get_macro_ratios(goal, restriction)
                     assert isinstance(ratios, dict)
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -327,7 +327,7 @@ class TestTargetsRealisticCoverage:
                     rda = get_rda_values(user_data["age"], user_data["gender"])
                     assert isinstance(rda, dict)
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -361,7 +361,7 @@ class TestTargetsRealisticCoverage:
                     deficit_surplus = calculate_deficit_surplus(**goal_data)
                     assert isinstance(deficit_surplus, (int, float))
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -396,7 +396,7 @@ class TestTargetsRealisticCoverage:
                 try:
                     adjustments = get_elderly_adjustments(**profile)
                     assert isinstance(adjustments, dict)
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -418,7 +418,7 @@ class TestTargetsRealisticCoverage:
                 try:
                     targets = get_athlete_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -439,7 +439,7 @@ class TestTargetsRealisticCoverage:
                 try:
                     targets = get_pregnancy_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -484,7 +484,7 @@ class TestTargetsRealisticCoverage:
                     )
                     assert isinstance(workout_nutrition, dict)
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -560,7 +560,7 @@ class TestTargetsRealisticCoverage:
                     )
                     assert adjusted_hydration >= base_hydration
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )
@@ -596,7 +596,7 @@ class TestTargetsRealisticCoverage:
                     risk_assessment = check_deficiency_risk(**user_profile)
                     assert isinstance(risk_assessment, dict)
 
-                except Exception as e:
+                except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_targets_realistic_coverage.py"
                     )

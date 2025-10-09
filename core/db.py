@@ -6,6 +6,7 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
@@ -106,9 +107,9 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:  # noqa: BLE001
-                # Not all statements require/allow commit; ignore commit errors
-                pass
+            except Exception as e:  # noqa: BLE001
+                # Not all statements require/allow commit; log and ignore commit errors
+                logging.debug("Commit failed (expected for non-transactional statements): %s", e)
             return result
 
 

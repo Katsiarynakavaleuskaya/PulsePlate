@@ -4,7 +4,6 @@ This module provides functions for calculating Basal Metabolic Rate (BMR),
 Total Daily Energy Expenditure (TDEE), macronutrient distributions, and
 related metabolic calculations based on WHO/EFSA guidelines.
 
-RU: Metabolism and energy expenditure calculations.
 EN: Metabolism and energy expenditure calculations.
 """
 
@@ -41,7 +40,6 @@ def calculate_bmr(
 ) -> float:
     """Calculate Basal Metabolic Rate using various formulas.
 
-    RU: Расчёт базового метаболизма различными формулами.
     EN: Calculate basal metabolic rate using various formulas.
 
     Args:
@@ -84,7 +82,6 @@ def calculate_bmr(
 def get_bmr_formula(user_data: Dict[str, Any]) -> str:
     """Get recommended BMR formula based on available data.
 
-    RU: Получить рекомендуемую формулу BMR на основе доступных данных.
     EN: Get recommended BMR formula based on available data.
 
     Args:
@@ -99,7 +96,6 @@ def get_bmr_formula(user_data: Dict[str, Any]) -> str:
 def adjust_for_activity(bmr: float, activity: Activity) -> float:
     """Adjust BMR for activity level to get TDEE.
 
-    RU: Корректировка BMR для уровня активности для получения TDEE.
     EN: Adjust BMR for activity level to get TDEE.
 
     Args:
@@ -109,6 +105,10 @@ def adjust_for_activity(bmr: float, activity: Activity) -> float:
     Returns:
         TDEE in kcal/day
     """
+    if activity not in ACTIVITY_MULTIPLIERS:
+        raise ValueError(
+            f"Unknown activity level: {activity}. Must be one of {list(ACTIVITY_MULTIPLIERS.keys())}"
+        )
     return bmr * ACTIVITY_MULTIPLIERS[activity]
 
 
@@ -123,7 +123,6 @@ def calculate_tdee(
 ) -> float:
     """Calculate Total Daily Energy Expenditure.
 
-    RU: Расчёт общего дневного энергозатрата.
     EN: Calculate total daily energy expenditure.
 
     Args:
@@ -145,7 +144,6 @@ def calculate_tdee(
 def get_macro_ratios(goal: Goal) -> Dict[str, float]:
     """Get macronutrient ratios for different goals.
 
-    RU: Получить соотношения макронутриентов для разных целей.
     EN: Get macronutrient ratios for different goals.
 
     Args:
@@ -159,6 +157,8 @@ def get_macro_ratios(goal: Goal) -> Dict[str, float]:
         "maintain": {"protein": 0.30, "carbs": 0.45, "fat": 0.25},
         "gain": {"protein": 0.25, "carbs": 0.50, "fat": 0.25},
     }
+    if goal not in ratios:
+        raise ValueError(f"Unknown goal: {goal}. Must be one of {list(ratios.keys())}")
     return ratios[goal]
 
 
@@ -170,7 +170,6 @@ def calculate_macros(
 ) -> Dict[str, float]:
     """Calculate macronutrient targets in grams.
 
-    RU: Расчёт целевых значений макронутриентов в граммах.
     EN: Calculate macronutrient targets in grams.
 
     Args:
@@ -207,7 +206,6 @@ def calculate_macros(
 def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[float] = None) -> float:
     """Adjust TDEE based on goal (weight loss/maintenance/gain).
 
-    RU: Корректировка TDEE на основе цели (похудение/поддержание/набор).
     EN: Adjust TDEE based on goal.
 
     Args:
@@ -233,7 +231,6 @@ def adjust_calories_for_goal(tdee: float, goal: Goal, deficit_pct: Optional[floa
 def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[str, float]:
     """Calculate deficit/surplus information.
 
-    RU: Расчёт информации о дефиците/профиците.
     EN: Calculate deficit/surplus information.
 
     Args:
