@@ -11,8 +11,7 @@ Object.defineProperty(window, 'location', {
   href: 'http://localhost:3000/',
   origin: 'http://localhost:3000',
   protocol: 'http:',
-  host: 'localhost:3000',
-  hostname: 'localhost',
+  host: 'localhost',
   port: '3000',
   pathname: '/',
   search: '',
@@ -25,5 +24,22 @@ Object.defineProperty(window, 'location', {
 });
 */
 
-// MSW temporarily disabled due to import issues
+// MSW temporarily disabled due to version conflicts
 // TODO: Fix MSW setup for jsdom environment
+/*
+import { server } from "./mocks/server";
+
+beforeAll(() => {
+  server.listen({
+    onUnhandledRequest: "bypass",
+  });
+});
+
+afterEach(() => {
+  server.resetHandlers();
+});
+
+afterAll(() => {
+  server.close();
+});
+*/

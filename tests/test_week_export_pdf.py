@@ -94,6 +94,18 @@ def test_register_font_falls_back_on_exception(monkeypatch, tmp_path) -> None:
     assert plan._register_font() == "Helvetica"  # type: ignore[access-private-member]
 
 
+def test_register_font_falls_back_on_missing_file(monkeypatch) -> None:
+    """Test _register_font returns 'Helvetica' when font file doesn't exist."""
+    # Mock FONT_PATH to return non-existent path
+    from pathlib import Path
+
+    fake_path = Path("/non/existent/font.ttf")
+    monkeypatch.setattr(plan, "FONT_PATH", fake_path)
+
+    # Should return "Helvetica" when file doesn't exist
+    assert plan._register_font() == "Helvetica"  # type: ignore[access-private-member]
+
+
 def test_pdf_uses_page_breaks(export_client: TestClient, monkeypatch) -> None:
     def fake_plan() -> dict[str, Any]:
         return {

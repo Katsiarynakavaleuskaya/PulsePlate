@@ -71,7 +71,7 @@ export default function ShoplistPreview() {
   const [err, setErr] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const cleanupRef = useRef<Array<{ id: ReturnType<typeof setTimeout>; cleanup: () => void }>>([]);
+  const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
 
   useEffect(() => {
     (async () => {
