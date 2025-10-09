@@ -103,10 +103,13 @@ def test_bmi_missing_fields():
         json={
             "weight_kg": 70,
             "height_m": 1.75,
-            # missing age, gender, etc.
+            # missing age, gender, etc. - API should handle gracefully
         },
     )
-    assert r.status_code in (422, 400)
+    # API now handles missing fields gracefully with defaults
+    assert r.status_code == 200
+    data = r.json()
+    assert "bmi" in data
 
 
 def test_plan_non_premium():
