@@ -106,9 +106,7 @@ def adjust_for_activity(bmr: float, activity: Activity) -> float:
         TDEE in kcal/day
     """
     if activity not in ACTIVITY_MULTIPLIERS:
-        raise ValueError(
-            f"Unknown activity level: {activity}. Must be one of {list(ACTIVITY_MULTIPLIERS.keys())}"
-        )
+        raise ValueError(f"Invalid activity: {activity}")  # noqa: TRY003
     return bmr * ACTIVITY_MULTIPLIERS[activity]
 
 
@@ -158,7 +156,7 @@ def get_macro_ratios(goal: Goal) -> Dict[str, float]:
         "gain": {"protein": 0.25, "carbs": 0.50, "fat": 0.25},
     }
     if goal not in ratios:
-        raise ValueError(f"Unknown goal: {goal}. Must be one of {list(ratios.keys())}")
+        raise ValueError(f"Invalid goal: {goal}")  # noqa: TRY003
     return ratios[goal]
 
 

@@ -2,7 +2,7 @@ import React from 'react';
 
 import './button.css';
 
-export interface ButtonProps {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Is this the principal call to action on the page? */
   primary?: boolean;
   /** How large should the button be? */
@@ -11,8 +11,6 @@ export interface ButtonProps {
   backgroundColor?: string;
   /** Button contents */
   label: string;
-  /** Optional click handler */
-  onClick?: () => void;
 }
 
 /** Primary UI component for user interaction */

@@ -11,6 +11,8 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
+logger = logging.getLogger(__name__)
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -30,8 +32,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None
-    create_async_engine = None
+    async_sessionmaker = cast(Any, None)
+    create_async_engine = cast(Any, None)
 
 
 def _build_engine_url() -> str:
@@ -109,7 +111,7 @@ class EngineCompat:
                 conn.commit()
             except Exception as e:  # noqa: BLE001
                 # Not all statements require/allow commit; log and ignore commit errors
-                logging.debug("Commit failed (expected for non-transactional statements): %s", e)
+                logger.debug("Commit failed (expected for non-transactional statements): %s", e)
             return result
 
 
