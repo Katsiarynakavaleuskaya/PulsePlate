@@ -146,9 +146,11 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME  # Success: return custom font
-        except Exception:
+        except (OSError, IOError, Exception) as exc:
             # Registration failed, fall back to default Helvetica
-            pass  # Suppress exception, fall through to return "Helvetica"
+            import logging
+
+            logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
 
     return "Helvetica"  # Fallback: file doesn't exist or registration failed
 
