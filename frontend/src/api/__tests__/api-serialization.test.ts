@@ -29,7 +29,7 @@ describe('API Body Serialization', () => {
     } as Response);
 
     const body = { a: 1, b: 'x' };
-    await api('/test', { method: 'POST', body: body as unknown as BodyInit });
+    await api('/test', { method: 'POST', body });
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(typeof init.body).toBe('string');

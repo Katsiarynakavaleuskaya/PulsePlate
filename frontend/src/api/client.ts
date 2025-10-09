@@ -210,9 +210,18 @@ export type ApiOptions = {
   onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
 };
 
+/**
+ * Extended RequestInit that allows plain objects as body (they get JSON serialized)
+ */
+export interface ApiRequestInit extends Omit<RequestInit, 'body'> {
+  body?: BodyInit | Record<string, any> | any[] | null;
+  mockUrl?: string;
+  forceMock?: boolean;
+}
+
 export async function api<T = unknown>(
   path: string,
-  init?: RequestInit & { mockUrl?: string; forceMock?: boolean },
+  init?: ApiRequestInit,
   options?: ApiOptions,
   forceJson?: boolean
 ): Promise<T> {
@@ -224,11 +233,11 @@ export async function api<T = unknown>(
     /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
      *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
      */
-    let serializedBody = init?.body;
+    let serializedBody: BodyInit | null = null;
     let forceJsonForBody = forceJson;
 
     // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
-    const body = init?.body as any;
+    const body = init?.body;
     const isPlainObjectOrArray =
       body &&
       typeof body === "object" &&
@@ -244,14 +253,18 @@ export async function api<T = unknown>(
       body instanceof ArrayBuffer ||
       // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
       body instanceof ReadableStream ||
-      typeof body?.arrayBuffer === "function";
+      (typeof body === "object" && body !== null && "arrayBuffer" in body && typeof body.arrayBuffer === "function");
 
     if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
       serializedBody = JSON.stringify(body);
       forceJsonForBody = true;
+    } else if (body instanceof FormData || body instanceof Blob || body instanceof ArrayBuffer ||
+               body instanceof ReadableStream || body instanceof URLSearchParams ||
+               typeof body === "string") {
+      serializedBody = body;
     }
 
-    const requestInit = {
+    const requestInit: RequestInit = {
       ...init,
       body: serializedBody,
       headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),

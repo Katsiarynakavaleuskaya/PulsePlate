@@ -9,11 +9,11 @@ export type PremiumRequestOptions = Pick<ApiOptions, "onAuthError"> & { signal?:
  * Body should be a plain object (api() serializes JSON internally).
  * onAuthError is forwarded as api() options (3rd arg).
  */
-export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
+export function createPremiumEndpoint<TReq extends Record<string, any>, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      { method: "POST", body: body as BodyInit, signal: options?.signal },
+      { method: "POST", body, signal: options?.signal },
       options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
       true // explicitly force JSON Content-Type for Premium POSTs
     );
