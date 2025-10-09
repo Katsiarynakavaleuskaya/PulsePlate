@@ -475,7 +475,7 @@ def get_rda_values(age: int, gender: str) -> dict:
     Returns:
         Dictionary with RDA values
     """
-    return calculate_micronutrient_targets(age=age, gender=gender)
+    return calculate_micronutrient_targets(**{"age": age, "gender": gender})
 
 
 def get_athlete_targets(**_profile) -> dict:
@@ -531,7 +531,7 @@ def get_pregnancy_targets(**profile) -> dict:
     }
 
 
-def calculate_pre_post_workout(workout_type: str, duration: int) -> dict:  # noqa: ARG001
+def calculate_pre_post_workout(_workout_type: str, duration: int) -> dict:  # noqa: ARG001
     """
     Calculate pre and post workout nutrition.
 
@@ -573,7 +573,7 @@ def get_meal_timing(**timing_data) -> dict:
     }
 
 
-def calculate_hydration_needs(**_hydration_data) -> float:
+def calculate_hydration_needs(**hydration_data) -> float:
     """
     Calculate daily hydration needs.
 
@@ -583,8 +583,8 @@ def calculate_hydration_needs(**_hydration_data) -> float:
     Returns:
         Daily water intake in ml
     """
-    weight: float = _hydration_data.get("weight", 70)
-    activity_level: str = _hydration_data.get("activity_level", "moderate")
+    weight: float = hydration_data.get("weight", 70)
+    activity_level: str = hydration_data.get("activity_level", "moderate")
 
     base_ml: float = weight * 30  # 30ml per kg
 

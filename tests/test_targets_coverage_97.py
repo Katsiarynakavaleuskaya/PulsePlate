@@ -64,13 +64,13 @@ class TestTargetsCoverage97:
         """Test get_minimum with valid nutrient."""
         result = self.targets.get_minimum("iron_mg")
         assert isinstance(result, float)
-        assert result == 8.0  # min value from tuple
+        assert result == self.targets.iron_mg[0]
 
     def test_get_maximum_valid_nutrient(self):
         """Test get_maximum with valid nutrient."""
         result = self.targets.get_maximum("iron_mg")
         assert isinstance(result, float)
-        assert result == 45.0  # max value from tuple
+        assert result == self.targets.iron_mg[2]
 
     def test_is_deficient_true(self):
         """Test is_deficient with deficient value."""

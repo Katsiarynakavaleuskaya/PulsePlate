@@ -64,7 +64,7 @@ export default tseslint.config({
     '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
     '@typescript-eslint/no-unused-vars': 'off' // Allow unused vars in tests
   },
-}, storybook.configs["flat/recommended"].map(config => ({
+}, ...storybook.configs["flat/recommended"].map(config => ({
   ...config,
   rules: {
     ...config.rules,

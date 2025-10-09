@@ -26,7 +26,7 @@ const renderApp = () => {
   );
 };
 
-if (import.meta.env?.DEV) {
+if (import.meta.env.DEV) {
   // лениво импортируем, чтобы не тащить в прод
   import("./mocks/browser")
     .then(({ worker }) => {

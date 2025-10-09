@@ -36,17 +36,17 @@ class TestCoreDatabaseCoverage:
 
             # Test session functions
             session = get_session()
-            assert session is not None or session is None
+            assert session is not None
 
             # Test unified food db
             db = get_unified_food_db()
-            assert db is not None or db is None
+            assert db is not None
 
         except ImportError:
             pytest.skip("core.db module not available")
-        except Exception:
+        except Exception as e:
             logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pass  # Function may have requirements we can't meet
+            pytest.fail(f"Unexpected exception: {e}")
 
     def test_food_apis_base_coverage(self) -> None:
         """Test food APIs base functionality."""
@@ -60,7 +60,7 @@ class TestCoreDatabaseCoverage:
             # Test methods if available
             if hasattr(provider, "search_food"):
                 result = provider.search_food("apple")
-                assert result is not None or result is None
+                assert result is not None
 
         except ImportError:
             pytest.skip("food_apis.base module not available")

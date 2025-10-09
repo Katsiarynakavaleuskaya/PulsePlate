@@ -29,6 +29,10 @@ ACTIVITY_MULTIPLIERS = {
     "extremely_active": 1.9,
 }
 
+# Approximate kcal per kg of body fat (used for weight change estimates)
+# Note: This is a rough approximation; actual values vary (7000-8000 kcal/kg)
+KCAL_PER_KG_FAT = 7700
+
 
 def calculate_bmr(
     age: int,
@@ -56,6 +60,15 @@ def calculate_bmr(
     Raises:
         ValueError: If unknown formula or missing body_fat for katch/cunningham
     """
+    if age <= 0:
+        raise ValueError("Age must be positive")
+    if weight <= 0:
+        raise ValueError("Weight must be positive")
+    if height <= 0:
+        raise ValueError("Height must be positive")
+    if body_fat is not None and not (0 <= body_fat <= 100):
+        raise ValueError("Body fat percentage must be between 0 and 100")
+
     if formula == "mifflin":
         if gender == "male":
             return 10 * weight + 6.25 * height - 5 * age + 5
@@ -244,7 +257,7 @@ def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[s
     return {
         "kcal_difference": difference,
         "pct_difference": round(pct, 1),
-        "weekly_change_kg": difference / 7700,  # 7700 kcal ≈ 1 kg fat
+        "weekly_change_kg": difference / KCAL_PER_KG_FAT,
         "is_deficit": difference < 0,
         "is_surplus": difference > 0,
     }
