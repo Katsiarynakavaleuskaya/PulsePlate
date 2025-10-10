@@ -11,8 +11,8 @@ try:
     )
 except ImportError:
     # Fallback for older openai versions
-    APITimeoutError = TimeoutError
-    APIConnectionError = ConnectionError
+    APITimeoutError = TimeoutError  # type: ignore[assignment,misc]
+    APIConnectionError = ConnectionError  # type: ignore[assignment,misc]
 
     class RateLimitError(Exception):  # type: ignore[no-redef]
         """Fallback for rate limit errors on older SDKs."""

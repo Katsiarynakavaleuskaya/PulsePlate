@@ -9,7 +9,7 @@ from app.routers import premium_week
 
 
 @pytest.fixture
-def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app) -> None:
+def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app):
     """Включаем строгий режим API-ключей (RU/EN)."""
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     monkeypatch.setenv("API_KEY", "test_key")
@@ -62,7 +62,7 @@ class TestPremiumWeekPlanEndToEnd:
             json={"sex": "female"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Missing user profile" in response.text
+        assert "All profile fields are required" in response.text
 
     def test_success_profile_flow(self, client, set_strict_api_key, monkeypatch):
         captured = {}

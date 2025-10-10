@@ -231,7 +231,7 @@ class TestPremiumWeekEndpoint96:
             assert response.status_code == 400  # HTTPException for missing profile data
             # Check that the error is about missing required fields
             detail = response.json()["detail"]
-            assert "Missing user profile data" in detail
+            assert "All profile fields are required" in detail
 
     def test_generate_week_plan_unable_to_derive_targets(self):
         """Test generate_week_plan when unable to derive targets - lines 112-113."""

@@ -135,7 +135,7 @@ class TestPremiumWeekRouter:
         )
 
         assert response.status_code == 400
-        assert "Missing user profile data" in response.json()["detail"]
+        assert "All profile fields are required" in response.json()["detail"]
 
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
