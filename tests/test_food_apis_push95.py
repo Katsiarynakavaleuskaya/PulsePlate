@@ -28,7 +28,7 @@ def test_usda_client_parse_exception_branch():
 
     c = USDAClient(api_key="X")
     # Break internal mapping to trigger exception path
-        c.nutrient_mapping = None
+    c.nutrient_mapping = None
     bad = {
         "fdcId": 1,
         "description": "x",
@@ -154,7 +154,7 @@ def test_update_manager_more_edges(tmp_path: Path):
     assert ok is True
 
     # Update callbacks exception path (208-209)
-        m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[method-assign]
+    m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[method-assign]
 
     def _bad_cb(res):
         raise RuntimeError("cb")
@@ -173,7 +173,7 @@ def test_update_manager_more_edges(tmp_path: Path):
         checksum="x",
         metadata={},
     )
-        m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[method-assign]
+    m.unified_db.get_common_foods_database = AsyncMock(return_value={})  # type: ignore[method-assign]
     m._load_backup = AsyncMock(side_effect=RuntimeError("x"))  # type: ignore[method-assign]
     _ = loop.run_until_complete(m.update_database("usda", force=True))
 
@@ -182,7 +182,7 @@ def test_update_manager_more_edges(tmp_path: Path):
         loop.run_until_complete(m._cleanup_old_backups("usda"))
 
     # run_scheduled_update else branch (497)
-        m.check_for_updates = AsyncMock(return_value={"usda": False})  # type: ignore[method-assign]
+    m.check_for_updates = AsyncMock(return_value={"usda": False})  # type: ignore[method-assign]
     empty = loop.run_until_complete(run_scheduled_update(m))
     assert isinstance(empty, dict)
 
@@ -235,6 +235,6 @@ def test_scheduler_remaining_edges():
         async def stop(self):
             self.is_running = False
 
-        sched_mod._scheduler_instance = _Sched2()
+    sched_mod._scheduler_instance = _Sched2()
     loop.run_until_complete(stop_background_updates())
     loop.close()
