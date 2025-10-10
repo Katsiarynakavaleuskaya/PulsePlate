@@ -23,21 +23,21 @@ fi
 
 # 2. Проверка форматирования только измененных файлов
 echo -e "${YELLOW}🎨 Проверка форматирования...${NC}"
-if git diff --name-only --cached | grep "\.py$" | xargs -r black --check --diff; then
+if ruff format --check .; then
     echo -e "${GREEN}✅ Форматирование в порядке${NC}"
 else
     echo -e "${RED}❌ Требуется форматирование${NC}"
-    echo -e "${BLUE}💡 Запустите: black .${NC}"
+    echo -e "${BLUE}💡 Запустите: ruff format .${NC}"
     exit 1
 fi
 
-# 3. Быстрая проверка импортов
-echo -e "${YELLOW}📦 Проверка импортов...${NC}"
-if git diff --name-only --cached | grep "\.py$" | xargs -r isort --check-only --diff; then
-    echo -e "${GREEN}✅ Импорты организованы${NC}"
+# 3. Быстрая проверка кода (lint)
+echo -e "${YELLOW}📦 Проверка кода...${NC}"
+if ruff check .; then
+    echo -e "${GREEN}✅ Код проверен${NC}"
 else
-    echo -e "${RED}❌ Требуется организация импортов${NC}"
-    echo -e "${BLUE}💡 Запустите: isort .${NC}"
+    echo -e "${RED}❌ Требуется исправление${NC}"
+    echo -e "${BLUE}💡 Запустите: ruff check --fix .${NC}"
     exit 1
 fi
 

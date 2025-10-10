@@ -206,8 +206,9 @@ def calculate_macros(
         protein_kcal = protein_g * 4
         remaining_kcal = tdee - protein_kcal
         if remaining_kcal <= 0:
-            carbs_g = 0.0
-            fat_g = 0.0
+            raise ValueError(
+                "Protein target exceeds available calories; adjust protein_grams_per_kg or increase tdee."
+            )
         else:
             # Renormalize carbs/fat split to use all remaining calories
             residual_ratio = ratios["carbs"] + ratios["fat"]

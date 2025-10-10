@@ -8,11 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    import app as app_mod  # type: ignore
+    import app as app_mod
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app_mod.app)  # type: ignore
+client = TestClient(app_mod.app)
 
 
 def test_plate_targets_integration_workflow():

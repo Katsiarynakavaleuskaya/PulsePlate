@@ -75,26 +75,23 @@ cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
 	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
-## Lint (flake8)
-lint: ## Lint with flake8
+## Lint (ruff)
+lint: ## Lint with ruff
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	flake8 .
+	ruff check .
 
 ## Auto-fix (format + imports)
-fmt: ## Format with black and isort
+fmt: ## Format with ruff
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
-	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
+	ruff format .
+	ruff check --fix .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
 
 ## Format check only
 fmt-check: ## Check code formatting
 	@echo "$(YELLOW)🔍 Проверка форматирования...$(NC)"
-	black --check --diff .
-	isort --check-only --diff .
+	ruff format --check .
+	ruff check .
 
 ## Security check
 security: ## Run security checks (bandit + pip-audit)
@@ -256,12 +253,9 @@ cov: ## Run coverage with pytest (term + XML)
 cov-html: ## Generate HTML coverage and open in browser
 	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
-## Lint (flake8)
-lint: ## Lint with flake8
-	flake8 .
-
-## Auto-fix (format + imports)
-fmt: ## Format with black and isort
+## Lint (ruff)
+lint: ## Lint with ruff
+	ruff check .
 
 ## Smoke test (auto: 8000 then 8001)
 smoke-auto: ## Try health+bmi on 8000 then 8001
@@ -318,7 +312,7 @@ bandit-full:
 
 lint:
 	ruff check .
-	black --check .
+	ruff format --check .
 	mypy app scripts
 
 .PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full

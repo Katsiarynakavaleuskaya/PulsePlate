@@ -80,6 +80,7 @@ class FoodDatabaseBuilder:
                 file=sys.stderr,
             )
             logging.exception("USDA data loading failed")
+            sys.exit(1)
 
         # Load OFF data (from chunks or single file)
         off_data = []
@@ -94,7 +95,7 @@ class FoodDatabaseBuilder:
             off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
         except (OSError, ValueError, UnicodeDecodeError):
-            print("  ❌ OFF data source failed - continuing with partial data", file=sys.stderr)
+            print("  ❌ OFF data source failed - continuing without OFF data", file=sys.stderr)
             logging.exception("OFF data loading failed")
 
         return usda_data, off_data

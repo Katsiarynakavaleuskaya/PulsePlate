@@ -36,11 +36,15 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
                            ('inert' in root && typeof (root as any).inert === 'boolean');
 
     if (hasInertSupport) {
-      // Use native inert when supported
-      const prevInert = (root as any).inert;
-      (root as any).inert = true;
+      // Use native inert when supported - set as string attribute to avoid React warnings
+      const prevInert = root.getAttribute('inert');
+      root.setAttribute('inert', 'true');
       return () => {
-        (root as any).inert = prevInert;
+        if (prevInert !== null) {
+          root.setAttribute('inert', prevInert);
+        } else {
+          root.removeAttribute('inert');
+        }
       };
     } else {
       // Fallback: set aria-hidden and remove tabindex from descendants

@@ -36,12 +36,16 @@ exclude = '''
 )
 '''
 
+# Note: We use Ruff for both linting AND formatting (replaces Black + flake8 + isort)
+# Ruff is faster and fully compatible with Black's formatting style
+# DO NOT add [tool.black] config - it will conflict with Ruff formatter
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
 
 [tool.ruff.format]
-# Use black-compatible formatting
+# Use black-compatible formatting (Ruff replaces Black entirely)
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"

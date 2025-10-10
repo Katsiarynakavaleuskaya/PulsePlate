@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 // Component that throws an error
-function ErrorComponent(): JSX.Element {
+function ErrorComponent(): never {
   throw new Error('Test error');
 }
 

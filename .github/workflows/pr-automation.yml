@@ -121,7 +121,15 @@ jobs:
               exit 1
             }
 
-            # Re-stage changes after rebase
+            # Merge with remote to sync (safer than rebase)
+            git pull origin "$BRANCH_NAME" --no-rebase || {
+              echo "⚠️  Merge conflict detected - manual intervention required"
+              echo "ℹ️  Please resolve conflicts manually and re-push"
+              echo "ℹ️  This is safer than automatic rebase which rewrites history"
+              exit 1
+            }
+
+            # Re-stage changes after merge
             git add -A
 
             # Commit changes
@@ -129,7 +137,7 @@ jobs:
           🤖 Auto-fix: CodeRabbit suggestions applied
 
           * Applied ESLint auto-fixes
-          * Applied pre-commit auto-fixes (black, ruff, etc.)
+          * Applied pre-commit auto-fixes (ruff format, ruff check)
           * Verified all tests pass
           * Ready for manual review
           EOF
@@ -154,12 +162,114 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read  # Minimal read access for validation
+      checks: read    # Needed to read check runs
+      pull-requests: read  # Needed to read PR status
     steps:
-      - name: Validate all CI checks pass
-        run: |
-          # Wait for all CI checks to complete
-          echo "Validating final CI status..."
-          sleep 30  # Give CI time to start
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-          # Check if all required checks are successful
-          # This would need to be implemented based on your specific CI setup
+      - name: Validate all CI checks pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          echo "🔍 Validating CI checks for PR #${PR_NUMBER}..."
+          echo "Repository: ${REPO}"
+
+          # Configuration
+          TIMEOUT_SECONDS=300  # 5 minutes
+          POLL_INTERVAL=10     # Check every 10 seconds
+          MAX_ITERATIONS=$((TIMEOUT_SECONDS / POLL_INTERVAL))
+
+          # Required check names (adjust based on your CI setup)
+          # Leave empty to check all checks
+          REQUIRED_CHECKS=""
+
+          iteration=0
+          while [ $iteration -lt $MAX_ITERATIONS ]; do
+            iteration=$((iteration + 1))
+            elapsed=$((iteration * POLL_INTERVAL))
+
+            echo ""
+            echo "⏱️  Poll ${iteration}/${MAX_ITERATIONS} (${elapsed}s elapsed)..."
+
+            # Get PR HEAD SHA
+            PR_HEAD_SHA=$(gh pr view ${PR_NUMBER} --json headRefOid --jq '.headRefOid')
+            echo "📍 HEAD SHA: ${PR_HEAD_SHA}"
+
+            # Get all check runs for this commit
+            check_runs=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${REPO}/commits/${PR_HEAD_SHA}/check-runs" \
+              --jq '.check_runs[] | select(.name != "final-validation") | {name: .name, status: .status, conclusion: .conclusion}')
+
+            if [ -z "$check_runs" ]; then
+              echo "⚠️  No check runs found yet, waiting..."
+              sleep $POLL_INTERVAL
+              continue
+            fi
+
+            # Parse check runs
+            echo "$check_runs" | jq -c '.' | while read -r check; do
+              name=$(echo "$check" | jq -r '.name')
+              status=$(echo "$check" | jq -r '.status')
+              conclusion=$(echo "$check" | jq -r '.conclusion')
+
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" = "success" ]; then
+                  echo "✅ ${name}: ${conclusion}"
+                else
+                  echo "❌ ${name}: ${conclusion}"
+                fi
+              else
+                echo "⏳ ${name}: ${status}"
+              fi
+            done
+
+            # Count check statuses
+            total_checks=$(echo "$check_runs" | jq -s 'length')
+            completed_checks=$(echo "$check_runs" | jq -s '[.[] | select(.status == "completed")] | length')
+            success_checks=$(echo "$check_runs" | jq -s '[.[] | select(.status == "completed" and .conclusion == "success")] | length')
+            failed_checks=$(echo "$check_runs" | jq -s '[.[] | select(.status == "completed" and (.conclusion == "failure" or .conclusion == "cancelled"))] | length')
+            pending_checks=$((total_checks - completed_checks))
+
+            echo ""
+            echo "📊 Summary: ${success_checks}/${total_checks} successful, ${failed_checks} failed, ${pending_checks} pending"
+
+            # Check for failures
+            if [ $failed_checks -gt 0 ]; then
+              echo ""
+              echo "❌ FAILURE: One or more CI checks failed or were cancelled"
+              echo ""
+              echo "Failed checks:"
+              echo "$check_runs" | jq -s '.[] | select(.status == "completed" and (.conclusion == "failure" or .conclusion == "cancelled")) | "  - \(.name): \(.conclusion)"' -r
+              exit 1
+            fi
+
+            # Check if all completed successfully
+            if [ $pending_checks -eq 0 ] && [ $total_checks -gt 0 ]; then
+              echo ""
+              echo "✅ SUCCESS: All ${total_checks} CI checks passed!"
+              exit 0
+            fi
+
+            # Continue waiting
+            echo "⏳ Waiting for ${pending_checks} pending check(s) to complete..."
+            sleep $POLL_INTERVAL
+          done
+
+          # Timeout reached
+          echo ""
+          echo "⏱️ TIMEOUT: CI checks did not complete within ${TIMEOUT_SECONDS} seconds"
+          echo ""
+          echo "Current status:"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${REPO}/commits/${PR_HEAD_SHA}/check-runs" \
+            --jq '.check_runs[] | select(.name != "final-validation") | "  - \(.name): \(.status) (\(.conclusion // "pending"))"'
+          exit 1

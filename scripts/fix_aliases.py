@@ -24,7 +24,7 @@ def main() -> int:
         out.append(r)
     with CSV_PATH.open("w", encoding="utf-8", newline="") as f:
         csv.writer(f).writerows(out)
-    print(f"aliases: deduped, kept {len(out)-1} rows")
+    print(f"aliases: deduped, kept {len(out) - 1} rows")
     return 0
 
 

@@ -48,9 +48,20 @@ git fetch origin
 if git diff HEAD origin/$current_branch --quiet; then
     show_status "Ветка синхронизирована с remote" "success"
 else
-    echo -e "${YELLOW}🔄 Обнаружены изменения в remote. Выполняем rebase...${NC}"
-    git rebase origin/$current_branch
-    show_status "Rebase выполнен успешно" "success"
+    echo -e "${YELLOW}🔄 Обнаружены изменения в remote. Выполняем merge...${NC}"
+    echo -e "${BLUE}💡 Используем merge вместо rebase для сохранения истории${NC}"
+    if git pull origin "$current_branch" --no-rebase; then
+        show_status "Merge выполнен успешно" "success"
+    else
+        show_status "Merge завершился с конфликтами" "error"
+        echo -e "${RED}❌ Конфликт слияния обнаружен. Разрешите конфликты вручную:${NC}"
+        echo -e "${BLUE}  1. git status  # посмотреть конфликтующие файлы${NC}"
+        echo -e "${BLUE}  2. # отредактировать файлы, разрешить конфликты${NC}"
+        echo -e "${BLUE}  3. git add <resolved-files>${NC}"
+        echo -e "${BLUE}  4. git commit  # завершить merge${NC}"
+        echo -e "${BLUE}  5. ./scripts/auto_push.sh  # повторить push${NC}"
+        exit 1
+    fi
 fi
 
 # 4. Запуск тестов и проверок

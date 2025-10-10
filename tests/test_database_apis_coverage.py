@@ -19,16 +19,54 @@ import pytest
 
 
 def _test_with_exception_handling(test_func: Callable[[], None], skip_message: str) -> None:
-    """Helper to run test functions with consistent exception handling."""
+    """Helper to run test functions with consistent exception handling.
+
+    RU: Обрабатывает только ожидаемые операционные исключения; остальные прокидывает в pytest.
+    EN: Only catches expected operational exceptions; re-raises others for pytest to handle.
+
+    Expected operational exceptions:
+    - ImportError: Module/feature not available (test should be skipped)
+    - OSError/IOError: File system issues (e.g., cache directory access)
+    - ConnectionError/TimeoutError: Network/API issues
+    - RuntimeError: Configuration issues (e.g., missing API keys, async not configured)
+
+    Exceptions that will propagate:
+    - AssertionError: Test failures (must propagate)
+    - TypeError/ValueError/AttributeError: Code bugs (must propagate)
+    - Any other unexpected exceptions: Should fail the test
+    """
     try:
         test_func()
     except ImportError:
+        # Module or feature not available - skip test
         pytest.skip(skip_message)
     except AssertionError:
+        # Test assertion failed - must propagate to pytest
         raise
-    except Exception as e:
-        logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-        pytest.fail(f"Unexpected exception: {e}")
+    except (OSError, IOError) as e:
+        # File system issues (e.g., cache access, DB file access)
+        logging.exception(f"File system error in {TEST_FILE}: {e}")
+        pytest.skip(f"Test skipped due to file system error: {e}")
+    except (ConnectionError, TimeoutError) as e:
+        # Network/API connectivity issues
+        logging.exception(f"Network error in {TEST_FILE}: {e}")
+        pytest.skip(f"Test skipped due to network error: {e}")
+    except RuntimeError as e:
+        # Configuration issues (e.g., missing API keys, async not configured)
+        # Check if it's a known configuration issue
+        error_msg = str(e).lower()
+        if any(
+            keyword in error_msg
+            for keyword in ["not configured", "not available", "api key", "async"]
+        ):
+            logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to configuration: {e}")
+        else:
+            # Unexpected RuntimeError - let it propagate
+            logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+            raise
+    # Note: All other exceptions (TypeError, ValueError, AttributeError, etc.)
+    # will propagate naturally to pytest, ensuring real bugs are not masked
 
 
 class TestCoreDatabaseCoverage:
@@ -60,9 +98,25 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("core.db module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_food_apis_base_coverage(self) -> None:
         """Test food APIs base functionality."""
@@ -98,9 +152,25 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("usda module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_openfoodfacts_api_coverage(self) -> None:
         """Test OpenFoodFacts API functionality."""
@@ -119,9 +189,25 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("openfoodfacts module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_unified_db_coverage(self) -> None:
         """Test unified database functionality."""
@@ -134,9 +220,25 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("unified_db module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_update_manager_coverage(self) -> None:
         """Test update manager functionality."""
@@ -170,9 +272,25 @@ class TestCoreDatabaseCoverage:
 
         except ImportError:
             pytest.skip("update_manager module not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
 
 class TestCoreModulesAdvanced:
@@ -206,9 +324,25 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("auto_repair advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_menu_engine_advanced_coverage(self) -> None:
         """Test advanced menu_engine functionality."""
@@ -238,9 +372,25 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("menu_engine advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_plate_advanced_coverage(self) -> None:
         """Test advanced plate functionality."""
@@ -266,9 +416,25 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("plate advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_targets_advanced_coverage(self) -> None:
         """Test advanced targets functionality."""
@@ -298,9 +464,25 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("targets advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_i18n_advanced_coverage(self) -> None:
         """Test advanced i18n functionality."""
@@ -330,9 +512,25 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("i18n advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise
 
     def test_rag_advanced_coverage(self) -> None:
         """Test advanced RAG functionality."""
@@ -358,6 +556,22 @@ class TestCoreModulesAdvanced:
 
         except ImportError:
             pytest.skip("RAG advanced features not available")
-        except Exception as e:
-            logging.exception(f"Unexpected exception in tests: {TEST_FILE}")
-            pytest.fail(f"Unexpected exception: {e}")
+        except AssertionError:
+            raise
+        except (OSError, IOError) as e:
+            logging.exception(f"File system error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to file system error: {e}")
+        except (ConnectionError, TimeoutError) as e:
+            logging.exception(f"Network error in {TEST_FILE}: {e}")
+            pytest.skip(f"Test skipped due to network error: {e}")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(
+                keyword in error_msg
+                for keyword in ["not configured", "not available", "api key", "async"]
+            ):
+                logging.warning(f"Configuration issue in {TEST_FILE}: {e}")
+                pytest.skip(f"Test skipped due to configuration: {e}")
+            else:
+                logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
+                raise

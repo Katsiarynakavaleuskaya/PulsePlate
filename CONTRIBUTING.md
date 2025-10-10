@@ -11,6 +11,34 @@ This repo uses a simple branch model designed to keep `main` always green.
   - `chore/<task>` for maintenance
 - Avoid direct pushes to `main`. Open a PR.
 
+## Git Workflow: Merge vs Rebase
+
+**⚠️ Important:** Always use **merge** instead of **rebase** when syncing with remote.
+
+### ✅ Correct (use merge)
+
+```bash
+# Syncing with remote
+git pull origin feat/my-feature  # uses merge by default
+
+# Updating feature branch with main
+git merge origin/main
+```
+
+### ❌ Incorrect (avoid rebase)
+
+```bash
+# ❌ DON'T do this (rewrites history)
+git pull --rebase
+git rebase origin/main
+```
+
+**Why?** Rebase rewrites commit history, creates new SHA hashes, and causes conflicts for team members. Use merge to preserve history and avoid force-push.
+
+**Exception:** Interactive rebase (`git rebase -i`) is OK for cleaning up your LOCAL commits BEFORE pushing, but only if you're the sole contributor to the branch.
+
+See [GIT_PUSH_FIX_SUMMARY.md](GIT_PUSH_FIX_SUMMARY.md) for detailed explanation.
+
 ## Pull Requests
 
 - Keep PRs small and focused. Prefer squash merge.
@@ -34,7 +62,21 @@ pytest -q --maxfail=1 --disable-warnings \
 
 - Follow existing style. Keep changes minimal and scoped.
 - Prefer tests that isolate external services by mocking.
-- Don’t lower coverage thresholds; add tests instead.
+- Don't lower coverage thresholds; add tests instead.
+- **Code formatting**: We use **Ruff** for both linting and formatting (replaces Black + flake8).
+
+  ```bash
+  # Format code
+  ruff format .
+
+  # Lint and auto-fix
+  ruff check --fix .
+
+  # Or use Makefile
+  make fmt
+  ```
+
+  See [docs/FORMATTING_STRATEGY.md](docs/FORMATTING_STRATEGY.md) for details.
 - **Premium endpoints policy / Политика премиальных эндпойнтов**:
   - Every new premium/admin FastAPI route **must** include the shared API key guard (e.g. `Depends(_get_api_key_dynamic)` or `require_premium_key`).
   - Перед добавлением нового платного эндпойнта убедитесь, что он подключает dependency для проверки ключа и что есть тест, подтверждающий 403/401 без ключа.

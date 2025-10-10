@@ -1,7 +1,35 @@
 from typing import Optional
 
-from openai import AsyncOpenAI
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from openai import AsyncOpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIStatusError
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+
+def is_transient_exception(exc: BaseException) -> bool:
+    """
+    Определяет, является ли исключение временным и требует повтора.
+
+    Retry только для:
+    - timeouts (APITimeoutError)
+    - connection errors (APIConnectionError)
+    - rate limits 429 (RateLimitError)
+    - server errors 5xx (APIStatusError с кодом 500-599)
+
+    НЕ retry для:
+    - authentication 401
+    - permission 403
+    - client errors 400, 404 и др.
+    """
+    # OpenAI SDK специфичные transient errors
+    if isinstance(exc, (APITimeoutError, APIConnectionError, RateLimitError)):
+        return True
+
+    # Проверяем HTTP status код для APIStatusError
+    if isinstance(exc, APIStatusError):
+        status_code = exc.status_code
+        # Retry только для server errors (500-599) и rate limit (429)
+        return bool(status_code == 429 or (500 <= status_code < 600))
+
+    return False
 
 
 class GrokProvider:
@@ -24,7 +52,7 @@ class GrokProvider:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(Exception),
+        retry=retry_if_exception(is_transient_exception),
         reraise=True,
     )
     async def generate(self, text: str) -> str:
@@ -35,7 +63,7 @@ class GrokProvider:
                 timeout=self.timeout,
             )
             content = resp.choices[0].message.content
-            return str(content).strip() if content else ""
+            return (content or "").strip()
         except Exception as e:
             # Пробрасываем понятную ошибку наверх
             raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")

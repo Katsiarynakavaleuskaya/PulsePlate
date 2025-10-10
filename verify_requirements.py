@@ -51,7 +51,7 @@ def main() -> int:
     for pkg, version in req_dev.items():
         if pkg in req_main and req_main[pkg] != version:
             errors.append(
-                f"  ❌ {pkg}: requirements.txt={req_main[pkg]}, " f"requirements-dev.txt={version}"
+                f"  ❌ {pkg}: requirements.txt={req_main[pkg]}, requirements-dev.txt={version}"
             )
 
     # Check: requirements-all.txt should not have different versions
@@ -59,7 +59,7 @@ def main() -> int:
     for pkg, version in req_all.items():
         if pkg in req_main and req_main[pkg] != version:
             errors.append(
-                f"  ❌ {pkg}: requirements.txt={req_main[pkg]}, " f"requirements-all.txt={version}"
+                f"  ❌ {pkg}: requirements.txt={req_main[pkg]}, requirements-all.txt={version}"
             )
 
     if errors:

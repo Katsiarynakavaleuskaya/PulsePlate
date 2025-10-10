@@ -93,9 +93,9 @@ cat Package.resolved
 # Python тесты
 python -m pytest tests/ -v --cov=core --cov-report=html
 
-# Проверка линтинга
-python -m flake8 core/ app/
-python -m black --check core/ app/
+# Проверка линтинга и форматирования (используем Ruff)
+ruff check core/ app/
+ruff format --check core/ app/
 
 # iOS тесты
 cd ios
