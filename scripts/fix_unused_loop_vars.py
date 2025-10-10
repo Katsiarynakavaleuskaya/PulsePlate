@@ -8,13 +8,13 @@
 
 from pathlib import Path
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
 def get_b007_errors() -> list[tuple[str, int, str]]:
     """Получить список B007 ошибок из Ruff."""
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B607, B603
         ["ruff", "check", "--select", "B007", ".", "--output-format", "json"],
         capture_output=True,
         text=True,
@@ -62,8 +62,9 @@ def fix_file(filepath: str, line_num: int, var_name: str) -> bool:
 
         # Заменяем только первое вхождение переменной в for loop
         # Паттерн: for var_name, ... in ...
+        escaped_var = re.escape(var_name)
         new_line = re.sub(
-            rf"\bfor\s+{var_name}\b",
+            rf"\bfor\s+{escaped_var}\b",
             f"for _{var_name}",
             line,
             count=1,
@@ -76,7 +77,7 @@ def fix_file(filepath: str, line_num: int, var_name: str) -> bool:
 
         return False
 
-    except Exception as e:
+    except (OSError, UnicodeDecodeError, ValueError) as e:
         print(f"❌ Ошибка в {filepath}:{line_num}: {e}", file=sys.stderr)
         return False
 

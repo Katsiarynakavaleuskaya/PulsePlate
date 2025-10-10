@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 import sys
 import types
-from typing import Any, Optional
+from typing import Any
 
 
 def get_activity_factor(activity: str) -> float:

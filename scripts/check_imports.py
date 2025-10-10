@@ -12,7 +12,7 @@
 
 import ast
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
@@ -28,6 +28,7 @@ class ImportChecker:
     def check_file(self, filepath: Path) -> bool:
         """Проверить один файл на проблемы с импортами."""
         try:
+            errors_before = len(self.errors)
             with open(filepath, encoding="utf-8") as f:
                 content = f.read()
 
@@ -42,7 +43,7 @@ class ImportChecker:
             # Проверяем неиспользуемые импорты
             self._check_unused(filepath, tree, imports)
 
-            return len(self.errors) == 0
+            return len(self.errors) == errors_before
 
         except SyntaxError as e:
             self.errors.append(f"{filepath}: Syntax error: {e}")
@@ -67,7 +68,7 @@ class ImportChecker:
 
         return imports
 
-    def _check_duplicates(self, filepath: Path, imports: list[tuple[str, str, int]]):
+    def _check_duplicates(self, filepath: Path, imports: list[tuple[str, str, int]]) -> None:
         """Проверить дублирующиеся импорты."""
         seen: dict[str, int] = {}
 
@@ -81,7 +82,9 @@ class ImportChecker:
             else:
                 seen[key] = lineno
 
-    def _check_unused(self, filepath: Path, tree: ast.AST, imports: list[tuple[str, str, int]]):
+    def _check_unused(
+        self, filepath: Path, tree: ast.AST, imports: list[tuple[str, str, int]]
+    ) -> None:
         """Проверить неиспользуемые импорты (базовая проверка)."""
         # Собираем все имена, используемые в коде
         used_names: set[str] = set()
@@ -107,7 +110,7 @@ class ImportChecker:
         """Автоматически исправить проблемы с импортами используя ruff."""
         try:
             # Ruff может автоматически удалить неиспользуемые импорты
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B607, B603
                 ["ruff", "check", "--select", "F401", "--fix", str(filepath)],
                 capture_output=True,
                 text=True,
@@ -145,7 +148,7 @@ class ImportChecker:
 
         return all_ok
 
-    def print_report(self):
+    def print_report(self) -> None:
         """Вывести отчёт о проверке."""
         print("\n" + "=" * 80)
 
@@ -170,7 +173,7 @@ class ImportChecker:
         print("=" * 80)
 
 
-def main():
+def main() -> None:
     """Основная функция."""
     import argparse
 

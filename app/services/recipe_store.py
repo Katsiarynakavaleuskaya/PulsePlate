@@ -18,6 +18,8 @@ def _con():
 
 
 def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
+    from typing import Any
+
     # Handle empty or wildcard queries for FTS
     if not query or query == "*":
         sql = """
@@ -25,7 +27,7 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
           FROM recipes r
           LIMIT ? OFFSET ?
         """
-        params = [limit, offset]
+        query_params = [limit, offset]
     else:
         sql = """
           SELECT r.recipe_id, r.title, r.kcal_per_serv, r.tags_json
@@ -34,12 +36,10 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
           WHERE f.title MATCH ?
           LIMIT ? OFFSET ?
         """
-        from collections.abc import Sequence
-
-        search_params: Sequence[object] = [query, limit, offset]
+        query_params = [query, limit, offset]  # type: ignore[list-item]
 
     with _con() as con:
-        rows = con.execute(sql, search_params if query else params).fetchall()
+        rows = con.execute(sql, query_params).fetchall()
     return [dict(r) for r in rows]
 
 

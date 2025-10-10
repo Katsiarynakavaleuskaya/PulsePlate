@@ -1,9 +1,18 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryFn, StoryObj } from "@storybook/react";
+import { I18nextProvider } from 'react-i18next';
+import i18n from '../../i18n';
 import WaterCard from "./WaterCard";
 
 const meta = {
   title: "Nutrition/WaterCard",
   component: WaterCard,
+  decorators: [
+    (Story: StoryFn) => (
+      <I18nextProvider i18n={i18n}>
+        <Story />
+      </I18nextProvider>
+    ),
+  ],
   args: {
     liters: 2.5,
   },

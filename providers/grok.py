@@ -1,5 +1,3 @@
-from typing import Optional
-
 from openai import AsyncOpenAI
 
 
@@ -15,7 +13,11 @@ except ImportError:
     # Fallback for older openai versions
     APITimeoutError = TimeoutError
     APIConnectionError = ConnectionError
-    RateLimitError = Exception
+
+    class RateLimitError(Exception):  # type: ignore[no-redef]
+        """Fallback for rate limit errors on older SDKs."""
+
+        pass
 
     class APIStatusError(Exception):  # type: ignore[no-redef]
         """Fallback for older openai SDK versions."""

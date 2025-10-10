@@ -6,8 +6,7 @@ EN: Utilities for working with timezones and UTC-aware datetimes.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 try:  # Python 3.9+

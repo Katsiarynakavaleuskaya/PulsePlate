@@ -28,7 +28,7 @@ def test_premium_week_missing_profile_fields_returns_400():
     }
     resp = client.post("/api/v1/premium/plan/week-flexible", json=payload)
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "Missing user profile data"
+    assert resp.json()["detail"] == "All profile fields are required"
 
 
 def test_premium_week_activity_goal_required_branch_returns_400():

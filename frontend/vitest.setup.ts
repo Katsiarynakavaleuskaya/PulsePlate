@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import 'whatwg-fetch';
 import { preview as projectAnnotations } from './.storybook/preview';
+import { server } from './src/mocks/server';
 
 // Storybook annotations (global decorators/providers) in tests
 setProjectAnnotations(projectAnnotations);
@@ -26,9 +27,6 @@ Object.defineProperty(window, 'location', {
     toString: () => 'http://localhost:3000/'
   }
 });
-
-// MSW setup
-import { server } from './src/mocks/server';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());

@@ -26,30 +26,30 @@ def fix_file(filepath: Path) -> bool:
 
         # Паттерны для замены
         replacements = [
-            # from typing import ... -> удаляем устаревшие
+            # from typing import Dict, List, ... -> удаляем устаревшие
             (
                 r"from typing import ((?:[A-Z]\w+(?:, )?)+)",
                 lambda m: fix_import_line(m.group(0)),
             ),
             # Dict[str, int] -> dict[str, int]
-            (r"dict[", "dict["),
-            (r"list[", "list["),
-            (r"set[", "set["),
-            (r"tuple[", "tuple["),
-            (r"type[", "type["),
+            ("Dict[", "dict["),
+            ("List[", "list["),
+            ("Set[", "set["),
+            ("Tuple[", "tuple["),
+            ("Type[", "type["),
             # Для случаев без скобок (редко, но бывает)
-            (r": dict", ": dict"),
-            (r": list", ": list"),
-            (r": set", ": set"),
-            (r": tuple", ": tuple"),
-            (r": type", ": type"),
+            (": Dict", ": dict"),
+            (": List", ": list"),
+            (": Set", ": set"),
+            (": Tuple", ": tuple"),
+            (": Type", ": type"),
         ]
 
         for pattern, replacement in replacements:
             if callable(replacement):
                 content = re.sub(pattern, replacement, content)
             else:
-                content = content.replace(pattern, replacement)
+                content = content.replace(pattern, replacement)  # type: ignore[arg-type]
 
         if content != original:
             filepath.write_text(content, encoding="utf-8")
@@ -66,8 +66,8 @@ def fix_import_line(line: str) -> str:
     Исправить строку импорта, удалив устаревшие типы.
 
     Примеры:
-        'from typing import Any' -> 'from typing import Any'
-        '' -> '' (удаляется полностью)
+        'from typing import Dict, List, Any' -> 'from typing import Any'
+        'from typing import Dict, List' -> '' (удаляется полностью)
     """
     # Извлекаем список импортов
     match = re.match(r"from typing import (.+)", line)
@@ -90,7 +90,7 @@ def fix_import_line(line: str) -> str:
         return f"from typing import {', '.join(kept)}"
 
 
-def main():
+def main() -> int:
     """Главная функция."""
     project_root = Path.cwd()
     python_files = list(project_root.rglob("*.py"))
@@ -121,9 +121,9 @@ def main():
             print(f"✅ {filepath.relative_to(project_root)}")
             fixed += 1
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"✅ Исправлено файлов: {fixed}/{len(python_files)}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     return 0 if fixed > 0 else 1
 

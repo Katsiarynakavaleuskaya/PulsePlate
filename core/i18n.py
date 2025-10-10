@@ -4,7 +4,7 @@ Internationalization (i18n) module for the BMI App.
 Provides translation dictionaries and functions for RU/EN/ES localization.
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 
 # Translation dictionaries

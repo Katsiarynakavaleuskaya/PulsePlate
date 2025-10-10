@@ -16,7 +16,7 @@ EN: Metabolism and energy expenditure calculations.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 
 # Type definitions
