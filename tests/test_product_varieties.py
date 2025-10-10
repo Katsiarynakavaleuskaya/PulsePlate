@@ -280,7 +280,7 @@ class TestProductVarietiesManager:
                 "0",
                 "107",
                 "5",
-                "VEG,GF",
+                "VEG, GF",
                 "Fresh apple",
             ],
             [
@@ -300,7 +300,7 @@ class TestProductVarietiesManager:
                 "0",
                 "120",
                 "4",
-                "VEG,GF",
+                "VEG, GF",
                 "Tart apple",
             ],
             [

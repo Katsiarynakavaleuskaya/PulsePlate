@@ -95,7 +95,7 @@ class TestShoplistGeneratorBasics:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             writer = csv.writer(f)
             writer.writerow(["category", "unit", "typical_packages", "rounding_strategy"])
-            writer.writerow(["test_category", "g", "50,100,200", "up"])
+            writer.writerow(["test_category", "g", "50, 100, 200", "up"])
             temp_file = f.name
 
         try:
