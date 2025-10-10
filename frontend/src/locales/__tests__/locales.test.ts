@@ -11,9 +11,6 @@ import {
   TestLogger
 } from './test-utils';
 
-// Type definition for locale data structure
-type LocaleData = typeof en;
-
 // Define locales object first to derive types automatically
 // New locales added here will be automatically picked up by the type system
 const locales = { en, ru, es } as const;

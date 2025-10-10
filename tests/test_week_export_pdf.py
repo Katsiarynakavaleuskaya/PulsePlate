@@ -88,6 +88,9 @@ def test_register_font_falls_back_on_exception(monkeypatch, tmp_path) -> None:
         raise OSError("Font registration failed")
 
     monkeypatch.setattr(plan.pdfmetrics, "registerFont", fake_register)
+    # Mock getRegisteredFontNames to return empty list (font not registered yet)
+    monkeypatch.setattr(plan.pdfmetrics, "getRegisteredFontNames", lambda: [])
+
     monkeypatch.setattr(plan, "TTFont", lambda name, path: (name, path))
 
     # Should return "Helvetica" when registration fails
@@ -99,6 +102,9 @@ def test_register_font_falls_back_on_missing_file(monkeypatch) -> None:
     # Mock FONT_PATH to return non-existent path
     fake_path = Path("/non/existent/font.ttf")
     monkeypatch.setattr(plan, "FONT_PATH", fake_path)
+
+    # Mock getRegisteredFontNames to return empty list (font not registered yet)
+    monkeypatch.setattr(plan.pdfmetrics, "getRegisteredFontNames", lambda: [])
 
     # Should return "Helvetica" when file doesn't exist
     assert plan._register_font() == "Helvetica"  # type: ignore[access-private-member]
