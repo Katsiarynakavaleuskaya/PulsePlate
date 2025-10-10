@@ -98,14 +98,7 @@ class USDAClient:
     BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
     # Type alias for httpx param values
-    ParamValue = Union[
-        str,
-        int,
-        float,
-        bool,
-        None,
-        Sequence[str | int | float | bool | None],
-    ]
+    ParamValue = str | int | float | bool | None | Sequence[str | int | float | bool | None]
 
     def __init__(self, api_key: str | None = None):
         """

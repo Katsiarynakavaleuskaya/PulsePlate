@@ -97,6 +97,7 @@ force-sort-within-sections = true
     "B011",   # Do not assert False - valid pattern in tests
     # B017 убран - будем использовать конкретные исключения для безопасности
     "N806",   # Variable in function should be lowercase - test fixtures
+    "N811",   # Constant imported as non-constant - test aliases
     "N812",   # Lowercase imported as non-lowercase - test abbreviations
 ]
 "tests/edges/*.py" = ["B009", "B010", "N812"]  # Edge case tests need special patterns

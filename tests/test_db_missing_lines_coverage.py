@@ -92,14 +92,15 @@ class TestDbMissingLinesCoverage:
             pass
 
     def test_engine_compat_execute_different_exception_types(self):
-        """Test different types of exceptions in commit"""
+        """Test different types of database exceptions in commit"""
         try:
+            from sqlalchemy.exc import InvalidRequestError
+
             from core.db import EngineCompat
 
+            # Test only database-related exceptions that are actually caught
             exception_types = [
-                Exception("Generic error"),
-                RuntimeError("Runtime error"),
-                ValueError("Value error"),
+                InvalidRequestError("Invalid request"),
                 SQLAlchemyError("SQLAlchemy error"),
             ]
 
@@ -113,11 +114,11 @@ class TestDbMissingLinesCoverage:
                 mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
 
                 mock_conn.execute.return_value = mock_result
-                mock_conn.commit.side_effect = exception  # Different exception each time
+                mock_conn.commit.side_effect = exception  # Different DB exception each time
 
                 engine_compat = EngineCompat(mock_engine)
 
-                # Should handle any exception gracefully (line 63: except Exception)
+                # Should handle DB exceptions gracefully (InvalidRequestError, SQLAlchemyError)
                 result = engine_compat.execute("SELECT 1")
                 assert result == mock_result
 

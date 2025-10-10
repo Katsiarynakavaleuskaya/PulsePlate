@@ -65,8 +65,10 @@ jobs:
           done
 
           if [ "$status" != "completed" ]; then
-            echo "❌ CodeRabbit review timeout after ${TIMEOUT_MIN} minutes" >&2
-            exit 1
+            echo "⚠️ CodeRabbit review timeout after ${TIMEOUT_MIN} minutes" >&2
+            echo "ℹ️ Continuing without CodeRabbit review (non-blocking)"
+            echo "status=timeout" >> $GITHUB_OUTPUT
+            # Do not fail - allow CI to continue
           fi
 
   apply-coderabbit-fixes:

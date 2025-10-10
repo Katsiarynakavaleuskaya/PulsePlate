@@ -717,7 +717,7 @@ class DatabaseUpdateManager:
         # that ended with accented 'é'. Determine which original tokens are
         # alphanumeric (non-empty after cleaning) to align with parts.
         token_flags_alnum: list[bool] = []
-        for tok, flag in zip(original_tokens, accented_e_flags):
+        for tok, flag in zip(original_tokens, accented_e_flags, strict=False):
             norm_tok = (
                 unicodedata.normalize("NFKD", tok.lower()).encode("ascii", "ignore").decode("ascii")
             )

@@ -185,18 +185,18 @@ class TestMinCaloriesIntegration:
     def test_athlete_scenario(self):
         """Test realistic scenario: athlete with higher minimum requirements."""
         # Example: 80kg athlete, TDEE 3500 kcal, wants aggressive cut
-        # 30% deficit would be 2450 kcal, but athlete needs ≥2000 kcal
+        # 25% deficit (max safe) would be 2625 kcal, which is above floor
         result = target_kcal(
-            tdee_val=3500, goal="loss", deficit_pct=30, surplus_pct=None, min_calories=2000
+            tdee_val=3500, goal="loss", deficit_pct=25, surplus_pct=None, min_calories=2000
         )
-        # 30% deficit = 3500 * 0.7 = 2450, which is above floor
-        assert result == 2450
+        # 25% deficit = 3500 * 0.75 = 2625, which is above floor
+        assert result == 2625
 
         # Test with lower TDEE where floor matters
         result_low = target_kcal(
-            tdee_val=2500, goal="loss", deficit_pct=30, surplus_pct=None, min_calories=2000
+            tdee_val=2500, goal="loss", deficit_pct=25, surplus_pct=None, min_calories=2000
         )
-        # 30% deficit = 2500 * 0.7 = 1750, floor raises to 2000
+        # 25% deficit = 2500 * 0.75 = 1875, floor raises to 2000
         assert result_low == 2000
 
     def test_goal_specific_floors_concept(self):

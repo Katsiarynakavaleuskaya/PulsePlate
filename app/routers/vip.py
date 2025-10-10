@@ -278,7 +278,7 @@ def _require_api_key(raw_key: str | None = Depends(_api_key_header)) -> str:
                         )
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg
-                        )
+                        ) from exc
                     else:
                         # Anonymous access is explicitly allowed (non-production only)
                         _log_api_key_event(
@@ -403,7 +403,7 @@ def _adapter_make_weekly_menu(*args, **kwargs):
             profile_data = kwargs
         else:
             # Check if any value is a dict that could be profile data
-            for key, value in kwargs.items():
+            for _key, value in kwargs.items():
                 if isinstance(value, dict) and any(field in value for field in profile_fields):
                     profile_data = value
                     break
@@ -499,7 +499,7 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> dict[str, Any]:
     request_dict = request.model_dump(exclude_none=True)
     original_data = {}
     for key, value in request_dict.items():
-        if isinstance(value, (str, list, tuple, dict, set)):
+        if isinstance(value, str | list | tuple | dict | set):
             if len(value) == 0:
                 continue
         original_data[key] = value
@@ -566,7 +566,7 @@ def _require_api_key_dev_legacy(raw_key: str | None = Depends(_api_key_header)) 
 
 @router.post(
     "/weekly-plan",
-    response_model=Union[WeeklyPlanResponse, ErrorResponse],
+    response_model=WeeklyPlanResponse | ErrorResponse,
     summary="Generate weekly meal plan",
     description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
     dependencies=[Depends(_require_api_key_dev_legacy)],

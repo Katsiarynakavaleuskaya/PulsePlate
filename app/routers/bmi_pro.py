@@ -56,7 +56,7 @@ def bmi_pro(req: BMIProRequest):
         )
         risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     card = BMIProCard(
         bmi=bmi_val,
         whtr=v_whtr,
