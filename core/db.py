@@ -39,8 +39,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None  # type: ignore
-    create_async_engine = None  # type: ignore
+    async_sessionmaker = None
+    create_async_engine = None
 
 # Initialize async engine variables
 _ASYNC_ENGINE: AsyncEngineType | None = None

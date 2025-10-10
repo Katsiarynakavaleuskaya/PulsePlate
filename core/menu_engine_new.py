@@ -153,7 +153,7 @@ def build_plate_day(
     total_cost = 0.0
     for meal in out_meals:
         price_est = meal.get("price_est", 0.0)
-        if isinstance(price_est, (int, float)):
+        if isinstance(price_est, int | float):
             total_cost += float(price_est)
         elif isinstance(price_est, str):
             try:

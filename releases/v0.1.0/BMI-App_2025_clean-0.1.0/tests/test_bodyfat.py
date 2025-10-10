@@ -14,7 +14,7 @@ from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 
 
 def assert_percent(x):
-    assert isinstance(x, (int, float))
+    assert isinstance(x, int | float)
     assert math.isfinite(x)
     assert 0 < x < 100
 
@@ -65,7 +65,7 @@ def test_estimate_all_smoke():
     assert "methods" in res and isinstance(res["methods"], dict)
     # если хотя бы одна методика дала число — ок
     vals = list(res["methods"].values())
-    assert any(isinstance(v, (int, float)) and 0 < v < 100 for v in vals)
+    assert any(isinstance(v, int | float) and 0 < v < 100 for v in vals)
     # если есть медиана — тоже должна быть корректным процентом
     if res.get("median") is not None:
         assert_percent(res["median"])
