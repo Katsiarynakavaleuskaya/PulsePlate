@@ -101,8 +101,14 @@ force-sort-within-sections = true
 ]
 "tests/edges/*.py" = ["B009", "B010", "N812"]  # Edge case tests need special patterns
 "scripts/*.py" = ["E402", "T20"]  # Scripts can have top-level imports
-"releases/**/*.py" = ["E402"]
+"releases/**/*.py" = ["E402", "B904"]  # Release archives - legacy code
 "setup_custom_mcp.py" = ["B007"]  # Loop variables intentionally unused
+"app.py" = ["N806", "B904", "B009"]  # Main app file - specific patterns
+"core/exports.py" = ["N806"]  # ReportLab class names by convention
+"core/food_sources/*.py" = ["N806"]  # Nutrient naming conventions (Fe_mg, Ca_mg)
+"core/db.py" = ["N812", "B010"]  # SQLAlchemy patterns
+"providers/*.py" = ["B904"]  # Provider error wrapping pattern
+"ios/Scripts/*.py" = ["N806"]  # iOS helper scripts
 
 [tool.pyright]
 pythonVersion = "3.13"

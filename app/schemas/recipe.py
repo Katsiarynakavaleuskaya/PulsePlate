@@ -3,8 +3,6 @@ RU: Нормализованная схема рецепта и превью.
 EN: Normalized recipe schema and preview.
 """
 
-
-
 from pydantic import BaseModel, Field
 
 

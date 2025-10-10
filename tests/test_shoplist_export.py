@@ -1,7 +1,5 @@
 """Tests for the public shoplist export endpoints."""
 
-
-
 import pytest
 
 from app.routers import shoplist_export as export

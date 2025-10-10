@@ -1,5 +1,3 @@
-
-
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.food import FoodHit, FoodItem
