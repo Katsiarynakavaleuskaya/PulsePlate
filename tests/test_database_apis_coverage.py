@@ -47,9 +47,12 @@ class TestCoreDatabaseCoverage:
 
             # Test session functions (get_session returns a generator)
             session_gen = get_session()
-            session = next(session_gen)
-            assert session is not None
-            session.close()
+            try:
+                session = next(session_gen)
+                assert session is not None
+                session.close()
+            finally:
+                session_gen.close()
 
             # Test unified food db
             db = await get_unified_food_db()
