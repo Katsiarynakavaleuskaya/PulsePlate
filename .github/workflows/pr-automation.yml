@@ -81,7 +81,7 @@ jobs:
           echo "CodeRabbit suggestions should be reviewed and applied manually"
 
           # Auto-fix ESLint issues
-          cd frontend && npm run lint:fix
+          (cd frontend && npm run lint:fix)
 
           # Auto-fix Python formatting/linting
           pre-commit run --all-files
