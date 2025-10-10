@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.product_varieties import ProductVarietiesManager
 
 
-def main():
+def main() -> None:
     """Main function for product varieties demo."""
     print("🚀 Демонстрация системы сортов продуктов")
     print("=" * 50)
@@ -93,11 +93,11 @@ def main():
     print("=" * 50)
 
     user_profiles = [
-        {"name": "Диабетик", "preferences": {"low_sugar": True, "low_fat": True}},
-        {"name": "Спортсмен", "preferences": {"high_protein": True, "low_sugar": True}},
+        {"name": "Диабетик", "preferences": {"low_sugar": "true", "low_fat": "true"}},
+        {"name": "Спортсмен", "preferences": {"high_protein": "true", "low_sugar": "true"}},
         {
             "name": "Вегетарианец",
-            "preferences": {"vegetarian": True, "gluten_free": True},
+            "preferences": {"vegetarian": "true", "gluten_free": "true"},
         },
     ]
 
@@ -106,7 +106,8 @@ def main():
         print(f"   Предпочтения: {profile['preferences']}")
 
         for product_name in ["Молоко", "Сыр"]:
-            if recommended := manager.recommend_variety(product_name, profile["preferences"]):
+            preferences = profile["preferences"]
+            if recommended := manager.recommend_variety(product_name, preferences):  # type: ignore[arg-type]
                 print(f"   {product_name}: {recommended.variety} ({recommended.brand})")
                 print(
                     f"     Белок: {recommended.protein_g}g, Жиры: {recommended.fat_g}g, "
@@ -126,7 +127,7 @@ def main():
         ("Йогурт", None, "стандарт"),
     ]
 
-    for product_name, variety_name, brand in search_examples:
+    for product_name, variety_name, brand in search_examples:  # type: ignore[assignment]
         print(f"🔍 Поиск: {product_name}")
         if variety_name:
             print(f"   Сорт: {variety_name}")

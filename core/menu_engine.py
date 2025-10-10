@@ -19,7 +19,6 @@ from typing import Any, Optional
 
 _logger = logging.getLogger(__name__)
 
-
 from .food_apis.unified_db import get_unified_food_db
 from .plate import make_plate
 from .recommendations import (

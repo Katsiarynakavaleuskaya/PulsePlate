@@ -55,10 +55,10 @@ def call_premium_bmr_api(
 
     headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=30)  # nosec B113
     response.raise_for_status()
 
-    return response.json()
+    return response.json()  # type: ignore[no-any-return]
 
 
 def main():

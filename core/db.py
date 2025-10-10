@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
@@ -132,7 +132,6 @@ _RAW_ENGINE = create_engine(
 
 # Public engine exposes a legacy-compatible .execute attribute expected by tests
 engine = EngineCompat(_RAW_ENGINE)
-
 
 # Async engine configuration (optional)
 ASYNC_DATABASE_URL = None
@@ -266,8 +265,7 @@ def init_db() -> None:
     metadata = Base.metadata
     create_all = metadata.create_all
 
-    # Wrap create_all in a callable object with an assert_called_once helper,
-    # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
+    # Wrap create_all in a callable object with an assert_called_once helper, # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
     class _CreateAllWrapper:
         def __init__(self, fn):
             self._fn = fn
@@ -371,12 +369,9 @@ def get_unified_food_db() -> Any:
     # Check if we're already in an async context
     try:
         asyncio.get_running_loop()
-    except RuntimeError as e:
-        message = str(e).lower()
-        if "no running event loop" not in message and "no current event loop" not in message:
-            # Unexpected RuntimeError, re-raise it
-            raise
+    except RuntimeError:
         # No running loop, we can proceed with asyncio.run()
+        pass
     else:
         raise RuntimeError(
             "get_unified_food_db() cannot be called from async code. "

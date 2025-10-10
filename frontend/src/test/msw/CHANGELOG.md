@@ -4,7 +4,7 @@
 
 ### Changed
 
-**Replaced magic number error simulation with header-based approach**
+### Replaced magic number error simulation with header-based approach
 
 All three premium API endpoint handlers now use the `X-Mock-Error` request header to trigger server errors instead of checking for magic numeric values in the request body.
 

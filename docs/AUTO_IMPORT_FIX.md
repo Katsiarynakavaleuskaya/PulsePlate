@@ -285,7 +285,7 @@ from core.db import get_session
 
 **Ruff покажет ошибку:**
 
-```
+```text
 core/metabolism.py:45:12: F821 Undefined name `calculate_bmr`
 ```
 
@@ -312,7 +312,7 @@ make typecheck  # если добавим команду
 
 ### Частые проблемы и решения
 
-**Проблема: Missing import**
+### Проблема: Missing import
 
 ```python
 # ❌ Ошибка
@@ -325,7 +325,7 @@ from openai import APITimeoutError  # не найден
 from openai import APITimeoutError  # type: ignore
 ```
 
-**Проблема: Circular import**
+### Проблема: Circular import
 
 ```python
 # ❌ Ошибка

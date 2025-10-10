@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import random
-from typing import Optional, Union
+from typing import Union
 
 
 @dataclass
@@ -288,7 +288,7 @@ class RecipeSynthesizer:
         servings: int,
     ) -> Recipe:
         """Создает рецепт на основе шаблона"""
-        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"
+        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"  # nosec B311
 
         # Адаптируем ингредиенты под количество порций
         adapted_ingredients = self._adapt_ingredients_for_servings(ingredients, servings)
@@ -329,7 +329,7 @@ class RecipeSynthesizer:
             adapted_ing = ing.copy()
             # Простая логика: если количество больше 100g, считаем что это на 4 порции
             amount = ing.get("amount", 0)
-            if isinstance(amount, (int, float)) and amount > 100:
+            if isinstance(amount, int | float) and amount > 100:
                 adapted_ing["amount"] = round(amount * target_servings / 4, 1)
             adapted.append(adapted_ing)
         return adapted
@@ -417,7 +417,7 @@ class RecipeSynthesizer:
 
         for ing in ingredients:
             amount = ing.get("amount", 0)
-            if isinstance(amount, (int, float)):
+            if isinstance(amount, int | float):
                 # Примерные значения на 100g
                 if (
                     "meat" in str(ing.get("name", "")).lower()

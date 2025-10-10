@@ -12,7 +12,7 @@ import csv
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 from .food_db import FoodItem
 
@@ -157,7 +157,7 @@ class ProductVarietiesManager:
                             K_mg=float(row.get("K_mg", 0)),
                             Mg_mg=float(row.get("Mg_mg", 0)),
                             flags=(
-                                set(row.get("flags", "").split(",")) if row.get("flags") else set()
+                                set(row.get("flags", "").split(", ")) if row.get("flags") else set()
                             ),
                             notes=row.get("notes", ""),
                         )

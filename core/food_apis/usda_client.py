@@ -17,7 +17,7 @@ import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import httpx
 
@@ -116,16 +116,13 @@ class USDAClient:
             1003: "protein_g",
             1004: "fat_g",
             1005: "carbs_g",
-            1079: "fiber_g",
-            # Energy
-            1008: "kcal",
-            # Minerals (mg)
+            1079: "fiber_g",  # Energy
+            1008: "kcal",  # Minerals (mg)
             1087: "calcium_mg",
             1089: "iron_mg",
             1090: "magnesium_mg",
             1095: "zinc_mg",
-            1092: "potassium_mg",
-            # Trace elements (μg)
+            1092: "potassium_mg",  # Trace elements (μg)
             1140: "selenium_ug",
             1100: "iodine_ug",  # Less common in USDA data
             # Vitamins

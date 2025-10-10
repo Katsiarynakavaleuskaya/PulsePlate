@@ -7,7 +7,7 @@ from importlib.machinery import ModuleSpec
 import importlib.util
 import os
 import sys
-from typing import Optional, cast
+from typing import cast
 
 
 # Import FastAPI app and functions from the main module

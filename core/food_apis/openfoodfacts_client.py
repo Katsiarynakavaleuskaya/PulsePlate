@@ -246,7 +246,7 @@ class OFFClient:
 
             for off_nutrient, standard_name in self.nutrient_mapping.items():
                 value = nutrients_raw.get(off_nutrient)
-                if value is not None and isinstance(value, (int, float)):
+                if value is not None and isinstance(value, int | float):
                     nutrients_per_100g[standard_name] = float(value)
 
             # Parse categories

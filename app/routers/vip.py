@@ -1,7 +1,7 @@
 from collections.abc import Callable
 import logging
 import os
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -97,7 +97,6 @@ except ImportError:
     RepairStatus = None
 
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
-
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

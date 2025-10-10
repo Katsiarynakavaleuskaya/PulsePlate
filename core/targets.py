@@ -11,7 +11,7 @@ EN: WHO-based nutrition targets calculation system.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 # Type definitions for user characteristics
@@ -293,8 +293,7 @@ class NutritionTargets:
     RU: Полный набор целевых значений питания и активности.
     EN: Complete set of nutrition and activity targets.
 
-    This is the main output of the WHO-based calculation system,
-    providing all daily and weekly targets for an individual.
+    This is the main output of the WHO-based calculation system, providing all daily and weekly targets for an individual.
     """
 
     # Energy and macronutrients

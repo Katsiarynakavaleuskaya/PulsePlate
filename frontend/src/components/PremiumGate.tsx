@@ -32,8 +32,11 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     }
 
     // Feature-detect inert support explicitly
-    const hasInertSupport = 'inert' in HTMLElement.prototype ||
-                           ('inert' in root && typeof (root as any).inert === 'boolean');
+    type InertableElement = HTMLElement & { inert?: boolean };
+    const inertPrototype = HTMLElement.prototype as InertableElement;
+    const inertCandidate = root as InertableElement;
+    const hasInertSupport =
+      "inert" in inertPrototype || typeof inertCandidate.inert === "boolean";
 
     if (hasInertSupport) {
       // Use native inert when supported - set as string attribute to avoid React warnings

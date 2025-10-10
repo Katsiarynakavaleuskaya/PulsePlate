@@ -47,7 +47,6 @@ ACTIVITY_MULTIPLIERS = {
     "extremely_active": 1.9,
 }
 
-
 # Approximate kcal per kg of body fat (used for weight change estimates)
 # Note: This is a rough approximation; actual values vary (7000-8000 kcal/kg)
 KCAL_PER_KG_FAT = 7700

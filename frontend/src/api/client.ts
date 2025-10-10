@@ -19,7 +19,7 @@ export interface ApiClientDependencies {
 const defaultDependencies: ApiClientDependencies = {
   getStoredApiKey,
   clearStoredApiKey,
-  apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
+  apiBase: import.meta.env?.VITE_API_BASE ?? "",
 };
 
 /**

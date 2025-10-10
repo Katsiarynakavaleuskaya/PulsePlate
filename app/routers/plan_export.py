@@ -37,7 +37,6 @@ from signed_links import sign, verify
 plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
-
 MACRO_KEYS = ("energy_kcal", "protein_g", "carbs_g", "fat_g")
 BRAND_NAVY = colors.HexColor("#0F172A")
 BRAND_BLUE = colors.HexColor("#339FFF")

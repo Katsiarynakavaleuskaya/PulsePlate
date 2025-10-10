@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { components, paths } from "../../api/schema";
 import { fetchJson } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
@@ -54,6 +55,7 @@ type WeekPlanResponse =
   paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
 type UnknownRecord = Record<string, unknown>;
+type Translate = TFunction;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
   sex: "female",
@@ -66,7 +68,27 @@ const DEFAULT_REQUEST: WeekPlanRequest = {
   lang: "en",
 };
 
-function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    const raw = (error as Record<string, unknown>).message;
+    const message = typeof raw === "string" ? raw : "";
+    if (message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
+
+function getDayTitle(day: UnknownRecord, idx: number, t: Translate): string {
   return typeof day.date === "string"
     ? day.date
     : typeof day.day_label === "string"
@@ -82,7 +104,7 @@ function getDayEnergy(day: UnknownRecord): number | undefined {
     : undefined;
 }
 
-function getMealName(meal: UnknownRecord, mi: number, t: (key: string, options?: any) => string): string {
+function getMealName(meal: UnknownRecord, mi: number, t: Translate): string {
   return typeof meal.name === "string"
     ? meal.name
     : typeof meal.meal === "string"
@@ -121,7 +143,7 @@ function getMealItems(meal: UnknownRecord): UnknownRecord[] {
   return rawItems.length > 0 ? rawItems : fallbackItem;
 }
 
-function getItemName(item: UnknownRecord, ii: number, t: (key: string, options?: any) => string): string {
+function getItemName(item: UnknownRecord, ii: number, t: Translate): string {
   return typeof item.name === "string"
     ? item.name
     : typeof item.title === "string"
@@ -164,8 +186,8 @@ export default function WeeklyPlanViewer() {
           body: JSON.stringify(payload),
         });
         setData(week);
-      } catch (e: any) {
-        setErr(e?.message || "Fetch error");
+      } catch (error: unknown) {
+        setErr(getErrorMessage(error, "Fetch error"));
       } finally {
         setLoading(false);
       }
@@ -203,8 +225,9 @@ export default function WeeklyPlanViewer() {
           ? t('plan.linkCopied')
           : `${t('plan.copyFailed')}: ${link.absolute}`
       );
-    } catch (error: any) {
-      setHint(`${t('plan.linkRequestFailed')}: ${error?.message || t('plan.unknownError')}`);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, t('plan.unknownError'));
+      setHint(`${t('plan.linkRequestFailed')}: ${message}`);
     }
   };
 
@@ -214,8 +237,9 @@ export default function WeeklyPlanViewer() {
       await downloadSignedFile(link.absolute, filename);
       setLastSignedLink(link.absolute);
       setHint(t('plan.exportReady'));
-    } catch (error: any) {
-      setHint(`${t('plan.downloadFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, t('plan.unknownError'));
+      setHint(`${t('plan.downloadFailed')}: ${message}. ${t('plan.tryAgain')}`);
     }
   };
 
@@ -224,7 +248,7 @@ export default function WeeklyPlanViewer() {
       const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
       setLastSignedLink(link.absolute);
       setHint(t('plan.shareReady'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       setHint(formatShareErrorMessage(error, `${t('plan.shareFailed')}. ${t('plan.tryAgain')}`));
     }
   };
@@ -235,8 +259,9 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       window.open(link.absolute, "_blank", "noopener,noreferrer");
       setHint(t('plan.linkOpened'));
-    } catch (error: any) {
-      setHint(`${t('plan.linkOpenFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, t('plan.unknownError'));
+      setHint(`${t('plan.linkOpenFailed')}: ${message}. ${t('plan.tryAgain')}`);
     }
   };
 

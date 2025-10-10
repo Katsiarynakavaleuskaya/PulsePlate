@@ -22,7 +22,6 @@ from .food_sources.usda import USDAAdapter
 
 logger = logging.getLogger(__name__)
 
-
 # Shared CSV schema for food DB rows
 FIELDNAMES: list[str] = [
     "name",
@@ -421,7 +420,7 @@ class ProductFinder:
             path_obj = Path(csv_path)
             if path_obj.parent and not path_obj.parent.exists():
                 path_obj.parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except Exception:  # nosec B110
             # Best-effort; writing the file below will surface any errors
             pass
 

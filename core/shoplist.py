@@ -8,7 +8,7 @@ Sprint 2: Shoplist с округлением до упаковок
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 
 @dataclass
@@ -69,12 +69,12 @@ class ShoplistGenerator:
                         unit = row.get("unit", "g")
                         packages = [
                             float(x)
-                            for x in row.get("typical_packages", "100,250,500,1000").split(",")
+                            for x in row.get("typical_packages", "100, 250, 500, 1000").split(", ")
                         ]
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:
+            except Exception:  # nosec B110
                 # Если не удалось загрузить, используем правила по умолчанию
                 pass
 

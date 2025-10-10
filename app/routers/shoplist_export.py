@@ -182,7 +182,7 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
     c.drawString(40, page_h - 50, header)
     c.setFont(font, 10)
     c.drawString(40, page_h - 70, meta)
-    if isinstance(total, (int, float)):
+    if isinstance(total, int | float):
         c.drawString(
             40,
             page_h - 85,

@@ -35,7 +35,7 @@ class TargetsIn(BaseModel):
         # Ensure all values are finite numbers >= 0
         for key, val in v.items():
             # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
+            if not isinstance(val, int | float) or isinstance(val, bool):
                 raise ValueError(f"macros[{key}] must be a finite number >= 0")
 
             # Check if value is finite (not NaN or Infinity) and non-negative
@@ -49,7 +49,7 @@ class TargetsIn(BaseModel):
         # Ensure all values are finite numbers >= 0
         for key, val in v.items():
             # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
+            if not isinstance(val, int | float) or isinstance(val, bool):
                 raise ValueError(f"micro[{key}] must be a finite number >= 0")
 
             # Check if value is finite (not NaN or Infinity) and non-negative
@@ -133,9 +133,6 @@ async def generate_week_plan(req: WeekPlanRequest):
         targets = req.targets.model_dump()
     else:
         # временный расчет через твой bmi_core (BMR/TDEE + макросы + микро-таблица)
-        if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
-            raise HTTPException(status_code=400, detail="Missing user profile data")
-
         # Ensure all required fields are present
         if not all([req.sex, req.age, req.height_cm, req.weight_kg, req.activity, req.goal]):
             raise HTTPException(status_code=400, detail="All profile fields are required")

@@ -34,10 +34,12 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
           WHERE f.title MATCH ?
           LIMIT ? OFFSET ?
         """
-        params = [query, limit, offset]  # type: ignore
+        from collections.abc import Sequence
+
+        search_params: Sequence[object] = [query, limit, offset]
 
     with _con() as con:
-        rows = con.execute(sql, params).fetchall()
+        rows = con.execute(sql, search_params if query else params).fetchall()
     return [dict(r) for r in rows]
 
 
