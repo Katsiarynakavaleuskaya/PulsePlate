@@ -359,8 +359,8 @@ class TestIntegration:
         tdee_results = calculate_all_tdee(bmr_results, "moderate")
 
         # Verify workflow
-        assert len(bmr_results) == 3  # mifflin, harris, katch
-        assert len(tdee_results) == 3
+        assert len(bmr_results) == 4  # mifflin, harris, katch, cunningham (when body_fat provided)
+        assert len(tdee_results) == 4
 
         # All TDEE values should be higher than BMR
         for formula in bmr_results:
