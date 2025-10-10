@@ -262,23 +262,27 @@ export async function api<T = unknown>(
     };
 
     // Type-guard helper: detects binary-like data that should be passed through without JSON serialization
+    const isReadableStream = (value: unknown): boolean =>
+      typeof ReadableStream !== "undefined" && value instanceof ReadableStream;
+
     const isBinaryLike = (value: unknown): boolean => {
       return value instanceof FormData ||
         value instanceof Blob ||
         value instanceof ArrayBuffer ||
-        value instanceof ReadableStream ||
+        ArrayBuffer.isView?.(value as ArrayBufferView) === true ||
         value instanceof URLSearchParams ||
+        isReadableStream(value) ||
         // Any object exposing arrayBuffer() (e.g., File/Response/Request):
-        (typeof value === "object" && value !== null && "arrayBuffer" in value && typeof value.arrayBuffer === "function");
+        (typeof value === "object" && value !== null && "arrayBuffer" in value && typeof (value as { arrayBuffer: unknown }).arrayBuffer === "function");
     };
 
-    if (body !== null && body !== undefined) {
-      if (isPlainObjectOrArray(body) && !isBinaryLike(body)) {
-        serializedBody = JSON.stringify(body);
-        forceJsonForBody = true;
-      } else if (isBinaryLike(body) || typeof body === "string") {
-        serializedBody = body as BodyInit;
-      }
+    if (body && isPlainObjectOrArray(body)) {
+      serializedBody = JSON.stringify(body);
+      forceJsonForBody = true;
+    } else if (body !== undefined && body !== null && !isBinaryLike(body)) {
+      serializedBody = String(body);
+    } else {
+      serializedBody = (body as BodyInit) || null;
     }
 
     const requestInit: RequestInit = {
