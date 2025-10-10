@@ -95,17 +95,36 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          # Pull latest changes to avoid conflicts (safe from command injection)
-          BRANCH_NAME="${GITHUB_HEAD_REF}"
-          git pull --rebase origin "$BRANCH_NAME" || {
-            echo "❌ Failed to rebase - manual intervention required"
-            exit 1
-          }
+          # Check if this is a fork PR
+          IS_FORK="false"
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            IS_FORK="true"
+            echo "⚠️  Detected fork PR - skipping commit/push"
+          fi
 
+          # Stage changes
           git add -A
+
           if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
+            echo "✅ No changes to commit"
+            exit 0
+          fi
+
+          # Only commit and push if NOT a fork
+          if [ "$IS_FORK" = "false" ]; then
+            # Checkout the actual branch (not detached HEAD)
+            BRANCH_NAME="${GITHUB_HEAD_REF}"
+            echo "Checking out branch: $BRANCH_NAME"
+            git fetch origin "$BRANCH_NAME"
+            git checkout "$BRANCH_NAME" || {
+              echo "❌ Failed to checkout branch - manual intervention required"
+              exit 1
+            }
+
+            # Re-stage changes after rebase
+            git add -A
+
+            # Commit changes
             cat >/tmp/commit_msg <<'EOF'
           🤖 Auto-fix: CodeRabbit suggestions applied
 
@@ -114,11 +133,20 @@ jobs:
           * Verified all tests pass
           * Ready for manual review
           EOF
-            git commit -F /tmp/commit_msg
-            git push || {
+            git commit -F /tmp/commit_msg || {
+              echo "❌ Commit failed - manual intervention required"
+              exit 1
+            }
+
+            # Push changes
+            git push origin "$BRANCH_NAME" || {
               echo "❌ Push failed - manual intervention required"
               exit 1
             }
+            echo "✅ Changes committed and pushed successfully"
+          else
+            echo "✅ Changes detected but skipped push (fork PR)"
+            echo "ℹ️  Fork contributors must apply fixes manually"
           fi
 
   final-validation:
