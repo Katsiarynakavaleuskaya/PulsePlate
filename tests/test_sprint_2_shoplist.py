@@ -88,7 +88,7 @@ class TestShoplistGenerator:
             rules = generator._load_packaging_rules()
 
             assert "vegetables" in rules
-            assert rules["vegetables"].typical_packages == [100, 250, 500]
+            assert rules["vegetables"].typical_packages == [100, 250, 500, 1000]
 
     def test_convert_to_grams(self):
         """Тест конвертации в граммы"""
