@@ -1,7 +1,7 @@
 // RU: Расширяем expect матчерами jest-dom для RTL.
 // EN: Extend expect with jest-dom matchers for RTL.
 import "@testing-library/jest-dom";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 
 // RU: Удаляем существующее неконфигурируемое свойство window.location
 // EN: Delete the existing non-configurable window.location property

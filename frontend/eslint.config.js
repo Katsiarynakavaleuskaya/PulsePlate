@@ -4,18 +4,22 @@ import storybook from "eslint-plugin-storybook";
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
-const storybookConfigs = (storybook.configs["flat/recommended"] ?? []).map((config) => ({
-  ...config,
-  files: ["src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
-  plugins: {
-    ...(config.plugins ?? {}),
-    storybook,
-  },
-  rules: {
-    ...(config.rules ?? {}),
-    "storybook/no-renderer-packages": "off",
-  },
-}));
+const storybookConfigs = (storybook.configs["flat/recommended"] ?? [])
+  .map((config) => ({
+    ...config,
+    files: (config.files ?? []).map((pattern) =>
+      pattern.replace("**/", "src/**/"),
+    ),
+    plugins: {
+      ...(config.plugins ?? {}),
+      storybook,
+    },
+    rules: {
+      ...(config.rules ?? {}),
+      "storybook/no-renderer-packages": "off",
+    },
+  }))
+  .filter((config) => !config.files || config.files.length > 0); // Filter out configs with empty files array
 
 export default tseslint.config(
   {

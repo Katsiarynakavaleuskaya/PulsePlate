@@ -173,7 +173,7 @@ class TestTDEE:
             tdee(0, "moderate")
 
         with pytest.raises(ValueError, match="Activity level must be one of"):
-            tdee(1500, "invalid_activity")  # type: ignore
+            tdee(1500, "invalid_activity")
 
     @given(
         bmr=st.floats(min_value=800, max_value=4000),

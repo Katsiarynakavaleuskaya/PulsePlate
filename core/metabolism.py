@@ -285,7 +285,7 @@ def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[s
     return {
         "kcal_difference": difference,
         "pct_difference": round(pct, 1),
-        "weekly_change_kg": difference / KCAL_PER_KG_FAT,
+        "weekly_change_kg": (difference * 7) / KCAL_PER_KG_FAT,
         "is_deficit": difference < 0,
         "is_surplus": difference > 0,
     }
@@ -326,7 +326,9 @@ def calculate_all_bmr(
         results["katch"] = calculate_bmr(
             age, weight, int(height), sex, bodyfat_percent, formula="katch"
         )
-
+        results["cunningham"] = calculate_bmr(
+            age, weight, int(height), sex, bodyfat_percent, formula="cunningham"
+        )
     return results
 
 

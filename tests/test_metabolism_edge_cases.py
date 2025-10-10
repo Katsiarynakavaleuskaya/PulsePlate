@@ -295,7 +295,7 @@ class TestHighLevelConvenienceFunctions:
 
     def test_calculate_all_tdee(self) -> None:
         """Test calculate_all_tdee with multiple BMR results"""
-        bmr_results = {"mifflin": 1700, "harris": 1720, "katch": 1680}
+        bmr_results: dict[str, float] = {"mifflin": 1700.0, "harris": 1720.0, "katch": 1680.0}
         tdee_results = calculate_all_tdee(bmr_results, activity="moderate")
         assert "mifflin" in tdee_results
         assert "harris" in tdee_results
@@ -307,7 +307,7 @@ class TestHighLevelConvenienceFunctions:
 
     def test_calculate_all_tdee_sedentary(self) -> None:
         """Test calculate_all_tdee with sedentary activity"""
-        bmr_results = {"mifflin": 1700}
+        bmr_results: dict[str, float] = {"mifflin": 1700.0}
         tdee_results = calculate_all_tdee(bmr_results, activity="sedentary")
         expected = 1700 * ACTIVITY_MULTIPLIERS["sedentary"]
         assert abs(tdee_results["mifflin"] - expected) < 0.01
