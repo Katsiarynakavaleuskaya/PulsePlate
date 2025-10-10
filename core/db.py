@@ -39,8 +39,12 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None
-    create_async_engine = None
+    async_sessionmaker = None  # type: ignore
+    create_async_engine = None  # type: ignore
+
+# Initialize async engine variables
+_ASYNC_ENGINE: AsyncEngineType | None = None
+AsyncSessionLocal: AsyncSessionmakerType | None = None
 
 
 def _build_engine_url() -> str:
@@ -184,11 +188,9 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
         )
     except ImportError:
         # Fallback if async drivers are not available
-        _ASYNC_ENGINE = None
-        AsyncSessionLocal = None
+        pass
     else:
-        _ASYNC_ENGINE = None
-        AsyncSessionLocal = None
+        pass
 
 async_engine: AsyncEngineType | None = _ASYNC_ENGINE
 
@@ -233,6 +235,9 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     _check_async_availability()
 
+    if AsyncSessionLocal is None:
+        raise RuntimeError("AsyncSessionLocal is not configured")
+
     session = AsyncSessionLocal()
     try:
         yield session
@@ -244,6 +249,9 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
 async def session_scope_async() -> AsyncGenerator[AsyncSessionType]:
     """Async context manager for atomic DB operations."""
     _check_async_availability()
+
+    if AsyncSessionLocal is None:
+        raise RuntimeError("AsyncSessionLocal is not configured")
 
     session = AsyncSessionLocal()
     try:
