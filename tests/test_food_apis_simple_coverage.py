@@ -3,8 +3,8 @@ Simple tests for Food APIs update pipeline handling.
 Target uncovered lines in update_manager.py and unified_db.py.
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest

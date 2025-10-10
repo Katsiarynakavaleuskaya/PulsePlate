@@ -6,21 +6,27 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager, contextmanager
 import logging
 import os
-from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import (
         AsyncEngine as AsyncEngineType,
+    )
+    from sqlalchemy.ext.asyncio import (
         AsyncSession as AsyncSessionType,
+    )
+    from sqlalchemy.ext.asyncio import (
         async_sessionmaker as AsyncSessionmakerType,
     )
 else:
@@ -49,7 +55,7 @@ def _sqlite_connect_args(url: str) -> dict[str, object]:
     return {"check_same_thread": False} if url.startswith("sqlite") else {}
 
 
-def _derive_async_url(sync_url: str) -> Optional[str]:
+def _derive_async_url(sync_url: str) -> str | None:
     """Derive an async-capable URL from a synchronous URL when possible."""
     # Only derive async URLs if async support is available
     if create_async_engine is None:
@@ -109,10 +115,11 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except InvalidRequestError as e:
-                # Not all statements require/allow commit; log and ignore commit errors
+            except Exception as e:
+                # Catch all exceptions during commit (InvalidRequestError, SQLAlchemyError, etc.)
+                # Log and continue to return the result despite commit failure
                 logger.debug(
-                    "Commit skipped for non-transactional statement: %s",
+                    "Commit failed or skipped for statement: %s",
                     e,
                 )
             return result
@@ -172,7 +179,7 @@ else:
     _ASYNC_ENGINE = None
     AsyncSessionLocal = None
 
-async_engine: Optional[AsyncEngineType] = _ASYNC_ENGINE
+async_engine: AsyncEngineType | None = _ASYNC_ENGINE
 
 
 class Base(DeclarativeBase):
@@ -182,7 +189,7 @@ class Base(DeclarativeBase):
 SessionLocal = sessionmaker(bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True)
 
 
-def get_session() -> Generator[Session, None, None]:
+def get_session() -> Generator[Session]:
     """RU: Зависимость FastAPI, возвращающая сессию базы данных.
 
     EN: FastAPI dependency that yields a scoped database session.
@@ -195,7 +202,7 @@ def get_session() -> Generator[Session, None, None]:
 
 
 @contextmanager
-def session_scope() -> Generator[Session, None, None]:
+def session_scope() -> Generator[Session]:
     """RU: Контекстный менеджер для атомарных операций с БД.
 
     EN: Context manager that wraps short-lived database operations.
@@ -211,7 +218,7 @@ def session_scope() -> Generator[Session, None, None]:
         session.close()
 
 
-async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
+async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     if AsyncSessionLocal is None:
         if create_async_engine is None:
@@ -230,7 +237,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
 
 
 @asynccontextmanager
-async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
+async def session_scope_async() -> AsyncGenerator[AsyncSessionType]:
     """Async context manager for atomic DB operations."""
     if AsyncSessionLocal is None:
         raise RuntimeError(
@@ -351,8 +358,8 @@ def get_unified_food_db() -> Any:
     .. deprecated::
         Import from core.food_apis.unified_db instead.
     """
-    import warnings
     import asyncio
+    import warnings
 
     warnings.warn(
         "get_unified_food_db() is deprecated, import from core.food_apis.unified_db instead. "

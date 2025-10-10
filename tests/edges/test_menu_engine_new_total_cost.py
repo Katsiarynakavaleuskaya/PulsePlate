@@ -48,9 +48,7 @@ class RDB:
 def test_total_cost_handles_string_values():
     targets = {
         "kcal": 1200,
-        "micro": {
-            k: 10.0 for k in __import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS
-        },
+        "micro": dict.fromkeys(__import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 10.0),
     }
     plan: DayPlan = build_plate_day(targets, [], "en", cast(FoodDB, FDB()), cast(RecipeDB, RDB()))
     # Inject price as a string and invalid string; verify float field present

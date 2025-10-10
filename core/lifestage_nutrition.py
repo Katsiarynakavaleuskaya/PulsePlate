@@ -47,8 +47,8 @@ class LifeStageRequirements:
     """
 
     # Energy and macronutrients
-    energy_kcal_per_kg: Optional[float]  # For children
-    energy_additional_kcal: Optional[int]  # Additional for pregnancy/lactation
+    energy_kcal_per_kg: float | None  # For children
+    energy_additional_kcal: int | None  # Additional for pregnancy/lactation
 
     # Protein requirements
     protein_g_per_kg: float
@@ -61,10 +61,10 @@ class LifeStageRequirements:
     iodine_ug: float
 
     # Special considerations
-    special_nutrients: Dict[str, float]  # Additional nutrients of concern
-    avoid_foods: List[str]  # Foods to avoid/limit
-    emphasize_foods: List[str]  # Foods to emphasize
-    feeding_notes: List[str]  # Special feeding considerations
+    special_nutrients: dict[str, float]  # Additional nutrients of concern
+    avoid_foods: list[str]  # Foods to avoid/limit
+    emphasize_foods: list[str]  # Foods to emphasize
+    feeding_notes: list[str]  # Special feeding considerations
 
 
 class LifeStageNutritionCalculator:
@@ -368,7 +368,7 @@ class LifeStageNutritionCalculator:
     @classmethod
     def calculate_lifestage_targets(
         cls, profile: UserProfile, life_stage: LifeStage
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         RU: Рассчитывает цели питания для конкретного этапа жизни.
         EN: Calculate nutrition targets for specific life stage.
@@ -452,7 +452,7 @@ class LifeStageNutritionCalculator:
         sex: str,
         is_pregnant: bool = False,
         is_lactating: bool = False,
-        trimester: Optional[int] = None,
+        trimester: int | None = None,
     ) -> LifeStage:
         """
         RU: Определяет подходящий этап жизни на основе возраста и состояния.
@@ -489,8 +489,8 @@ def get_lifestage_recommendations(
     profile: UserProfile,
     is_pregnant: bool = False,
     is_lactating: bool = False,
-    trimester: Optional[int] = None,
-) -> Dict[str, Any]:
+    trimester: int | None = None,
+) -> dict[str, Any]:
     """
     RU: Получить рекомендации по питанию для этапа жизни.
     EN: Get life-stage nutrition recommendations.

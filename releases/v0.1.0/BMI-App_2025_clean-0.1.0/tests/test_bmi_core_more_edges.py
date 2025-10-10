@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Дополнительные edge-тесты: _validate_age error и ветка 'general' в auto_group."""
 
 import pytest

@@ -14,12 +14,13 @@ Data License: Open Database License (ODbL)
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import inspect
 import logging
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import httpx
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,17 +37,17 @@ class OFFFoodItem:
 
     code: str  # Barcode
     product_name: str
-    categories: List[str]
-    nutrients_per_100g: Dict[str, float]
-    ingredients_text: Optional[str]
-    brands: Optional[str]
-    labels: List[str]
-    countries: List[str]
-    packaging: List[str]
-    image_url: Optional[str]
+    categories: list[str]
+    nutrients_per_100g: dict[str, float]
+    ingredients_text: str | None
+    brands: str | None
+    labels: list[str]
+    countries: list[str]
+    packaging: list[str]
+    image_url: str | None
     last_modified_t: int  # Unix timestamp
 
-    def to_menu_engine_format(self) -> Dict[str, Any]:
+    def to_menu_engine_format(self) -> dict[str, Any]:
         """
         RU: Конвертирует в формат для menu_engine.
         EN: Converts to menu_engine format.
@@ -61,7 +62,7 @@ class OFFFoodItem:
             "source_id": self.code,
         }
 
-    def _generate_tags(self) -> List[str]:
+    def _generate_tags(self) -> list[str]:
         """Generate diet tags based on labels and categories."""
         tags = []
 
@@ -141,7 +142,7 @@ class OFFClient:
             "vitamin-b6_100g": "b6_mg",
         }
 
-    async def search_products(self, query: str, page_size: int = 25) -> List[OFFFoodItem]:
+    async def search_products(self, query: str, page_size: int = 25) -> list[OFFFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search products by name.
@@ -186,7 +187,7 @@ class OFFClient:
             logger.error(f"Error searching Open Food Facts products for '{query}': {e}")
             return []
 
-    async def get_product_details(self, barcode: str) -> Optional[OFFFoodItem]:
+    async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
         """
         RU: Получить детальную информацию о продукте по штрихкоду.
         EN: Get detailed product information by barcode.
@@ -225,7 +226,7 @@ class OFFClient:
         # Explicitly return None when product is not found
         return None
 
-    def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
+    def _parse_product_item(self, product_data: dict[str, Any]) -> OFFFoodItem | None:
         """
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
@@ -298,7 +299,7 @@ class OFFClient:
             logger.error(f"Error parsing Open Food Facts product data: {e}")
             return None
 
-    async def get_multiple_products(self, barcodes: List[str]) -> List[OFFFoodItem]:
+    async def get_multiple_products(self, barcodes: list[str]) -> list[OFFFoodItem]:
         """
         RU: Получить информацию о нескольких продуктах по штрихкодам.
         EN: Get information for multiple products by barcodes.
@@ -307,7 +308,7 @@ class OFFClient:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and None values
-        valid_results: List[OFFFoodItem] = []
+        valid_results: list[OFFFoodItem] = []
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Error fetching product: {result}")

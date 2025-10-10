@@ -2,8 +2,8 @@
 Tests for verify_requirements module - requirements consistency checker
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import pytest
 

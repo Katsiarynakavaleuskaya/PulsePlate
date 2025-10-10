@@ -3,8 +3,8 @@
 Покрывает строки: 1732, 1735-1739
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 class TestAppExceptionHandlersCoverage:

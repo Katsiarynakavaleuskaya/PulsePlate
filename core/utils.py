@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import sys
 import types
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 
 def get_activity_factor(activity: str) -> float:
@@ -27,7 +28,7 @@ def get_activity_factor(activity: str) -> float:
     return mapping.get(str(activity), 1.55)
 
 
-def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[Any]] = None) -> Any:
+def resolve_attr(name: str, local_default: Any, candidates: Iterable[Any] | None = None) -> Any:
     """Resolve attribute by searching candidate modules before falling back.
 
     Args:

@@ -6,8 +6,8 @@ EN: Tests for shopping list generation module.
 """
 
 import csv
-import tempfile
 from pathlib import Path
+import tempfile
 
 import pytest
 

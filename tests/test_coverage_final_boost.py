@@ -2,8 +2,8 @@
 Test coverage boost to reach 97%
 """
 
-import importlib
 from contextlib import suppress
+import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest

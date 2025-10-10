@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 import importlib
 
 from fastapi.testclient import TestClient
+
 
 app_module = importlib.import_module("app")
 client = TestClient(app_module.app)

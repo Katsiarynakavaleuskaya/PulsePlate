@@ -5,6 +5,7 @@ These lines require bypassing LANG_ALIASES to execute.
 
 from faker import Faker
 
+
 fake = Faker()
 
 

@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 RU: Добиваем покрытие bmi_core.py, не ломая сборку при странной сигнатуре interpret_group.
 EN: Cover bmi_core.py w/o breaking build if interpret_group has unusual signature.
 """
 
 import pytest
+
 
 bmi_core = pytest.importorskip("bmi_core")
 

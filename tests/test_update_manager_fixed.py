@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Update Manager Tests - Fixed
 
@@ -6,13 +5,13 @@ RU: Исправленные тесты для update manager
 EN: Fixed update manager tests
 """
 
+from datetime import UTC, datetime, timedelta, timezone
 import tempfile
-from datetime import datetime, timedelta, timezone
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
 from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
@@ -66,7 +65,7 @@ class TestUpdateManagerFixed:
             manager = DatabaseUpdateManager(cache_dir=str(temp_dir))
 
             # Add an old version
-            old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+            old_time = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
             version = DatabaseVersion(
                 source="usda",
                 version="1.0",
@@ -87,7 +86,7 @@ class TestUpdateManagerFixed:
             manager = DatabaseUpdateManager(cache_dir=str(temp_dir))
 
             # Add a recent version
-            recent_time = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            recent_time = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             version = DatabaseVersion(
                 source="usda",
                 version="1.0",

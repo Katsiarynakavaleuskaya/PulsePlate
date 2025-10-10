@@ -1,24 +1,25 @@
-# -*- coding: utf-8 -*-
 """Комплексные тесты для bmi_core с покрытием граничных случаев."""
 
 import pathlib
 import sys
+
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import pytest  # noqa: E402
 
-from bmi_core import bmi_value  # noqa: E402
 from bmi_core import (
     auto_group,
     bmi_category,
+    bmi_value,  # noqa: E402
     build_premium_plan,
     compute_wht_ratio,
     estimate_level,
     healthy_bmi_range,
     interpret_group,
 )
+
 
 # ---------- Базовые расчёты BMI ----------
 

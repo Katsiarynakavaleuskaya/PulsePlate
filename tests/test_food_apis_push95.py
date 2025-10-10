@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Push core.food_apis coverage to 95%+ with extra edges."""
 
 from __future__ import annotations

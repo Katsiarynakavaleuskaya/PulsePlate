@@ -7,10 +7,11 @@ EN: USDA adapter.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import csv
-import os
 from datetime import date
-from typing import Dict, Iterable
+import os
+from typing import Dict
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
@@ -38,7 +39,7 @@ class USDAAdapter(BaseAdapter):
             )
         self.csv_path = csv_path
 
-    def fetch(self) -> Iterable[Dict]:
+    def fetch(self) -> Iterable[dict]:
         """
         RU: Читаем один CSV или все CSV в директории (чанки).
         EN: Read a single CSV or all CSVs in a directory (chunks).

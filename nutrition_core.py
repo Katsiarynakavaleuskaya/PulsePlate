@@ -20,13 +20,14 @@ from typing import Dict, Literal
 # This is imported directly to avoid circular imports with core modules
 from core.metabolism import ACTIVITY_MULTIPLIERS
 
+
 # Type definitions
 Sex = Literal["female", "male"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
 
 # Physical Activity Level (PAL) factors - delegated from core.metabolism.ACTIVITY_MULTIPLIERS
 # Only includes the standard activity levels (not backward compatibility aliases)
-PAL: Dict[str, float] = {
+PAL: dict[str, float] = {
     activity: multiplier
     for activity, multiplier in ACTIVITY_MULTIPLIERS.items()
     if activity in ["sedentary", "light", "moderate", "active", "very_active"]
@@ -147,7 +148,7 @@ def tdee(bmr: float, activity: ActivityLevel) -> float:
     return round(tdee_value, 0)
 
 
-def get_activity_descriptions() -> Dict[str, str]:
+def get_activity_descriptions() -> dict[str, str]:
     """
     Get human-readable descriptions for activity levels.
 

@@ -3,9 +3,9 @@ Basic tests to improve coverage for food_apis modules.
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
+from datetime import datetime, timedelta
 import os
 import tempfile
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

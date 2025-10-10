@@ -79,9 +79,9 @@ def test_register_font_returns_custom(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(export, "FONT_PATH", font_file)
 
-    registered: List[str] = []
+    registered: list[str] = []
 
-    def fake_get_names() -> List[str]:
+    def fake_get_names() -> list[str]:
         return registered.copy()
 
     def fake_register(tt_font) -> None:  # pragma: no cover - simple state mutation

@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 RU: Тест ES локализации для /api/v1/premium/targets (snapshot тест).
 EN: Test ES localization for /api/v1/premium/targets (snapshot test).
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 import main  # Import at module level so import errors surface during collection
 
+
 fake = Faker()
 
 

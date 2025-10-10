@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Демонстрационный тест автоматического расширения базы продуктов.
 EN: Demo test for automatic product database expansion.
@@ -7,8 +6,8 @@ EN: Demo test for automatic product database expansion.
 недостающие продукты в базу данных.
 """
 
-import shutil
 from pathlib import Path
+import shutil
 from typing import Any
 
 from core.product_finder import ProductFinder

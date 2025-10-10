@@ -5,17 +5,18 @@ RU: Сборка профессиональной базы данных прод
 EN: Build professional food database from CSV to Parquet/SQLite.
 """
 
-import sys
 from pathlib import Path
+import sys
+
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from datetime import datetime
 import hashlib
 import json
 import logging
 import sqlite3
-from datetime import datetime
 from typing import Dict, List
 
 import pandas as pd
@@ -102,7 +103,7 @@ class FoodDatabaseBuilder:
 
     def merge_and_validate(
         self, usda_data: list[FoodRecord], off_data: list[FoodRecord]
-    ) -> List[FoodItem]:
+    ) -> list[FoodItem]:
         """
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
@@ -164,7 +165,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Validated: {len(validated_foods)} foods")
         return validated_foods
 
-    def _generate_food_id(self, canonical_name: str, record: Dict) -> str:
+    def _generate_food_id(self, canonical_name: str, record: dict) -> str:
         """
         RU: Генерировать детерминированный ID продукта.
         EN: Generate deterministic food ID.
@@ -176,7 +177,7 @@ class FoodDatabaseBuilder:
         )
         return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]
 
-    def save_parquet(self, foods: List[FoodItem]) -> None:
+    def save_parquet(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить данные в Parquet для быстрого доступа.
         EN: Save data to Parquet for fast access.
@@ -197,7 +198,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Parquet saved: {self.food_parquet}")
         print(f"  📊 Records: {len(df)}")
 
-    def save_sqlite(self, foods: List[FoodItem]) -> None:
+    def save_sqlite(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить в SQLite с FTS для поиска.
         EN: Save to SQLite with FTS for search.
@@ -309,7 +310,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ SQLite saved: {self.food_sqlite}")
         print("  🔍 FTS enabled for search")
 
-    def generate_report(self, foods: List[FoodItem], usda_count: int, off_count: int) -> None:
+    def generate_report(self, foods: list[FoodItem], usda_count: int, off_count: int) -> None:
         """
         RU: Сгенерировать отчет о сборке.
         EN: Generate build report.

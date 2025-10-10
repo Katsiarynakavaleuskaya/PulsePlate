@@ -4,18 +4,19 @@ Focus on validation, error paths, and boundary conditions.
 """
 
 import pytest
+
 from core.metabolism import (
-    calculate_bmr,
-    get_bmr_formula,
-    adjust_for_activity,
-    calculate_tdee,
-    get_macro_ratios,
-    calculate_macros,
+    ACTIVITY_MULTIPLIERS,
     adjust_calories_for_goal,
-    calculate_deficit_surplus,
+    adjust_for_activity,
     calculate_all_bmr,
     calculate_all_tdee,
-    ACTIVITY_MULTIPLIERS,
+    calculate_bmr,
+    calculate_deficit_surplus,
+    calculate_macros,
+    calculate_tdee,
+    get_bmr_formula,
+    get_macro_ratios,
 )
 
 
@@ -139,6 +140,22 @@ class TestActivityValidation:
         bmr = 370 + 21.6 * lean_mass
         expected_tdee = bmr * ACTIVITY_MULTIPLIERS["moderate"]
         assert abs(tdee - expected_tdee) < 1.0
+
+    def test_activity_synonym_support(self) -> None:
+        """Test that activity level synonyms are supported for backward compatibility"""
+        bmr = 1700
+
+        # Test that synonyms produce correct results
+        assert adjust_for_activity(bmr, "light") == adjust_for_activity(bmr, "lightly_active")
+        assert adjust_for_activity(bmr, "moderate") == adjust_for_activity(bmr, "moderately_active")
+        assert adjust_for_activity(bmr, "very_active") == adjust_for_activity(
+            bmr, "extremely_active"
+        )
+
+        # Test that synonyms work in calculate_tdee as well
+        tdee_moderate = calculate_tdee(30, 70, 175, "male", "moderate")
+        tdee_moderately = calculate_tdee(30, 70, 175, "male", "moderately_active")
+        assert tdee_moderate == tdee_moderately
 
 
 class TestMacroCalculations:

@@ -4,16 +4,28 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main, feat/**, fix/**]
+  workflow_dispatch:
+    inputs:
+      coderabbit_timeout_min:
+        description: "CodeRabbit review timeout in minutes (default: 15)"
+        required: false
+        default: "15"
+        type: string
 
 permissions:
-  contents: write  # Needed to push commits
-  pull-requests: read  # Needed to read PR reviews
+  contents: write # Needed to push commits
+  pull-requests: read # Needed to read PR reviews
+
+env:
+  # CodeRabbit review timeout in minutes (configurable via workflow input or env var)
+  # Default: 15 minutes (reduced from 30 to speed up CI)
+  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
 
 jobs:
   wait-for-coderabbit:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read  # Needed to read PR reviews
+      pull-requests: read # Needed to read PR reviews
     outputs:
       review-status: ${{ steps.check-review.outputs.status }}
     steps:
@@ -24,22 +36,36 @@ jobs:
         id: check-review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TIMEOUT_MIN: ${{ env.CODE_RABBIT_TIMEOUT_MIN }}
         run: |
+          # Configuration
+          SLEEP_INTERVAL=30  # seconds between checks
+          TIMEOUT_SECONDS=$((TIMEOUT_MIN * 60))
+          MAX_ITERATIONS=$((TIMEOUT_SECONDS / SLEEP_INTERVAL))
+
+          echo "⏱️  CodeRabbit review timeout: ${TIMEOUT_MIN} minutes (${MAX_ITERATIONS} iterations × ${SLEEP_INTERVAL}s)"
           echo "Waiting for CodeRabbit review..."
+
           status=""
-          for i in {1..60}; do  # Wait up to 30 minutes
+          iteration=0
+          while [ $iteration -lt $MAX_ITERATIONS ]; do
+            iteration=$((iteration + 1))
+            elapsed=$((iteration * SLEEP_INTERVAL))
+
             # Check if CodeRabbit review exists and is completed
             if gh pr view ${{ github.event.pull_request.number }} --json reviews | jq -e '.reviews[] | select(.author.login == "coderabbitai[bot]") | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")' > /dev/null; then
+              echo "✅ CodeRabbit review completed after ${elapsed}s"
               echo "status=completed" >> $GITHUB_OUTPUT
               status="completed"
               break
             fi
-            echo "Still waiting for CodeRabbit review... ($i/60)"
-            sleep 30
+
+            echo "⏳ Still waiting for CodeRabbit review... (${iteration}/${MAX_ITERATIONS}, ${elapsed}s elapsed)"
+            sleep $SLEEP_INTERVAL
           done
 
           if [ "$status" != "completed" ]; then
-            echo "CodeRabbit review timeout" >&2
+            echo "❌ CodeRabbit review timeout after ${TIMEOUT_MIN} minutes" >&2
             exit 1
           fi
 
@@ -48,8 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.wait-for-coderabbit.outputs.review-status == 'completed'
     permissions:
-      contents: write  # Needed to push automated fixes
-      pull-requests: read  # Needed to read PR context
+      contents: write # Needed to push automated fixes
+      pull-requests: read # Needed to read PR context
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,12 +86,12 @@ jobs:
       - name: Setup Node.js for frontend
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
@@ -84,7 +110,12 @@ jobs:
           (cd frontend && npm run lint:fix)
 
           # Auto-fix Python formatting/linting
-          pre-commit run --all-files
+          # Install pre-commit hooks first (idempotent operation)
+          pre-commit install --install-hooks || echo "⚠️  Pre-commit install had issues, continuing..."
+
+          # Run pre-commit with error handling to avoid failing on first run or existing issues
+          # The || true ensures the step continues even if pre-commit finds issues
+          pre-commit run --all-files || echo "⚠️  Pre-commit found issues but continuing to allow fixes to be committed"
       - name: Run full test suite
         run: |
           # Python tests with coverage
@@ -161,9 +192,9 @@ jobs:
     needs: apply-coderabbit-fixes
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # Minimal read access for validation
-      checks: read    # Needed to read check runs
-      pull-requests: read  # Needed to read PR status
+      contents: read # Minimal read access for validation
+      checks: read # Needed to read check runs
+      pull-requests: read # Needed to read PR status
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

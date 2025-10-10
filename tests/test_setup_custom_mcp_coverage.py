@@ -2,15 +2,16 @@
 Test coverage for setup_custom_mcp.py
 """
 
+from contextlib import suppress
+import json
 import logging
+import os
+from pathlib import Path
+import tempfile
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
-import tempfile
-import json
-import os
-from unittest.mock import patch, mock_open, MagicMock
-from pathlib import Path
-from contextlib import suppress
+
 import setup_custom_mcp
 
 
@@ -70,20 +71,20 @@ class TestSetupCustomMcpCoverage:
         assert settings_file.exists()
 
         # Check MCP configuration content
-        with open(mcp_file, "r") as f:
+        with open(mcp_file) as f:
             mcp_config = json.load(f)
             assert "mcpServers" in mcp_config
             assert "pulseplate-chatgpt" in mcp_config["mcpServers"]
             assert mcp_config["mcpServers"]["pulseplate-chatgpt"]["command"] == "python"
 
         # Check environment file content
-        with open(env_file, "r") as f:
+        with open(env_file) as f:
             env_content = f.read()
             assert "OPENAI_API_KEY" in env_content
             assert "MCP_ENABLED=true" in env_content
 
         # Check settings content
-        with open(settings_file, "r") as f:
+        with open(settings_file) as f:
             settings = json.load(f)
             assert settings["cursor.ai.enabled"] is True
             assert settings["mcp.enabled"] is True

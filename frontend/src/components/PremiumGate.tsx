@@ -38,7 +38,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     if (hasInertSupport) {
       // Use native inert when supported - set as string attribute to avoid React warnings
       const prevInert = root.getAttribute('inert');
-      root.setAttribute('inert', 'true');
+      root.setAttribute('inert', '');
       return () => {
         if (prevInert !== null) {
           root.setAttribute('inert', prevInert);

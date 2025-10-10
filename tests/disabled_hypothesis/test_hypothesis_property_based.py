@@ -6,9 +6,9 @@ in the BMI App project. Property-based tests generate random inputs and
 verify that certain properties always hold true.
 """
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
+import pytest
 
 from bmi_core import bmi_category, bmi_value
 from core.targets import _life_stage_warnings

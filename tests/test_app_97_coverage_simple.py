@@ -4,11 +4,11 @@
 """
 
 import os
-import sys
 from pathlib import Path
+import sys
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture(scope="session")

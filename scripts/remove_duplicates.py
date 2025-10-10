@@ -25,6 +25,7 @@ import hashlib
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+
 ROOT = Path(".").resolve()
 SKIP_DIRS = {
     ".git",
@@ -48,12 +49,12 @@ def sha256_of(path: Path) -> str:
 
 
 def is_skipped_dir(p: Path) -> bool:
-    parts = set(part for part in p.parts)
+    parts = set(p.parts)
     return any(sd in parts for sd in SKIP_DIRS)
 
 
-def collect_files(include_tests: bool) -> List[Path]:
-    out: List[Path] = []
+def collect_files(include_tests: bool) -> list[Path]:
+    out: list[Path] = []
     for p in ROOT.rglob("*"):
         if not p.is_file():
             continue
@@ -65,16 +66,16 @@ def collect_files(include_tests: bool) -> List[Path]:
     return out
 
 
-def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List[Path]]]:
+def plan_removals(files: list[Path]) -> tuple[list[tuple[Path, Path]], list[list[Path]]]:
     """Return (backup_twins, full_duplicates).
 
     backup_twins: list of (backup_file, base_file) to remove backup_file when hash equal
     full_duplicates: list of groups (>=2) of identical files (different paths)
     """
     # Map base -> backups with safe suffixes
-    backups: List[Tuple[Path, Path]] = []
+    backups: list[tuple[Path, Path]] = []
     # Hash map for full duplicates
-    by_hash: Dict[str, List[Path]] = {}
+    by_hash: dict[str, list[Path]] = {}
 
     # Prepare lookup for base twins
     for f in files:
@@ -145,7 +146,7 @@ def main() -> int:
     backups, dup_groups = plan_removals(files)
 
     print("Backup twins (candidate for removal if identical):")
-    removed: List[str] = []
+    removed: list[str] = []
     for backup, base in backups:
         try:
             if sha256_of(backup) == sha256_of(base):
@@ -159,7 +160,7 @@ def main() -> int:
             print("   ! error:", backup, e)
 
     print("\nFull duplicate groups (identical content):")
-    to_remove: List[Path] = []
+    to_remove: list[Path] = []
     suggestions = []
     for grp in dup_groups:
         if len(grp) < 2:

@@ -4,11 +4,11 @@ Target 86% coverage improvement with realistic food data scenarios.
 """
 
 import contextlib
-
 import random
 
 from faker import Faker
 from faker.providers import BaseProvider
+
 
 fake = Faker()
 

@@ -9,8 +9,8 @@ Environment diagnostic script for PulsePlate.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+import sys
 
 
 def check_python() -> bool:

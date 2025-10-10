@@ -5,11 +5,11 @@ RU: Дополнительные тесты для покрытия менедж
 EN: Additional coverage tests for database update manager module.
 """
 
+from datetime import datetime, timedelta
 import json
+from pathlib import Path
 import shutil
 import tempfile
-from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,7 +54,7 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
     def test_save_versions_with_error(self, mock_manager):
         """Test saving versions when file write fails."""
         # Mock the file writing to fail
-        with patch("builtins.open", side_effect=IOError("Write failed")):
+        with patch("builtins.open", side_effect=OSError("Write failed")):
             # Should not raise exception, just log error
             mock_manager._save_versions()
             # Test passes if no exception is raised
@@ -83,7 +83,7 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
         assert backup_file.exists()
 
         # Check backup content
-        with open(backup_file, "r") as f:
+        with open(backup_file) as f:
             backup_data = json.load(f)
 
         assert "apple" in backup_data

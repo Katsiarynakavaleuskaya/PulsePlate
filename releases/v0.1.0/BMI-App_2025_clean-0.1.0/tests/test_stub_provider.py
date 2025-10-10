@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for StubProvider."""
 
 from providers.stub import StubProvider

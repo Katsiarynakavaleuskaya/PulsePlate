@@ -6,7 +6,7 @@ from core.targets import MicronutrientTargets
 
 def test_auto_repair_partial_status_when_no_progress():
     # Week plan with simple gaps pattern that won't improve across iterations
-    week_plan: Dict = {
+    week_plan: dict = {
         "days": [
             {
                 "meals": [

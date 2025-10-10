@@ -17,11 +17,11 @@ def call_premium_bmr_api(
     age: int,
     sex: str,
     activity: str,
-    bodyfat: Optional[float] = None,
+    bodyfat: float | None = None,
     lang: str = "en",
     api_key: str = "test_key",
     base_url: str = "http://localhost:8000",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Call the Premium BMR API endpoint.
 

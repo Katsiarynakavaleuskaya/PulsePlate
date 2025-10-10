@@ -14,11 +14,13 @@ Data License: Public Domain (CC0 1.0 Universal)
 from __future__ import annotations
 
 import asyncio
-import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Union
+import logging
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +34,12 @@ class USDAFoodItem:
 
     fdc_id: int
     description: str
-    food_category: Optional[str]
-    nutrients_per_100g: Dict[str, float]  # Nutrient name -> amount per 100g
+    food_category: str | None
+    nutrients_per_100g: dict[str, float]  # Nutrient name -> amount per 100g
     data_type: str  # "Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"
-    publication_date: Optional[str]
+    publication_date: str | None
 
-    def to_menu_engine_format(self) -> Dict[str, Any]:
+    def to_menu_engine_format(self) -> dict[str, Any]:
         """
         RU: Конвертирует в формат для menu_engine.
         EN: Converts to menu_engine format.
@@ -52,7 +54,7 @@ class USDAFoodItem:
             "fdc_id": self.fdc_id,
         }
 
-    def _generate_tags(self) -> List[str]:
+    def _generate_tags(self) -> list[str]:
         """Generate diet tags based on food description and nutrients."""
         tags = []
         description_lower = self.description.lower()
@@ -102,10 +104,10 @@ class USDAClient:
         float,
         bool,
         None,
-        Sequence[Union[str, int, float, bool, None]],
+        Sequence[str | int | float | bool | None],
     ]
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """
         Initialize USDA client.
 
@@ -146,7 +148,7 @@ class USDAClient:
             1179: "b6_mg",  # Vitamin B-6
         }
 
-    async def search_foods(self, query: str, page_size: int = 25) -> List[USDAFoodItem]:
+    async def search_foods(self, query: str, page_size: int = 25) -> list[USDAFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search foods by name.
@@ -161,7 +163,7 @@ class USDAClient:
         try:
             url = f"{self.BASE_URL}/foods/search"
             # Ensure param types match httpx expectations
-            params: Dict[str, USDAClient.ParamValue] = {
+            params: dict[str, USDAClient.ParamValue] = {
                 "query": query,
                 "pageSize": min(page_size, 200),
                 "api_key": self.api_key,
@@ -187,7 +189,7 @@ class USDAClient:
             logger.error(f"Error searching USDA foods for '{query}': {e}")
             return []
 
-    async def get_food_details(self, fdc_id: int) -> Optional[USDAFoodItem]:
+    async def get_food_details(self, fdc_id: int) -> USDAFoodItem | None:
         """
         RU: Получить детальную информацию о продукте по FDC ID.
         EN: Get detailed food information by FDC ID.
@@ -212,7 +214,7 @@ class USDAClient:
             logger.error(f"Error getting USDA food details for FDC ID {fdc_id}: {e}")
             return None
 
-    async def get_multiple_foods(self, fdc_ids: List[int]) -> List[USDAFoodItem]:
+    async def get_multiple_foods(self, fdc_ids: list[int]) -> list[USDAFoodItem]:
         """
         RU: Получить информацию о нескольких продуктах одним запросом.
         EN: Get information about multiple foods in one request.
@@ -247,7 +249,7 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _parse_food_item(self, food_data: Dict) -> Optional[USDAFoodItem]:
+    def _parse_food_item(self, food_data: dict) -> USDAFoodItem | None:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
@@ -327,7 +329,7 @@ class USDAClient:
 
 
 # Convenience functions for common foods
-async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
+async def get_common_foods_database() -> dict[str, USDAFoodItem]:
     """
     RU: Получает базу часто используемых продуктов из USDA.
     EN: Gets database of commonly used foods from USDA.

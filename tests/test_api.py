@@ -1,17 +1,18 @@
-# -*- coding: utf-8 -*-
 import logging
 import os
 import sys
 from typing import cast
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.test_helpers import load_app  # noqa: E402 (import after sys.path modification)
+
 
 # client fixture is provided by conftest.py
 

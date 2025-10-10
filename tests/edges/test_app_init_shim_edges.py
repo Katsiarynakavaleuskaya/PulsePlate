@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Edges for app package shim (__init__.py): passthrough attr and spec proxy name.
 """

@@ -21,8 +21,8 @@ from core.recipe_db import Recipe
 class TestDailyPlateComprehensive:
     """Comprehensive tests for daily_plate module."""
 
-    food_db: Dict[str, FoodItem] = {}
-    recipe_db: Dict[str, Recipe] = {}
+    food_db: dict[str, FoodItem] = {}
+    recipe_db: dict[str, Recipe] = {}
 
     def setup_method(self):
         """Setup test fixtures."""

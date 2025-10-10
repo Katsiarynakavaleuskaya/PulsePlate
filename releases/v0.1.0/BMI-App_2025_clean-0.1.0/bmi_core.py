@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 BMI Core – чистая доменная логика без ввода/вывода.
 Поддерживает: валидацию, локализацию (RU/EN), группы (athlete/pregnant/elderly/child),
@@ -11,6 +10,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Dict, Optional, Tuple
+
 
 # -------------------------
 # Конфиг и локализация
@@ -34,7 +34,7 @@ class Config:
     ATHLETE_BMI_MAX = 27.0  # в спорт-моде верхняя граница не ниже 27
 
 
-LANG: Dict[str, Any] = {
+LANG: dict[str, Any] = {
     "ru": {
         "cat": {
             "under": "Недовес",
@@ -232,7 +232,7 @@ def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
 # -------------------------
 
 
-def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[float]:
+def compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     """WHtR с мягкой обработкой отсутствующих/некорректных значений.
     Правило: waist_cm == 0 → None (как «нет данных»)."""
     if waist_cm is None:
@@ -259,7 +259,7 @@ def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[fl
 # -------------------------
 
 
-def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float]:
+def healthy_bmi_range(age: int, group: str, premium: bool) -> tuple[float, float]:
     """Базово: 18.5–25.0; для 60+: верх 27.5; для athlete+premium: верх >= 27.0."""
     bmin = 18.5
     bmax = 25.0
@@ -278,7 +278,7 @@ def build_premium_plan(
     lang: str,
     group: str,
     premium: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Возвращает план: healthy_bmi, healthy_weight, action, delta_kg, est_weeks, tips."""
     _validate_age(int(age))
     validate_measurements(weight_kg, height_m)

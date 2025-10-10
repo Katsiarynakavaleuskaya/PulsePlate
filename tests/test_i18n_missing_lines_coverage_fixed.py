@@ -7,6 +7,7 @@ import contextlib
 
 from faker import Faker
 
+
 fake = Faker()
 
 

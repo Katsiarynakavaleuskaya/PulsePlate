@@ -18,8 +18,9 @@ import importlib.util
 import os
 import sys
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 # Resolve app.py relative to this test file
 test_dir = os.path.dirname(os.path.abspath(__file__))

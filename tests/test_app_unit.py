@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Точечные юнит-тесты внутренних функций main.py:
 - _bmi_category: граничные значения 18.5/25/30
@@ -8,8 +7,9 @@ RU: Точечные юнит-тесты внутренних функций mai
 EN: Unit tests for internal helpers in main.py.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 app_mod = pytest.importorskip("app")
 app = getattr(app_mod, "app")

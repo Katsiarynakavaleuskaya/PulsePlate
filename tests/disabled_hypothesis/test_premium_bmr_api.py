@@ -12,10 +12,11 @@ Tests cover:
 import os
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app import app
+
 
 client = TestClient(app)
 

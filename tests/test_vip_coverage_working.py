@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 VIP Coverage Tests - Real endpoints working
 

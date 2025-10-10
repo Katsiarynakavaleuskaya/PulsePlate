@@ -6,6 +6,7 @@ Provides translation dictionaries and functions for RU/EN/ES localization.
 
 from typing import Any, Literal, Optional
 
+
 # Translation dictionaries
 TRANSLATIONS = {
     "ru": {
@@ -372,7 +373,7 @@ def validate_translation_key(key: str) -> bool:
     return all(key in translations for translations in TRANSLATIONS.values())
 
 
-def normalize_lang(lang: Optional[str]) -> Lang:
+def normalize_lang(lang: str | None) -> Lang:
     """
     Normalize input language code to supported languages ('ru'|'en'|'es').
 

@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import importlib
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 # Импортируем приложение единожды
 app_module = importlib.import_module("app")

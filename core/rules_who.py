@@ -27,7 +27,7 @@ class ActivityGuidelines(TypedDict):
     steps_daily: int
 
 
-WHO_ACTIVITY_GUIDELINES: Dict[str, ActivityGuidelines] = {
+WHO_ACTIVITY_GUIDELINES: dict[str, ActivityGuidelines] = {
     "adult": {
         "moderate_aerobic_min": 150,  # 150 min/week moderate OR
         "vigorous_aerobic_min": 75,  # 75 min/week vigorous
@@ -233,9 +233,9 @@ WHO_HYDRATION_GUIDELINES: HydrationGuidelines = {
 
 # Acceptable Macronutrient Distribution Ranges (AMDR) - WHO/IOM
 class MacronutrientRanges(TypedDict):
-    protein_percent: Tuple[int, int]
-    fat_percent: Tuple[int, int]
-    carbs_percent: Tuple[int, int]
+    protein_percent: tuple[int, int]
+    fat_percent: tuple[int, int]
+    carbs_percent: tuple[int, int]
     fiber_g_per_1000_cal: int
 
 
@@ -279,7 +279,7 @@ def get_age_category(age: int) -> str:
         return "51+"
 
 
-def get_compact_micronutrient_rda(sex: Sex) -> Dict[str, float]:
+def get_compact_micronutrient_rda(sex: Sex) -> dict[str, float]:
     """
     RU: Получает компактную таблицу RDA для ключевых микронутриентов.
     EN: Gets compact RDA table for key micronutrients.
@@ -293,7 +293,7 @@ def get_compact_micronutrient_rda(sex: Sex) -> Dict[str, float]:
     return COMPACT_MICRONUTRIENT_RDA[sex].copy()
 
 
-def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -> Dict[str, float]:
+def get_micronutrient_rda(sex: Sex, age: int, life_stage: LifeStage = "adult") -> dict[str, float]:
     """
     RU: Получает рекомендуемые дневные нормы микронутриентов.
     EN: Gets recommended daily allowances for micronutrients.

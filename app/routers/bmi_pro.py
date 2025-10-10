@@ -28,16 +28,16 @@ class BMIProRequest(BaseModel):
     sex: Sex
     age: int = Field(..., ge=10, le=100)
     waist_cm: float = Field(..., gt=0)
-    hip_cm: Optional[float] = Field(None, gt=0)
-    bodyfat_percent: Optional[float] = Field(None, ge=0, le=60)
+    hip_cm: float | None = Field(None, gt=0)
+    bodyfat_percent: float | None = Field(None, ge=0, le=60)
     lang: Language = "en"  # Add language parameter
 
 
 class BMIProResponse(BaseModel):
     bmi: float
     whtr: float
-    whr: Optional[float]
-    ffmi: Optional[float]
+    whr: float | None
+    ffmi: float | None
     risk_level: Literal["low", "moderate", "high"]
     notes: list[str]
 

@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 
 from .meal_i18n import Language, translate_food
 
+
 MICRO_KEYS = [
     "Fe_mg",
     "Ca_mg",
@@ -37,8 +38,8 @@ class FoodItem:
     fat_g: float
     carbs_g: float
     fiber_g: float
-    micros: Dict[str, float]
-    flags: List[str]
+    micros: dict[str, float]
+    flags: list[str]
     price: float
 
 
@@ -46,7 +47,7 @@ class FoodDB:
     """RU: Хранилище продуктов (100 г). EN: Simple 100g-based food database."""
 
     def __init__(self, path: str) -> None:
-        self.items: Dict[str, FoodItem] = {}
+        self.items: dict[str, FoodItem] = {}
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 micros = {k: float(row.get(k, 0) or 0) for k in MICRO_KEYS}
@@ -71,7 +72,7 @@ class FoodDB:
         """Get translated food name for the specified language."""
         return translate_food(lang, name)
 
-    def pick_booster_for(self, micro: str, diet_flags: List[str]) -> Optional[str]:
+    def pick_booster_for(self, micro: str, diet_flags: list[str]) -> str | None:
         """RU: Выбрать продукт-донор для микро с учетом флагов диеты.
         EN: Pick a donor food for given micro respecting diet flags.
         """
@@ -93,7 +94,7 @@ class FoodDB:
                 return candidate
         return None
 
-    def _compatible(self, food_flags: List[str], diet_flags: List[str]) -> bool:
+    def _compatible(self, food_flags: list[str], diet_flags: list[str]) -> bool:
         # RU: очень простой фильтр — подойдет для MVP
         if "VEG" in diet_flags and "OMNI" in food_flags:
             return False
@@ -103,8 +104,8 @@ class FoodDB:
             return False
         return True
 
-    def aggregate_shopping(self, days: List[dict], lang: Language = "en") -> List[dict]:
-        basket: Dict[str, float] = {}
+    def aggregate_shopping(self, days: list[dict], lang: Language = "en") -> list[dict]:
+        basket: dict[str, float] = {}
         for d in days:
             for meal in d["meals"]:
                 for name, grams in meal["grams"].items():

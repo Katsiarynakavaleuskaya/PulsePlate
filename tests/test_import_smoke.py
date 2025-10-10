@@ -8,6 +8,7 @@ import importlib
 
 import pytest
 
+
 # Define core modules as a constant list for parametrized testing
 CORE_MODULES = [
     "core.product_varieties",

@@ -14,14 +14,16 @@
 import os
 import sys
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import importlib.util
 import pathlib
+
 
 # Get the repository root directory
 repo_root = pathlib.Path(__file__).parent.parent

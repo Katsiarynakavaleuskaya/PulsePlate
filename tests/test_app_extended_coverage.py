@@ -4,17 +4,17 @@ Additional comprehensive tests for main.py to achieve 97% coverage.
 Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
+# Import the FastAPI app from app.py file
+import importlib.util
 import os
 import sys
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
-# Import the FastAPI app from app.py file
-import importlib.util
 
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:

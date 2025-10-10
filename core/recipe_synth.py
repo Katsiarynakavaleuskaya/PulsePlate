@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Модуль для синтеза рецептов на основе недельных планов питания.
 EN: Module for recipe synthesis based on weekly meal plans.
@@ -6,10 +5,10 @@ EN: Module for recipe synthesis based on weekly meal plans.
 Sprint 4: Recipe Synth под меню
 """
 
-import json
-import random
 from dataclasses import dataclass
+import json
 from pathlib import Path
+import random
 from typing import Dict, List, Optional, Union
 
 
@@ -19,9 +18,9 @@ class RecipeStep:
 
     step_number: int
     instruction: str
-    duration_minutes: Optional[int] = None
-    temperature: Optional[str] = None
-    equipment: Optional[str] = None
+    duration_minutes: int | None = None
+    temperature: str | None = None
+    equipment: str | None = None
 
 
 @dataclass
@@ -37,11 +36,11 @@ class Recipe:
     cook_time_minutes: int
     total_time_minutes: int
     servings: int
-    ingredients: List[Dict[str, Union[str, float]]]
-    steps: List[RecipeStep]
-    nutrition_per_serving: Dict[str, float]
-    tags: List[str]
-    image_url: Optional[str] = None
+    ingredients: list[dict[str, str | float]]
+    steps: list[RecipeStep]
+    nutrition_per_serving: dict[str, float]
+    tags: list[str]
+    image_url: str | None = None
 
 
 @dataclass
@@ -51,13 +50,13 @@ class RecipeTemplate:
     template_id: str
     name: str
     cuisine_type: str
-    base_ingredients: List[str]
-    cooking_methods: List[str]
+    base_ingredients: list[str]
+    cooking_methods: list[str]
     typical_prep_time: int
     typical_cook_time: int
     difficulty: str
     instruction_template: str
-    nutrition_profile: Dict[str, float]
+    nutrition_profile: dict[str, float]
 
 
 class RecipeSynthesizer:
@@ -65,7 +64,7 @@ class RecipeSynthesizer:
 
     def __init__(self, templates_dir: str = "data/recipe_templates"):
         self.templates_dir = Path(templates_dir)
-        self.templates: Dict[str, RecipeTemplate] = {}
+        self.templates: dict[str, RecipeTemplate] = {}
         self._load_templates()
 
     def _load_templates(self):
@@ -82,7 +81,7 @@ class RecipeSynthesizer:
 
         for template_file in template_files:
             try:
-                with open(template_file, "r", encoding="utf-8") as f:
+                with open(template_file, encoding="utf-8") as f:
                     template_data = json.load(f)
                     template = RecipeTemplate(**template_data)
                     self.templates[template.template_id] = template
@@ -209,7 +208,7 @@ class RecipeSynthesizer:
 
     def synthesize_recipe_from_ingredients(
         self,
-        ingredients: List[Dict[str, Union[str, float]]],
+        ingredients: list[dict[str, str | float]],
         cuisine_preference: str = "international",
         difficulty_preference: str = "easy",
         servings: int = 4,
@@ -238,7 +237,7 @@ class RecipeSynthesizer:
 
     def _select_best_template(
         self,
-        ingredients: List[Dict[str, Union[str, float]]],
+        ingredients: list[dict[str, str | float]],
         cuisine_preference: str,
         difficulty_preference: str,
     ) -> RecipeTemplate:
@@ -271,7 +270,7 @@ class RecipeSynthesizer:
         return best_template or list(self.templates.values())[0]
 
     def _calculate_ingredient_match_score(
-        self, ingredient_names: List[str], template_ingredients: List[str]
+        self, ingredient_names: list[str], template_ingredients: list[str]
     ) -> int:
         """Вычисляет оценку совпадения ингредиентов"""
         score = 0
@@ -285,7 +284,7 @@ class RecipeSynthesizer:
     def _create_recipe_from_template(
         self,
         template: RecipeTemplate,
-        ingredients: List[Dict[str, Union[str, float]]],
+        ingredients: list[dict[str, str | float]],
         servings: int,
     ) -> Recipe:
         """Создает рецепт на основе шаблона"""
@@ -322,8 +321,8 @@ class RecipeSynthesizer:
         return recipe
 
     def _adapt_ingredients_for_servings(
-        self, ingredients: List[Dict[str, Union[str, float]]], target_servings: int
-    ) -> List[Dict[str, Union[str, float]]]:
+        self, ingredients: list[dict[str, str | float]], target_servings: int
+    ) -> list[dict[str, str | float]]:
         """Адаптирует ингредиенты под количество порций"""
         adapted = []
         for ing in ingredients:
@@ -336,8 +335,8 @@ class RecipeSynthesizer:
         return adapted
 
     def _generate_recipe_steps(
-        self, template: RecipeTemplate, ingredients: List[Dict[str, Union[str, float]]]
-    ) -> List[RecipeStep]:
+        self, template: RecipeTemplate, ingredients: list[dict[str, str | float]]
+    ) -> list[RecipeStep]:
         """Генерирует шаги рецепта"""
         steps = []
 
@@ -376,7 +375,7 @@ class RecipeSynthesizer:
         else:
             return 2
 
-    def _extract_temperature(self, instruction: str) -> Optional[str]:
+    def _extract_temperature(self, instruction: str) -> str | None:
         """Извлекает информацию о температуре"""
         instruction_lower = instruction.lower()
 
@@ -391,7 +390,7 @@ class RecipeSynthesizer:
 
         return None
 
-    def _extract_equipment(self, instruction: str) -> Optional[str]:
+    def _extract_equipment(self, instruction: str) -> str | None:
         """Извлекает информацию об оборудовании"""
         instruction_lower = instruction.lower()
 
@@ -407,8 +406,8 @@ class RecipeSynthesizer:
         return None
 
     def _calculate_nutrition(
-        self, ingredients: List[Dict[str, Union[str, float]]], servings: int
-    ) -> Dict[str, float]:
+        self, ingredients: list[dict[str, str | float]], servings: int
+    ) -> dict[str, float]:
         """Вычисляет питательную ценность на порцию"""
         # Упрощенная логика расчета питательной ценности
         total_calories = 0.0
@@ -450,8 +449,8 @@ class RecipeSynthesizer:
         }
 
     def _generate_tags(
-        self, template: RecipeTemplate, ingredients: List[Dict[str, Union[str, float]]]
-    ) -> List[str]:
+        self, template: RecipeTemplate, ingredients: list[dict[str, str | float]]
+    ) -> list[str]:
         """Генерирует теги для рецепта"""
         tags = [template.cuisine_type, template.difficulty]
 
@@ -468,7 +467,7 @@ class RecipeSynthesizer:
         return list(set(tags))  # Убираем дубликаты
 
     def _generate_recipe_title(
-        self, template: RecipeTemplate, ingredients: List[Dict[str, Union[str, float]]]
+        self, template: RecipeTemplate, ingredients: list[dict[str, str | float]]
     ) -> str:
         """Генерирует название рецепта"""
         # Берем основной ингредиент
@@ -485,7 +484,7 @@ class RecipeSynthesizer:
             return f"Delicious {template.name}"
 
     def _generate_recipe_description(
-        self, template: RecipeTemplate, ingredients: List[Dict[str, Union[str, float]]]
+        self, template: RecipeTemplate, ingredients: list[dict[str, str | float]]
     ) -> str:
         """Генерирует описание рецепта"""
         ingredient_count = len(ingredients)
@@ -495,8 +494,8 @@ class RecipeSynthesizer:
         )
 
     def synthesize_recipes_for_week(
-        self, week_plan: Dict, recipes_per_day: int = 1
-    ) -> Dict[str, List[Recipe]]:
+        self, week_plan: dict, recipes_per_day: int = 1
+    ) -> dict[str, list[Recipe]]:
         """
         Синтезирует рецепты для недельного плана
 
@@ -544,7 +543,7 @@ def get_recipe_synthesizer() -> RecipeSynthesizer:
 
 # Удобные функции для быстрого доступа
 def synthesize_recipe_from_ingredients(
-    ingredients: List[Dict[str, Union[str, float]]],
+    ingredients: list[dict[str, str | float]],
     cuisine_preference: str = "international",
     difficulty_preference: str = "easy",
     servings: int = 4,
@@ -557,8 +556,8 @@ def synthesize_recipe_from_ingredients(
 
 
 def synthesize_recipes_for_week(
-    week_plan: Dict, recipes_per_day: int = 1
-) -> Dict[str, List[Recipe]]:
+    week_plan: dict, recipes_per_day: int = 1
+) -> dict[str, list[Recipe]]:
     """Синтезирует рецепты для недельного плана"""
     synthesizer = get_recipe_synthesizer()
     return synthesizer.synthesize_recipes_for_week(week_plan, recipes_per_day)

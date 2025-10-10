@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Тестовый скрипт для проверки окружения PulsePlate
 """
@@ -7,8 +6,8 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 
 def check_python_version():

@@ -22,13 +22,13 @@ def sign(secret: str, path: str, exp_ts: int) -> str:
     neatly inside query parameters without additional escaping.
     """
 
-    payload = f"{path}|{exp_ts}".encode("utf-8")
+    payload = f"{path}|{exp_ts}".encode()
     mac = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).digest()
     return _b64url(mac)
 
 
 def verify(
-    secret: str, path: str, exp_ts: int, signature: str, *, now_ts: Optional[int] = None
+    secret: str, path: str, exp_ts: int, signature: str, *, now_ts: int | None = None
 ) -> bool:
     """Validate that ``signature`` matches ``path`` and has not expired."""
 

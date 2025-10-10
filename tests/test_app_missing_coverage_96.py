@@ -1,5 +1,6 @@
 import os
 
+
 """
 Tests to improve coverage in main.py to reach 96%+ coverage.
 
@@ -11,9 +12,11 @@ import sys
 
 from fastapi.testclient import TestClient
 
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.test_helpers import load_app
+
 
 app = load_app()
 

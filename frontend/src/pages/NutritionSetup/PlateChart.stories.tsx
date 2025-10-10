@@ -1,6 +1,6 @@
+import type { Meta, StoryFn, StoryObj } from "@storybook/react";
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../i18n';
-import type { StoryFn, StoryObj } from "@storybook/react";
 import PlateChart from "./PlateChart";
 
 const meta = {
@@ -32,7 +32,7 @@ const meta = {
       description: "Percentage of fat. Values should sum to 100%.",
     },
   },
-};
+} satisfies Meta<typeof PlateChart>;
 
 export default meta;
 

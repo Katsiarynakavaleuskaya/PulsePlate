@@ -4,14 +4,14 @@ Shared pytest fixtures for the PulsePlate test suite.
 
 import importlib.util
 import os
-import sys
 from pathlib import Path
+import sys
 from types import ModuleType
 from typing import Any, cast
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture(scope="session", autouse=True)

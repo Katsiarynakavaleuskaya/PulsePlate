@@ -5,8 +5,8 @@
 
 from typing import cast
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
 

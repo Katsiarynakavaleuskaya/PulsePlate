@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 --sql
 
@@ -18,6 +17,7 @@ from bmi_core import (
     healthy_bmi_range,
     interpret_group,
 )
+
 
 # ---------- Базовые расчёты BMI ----------
 

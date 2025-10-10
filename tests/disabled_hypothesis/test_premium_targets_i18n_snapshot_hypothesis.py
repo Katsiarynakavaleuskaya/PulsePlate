@@ -256,7 +256,7 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
             ]
         ),
     )
-    def test_invalid_input_i18n_snapshot_hypothesis(self, lang: str, invalid_input: Dict[str, str]):
+    def test_invalid_input_i18n_snapshot_hypothesis(self, lang: str, invalid_input: dict[str, str]):
         """Test invalid input handling with i18n (snapshot test)."""
         payload = {
             "sex": "male",

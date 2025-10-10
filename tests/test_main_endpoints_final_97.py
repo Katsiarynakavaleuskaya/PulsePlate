@@ -13,10 +13,11 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from tests.test_helpers import load_app
+
 
 app = load_app()
 

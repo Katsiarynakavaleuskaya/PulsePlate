@@ -1,6 +1,6 @@
 from typing import Optional
 
-from openai import AsyncOpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIStatusError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI, RateLimitError
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 
@@ -41,7 +41,7 @@ class GrokProvider:
 
     name = "grok"
 
-    def __init__(self, endpoint: str, model: str, api_key: str, timeout: Optional[float] = 30.0):
+    def __init__(self, endpoint: str, model: str, api_key: str, timeout: float | None = 30.0):
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.api_key = api_key
@@ -65,5 +65,6 @@ class GrokProvider:
             content = resp.choices[0].message.content
             return (content or "").strip()
         except Exception as e:
-            # Пробрасываем понятную ошибку наверх
-            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")
+            if is_transient_exception(e):
+                raise
+            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}") from e

@@ -4,6 +4,13 @@ This module provides functions for calculating Basal Metabolic Rate (BMR),
 Total Daily Energy Expenditure (TDEE), macronutrient distributions, and
 related metabolic calculations based on WHO/EFSA guidelines.
 
+Activity levels supported (with synonyms for backward compatibility):
+- sedentary (1.2x multiplier)
+- light / lightly_active (1.375x)
+- moderate / moderately_active (1.55x)
+- active (1.725x)
+- very_active / extremely_active (1.9x)
+
 EN: Metabolism and energy expenditure calculations.
 """
 
@@ -11,9 +18,20 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional
 
+
 # Type definitions
 Sex = Literal["female", "male"]
-Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
+Activity = Literal[
+    "sedentary",
+    "light",
+    "moderate",
+    "active",
+    "very_active",
+    # Synonym support for backward compatibility
+    "lightly_active",
+    "moderately_active",
+    "extremely_active",
+]
 Goal = Literal["loss", "maintain", "gain"]
 
 # Activity level multipliers for TDEE calculation
@@ -40,7 +58,7 @@ def calculate_bmr(
     weight: float,
     height: int,
     gender: str,
-    body_fat: Optional[float] = None,
+    body_fat: float | None = None,
     formula: str = "mifflin",
 ) -> float:
     """Calculate Basal Metabolic Rate using various formulas.
@@ -98,7 +116,7 @@ def calculate_bmr(
         raise ValueError(f"Unknown BMR formula: {formula}")  # noqa: TRY003
 
 
-def get_bmr_formula(user_data: Dict[str, Any]) -> str:
+def get_bmr_formula(user_data: dict[str, Any]) -> str:
     """Get recommended BMR formula based on available data.
 
     EN: Get recommended BMR formula based on available data.
@@ -119,7 +137,8 @@ def adjust_for_activity(bmr: float, activity: Activity) -> float:
 
     Args:
         bmr: Basal metabolic rate in kcal/day
-        activity: Activity level
+        activity: Activity level (sedentary, light, moderate, active, very_active,
+                 or synonyms: lightly_active, moderately_active, extremely_active)
 
     Returns:
         TDEE in kcal/day
@@ -135,7 +154,7 @@ def calculate_tdee(
     height: int,
     gender: str,
     activity: Activity,
-    body_fat: Optional[float] = None,
+    body_fat: float | None = None,
     formula: str = "mifflin",
 ) -> float:
     """Calculate Total Daily Energy Expenditure.
@@ -147,7 +166,8 @@ def calculate_tdee(
         weight: Weight in kg
         height: Height in cm
         gender: "male" or "female"
-        activity: Activity level
+        activity: Activity level (sedentary, light, moderate, active, very_active,
+                 or synonyms: lightly_active, moderately_active, extremely_active)
         body_fat: Optional body fat percentage
         formula: BMR formula to use
 
@@ -158,7 +178,7 @@ def calculate_tdee(
     return adjust_for_activity(bmr, activity)
 
 
-def get_macro_ratios(goal: Goal) -> Dict[str, float]:
+def get_macro_ratios(goal: Goal) -> dict[str, float]:
     """Get macronutrient ratios for different goals.
 
     EN: Get macronutrient ratios for different goals.
@@ -183,8 +203,8 @@ def calculate_macros(
     tdee: float,
     goal: Goal,
     protein_grams_per_kg: float = 1.6,
-    body_weight: Optional[float] = None,
-) -> Dict[str, float]:
+    body_weight: float | None = None,
+) -> dict[str, float]:
     """Calculate macronutrient targets in grams.
 
     EN: Calculate macronutrient targets in grams.
@@ -236,8 +256,8 @@ def calculate_macros(
 def adjust_calories_for_goal(
     tdee: float,
     goal: Goal,
-    deficit_pct: Optional[float] = None,
-    surplus_pct: Optional[float] = None,
+    deficit_pct: float | None = None,
+    surplus_pct: float | None = None,
 ) -> float:
     """Adjust TDEE based on goal (weight loss/maintenance/gain).
 
@@ -268,7 +288,7 @@ def adjust_calories_for_goal(
         raise ValueError(f"Unknown goal: {goal}")  # noqa: TRY003
 
 
-def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> Dict[str, float]:
+def calculate_deficit_surplus(current_kcal: float, target_kcal: float) -> dict[str, float]:
     """Calculate deficit/surplus information.
 
     EN: Calculate deficit/surplus information.
@@ -301,8 +321,8 @@ def calculate_all_bmr(
     height: float,
     age: int,
     sex: str,
-    bodyfat_percent: Optional[float] = None,
-) -> Dict[str, float]:
+    bodyfat_percent: float | None = None,
+) -> dict[str, float]:
     """
     Calculate BMR using all available formulas.
 
@@ -334,9 +354,9 @@ def calculate_all_bmr(
 
 
 def calculate_all_tdee(
-    bmr_results: Dict[str, float],
+    bmr_results: dict[str, float],
     activity: Activity,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calculate TDEE for all BMR formulas.
 
@@ -344,7 +364,8 @@ def calculate_all_tdee(
 
     Args:
         bmr_results: Dictionary of BMR values from different formulas
-        activity: Activity level
+        activity: Activity level (sedentary, light, moderate, active, very_active,
+                 or synonyms: lightly_active, moderately_active, extremely_active)
 
     Returns:
         Dictionary with TDEE values for each formula

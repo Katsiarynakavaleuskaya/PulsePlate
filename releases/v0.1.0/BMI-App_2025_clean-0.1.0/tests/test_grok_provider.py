@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for GrokProvider."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 # Mock the openai import to avoid dependency issues
 with patch.dict("sys.modules", {"openai": MagicMock()}):

@@ -6,8 +6,9 @@ import importlib.abc
 import importlib.util
 import os
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 # Import the app correctly from app.py
 spec = importlib.util.spec_from_file_location("app", "app.py")

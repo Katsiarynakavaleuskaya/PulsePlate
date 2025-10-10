@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 BMI Visualization Module - Generate BMI charts and visual reports.
 Supports BMI category visualization, progress tracking, and population-specific charts.
@@ -6,9 +5,10 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from bmi_core import auto_group, bmi_category, group_display_name
+
 
 try:
     import matplotlib
@@ -19,7 +19,7 @@ try:
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    plt = None
+    plt: Any | None = None
 
 
 class BMIVisualizer:
@@ -215,7 +215,7 @@ class BMIVisualizer:
             va="top",
             fontsize=11,
             fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7),
+            bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightblue", "alpha": 0.7},
         )
 
 
@@ -226,7 +226,7 @@ def generate_bmi_visualization(
     pregnant: str = "no",
     athlete: str = "no",
     lang: str = "en",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate BMI visualization and return as base64 encoded image."""
 
     if not MATPLOTLIB_AVAILABLE:

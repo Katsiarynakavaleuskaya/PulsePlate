@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 RU: Тесты для покрытия main.py (группы, insight, debug_env).
 EN: Coverage tests for main.py (groups, insight, debug_env).
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import os

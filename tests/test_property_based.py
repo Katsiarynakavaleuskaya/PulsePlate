@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 Property-based tests using Hypothesis for robust input validation.
 Tests BMI calculations, body fat estimates, and insight generation
 with random inputs.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:  # Gracefully skip if Hypothesis is not installed locally
     from hypothesis import assume, given

@@ -14,6 +14,7 @@ import csv
 import io
 from typing import Any, Dict, Optional
 
+
 # Check if reportlab is available
 REPORTLAB_AVAILABLE = False
 REPORTLAB_CLASSES = {}
@@ -51,7 +52,7 @@ def _import_reportlab_modules():
     return REPORTLAB_CLASSES
 
 
-def to_csv_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
+def to_csv_day(meal_plan: dict[str, Any], filename: str | None = None) -> bytes:
     """
     RU: Экспортирует дневной план питания в CSV.
     EN: Export daily meal plan to CSV.
@@ -101,7 +102,7 @@ def to_csv_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     return csv_data.encode("utf-8")
 
 
-def to_csv_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
+def to_csv_week(weekly_plan: dict[str, Any], filename: str | None = None) -> bytes:
     """
     RU: Экспортирует недельный план питания в CSV.
     EN: Export weekly meal plan to CSV.
@@ -167,7 +168,7 @@ def to_csv_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     return csv_data.encode("utf-8")
 
 
-def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
+def to_pdf_day(meal_plan: dict[str, Any], filename: str | None = None) -> bytes:
     """
     RU: Экспортирует дневной план питания в PDF.
     EN: Export daily meal plan to PDF.
@@ -260,7 +261,7 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     return pdf_data
 
 
-def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> bytes:
+def to_pdf_week(weekly_plan: dict[str, Any], filename: str | None = None) -> bytes:
     """
     RU: Экспортирует недельный план питания в PDF.
     EN: Export weekly meal plan to PDF.

@@ -30,6 +30,7 @@ from typing import Dict, List, Union
 
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 
+
 if not ENCRYPTION_AVAILABLE:
     print(
         "❌ Encryption is required. Install cryptography: pip install cryptography"
@@ -40,7 +41,7 @@ if not ENCRYPTION_AVAILABLE:
 DEFAULT_PROFILE = "premium"
 CURSOR_SUBDIR = ".cursor"
 
-PROFILE_CONFIG: Dict[str, Dict[str, Union[str, List[str]]]] = {
+PROFILE_CONFIG: dict[str, dict[str, str | list[str]]] = {
     "premium": {
         "env_keys": ["OPENAI_API_KEY"],
         "settings_key": "cursor.ai.openaiApiKey",
@@ -105,7 +106,7 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     # Update MCP configuration
     mcp_file = Path.home() / ".cursor" / "mcp.json"
     if mcp_file.exists():
-        with open(mcp_file, "r") as f:
+        with open(mcp_file) as f:
             config = json.load(f)
 
         # Ensure nested structure exists
@@ -124,7 +125,7 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     # Update environment file with encrypted key
     env_file = Path.home() / ".cursor" / ".env"
     if env_file.exists():
-        with open(env_file, "r") as f:
+        with open(env_file) as f:
             content = f.read()
 
         # Replace API key for the specified profile
@@ -154,7 +155,7 @@ def update_api_key(api_key: str, profile: str = DEFAULT_PROFILE, use_encryption:
     # Update Cursor settings (plain text for runtime)
     settings_file = Path.home() / ".cursor" / "settings.json"
     if settings_file.exists():
-        with open(settings_file, "r") as f:
+        with open(settings_file) as f:
             settings = json.load(f)
 
         settings[PROFILE_CONFIG[profile]["settings_key"]] = api_key

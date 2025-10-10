@@ -7,9 +7,9 @@ import os
 from typing import cast
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
 

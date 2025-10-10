@@ -44,13 +44,32 @@ See [GIT_PUSH_FIX_SUMMARY.md](GIT_PUSH_FIX_SUMMARY.md) for detailed explanation.
 - Keep PRs small and focused. Prefer squash merge.
 - Ensure CI is green:
   - Tests pass on Python 3.12 and 3.13
-  - Coverage ≥ 96% (repo currently ~99%)
+  - Coverage ≥ 97% (repo currently ~99%)
 - Run locally before pushing:
 
 ```bash
 pytest -q --maxfail=1 --disable-warnings \
   --cov=. --cov-report=term-missing --cov-fail-under=97
 ```
+
+### PR Automation Workflow
+
+The repository uses an automated PR workflow (`.github/workflows/pr-automation.yml`) that:
+
+1. **Waits for CodeRabbit review** (configurable timeout, default: 15 minutes)
+2. **Applies auto-fixes** (ESLint, Ruff format/check)
+3. **Runs full test suite** with coverage validation
+4. **Auto-commits changes** (for non-fork PRs only)
+
+**Configuring CodeRabbit timeout:**
+
+The workflow waits for CodeRabbit review before proceeding. By default, it waits up to **15 minutes** (reduced from 30 to speed up CI). You can customize this timeout:
+
+- **Via environment variable:** Set `CODE_RABBIT_TIMEOUT_MIN` in your repository settings
+- **Via workflow dispatch:** Manually trigger the workflow with a custom timeout value
+- **Example values:** 10 (faster), 15 (default), 20 or 30 (for complex PRs)
+
+The timeout is computed as: `max_iterations = (timeout_minutes × 60) / 30s_sleep_interval`
 
 ## Auto‑delete merged branches
 

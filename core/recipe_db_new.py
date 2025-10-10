@@ -10,10 +10,11 @@ and provide recipe scaling functionality.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import csv
-import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, TypedDict
+import random
+from typing import Dict, List, Optional, TypedDict
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_recipe
@@ -21,33 +22,33 @@ from .meal_i18n import Language, translate_recipe
 
 class NutritionData(TypedDict):
     kcal: float
-    macros: Dict[str, float]
-    micros: Dict[str, float]
+    macros: dict[str, float]
+    micros: dict[str, float]
 
 
 @dataclass
 class Recipe:
     name: str
     meal: str
-    ingredients: Dict[str, float]  # grams
-    tags: List[str]
+    ingredients: dict[str, float]  # grams
+    tags: list[str]
 
 
 @dataclass
 class Meal:
     title: str
     title_translated: str
-    grams: Dict[str, float]
+    grams: dict[str, float]
     kcal: int
-    macros: Dict[str, float]
-    micros: Dict[str, float]
+    macros: dict[str, float]
+    micros: dict[str, float]
 
 
 class RecipeDB:
     def __init__(self, path: str, fooddb: FoodDB) -> None:
         self.fooddb = fooddb
-        self.recipes: List[Recipe] = []
-        self._recipe_by_name: Dict[str, Recipe] = {}
+        self.recipes: list[Recipe] = []
+        self._recipe_by_name: dict[str, Recipe] = {}
         with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 ings = {}
@@ -59,7 +60,7 @@ class RecipeDB:
                 self.recipes.append(recipe)
                 self._recipe_by_name[recipe.name] = recipe
 
-    def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Optional[Recipe]:
+    def pick_base_recipe(self, diet_flags: list[str], meal_index: int) -> Recipe | None:
         # breakfast/lunch/dinner/snack by index
         meal_map = ["breakfast", "lunch", "dinner", "snack"]
         target = meal_map[meal_index % len(meal_map)]
@@ -71,7 +72,7 @@ class RecipeDB:
             candidates = [r for r in self.recipes if self._compatible(r.tags, diet_flags)]
         return random.choice(candidates) if candidates else None
 
-    def _compatible(self, recipe_flags: List[str], diet_flags: List[str]) -> bool:
+    def _compatible(self, recipe_flags: list[str], diet_flags: list[str]) -> bool:
         if "VEG" in diet_flags and "OMNI" in recipe_flags:
             return False
         if "PESC" in diet_flags and "OMNI" in recipe_flags:
@@ -80,10 +81,10 @@ class RecipeDB:
             return False
         return True
 
-    def _nutrition_for(self, grams_map: Dict[str, float]) -> NutritionData:
+    def _nutrition_for(self, grams_map: dict[str, float]) -> NutritionData:
         kcal = 0.0
         macros = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
-        micros = {k: 0.0 for k in MICRO_KEYS}
+        micros = dict.fromkeys(MICRO_KEYS, 0.0)
         for name, g in grams_map.items():
             fi = self.fooddb.get_food(name)
             mul = g / fi.per_g
@@ -96,7 +97,7 @@ class RecipeDB:
                 micros[mk] += fi.micros.get(mk, 0.0) * mul
         return {"kcal": kcal, "macros": macros, "micros": micros}
 
-    def get_recipe_by_id(self, recipe_id: int | str) -> Optional[Recipe]:
+    def get_recipe_by_id(self, recipe_id: int | str) -> Recipe | None:
         """Return a recipe by its identifier.
 
         The CSV does not provide an explicit numeric id, so we treat the recipe
@@ -123,9 +124,9 @@ class RecipeDB:
         self,
         query: str = "",
         *,
-        tags: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None,
-    ) -> List[Recipe]:
+        tags: Sequence[str] | None = None,
+        limit: int | None = None,
+    ) -> list[Recipe]:
         """Search recipes by name substring and optional tag filters."""
 
         normalized_query = (query or "").strip().lower()
@@ -145,7 +146,7 @@ class RecipeDB:
             return results
         return results[:limit]
 
-    def get_all_recipes(self) -> List[Recipe]:
+    def get_all_recipes(self) -> list[Recipe]:
         """Return a shallow copy of all recipes for read-only iteration."""
 
         return list(self.recipes)

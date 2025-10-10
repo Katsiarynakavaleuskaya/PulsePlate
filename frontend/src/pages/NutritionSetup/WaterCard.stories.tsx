@@ -1,4 +1,4 @@
-import type { StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import WaterCard from "./WaterCard";
 
 const meta = {
@@ -13,7 +13,7 @@ const meta = {
       description: "Daily water intake recommendation in liters",
     },
   },
-};
+} satisfies Meta<typeof WaterCard>;
 
 export default meta;
 

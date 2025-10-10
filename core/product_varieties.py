@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Система для работы с различными сортами и марками продуктов.
 EN: System for working with different product varieties and brands.
@@ -10,12 +9,13 @@ EN: System for working with different product varieties and brands.
 from __future__ import annotations
 
 import csv
-import logging
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
 from .food_db import FoodItem
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ProductVariety:
     Iodine_ug: float
     K_mg: float
     Mg_mg: float
-    flags: Set[str]
+    flags: set[str]
     notes: str
 
     def to_food_item(self) -> FoodItem:
@@ -122,7 +122,7 @@ class ProductVarietiesManager:
             csv_path: Путь к CSV файлу с данными о сортах
         """
         self.csv_path = csv_path
-        self.varieties: Dict[str, List[ProductVariety]] = {}
+        self.varieties: dict[str, list[ProductVariety]] = {}
         self._load_varieties()
 
     def _load_varieties(self) -> None:
@@ -135,7 +135,7 @@ class ProductVarietiesManager:
             return
 
         try:
-            with open(self.csv_path, "r", encoding="utf-8") as f:
+            with open(self.csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     try:
@@ -175,7 +175,7 @@ class ProductVarietiesManager:
         except Exception as e:
             logger.error(f"Error loading varieties: {e}")
 
-    def get_varieties(self, product_name: str) -> List[ProductVariety]:
+    def get_varieties(self, product_name: str) -> list[ProductVariety]:
         """
         RU: Получить все сорта продукта.
         EN: Get all varieties of a product.
@@ -190,7 +190,7 @@ class ProductVarietiesManager:
 
     def get_best_variety(
         self, product_name: str, criteria: str = "balanced"
-    ) -> Optional[ProductVariety]:
+    ) -> ProductVariety | None:
         """
         RU: Получить лучший сорт продукта по критериям.
         EN: Get best product variety by criteria.
@@ -223,7 +223,7 @@ class ProductVarietiesManager:
 
     def search_varieties(
         self, product_name: str, variety_name: str = None, brand: str = None
-    ) -> List[ProductVariety]:
+    ) -> list[ProductVariety]:
         """
         RU: Поиск сортов продукта по критериям.
         EN: Search product varieties by criteria.
@@ -248,7 +248,7 @@ class ProductVarietiesManager:
 
         return filtered
 
-    def get_nutritional_comparison(self, product_name: str) -> Dict[str, Dict[str, float]]:
+    def get_nutritional_comparison(self, product_name: str) -> dict[str, dict[str, float]]:
         """
         RU: Получить сравнение питательной ценности сортов продукта.
         EN: Get nutritional comparison of product varieties.
@@ -280,8 +280,8 @@ class ProductVarietiesManager:
         return comparison
 
     def recommend_variety(
-        self, product_name: str, user_preferences: Dict[str, str]
-    ) -> Optional[ProductVariety]:
+        self, product_name: str, user_preferences: dict[str, str]
+    ) -> ProductVariety | None:
         """
         RU: Рекомендовать сорт продукта на основе предпочтений пользователя.
         EN: Recommend product variety based on user preferences.
@@ -344,7 +344,7 @@ class ProductVarietiesManager:
             key=lambda v: abs(v.protein_g - 15) + abs(v.fat_g - 10) + abs(v.sugar_g - 5),
         )
 
-    def get_all_products(self) -> List[str]:
+    def get_all_products(self) -> list[str]:
         """
         RU: Получить список всех продуктов с сортами.
         EN: Get list of all products with varieties.
@@ -354,7 +354,7 @@ class ProductVarietiesManager:
         """
         return list(self.varieties.keys())
 
-    def get_statistics(self) -> Dict[str, Union[int, float]]:
+    def get_statistics(self) -> dict[str, int | float]:
         """
         RU: Получить статистику по сортам продуктов.
         EN: Get statistics on product varieties.

@@ -9,8 +9,8 @@ Comprehensive tests for plate generation logic:
 - Edge cases and input validation
 """
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from nutrition_plate import (
     MacroDistribution,

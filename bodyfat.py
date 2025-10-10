@@ -18,7 +18,7 @@ def bf_us_navy(
     neck_cm: float,
     waist_cm: float,
     gender: str,
-    hip_cm: Optional[float] = None,
+    hip_cm: float | None = None,
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
@@ -93,27 +93,27 @@ def estimate_all(data: dict[str, Any]) -> dict[str, object]:
 
 # ---------- FastAPI ----------
 class BodyFatRequest(BaseModel):
-    height_m: Optional[float] = Field(None, gt=0, description="Height in meters, must be positive")
-    weight_kg: Optional[float] = Field(
+    height_m: float | None = Field(None, gt=0, description="Height in meters, must be positive")
+    weight_kg: float | None = Field(
         None, gt=0, description="Weight in kilograms, must be positive"
     )
-    age: Optional[int] = Field(
+    age: int | None = Field(
         None, ge=1, le=120, description="Age in years, must be between 1 and 120"
     )
     gender: str
-    bmi: Optional[float] = Field(
+    bmi: float | None = Field(
         None, ge=0, le=100, description="BMI value, must be between 0 and 100"
     )
-    neck_cm: Optional[float] = Field(
+    neck_cm: float | None = Field(
         None, gt=0, description="Neck circumference in cm, must be positive"
     )
-    waist_cm: Optional[float] = Field(
+    waist_cm: float | None = Field(
         None, gt=0, description="Waist circumference in cm, must be positive"
     )
-    hip_cm: Optional[float] = Field(
+    hip_cm: float | None = Field(
         None, gt=0, description="Hip circumference in cm, must be positive"
     )
-    language: Optional[str] = "en"  # "en" | "ru"
+    language: str | None = "en"  # "en" | "ru"
 
 
 def get_router() -> APIRouter:

@@ -36,7 +36,7 @@ def test_aggregate_soft() -> None:
     }
     res = estimate_all(data)
     assert "methods" in res
-    methods: Dict[str, Any] = cast(Dict[str, Any], res["methods"])  # typing aid for pyright
+    methods: dict[str, Any] = cast(dict[str, Any], res["methods"])  # typing aid for pyright
     for v in methods.values():
         assert_soft(v)
     if res.get("median") is not None:

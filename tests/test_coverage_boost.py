@@ -5,7 +5,6 @@ Simple tests to improve coverage for main modules.
 """
 
 import logging
-
 import os
 from unittest.mock import Mock
 

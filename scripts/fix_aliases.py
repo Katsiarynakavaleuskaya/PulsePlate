@@ -2,8 +2,9 @@
 # RU: Удаляет точные дубликаты строк alias,canonical, сохраняя первое вхождение.
 # EN: Removes duplicate alias,canonical rows, keeping the first occurrence.
 import csv
-import sys
 from pathlib import Path
+import sys
+
 
 CSV_PATH = Path("data/food_aliases.csv")
 

@@ -22,12 +22,12 @@ from .recipe_db_new import RecipeDB
 
 @dataclass
 class DayPlan:
-    meals: List[dict]
+    meals: list[dict]
     kcal: int
-    macros: Dict[str, float]
-    micros: Dict[str, float]
-    coverage: Dict[str, float]
-    tips: List[str]
+    macros: dict[str, float]
+    micros: dict[str, float]
+    coverage: dict[str, float]
+    tips: list[str]
     total_cost: float = 0.0
 
 
@@ -37,7 +37,7 @@ def _percent(got: float, need: float) -> float:
 
 def build_plate_day(
     targets: dict,
-    diet_flags: List[str],
+    diet_flags: list[str],
     lang: Language,
     fooddb: FoodDB,
     recipedb: RecipeDB,
@@ -45,10 +45,10 @@ def build_plate_day(
     splits = [0.25, 0.35, 0.30, 0.10]
     kcal_split = [int(targets["kcal"] * s) for s in splits]
 
-    meals: List[RMeal] = []
+    meals: list[RMeal] = []
     total_kcal = 0.0
     macros_sum = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
-    micros_sum = {k: 0.0 for k in MICRO_KEYS}
+    micros_sum = dict.fromkeys(MICRO_KEYS, 0.0)
 
     for i, kcal_goal in enumerate(kcal_split):
         r = recipedb.pick_base_recipe(diet_flags, i)
@@ -64,7 +64,7 @@ def build_plate_day(
 
     # покрытие микро до бустеров
     cov = {k: _percent(micros_sum[k], targets["micro"].get(k, 0.0)) for k in MICRO_KEYS}
-    tips: List[str] = []
+    tips: list[str] = []
 
     # бустеры для провалов <80%
     kcal_limit = int(0.05 * targets["kcal"])

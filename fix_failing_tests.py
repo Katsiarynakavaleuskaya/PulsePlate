@@ -5,10 +5,10 @@ Script to fix failing tests by mapping non-existent FastAPI method checks to act
 
 import argparse
 import os
+from pathlib import Path
 import re
 import shutil
 import sys
-from pathlib import Path
 
 
 def fix_test_file(file_path: str) -> bool:
@@ -19,7 +19,7 @@ def fix_test_file(file_path: str) -> bool:
     """
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
         print(f"❌ Ошибка: Файл {file_path} не найден", file=sys.stderr)

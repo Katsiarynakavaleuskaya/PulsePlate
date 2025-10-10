@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
-import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
+import { formatShareErrorMessage, shareSignedExport } from "../../lib/shareFile";
 
 /**
  * Represents a single shopping list item with optional properties
@@ -91,7 +91,7 @@ export default function ShoplistPreview() {
   useEffect(() => {
     return () => {
       cleanupRef.current.forEach(({ id, cleanup }) => {
-        cleanup(); // Execute cleanup first to remove DOM nodes and revoke URLs
+        cleanup(); // Revoke object URLs to release memory (DOM removal occurs in downloadFile)
         window.clearTimeout(id); // Then clear the timeout to prevent any potential firing
       });
       cleanupRef.current = [];
@@ -127,6 +127,11 @@ export default function ShoplistPreview() {
     // The browser will initiate download before this fires
     const revokeTimeout = window.setTimeout(() => {
       URL.revokeObjectURL(url);
+      // Remove this entry from cleanupRef to prevent memory leak
+      const idx = cleanupRef.current.findIndex(entry => entry.id === revokeTimeout);
+      if (idx !== -1) {
+        cleanupRef.current.splice(idx, 1);
+      }
     }, 1000);
 
     cleanupRef.current.push({

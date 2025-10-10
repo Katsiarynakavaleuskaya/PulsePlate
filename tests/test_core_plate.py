@@ -13,12 +13,12 @@ Tests core plate generation logic:
 import pytest
 
 from core.plate import (
+    _visual_layout,
     apply_diet_flag_adjustments,
     macros_by_rules,
+    make_plate,
     portions_from_macros,
     target_kcal,
-    _visual_layout,
-    make_plate,
 )
 
 

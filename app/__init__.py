@@ -3,11 +3,12 @@
 App module initialization
 """
 
+from importlib.machinery import ModuleSpec
 import importlib.util
 import os
 import sys
-from importlib.machinery import ModuleSpec
 from typing import Optional, cast
+
 
 # Import FastAPI app and functions from the main module
 
@@ -90,7 +91,7 @@ class _RebindingModuleSpec(ModuleSpec):
 _base_spec = importlib.util.spec_from_loader(__name__, loader=None)
 if _base_spec is not None:
     # Create custom spec with rebinding behavior, passing the captured module reference
-    _spec: Optional[ModuleSpec] = _RebindingModuleSpec(
+    _spec: ModuleSpec | None = _RebindingModuleSpec(
         name=__name__,
         loader=_base_spec.loader,
         origin=_base_spec.origin,

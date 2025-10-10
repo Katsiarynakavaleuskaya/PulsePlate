@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 import sqlite3
 import sys
-from pathlib import Path
+
 
 ROOT = Path("cache/food_db")
 VERS = ROOT / "database_versions.json"

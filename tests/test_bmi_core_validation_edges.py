@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for missing coverage lines in bmi_core.py - specifically lines 293 and 295.
 """

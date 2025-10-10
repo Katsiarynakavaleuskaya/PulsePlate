@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 RU: Демонстрационный скрипт для работы с сортами продуктов.
 EN: Demo script for working with product varieties.
@@ -8,8 +7,9 @@ EN: Demo script for working with product varieties.
 сортами и марками продуктов, учитывая их пищевую ценность.
 """
 
-import sys
 from pathlib import Path
+import sys
+
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))

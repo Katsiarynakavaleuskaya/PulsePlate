@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Модуль для создания списков покупок из недельных планов питания.
 EN: Module for creating shopping lists from weekly meal plans.
@@ -18,7 +17,7 @@ class PackagingRule:
 
     category: str
     unit: str  # 'g', 'ml', 'pcs', 'kg', 'l'
-    typical_packages: List[float]  # [100, 250, 500, 1000] для граммов
+    typical_packages: list[float]  # [100, 250, 500, 1000] для граммов
     rounding_strategy: str  # 'up', 'down', 'nearest'
 
 
@@ -30,9 +29,9 @@ class ShoppingItem:
     quantity: float
     unit: str
     category: str
-    package_size: Optional[float] = None
-    packages_needed: Optional[int] = None
-    total_weight: Optional[float] = None
+    package_size: float | None = None
+    packages_needed: int | None = None
+    total_weight: float | None = None
 
 
 class ShoplistGenerator:
@@ -42,7 +41,7 @@ class ShoplistGenerator:
         self.packaging_rules_file = packaging_rules_file
         self.packaging_rules = self._load_packaging_rules()
 
-    def _load_packaging_rules(self) -> Dict[str, PackagingRule]:
+    def _load_packaging_rules(self) -> dict[str, PackagingRule]:
         """Загружает правила упаковки из CSV файла"""
         rules = {}
 
@@ -63,7 +62,7 @@ class ShoplistGenerator:
         # Пытаемся загрузить из файла, если он существует
         if Path(self.packaging_rules_file).exists():
             try:
-                with open(self.packaging_rules_file, "r", encoding="utf-8") as f:
+                with open(self.packaging_rules_file, encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
                         category = row.get("category", "default")
@@ -85,7 +84,7 @@ class ShoplistGenerator:
 
         return rules
 
-    def aggregate_ingredients(self, week_plan: Dict) -> Dict[str, float]:
+    def aggregate_ingredients(self, week_plan: dict) -> dict[str, float]:
         """
         Агрегирует ингредиенты из недельного плана
 
@@ -95,7 +94,7 @@ class ShoplistGenerator:
         Returns:
             Словарь {ingredient_name: total_grams}
         """
-        aggregated: Dict[str, float] = {}
+        aggregated: dict[str, float] = {}
 
         # Если week_plan содержит дни
         if "days" in week_plan:
@@ -149,10 +148,10 @@ class ShoplistGenerator:
 
     def round_to_packages(
         self,
-        aggregated: Dict[str, float],
-        packaging_db: Optional[Dict] = None,
-        rules: Optional[Dict] = None,
-    ) -> List[ShoppingItem]:
+        aggregated: dict[str, float],
+        packaging_db: dict | None = None,
+        rules: dict | None = None,
+    ) -> list[ShoppingItem]:
         """
         Округляет агрегированные ингредиенты до упаковок
 
@@ -290,7 +289,7 @@ class ShoplistGenerator:
             return "default"
 
     def _find_best_package(
-        self, total_amount: float, typical_packages: List[float], strategy: str
+        self, total_amount: float, typical_packages: list[float], strategy: str
     ) -> tuple[float, int]:
         """Находит оптимальный размер упаковки и количество"""
         if not typical_packages:
@@ -327,10 +326,10 @@ class ShoplistGenerator:
 
     def format_export(
         self,
-        shopping_list: List[ShoppingItem],
+        shopping_list: list[ShoppingItem],
         locale: str = "ru",
         format_type: str = "json",
-    ) -> Union[str, Dict]:
+    ) -> str | dict:
         """
         Форматирует список покупок для экспорта
 
@@ -439,25 +438,25 @@ class ShoplistGenerator:
 
 
 # Функции для удобного использования
-def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
+def aggregate_ingredients(week_plan: dict) -> dict[str, float]:
     """Агрегирует ингредиенты из недельного плана"""
     generator = ShoplistGenerator()
     return generator.aggregate_ingredients(week_plan)
 
 
 def round_to_packages(
-    aggregated: Dict[str, float],
-    packaging_db: Optional[Dict] = None,
-    rules: Optional[Dict] = None,
-) -> List[ShoppingItem]:
+    aggregated: dict[str, float],
+    packaging_db: dict | None = None,
+    rules: dict | None = None,
+) -> list[ShoppingItem]:
     """Округляет агрегированные ингредиенты до упаковок"""
     generator = ShoplistGenerator()
     return generator.round_to_packages(aggregated, packaging_db, rules)
 
 
 def format_export(
-    shopping_list: List[ShoppingItem], locale: str = "ru", format_type: str = "json"
-) -> Union[str, Dict]:
+    shopping_list: list[ShoppingItem], locale: str = "ru", format_type: str = "json"
+) -> str | dict:
     """Форматирует список покупок для экспорта"""
     generator = ShoplistGenerator()
     return generator.format_export(shopping_list, locale, format_type)

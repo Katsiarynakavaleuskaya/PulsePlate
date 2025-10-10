@@ -7,9 +7,9 @@ EN: Tests for new update_manager.py functionality to restore coverage to 97%+.
 
 import csv
 import json
+from pathlib import Path
 import sqlite3
 import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -62,8 +62,8 @@ def whr_ratio(waist_cm: float, hip_cm: float, sex: Literal["male", "female"]) ->
 
 
 def ffmi(
-    weight_kg: float, height_cm: float, bodyfat_pct: Optional[float] = None
-) -> Dict[str, float]:
+    weight_kg: float, height_cm: float, bodyfat_pct: float | None = None
+) -> dict[str, float]:
     """Calculate Fat-Free Mass Index (FFMI).
 
     FFMI is a normalized measure of lean body mass that accounts for height.
@@ -100,7 +100,7 @@ def ffmi(
     return {"ffm_kg": round(ffm, 1), "ffmi": round(ffmi_value, 1)}
 
 
-def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[str, str]:
+def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> dict[str, str]:
     """Interpret WHtR value according to health risk categories.
 
     Args:
@@ -134,7 +134,7 @@ def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[s
 
 def interpret_whr_ratio(
     whr_ratio_value: float, sex: Literal["male", "female"], lang: str
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Interpret WHR value according to sex-specific health risk thresholds.
 
     Args:
@@ -166,7 +166,7 @@ def interpret_whr_ratio(
 
 def stage_obesity(
     bmi: float, wht: float, whr: float, sex: Literal["male", "female"], lang: str
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Stage obesity based on multiple metrics.
 
     Combines BMI, WHtR, and WHR for comprehensive risk assessment.

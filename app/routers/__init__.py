@@ -6,6 +6,7 @@ EN: Export FastAPI routers for app package imports.
 
 from typing import TYPE_CHECKING  # noqa: E402
 
+
 __all__ = [
     "bmi_pro",
     "foods",

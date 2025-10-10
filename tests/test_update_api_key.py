@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 import secure_config
-import update_api_key
 from secure_config import encrypt_value, get_or_create_encryption_key
+import update_api_key
 
 
 @pytest.fixture

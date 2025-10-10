@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import csv
-import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from io import BytesIO, StringIO
+import logging
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -32,6 +33,7 @@ from reportlab.platypus import (
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
+
 plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
@@ -55,7 +57,7 @@ DEFAULT_LANG = "en"
 
 class SignRequest(BaseModel):
     path: str
-    ttl_seconds: Optional[int] = None
+    ttl_seconds: int | None = None
 
 
 FONTS_DIR = Path("assets/fonts")
@@ -64,7 +66,7 @@ FONT_NAME = "DejaVuSans"
 
 
 def _current_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _safe_add(acc: float, value: Any) -> float:
@@ -76,8 +78,8 @@ def _safe_add(acc: float, value: Any) -> float:
         return acc
 
 
-def sum_day_macros(day: Dict[str, Any]) -> Dict[str, float]:
-    totals = {key: 0.0 for key in MACRO_KEYS}
+def sum_day_macros(day: dict[str, Any]) -> dict[str, float]:
+    totals = dict.fromkeys(MACRO_KEYS, 0.0)
     for meal in day.get("meals") or []:
         for item in meal.get("items") or []:
             for key in MACRO_KEYS:
@@ -85,8 +87,8 @@ def sum_day_macros(day: Dict[str, Any]) -> Dict[str, float]:
     return totals
 
 
-def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
-    totals = {key: 0.0 for key in MACRO_KEYS}
+def sum_week_macros(week: dict[str, Any]) -> dict[str, float]:
+    totals = dict.fromkeys(MACRO_KEYS, 0.0)
     for day in week.get("days") or []:
         day_totals = sum_day_macros(day)
         for key in MACRO_KEYS:
@@ -94,20 +96,20 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
     return totals
 
 
-def _slogan(lang: Optional[str]) -> str:
+def _slogan(lang: str | None) -> str:
     if not lang:
         return SLOGAN[DEFAULT_LANG]
     return SLOGAN.get(lang.lower(), SLOGAN[DEFAULT_LANG])
 
 
-def _find_logo_path() -> Optional[Path]:
+def _find_logo_path() -> Path | None:
     for candidate in LOGO_CANDIDATES:
         if candidate.exists():
             return candidate
     return None
 
 
-def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang: str) -> None:
+def _branded_header(story: list[Any], styles, font: str, doc_width: float, lang: str) -> None:
     logo_path = _find_logo_path()
     if logo_path is not None:
         try:
@@ -160,7 +162,7 @@ class PageNumCanvas(Canvas):
 
     def __init__(self, *args, **kwargs) -> None:
         Canvas.__init__(self, *args, **kwargs)
-        self._saved_page_states: List[Dict[str, Any]] = []
+        self._saved_page_states: list[dict[str, Any]] = []
         # Ensure the document metadata carries our brand name so text-based
         # assertions (and PDF readers) can easily identify the export.
         self.setTitle("PulsePlate")
@@ -188,12 +190,12 @@ class PageNumCanvas(Canvas):
         self.drawRightString(200 * mm, 10 * mm, page_num)
 
 
-def _week_start(week_dict: Dict[str, Any]) -> str:
+def _week_start(week_dict: dict[str, Any]) -> str:
     try:
         first = (week_dict.get("days") or [])[0].get("date")
     except Exception:  # pragma: no cover - defensive
         first = None
-    return str(first or datetime.now(timezone.utc).date())
+    return str(first or datetime.now(UTC).date())
 
 
 def _draw_footer(canvas: Canvas, doc: SimpleDocTemplate, text_left: str) -> None:
@@ -207,7 +209,7 @@ def _draw_footer(canvas: Canvas, doc: SimpleDocTemplate, text_left: str) -> None
     canvas.restoreState()
 
 
-def _get_week_plan() -> Dict[str, Any]:
+def _get_week_plan() -> dict[str, Any]:
     """Return a demo week plan structure.
 
     Replace this stub with the real planner integration when available.
@@ -261,8 +263,8 @@ def _get_week_plan() -> Dict[str, Any]:
     }
 
 
-def _iter_rows(week: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-    days: List[Dict[str, Any]] = list(week.get("days") or [])
+def _iter_rows(week: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    days: list[dict[str, Any]] = list(week.get("days") or [])
     for di, day in enumerate(days, start=1):
         date = day.get("date") or ""
         meals = day.get("meals") or []
@@ -351,8 +353,8 @@ def _register_font() -> str:
         return "Helvetica"
 
 
-def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
-    story: List[Any] = []
+def _build_day_story(day: dict[str, Any], styles, font: str) -> list[Any]:
+    story: list[Any] = []
     date = day.get("date") or "Day"
     story.append(Paragraph(f"<b>{date}</b>", styles["Heading3"]))
     story.append(Spacer(1, 6))
@@ -449,13 +451,13 @@ def export_week_pdf(
     for key in ["Heading1", "Heading2", "Heading3", "Heading4", "Normal"]:
         styles[key].fontName = font
 
-    story: List[Any] = []
+    story: list[Any] = []
     story.append(Paragraph("PulsePlate", styles["BrandMarker"]))
     story.append(Paragraph("kcal", styles["BrandMarker"]))
     _branded_header(story, styles, font, doc.width, lang)
     story.append(
         Paragraph(
-            datetime.now(timezone.utc).strftime("Сгенерировано %Y-%m-%d %H:%M UTC"),
+            datetime.now(UTC).strftime("Сгенерировано %Y-%m-%d %H:%M UTC"),
             styles["Normal"],
         )
     )
@@ -513,14 +515,14 @@ def export_week_pdf(
 
 
 @export_router.post("/sign")
-def sign_export_link(payload: SignRequest) -> Dict[str, Any]:
+def sign_export_link(payload: SignRequest) -> dict[str, Any]:
     path = payload.path
     if not path.startswith("/api/"):
         raise HTTPException(status_code=400, detail="path must start with /api/")
     ttl = int(payload.ttl_seconds or EXPORT_TOKEN_TTL_SECONDS)
     if ttl <= 0:
         raise HTTPException(status_code=400, detail="ttl must be positive")
-    exp_ts = int((datetime.now(timezone.utc) + timedelta(seconds=ttl)).timestamp())
+    exp_ts = int((datetime.now(UTC) + timedelta(seconds=ttl)).timestamp())
     signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})
     return {"url": f"{path}?{query}", "exp": exp_ts, "ttl": ttl}

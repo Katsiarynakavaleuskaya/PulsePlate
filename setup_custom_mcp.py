@@ -4,9 +4,9 @@ Custom MCP setup for PulsePlate with ChatGPT integration
 """
 
 import json
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 
 def setup_custom_mcp(argv: list[str] | None = None) -> bool:

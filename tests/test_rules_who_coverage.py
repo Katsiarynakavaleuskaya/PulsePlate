@@ -1,5 +1,6 @@
 import os
 
+
 """
 Additional tests to improve coverage for core/rules_who.py to reach 97%+.
 """

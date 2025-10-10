@@ -66,18 +66,18 @@ class SportsNutritionTargets:
     electrolyte_replacement: bool
 
     # Timing recommendations
-    pre_workout_carbs_g: Optional[float]
-    post_workout_protein_g: Optional[float]
-    post_workout_carbs_g: Optional[float]
+    pre_workout_carbs_g: float | None
+    post_workout_protein_g: float | None
+    post_workout_carbs_g: float | None
 
     # Special considerations
     creatine_recommended: bool
-    caffeine_timing: Optional[str]
+    caffeine_timing: str | None
     meal_frequency: int
 
     # Competition/event specific
     carb_loading_recommended: bool
-    weight_cutting_considerations: Optional[str]
+    weight_cutting_considerations: str | None
 
 
 class SportsNutritionCalculator:
@@ -234,7 +234,7 @@ class SportsNutritionCalculator:
         return max(0.8, fat_per_kg)  # Minimum for health
 
     @staticmethod
-    def _calculate_pre_workout_carbs(sport: SportCategory, daily_carbs: float) -> Optional[float]:
+    def _calculate_pre_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
         """Calculate pre-workout carb needs."""
         if sport in [SportCategory.ENDURANCE, SportCategory.TEAM]:
             return round(daily_carbs * 0.15, 1)  # 15% of daily carbs 1-2h before
@@ -245,19 +245,19 @@ class SportsNutritionCalculator:
     @staticmethod
     def _calculate_post_workout_protein(
         sport: SportCategory, daily_protein: float
-    ) -> Optional[float]:
+    ) -> float | None:
         """Calculate post-workout protein needs."""
         return round(daily_protein * 0.25, 1)  # ~25% of daily protein within 2h
 
     @staticmethod
-    def _calculate_post_workout_carbs(sport: SportCategory, daily_carbs: float) -> Optional[float]:
+    def _calculate_post_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
         """Calculate post-workout carb needs."""
         if sport in [SportCategory.ENDURANCE, SportCategory.TEAM]:
             return round(daily_carbs * 0.20, 1)  # 20% for glycogen replenishment
         return round(daily_carbs * 0.15, 1)
 
     @staticmethod
-    def _get_caffeine_timing(sport: SportCategory) -> Optional[str]:
+    def _get_caffeine_timing(sport: SportCategory) -> str | None:
         """Get caffeine timing recommendations."""
         if sport in [SportCategory.ENDURANCE, SportCategory.POWER, SportCategory.TEAM]:
             return "30-60 minutes before training/competition"
@@ -287,7 +287,7 @@ def get_sport_recommendations(
     sport: SportCategory,
     training_phase: TrainingPhase = TrainingPhase.IN_SEASON,
     training_hours_per_week: float = 5.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     RU: Получить рекомендации по спортивному питанию.
     EN: Get sports nutrition recommendations.

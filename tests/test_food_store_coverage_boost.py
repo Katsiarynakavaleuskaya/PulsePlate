@@ -1,5 +1,6 @@
 import os
 
+
 # -*- coding: utf-8 -*-
 """
 RU: Тесты для повышения покрытия app/services/food_store.py
@@ -9,6 +10,7 @@ EN: Coverage boost tests for app/services/food_store.py
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 try:
     from app.services import food_store

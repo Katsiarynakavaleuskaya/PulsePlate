@@ -3,6 +3,7 @@ import os
 
 from fastapi.testclient import TestClient
 
+
 spec = importlib.util.spec_from_file_location("app", "app.py")
 
 if spec is None or spec.loader is None:

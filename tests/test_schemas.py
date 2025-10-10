@@ -3,8 +3,8 @@ Tests for core.schemas module
 Validation tests for Pydantic models
 """
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 import core.schemas as schemas
 

@@ -5,11 +5,11 @@ RU: Базовые тесты для модуля синтеза рецепто�
 EN: Basic tests for recipe synthesis module.
 """
 
+from dataclasses import asdict
 import json
+from pathlib import Path
 import shutil
 import tempfile
-from dataclasses import asdict
-from pathlib import Path
 
 import pytest
 

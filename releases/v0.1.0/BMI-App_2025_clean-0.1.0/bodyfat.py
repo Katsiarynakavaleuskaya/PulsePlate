@@ -16,7 +16,7 @@ def bf_us_navy(
     neck_cm: float,
     waist_cm: float,
     gender: str,
-    hip_cm: Optional[float] = None,
+    hip_cm: float | None = None,
 ) -> float:
     g = gender.lower()
     if g.startswith("male"):
@@ -42,8 +42,8 @@ def bf_ymca(weight_kg: float, waist_cm: float, gender: str) -> float:
 
 
 # ---------- Агрегатор ----------
-def estimate_all(data: Dict[str, Any]) -> Dict[str, Any]:
-    results: Dict[str, float] = {}
+def estimate_all(data: dict[str, Any]) -> dict[str, Any]:
+    results: dict[str, float] = {}
 
     if {"bmi", "age", "gender"} <= data.keys():
         results["deurenberg"] = bf_deurenberg(data["bmi"], data["age"], data["gender"])
@@ -72,15 +72,15 @@ def estimate_all(data: Dict[str, Any]) -> Dict[str, Any]:
 
 # ---------- FastAPI ----------
 class BodyFatRequest(BaseModel):
-    height_m: Optional[float] = None
-    weight_kg: Optional[float] = None
-    age: Optional[int] = None
+    height_m: float | None = None
+    weight_kg: float | None = None
+    age: int | None = None
     gender: str
-    bmi: Optional[float] = None
-    neck_cm: Optional[float] = None
-    waist_cm: Optional[float] = None
-    hip_cm: Optional[float] = None
-    language: Optional[str] = "en"  # "en" | "ru"
+    bmi: float | None = None
+    neck_cm: float | None = None
+    waist_cm: float | None = None
+    hip_cm: float | None = None
+    language: str | None = "en"  # "en" | "ru"
 
 
 def get_router() -> APIRouter:

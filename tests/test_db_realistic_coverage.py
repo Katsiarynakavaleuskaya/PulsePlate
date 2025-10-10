@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import importlib
 import os
 from pathlib import Path
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -33,6 +33,9 @@ def _core_db_cleanup():
     _restore_core_db()
 
 
+@pytest.mark.skipif(
+    db_module.create_async_engine is None, reason="SQLAlchemy async extras are not available"
+)
 @pytest.mark.parametrize(
     "async_url",
     [
@@ -43,8 +46,6 @@ def _core_db_cleanup():
 )
 def test_async_database_url_preserves_explicit_async_inputs(tmp_path: Path, async_url: str) -> None:
     """Explicitly set async DATABASE_ASYNC_URL should pass through untouched."""
-    if db_module.create_async_engine is None:
-        pytest.skip("SQLAlchemy async extras are not available")
 
     def _apply_env(env_updates: dict[str, str]) -> None:
         env_updates["DATABASE_USE_ASYNC"] = "1"
@@ -53,17 +54,14 @@ def test_async_database_url_preserves_explicit_async_inputs(tmp_path: Path, asyn
 
     _reload_with_env(_apply_env)
 
-    try:
-        assert db_module.ASYNC_DATABASE_URL == async_url
-    finally:
-        _restore_core_db()
+    assert db_module.ASYNC_DATABASE_URL == async_url
 
 
+@pytest.mark.skipif(
+    db_module.create_async_engine is None, reason="SQLAlchemy async extras are not available"
+)
 def test_async_database_url_derives_from_sqlite_url(tmp_path: Path) -> None:
     """SQLite synchronous URLs should be converted to async variants when deriving."""
-    if db_module.create_async_engine is None:
-        pytest.skip("SQLAlchemy async extras are not available")
-
     sqlite_path = tmp_path / "test.db"
     sync_url = f"sqlite:///{sqlite_path}"
     expected = f"sqlite+aiosqlite:///{sqlite_path}"
@@ -75,17 +73,14 @@ def test_async_database_url_derives_from_sqlite_url(tmp_path: Path) -> None:
 
     _reload_with_env(_apply_env)
 
-    try:
-        assert db_module.ASYNC_DATABASE_URL == expected
-    finally:
-        _restore_core_db()
+    assert db_module.ASYNC_DATABASE_URL == expected
 
 
+@pytest.mark.skipif(
+    db_module.create_async_engine is None, reason="SQLAlchemy async extras are not available"
+)
 def test_async_database_url_derives_when_flag_enabled(tmp_path: Path) -> None:
     """``ASYNC_DATABASE_URL`` should derive from ``DATABASE_URL`` when async flag is enabled."""
-    if db_module.create_async_engine is None:
-        pytest.skip("SQLAlchemy async extras are not available")
-
     sqlite_path = tmp_path / "async.db"
 
     def _apply_env(env_updates: dict[str, str]) -> None:
@@ -95,8 +90,5 @@ def test_async_database_url_derives_when_flag_enabled(tmp_path: Path) -> None:
 
     _reload_with_env(_apply_env)
 
-    try:
-        expected = f"sqlite+aiosqlite:///{sqlite_path}"
-        assert db_module.ASYNC_DATABASE_URL == expected
-    finally:
-        _restore_core_db()
+    expected = f"sqlite+aiosqlite:///{sqlite_path}"
+    assert db_module.ASYNC_DATABASE_URL == expected

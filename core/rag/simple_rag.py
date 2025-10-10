@@ -10,28 +10,30 @@ FEATURE_RAG=on.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import os
-import re
 from pathlib import Path
-from typing import Iterable, List, Tuple
+import re
+from typing import List, Tuple
+
 
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
 MAX_FILE_SIZE = 256 * 1024  # bytes, skip very large files
-_INDEX: List[Tuple[str, str]] | None = None  # list of (source, chunk)
+_INDEX: list[tuple[str, str]] | None = None  # list of (source, chunk)
 
 
 _WORD_RE = re.compile(r"[\w\-]+", re.UNICODE)
 
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     return [w.lower() for w in _WORD_RE.findall(text)]
 
 
-def _chunk(text: str, max_chars: int = 800) -> List[str]:
+def _chunk(text: str, max_chars: int = 800) -> list[str]:
     # split by paragraphs, then merge small ones up to max_chars
     paras = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
-    out: List[str] = []
+    out: list[str] = []
     buf = ""
     for p in paras:
         if not buf:
@@ -61,8 +63,8 @@ def _iter_docs() -> Iterable[Path]:
                     yield p
 
 
-def _build_index() -> List[Tuple[str, str]]:
-    items: List[Tuple[str, str]] = []
+def _build_index() -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
     for path in _iter_docs():
         try:
             if path.stat().st_size > MAX_FILE_SIZE:
@@ -76,7 +78,7 @@ def _build_index() -> List[Tuple[str, str]]:
     return items
 
 
-def _get_index() -> List[Tuple[str, str]]:
+def _get_index() -> list[tuple[str, str]]:
     global _INDEX
     if _INDEX is None:
         _INDEX = _build_index()

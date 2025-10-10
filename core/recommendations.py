@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import Dict, List
 
 from .metabolism import calculate_all_bmr, calculate_all_tdee
-
 from .rules_who import (
     GOAL_MACRO_ADJUSTMENTS,
     calculate_hydration_target,
@@ -176,8 +175,8 @@ def _calculate_activity_targets(profile: UserProfile) -> ActivityTargets:
 
 
 def score_nutrient_coverage(
-    consumed_nutrients: Dict[str, float], targets: NutritionTargets
-) -> Dict[str, NutrientCoverage]:
+    consumed_nutrients: dict[str, float], targets: NutritionTargets
+) -> dict[str, NutrientCoverage]:
     """
     RU: Оценивает покрытие нутриентов в фактическом рационе.
     EN: Scores nutrient coverage in actual diet consumption.
@@ -237,8 +236,8 @@ def score_nutrient_coverage(
 
 
 def generate_deficiency_recommendations(
-    coverage: Dict[str, NutrientCoverage], profile: UserProfile, lang: str = "en"
-) -> List[str]:
+    coverage: dict[str, NutrientCoverage], profile: UserProfile, lang: str = "en"
+) -> list[str]:
     """
     RU: Генерирует рекомендации по устранению дефицитов через продукты питания.
     EN: Generates food-based recommendations for addressing nutrient deficiencies.
@@ -274,7 +273,7 @@ def generate_deficiency_recommendations(
     return recommendations
 
 
-def _get_nutrient_food_sources(lang: str = "en") -> Dict[str, List[str]]:
+def _get_nutrient_food_sources(lang: str = "en") -> dict[str, list[str]]:
     """
     RU: Справочник лучших пищевых источников нутриентов.
     EN: Reference of best food sources for nutrients.
@@ -358,8 +357,8 @@ def _adapt_for_vegetarian(recommendation: str, nutrient: str, lang: str) -> str:
 
 
 def calculate_weekly_coverage(
-    daily_coverages: List[Dict[str, NutrientCoverage]],
-) -> Dict[str, float]:
+    daily_coverages: list[dict[str, NutrientCoverage]],
+) -> dict[str, float]:
     """
     RU: Рассчитывает среднее покрытие нутриентов за неделю.
     EN: Calculates average nutrient coverage over a week.
@@ -385,7 +384,7 @@ def calculate_weekly_coverage(
     return weekly_averages
 
 
-def validate_targets_safety(targets: NutritionTargets) -> List[str]:
+def validate_targets_safety(targets: NutritionTargets) -> list[str]:
     """
     RU: Проверяет безопасность рассчитанных целей.
     EN: Validates safety of calculated targets.

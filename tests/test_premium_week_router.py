@@ -7,8 +7,8 @@ EN: Tests for Premium Week router.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.routers.premium_week import TargetsIn, WeekPlanRequest, WeekPlanResponse, router
 

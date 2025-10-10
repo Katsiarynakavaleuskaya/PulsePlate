@@ -1,5 +1,6 @@
 import os
 
+
 # -*- coding: utf-8 -*-
 """
 Тесты для покрытия недостающих строк в app/services/food_store.py

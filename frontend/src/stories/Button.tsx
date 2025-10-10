@@ -35,7 +35,7 @@ export const Button = ({
     <button
       type="button"
       className={computedClassName}
-      style={{ ...(backgroundColor && { backgroundColor }), ...(externalStyle || {}) }}
+      style={{ ...(backgroundColor && { backgroundColor }), ...externalStyle }}
       onClick={onClick}
       {...props}
     >

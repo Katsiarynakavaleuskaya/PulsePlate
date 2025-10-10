@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -23,7 +24,7 @@ except ImportError:  # pragma: no cover
     InvalidToken = Exception  # pragma: no cover
 
 
-def get_encryption_key() -> Optional[bytes]:
+def get_encryption_key() -> bytes | None:
     """Get the encryption key if it exists."""
     key_file = Path.home() / ".cursor" / ".key"
 
@@ -68,7 +69,7 @@ def get_or_create_encryption_key() -> bytes:
         try:
             with open(key_file, "rb") as f:
                 return f.read()
-        except (OSError, IOError) as e:
+        except OSError as e:
             raise OSError(
                 f"Failed to read encryption key file at {key_file}: {type(e).__name__}: {e}"
             ) from e
@@ -79,7 +80,7 @@ def get_or_create_encryption_key() -> bytes:
     # Ensure directory exists with error handling
     try:
         key_file.parent.mkdir(parents=True, exist_ok=True)
-    except (OSError, IOError) as e:
+    except OSError as e:
         raise OSError(
             f"Failed to create directory for encryption key at {key_file.parent}: "
             f"{type(e).__name__}: {e}"
@@ -94,7 +95,7 @@ def get_or_create_encryption_key() -> bytes:
 
         # Atomically replace target file
         os.replace(temp_file, key_file)
-    except (OSError, IOError) as e:
+    except OSError as e:
         # Clean up temporary file if it exists
         if temp_file.exists():
             try:
@@ -120,7 +121,7 @@ def get_or_create_encryption_key() -> bytes:
                 "For strict access control, consider using Windows ACLs (e.g., icacls or pywin32).",
                 key_file,
             )
-    except (OSError, IOError) as e:
+    except OSError as e:
         # Log/report but don't fail - key is already written
         logger.warning(
             "Failed to set secure permissions on %s: %s: %s. "
@@ -204,8 +205,9 @@ def decrypt_value(value: str) -> str:
         return value
 
 
-def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> Optional[str]:
-    """Get API key from environment, decrypting if necessary.
+def get_api_key_from_env(env_var: str = "OPENAI_API_KEY") -> str | None:
+    """
+    Get API key from environment, decrypting if necessary.
 
     Args:
         env_var: Environment variable name

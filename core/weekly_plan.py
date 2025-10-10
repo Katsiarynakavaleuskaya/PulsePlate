@@ -6,7 +6,7 @@ from .recipe_db import parse_recipe_db
 from .targets import NutritionTargets
 
 
-def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None) -> Dict:
+def generate_weekly_plan(targets: NutritionTargets, diet_flags: set[str] = None) -> dict:
     """
     RU: Генерирует недельный план питания.
     EN: Generates weekly meal plan.
@@ -27,7 +27,7 @@ def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None)
 
     # Generate 7 days of meal plans
     days = []
-    weekly_micro_coverage: Dict[str, List[float]] = {}
+    weekly_micro_coverage: dict[str, list[float]] = {}
 
     for day_index in range(7):
         # Add slight variation to prevent monotony (±5%)
@@ -63,7 +63,7 @@ def generate_weekly_plan(targets: NutritionTargets, diet_flags: Set[str] = None)
         weekly_coverage[micro] = sum(coverages) / len(coverages)
 
     # Generate shopping list (simple implementation)
-    shopping_list: Dict[str, int] = {}
+    shopping_list: dict[str, int] = {}
     for day in days:
         for meal in day["meals"]:
             if "ingredients" in meal:

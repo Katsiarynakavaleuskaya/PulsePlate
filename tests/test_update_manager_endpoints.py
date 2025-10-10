@@ -4,14 +4,14 @@ Targets: /api/v1/admin/check-updates and /api/v1/admin/rollback
 Missing lines in update_manager.py: 14 lines (49, 52, 55, 63, 67, 412->433, 654, 656-658, 673-674, 677, 680->679, 683-686, 722->750, 784->786)
 """
 
+from contextlib import ExitStack
 import sys
 import tempfile
-from contextlib import ExitStack
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestUpdateManagerEndpoints:
@@ -20,8 +20,9 @@ class TestUpdateManagerEndpoints:
     @pytest.fixture
     def client(self, monkeypatch):
         """Get test client with API key."""
-        import app
         from fastapi.testclient import TestClient
+
+        import app
 
         monkeypatch.setenv("API_KEY", "test-key")
         monkeypatch.setenv("API_KEY_MODE", "required")

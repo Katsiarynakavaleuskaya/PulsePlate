@@ -7,6 +7,7 @@ of food items, recipes, and meal plan messages.
 
 from typing import Literal
 
+
 # Translation dictionaries for food items
 FOOD_TRANSLATIONS = {
     "ru": {

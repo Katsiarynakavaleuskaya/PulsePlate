@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 RU: Интеграционный тест покрытия Plate→Targets.
 EN: Integration test for Plate→Targets coverage.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod

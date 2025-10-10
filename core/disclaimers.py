@@ -10,6 +10,7 @@ be displayed to users to clarify the non-medical nature of the application.
 
 from typing import Literal
 
+
 # Main medical disclaimer
 MEDICAL_DISCLAIMER = {
     "en": (

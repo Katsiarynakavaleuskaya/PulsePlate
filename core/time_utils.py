@@ -6,8 +6,9 @@ EN: Utilities for working with timezones and UTC-aware datetimes.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Optional
+
 
 try:  # Python 3.9+
     from zoneinfo import ZoneInfo
@@ -18,18 +19,18 @@ except Exception:  # pragma: no cover - fallback for very old runtimes
 def now_utc() -> datetime:
     """Return the current UTC time as an aware ``datetime``."""
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def ensure_utc(dt: datetime) -> datetime:
     """Ensure ``dt`` is timezone-aware in UTC."""
 
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
-def isoformat_utc(dt: Optional[datetime] = None) -> str:
+def isoformat_utc(dt: datetime | None = None) -> str:
     """Return an ISO 8601 string in UTC."""
 
     return ensure_utc(dt or now_utc()).isoformat()

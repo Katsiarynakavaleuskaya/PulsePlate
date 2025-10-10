@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Specific Core Module Tests
 
@@ -91,7 +90,7 @@ class TestAliasesModule:
                 # Verify file was created and contains data
                 assert os.path.exists(temp_path)
 
-                with open(temp_path, "r") as f:
+                with open(temp_path) as f:
                     content = f.read()
                     assert "test_alias" in content or len(content) >= 0
 

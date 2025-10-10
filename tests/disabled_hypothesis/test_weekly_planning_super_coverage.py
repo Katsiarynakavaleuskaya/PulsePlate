@@ -9,16 +9,17 @@
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture
 def client(dynamic_app):
     """Test client fixture using conftest's dynamic_app"""
+    from typing import cast
+
     from fastapi import FastAPI
     from starlette.types import ASGIApp
-    from typing import cast
 
     return TestClient(cast(ASGIApp, dynamic_app))
 

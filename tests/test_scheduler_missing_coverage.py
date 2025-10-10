@@ -3,8 +3,8 @@ Additional tests to cover missing lines in core/food_apis/scheduler.py.
 """
 
 import asyncio
+from datetime import UTC, datetime, timezone
 import os
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -100,11 +100,11 @@ class TestSchedulerMissingCoverage:
         # Mock datetime.now
         with patch(
             "core.food_apis.scheduler.now_utc",
-            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         ):
             # Mock _should_check_for_updates to return False
             scheduler._should_check_for_updates = MagicMock(return_value=False)
-            scheduler.last_update_check = datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+            scheduler.last_update_check = datetime(2023, 1, 1, 11, 0, 0, tzinfo=UTC)
 
             # Mock asyncio.sleep to break the loop after one iteration
             with patch(
@@ -123,7 +123,7 @@ class TestSchedulerMissingCoverage:
         scheduler.last_update_check = None
 
         result = scheduler._should_check_for_updates(
-            datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         )
         # Should return True when last_update_check is None
         assert result is True
@@ -133,8 +133,8 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Set last check to recent time
-        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        current_time = datetime(2023, 1, 1, 12, 30, 0, tzinfo=timezone.utc)  # 30 minutes later
+        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        current_time = datetime(2023, 1, 1, 12, 30, 0, tzinfo=UTC)  # 30 minutes later
 
         result = scheduler._should_check_for_updates(current_time)
         # Should return False when interval has not passed (default is 24 hours)
@@ -145,8 +145,8 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Set last check to old time
-        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        current_time = datetime(2023, 1, 2, 13, 0, 0, tzinfo=timezone.utc)  # 25 hours later
+        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        current_time = datetime(2023, 1, 2, 13, 0, 0, tzinfo=UTC)  # 25 hours later
 
         result = scheduler._should_check_for_updates(current_time)
         # Should return True when interval has passed

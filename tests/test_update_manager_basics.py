@@ -5,11 +5,11 @@ RU: Базовые тесты для модуля менеджера обнов�
 EN: Basic tests for database update manager module.
 """
 
+from datetime import datetime, timedelta
 import json
+from pathlib import Path
 import shutil
 import tempfile
-from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -202,7 +202,7 @@ class TestDatabaseUpdateManagerBasics:
         # Check if file was created and contains correct data
         assert mock_manager.versions_file.exists()
 
-        with open(mock_manager.versions_file, "r") as f:
+        with open(mock_manager.versions_file) as f:
             saved_data = json.load(f)
 
         assert "test" in saved_data

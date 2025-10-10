@@ -14,6 +14,7 @@ import csv
 from io import StringIO
 from pathlib import Path
 
+
 # PDF dependencies are imported lazily inside functions to allow running without
 # reportlab in constrained environments (tests only validate file creation).
 

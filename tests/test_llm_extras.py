@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Дополнительные тесты для покрытия llm.py и связанных веток.
 """
 
 import builtins
+from contextlib import contextmanager
 import sys
 import types
-from contextlib import contextmanager
 from typing import Optional
 
 
@@ -21,7 +20,7 @@ def mock_module(module_name: str, module_obj: types.ModuleType):
         restore_module(module_name, orig)
 
 
-def restore_module(module_name: str, original: Optional[types.ModuleType]):
+def restore_module(module_name: str, original: types.ModuleType | None):
     """Restore or remove a module from sys.modules."""
     if original is not None:
         sys.modules[module_name] = original

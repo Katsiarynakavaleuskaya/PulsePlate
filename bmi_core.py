@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 BMI Core – чистая доменная логика без ввода/вывода.
 Поддерживает: валидацию, локализацию (RU/EN/ES), группы
@@ -15,6 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 
 # Import i18n functionality
 from core.i18n import Language, normalize_lang, t
+
 
 # -------------------------
 # Конфиг и локализация
@@ -69,7 +69,7 @@ class Config:
 
 
 def bmi_category(
-    bmi: float, lang: str, age: Optional[int] = None, group: Optional[str] = None
+    bmi: float, lang: str, age: int | None = None, group: str | None = None
 ) -> str:  # sourcery skip: switch
     """Enhanced BMI categorization with age and population-specific
     adjustments."""
@@ -153,7 +153,7 @@ def auto_group(age: int, gender: str, pregnant: str, athlete: str, lang: str) ->
     return "athlete" if is_athlete else "general"
 
 
-def interpret_group(bmi: float, group: str, lang: str, age: Optional[int] = None) -> str:
+def interpret_group(bmi: float, group: str, lang: str, age: int | None = None) -> str:
     """Enhanced group interpretation with age-specific BMI categorization."""
     lang_code: Language = normalize_lang(lang)
 
@@ -244,7 +244,7 @@ def estimate_level(freq_per_week: int, years: float, lang: str) -> str:
 # -------------------------
 
 
-def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[float]:
+def compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     """WHtR с мягкой обработкой отсутствующих/некорректных значений.
     Правило: waist_cm == 0 → None (как «нет данных»)."""
     if waist_cm is None:
@@ -270,7 +270,7 @@ def compute_wht_ratio(waist_cm: Optional[float], height_m: float) -> Optional[fl
 # -------------------------
 
 
-def healthy_bmi_range(age: int, group: str, premium: bool) -> Tuple[float, float]:
+def healthy_bmi_range(age: int, group: str, premium: bool) -> tuple[float, float]:
     bmin = 18.5
     bmax = 27.5 if age >= Config.ELDERLY_AGE else 25.0
     if group == "athlete" and premium:
@@ -286,7 +286,7 @@ def build_premium_plan(
     lang: str,
     group: str,
     premium: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     lang_code: Language = normalize_lang(lang)
     # Basic validation
     if age < 0 or age > 150:

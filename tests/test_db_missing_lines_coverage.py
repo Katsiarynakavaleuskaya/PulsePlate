@@ -4,13 +4,13 @@ Focus on error handling and edge cases.
 """
 
 import logging
-
 import os
 from unittest.mock import Mock, patch
 
-import pytest
 from faker import Faker
+import pytest
 from sqlalchemy.exc import SQLAlchemyError
+
 
 fake = Faker()
 

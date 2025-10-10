@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import importlib
 import os
-import sys
 from pathlib import Path
+import sys
 
 
 def _reload_with_root(root: Path):

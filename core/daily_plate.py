@@ -18,10 +18,10 @@ from .recipe_db import Recipe, calculate_recipe_nutrients, parse_recipe_db, scal
 
 def create_daily_plate(
     kcal_total: int,
-    diet_flags: Set[str],
-    food_db: Optional[Dict[str, FoodItem]] = None,
-    recipe_db: Optional[Dict[str, Recipe]] = None,
-) -> Dict:
+    diet_flags: set[str],
+    food_db: dict[str, FoodItem] | None = None,
+    recipe_db: dict[str, Recipe] | None = None,
+) -> dict:
     """
     RU: Создает план питания на день.
     EN: Creates a daily meal plan.
@@ -44,7 +44,7 @@ def create_daily_plate(
     meal_splits = {"breakfast": 0.25, "lunch": 0.35, "dinner": 0.30, "snack": 0.10}
 
     meals = []
-    total_micro_coverage: Dict[str, float] = {}
+    total_micro_coverage: dict[str, float] = {}
 
     # Create meals for each time slot
     for meal_name, split in meal_splits.items():
@@ -74,10 +74,10 @@ def create_daily_plate(
 def create_meal(
     meal_name: str,
     kcal_target: int,
-    diet_flags: Set[str],
-    food_db: Dict[str, FoodItem],
-    recipe_db: Dict[str, Recipe],
-) -> Dict:
+    diet_flags: set[str],
+    food_db: dict[str, FoodItem],
+    recipe_db: dict[str, Recipe],
+) -> dict:
     """
     RU: Создает отдельный прием пищи.
     EN: Creates an individual meal.
@@ -109,7 +109,7 @@ def create_meal(
 
 
 def find_recipe_for_meal(
-    meal_name: str, kcal_target: int, diet_flags: Set[str], recipe_db: Dict[str, Recipe]
+    meal_name: str, kcal_target: int, diet_flags: set[str], recipe_db: dict[str, Recipe]
 ) -> Recipe | None:
     """
     RU: Находит подходящий рецепт для приема пищи.
@@ -141,7 +141,7 @@ def find_recipe_for_meal(
     return None
 
 
-def is_compatible_with_flags(recipe_flags: Set[str], diet_flags: Set[str]) -> bool:
+def is_compatible_with_flags(recipe_flags: set[str], diet_flags: set[str]) -> bool:
     """
     RU: Проверяет совместимость флагов рецепта с диетическими ограничениями.
     EN: Checks recipe flag compatibility with dietary restrictions.
@@ -165,7 +165,7 @@ def is_compatible_with_flags(recipe_flags: Set[str], diet_flags: Set[str]) -> bo
     return True
 
 
-def calculate_micro_coverage(nutrients: Dict[str, float], kcal_target: int) -> Dict[str, float]:
+def calculate_micro_coverage(nutrients: dict[str, float], kcal_target: int) -> dict[str, float]:
     """
     RU: Рассчитывает покрытие микронутриентов (упрощенная версия).
     EN: Calculates micronutrient coverage (simplified version).
@@ -192,8 +192,8 @@ def calculate_micro_coverage(nutrients: Dict[str, float], kcal_target: int) -> D
 
 
 def create_fallback_meal(
-    meal_name: str, kcal_target: int, diet_flags: Set[str], food_db: Dict[str, FoodItem]
-) -> Dict:
+    meal_name: str, kcal_target: int, diet_flags: set[str], food_db: dict[str, FoodItem]
+) -> dict:
     """
     RU: Создает запасной вариант приема пищи.
     EN: Creates fallback meal option.
@@ -203,11 +203,11 @@ def create_fallback_meal(
 
 
 def apply_boosters_if_needed(
-    meals: List[Dict],
-    total_micro_coverage: Dict[str, float],
-    diet_flags: Set[str],
-    food_db: Dict[str, FoodItem],
-) -> Tuple[List[Dict], Dict[str, float]]:
+    meals: list[dict],
+    total_micro_coverage: dict[str, float],
+    diet_flags: set[str],
+    food_db: dict[str, FoodItem],
+) -> tuple[list[dict], dict[str, float]]:
     """
     RU: Применяет бустеры, если покрытие микронутриентов недостаточно.
     EN: Applies boosters if micronutrient coverage is insufficient.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Simplified tests for core.product_finder module.
 Covers main functionality for coverage improvement.
@@ -161,8 +160,8 @@ class TestProductFinder:
     )
     def test_similar_names(
         self,
-        name1: Union[Literal["apple"], Literal["chicken breast"]],
-        name2: Union[Literal["apple"], Literal["breast"], Literal["chicken"]],
+        name1: Literal["apple"] | Literal["chicken breast"],
+        name2: Literal["apple"] | Literal["breast"] | Literal["chicken"],
         expected: bool,
     ):
         """Test similar names detection."""
@@ -327,7 +326,7 @@ class TestProductFinder:
     def test_calculate_confidence(
         self,
         search_name: Literal["apple"],
-        found_name: Union[Literal["apple"], Literal["green apple"], Literal["banana"]],
+        found_name: Literal["apple"] | Literal["green apple"] | Literal["banana"],
         expected_min: float,
         expected_max: float,
     ):
@@ -578,7 +577,7 @@ class TestProductFinderAdditionalCoverage:
 
                 # Should create file with header
                 assert csv_path.exists()
-                with open(csv_path, "r") as f:
+                with open(csv_path) as f:
                     content = f.read()
                     assert "name" in content  # Check header was written
 

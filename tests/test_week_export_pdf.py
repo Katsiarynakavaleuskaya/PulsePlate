@@ -1,19 +1,21 @@
 """Tests for weekly plan PDF export."""
 
-import os
-import sys
 from io import BytesIO
+import os
 from pathlib import Path
+import sys
 from typing import Any, List
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from reportlab.platypus import Paragraph, Table
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the FastAPI app from app.py file
 import importlib.util
+
 
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
@@ -24,11 +26,14 @@ spec.loader.exec_module(app_module)
 app = app_module.app
 from app.routers import plan_export as plan
 
+
 client = TestClient(app)
 
 
 # export_client fixture moved to tests/conftest.py
 
+
+from datetime import UTC
 
 from fastapi.testclient import TestClient
 
@@ -62,9 +67,9 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     font_file.write_bytes(b"dummy")
     monkeypatch.setattr(plan, "FONT_PATH", font_file)
 
-    registered: List[str] = []
+    registered: list[str] = []
 
-    def fake_get_fonts() -> List[str]:
+    def fake_get_fonts() -> list[str]:
         return registered.copy()
 
     def fake_register(font_obj: Any) -> None:  # pragma: no cover - simple append
@@ -175,7 +180,7 @@ def test_branded_header_without_logo(monkeypatch) -> None:
     for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
         styles[key].fontName = "Helvetica"
 
-    story: List[Any] = []
+    story: list[Any] = []
     plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="en")
 
     assert story
@@ -200,7 +205,7 @@ def test_branded_header_with_logo(monkeypatch, tmp_path) -> None:
     for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
         styles[key].fontName = "Helvetica"
 
-    story: List[Any] = []
+    story: list[Any] = []
     plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="en")
 
     assert captured["path"] == str(logo)
@@ -211,7 +216,7 @@ def test_branded_header_localizes_slogan() -> None:
     for key in ("Heading1", "Heading2", "Heading3", "Heading4", "Normal"):
         styles[key].fontName = "Helvetica"
 
-    story: List[Any] = []
+    story: list[Any] = []
     plan._branded_header(story, styles, "Helvetica", doc_width=500, lang="de")
 
     header_table = next(
@@ -233,7 +238,7 @@ def test_slogan_fallback_to_default() -> None:
 
 
 def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
-    captured_story: List[Any] = []
+    captured_story: list[Any] = []
 
     class DummyDoc:
         def __init__(self, buf, **kwargs):
@@ -287,13 +292,13 @@ def test_week_start_prefers_first_day() -> None:
 def test_week_start_defaults_today() -> None:
     from datetime import datetime, timezone
 
-    assert plan._week_start({}) == str(datetime.now(timezone.utc).date())
+    assert plan._week_start({}) == str(datetime.now(UTC).date())
 
 
 def test_draw_footer_writes_left_text() -> None:
     class StubCanvas:
         def __init__(self):
-            self.ops: List[Any] = []
+            self.ops: list[Any] = []
             self.last_text: Any = None
 
         def saveState(self):

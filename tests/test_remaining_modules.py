@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for Remaining Low Coverage Modules
 
@@ -7,7 +6,6 @@ EN: Tests for remaining modules with low coverage
 """
 
 import logging
-
 from unittest.mock import patch
 
 import pytest

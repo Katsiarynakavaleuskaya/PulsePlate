@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import csv
 import json
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
+
 
 _VERSION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\d{4}-\d{2}-\d{2}$"),  # YYYY-MM-DD

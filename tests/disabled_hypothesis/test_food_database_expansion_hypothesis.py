@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Hypothesis тесты для расширенной базы данных продуктов.
 EN: Hypothesis tests for expanded food database.

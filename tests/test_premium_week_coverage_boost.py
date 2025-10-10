@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Тесты для повышения покрытия app/routers/premium_week.py
 EN: Coverage boost tests for app/routers/premium_week.py
@@ -7,8 +6,9 @@ EN: Coverage boost tests for app/routers/premium_week.py
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import importlib.util

@@ -1,5 +1,6 @@
 import os
 
+
 """
 Targeted coverage tests for core.recommendations module.
 These tests specifically target the uncovered lines to improve overall coverage.

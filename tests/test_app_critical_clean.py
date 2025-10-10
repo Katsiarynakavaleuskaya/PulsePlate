@@ -2,8 +2,8 @@
 Критичные тесты для main.py - финальный пуш к 97%
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 class TestAppCriticalLines97:

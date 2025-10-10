@@ -5,8 +5,8 @@ Focus on error handling and template formatting.
 
 import logging
 
-import pytest
 from faker import Faker
+import pytest
 
 
 fake = Faker()

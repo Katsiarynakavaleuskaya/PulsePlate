@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 RU: Доступ к RecipeDB (SQLite) — поиск и карточка.
 EN: Access to RecipeDB (SQLite) — search and details.
 """
 
-import sqlite3
 from pathlib import Path
+import sqlite3
 from typing import Dict, List, Optional
+
 
 DB = Path("data/recipes.sqlite")
 
@@ -17,7 +17,7 @@ def _con():
     return con
 
 
-def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     # Handle empty or wildcard queries for FTS
     if not query or query == "*":
         sql = """
@@ -41,7 +41,7 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_recipe(recipe_id: str) -> Optional[Dict]:
+def get_recipe(recipe_id: str) -> dict | None:
     with _con() as con:
         r = con.execute("SELECT * FROM recipes WHERE recipe_id = ?", (recipe_id,)).fetchone()
     return dict(r) if r else None

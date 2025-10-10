@@ -1,7 +1,8 @@
-import re
-import sys
 from pathlib import Path
-from typing import Match
+import re
+from re import Match
+import sys
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TEST_DIRS = [ROOT / "tests"]

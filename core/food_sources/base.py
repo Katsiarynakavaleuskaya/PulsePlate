@@ -7,8 +7,9 @@ EN: Base adapter interface.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Dict, Iterable
+from typing import Dict
 
 
 @dataclass
@@ -52,7 +53,7 @@ class BaseAdapter:
     EN: Base adapter for data sources.
     """
 
-    def fetch(self) -> Iterable[Dict]:
+    def fetch(self) -> Iterable[dict]:
         """
         RU: Скачать/прочитать сырые данные.
         EN: Fetch raw data.

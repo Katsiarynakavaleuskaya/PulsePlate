@@ -18,7 +18,7 @@ from .recipe_db_new import RecipeDB
 
 def build_week(
     targets: dict,
-    diet_flags: List[str],
+    diet_flags: list[str],
     lang: Language,
     fooddb: FoodDB,
     recipedb: RecipeDB,

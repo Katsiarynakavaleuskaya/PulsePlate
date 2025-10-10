@@ -1,8 +1,8 @@
-import 'whatwg-fetch';
-import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { setProjectAnnotations } from '@storybook/react'; // NOT from react-vite
-import { preview as projectAnnotations } from './.storybook/preview';
 import '@testing-library/jest-dom/vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
+import 'whatwg-fetch';
+import { preview as projectAnnotations } from './.storybook/preview';
 
 // Storybook annotations (global decorators/providers) in tests
 setProjectAnnotations(projectAnnotations);
@@ -23,7 +23,7 @@ Object.defineProperty(window, 'location', {
     replace: vi.fn(),
     assign: vi.fn(),
     reload: vi.fn(),
-    toString: function() { return this.href; }
+    toString: () => 'http://localhost:3000/'
   }
 });
 

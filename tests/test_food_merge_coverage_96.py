@@ -5,8 +5,8 @@ This module focuses on covering the missing lines in food_merge.py that are prev
 us from reaching 96% coverage.
 """
 
-import os
 from datetime import date
+import os
 
 from core.food_merge import MICROS, _classify_food_group, _merge_values, merge_records
 from core.food_sources.base import FoodRecord

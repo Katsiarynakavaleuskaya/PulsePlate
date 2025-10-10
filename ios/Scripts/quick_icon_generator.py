@@ -7,6 +7,7 @@
 import os
 import sys
 
+
 try:
     from PIL import Image
 except ImportError:

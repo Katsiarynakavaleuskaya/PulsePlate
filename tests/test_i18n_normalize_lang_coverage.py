@@ -5,6 +5,7 @@ Focus on normalize_lang function with correct locale patterns.
 
 from faker import Faker
 
+
 fake = Faker()
 
 

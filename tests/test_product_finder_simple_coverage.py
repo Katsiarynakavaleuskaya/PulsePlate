@@ -1,5 +1,6 @@
 import os
 
+
 # -*- coding: utf-8 -*-
 """
 Simple Product Finder Coverage Tests

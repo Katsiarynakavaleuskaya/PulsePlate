@@ -3,9 +3,9 @@
 These tests exercise actual code paths in core modules rather than just imports.
 """
 
+from datetime import UTC, datetime, timezone
 import os
 import tempfile
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -20,7 +20,7 @@ class TestTimeUtils:
 
         result = now_utc()
         assert isinstance(result, datetime)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_ensure_utc_with_naive_datetime(self):
         """Test ensure_utc with naive datetime."""
@@ -29,24 +29,24 @@ class TestTimeUtils:
         naive_dt = datetime(2024, 1, 1, 12, 0, 0)
         result = ensure_utc(naive_dt)
 
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.replace(tzinfo=None) == naive_dt
 
     def test_ensure_utc_with_aware_datetime(self):
         """Test ensure_utc with timezone-aware datetime."""
         from core.time_utils import ensure_utc
 
-        aware_dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        aware_dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = ensure_utc(aware_dt)
 
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result == aware_dt
 
     def test_isoformat_utc_with_datetime(self):
         """Test isoformat_utc with provided datetime."""
         from core.time_utils import isoformat_utc
 
-        dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = isoformat_utc(dt)
 
         assert result == "2024-01-01T12:00:00+00:00"
@@ -65,7 +65,7 @@ class TestTimeUtils:
         from core.time_utils import parse_iso8601
 
         result = parse_iso8601("2024-01-01T12:00:00+00:00")
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.year == 2024
         assert result.month == 1
         assert result.day == 1
@@ -75,13 +75,13 @@ class TestTimeUtils:
         from core.time_utils import parse_iso8601
 
         result = parse_iso8601("2024-01-01T12:00:00")
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_to_timezone_with_zoneinfo(self):
         """Test to_timezone conversion."""
         from core.time_utils import to_timezone
 
-        dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = to_timezone(dt, "America/New_York")
 
         assert result.tzinfo is not None
@@ -92,7 +92,7 @@ class TestTimeUtils:
         from core.time_utils import to_timezone
 
         with patch("core.time_utils.ZoneInfo", None):
-            dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
             with pytest.raises(RuntimeError, match="zoneinfo module is required"):
                 to_timezone(dt, "America/New_York")
 
@@ -223,7 +223,7 @@ class TestAliases:
             add_alias("test_alias", "test_canonical", temp_path)
 
             # Verify file was created with correct content
-            with open(temp_path, "r", encoding="utf-8") as f:
+            with open(temp_path, encoding="utf-8") as f:
                 content = f.read()
                 assert "alias,canonical" in content
                 assert "test_alias,test_canonical" in content
@@ -244,7 +244,7 @@ class TestAliases:
             add_alias("new_alias", "new_canonical", temp_path)
 
             # Verify content was appended
-            with open(temp_path, "r", encoding="utf-8") as f:
+            with open(temp_path, encoding="utf-8") as f:
                 content = f.read()
                 assert "existing,existing_canonical" in content
                 assert "new_alias,new_canonical" in content

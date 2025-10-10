@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 from typing import Dict
 
-import pytest
 from fastapi import status
+import pytest
 
 from app.routers import premium_week
 
@@ -24,8 +24,8 @@ def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app) -> None
         app.dependency_overrides.pop(app_module._get_api_key_dynamic, None)
 
 
-def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, object]:
-    payload: Dict[str, object] = {
+def _make_profile_payload(extra: dict[str, object] | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {
         "sex": "female",
         "age": 34,
         "height_cm": 168,

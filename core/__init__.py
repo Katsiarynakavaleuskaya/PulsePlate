@@ -10,6 +10,7 @@ from .plate import make_plate
 from .recommendations import build_nutrition_targets
 from .targets import NutritionTargets, UserProfile
 
+
 __all__ = [
     "make_plate",
     "UserProfile",

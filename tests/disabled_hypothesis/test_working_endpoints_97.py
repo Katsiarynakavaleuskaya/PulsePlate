@@ -8,8 +8,8 @@ RU: Рабочие тесты для покрытия модуля app, не mai
 import os
 from typing import cast
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
 

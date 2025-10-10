@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Final Core Coverage Enhancement Tests
 
@@ -7,7 +6,6 @@ EN: Final tests for maximum core modules coverage
 """
 
 import logging
-
 from unittest.mock import patch
 
 import pytest

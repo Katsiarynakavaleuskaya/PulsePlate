@@ -41,7 +41,7 @@ class UserProfileData(TypedDict, total=False):
     dietary_restriction: str
     location: str
     sun_exposure: str
-    medical_conditions: List[str]
+    medical_conditions: list[str]
 
 
 @dataclass(frozen=True)
@@ -66,18 +66,18 @@ class UserProfile:
     goal: Goal
 
     # Goal-specific parameters
-    deficit_pct: Optional[float] = None  # for loss (5-25%)
-    surplus_pct: Optional[float] = None  # for gain (5-20%)
+    deficit_pct: float | None = None  # for loss (5-25%)
+    surplus_pct: float | None = None  # for gain (5-20%)
 
     # Additional context
-    bodyfat: Optional[float] = None  # body fat percentage
+    bodyfat: float | None = None  # body fat percentage
     region: str = "BY"  # region for food availability
     timezone: str = "UTC"  # IANA timezone identifier for localisation
-    diet_flags: Set[str] = field(default_factory=set)  # VEG, GF, DAIRY_FREE, LOW_COST
+    diet_flags: set[str] = field(default_factory=set)  # VEG, GF, DAIRY_FREE, LOW_COST
 
     # Special conditions
     life_stage: LifeStage = "adult"
-    medical_conditions: Set[str] = field(default_factory=set)  # for future use
+    medical_conditions: set[str] = field(default_factory=set)  # for future use
 
     def __post_init__(self):
         """Validate profile parameters."""
@@ -152,7 +152,7 @@ class MicronutrientTargets:
     deficiency_threshold: float = 0.8  # 80% of target
 
     # Priority levels for auto-repair (1-5, 5 = highest)
-    priority_nutrients: Dict[str, int] = field(
+    priority_nutrients: dict[str, int] = field(
         default_factory=lambda: {
             "iron_mg": 5,
             "calcium_mg": 5,
@@ -196,7 +196,7 @@ class MicronutrientTargets:
         threshold = target * self.deficiency_threshold
         return actual_value < threshold
 
-    def get_priority_nutrients(self) -> Dict[str, float]:
+    def get_priority_nutrients(self) -> dict[str, float]:
         """Get priority nutrients with their targets."""
         return {
             nutrient: self.get_target(nutrient)
@@ -204,7 +204,7 @@ class MicronutrientTargets:
             if priority >= 3  # Only high-priority nutrients
         }
 
-    def get_high_priority_nutrients(self) -> List[str]:
+    def get_high_priority_nutrients(self) -> list[str]:
         """Get list of high-priority nutrients (priority >= 4)."""
         return [nutrient for nutrient, priority in self.priority_nutrients.items() if priority >= 4]
 
@@ -241,7 +241,7 @@ class MicroTargets:
     # Water-soluble vitamins (mg/day)
     vitamin_c_mg: float
 
-    def get_priority_nutrients(self) -> Dict[str, float]:
+    def get_priority_nutrients(self) -> dict[str, float]:
         """Returns priority nutrients for deficiency monitoring.
 
         RU: Возвращает приоритетные нутриенты для мониторинга дефицитов.
@@ -325,7 +325,7 @@ class NutritionTargets:
         tolerance = 0.05
         return abs(macro_calories - self.kcal_daily) / self.kcal_daily <= tolerance
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Summary of targets for API response.
 
         RU: Краткая сводка таргетов для API ответа.
@@ -400,7 +400,7 @@ class NutrientCoverage:
             return f"{self.nutrient_name} is adequate"
 
 
-def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> List[Dict[str, str]]:
+def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> list[dict[str, str]]:
     """Generates life stage warnings with localization.
 
     RU: Генерирует предупреждения по жизненным этапам с локализацией.
@@ -475,7 +475,7 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
     return warnings
 
 
-def calculate_micronutrient_targets(user_data: UserProfileData) -> Dict[str, float]:
+def calculate_micronutrient_targets(user_data: UserProfileData) -> dict[str, float]:
     """Calculate micronutrient targets based on user data.
 
     Args:
@@ -654,7 +654,7 @@ def adjust_for_climate(base_hydration: float, climate: str, altitude: int = 0) -
     return base_hydration * multiplier
 
 
-def check_deficiency_risk(user_profile: UserProfileData) -> Dict[str, str]:
+def check_deficiency_risk(user_profile: UserProfileData) -> dict[str, str]:
     """
     Check risk of nutrient deficiencies.
 
@@ -677,7 +677,7 @@ def check_deficiency_risk(user_profile: UserProfileData) -> Dict[str, str]:
     return risks
 
 
-def get_supplement_recommendations(user_profile: UserProfileData) -> Dict[str, List[str]]:
+def get_supplement_recommendations(user_profile: UserProfileData) -> dict[str, list[str]]:
     """
     Get supplement recommendations based on profile.
 

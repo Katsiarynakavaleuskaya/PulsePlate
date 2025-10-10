@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for repair_week_plan functionality
 

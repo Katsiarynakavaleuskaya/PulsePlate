@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Core Database and Food APIs Coverage Tests
 
@@ -6,10 +5,10 @@ RU: Тесты покрытия для core database и food APIs модулей
 EN: Coverage tests for core database and food APIs modules
 """
 
-import asyncio
+from collections.abc import Callable
 import logging
 import os
-from typing import Callable
+
 
 TEST_FILE = os.path.basename(__file__)
 
@@ -43,7 +42,7 @@ def _test_with_exception_handling(test_func: Callable[[], None], skip_message: s
     except AssertionError:
         # Test assertion failed - must propagate to pytest
         raise
-    except (OSError, IOError) as e:
+    except OSError as e:
         # File system issues (e.g., cache access, DB file access)
         logging.exception(f"File system error in {TEST_FILE}: {e}")
         pytest.skip(f"Test skipped due to file system error: {e}")
@@ -100,7 +99,7 @@ class TestCoreDatabaseCoverage:
             pytest.skip("core.db module not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -154,7 +153,7 @@ class TestCoreDatabaseCoverage:
             pytest.skip("usda module not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -191,7 +190,7 @@ class TestCoreDatabaseCoverage:
             pytest.skip("openfoodfacts module not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -222,7 +221,7 @@ class TestCoreDatabaseCoverage:
             pytest.skip("unified_db module not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -244,8 +243,8 @@ class TestCoreDatabaseCoverage:
         """Test update manager functionality."""
         try:
             from core.food_apis.update_manager import (  # type: ignore[attr-defined]
-                DatabaseVersion,
                 DatabaseUpdateManager,
+                DatabaseVersion,
                 check_for_updates,
             )
 
@@ -274,7 +273,7 @@ class TestCoreDatabaseCoverage:
             pytest.skip("update_manager module not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -326,7 +325,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("auto_repair advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -374,7 +373,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("menu_engine advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -418,7 +417,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("plate advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -466,7 +465,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("targets advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -514,7 +513,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("i18n advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:
@@ -558,7 +557,7 @@ class TestCoreModulesAdvanced:
             pytest.skip("RAG advanced features not available")
         except AssertionError:
             raise
-        except (OSError, IOError) as e:
+        except OSError as e:
             logging.exception(f"File system error in {TEST_FILE}: {e}")
             pytest.skip(f"Test skipped due to file system error: {e}")
         except (ConnectionError, TimeoutError) as e:

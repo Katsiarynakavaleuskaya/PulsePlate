@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 RU: Скрипт для автоматического расширения базы данных продуктов.
 EN: Script for automatic expansion of product database.
@@ -9,14 +8,16 @@ EN: Script for automatic expansion of product database.
 """
 
 import logging
-import sys
 from pathlib import Path
+import sys
+
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.product_finder import ProductFinder
 from core.recipe_db import parse_recipe_db
+
 
 # Настройка логирования
 logging.basicConfig(

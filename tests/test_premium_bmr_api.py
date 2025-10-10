@@ -12,13 +12,15 @@ Tests cover:
 import os
 import sys
 
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
 import importlib.util
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:

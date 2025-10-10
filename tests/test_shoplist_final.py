@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Final coverage tests for core/shoplist.py to reach 97% coverage
 """

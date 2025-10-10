@@ -3,13 +3,13 @@
 Скрипт для обновления тестовых файлов для использования фикстуры test_client
 """
 
-import re
 from pathlib import Path
+import re
 
 
 def update_test_file(file_path):
     """Обновить тестовый файл для использования фикстуры test_client"""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     # Паттерны для замены

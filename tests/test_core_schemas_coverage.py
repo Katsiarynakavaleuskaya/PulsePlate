@@ -1,5 +1,6 @@
 import os
 
+
 # -*- coding: utf-8 -*-
 """
 Test coverage for core/schemas.py

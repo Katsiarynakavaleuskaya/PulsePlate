@@ -7,21 +7,23 @@ EN: Alembic configuration for managing database migrations.
 from __future__ import annotations
 
 import logging
+from logging.config import fileConfig
+from pathlib import Path
 
 # Ensure application modules are importable when Alembic runs standalone.
 import sys
-from logging.config import fileConfig
-from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from core.db import DATABASE_URL, Base  # noqa: E402
+
 
 # Interpret the config file for Python logging.
 config = context.config

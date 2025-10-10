@@ -12,9 +12,10 @@ considering dietary preferences, budget constraints, and food availability.
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass
+import logging
 from typing import Any, Dict, List, Optional
+
 
 _logger = logging.getLogger(__name__)
 
@@ -37,10 +38,10 @@ class FoodItem:
     """
 
     name: str
-    nutrients_per_100g: Dict[str, float]  # Nutrient content per 100g
+    nutrients_per_100g: dict[str, float]  # Nutrient content per 100g
     cost_per_100g: float  # Cost in local currency
-    tags: List[str]  # VEG, GF, DAIRY_FREE, etc.
-    availability_regions: List[str]  # BY, RU, etc.
+    tags: list[str]  # VEG, GF, DAIRY_FREE, etc.
+    availability_regions: list[str]  # BY, RU, etc.
 
 
 @dataclass
@@ -51,16 +52,16 @@ class Recipe:
     """
 
     name: str
-    ingredients: Dict[str, float]  # ingredient_name: amount_in_grams
+    ingredients: dict[str, float]  # ingredient_name: amount_in_grams
     servings: int
     preparation_time_min: int
     difficulty: str  # easy, medium, hard
-    tags: List[str]  # VEG, GF, DAIRY_FREE, LOW_COST
-    instructions: List[str]
+    tags: list[str]  # VEG, GF, DAIRY_FREE, LOW_COST
+    instructions: list[str]
 
-    def calculate_nutrients_per_serving(self, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+    def calculate_nutrients_per_serving(self, food_db: dict[str, FoodItem]) -> dict[str, float]:
         """Calculate nutrients per serving from ingredients."""
-        total_nutrients: Dict[str, float] = {}
+        total_nutrients: dict[str, float] = {}
 
         for ingredient_name, amount_g in self.ingredients.items():
             if ingredient_name in food_db:
@@ -81,11 +82,11 @@ class DayMenu:
     """
 
     date: str
-    meals: List[Dict[str, Any]]  # List of meal objects
-    total_nutrients: Dict[str, float]
+    meals: list[dict[str, Any]]  # List of meal objects
+    total_nutrients: dict[str, float]
     targets: NutritionTargets
-    coverage: Dict[str, Any]
-    recommendations: List[str]
+    coverage: dict[str, Any]
+    recommendations: list[str]
     estimated_cost: float
 
 
@@ -97,18 +98,18 @@ class WeekMenu:
     """
 
     week_start: str
-    daily_menus: List[DayMenu]
-    weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, float]  # ingredient: total_amount_needed
+    daily_menus: list[DayMenu]
+    weekly_coverage: dict[str, float]
+    shopping_list: dict[str, float]  # ingredient: total_amount_needed
     total_cost: float
     adherence_score: float  # How well it meets targets (0-100)
 
 
 def make_daily_menu(
     profile: UserProfile,
-    food_db: Optional[Dict[str, FoodItem]] = None,
-    recipe_db: Optional[Dict[str, Recipe]] = None,
-    target_date: Optional[str] = None,
+    food_db: dict[str, FoodItem] | None = None,
+    recipe_db: dict[str, Recipe] | None = None,
+    target_date: str | None = None,
 ) -> DayMenu:
     """
     RU: Генерирует меню на один день на основе целей ВОЗ.
@@ -171,8 +172,8 @@ def make_daily_menu(
 
 def make_weekly_menu(
     profile: UserProfile,
-    food_db: Optional[Dict[str, FoodItem]] = None,
-    recipe_db: Optional[Dict[str, Recipe]] = None,
+    food_db: dict[str, FoodItem] | None = None,
+    recipe_db: dict[str, Recipe] | None = None,
 ) -> WeekMenu:
     """
     RU: Генерирует недельное меню с оптимизацией покрытия микронутриентов.
@@ -187,7 +188,7 @@ def make_weekly_menu(
     if recipe_db is None:
         recipe_db = _get_default_recipe_db()
 
-    daily_menus: List[DayMenu] = []
+    daily_menus: list[DayMenu] = []
 
     # Generate 7 daily menus with some variation
     for day in range(7):
@@ -219,7 +220,7 @@ def make_weekly_menu(
     )
 
 
-def _get_default_food_db() -> Dict[str, FoodItem]:
+def _get_default_food_db() -> dict[str, FoodItem]:
     """
     RU: Получает реальную базу данных продуктов из USDA.
     EN: Gets real food database from USDA.
@@ -241,7 +242,7 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
                 common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
 
                 # Convert to FoodItem format
-                foods_db: Dict[str, FoodItem] = {}
+                foods_db: dict[str, FoodItem] = {}
                 for key, unified_item in common_foods.items():
                     foods_db[key] = FoodItem(
                         name=unified_item.name,
@@ -297,7 +298,7 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
     }
 
 
-def _get_default_recipe_db() -> Dict[str, Recipe]:
+def _get_default_recipe_db() -> dict[str, Recipe]:
     """
     RU: Базовая база рецептов для демонстрации.
     EN: Basic recipe database for demonstration.
@@ -325,11 +326,11 @@ def _get_default_recipe_db() -> Dict[str, Recipe]:
 
 
 def _enhance_meals_with_micros(
-    base_meals: List[Dict],
-    food_db: Dict[str, FoodItem],
-    recipe_db: Dict[str, Recipe],
+    base_meals: list[dict],
+    food_db: dict[str, FoodItem],
+    recipe_db: dict[str, Recipe],
     diet_flags: set,
-) -> List[Dict]:
+) -> list[dict]:
     """
     RU: Дополняет базовые блюда информацией о микронутриентах.
     EN: Enhances base meals with micronutrient information.
@@ -352,8 +353,8 @@ def _enhance_meals_with_micros(
 
 
 def _estimate_meal_nutrients(
-    meal_title: str, food_db: Dict[str, FoodItem], diet_flags: set[str]
-) -> Dict[str, float]:
+    meal_title: str, food_db: dict[str, FoodItem], diet_flags: set[str]
+) -> dict[str, float]:
     """
     RU: Оценивает содержание нутриентов в блюде по названию.
     EN: Estimates nutrient content of a meal based on title.
@@ -361,7 +362,7 @@ def _estimate_meal_nutrients(
     This is a simplified approach - in production, would use actual recipes.
     """
     # Basic nutrient estimates based on meal type
-    base_nutrients: Dict[str, float] = {
+    base_nutrients: dict[str, float] = {
         "protein_g": 0.0,
         "fat_g": 0.0,
         "carbs_g": 0.0,
@@ -423,7 +424,7 @@ def _estimate_meal_nutrients(
     return base_nutrients
 
 
-def _estimate_meal_ingredients(meal_title: str, diet_flags: set[str]) -> List[str]:
+def _estimate_meal_ingredients(meal_title: str, diet_flags: set[str]) -> list[str]:
     """
     RU: Оценивает ингредиенты блюда по названию.
     EN: Estimates meal ingredients based on title.
@@ -446,14 +447,14 @@ def _estimate_meal_ingredients(meal_title: str, diet_flags: set[str]) -> List[st
 
 
 def _calculate_total_nutrients(
-    meals: List[Dict[str, Any]],
-    food_db: Dict[str, FoodItem],
-) -> Dict[str, float]:
+    meals: list[dict[str, Any]],
+    food_db: dict[str, FoodItem],
+) -> dict[str, float]:
     """
     RU: Рассчитывает общее содержание нутриентов за день.
     EN: Calculates total daily nutrient content.
     """
-    total: Dict[str, float] = {
+    total: dict[str, float] = {
         "protein_g": 0,
         "fat_g": 0,
         "carbs_g": 0,
@@ -480,7 +481,7 @@ def _calculate_total_nutrients(
     return total
 
 
-def _estimate_daily_cost(meals: List[Dict], food_db: Dict[str, FoodItem]) -> float:
+def _estimate_daily_cost(meals: list[dict], food_db: dict[str, FoodItem]) -> float:
     """
     RU: Оценивает стоимость дневного рациона.
     EN: Estimates daily menu cost.
@@ -516,13 +517,13 @@ def _add_daily_variation(profile: UserProfile, day_index: int) -> UserProfile:
 
 
 def _generate_shopping_list(
-    daily_menus: List[DayMenu], food_db: Dict[str, FoodItem]
-) -> Dict[str, float]:
+    daily_menus: list[DayMenu], food_db: dict[str, FoodItem]
+) -> dict[str, float]:
     """
     RU: Генерирует список покупок на неделю.
     EN: Generates weekly shopping list.
     """
-    shopping_list: Dict[str, float] = {}
+    shopping_list: dict[str, float] = {}
 
     for daily_menu in daily_menus:
         for meal in daily_menu.meals:
@@ -536,8 +537,8 @@ def _generate_shopping_list(
 
 
 def _calculate_weekly_coverage_simple(
-    daily_coverages: List[Dict[str, Dict[str, Any]]],
-) -> Dict[str, float]:
+    daily_coverages: list[dict[str, dict[str, Any]]],
+) -> dict[str, float]:
     """
     RU: Рассчитывает среднее покрытие нутриентов за неделю (упрощённая версия).
     EN: Calculates average nutrient coverage over a week (simplified version).
@@ -547,7 +548,7 @@ def _calculate_weekly_coverage_simple(
 
     # Get all nutrient names from first day
     nutrient_names = list(daily_coverages[0].keys())
-    weekly_averages: Dict[str, float] = {}
+    weekly_averages: dict[str, float] = {}
 
     for nutrient in nutrient_names:
         total_coverage = sum(
@@ -560,7 +561,7 @@ def _calculate_weekly_coverage_simple(
     return weekly_averages
 
 
-def _calculate_adherence_score(weekly_coverage: Dict[str, float]) -> float:
+def _calculate_adherence_score(weekly_coverage: dict[str, float]) -> float:
     """
     RU: Рассчитывает общий балл соответствия целям.
     EN: Calculates overall adherence score to targets.
@@ -576,8 +577,8 @@ def _calculate_adherence_score(weekly_coverage: Dict[str, float]) -> float:
 
 
 def analyze_nutrient_gaps(
-    targets: NutritionTargets, consumed: Dict[str, float]
-) -> Dict[str, Dict[str, Any]]:
+    targets: NutritionTargets, consumed: dict[str, float]
+) -> dict[str, dict[str, Any]]:
     """
     RU: Анализирует пробелы в питании и предлагает решения.
     EN: Analyzes nutrient gaps and suggests solutions.
@@ -606,8 +607,8 @@ def repair_week_plan(
     plan: WeekMenu,
     targets: MicronutrientTargets,
     strategy: str = "boosters_first",
-    food_db: Optional[Dict[str, FoodItem]] = None,
-    recipe_db: Optional[Dict[str, Recipe]] = None,
+    food_db: dict[str, FoodItem] | None = None,
+    recipe_db: dict[str, Recipe] | None = None,
 ) -> WeekMenu:
     """
     RU: Авто-ремонт недельного плана на основе дефицитов микронутриентов.
@@ -650,7 +651,7 @@ def repair_week_plan(
 
 def _calculate_daily_micronutrient_gaps(
     plan: WeekMenu, targets: MicronutrientTargets
-) -> Dict[str, Dict[str, float]]:
+) -> dict[str, dict[str, float]]:
     """
     RU: Рассчитывает дефициты микронутриентов по дням.
     EN: Calculate daily micronutrient gaps.
@@ -672,7 +673,7 @@ def _calculate_daily_micronutrient_gaps(
     return daily_gaps
 
 
-def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+def _aggregate_weekly_gaps(daily_gaps: dict[str, dict[str, float]]) -> dict[str, float]:
     """
     RU: Агрегирует недельные дефициты.
     EN: Aggregate weekly gaps.
@@ -692,15 +693,15 @@ def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str,
 
 
 def _find_booster_foods(
-    gaps: Dict[str, float],
+    gaps: dict[str, float],
     targets: MicronutrientTargets,
-    food_db: Dict[str, FoodItem],
-) -> Dict[str, List[FoodItem]]:
+    food_db: dict[str, FoodItem],
+) -> dict[str, list[FoodItem]]:
     """
     RU: Находит продукты-усилители для дефицитных нутриентов.
     EN: Find booster foods for deficient nutrients.
     """
-    booster_foods: Dict[str, List[FoodItem]] = {}
+    booster_foods: dict[str, list[FoodItem]] = {}
 
     for nutrient, gap in gaps.items():
         if gap > 0:  # Only for deficient nutrients
@@ -722,11 +723,11 @@ def _find_booster_foods(
 
 def _apply_repair_strategy(
     plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
+    daily_gaps: dict[str, dict[str, float]],
+    booster_foods: dict[str, list[FoodItem]],
     strategy: str,
-    food_db: Dict[str, FoodItem],
-    recipe_db: Optional[Dict[str, Recipe]],
+    food_db: dict[str, FoodItem],
+    recipe_db: dict[str, Recipe] | None,
 ) -> WeekMenu:
     """
     RU: Применяет стратегию ремонта к плану.
@@ -745,8 +746,8 @@ def _apply_repair_strategy(
 
 def _apply_boosters_strategy(
     plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
+    daily_gaps: dict[str, dict[str, float]],
+    booster_foods: dict[str, list[FoodItem]],
 ) -> WeekMenu:
     """
     RU: Добавляет продукты-усилители к существующим блюдам.
@@ -759,9 +760,9 @@ def _apply_boosters_strategy(
 
 def _apply_replace_strategy(
     plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
-    food_db: Dict[str, FoodItem],
+    daily_gaps: dict[str, dict[str, float]],
+    booster_foods: dict[str, list[FoodItem]],
+    food_db: dict[str, FoodItem],
 ) -> WeekMenu:
     """
     RU: Заменяет ингредиенты на более богатые нутриентами.
@@ -774,8 +775,8 @@ def _apply_replace_strategy(
 
 def _apply_snacks_strategy(
     plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
+    daily_gaps: dict[str, dict[str, float]],
+    booster_foods: dict[str, list[FoodItem]],
 ) -> WeekMenu:
     """
     RU: Добавляет перекусы для восполнения дефицитов.
@@ -786,12 +787,12 @@ def _apply_snacks_strategy(
     return plan
 
 
-def _calculate_day_nutrients(day_menu: DayMenu) -> Dict[str, float]:
+def _calculate_day_nutrients(day_menu: DayMenu) -> dict[str, float]:
     """
     RU: Рассчитывает общее потребление нутриентов за день.
     EN: Calculate total daily nutrient intake.
     """
-    day_nutrients: Dict[str, float] = {}
+    day_nutrients: dict[str, float] = {}
 
     for meal in day_menu.meals:
         meal_nutrients = meal.get("nutrients", {})

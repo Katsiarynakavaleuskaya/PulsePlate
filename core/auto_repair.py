@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Модуль для авто-ремонта недельных планов с UX-петлей.
 EN: Module for auto-repair of weekly meal plans with UX loop.
@@ -36,14 +35,14 @@ class RepairResult:
     """Результат ремонта"""
 
     status: RepairStatus
-    repaired_plan: Dict
-    original_plan: Dict
-    changes_made: List[Dict]
-    remaining_gaps: Dict[str, float]
+    repaired_plan: dict
+    original_plan: dict
+    changes_made: list[dict]
+    remaining_gaps: dict[str, float]
     strategy_used: RepairStrategy
     iterations: int
     message: str
-    suggestions: List[str]
+    suggestions: list[str]
 
 
 @dataclass
@@ -52,9 +51,9 @@ class RepairIteration:
 
     iteration_number: int
     strategy: RepairStrategy
-    gaps_before: Dict[str, float]
-    gaps_after: Dict[str, float]
-    changes_applied: List[Dict]
+    gaps_before: dict[str, float]
+    gaps_after: dict[str, float]
+    changes_applied: list[dict]
     success: bool
 
 
@@ -63,14 +62,14 @@ class AutoRepairEngine:
 
     def __init__(self, max_iterations: int = 3):
         self.max_iterations = max_iterations
-        self.repair_history: List[RepairIteration] = []
+        self.repair_history: list[RepairIteration] = []
 
     def auto_repair_week_plan(
         self,
-        week_plan: Dict,
+        week_plan: dict,
         targets: MicronutrientTargets,
         initial_strategy: RepairStrategy = RepairStrategy.BALANCED,
-        user_preferences: Optional[Dict] = None,
+        user_preferences: dict | None = None,
     ) -> RepairResult:
         """
         Авто-ремонт недельного плана с UX-петлей
@@ -177,8 +176,8 @@ class AutoRepairEngine:
         )
 
     def _analyze_nutrient_gaps(
-        self, week_plan: Dict, targets: MicronutrientTargets
-    ) -> Dict[str, float]:
+        self, week_plan: dict, targets: MicronutrientTargets
+    ) -> dict[str, float]:
         """Анализирует дефициты микронутриентов"""
         # Упрощенная логика анализа дефицитов
         # В реальном приложении здесь был бы полный анализ плана
@@ -219,7 +218,7 @@ class AutoRepairEngine:
 
     def _attempt_repair(
         self,
-        week_plan: Dict,
+        week_plan: dict,
         targets: MicronutrientTargets,
         strategy: RepairStrategy,
         iteration: int,
@@ -275,14 +274,14 @@ class AutoRepairEngine:
         else:  # AGGRESSIVE
             return RepairStrategy.CONSERVATIVE
 
-    def _get_all_changes(self) -> List[Dict]:
+    def _get_all_changes(self) -> list[dict]:
         """Получает все изменения из истории ремонта"""
         all_changes = []
         for iteration in self.repair_history:
             all_changes.extend(iteration.changes_applied)
         return all_changes
 
-    def _generate_success_suggestions(self) -> List[str]:
+    def _generate_success_suggestions(self) -> list[str]:
         """Генерирует предложения при успешном ремонте"""
         return [
             "План успешно оптимизирован!",
@@ -291,7 +290,7 @@ class AutoRepairEngine:
             "Проверьте список покупок для новых ингредиентов",
         ]
 
-    def _generate_manual_suggestions(self, remaining_gaps: Dict[str, float]) -> List[str]:
+    def _generate_manual_suggestions(self, remaining_gaps: dict[str, float]) -> list[str]:
         """Генерирует предложения для ручного ремонта"""
         suggestions = [
             "Автоматический ремонт не смог устранить все дефициты",
@@ -312,11 +311,11 @@ class AutoRepairEngine:
 
         return suggestions
 
-    def get_repair_history(self) -> List[RepairIteration]:
+    def get_repair_history(self) -> list[RepairIteration]:
         """Возвращает историю ремонта"""
         return self.repair_history
 
-    def suggest_manual_fixes(self, week_plan: Dict, targets: MicronutrientTargets) -> List[Dict]:
+    def suggest_manual_fixes(self, week_plan: dict, targets: MicronutrientTargets) -> list[dict]:
         """Предлагает ручные исправления для плана"""
         gaps = self._analyze_nutrient_gaps(week_plan, targets)
         suggestions = []
@@ -379,17 +378,17 @@ def get_auto_repair_engine() -> AutoRepairEngine:
 
 # Удобные функции для быстрого доступа
 def auto_repair_week_plan(
-    week_plan: Dict,
+    week_plan: dict,
     targets: MicronutrientTargets,
     strategy: RepairStrategy = RepairStrategy.BALANCED,
-    user_preferences: Optional[Dict] = None,
+    user_preferences: dict | None = None,
 ) -> RepairResult:
     """Авто-ремонт недельного плана"""
     engine = get_auto_repair_engine()
     return engine.auto_repair_week_plan(week_plan, targets, strategy, user_preferences)
 
 
-def suggest_manual_fixes(week_plan: Dict, targets: MicronutrientTargets) -> List[Dict]:
+def suggest_manual_fixes(week_plan: dict, targets: MicronutrientTargets) -> list[dict]:
     """Предлагает ручные исправления"""
     engine = get_auto_repair_engine()
     return engine.suggest_manual_fixes(week_plan, targets)

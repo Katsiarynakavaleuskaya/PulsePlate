@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 

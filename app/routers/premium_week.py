@@ -18,19 +18,20 @@ from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
 from core.weekly_plan_new import build_week
 
+
 router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
 
 class TargetsIn(BaseModel):
     kcal: int = Field(..., gt=500, lt=6000)
-    macros: Dict[str, float]
-    micro: Dict[str, float]
+    macros: dict[str, float]
+    micro: dict[str, float]
     water_ml: int = Field(0, ge=0)
-    activity_week: Optional[Dict[str, int]] = None
+    activity_week: dict[str, int] | None = None
 
     @field_validator("macros")
     @classmethod
-    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def _validate_macros(cls, v: dict[str, float]) -> dict[str, float]:
         # Ensure all values are finite numbers >= 0
         for key, val in v.items():
             # Check if value is a numeric type (int or float)
@@ -44,7 +45,7 @@ class TargetsIn(BaseModel):
 
     @field_validator("micro")
     @classmethod
-    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def _validate_micro(cls, v: dict[str, float]) -> dict[str, float]:
         # Ensure all values are finite numbers >= 0
         for key, val in v.items():
             # Check if value is a numeric type (int or float)
@@ -59,24 +60,24 @@ class TargetsIn(BaseModel):
 
 class WeekPlanRequest(BaseModel):
     # режим A: передают готовые targets
-    targets: Optional[TargetsIn] = None
+    targets: TargetsIn | None = None
     # режим B: быстрый профиль (fallback)
-    sex: Optional[Literal["female", "male"]] = None
-    age: Optional[int] = Field(None, gt=10, lt=90)
-    height_cm: Optional[int] = Field(None, gt=100, lt=220)
-    weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = (
+    sex: Literal["female", "male"] | None = None
+    age: int | None = Field(None, gt=10, lt=90)
+    height_cm: int | None = Field(None, gt=100, lt=220)
+    weight_kg: int | None = Field(None, gt=30, lt=300)
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] | None = (
         "moderate"
     )
-    goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
-    diet_flags: List[str] = Field(default_factory=list)
+    goal: Literal["loss", "maintain", "gain"] | None = "maintain"
+    diet_flags: list[str] = Field(default_factory=list)
     lang: Language = "en"
 
 
 class WeekPlanResponse(BaseModel):
-    daily_menus: List[Dict]
-    weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, float]
+    daily_menus: list[dict]
+    weekly_coverage: dict[str, float]
+    shopping_list: dict[str, float]
     total_cost: float
     adherence_score: float
 

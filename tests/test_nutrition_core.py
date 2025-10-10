@@ -8,10 +8,14 @@ Tests cover BMR/TDEE calculations using:
 - Error handling and validation
 """
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+import pytest
 
+from core.metabolism import (
+    calculate_all_bmr,
+    calculate_all_tdee,
+)
 from nutrition_core import (
     PAL,
     bmr_harris,
@@ -19,10 +23,6 @@ from nutrition_core import (
     bmr_mifflin,
     get_activity_descriptions,
     tdee,
-)
-from core.metabolism import (
-    calculate_all_bmr,
-    calculate_all_tdee,
 )
 
 

@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 RU: Сборка RecipeDB из CSV → recipes.sqlite/parquet с расчётом на порцию.
 EN: Build RecipeDB from CSV → recipes.sqlite/parquet with per-serving compute.
 """
 
-import json
-import sqlite3
 from datetime import date
+import json
 from pathlib import Path
+import sqlite3
 
 import pandas as pd
+
 
 FOOD_DB = Path("data/food.sqlite")
 SRC_CSV = Path("data/recipes_new.csv")  # твой файл
@@ -45,7 +45,7 @@ def _get_food(food_id: str) -> dict | None:
 
 
 def _sum_nutrients(ingredients: list[dict]) -> dict:
-    total = {k: 0.0 for k in KEYS}
+    total = dict.fromkeys(KEYS, 0.0)
     for ing in ingredients:
         food = _get_food(ing["food_id"])
         if not food:
@@ -88,7 +88,7 @@ def main():
         total_g = float(sum(i["grams"] for i in ingredients))
         tot = _sum_nutrients(ingredients)
         serv = 2  # По умолчанию 2 порции
-        per_serv = {k: (v / serv) for k, v in tot.items()} if serv else {k: 0.0 for k in KEYS}
+        per_serv = {k: (v / serv) for k, v in tot.items()} if serv else dict.fromkeys(KEYS, 0.0)
         cost_total = _sum_cost(ingredients)
         cost_per_serv = cost_total / serv if serv else 0.0
 

@@ -84,8 +84,22 @@ lint: ## Lint with ruff
 fmt: ## Format with ruff
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
 	ruff format .
+	ruff check --fix --select I,F401,UP,C4 .
 	ruff check --fix .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
+
+## Check imports
+check-imports: ## Check for import issues
+	@echo "$(YELLOW)📦 Проверка импортов...$(NC)"
+	python scripts/check_imports.py
+	@echo "$(GREEN)✅ Импорты проверены$(NC)"
+
+## Fix imports automatically
+fix-imports: ## Auto-fix import issues
+	@echo "$(YELLOW)🔧 Исправление импортов...$(NC)"
+	python scripts/check_imports.py --fix
+	ruff check --fix --select I,F401 .
+	@echo "$(GREEN)✅ Импорты исправлены$(NC)"
 
 ## Format check only
 fmt-check: ## Check code formatting
@@ -179,8 +193,14 @@ clean: ## Clean temporary files
 	rm -f bandit-report.json pip-audit.json
 	@echo "$(GREEN)✅ Очистка завершена$(NC)"
 
+## Type check with mypy
+mypy: ## Run mypy type checking
+	@echo "$(YELLOW)🔍 Проверка типов...$(NC)"
+	mypy app scripts
+	@echo "$(GREEN)✅ Типы проверены$(NC)"
+
 ## Full quality check
-check-all: fmt-check lint cov-check security ## Full quality check
+check-all: fmt-check lint mypy cov-check security ## Full quality check
 	@echo "$(GREEN)🎉 Все проверки пройдены успешно!$(NC)"
 
 ## Fix all auto-fixable issues
@@ -234,72 +254,9 @@ docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
+.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check mypy security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 check-imports fix-imports bandit bandit-full
 
-
-## Run local dev server on :8001
-dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-## Run tests (quiet)
-test: ## Run pytest
-	. .venv/bin/activate && pytest -q
-
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
-
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
-
-## Lint (ruff)
-lint: ## Lint with ruff
-	ruff check .
-
-## Smoke test (auto: 8000 then 8001)
-smoke-auto: ## Try health+bmi on 8000 then 8001
-	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
-	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
-	else \
-		echo "No server found on 8000/8001"; exit 1; \
-	fi
-
-## Smoke test on :8000
-smoke-8000: ## Smoke against http://127.0.0.1:8000
-	bash ./scripts/smoke.sh http://127.0.0.1:8000
-
-## Smoke test on :8001
-smoke-8001: ## Smoke against http://127.0.0.1:8001
-	bash ./scripts/smoke.sh http://127.0.0.1:8001
-
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
+## Additional utilities
 bandit:
 	@echo "[bandit] scanning changed files via pre-commit"
 	pre-commit run bandit || true
@@ -309,10 +266,3 @@ bandit-full:
 	bandit -q -r . \
 	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache \
 	  -s B101 || true
-
-lint:
-	ruff check .
-	ruff format --check .
-	mypy app scripts
-
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full

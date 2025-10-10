@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Скрипт для проверки покрытия тестов
 """
 
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_coverage_check():

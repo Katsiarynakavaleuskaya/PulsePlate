@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Модуль для работы с региональными каталогами продуктов.
 EN: Module for working with regional product catalogs.
@@ -7,8 +6,8 @@ Sprint 3: Region Catalog (ES/US open-data мок)
 """
 
 import csv
-import logging
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -26,17 +25,17 @@ class RegionalProduct:
     category: str
     unit: str
     typical_package_size: float
-    price_eur: Optional[float] = None
-    price_usd: Optional[float] = None
-    store_chain: Optional[str] = None
-    region: Optional[str] = None
+    price_eur: float | None = None
+    price_usd: float | None = None
+    store_chain: str | None = None
+    region: str | None = None
 
 
 @dataclass
 class SearchResult:
     """Результат поиска в региональном каталоге"""
 
-    products: List[RegionalProduct]
+    products: list[RegionalProduct]
     total_count: int
     region: str
     search_query: str
@@ -47,7 +46,7 @@ class RegionCatalog:
 
     def __init__(self, data_dir: str = "data/regions"):
         self.data_dir = Path(data_dir)
-        self.regions: Dict[str, List[RegionalProduct]] = {}
+        self.regions: dict[str, list[RegionalProduct]] = {}
         self._load_regions()
 
     def _load_regions(self):
@@ -59,12 +58,12 @@ class RegionCatalog:
             region_code = csv_file.stem.replace("_products", "")
             self.regions[region_code] = self._load_region_data(csv_file)
 
-    def _load_region_data(self, csv_file: Path) -> List[RegionalProduct]:
+    def _load_region_data(self, csv_file: Path) -> list[RegionalProduct]:
         """Загружает данные региона из CSV файла"""
         products = []
 
         try:
-            with open(csv_file, "r", encoding="utf-8") as f:
+            with open(csv_file, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     product = RegionalProduct(
@@ -85,12 +84,12 @@ class RegionCatalog:
 
         return products
 
-    def get_available_regions(self) -> List[str]:
+    def get_available_regions(self) -> list[str]:
         """Возвращает список доступных регионов"""
         return list(self.regions.keys())
 
     def search_products(
-        self, query: str, region: str, category: Optional[str] = None, max_results: int = 20
+        self, query: str, region: str, category: str | None = None, max_results: int = 20
     ) -> SearchResult:
         """
         Ищет продукты в региональном каталоге
@@ -136,7 +135,7 @@ class RegionCatalog:
             search_query=query,
         )
 
-    def get_product_by_id(self, product_id: str, region: str) -> Optional[RegionalProduct]:
+    def get_product_by_id(self, product_id: str, region: str) -> RegionalProduct | None:
         """Получает продукт по ID в указанном регионе"""
         if region not in self.regions:
             return None
@@ -147,7 +146,7 @@ class RegionCatalog:
 
         return None
 
-    def get_products_by_category(self, category: str, region: str) -> List[RegionalProduct]:
+    def get_products_by_category(self, category: str, region: str) -> list[RegionalProduct]:
         """Получает все продукты указанной категории в регионе"""
         if region not in self.regions:
             return []
@@ -158,7 +157,7 @@ class RegionCatalog:
             if product.category.lower() == category.lower()
         ]
 
-    def get_store_chains(self, region: str) -> List[str]:
+    def get_store_chains(self, region: str) -> list[str]:
         """Получает список торговых сетей в регионе"""
         if region not in self.regions:
             return []
@@ -168,9 +167,9 @@ class RegionCatalog:
             if product.store_chain:
                 chains.add(product.store_chain)
 
-        return sorted(list(chains))
+        return sorted(chains)
 
-    def get_categories(self, region: str) -> List[str]:
+    def get_categories(self, region: str) -> list[str]:
         """Получает список категорий продуктов в регионе"""
         if region not in self.regions:
             return []
@@ -180,7 +179,7 @@ class RegionCatalog:
             if product.category:
                 categories.add(product.category)
 
-        return sorted(list(categories))
+        return sorted(categories)
 
     def convert_currency(self, amount: float, from_currency: str, to_currency: str) -> float:
         """
@@ -203,7 +202,7 @@ class RegionCatalog:
         rate = exchange_rates[from_currency][to_currency]
         return round(amount * rate, 2)
 
-    def get_price_comparison(self, product_name: str, regions: List[str]) -> Dict[str, Dict]:
+    def get_price_comparison(self, product_name: str, regions: list[str]) -> dict[str, dict]:
         """
         Сравнивает цены продукта в разных регионах
 
@@ -258,20 +257,20 @@ def get_region_catalog() -> RegionCatalog:
 
 # Удобные функции для быстрого доступа
 def search_products(
-    query: str, region: str, category: Optional[str] = None, max_results: int = 20
+    query: str, region: str, category: str | None = None, max_results: int = 20
 ) -> SearchResult:
     """Ищет продукты в региональном каталоге"""
     catalog = get_region_catalog()
     return catalog.search_products(query, region, category, max_results)
 
 
-def get_available_regions() -> List[str]:
+def get_available_regions() -> list[str]:
     """Возвращает список доступных регионов"""
     catalog = get_region_catalog()
     return catalog.get_available_regions()
 
 
-def get_price_comparison(product_name: str, regions: List[str]) -> Dict[str, Dict]:
+def get_price_comparison(product_name: str, regions: list[str]) -> dict[str, dict]:
     """Сравнивает цены продукта в разных регионах"""
     catalog = get_region_catalog()
     return catalog.get_price_comparison(product_name, regions)

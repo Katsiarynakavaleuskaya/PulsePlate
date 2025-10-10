@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 PulsePlate Development Environment Setup
 Скрипт для настройки среды разработки PulsePlate
 """
 
 import os
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_command(cmd: str, description: str) -> bool:

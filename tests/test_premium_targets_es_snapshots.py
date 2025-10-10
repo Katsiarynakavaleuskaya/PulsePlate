@@ -5,8 +5,9 @@ Detailed snapshot tests for Spanish localization covering all micronutrients,
 warnings, and UI labels for both male and female profiles.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod  # type: ignore

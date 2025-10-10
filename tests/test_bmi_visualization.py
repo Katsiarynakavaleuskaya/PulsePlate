@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Comprehensive tests for BMI visualization functionality.
 Tests both the enhanced BMI endpoint and dedicated visualization endpoint.
@@ -9,8 +8,9 @@ import importlib
 import io
 from unittest.mock import Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 app_module = importlib.import_module("app")
 client = TestClient(app_module.app)

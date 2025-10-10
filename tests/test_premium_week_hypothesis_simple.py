@@ -46,7 +46,7 @@ class TestPremiumWeekHypothesisSimple:
         activity: str,
         goal: str,
         lang: str,
-        diet_flags: List[str],
+        diet_flags: list[str],
     ):
         """Test generate_week_plan with Hypothesis to cover lines 93-117."""
         client = self.client
@@ -114,7 +114,7 @@ class TestPremiumWeekHypothesisSimple:
         ),
     )
     def test_generate_week_plan_with_targets_simple_hypothesis(
-        self, targets: Dict[str, float], lang: str, diet_flags: List[str]
+        self, targets: dict[str, float], lang: str, diet_flags: list[str]
     ):
         """Test generate_week_plan with provided targets - lines 97-98."""
         client = self.client
@@ -159,7 +159,7 @@ class TestPremiumWeekHypothesisSimple:
         activity: str,
         goal: str,
         lang: str,
-        diet_flags: List[str],
+        diet_flags: list[str],
     ):
         """Test generate_week_plan with missing profile data - lines 101-102."""
         client = self.client
@@ -209,7 +209,7 @@ class TestPremiumWeekHypothesisSimple:
         activity: str,
         goal: str,
         lang: str,
-        diet_flags: List[str],
+        diet_flags: list[str],
     ):
         """Test generate_week_plan with valid profile data - covers lines 104-113."""
         client = self.client

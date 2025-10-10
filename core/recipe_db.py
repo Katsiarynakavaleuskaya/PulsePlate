@@ -25,13 +25,13 @@ class Recipe:
     """
 
     name: str
-    ingredients: Dict[str, float]  # ingredient_name: amount_in_grams
-    flags: Set[str]
+    ingredients: dict[str, float]  # ingredient_name: amount_in_grams
+    flags: set[str]
 
 
 def parse_recipe_db(
-    csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodItem] = None
-) -> Dict[str, Recipe]:
+    csv_path: str = "data/recipes.csv", food_db: dict[str, FoodItem] = None
+) -> dict[str, Recipe]:
     """
     RU: Парсит CSV файл базы данных рецептов.
     EN: Parse recipe database CSV file.
@@ -48,7 +48,7 @@ def parse_recipe_db(
 
     recipe_db = {}
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Parse ingredients
@@ -79,7 +79,7 @@ def parse_recipe_db(
     return recipe_db
 
 
-def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> Dict[str, float]:
+def calculate_recipe_nutrients(recipe: Recipe, food_db: dict[str, FoodItem]) -> dict[str, float]:
     """
     RU: Рассчитывает питательную ценность рецепта.
     EN: Calculate nutritional value of a recipe.
@@ -91,7 +91,7 @@ def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> 
     Returns:
         Dictionary mapping nutrient names to amounts
     """
-    total_nutrients: Dict[str, float] = {}
+    total_nutrients: dict[str, float] = {}
 
     for ingredient_name, amount_g in recipe.ingredients.items():
         if ingredient_name in food_db:
@@ -123,7 +123,7 @@ def calculate_recipe_nutrients(recipe: Recipe, food_db: Dict[str, FoodItem]) -> 
 def scale_recipe_to_kcal(
     recipe: Recipe,
     kcal_goal: float,
-    food_db: Dict[str, FoodItem],
+    food_db: dict[str, FoodItem],
     prefer_fiber: bool = True,
 ) -> Recipe:
     """

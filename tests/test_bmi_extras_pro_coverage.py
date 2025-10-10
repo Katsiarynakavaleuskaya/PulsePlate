@@ -9,13 +9,14 @@ Tests cover:
 """
 
 import pytest
+
 from core.bmi_extras_pro import (
-    wht_ratio,
-    whr_ratio,
     ffmi,
-    interpret_wht_ratio,
     interpret_whr_ratio,
+    interpret_wht_ratio,
     stage_obesity,
+    whr_ratio,
+    wht_ratio,
 )
 
 

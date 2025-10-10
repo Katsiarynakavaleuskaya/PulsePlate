@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Targeted coverage tests for lightweight core helpers.
 
 The original version of this file tried to import dozens of optional modules,
@@ -12,12 +11,13 @@ predictably and degrades gracefully when an optional module is missing.
 
 from __future__ import annotations
 
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
+
 
 # ---------------------------------------------------------------------------
 # core.aliases
@@ -69,12 +69,12 @@ def test_i18n_translation_and_normalization() -> None:
 def test_time_utils_timezone_functions(monkeypatch: pytest.MonkeyPatch) -> None:
     time_utils = pytest.importorskip("core.time_utils")
 
-    fixed_now = datetime(2024, 1, 1, 12, tzinfo=timezone.utc)
+    fixed_now = datetime(2024, 1, 1, 12, tzinfo=UTC)
     monkeypatch.setattr(time_utils, "now_utc", lambda: fixed_now)
 
     iso_value = time_utils.isoformat_utc()
     parsed = time_utils.parse_iso8601(iso_value)
-    assert parsed.tzinfo == timezone.utc
+    assert parsed.tzinfo == UTC
 
     if getattr(time_utils, "ZoneInfo", None) is None:
         pytest.skip("zoneinfo not available in this runtime")

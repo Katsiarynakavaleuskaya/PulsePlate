@@ -6,8 +6,8 @@ import os
 import sys
 from types import ModuleType
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 class TestConftestFinalCoverage:

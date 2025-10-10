@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Core DB Tests
 
@@ -7,7 +6,6 @@ EN: Tests for core database functionality
 """
 
 import logging
-
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -16,12 +14,12 @@ import pytest
 from sqlalchemy import text
 
 from core.db import (
+    _RAW_ENGINE,
     Base,
     SessionLocal,
-    _RAW_ENGINE,
     _build_engine_url,
-    _sqlite_connect_args,
     _derive_async_url,
+    _sqlite_connect_args,
     async_engine,
     get_async_session,
     get_session,

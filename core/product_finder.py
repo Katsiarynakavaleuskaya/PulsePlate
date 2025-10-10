@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RU: Система автоматического поиска и добавления недостающих продуктов.
 EN: Automatic product search and addition system.
@@ -10,8 +9,8 @@ EN: Automatic product search and addition system.
 from __future__ import annotations
 
 import csv
-import logging
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -20,11 +19,12 @@ from .food_sources.base import FoodRecord
 from .food_sources.off import OFFAdapter
 from .food_sources.usda import USDAAdapter
 
+
 logger = logging.getLogger(__name__)
 
 
 # Shared CSV schema for food DB rows
-FIELDNAMES: List[str] = [
+FIELDNAMES: list[str] = [
     "name",
     "unit_per",
     "unit",
@@ -54,10 +54,10 @@ class ProductSearchResult:
 
     product_name: str
     found: bool
-    source: Optional[str] = None
-    food_record: Optional[FoodRecord] = None
+    source: str | None = None
+    food_record: FoodRecord | None = None
     confidence: float = 0.0
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class ProductFinder:
@@ -72,7 +72,7 @@ class ProductFinder:
         self.off_adapter = OFFAdapter()
         self.food_db = parse_food_db("data/food_db.csv")
 
-    def find_missing_products(self, recipe_ingredients: List[str]) -> List[str]:
+    def find_missing_products(self, recipe_ingredients: list[str]) -> list[str]:
         """
         RU: Найти продукты, которые отсутствуют в базе данных.
         EN: Find products that are missing from the database.
@@ -361,7 +361,7 @@ class ProductFinder:
                 writer.writeheader()
             writer.writerow(self._as_row(food_item))
 
-    def auto_expand_database(self, recipe_ingredients: List[str]) -> Dict[str, bool]:
+    def auto_expand_database(self, recipe_ingredients: list[str]) -> dict[str, bool]:
         """
         RU: Автоматически расширить базу данных недостающими продуктами.
         EN: Automatically expand database with missing products.
@@ -402,7 +402,7 @@ class ProductFinder:
         logger.info("Automatic database expansion completed")
         return results
 
-    def expand_database(self, products: List[str], csv_path: str) -> Dict[str, bool]:
+    def expand_database(self, products: list[str], csv_path: str) -> dict[str, bool]:
         """
         RU: Расширить базу данных указанными продуктами и записать/добавить их в CSV.
         EN: Expand the database with provided products and write/append them into a CSV.
@@ -414,7 +414,7 @@ class ProductFinder:
         Returns:
             Словарь {product_name: success}
         """
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
 
         # Ensure the directory exists (if any)
         try:
@@ -456,7 +456,7 @@ class ProductFinder:
 
         return results
 
-    def _as_row(self, food_item: FoodItem) -> Dict[str, str | float | int]:
+    def _as_row(self, food_item: FoodItem) -> dict[str, str | float | int]:
         """Map FoodItem to CSV row using shared FIELDNAMES order."""
         return {
             "name": food_item.name,

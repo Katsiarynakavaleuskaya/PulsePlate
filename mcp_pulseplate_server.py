@@ -24,7 +24,7 @@ class PulsePlateMCPServer:
         self.client = openai.OpenAI(api_key=self.api_key)
         self.project_context = self._load_project_context()
 
-    def _load_project_context(self) -> Dict[str, Any]:
+    def _load_project_context(self) -> dict[str, Any]:
         """Load project context for better ChatGPT responses"""
         return {
             "project_name": "PulsePlate",
@@ -49,7 +49,7 @@ class PulsePlateMCPServer:
             },
         }
 
-    async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle MCP requests with ChatGPT integration"""
         try:
             method = request.get("method")
@@ -65,7 +65,7 @@ class PulsePlateMCPServer:
         except Exception as e:
             return {"error": str(e)}
 
-    async def _list_tools(self) -> Dict[str, Any]:
+    async def _list_tools(self) -> dict[str, Any]:
         """List available tools"""
         return {
             "tools": [
@@ -117,7 +117,7 @@ class PulsePlateMCPServer:
             ]
         }
 
-    async def _call_tool(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
         """Call a specific tool"""
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
@@ -131,7 +131,7 @@ class PulsePlateMCPServer:
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
-    async def _chatgpt_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _chatgpt_query(self, args: dict[str, Any]) -> dict[str, Any]:
         """Query ChatGPT with project context"""
         query = args.get("query", "")
         context = args.get("context", "")
@@ -165,7 +165,7 @@ Please provide a helpful response considering the PulsePlate project context.
         except Exception as e:
             return {"error": f"ChatGPT query failed: {str(e)}"}
 
-    async def _code_review(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _code_review(self, args: dict[str, Any]) -> dict[str, Any]:
         """Review code with ChatGPT"""
         code = args.get("code", "")
         language = args.get("language", "python")
@@ -203,7 +203,7 @@ Please provide:
         except Exception as e:
             return {"error": f"Code review failed: {str(e)}"}
 
-    async def _generate_code(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_code(self, args: dict[str, Any]) -> dict[str, Any]:
         """Generate code with ChatGPT"""
         description = args.get("description", "")
         language = args.get("language", "python")

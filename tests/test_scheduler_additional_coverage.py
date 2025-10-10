@@ -3,8 +3,8 @@ Additional tests to improve coverage for core/food_apis/scheduler.py to reach 97
 """
 
 import asyncio
+from datetime import UTC, datetime, timezone
 import os
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -48,7 +48,7 @@ class TestSchedulerAdditionalCoverage:
         # Mock datetime.now to return consistent values
         with patch(
             "core.food_apis.scheduler.now_utc",
-            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         ):
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)
@@ -70,7 +70,7 @@ class TestSchedulerAdditionalCoverage:
         # Mock datetime.now to return consistent values
         with patch(
             "core.food_apis.scheduler.now_utc",
-            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         ):
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)
@@ -232,7 +232,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler = DatabaseUpdateScheduler()
 
         # Set up some test data
-        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        scheduler.last_update_check = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         scheduler.retry_counts["test_source"] = 2
 
         # Add a database version

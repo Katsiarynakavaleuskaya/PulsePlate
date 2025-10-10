@@ -20,7 +20,7 @@ class FoodItem(BaseModel):
 
     id: str
     canonical_name: str
-    group: Optional[str] = None
+    group: str | None = None
     per_g: float = 100.0  # RU: норма на 100 г; EN: per 100g baseline
     kcal: float
     protein_g: float
@@ -35,10 +35,10 @@ class FoodItem(BaseModel):
     B12_ug: float = 0.0
     Folate_ug: float = 0.0
     Iodine_ug: float = 0.0
-    flags: List[str] = Field(default_factory=list)  # e.g. ["VEG","GF"]
-    brand: Optional[str] = None
-    gtin: Optional[str] = None
-    fdc_id: Optional[str] = None
+    flags: list[str] = Field(default_factory=list)  # e.g. ["VEG","GF"]
+    brand: str | None = None
+    gtin: str | None = None
+    fdc_id: str | None = None
     source: str = "USDA|OFF"
     source_priority: int = 0
     version_date: str

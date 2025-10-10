@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for Bodyfat v1 API endpoint in main.py
 
@@ -14,6 +13,7 @@ Tests cover:
 from fastapi.testclient import TestClient
 
 import app as app_mod  # type: ignore
+
 
 client = TestClient(app_mod.app)
 

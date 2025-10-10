@@ -5,8 +5,8 @@ RU: Тесты для модуля унифицированной базы да�
 EN: Tests for unified food database module.
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

@@ -9,7 +9,7 @@ import re
 
 def add_setup_method_to_file(file_path):
     """Add setup_method to all test classes in a file"""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     # Find all class definitions that start with "class Test"

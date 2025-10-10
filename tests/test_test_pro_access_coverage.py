@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -30,7 +31,7 @@ spec.loader.exec_module(test_pro_access)
 class TestTestProAccessCoverage:
     """Test class to cover test_pro_access.py"""
 
-    def _create_mock_client_with_models(self, model_ids: List[str]) -> MagicMock:
+    def _create_mock_client_with_models(self, model_ids: list[str]) -> MagicMock:
         """Helper method to create mock OpenAI client with specified models"""
         mock_models = MagicMock()
         mock_models.data = [MagicMock(id=model_id) for model_id in model_ids]
@@ -41,9 +42,9 @@ class TestTestProAccessCoverage:
 
     def _assert_success_result(
         self,
-        result: Dict[str, Any],
-        expected_models: List[str],
-        expected_pro_models: Dict[str, bool],
+        result: dict[str, Any],
+        expected_models: list[str],
+        expected_pro_models: dict[str, bool],
     ) -> None:
         """Helper method to assert success result structure"""
         assert result["status"] == "success"
@@ -54,8 +55,8 @@ class TestTestProAccessCoverage:
             assert result["pro_models"][model] == expected
 
     def _create_mock_test_return_value(
-        self, models: List[str], pro_models: Dict[str, bool]
-    ) -> Dict[str, Any]:
+        self, models: list[str], pro_models: dict[str, bool]
+    ) -> dict[str, Any]:
         """Helper method to create mock test return value"""
         return {
             "status": "success",
@@ -94,7 +95,7 @@ class TestTestProAccessCoverage:
         with patch("openai.OpenAI", return_value=mock_client):
             self._verify_pro_access_result(False, model_ids)
 
-    def _verify_pro_access_result(self, has_pro_models: bool, model_ids: List[str]) -> None:
+    def _verify_pro_access_result(self, has_pro_models: bool, model_ids: list[str]) -> None:
         result = test_pro_access.test_openai_pro_access("test-api-key")
         expected_pro_models = {
             "gpt-5": has_pro_models,
@@ -291,7 +292,7 @@ class TestTestProAccessCoverage:
         mock_test: MagicMock,
         mock_print: MagicMock,
         expected_message: str,
-    ) -> List[str]:
+    ) -> list[str]:
         mock_test.return_value = {
             "status": "success",
             "available_models": ["gpt-4", "gpt-3.5-turbo"],

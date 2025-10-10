@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 RU: Тест агрегации микронутриентов в /api/v1/premium/plate.
 EN: Test micronutrient aggregation in /api/v1/premium/plate.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod  # type: ignore

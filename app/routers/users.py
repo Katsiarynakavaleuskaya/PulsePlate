@@ -12,6 +12,7 @@ from app.schemas.users import UserCreate, UserRead
 from core.db import get_session
 from core.models import User
 
+
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
@@ -31,19 +32,19 @@ def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> User
     return result
 
 
-@router.get("", response_model=List[UserRead])
+@router.get("", response_model=list[UserRead])
 def list_users(
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_session),
-) -> List[UserRead]:
+) -> list[UserRead]:
     """RU: Возвращает список пользователей с пагинацией.
 
     EN: Return paginated list of users.
     """
 
     rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
-    results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
+    results: list[UserRead] = [UserRead.model_validate(row) for row in rows]
     return results
 
 

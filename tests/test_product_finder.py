@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Comprehensive tests for core.product_finder module.
 Covers ProductSearchResult and ProductFinder classes.
 """
 
 import csv
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import Mock, mock_open, patch
 
 import pytest

@@ -1,13 +1,12 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 import logging
 import os
 import time
-from contextlib import asynccontextmanager, suppress
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
-    Callable,
     Dict,
     List,
     Literal,
@@ -36,15 +35,16 @@ from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
 from core.i18n import Language, t
-from core.utils import get_activity_factor, resolve_attr
 from core.metabolism import calculate_all_bmr, calculate_all_tdee
+from core.utils import get_activity_factor, resolve_attr
+
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
 else:
     LimiterType = Any
 
-Limiter: Optional[type[LimiterType]]
+Limiter: type[LimiterType] | None
 try:
     from slowapi import Limiter as _Limiter
 
@@ -54,8 +54,8 @@ except ImportError:
 
 slowapi_available = Limiter is not None
 
-vip_router: Optional[APIRouter]
-_scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
+vip_router: APIRouter | None
+_scheduler_getter: Callable[[], Awaitable[Any]] | None = None
 
 # Safe import for VIP_MODULE_ENABLED to avoid attribute errors
 try:
@@ -77,7 +77,7 @@ def stop_background_updates() -> None:
 
 
 GetRouterCallable = Callable[[], APIRouter]
-get_bodyfat_router: Optional[GetRouterCallable]
+get_bodyfat_router: GetRouterCallable | None
 try:
     from bodyfat import get_router as get_bodyfat_router
 except ImportError:
@@ -146,12 +146,12 @@ async def lifespan(app: FastAPI):
             if _inspect.isawaitable(result):
                 # Apply a configurable timeout to avoid hangs on startup
                 _timeout = float(os.getenv("BACKGROUND_START_TIMEOUT_SEC", "10"))
-                _task: Optional[asyncio.Task[Any]] = None
+                _task: asyncio.Task[Any] | None = None
                 try:
                     # Ensure we have a Task to be able to cancel on timeout
                     _task = asyncio.ensure_future(result)
                     await asyncio.wait_for(_task, timeout=_timeout)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         f"Background updates startup timed out after {_timeout:.0f} seconds"
                     )
@@ -192,7 +192,7 @@ app = FastAPI(title="PulsePlate", lifespan=lifespan)
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
-def _is_truthy(value: Optional[str]) -> bool:
+def _is_truthy(value: str | None) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -326,7 +326,7 @@ async def log_requests(request: Request, call_next):
 
 
 @app.get("/health/db")
-def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
+def database_health(session: Session = Depends(get_session)) -> dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
 
     EN: Lightweight database connectivity check.
@@ -391,12 +391,12 @@ class BMIRequest(BaseModel):
     height_m: float = Field(..., gt=0)
     age: int = Field(30, ge=0, le=120)
     gender: str = "male"
-    pregnant: Union[str, bool] = "no"
-    athlete: Union[str, bool] = "no"
-    waist_cm: Optional[float] = Field(None, gt=0)
+    pregnant: str | bool = "no"
+    athlete: str | bool = "no"
+    waist_cm: float | None = Field(None, gt=0)
     lang: Language = "ru"
-    premium: Optional[bool] = False
-    include_chart: Optional[bool] = False  # New parameter for visualization
+    premium: bool | None = False
+    include_chart: bool | None = False  # New parameter for visualization
 
     @model_validator(mode="before")
     @classmethod
@@ -483,9 +483,9 @@ class BMIRequestV1(BaseModel):
     group: str = "general"
     age: int = Field(default=30, ge=0, le=120)
     gender: str = "male"
-    pregnant: Union[str, bool] = "no"
-    athlete: Union[str, bool] = "no"
-    waist_cm: Optional[float] = Field(None, gt=0)
+    pregnant: str | bool = "no"
+    athlete: str | bool = "no"
+    waist_cm: float | None = Field(None, gt=0)
     lang: Language = "en"
 
     @model_validator(mode="after")
@@ -515,7 +515,7 @@ class BMIRequestV1(BaseModel):
         return values
 
 
-def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> None:
+def add_visualization_if_requested(result: dict[str, Any], req: BMIRequest) -> None:
     """Add BMI visualization to result if requested and available.
 
     Args:
@@ -578,19 +578,19 @@ class BMRRequest(BaseModel):
     age: int = Field(..., ge=0, le=120)
     sex: str = Field(..., pattern="^(male|female)$")
     activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
-    bodyfat: Optional[float] = Field(None, ge=0, le=60)
+    bodyfat: float | None = Field(None, ge=0, le=60)
     lang: Language = "en"
 
 
 class BMRResponse(BaseModel):
     """Response model for BMR calculation"""
 
-    bmr: Dict[str, float]
-    tdee: Dict[str, float]
+    bmr: dict[str, float]
+    tdee: dict[str, float]
     activity_level: str
-    recommended_intake: Dict[str, float]
-    formulas_used: List[str]
-    notes: List[str]
+    recommended_intake: dict[str, float]
+    formulas_used: list[str]
+    notes: list[str]
 
 
 # ---------- Core logic ----------
@@ -601,8 +601,8 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
 
 
 def normalize_flags(
-    gender: str, pregnant: Union[str, bool], athlete: Union[str, bool]
-) -> Dict[str, bool]:
+    gender: str, pregnant: str | bool, athlete: str | bool
+) -> dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",
@@ -633,7 +633,7 @@ def normalize_flags(
     }
 
 
-def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
+def waist_risk(waist_cm: float | None, gender_male: bool, lang: Language) -> str:
     if waist_cm is None:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
@@ -932,7 +932,7 @@ async def bmi_endpoint(req: BMIRequest):
     if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
         notes.append(wr)
 
-    bmi_result: Dict[str, Any] = {
+    bmi_result: dict[str, Any] = {
         "bmi": bmi,
         "category": category,
         "note": " | ".join(notes) if notes else "",
@@ -1117,18 +1117,18 @@ async def insight(req: InsightRequest):
 
 MenuEngineCallable = Callable[..., Any]
 
-analyze_nutrient_gaps: Optional[MenuEngineCallable] = None
-make_daily_menu: Optional[MenuEngineCallable] = None
-make_weekly_menu: Optional[MenuEngineCallable] = None
-repair_week_plan: Optional[MenuEngineCallable] = None
-make_plate: Optional[MenuEngineCallable] = None
-build_nutrition_targets: Optional[MenuEngineCallable] = None
+analyze_nutrient_gaps: MenuEngineCallable | None = None
+make_daily_menu: MenuEngineCallable | None = None
+make_weekly_menu: MenuEngineCallable | None = None
+repair_week_plan: MenuEngineCallable | None = None
+make_plate: MenuEngineCallable | None = None
+build_nutrition_targets: MenuEngineCallable | None = None
 
 ExportCallable = Callable[..., Any]
-to_csv_day: Optional[ExportCallable] = None
-to_pdf_day: Optional[ExportCallable] = None
-to_csv_week: Optional[ExportCallable] = None
-to_pdf_week: Optional[ExportCallable] = None
+to_csv_day: ExportCallable | None = None
+to_pdf_day: ExportCallable | None = None
+to_csv_week: ExportCallable | None = None
+to_pdf_week: ExportCallable | None = None
 
 try:
     from core.menu_engine import analyze_nutrient_gaps as _analyze_nutrient_gaps
@@ -1214,10 +1214,10 @@ class PlateRequest(BaseModel):
     goal: Goal
     # RU: Для цели loss/gain задаём процент; для maintain можно опустить или 0.
     # EN: For loss/gain provide percent; for maintain can omit or use 0.
-    deficit_pct: Optional[float] = Field(None, ge=5, le=25)  # for loss
-    surplus_pct: Optional[float] = Field(None, ge=5, le=20)  # for gain
-    bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[set[DietFlag]] = None
+    deficit_pct: float | None = Field(None, ge=5, le=25)  # for loss
+    surplus_pct: float | None = Field(None, ge=5, le=20)  # for gain
+    bodyfat: float | None = Field(None, ge=3, le=60)
+    diet_flags: set[DietFlag] | None = None
 
 
 class VisualShape(BaseModel):
@@ -1234,13 +1234,13 @@ class VisualShape(BaseModel):
 
 class PlateResponse(BaseModel):
     kcal: int
-    macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
-    portions: Dict[
+    macros: dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
+    portions: dict[
         str, Any
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
-    layout: List[VisualShape]  # спецификация визуалки
-    meals: List[Dict[str, Any]]  # список блюд с калориями/макро
-    day_micros: Dict[str, float] = {}  # агрегированные микронутриенты за день
+    layout: list[VisualShape]  # спецификация визуалки
+    meals: list[dict[str, Any]]  # список блюд с калориями/макро
+    day_micros: dict[str, float] = {}  # агрегированные микронутриенты за день
 
 
 # WHO-Based Nutrition Models
@@ -1255,10 +1255,10 @@ class WHOTargetsRequest(BaseModel):
     weight_kg: float = Field(..., gt=0)
     activity: Activity
     goal: Goal = "maintain"
-    deficit_pct: Optional[float] = Field(None, ge=5, le=25)
-    surplus_pct: Optional[float] = Field(None, ge=5, le=20)
-    bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[set[DietFlag]] = None
+    deficit_pct: float | None = Field(None, ge=5, le=25)
+    surplus_pct: float | None = Field(None, ge=5, le=20)
+    bodyfat: float | None = Field(None, ge=3, le=60)
+    diet_flags: set[DietFlag] | None = None
     life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
     lang: str = "en"  # Language for localized warnings
 
@@ -1287,7 +1287,7 @@ class BMRRequestLegacy(BaseModel):
     age: int
     sex: str
     activity: str
-    bodyfat: Optional[float] = None
+    bodyfat: float | None = None
     lang: Language = "en"
 
 
@@ -1297,12 +1297,12 @@ class WHOTargetsResponse(BaseModel):
     """
 
     kcal_daily: int
-    macros: Dict[str, int]
+    macros: dict[str, int]
     water_ml: int
-    priority_micros: Dict[str, float]  # Key micronutrients
-    activity_weekly: Dict[str, int]  # Weekly activity targets
+    priority_micros: dict[str, float]  # Key micronutrients
+    activity_weekly: dict[str, int]  # Weekly activity targets
     calculation_date: str
-    warnings: List[Dict[str, str]] = []  # Life stage warnings with codes and messages
+    warnings: list[dict[str, str]] = []  # Life stage warnings with codes and messages
 
 
 class NutrientGapsRequest(BaseModel):
@@ -1310,7 +1310,7 @@ class NutrientGapsRequest(BaseModel):
     EN: Request for nutrient gap analysis.
     """
 
-    consumed_nutrients: Dict[str, float]  # Actual daily intake
+    consumed_nutrients: dict[str, float]  # Actual daily intake
     user_profile: WHOTargetsRequest  # User profile for targets
 
 
@@ -1319,8 +1319,8 @@ class NutrientGapsResponse(BaseModel):
     EN: Response with gap analysis and recommendations.
     """
 
-    gaps: Dict[str, Dict[str, Any]]  # Detailed gap analysis
-    food_recommendations: List[str]  # Food-based solutions
+    gaps: dict[str, dict[str, Any]]  # Detailed gap analysis
+    food_recommendations: list[str]  # Food-based solutions
     adherence_score: float  # Overall adequacy score
 
 
@@ -1329,31 +1329,31 @@ class WeeklyMenuResponse(BaseModel):
     EN: Response with weekly menu.
     """
 
-    week_summary: Dict[str, Any]
-    daily_menus: List[Dict[str, Any]]
-    weekly_coverage: Dict[str, float]  # Average nutrient coverage
-    shopping_list: Dict[str, float]  # Weekly shopping needs
+    week_summary: dict[str, Any]
+    daily_menus: list[dict[str, Any]]
+    weekly_coverage: dict[str, float]  # Average nutrient coverage
+    shopping_list: dict[str, float]  # Weekly shopping needs
     total_cost: float
     adherence_score: float
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
     # Either 'targets' or a lightweight user profile
-    targets: Optional[Dict[str, Any]] = None
-    sex: Optional[Sex] = None
-    age: Optional[int] = None
-    height_cm: Optional[float] = None
-    weight_kg: Optional[float] = None
-    activity: Optional[Activity] = "moderate"
-    goal: Optional[Goal] = "maintain"
-    deficit_pct: Optional[float] = None
-    surplus_pct: Optional[float] = None
-    bodyfat: Optional[float] = None
-    diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Optional[Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]] = (
+    targets: dict[str, Any] | None = None
+    sex: Sex | None = None
+    age: int | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    activity: Activity | None = "moderate"
+    goal: Goal | None = "maintain"
+    deficit_pct: float | None = None
+    surplus_pct: float | None = None
+    bodyfat: float | None = None
+    diet_flags: set[DietFlag] | None = None
+    life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] | None = (
         "adult"
     )
-    lang: Optional[str] = "en"
+    lang: str | None = "en"
 
 
 @app.post(
@@ -1529,7 +1529,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
         layout = [VisualShape(**item) for item in plate_data["layout"]]
 
-        day_micros: Dict[str, float] = {}
+        day_micros: dict[str, float] = {}
         mock_micros_per_meal = {
             "iron_mg": 2.5,
             "calcium_mg": 150.0,
@@ -2290,7 +2290,7 @@ async def get_database_status():
 
 
 @app.post("/api/v1/admin/force-update", dependencies=[Depends(_get_api_key_dynamic)])
-async def force_database_update(source: Optional[str] = None):
+async def force_database_update(source: str | None = None):
     """
     RU: Принудительно запустить обновление баз данных.
     EN: Force immediate database update.
@@ -2311,7 +2311,7 @@ async def force_database_update(source: Optional[str] = None):
         results = await scheduler.force_update(source)
 
         # Format response
-        response: Dict[str, Any] = {
+        response: dict[str, Any] = {
             "message": f"Force update completed for {source or 'all sources'}",
             "results": {},
         }
@@ -2471,7 +2471,7 @@ async def export_daily_plan_csv(plan_id: str):
 
 
 @app.post("/api/v1/export/pdf")
-async def export_pdf_generic(payload: Dict[str, Any]):
+async def export_pdf_generic(payload: dict[str, Any]):
     """Generic PDF export endpoint for tests' error-handling coverage.
 
     Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day

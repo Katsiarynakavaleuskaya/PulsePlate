@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for BMI v1 API endpoint in app module.
 
@@ -19,6 +18,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app as app_mod
+
 
 client = TestClient(cast(ASGIApp, app_mod.app))
 

@@ -6,8 +6,8 @@ Targets major uncovered blocks: /bmi, /plan endpoints with real data
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 
 @pytest.fixture

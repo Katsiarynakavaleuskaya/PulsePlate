@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 RU: Сервис доступа к FoodDB (SQLite) с FTS и алиасами.
 EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
 
-import sqlite3
 from pathlib import Path
+import sqlite3
 from typing import Dict, List, Optional
+
 
 DB_PATH = Path("data/food.sqlite")
 
@@ -18,11 +18,11 @@ ALIASES = {
 }
 
 
-def expand_query(q: str) -> List[str]:
+def expand_query(q: str) -> list[str]:
     ql = (q or "").strip().lower()
     if not ql:
         return []
-    terms = set([ql])
+    terms = {ql}
     for k, vs in ALIASES.items():
         if ql == k or ql in vs:
             terms.update([k, *vs])
@@ -35,7 +35,7 @@ def _connect() -> sqlite3.Connection:
     return con
 
 
-def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+def search_foods(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     terms = expand_query(query) if query else []
     params: list = []
     if terms:
@@ -59,13 +59,13 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_food(food_id: str) -> Optional[Dict]:
+def get_food(food_id: str) -> dict | None:
     with _connect() as con:
         row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
     return dict(row) if row else None
 
 
-def nutrients_for(ings: List[Dict]) -> Dict[str, float]:
+def nutrients_for(ings: list[dict]) -> dict[str, float]:
     """RU: Наивный сумматор нутриентов; EN: naive aggregator."""
     keys = [
         "kcal",
@@ -81,7 +81,7 @@ def nutrients_for(ings: List[Dict]) -> Dict[str, float]:
         "Folate_ug",
         "Iodine_ug",
     ]
-    total = {k: 0.0 for k in keys}
+    total = dict.fromkeys(keys, 0.0)
     for ing in ings:
         food = get_food(ing["food_id"])
         if not food:

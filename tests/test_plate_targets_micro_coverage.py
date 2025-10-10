@@ -7,8 +7,9 @@ to ensure that daily micronutrient values from plate meet minimum thresholds fro
 
 import os
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod

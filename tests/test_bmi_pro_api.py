@@ -5,13 +5,15 @@ Tests for BMI Pro API endpoint.
 import os
 import sys
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the FastAPI app from app.py file
 import importlib.util
+
 
 APP_LOAD_ERROR = "Cannot load app.py"
 

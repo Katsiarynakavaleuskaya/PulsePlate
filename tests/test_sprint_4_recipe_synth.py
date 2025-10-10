@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for Sprint 4: Recipe Synthesis functionality
 

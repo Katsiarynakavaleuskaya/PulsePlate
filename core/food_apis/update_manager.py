@@ -11,20 +11,22 @@ information becomes available, with version tracking, validation, and rollback.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 import hashlib
 import json
 import logging
-import re
-import unicodedata
-from dataclasses import asdict, dataclass, is_dataclass
-from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
+import unicodedata
 
+from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
-from ..time_utils import isoformat_utc, now_utc, parse_iso8601
+
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ class DatabaseVersion:
     last_updated: str  # ISO datetime
     record_count: int
     checksum: str  # Hash of all data for integrity
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -92,12 +94,12 @@ class UpdateResult:
 
     success: bool
     source: str
-    old_version: Optional[str]
-    new_version: Optional[str]
+    old_version: str | None
+    new_version: str | None
     records_added: int
     records_updated: int
     records_removed: int
-    errors: List[str]
+    errors: list[str]
     duration_seconds: float
 
 
@@ -134,20 +136,20 @@ class DatabaseUpdateManager:
         self.unified_db = UnifiedFoodDatabase(str(real_cache_path))
 
         # Update callbacks
-        self.update_callbacks: List[Callable[[UpdateResult], None]] = []
+        self.update_callbacks: list[Callable[[UpdateResult], None]] = []
 
         # Load version tracking
         # Use real path for file ops composition
         self.versions_file = real_cache_path / "database_versions.json"
         self.versions = self._load_versions()
 
-    def _load_versions(self) -> Dict[str, DatabaseVersion]:
+    def _load_versions(self) -> dict[str, DatabaseVersion]:
         """Load database version information."""
         if not self.versions_file.exists():
             return {}
 
         try:
-            with open(self.versions_file, "r") as f:
+            with open(self.versions_file) as f:
                 data = json.load(f)
 
             return {
@@ -169,13 +171,13 @@ class DatabaseUpdateManager:
         except Exception as e:
             logger.error(f"Error saving versions: {e}")
 
-    def _calculate_checksum(self, data: Dict[str, Any]) -> str:
+    def _calculate_checksum(self, data: dict[str, Any]) -> str:
         """Calculate checksum for data integrity."""
         # Convert to sorted JSON string for consistent hashing
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
 
-    async def check_for_updates(self) -> Dict[str, bool]:
+    async def check_for_updates(self) -> dict[str, bool]:
         """
         RU: Проверяет наличие обновлений для всех источников данных.
         EN: Check for updates across all data sources.
@@ -590,12 +592,12 @@ class DatabaseUpdateManager:
                         file_path = matching_files[0]
                         if file_path.suffix == ".csv":
                             # For CSV, subtract header
-                            with open(file_path, "r", encoding="utf-8") as f:
+                            with open(file_path, encoding="utf-8") as f:
                                 count = sum(1 for _ in f)
                                 return int(max(0, count - 1))
                         else:
                             # For JSONL/NDJSON, count lines
-                            with open(file_path, "r", encoding="utf-8") as f:
+                            with open(file_path, encoding="utf-8") as f:
                                 count = sum(1 for _ in f)
                                 return int(count)
 
@@ -694,7 +696,7 @@ class DatabaseUpdateManager:
         """Generate a standardized key for food items."""
         # Track which whitespace-separated tokens originally ended with accented 'é'
         original_tokens = name.strip().split()
-        accented_e_flags: List[bool] = []
+        accented_e_flags: list[bool] = []
         for tok in original_tokens:
             lt = tok.strip().lower()
             accented_e_flags.append(lt.endswith("é"))
@@ -714,7 +716,7 @@ class DatabaseUpdateManager:
         # Now trim trailing 'e' only for parts corresponding to original tokens
         # that ended with accented 'é'. Determine which original tokens are
         # alphanumeric (non-empty after cleaning) to align with parts.
-        token_flags_alnum: List[bool] = []
+        token_flags_alnum: list[bool] = []
         for tok, flag in zip(original_tokens, accented_e_flags):
             norm_tok = (
                 unicodedata.normalize("NFKD", tok.lower()).encode("ascii", "ignore").decode("ascii")
@@ -724,7 +726,7 @@ class DatabaseUpdateManager:
                 token_flags_alnum.append(flag)
         # Iterate parts, mapping flags to non-empty parts only
         parts = key.split("_")
-        new_parts: List[str] = []
+        new_parts: list[str] = []
         flag_idx = 0
         for part in parts:
             if part == "":
@@ -744,7 +746,7 @@ class DatabaseUpdateManager:
         # Trim potential leading/trailing underscores again
         return key2.strip("_")
 
-    async def _validate_food_data(self, foods: Dict[str, UnifiedFoodItem]) -> List[str]:
+    async def _validate_food_data(self, foods: dict[str, UnifiedFoodItem]) -> list[str]:
         """
         RU: Проверяет валидность данных о продуктах.
         EN: Validate food data integrity and quality.
@@ -793,11 +795,11 @@ class DatabaseUpdateManager:
         except Exception as e:
             logger.error(f"Error creating backup: {e}")
 
-    async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
+    async def _load_backup(self, source: str, version: str) -> dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, "r") as f:
+        with open(backup_file) as f:
             data = json.load(f)
 
         # Basic schema validation: ensure minimal keys exist
@@ -810,7 +812,7 @@ class DatabaseUpdateManager:
             "source",
             "source_id",
         }
-        foods: Dict[str, UnifiedFoodItem] = {}
+        foods: dict[str, UnifiedFoodItem] = {}
         for name, food_data in data.items():
             try:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
@@ -823,7 +825,7 @@ class DatabaseUpdateManager:
 
         return foods
 
-    def _food_to_dict(self, food: Any) -> Dict[str, Any]:
+    def _food_to_dict(self, food: Any) -> dict[str, Any]:
         """Safely convert a food item to a serializable dict.
 
         - If dataclass: use asdict
@@ -837,7 +839,12 @@ class DatabaseUpdateManager:
                 return asdict(food)
         except Exception as e:
             # Skip serialization errors for this food item
-            logger.debug(f"Failed to serialize food item as dataclass: {e}")
+            food_id = getattr(food, "source_id", "unknown")
+            food_name = getattr(food, "name", "unknown")
+            logger.warning(
+                f"Failed to serialize food item as dataclass - "
+                f"id: {food_id}, name: {food_name}, error: {e}"
+            )
             pass
 
         if isinstance(food, dict):
@@ -849,7 +856,12 @@ class DatabaseUpdateManager:
                     result = getattr(food, method_name)()
                     return dict(result) if not isinstance(result, dict) else result
                 except Exception as e:
-                    logger.debug(f"Failed to serialize food using {method_name}: {e}")
+                    food_id = getattr(food, "source_id", "unknown")
+                    food_name = getattr(food, "name", "unknown")
+                    logger.warning(
+                        f"Failed to serialize food using {method_name} - "
+                        f"id: {food_id}, name: {food_name}, error: {e}"
+                    )
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values
@@ -934,7 +946,7 @@ class DatabaseUpdateManager:
         """
         self.update_callbacks.append(callback)
 
-    def get_database_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_database_status(self) -> dict[str, dict[str, Any]]:
         """
         RU: Получает статус всех баз данных.
         EN: Get status of all databases.
@@ -967,7 +979,7 @@ class DatabaseUpdateManager:
 # Convenience functions for scheduled updates
 async def run_scheduled_update(
     update_manager: DatabaseUpdateManager,
-) -> Dict[str, UpdateResult]:
+) -> dict[str, UpdateResult]:
     """
     RU: Запускает плановое обновление всех баз данных.
     EN: Run scheduled update for all databases.

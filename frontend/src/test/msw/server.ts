@@ -1,5 +1,5 @@
-import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 
 /**
  * MSW Server for Premium API Endpoints
@@ -10,6 +10,17 @@ import { http, HttpResponse } from 'msw';
  * - 400 Bad Request responses for invalid inputs
  * - 500 Internal Server Error responses for testing retries/fallbacks
  * - Success responses matching the expected API schema
+ *
+ * Error Simulation:
+ * To simulate a 500 server error, include the header 'X-Mock-Error: server_error' in your request.
+ * This approach avoids collisions with valid test data and makes error testing explicit.
+ *
+ * Example:
+ *   fetch('/api/v1/premium/bmr', {
+ *     method: 'POST',
+ *     headers: { 'X-Mock-Error': 'server_error' },
+ *     body: JSON.stringify({ weight_kg: 70, height_cm: 170, age: 30, sex: 'male', activity: 'moderate' })
+ *   });
  */
 
 // Types for request validation
@@ -164,16 +175,17 @@ export const handlers = [
   // Optional: bodyfat (0-60), lang
   http.post('/api/v1/premium/bmr', async ({ request }) => {
     try {
-      const req = await request.json() as BmrRequest;
-      const validation = validateBmrRequest(req);
-
-      // Simulate server error for testing retries/fallbacks
-      if (req.weight_kg === 999) {
+      // Check for error simulation header
+      const mockErrorHeader = request.headers.get('X-Mock-Error');
+      if (mockErrorHeader === 'server_error') {
         return HttpResponse.json(
           { error: 'Internal server error' },
           { status: 500 }
         );
       }
+
+      const req = await request.json() as BmrRequest;
+      const validation = validateBmrRequest(req);
 
       // Return 400 for invalid requests
       if (!validation.isValid) {
@@ -211,16 +223,17 @@ export const handlers = [
   // Optional: deficit_pct (5-25), surplus_pct (5-20), bodyfat (3-60), diet_flags
   http.post('/api/v1/premium/plate', async ({ request }) => {
     try {
-      const req = await request.json() as PlateRequest;
-      const validation = validatePlateRequest(req);
-
-      // Simulate server error for testing retries/fallbacks
-      if (req.age === 999) {
+      // Check for error simulation header
+      const mockErrorHeader = request.headers.get('X-Mock-Error');
+      if (mockErrorHeader === 'server_error') {
         return HttpResponse.json(
           { error: 'Internal server error' },
           { status: 500 }
         );
       }
+
+      const req = await request.json() as PlateRequest;
+      const validation = validatePlateRequest(req);
 
       // Return 400 for invalid requests
       if (!validation.isValid) {
@@ -312,16 +325,17 @@ export const handlers = [
   // Optional: goal, deficit_pct (5-25), surplus_pct (5-20), bodyfat (3-60), diet_flags, life_stage, lang
   http.post('/api/v1/premium/targets', async ({ request }) => {
     try {
-      const req = await request.json() as TargetsRequest;
-      const validation = validateTargetsRequest(req);
-
-      // Simulate server error for testing retries/fallbacks
-      if (req.height_cm === 999) {
+      // Check for error simulation header
+      const mockErrorHeader = request.headers.get('X-Mock-Error');
+      if (mockErrorHeader === 'server_error') {
         return HttpResponse.json(
           { error: 'Internal server error' },
           { status: 500 }
         );
       }
+
+      const req = await request.json() as TargetsRequest;
+      const validation = validateTargetsRequest(req);
 
       // Return 400 for invalid requests
       if (!validation.isValid) {

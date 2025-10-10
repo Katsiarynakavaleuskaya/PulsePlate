@@ -7,6 +7,7 @@ App Icon Generator for PulsePlate
 import os
 import sys
 
+
 try:
     from PIL import Image, ImageDraw
 except ImportError:

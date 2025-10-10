@@ -1,5 +1,6 @@
 import os
 
+
 """
 Tests to improve coverage in app/routers/premium_week.py for 96%+ coverage.
 
@@ -12,10 +13,12 @@ import sys
 
 from fastapi.testclient import TestClient
 
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the FastAPI app from app.py file
 import importlib.util
+
 
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:

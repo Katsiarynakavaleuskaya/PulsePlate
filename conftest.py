@@ -2,12 +2,13 @@
 Global test configuration and fixtures for the project.
 """
 
+import importlib.util
 import os
 import sys
-import pytest
-import importlib.util
-from fastapi.testclient import TestClient
 from typing import cast
+
+from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
 
@@ -238,6 +239,7 @@ def test_client():
 def isolated_test_client():
     """Fixture for creating isolated TestClient instances with clean app state."""
     import importlib
+
     import app
 
     # Reload app module to get fresh state

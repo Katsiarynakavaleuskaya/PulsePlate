@@ -10,8 +10,11 @@ converting macro targets into understandable visual portions using the hand/cup 
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Set
+from typing import Any, Literal
+
 from core.metabolism import adjust_calories_for_goal
+from settings import MIN_CALORIES_DEFAULT
+
 
 Goal = Literal["loss", "maintain", "gain"]
 
@@ -25,27 +28,78 @@ SERVE = {
 }
 
 
+def _validate_min_calories(min_calories: int | None = None) -> int:
+    """
+    RU: Валидация минимального порога калорий.
+    EN: Validate minimum calorie floor.
+
+    Args:
+        min_calories: Optional minimum calorie floor (uses MIN_CALORIES_DEFAULT if None)
+
+    Returns:
+        Validated minimum calorie value
+
+    Raises:
+        ValueError: If min_calories is outside acceptable bounds (800-2000 kcal)
+
+    Note:
+        Medical supervision is recommended for calorie intake below 1000 kcal/day.
+        The acceptable range (800-2000) allows for:
+        - Very Low Calorie Diets (VLCD): 800-1000 kcal (medical supervision)
+        - Standard safe minimum: 1200 kcal (default)
+        - Higher minimums for athletes or specific populations: up to 2000 kcal
+    """
+    value = min_calories if min_calories is not None else MIN_CALORIES_DEFAULT
+
+    if not isinstance(value, int):
+        raise ValueError(f"min_calories must be an integer, got {type(value).__name__}: {value}")
+
+    if not (800 <= value <= 2000):
+        raise ValueError(
+            f"min_calories must be between 800-2000 kcal for safety, got {value}. "
+            "Medical supervision recommended below 1000 kcal."
+        )
+
+    return value
+
+
 def target_kcal(
     tdee_val: float,
     goal: Goal,
-    deficit_pct: Optional[float],
-    surplus_pct: Optional[float],
+    deficit_pct: float | None,
+    surplus_pct: float | None,
+    min_calories: int | None = None,
 ) -> int:
     """RU: Выставляем целевую калорийность под цель.
     EN: Set target kcal per goal.
 
+    Args:
+        tdee_val: Total Daily Energy Expenditure
+        goal: Nutrition goal ("loss", "maintain", "gain")
+        deficit_pct: Caloric deficit percentage for weight loss (e.g., 20.0 for 20%)
+        surplus_pct: Caloric surplus percentage for weight gain (e.g., 12.0 for 12%)
+        min_calories: Optional minimum calorie floor (defaults to MIN_CALORIES_DEFAULT=1200)
+
+    Returns:
+        Target daily calorie intake (integer)
+
+    Raises:
+        ValueError: If min_calories is outside acceptable bounds (800-2000 kcal)
+
     Note: Delegates to core.metabolism.adjust_calories_for_goal for maintain/loss goals,
-    but applies custom logic for gain goals and minimum calorie limits.
+    but applies custom logic for gain goals and configurable minimum calorie limits.
     """
+    validated_min = _validate_min_calories(min_calories)
+
     if goal == "maintain":
         # Use core.metabolism for maintain goal
         adjusted = adjust_calories_for_goal(tdee_val, goal)
         return int(round(adjusted))
 
     if goal == "loss":
-        # Use core.metabolism but apply minimum calorie limit for safety
+        # Use core.metabolism but apply configurable minimum calorie limit for safety
         adjusted = adjust_calories_for_goal(tdee_val, goal, deficit_pct)
-        return max(1200, int(round(adjusted)))
+        return max(validated_min, int(round(adjusted)))
 
     # gain - custom logic with configurable surplus percentage
     # (core.metabolism uses fixed 10%, but plate logic allows custom surplus_pct)
@@ -53,7 +107,7 @@ def target_kcal(
     return int(round(tdee_val * (1 + pct)))
 
 
-def macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
+def macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> dict[str, int]:
     """RU: Макросы из простых правил: белок 1.6-2.0 g/kg, жир 0.8-1.0 g/kg, углеводы — остаток.
     EN: Macros via rules: protein 1.6-2.0 g/kg, fat 0.8-1.0 g/kg, carbs = rest.
     """
@@ -107,12 +161,12 @@ def macros_by_rules(weight_kg: float, kcal: int, goal: Goal) -> Dict[str, int]:
 
 
 def apply_diet_flag_adjustments(
-    macros: Dict[str, int],
+    macros: dict[str, int],
     *,
     weight_kg: float,
     kcal: int,
-    diet_flags: Optional[Set[str]],
-) -> Dict[str, int]:
+    diet_flags: set[str] | None,
+) -> dict[str, int]:
     """
     RU: Адаптирует макросы под флаги питания (HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN).
     EN: Adjust macros for dietary flags (HIGH_PROTEIN, LOW_CARB, MEDITERRANEAN).
@@ -132,7 +186,7 @@ def apply_diet_flag_adjustments(
             protein = target_protein
             changed = True
 
-    carb_ceiling: Optional[float] = None
+    carb_ceiling: float | None = None
 
     if "LOW_CARB" in diet_flags:
         # Стремимся к 25% калорий из углеводов, но не ниже 40 г
@@ -198,7 +252,7 @@ def apply_diet_flag_adjustments(
     }
 
 
-def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def portions_from_macros(macros: dict[str, int], meals_per_day: int = 3) -> dict[str, Any]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
     """
@@ -216,7 +270,7 @@ def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict
     }
 
 
-def _visual_layout(macros: Dict[str, int]) -> List[Dict[str, Any]]:
+def _visual_layout(macros: dict[str, int]) -> list[dict[str, Any]]:
     """RU: Возвращаем спеку для тарелки: 4 сектора + 2 чашки.
     EN: Return visual spec: 4 sectors + 2 bowls.
     """
@@ -279,15 +333,15 @@ def make_plate(
     weight_kg: float,
     tdee_val: float,
     goal: Goal,
-    deficit_pct: Optional[float],
-    surplus_pct: Optional[float],
-    diet_flags: Optional[Set[str]] = None,
-) -> Dict[str, Any]:
+    deficit_pct: float | None,
+    surplus_pct: float | None,
+    diet_flags: set[str] | None = None,
+) -> dict[str, Any]:
     """RU: Главная функция: целевые калории → макросы → порции → визуалка.
     EN: Main: target kcal → macros → portions → visual.
     """
     target = target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
-    normalized_flags: Optional[Set[str]] = None
+    normalized_flags: set[str] | None = None
     if diet_flags:
         normalized_flags = set(diet_flags)
         # Resolve incompatible combinations for predictable UX

@@ -394,10 +394,20 @@ pip install -r requirements.txt -r requirements-dev.txt
 pytest -q --maxfail=1 --cov=. --cov-report=term-missing
 ```
 
-### Linting
+### Linting & Quality Checks
 
 ```bash
+# Quick lint (ruff check only)
 make lint
+
+# Type checking with mypy
+make mypy
+
+# Format check (no changes)
+make fmt-check
+
+# Full quality check (format + lint + types + coverage + security)
+make check-all
 ```
 
 ---

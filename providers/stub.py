@@ -1,6 +1,6 @@
 # RU: Простой заглушечный провайдер — без внешних зависимостей
 # EN: Simple stub provider — no external deps
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 
 class StubProvider:
@@ -9,5 +9,5 @@ class StubProvider:
     def generate(self, text: str) -> str:
         # RU: Возвращаем детерминированную "инсайт"-строку
         # EN: Return deterministic "insight" string
-        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        ts = datetime.now(UTC).isoformat(timespec="seconds")
         return f"[{self.name} @ {ts}] Insight: {text[:120]}"

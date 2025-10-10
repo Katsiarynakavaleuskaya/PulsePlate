@@ -7,9 +7,9 @@ Covers:
 - Invalid USDA ID (ValueError path)
 """
 
+from contextlib import contextmanager
 import importlib
 import tempfile
-from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest

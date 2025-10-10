@@ -4,9 +4,9 @@
 """
 
 import builtins
+from importlib import reload
 import os
 import sys
-from importlib import reload
 from unittest.mock import Mock, patch
 
 import pytest

@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Comprehensive tests for core.product_varieties module.
 Covers ProductVariety and ProductVarietiesManager classes.
 """
 
 import csv
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -387,7 +386,7 @@ class TestProductVarietiesManager:
 
     def test_load_varieties_file_error(self):
         """Test loading varieties with file read error."""
-        with patch("builtins.open", side_effect=IOError("File read error")):
+        with patch("builtins.open", side_effect=OSError("File read error")):
             manager = ProductVarietiesManager("test.csv")
             assert len(manager.varieties) == 0
 
@@ -772,7 +771,7 @@ class TestProductVarietiesManagerAdditionalCoverage:
 
     def test_load_varieties_error_handling(self):
         """Test error handling during varieties loading - covers lines 175-176."""
-        with patch("builtins.open", side_effect=IOError("File not found")):
+        with patch("builtins.open", side_effect=OSError("File not found")):
             manager = ProductVarietiesManager("nonexistent.csv")
             # Manager should handle the error gracefully
             assert manager.varieties == {}

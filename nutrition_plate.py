@@ -9,13 +9,13 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from nutrition_core import (
-    ActivityLevel,
-    Sex,
-)
 from core.metabolism import (
     calculate_all_bmr,
     calculate_all_tdee,
+)
+from nutrition_core import (
+    ActivityLevel,
+    Sex,
 )
 
 
@@ -48,8 +48,8 @@ class PlateRecommendation(BaseModel):
     protein_grams: float
     carbs_grams: float
     fat_grams: float
-    meal_suggestions: List[str]
-    notes: List[str]
+    meal_suggestions: list[str]
+    notes: list[str]
 
 
 def get_macro_distribution(
@@ -92,7 +92,7 @@ def get_macro_distribution(
     )
 
 
-def calculate_macros_in_grams(calories: float, macro_dist: MacroDistribution) -> Dict[str, float]:
+def calculate_macros_in_grams(calories: float, macro_dist: MacroDistribution) -> dict[str, float]:
     """
     Calculate macro amounts in grams based on calories and percentages.
 
@@ -115,7 +115,7 @@ def calculate_macros_in_grams(calories: float, macro_dist: MacroDistribution) ->
     }
 
 
-def get_meal_suggestions(macro_dist: MacroDistribution, lang: str = "en") -> List[str]:
+def get_meal_suggestions(macro_dist: MacroDistribution, lang: str = "en") -> list[str]:
     """
     Generate meal suggestions based on macro distribution.
 
@@ -157,7 +157,7 @@ def get_meal_suggestions(macro_dist: MacroDistribution, lang: str = "en") -> Lis
     return base_suggestions
 
 
-def get_nutrition_notes(macro_dist: MacroDistribution, goal: str, lang: str = "en") -> List[str]:
+def get_nutrition_notes(macro_dist: MacroDistribution, goal: str, lang: str = "en") -> list[str]:
     """
     Generate nutrition notes and tips.
 
@@ -209,7 +209,7 @@ def make_plate(
     sex: Sex,
     activity: ActivityLevel,
     goal: str = "maintenance",
-    bodyfat: Optional[float] = None,
+    bodyfat: float | None = None,
     lang: str = "en",
 ) -> PlateRecommendation:
     """

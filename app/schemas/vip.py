@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 VIP Schemas
 
@@ -106,7 +105,7 @@ class AutoRepairConfig(BaseModel):
     max_replacements: int = Field(
         default=3, ge=1, le=10, description="Max ingredient replacements per meal"
     )
-    preserve_flags: Set[str] = Field(
+    preserve_flags: set[str] = Field(
         default_factory=set, description="Dietary flags to preserve (VEG, GF, etc.)"
     )
     prefer_local_products: bool = Field(default=True, description="Prefer local/regional products")
@@ -122,7 +121,7 @@ class RegionalConfig(BaseModel):
     currency: Currency = Field(..., description="Local currency")
     language: str = Field(default="en", description="Language code")
     units_system: str = Field(default="metric", description="Units system (metric/imperial)")
-    local_brands: List[str] = Field(default_factory=list, description="Preferred local brands")
+    local_brands: list[str] = Field(default_factory=list, description="Preferred local brands")
 
 
 class ShoplistConfig(BaseModel):
@@ -147,10 +146,10 @@ class RecipeGenerationConfig(BaseModel):
     cooking_time_max: int = Field(
         default=60, ge=15, le=180, description="Max cooking time in minutes"
     )
-    difficulty_levels: List[str] = Field(
+    difficulty_levels: list[str] = Field(
         default=["easy", "medium"], description="Allowed difficulty levels"
     )
-    cuisine_styles: List[str] = Field(default_factory=list, description="Preferred cuisine styles")
+    cuisine_styles: list[str] = Field(default_factory=list, description="Preferred cuisine styles")
 
 
 class VIPConfig(BaseModel):
@@ -159,14 +158,14 @@ class VIPConfig(BaseModel):
     EN: Main VIP features configuration.
     """
 
-    micronutrient_goals: List[MicronutrientGoal] = Field(default_factory=list)
+    micronutrient_goals: list[MicronutrientGoal] = Field(default_factory=list)
     auto_repair: AutoRepairConfig = Field(default_factory=AutoRepairConfig)
     regional: RegionalConfig = Field(
         default_factory=lambda: RegionalConfig(region=Region.US, currency=Currency.USD)
     )
     shoplist: ShoplistConfig = Field(default_factory=ShoplistConfig)
     recipe_generation: RecipeGenerationConfig = Field(default_factory=RecipeGenerationConfig)
-    enabled_features: Set[str] = Field(default_factory=set, description="Enabled VIP features")
+    enabled_features: set[str] = Field(default_factory=set, description="Enabled VIP features")
 
 
 class VIPFeatureFlags(BaseModel):
@@ -190,19 +189,19 @@ class WeeklyPlanRequest(BaseModel):
     """
 
     # Core required fields for full functionality
-    sex: Optional[Literal["female", "male"]] = Field(None, description="Gender (male/female)")
-    age: Optional[int] = Field(None, ge=1, le=120, description="Age in years")
-    height_cm: Optional[float] = Field(None, gt=0, le=300, description="Height in centimeters")
-    weight_kg: Optional[float] = Field(None, gt=0, le=500, description="Weight in kilograms")
-    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = Field(
+    sex: Literal["female", "male"] | None = Field(None, description="Gender (male/female)")
+    age: int | None = Field(None, ge=1, le=120, description="Age in years")
+    height_cm: float | None = Field(None, gt=0, le=300, description="Height in centimeters")
+    weight_kg: float | None = Field(None, gt=0, le=500, description="Weight in kilograms")
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] | None = Field(
         None, description="Activity level"
     )
-    goal: Optional[Literal["loss", "maintain", "gain"]] = Field(None, description="Nutrition goal")
+    goal: Literal["loss", "maintain", "gain"] | None = Field(None, description="Nutrition goal")
 
     # Legacy/alternative fields for backward compatibility
-    calories: Optional[int] = Field(None, ge=100, le=10000, description="Daily calories target")
-    protein: Optional[float] = Field(None, ge=0, le=500, description="Daily protein target (g)")
-    user_id: Optional[str] = Field(None, description="User identifier")
+    calories: int | None = Field(None, ge=100, le=10000, description="Daily calories target")
+    protein: float | None = Field(None, ge=0, le=500, description="Daily protein target (g)")
+    user_id: str | None = Field(None, description="User identifier")
     preferences: dict = Field(default_factory=dict, description="User preferences")
     goals: dict = Field(default_factory=dict, description="Nutrition goals")
     constraints: dict = Field(default_factory=dict, description="Dietary constraints")

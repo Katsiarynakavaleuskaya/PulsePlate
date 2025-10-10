@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for LLM module and providers."""
 
 import os

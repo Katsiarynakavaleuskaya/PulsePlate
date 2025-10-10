@@ -1,8 +1,8 @@
 // RU: API клиент с поддержкой аутентификации. Обрабатывает 401 ошибки, перенаправляя на страницу ввода ключа.
 // EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
+import { clearStoredApiKey, getStoredApiKey } from "../auth/storage";
 import { logError } from "../lib/analytics";
-import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 /**
  * Dependencies for API client that can be injected for testing
@@ -116,7 +116,11 @@ function mockUrl(path: string): string | null {
 
 // API Key management moved to auth context
 // Re-export for backward compatibility
-export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/storage";
+export { clearStoredApiKey, getStoredApiKey, setStoredApiKey } from "../auth/storage";
+export { getBmr, getPlate, getTargets } from "./premium";
+export type {
+  BmrApiResponse, BmrRequest, PlateApiResponse, PlateRequest, TargetsApiResponse, TargetsRequest
+} from "./premium";
 
 /**
  * Validates API key by making a lightweight request to the backend
@@ -181,13 +185,14 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
       defaults["Content-Type"] = "application/json";
     } else if (forceJson === undefined && init?.body) {
       if (typeof init.body === "string") {
-        // Fall back to safe JSON detection only when flag is undefined
-        try {
-          JSON.parse(init.body.trim());
+        // Lightweight heuristic: check first non-whitespace character
+        // Avoids parsing overhead for large payloads
+        const trimmed = init.body.trim();
+        const firstChar = trimmed[0];
+        if (firstChar === "{" || firstChar === "[") {
           defaults["Content-Type"] = "application/json";
-        } catch {
-          // Not valid JSON, don't set Content-Type
         }
+        // Otherwise, don't set Content-Type (could be plain text, CSV, etc.)
       } else if (init.body instanceof Blob) {
         // Set Content-Type from blob's type if available
         if (init.body.type) {
@@ -280,7 +285,25 @@ export async function api<T = unknown>(
       serializedBody = JSON.stringify(body);
       forceJsonForBody = true;
     } else if (body !== undefined && body !== null && !isBinaryLike(body)) {
-      serializedBody = String(body);
+      // Strict validation: reject unsupported primitive types that would be silently coerced
+      const bodyType = typeof body;
+      if (bodyType === 'number' || bodyType === 'boolean' || bodyType === 'bigint' || bodyType === 'symbol') {
+        throw new TypeError(
+          `Invalid body type: ${bodyType}. ` +
+          `Allowed types: plain objects, arrays, FormData, Blob, ArrayBuffer, URLSearchParams, ReadableStream, or string. ` +
+          `Received: ${String(body)}`
+        );
+      }
+      // Allow strings explicitly
+      if (bodyType === 'string') {
+        serializedBody = body as string;
+      } else {
+        // Fallback for any other edge case (e.g., functions, etc.)
+        throw new TypeError(
+          `Unsupported body type: ${bodyType}. ` +
+          `Body must be an object, array, string, or binary-like (FormData, Blob, etc.).`
+        );
+      }
     } else {
       serializedBody = (body as BodyInit) || null;
     }
@@ -349,15 +372,6 @@ export async function api<T = unknown>(
 }
 
 export const fetchJson = api;
-export { getBmr, getPlate, getTargets } from "./premium";
-export type {
-  BmrRequest,
-  BmrApiResponse,
-  PlateRequest,
-  PlateApiResponse,
-  TargetsRequest,
-  TargetsApiResponse,
-} from "./premium";
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
 export type WeekPlanResponse = {

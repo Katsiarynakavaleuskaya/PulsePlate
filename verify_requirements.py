@@ -3,15 +3,15 @@
 Verify that package versions are consistent across requirements files.
 """
 
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 
-def parse_requirements(file_path: Path) -> Dict[str, str]:
+def parse_requirements(file_path: Path) -> dict[str, str]:
     """Parse requirements file and return dict of package:version."""
-    packages: Dict[str, str] = {}
+    packages: dict[str, str] = {}
 
     if not file_path.exists():
         return packages
@@ -44,7 +44,7 @@ def main() -> int:
 
     print("🔍 Verifying requirements consistency...\n")
 
-    errors: List[str] = []
+    errors: list[str] = []
 
     # Check: requirements-dev.txt should not override requirements.txt versions
     print("✓ Checking requirements-dev.txt vs requirements.txt...")

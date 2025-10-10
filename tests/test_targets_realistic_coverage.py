@@ -4,9 +4,11 @@ Target 93% coverage improvement with realistic nutrition target scenarios.
 """
 
 import logging
-import pytest
+
 from faker import Faker
 from faker.providers import BaseProvider
+import pytest
+
 
 fake = Faker()
 
@@ -69,25 +71,25 @@ class TestTargetsRealisticCoverage:
         pytest.importorskip("core.targets")
         pytest.importorskip("core.metabolism")
         from core.metabolism import (
-            calculate_bmr,
-            get_bmr_formula,
-            adjust_for_activity,
-            calculate_tdee,
-            calculate_macros,
-            get_macro_ratios,
             adjust_calories_for_goal,
+            adjust_for_activity,
+            calculate_bmr,
             calculate_deficit_surplus,
+            calculate_macros,
+            calculate_tdee,
+            get_bmr_formula,
+            get_macro_ratios,
         )
         from core.targets import (
-            get_rda_values,
+            adjust_for_climate,
+            calculate_hydration_needs,
+            calculate_pre_post_workout,
+            check_deficiency_risk,
             get_athlete_targets,
             get_elderly_adjustments,
-            get_pregnancy_targets,
-            calculate_pre_post_workout,
             get_meal_timing,
-            calculate_hydration_needs,
-            adjust_for_climate,
-            check_deficiency_risk,
+            get_pregnancy_targets,
+            get_rda_values,
             get_supplement_recommendations,
         )
 
@@ -132,13 +134,13 @@ class TestTargetsRealisticCoverage:
         pytest.importorskip("core.targets")
         pytest.importorskip("core.metabolism")
         from core.metabolism import (
-            adjust_for_activity,
-            calculate_tdee,
-            calculate_bmr,
-            calculate_macros,
-            get_macro_ratios,
             adjust_calories_for_goal,
+            adjust_for_activity,
+            calculate_bmr,
             calculate_deficit_surplus,
+            calculate_macros,
+            calculate_tdee,
+            get_macro_ratios,
         )
         from core.targets import (
             get_rda_values,
@@ -233,8 +235,8 @@ class TestTargetsRealisticCoverage:
         try:
             from core.metabolism import (
                 calculate_bmr,
-                calculate_tdee,
                 calculate_macros,
+                calculate_tdee,
                 get_macro_ratios,
             )
 
@@ -423,14 +425,14 @@ class TestTargetsRealisticCoverage:
         """Test nutrient timing recommendations with realistic scenarios"""
         pytest.importorskip("core.targets")
         from core.targets import (
+            adjust_for_climate,
+            calculate_hydration_needs,
             calculate_pre_post_workout,
-            get_meal_timing,
+            check_deficiency_risk,
             get_athlete_targets,
             get_elderly_adjustments,
+            get_meal_timing,
             get_pregnancy_targets,
-            calculate_hydration_needs,
-            adjust_for_climate,
-            check_deficiency_risk,
             get_supplement_recommendations,
         )
 

@@ -8,9 +8,10 @@ import sys
 from typing import cast
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
+
 
 # Add paths for import resolution
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 VIP API Tests
 
@@ -13,6 +12,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app
+
 
 # Type assertion to satisfy type checker
 assert isinstance(app.app, FastAPI), "app should be FastAPI instance"

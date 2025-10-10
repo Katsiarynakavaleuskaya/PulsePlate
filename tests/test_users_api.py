@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Generator, cast
+from collections.abc import Generator
+from typing import cast
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import text
 from starlette.types import ASGIApp
 
@@ -14,7 +15,7 @@ from core import db as db_module
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_users() -> Generator[None, None, None]:
+def _cleanup_users() -> Generator[None]:
     """RU: Очищает таблицу пользователей между тестами.
 
     EN: Ensure users table is cleared between tests.

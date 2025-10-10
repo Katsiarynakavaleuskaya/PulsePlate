@@ -51,18 +51,43 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.ruff.lint]
-select = ["E", "W", "F"]
+# Включаем проверки:
+# E/W - pycodestyle errors/warnings
+# F - Pyflakes (unused imports, undefined names, etc.)
+# I - isort (import ordering)
+# N - pep8-naming
+# UP - pyupgrade (modern Python syntax)
+# B - flake8-bugbear (common bugs)
+# C4 - flake8-comprehensions
+# T20 - flake8-print (no print statements in production)
+select = ["E", "W", "F", "I", "N", "UP", "B", "C4"]
+
 ignore = [
     "E402",  # Module level import not at top of file
-    "E501",  # Line too long
-    "F811",  # Redefinition of unused variable
-    "F401",  # Imported but unused
+    "E501",  # Line too long (handled by formatter)
+    "F811",  # Redefinition of unused variable (tests)
+    "F401",  # Imported but unused (handled separately)
     "F841",  # Local variable assigned but never used
+    "N802",  # Function name should be lowercase (compatibility)
+    "N803",  # Argument name should be lowercase (compatibility)
+    "B008",  # Do not perform function call in argument defaults (FastAPI)
 ]
+
+# Автоматически исправлять что возможно
+fixable = ["I", "F401", "UP", "C4"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+# Настройки сортировки импортов (совместимо с isort)
+known-first-party = ["core", "app", "providers", "tests"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+lines-after-imports = 2
+force-single-line = false
+force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["E402", "F811", "F401", "F841"]
-"scripts/*.py" = ["E402"]
+"scripts/*.py" = ["E402", "T20"]
 "releases/**/*.py" = ["E402"]
 
 [tool.pyright]

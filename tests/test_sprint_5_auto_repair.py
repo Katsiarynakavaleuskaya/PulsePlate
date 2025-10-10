@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for Sprint 5: Auto-repair functionality
 

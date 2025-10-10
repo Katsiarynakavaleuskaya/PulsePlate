@@ -7,18 +7,20 @@ integration with the richer generator pipeline.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import csv
-import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from io import BytesIO, StringIO
+import logging
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
 
 router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
 
@@ -29,16 +31,16 @@ FONT_NAME = "DejaVuSans"
 
 def _export_timestamp() -> str:
     """Return an RFC3339-like timestamp usable in filenames."""
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _demo_shoplist() -> Dict[str, Any]:
+def _demo_shoplist() -> dict[str, Any]:
     """Return a deterministic demo shoplist structure for now.
 
     Once the full profile-aware generator is ready we can replace this helper
     with a real service call but the shape of the response will remain stable.
     """
-    groups: List[Dict[str, Any]] = [
+    groups: list[dict[str, Any]] = [
         {
             "aisle": "Produce",
             "items": [
@@ -100,9 +102,9 @@ def _demo_shoplist() -> Dict[str, Any]:
     }
 
 
-def _flatten_shop_items(groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _flatten_shop_items(groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten grouped shoplist items into a single list."""
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for group in groups:
         aisle = group.get("aisle", "") if isinstance(group, dict) else ""
         items = group.get("items") if isinstance(group, dict) else None
@@ -123,7 +125,7 @@ def _flatten_shop_items(groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]
     return rows
 
 
-def _iter_flat_rows(items: Iterable[Dict[str, Any]]) -> Iterable[List[str]]:
+def _iter_flat_rows(items: Iterable[dict[str, Any]]) -> Iterable[list[str]]:
     """Yield CSV rows as lists of strings."""
     for item in items:
         yield [
@@ -137,19 +139,22 @@ def _iter_flat_rows(items: Iterable[Dict[str, Any]]) -> Iterable[List[str]]:
 
 def _register_font_if_available() -> str:
     """Register the bundled DejaVuSans font to support Cyrillic text."""
-    if FONT_PATH.exists():
-        try:
-            if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
-            return FONT_NAME  # Success: return custom font
-        except Exception as exc:
-            # Registration failed, fall back to default Helvetica
-            logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
+    # Check if font is already registered
+    if FONT_NAME in pdfmetrics.getRegisteredFontNames():
+        return FONT_NAME
 
-    return "Helvetica"  # Fallback: file doesn't exist or registration failed
+    if not FONT_PATH.exists():
+        return "Helvetica"
+    try:
+        pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
+        return FONT_NAME
+    except Exception as exc:
+        # Fall back to Helvetica for any registration error
+        logging.warning("Font registration failed, using Helvetica fallback: %s", exc)
+        return "Helvetica"
 
 
-def _render_pdf(shop: Dict[str, Any]) -> bytes:
+def _render_pdf(shop: dict[str, Any]) -> bytes:
     """Render a printable PDF representation of *shop*."""
     buf = BytesIO()
     page_w, page_h = A4
@@ -157,7 +162,7 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
 
     c = canvas.Canvas(buf, pagesize=A4)
 
-    generated_at = datetime.now(timezone.utc)
+    generated_at = datetime.now(UTC)
     header = "Список покупок / Shoplist"
     meta = f"Store: {shop.get('store', '-')}  |  Currency: {shop.get('currency', '')}"
     total = shop.get("total_estimated")
@@ -219,7 +224,7 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
 
 
 @router.get("")
-def get_shoplist() -> Dict[str, Any]:
+def get_shoplist() -> dict[str, Any]:
     """Return the current shoplist in JSON form."""
     return _demo_shoplist()
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 from typing import List
 
@@ -8,10 +7,11 @@ from app.schemas.recipe import Recipe, RecipePreviewRequest, RecipePreviewRespon
 from app.services import recipe_store
 from app.services.food_store import nutrients_for
 
+
 router = APIRouter(tags=["recipes"])
 
 
-@router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
+@router.get("/api/v1/recipes", response_model=list[RecipeQueryHit])
 def list_recipes(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
@@ -31,7 +31,7 @@ def list_recipes(query: str = Query("", max_length=64), limit: int = 20, offset:
 
 
 # Backward-compatible alias for tests expecting /api/v1/recipes/search
-@router.get("/api/v1/recipes/search", response_model=List[RecipeQueryHit])
+@router.get("/api/v1/recipes/search", response_model=list[RecipeQueryHit])
 def list_recipes_search(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
     return list_recipes(query=query, limit=limit, offset=offset)
 

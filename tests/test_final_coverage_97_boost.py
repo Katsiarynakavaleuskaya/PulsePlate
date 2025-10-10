@@ -5,8 +5,9 @@ Final boost to reach 97% coverage by targeting specific uncovered lines.
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")

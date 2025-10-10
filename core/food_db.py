@@ -40,7 +40,7 @@ class FoodItem:
     K_mg: float
     Mg_mg: float
     price_per_unit: float
-    flags: Set[str]
+    flags: set[str]
 
     def to_micro_targets(self) -> MicroTargets:
         """
@@ -88,7 +88,7 @@ class FoodItem:
         return nutrient_mapping.get(nutrient_name, 0.0) * factor
 
 
-def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
+def parse_food_db(csv_path: str = "data/food_db.csv") -> dict[str, FoodItem]:
     """
     RU: Парсит CSV файл базы данных продуктов.
     EN: Parse food database CSV file.
@@ -101,7 +101,7 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     """
     food_db = {}
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Parse flags
@@ -135,7 +135,7 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     return food_db
 
 
-def pick_booster_for(micro: str, flags: Set[str], food_db: Dict[str, FoodItem]) -> Optional[str]:
+def pick_booster_for(micro: str, flags: set[str], food_db: dict[str, FoodItem]) -> str | None:
     """
     RU: Выбирает продукт-бустер для конкретного микронутриента.
     EN: Picks a booster food for a specific micronutrient.
@@ -175,7 +175,7 @@ def pick_booster_for(micro: str, flags: Set[str], food_db: Dict[str, FoodItem]) 
     return filtered_candidates[0] if filtered_candidates else None
 
 
-def aggregate_shopping(days: List[Dict]) -> Dict[str, float]:
+def aggregate_shopping(days: list[dict]) -> dict[str, float]:
     """
     RU: Агрегирует список покупок за несколько дней.
     EN: Aggregates shopping list across multiple days.
@@ -186,7 +186,7 @@ def aggregate_shopping(days: List[Dict]) -> Dict[str, float]:
     Returns:
         Dictionary mapping ingredient names to total amounts needed
     """
-    shopping_list: Dict[str, float] = {}
+    shopping_list: dict[str, float] = {}
 
     for day in days:
         if "meals" in day:

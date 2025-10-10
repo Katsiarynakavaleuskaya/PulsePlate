@@ -3,14 +3,13 @@ Comprehensive tests to improve coverage for food_apis modules to 97%+.
 These tests target the uncovered lines to maximize coverage improvement.
 """
 
-import logging
-
 import asyncio
+from dataclasses import asdict
+from datetime import UTC, datetime, timedelta, timezone
 import json
+import logging
 import os
 import tempfile
-from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -51,7 +50,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         # Mock datetime.now to return consistent values
         with patch(
             "core.food_apis.scheduler.now_utc",
-            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         ):
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)
@@ -75,7 +74,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         # Mock datetime.now to return consistent values
         with patch(
             "core.food_apis.scheduler.now_utc",
-            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            return_value=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         ):
             # Mock _should_check_for_updates to return True
             scheduler._should_check_for_updates = MagicMock(return_value=True)

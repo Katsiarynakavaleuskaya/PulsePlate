@@ -4,7 +4,7 @@ import re
 from typing import Dict
 
 
-def _load_aliases(path: str = None) -> Dict[str, str]:
+def _load_aliases(path: str = None) -> dict[str, str]:
     """
     RU: Загрузить таблицу синонимов.
     EN: Load alias table.

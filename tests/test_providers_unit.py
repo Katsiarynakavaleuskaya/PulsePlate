@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Изолированные юнит‑тесты для провайдеров: stub, grok, ollama, pico.
 Все сетевые вызовы замещаются фейковыми клиентами; ретраи не ждут времени,
 т.к. мы обращаемся к __wrapped__ при необходимости.
@@ -14,6 +13,7 @@ from typing import Any, Dict
 
 import httpx
 import pytest
+
 
 # ---------------- StubProvider -----------------
 
@@ -72,8 +72,27 @@ def test_grok_generate_success(monkeypatch):
         def __init__(self, *a, **kw):
             self.chat = types.SimpleNamespace(completions=_FakeChat())
 
+    # Create fake exception classes that grok.py imports
+    class APITimeoutError(Exception):
+        pass
+
+    class APIConnectionError(Exception):
+        pass
+
+    class RateLimitError(Exception):
+        pass
+
+    class APIStatusError(Exception):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args)
+            self.status_code = kwargs.get("status_code", 500)
+
     openai_fake = types.ModuleType("openai")
     openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APITimeoutError = APITimeoutError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APIConnectionError = APIConnectionError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.RateLimitError = RateLimitError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APIStatusError = APIStatusError  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     # гарантируем, что модуль grok увидит наш openai
     if "providers.grok" in sys.modules:
@@ -99,8 +118,27 @@ def test_grok_generate_error_wrapped(monkeypatch):
         def __init__(self, *a, **kw):
             self.chat = types.SimpleNamespace(completions=_FakeChat())
 
+    # Create fake exception classes
+    class APITimeoutError(Exception):
+        pass
+
+    class APIConnectionError(Exception):
+        pass
+
+    class RateLimitError(Exception):
+        pass
+
+    class APIStatusError(Exception):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args)
+            self.status_code = kwargs.get("status_code", 500)
+
     openai_fake = types.ModuleType("openai")
     openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APITimeoutError = APITimeoutError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APIConnectionError = APIConnectionError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.RateLimitError = RateLimitError  # pyright: ignore[reportAttributeAccessIssue]
+    openai_fake.APIStatusError = APIStatusError  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     if "providers.grok" in sys.modules:
         grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
@@ -122,7 +160,7 @@ def test_grok_generate_error_wrapped(monkeypatch):
 
 
 class _FakeResp:
-    def __init__(self, status_code: int, data: Dict[str, Any] | None):
+    def __init__(self, status_code: int, data: dict[str, Any] | None):
         self.status_code = status_code
         self._data = data or {}
 
@@ -131,7 +169,7 @@ class _FakeResp:
 
 
 class _FakeAsyncClient:
-    def __init__(self, chat_payload: Dict[str, Any] | None, gen_payload: Dict[str, Any] | None):
+    def __init__(self, chat_payload: dict[str, Any] | None, gen_payload: dict[str, Any] | None):
         self._chat_payload = chat_payload
         self._gen_payload = gen_payload
 
@@ -199,7 +237,7 @@ def test_ollama_unavailable_wrapped(monkeypatch):
         # обойти retries
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))[attr - defined]
         finally:
             loop.close()
 
@@ -223,7 +261,7 @@ def test_ollama_request_error_wrapped(monkeypatch):
     with pytest.raises(RuntimeError) as ei:
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))[attr - defined]
         finally:
             loop.close()
     assert "ollama_unavailable" in str(ei.value)
@@ -254,7 +292,7 @@ def test_pico_generate_variants(monkeypatch):
     from providers import pico as pico_mod
 
     class _Resp:
-        def __init__(self, data: Dict[str, Any]):
+        def __init__(self, data: dict[str, Any]):
             self._data = data
 
         def raise_for_status(self):

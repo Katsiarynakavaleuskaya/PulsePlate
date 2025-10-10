@@ -5,8 +5,9 @@ Focused edge case tests for Pydantic validation covering only the cases
 that are known to work with the current API implementation.
 """
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
+
 
 try:
     import app as app_mod  # type: ignore

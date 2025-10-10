@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, StrictFloat, model_validator
 
+
 try:
     pass  # type: ignore
 
@@ -30,14 +31,14 @@ class BMIRequest(BaseModel):
     gender: str
     pregnant: str
     athlete: str
-    waist_cm: Optional[float] = Field(None, gt=0)
+    waist_cm: float | None = Field(None, gt=0)
     lang: Literal["ru", "en"] = "ru"
-    premium: Optional[bool] = False
+    premium: bool | None = False
 
     # Нормализуем строковые флаги до нижнего регистра
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values: Dict):
+    def _normalize_values(cls, values: dict):
         for k in ["gender", "pregnant", "athlete", "lang"]:
             if k in values and isinstance(values[k], str):
                 values[k] = values[k].strip().lower()
@@ -60,7 +61,7 @@ def category_by_bmi(bmi: float, lang: str = "ru") -> str:
     return "Ожирение" if lang == "ru" else "Obesity"
 
 
-def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]:
+def normalize_flags(gender: str, pregnant: str, athlete: str) -> dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",
@@ -83,7 +84,7 @@ def normalize_flags(gender: str, pregnant: str, athlete: str) -> Dict[str, bool]
     }
 
 
-def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: str = "ru") -> str:
+def waist_risk(waist_cm: float | None, gender_male: bool, lang: str = "ru") -> str:
     if waist_cm is None:
         return ""
     warn, high = (94, 102) if gender_male else (80, 88)
@@ -243,6 +244,7 @@ def debug_env():
 
 
 from bodyfat import get_router as get_bodyfat_router
+
 
 app.include_router(get_bodyfat_router())
 

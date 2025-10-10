@@ -1,9 +1,10 @@
 import math
-import sys
 from pathlib import Path
+import sys
 from typing import Any, Dict, cast
 
 import pytest
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -67,7 +68,7 @@ def test_estimate_all_smoke():
     res = estimate_all(data)
     assert "methods" in res and isinstance(res["methods"], dict)
     # если хотя бы одна методика дала число — ок
-    methods: Dict[str, Any] = cast(Dict[str, Any], res["methods"])  # typing help for pyright
+    methods: dict[str, Any] = cast(dict[str, Any], res["methods"])  # typing help for pyright
     vals = list(methods.values())
     assert any(isinstance(v, (int, float)) and 0 < v < 100 for v in vals)
     # если есть медиана — тоже должна быть корректным процентом
@@ -87,7 +88,7 @@ def test_estimate_all_female_no_hip():
     }
     res = estimate_all(data)
     assert "methods" in res
-    methods: Dict[str, Any] = cast(Dict[str, Any], res["methods"])  # ensure Mapping[str, Any]
+    methods: dict[str, Any] = cast(dict[str, Any], res["methods"])  # ensure Mapping[str, Any]
     # us_navy should not be in methods because hip_cm missing
     assert "us_navy" not in methods
     # but deurenberg and ymca should be

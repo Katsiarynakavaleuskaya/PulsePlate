@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytest
 
 from core.i18n import t, validate_translation_key

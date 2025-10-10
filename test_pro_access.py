@@ -9,7 +9,7 @@ from typing import Any, Dict
 import openai
 
 
-def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
+def test_openai_pro_access(api_key: str) -> dict[str, Any]:
     """Test OpenAI Pro access and list available models"""
     try:
         client = openai.OpenAI(api_key=api_key)

@@ -85,7 +85,7 @@ class _FakeFood:
         self.fat_g = 0.0
         self.carbs_g = 0.0
         self.fiber_g = 0.0
-        self.micros: Dict[str, float] = {}
+        self.micros: dict[str, float] = {}
 
 
 class _FakeFoodDB:
@@ -225,7 +225,7 @@ def test_exports_pdf_fallback_day_week(monkeypatch: pytest.MonkeyPatch, tmp_path
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(_bi, "__import__", boom)
-    plate: Dict[str, Any] = {
+    plate: dict[str, Any] = {
         "kcal": 2000,
         "macros": {"protein_g": 120, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
         "meals": [
@@ -395,7 +395,7 @@ class _StubFood:
         self.fat_g = 0.0
         self.carbs_g = 0.0
         self.fiber_g = 0.0
-        self.micros: Dict[str, float] = {}
+        self.micros: dict[str, float] = {}
         self.protein_g = 0.0 if kcal_zero else 1.0
 
 
@@ -426,9 +426,7 @@ def test_menu_engine_new_booster_none_path():
     # With no meals and high micro targets, cov < 80 triggers booster path.
     targets = {
         "kcal": 2000,
-        "micro": {
-            k: 100.0 for k in __import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS
-        },
+        "micro": dict.fromkeys(__import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0),
     }
     plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
         targets=targets,
@@ -445,9 +443,7 @@ def test_menu_engine_new_kcal_100_zero_path():
     # Force donor and zero macro food so kcal_100 == 0 and branch is skipped.
     targets = {
         "kcal": 2000,
-        "micro": {
-            k: 100.0 for k in __import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS
-        },
+        "micro": dict.fromkeys(__import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0),
     }
     plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
         targets=targets,

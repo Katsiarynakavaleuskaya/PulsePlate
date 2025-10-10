@@ -13,8 +13,8 @@ class TestDatabaseUpdateManagerCoverage97:
     def test_path_wrapper_truediv_behaviour(self) -> None:
         """Path wrapper preserves Path division semantics."""
         # Use the public DatabaseUpdateManager to access the path wrapper functionality
-        import tempfile
         from pathlib import Path as PathlibPath
+        import tempfile
 
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -68,7 +68,7 @@ class TestDatabaseUpdateManagerCoverage97:
         self,
         tmp_path: Path,
         side_effects: dict[str, Exception],
-        expected_exception: Type[BaseException] | tuple[Type[BaseException], ...] | None,
+        expected_exception: type[BaseException] | tuple[type[BaseException], ...] | None,
         expected_message: str | None,
     ) -> None:
         """Initialization should either succeed or surface dependency failures clearly."""
