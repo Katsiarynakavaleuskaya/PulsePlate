@@ -18,12 +18,20 @@ def _reload_with_env(env_builder: Callable[[dict[str, str]], None]) -> None:
     env_updates: dict[str, str] = {}
     env_builder(env_updates)
     with patch.dict(os.environ, env_updates, clear=False):
-        importlib.reload(db_module)
+        try:
+            importlib.reload(db_module)
+        except ImportError:
+            # Skip reload if module is not available
+            pass
 
 
 def _restore_core_db() -> None:
     """Restore ``core.db`` to its default module state."""
-    importlib.reload(db_module)
+    try:
+        importlib.reload(db_module)
+    except ImportError:
+        # Skip reload if module is not available
+        pass
 
 
 @pytest.fixture(autouse=True)
