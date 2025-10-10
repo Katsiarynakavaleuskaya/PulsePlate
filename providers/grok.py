@@ -1,6 +1,30 @@
 from typing import Optional
 
-from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI
+
+
+# Try importing new exception classes (openai >= 1.0)
+try:
+    from openai import (
+        APIConnectionError,
+        APIStatusError,
+        APITimeoutError,
+        RateLimitError,
+    )
+except ImportError:
+    # Fallback for older openai versions
+    APITimeoutError = TimeoutError  # type: ignore[misc, assignment]
+    APIConnectionError = ConnectionError  # type: ignore[misc, assignment]
+    RateLimitError = Exception  # type: ignore[misc, assignment]
+
+    class APIStatusError(Exception):  # type: ignore[no-redef]
+        """Fallback for older openai SDK versions."""
+
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            super().__init__(*args)
+            self.status_code = kwargs.get("status_code", 500)
+
+
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 

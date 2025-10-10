@@ -115,8 +115,8 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception as e:
-                # Catch all exceptions during commit (InvalidRequestError, SQLAlchemyError, etc.)
+            except (InvalidRequestError, SQLAlchemyError) as e:
+                # Catch commit-related DB exceptions (InvalidRequestError, SQLAlchemyError)
                 # Log and continue to return the result despite commit failure
                 logger.debug(
                     "Commit failed or skipped for statement: %s",

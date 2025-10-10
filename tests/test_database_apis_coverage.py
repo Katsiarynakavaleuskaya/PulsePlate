@@ -12,9 +12,8 @@ import os
 
 TEST_FILE = os.path.basename(__file__)
 
-from unittest.mock import patch
-
 import pytest
+from pytest import MonkeyPatch
 
 
 def _test_with_exception_handling(test_func: Callable[[], None], skip_message: str) -> None:
@@ -134,7 +133,7 @@ class TestCoreDatabaseCoverage:
 
         _test_with_exception_handling(test_impl, "food_apis.base module not available")
 
-    def test_usda_api_coverage(self) -> None:
+    def test_usda_api_coverage(self, monkeypatch: MonkeyPatch) -> None:
         """Test USDA API functionality."""
         try:
             from core.food_apis.usda import USDAClient
@@ -145,9 +144,9 @@ class TestCoreDatabaseCoverage:
 
             # Test methods with mock data
             if hasattr(client, "search"):
-                with patch.object(client, "search", return_value={}):
-                    result = client.search("apple")
-                    assert isinstance(result, (dict, list, type(None)))
+                monkeypatch.setattr(client, "search", lambda *args, **kwargs: {})
+                result = client.search("apple")
+                assert isinstance(result, (dict, list, type(None)))
 
         except ImportError:
             pytest.skip("usda module not available")
@@ -171,7 +170,7 @@ class TestCoreDatabaseCoverage:
                 logging.exception(f"Unexpected RuntimeError in {TEST_FILE}")
                 raise
 
-    def test_openfoodfacts_api_coverage(self) -> None:
+    def test_openfoodfacts_api_coverage(self, monkeypatch: MonkeyPatch) -> None:
         """Test OpenFoodFacts API functionality."""
         try:
             from core.food_apis.openfoodfacts import OpenFoodFactsClient
@@ -182,9 +181,9 @@ class TestCoreDatabaseCoverage:
 
             # Test methods if available
             if hasattr(client, "get_product"):
-                with patch.object(client, "get_product", return_value={}):
-                    result = client.get_product("123456789")
-                    assert isinstance(result, (dict, type(None)))
+                monkeypatch.setattr(client, "get_product", lambda *args, **kwargs: {})
+                result = client.get_product("123456789")
+                assert isinstance(result, (dict, type(None)))
 
         except ImportError:
             pytest.skip("openfoodfacts module not available")
