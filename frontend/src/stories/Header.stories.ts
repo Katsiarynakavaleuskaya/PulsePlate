@@ -1,4 +1,3 @@
-import { action } from '@storybook/addon-actions';
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Header } from './Header';
@@ -13,9 +12,9 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
-    onLogin: action('onLogin'),
-    onLogout: action('onLogout'),
-    onCreateAccount: action('onCreateAccount'),
+    onLogin: () => {},
+    onLogout: () => {},
+    onCreateAccount: () => {},
   },
 } satisfies Meta<typeof Header>;
 

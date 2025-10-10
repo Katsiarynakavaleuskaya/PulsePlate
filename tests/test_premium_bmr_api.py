@@ -361,7 +361,10 @@ class TestPremiumBMRAPI:
         assert response.status_code == 200
         data = response.json()
         assert all(bmr > 0 for bmr in data["bmr"].values())
-        assert all(tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values()))
+        assert all(
+            tdee > bmr
+            for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values(), strict=False)
+        )
 
 
 if __name__ == "__main__":

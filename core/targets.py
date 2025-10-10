@@ -415,7 +415,7 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> l
         Список предупреждений с кодами и локализованными сообщениями
     """
     # Локализованные сообщения
-    M = {
+    messages = {
         "teen": {
             "ru": "Подростковая группа: используйте специализированные нормы.",
             "en": "Teen life stage: use age-appropriate references.",
@@ -447,14 +447,16 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> l
 
     # Проверяем возрастные группы
     if 12 <= age <= 18 and life_stage == "teen":
-        warnings.append({"code": "teen", "message": M["teen"].get(lang, M["teen"]["en"])})
+        warnings.append(
+            {"code": "teen", "message": messages["teen"].get(lang, messages["teen"]["en"])}
+        )
 
     # Проверяем специальные состояния
     if life_stage == "pregnant":
         warnings.append(
             {
                 "code": "pregnant",
-                "message": M["pregnant"].get(lang, M["pregnant"]["en"]),
+                "message": messages["pregnant"].get(lang, messages["pregnant"]["en"]),
             }
         )
 
@@ -462,15 +464,19 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> l
         warnings.append(
             {
                 "code": "lactating",
-                "message": M["lactating"].get(lang, M["lactating"]["en"]),
+                "message": messages["lactating"].get(lang, messages["lactating"]["en"]),
             }
         )
 
     if age >= 51 and life_stage == "elderly":
-        warnings.append({"code": "elderly", "message": M["elderly"].get(lang, M["elderly"]["en"])})
+        warnings.append(
+            {"code": "elderly", "message": messages["elderly"].get(lang, messages["elderly"]["en"])}
+        )
 
     if age < 12 and life_stage == "child":
-        warnings.append({"code": "child", "message": M["child"].get(lang, M["child"]["en"])})
+        warnings.append(
+            {"code": "child", "message": messages["child"].get(lang, messages["child"]["en"])}
+        )
 
     return warnings
 

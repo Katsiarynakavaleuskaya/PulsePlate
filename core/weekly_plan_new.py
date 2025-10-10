@@ -27,8 +27,8 @@ def build_week(
         # лёгкая вариативность (±5% уже в scale_recipe, этого достаточно)
         days.append(d.__dict__)
     # усредняем покрытие
-    MICRO_KEYS = list(days[0]["coverage"].keys())
-    weekly_cov = {k: round(sum(d["coverage"][k] for d in days) / 7.0, 1) for k in MICRO_KEYS}
+    micro_keys = list(days[0]["coverage"].keys())
+    weekly_cov = {k: round(sum(d["coverage"][k] for d in days) / 7.0, 1) for k in micro_keys}
     shopping_list = fooddb.aggregate_shopping(days, lang)
     # Convert shopping list to dictionary format
     shopping_dict = {item["name"]: item["grams"] for item in shopping_list}

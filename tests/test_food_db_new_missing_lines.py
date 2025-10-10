@@ -85,7 +85,7 @@ class TestFoodDbNewMissingLines:
 
     def test_no_price_items_are_zero(self):
         """Items without price must yield price_est 0.0."""
-        from core.food_db_new import FoodDB as _FDB
+        from core.food_db_new import FoodDB
 
         csv_no_price = (
             "name,group,per_g,protein_g,fat_g,carbs_g,fiber_g,Fe_mg,Ca_mg,VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price\n"
@@ -96,7 +96,7 @@ class TestFoodDbNewMissingLines:
         try:
             tmp.write(csv_no_price)
             tmp.close()
-            db = _FDB(tmp.name)
+            db = FoodDB(tmp.name)
             out = db.aggregate_shopping(
                 [{"meals": [{"grams": {"no_price_item": 100, "expensive_item": 50}}]}]
             )
@@ -129,6 +129,6 @@ class TestFoodDbNewMissingLines:
             assert isinstance(out, list)
             for item in out:
                 assert {"name", "name_translated", "grams", "price_est"}.issubset(item.keys())
-                assert isinstance(item["grams"], (int, float))
-                assert isinstance(item["price_est"], (int, float))
+                assert isinstance(item["grams"], int | float)
+                assert isinstance(item["price_est"], int | float)
                 assert item["price_est"] >= 0

@@ -13,14 +13,14 @@ try:
     )
 except ImportError:
     # Fallback for older openai versions
-    APITimeoutError = TimeoutError  # type: ignore[misc, assignment]
-    APIConnectionError = ConnectionError  # type: ignore[misc, assignment]
-    RateLimitError = Exception  # type: ignore[misc, assignment]
+    APITimeoutError = TimeoutError
+    APIConnectionError = ConnectionError
+    RateLimitError = Exception
 
     class APIStatusError(Exception):  # type: ignore[no-redef]
         """Fallback for older openai SDK versions."""
 
-        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def __init__(self, *args, **kwargs):
             super().__init__(*args)
             self.status_code = kwargs.get("status_code", 500)
 
@@ -44,7 +44,7 @@ def is_transient_exception(exc: BaseException) -> bool:
     - client errors 400, 404 и др.
     """
     # OpenAI SDK специфичные transient errors
-    if isinstance(exc, (APITimeoutError, APIConnectionError, RateLimitError)):
+    if isinstance(exc, APITimeoutError | APIConnectionError | RateLimitError):
         return True
 
     # Проверяем HTTP status код для APIStatusError

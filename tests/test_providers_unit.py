@@ -15,6 +15,54 @@ import httpx
 import pytest
 
 
+# ---------------- GrokProvider exception fallback -----------------
+
+
+def test_grok_exception_fallback(monkeypatch):
+    """Test that grok.py fallback exceptions work when openai SDK lacks new classes."""
+
+    # Create minimal fake openai WITHOUT exception classes
+    class _FakeClient:
+        pass
+
+    openai_fake = types.ModuleType("openai")
+    openai_fake.AsyncOpenAI = _FakeClient  # pyright: ignore[reportAttributeAccessIssue]
+    # Explicitly DO NOT set exception classes - force fallback
+    monkeypatch.setitem(sys.modules, "openai", openai_fake)
+
+    # Force reload to trigger fallback path
+    if "providers.grok" in sys.modules:
+        grok_mod = importlib.reload(sys.modules["providers.grok"])
+    else:
+        from providers import grok as grok_mod
+
+    # Test fallback exception classes exist and work
+    assert hasattr(grok_mod, "APITimeoutError")
+    assert hasattr(grok_mod, "APIConnectionError")
+    assert hasattr(grok_mod, "RateLimitError")
+    assert hasattr(grok_mod, "APIStatusError")
+
+    # Test APIStatusError fallback has status_code attribute
+    status_err = grok_mod.APIStatusError("test", status_code=404)
+    assert status_err.status_code == 404
+
+    # Test default status_code is 500
+    default_err = grok_mod.APIStatusError("test")
+    assert default_err.status_code == 500
+
+    # Test is_transient_exception with fallback classes
+    assert grok_mod.is_transient_exception(grok_mod.APITimeoutError())
+    assert grok_mod.is_transient_exception(grok_mod.APIConnectionError())
+    assert grok_mod.is_transient_exception(grok_mod.RateLimitError())
+
+    # Test APIStatusError with 500 status (transient)
+    assert grok_mod.is_transient_exception(grok_mod.APIStatusError("err", status_code=500))
+    # Test APIStatusError with 429 status (transient)
+    assert grok_mod.is_transient_exception(grok_mod.APIStatusError("err", status_code=429))
+    # Test APIStatusError with default 500 status (transient)
+    assert grok_mod.is_transient_exception(grok_mod.APIStatusError("err"))
+
+
 # ---------------- StubProvider -----------------
 
 
@@ -96,9 +144,9 @@ def test_grok_generate_success(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     # гарантируем, что модуль grok увидит наш openai
     if "providers.grok" in sys.modules:
-        grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
+        grok_mod = importlib.reload(sys.modules["providers.grok"])
     else:
-        from providers import grok as grok_mod  # type: ignore
+        from providers import grok as grok_mod
 
     p = grok_mod.GrokProvider(endpoint="http://x", model="m", api_key="k")
     loop = asyncio.new_event_loop()
@@ -141,16 +189,16 @@ def test_grok_generate_error_wrapped(monkeypatch):
     openai_fake.APIStatusError = APIStatusError  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "openai", openai_fake)
     if "providers.grok" in sys.modules:
-        grok_mod = importlib.reload(sys.modules["providers.grok"])  # type: ignore[arg-type]
+        grok_mod = importlib.reload(sys.modules["providers.grok"])
     else:
-        from providers import grok as grok_mod  # type: ignore
+        from providers import grok as grok_mod
 
     p = grok_mod.GrokProvider(endpoint="http://x", model="m", api_key="k")
     with pytest.raises(RuntimeError) as ei:
         # обходим декоратор retry
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "oops"))  # type: ignore[attr-defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "oops"))
         finally:
             loop.close()
     assert "Grok error:" in str(ei.value)
@@ -389,9 +437,9 @@ def test_pico_generate_choices_and_response_and_else(monkeypatch):
     p = pico_mod.PicoProvider(endpoint="http://x")
     out = _await_or_value(p.generate("t"))
     assert out == "A"
-    p.client.data = {"response": " B "}  # type: ignore[attr-defined]
+    p.client.data = {"response": " B "}
     out = _await_or_value(p.generate("t"))
     assert out == "B"
-    p.client.data = {"unknown": 1}  # type: ignore[attr-defined]
+    p.client.data = {"unknown": 1}
     out = _await_or_value(p.generate("t"))
     assert out == "{'unknown': 1}"

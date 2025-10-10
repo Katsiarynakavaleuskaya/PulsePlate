@@ -19,7 +19,7 @@ try:
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    plt: Any | None = None
+    plt = None
 
 
 class BMIVisualizer:
@@ -93,7 +93,7 @@ class BMIVisualizer:
         y_pos = 0
         bar_height = 0.8
 
-        for i, ((start, end), color) in enumerate(zip(ranges, colors)):
+        for i, ((start, end), color) in enumerate(zip(ranges, colors, strict=False)):
             width = end - start
             ax.barh(
                 y_pos,
@@ -173,7 +173,7 @@ class BMIVisualizer:
         bars = ax.bar(labels, weights, color=colors, alpha=0.7, edgecolor="black")
 
         # Add value labels on bars
-        for bar, weight in zip(bars, weights):
+        for bar, weight in zip(bars, weights, strict=False):
             height = bar.get_height()
             ax.text(
                 bar.get_x() + bar.get_width() / 2.0,
