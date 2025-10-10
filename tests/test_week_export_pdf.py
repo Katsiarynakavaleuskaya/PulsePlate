@@ -4,7 +4,7 @@ from io import BytesIO
 import os
 from pathlib import Path
 import sys
-from typing import Any, List
+from typing import Any
 
 from fastapi.testclient import TestClient
 import pytest

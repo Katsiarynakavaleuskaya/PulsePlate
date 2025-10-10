@@ -7,7 +7,7 @@ EN: Base food model with nutrients, pricing and provenance.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 

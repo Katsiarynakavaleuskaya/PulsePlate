@@ -1,6 +1,6 @@
 """Tests for the public shoplist export endpoints."""
 
-from typing import List
+
 
 import pytest
 

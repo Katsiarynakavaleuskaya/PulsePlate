@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .targets import UserProfile
 
@@ -243,9 +243,7 @@ class SportsNutritionCalculator:
         return None
 
     @staticmethod
-    def _calculate_post_workout_protein(
-        sport: SportCategory, daily_protein: float
-    ) -> float | None:
+    def _calculate_post_workout_protein(sport: SportCategory, daily_protein: float) -> float | None:
         """Calculate post-workout protein needs."""
         return round(daily_protein * 0.25, 1)  # ~25% of daily protein within 2h
 

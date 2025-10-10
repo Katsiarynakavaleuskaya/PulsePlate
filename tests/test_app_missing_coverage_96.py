@@ -172,7 +172,7 @@ class TestAppMissingCoverage96:
             ("unknown", "unknown"),  # Should pass through unchanged
         ]
 
-        for input_gender, expected_norm in test_cases:
+        for input_gender, _expected_norm in test_cases:
             payload = {
                 "weight_kg": 70.0,
                 "height_m": 1.7,
@@ -200,7 +200,7 @@ class TestAppMissingCoverage96:
             ("n", False),
         ]
 
-        for input_pregnant, expected_pregnant in test_cases:
+        for input_pregnant, _expected_pregnant in test_cases:
             payload = {
                 "weight_kg": 70.0,
                 "height_m": 1.7,
@@ -226,7 +226,7 @@ class TestAppMissingCoverage96:
             ("no", False),
         ]
 
-        for input_athlete, expected_athlete in test_cases:
+        for input_athlete, _expected_athlete in test_cases:
             payload = {
                 "weight_kg": 70.0,
                 "height_m": 1.7,

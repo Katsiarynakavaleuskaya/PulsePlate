@@ -12,7 +12,6 @@ for nutrient deficiencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_tip

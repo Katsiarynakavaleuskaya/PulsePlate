@@ -4,7 +4,7 @@ Test script to verify OpenAI Pro access and available models
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import openai
 

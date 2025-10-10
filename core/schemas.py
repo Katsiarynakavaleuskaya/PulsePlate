@@ -7,7 +7,7 @@ EN: Data schemas for foods and recipes with full provenance tracking.
 
 from __future__ import annotations
 
-from typing import Annotated, Dict, List, Optional
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
 

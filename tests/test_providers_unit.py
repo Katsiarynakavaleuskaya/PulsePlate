@@ -9,7 +9,7 @@ import asyncio
 import importlib
 import sys
 import types
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import pytest
@@ -237,7 +237,7 @@ def test_ollama_unavailable_wrapped(monkeypatch):
         # обойти retries
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))[attr - defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))
         finally:
             loop.close()
 
@@ -261,7 +261,7 @@ def test_ollama_request_error_wrapped(monkeypatch):
     with pytest.raises(RuntimeError) as ei:
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(p.generate.__wrapped__(p, "text"))[attr - defined]
+            loop.run_until_complete(p.generate.__wrapped__(p, "text"))
         finally:
             loop.close()
     assert "ollama_unavailable" in str(ei.value)

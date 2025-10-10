@@ -6,7 +6,7 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import requests
 

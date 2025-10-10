@@ -11,7 +11,6 @@ from collections.abc import Iterable
 import csv
 from datetime import date
 import os
-from typing import Dict
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug

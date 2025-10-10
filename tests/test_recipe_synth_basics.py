@@ -423,7 +423,7 @@ class TestRecipeSynthesizerEdgeCases:
         """Test that all default templates have proper structure."""
         synthesizer = RecipeSynthesizer(templates_dir="non_existent_dir")
 
-        for template_id, template in synthesizer.templates.items():
+        for _template_id, template in synthesizer.templates.items():
             # Verify all required fields are present and valid
             assert isinstance(template.template_id, str)
             assert len(template.template_id) > 0

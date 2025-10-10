@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 from .meal_i18n import Language, translate_food
 

@@ -1,4 +1,4 @@
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 

@@ -14,7 +14,7 @@ from collections.abc import Sequence
 import csv
 from dataclasses import dataclass
 import random
-from typing import Dict, List, Optional, TypedDict
+from typing import Optional, TypedDict
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_recipe

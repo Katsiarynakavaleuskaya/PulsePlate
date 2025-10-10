@@ -14,7 +14,6 @@ import ast
 from pathlib import Path
 import subprocess
 import sys
-from typing import Dict, List, Set, Tuple
 
 
 class ImportChecker:
@@ -96,7 +95,7 @@ class ImportChecker:
                     used_names.add(node.value.id)
 
         # Проверяем, используются ли импорты
-        for module, alias, lineno in imports:
+        for _module, alias, lineno in imports:
             # Пропускаем специальные импорты
             if alias.startswith("_"):
                 continue

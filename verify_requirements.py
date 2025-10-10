@@ -6,7 +6,6 @@ Verify that package versions are consistent across requirements files.
 from pathlib import Path
 import re
 import sys
-from typing import Dict, List, Tuple
 
 
 def parse_requirements(file_path: Path) -> dict[str, str]:

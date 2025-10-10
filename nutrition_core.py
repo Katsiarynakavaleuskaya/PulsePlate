@@ -14,7 +14,7 @@ Note: Activity level calculations and higher-level convenience functions
 to avoid circular imports and ensure consistency.
 """
 
-from typing import Dict, Literal
+from typing import Literal
 
 # Import activity multipliers from core.metabolism to ensure consistency
 # This is imported directly to avoid circular imports with core modules

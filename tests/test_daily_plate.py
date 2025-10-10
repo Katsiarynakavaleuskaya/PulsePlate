@@ -282,7 +282,7 @@ class TestCalculateMicroCoverage:
         result = calculate_micro_coverage(nutrients, 2000)
 
         # Each nutrient should be 50% coverage
-        for nutrient, coverage in result.items():
+        for _nutrient, coverage in result.items():
             assert coverage == 50.0
 
     def test_calculate_micro_coverage_different_calories(self):

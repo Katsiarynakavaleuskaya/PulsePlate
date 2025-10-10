@@ -5,7 +5,7 @@ This module provides plate composition logic for the Premium Plate feature,
 generating macro-balanced meal recommendations based on TDEE calculations.
 """
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 

@@ -58,14 +58,14 @@ def setup_custom_mcp(argv: list[str] | None = None) -> bool:
             return False
 
         # Create backups
-        for file_path, description in existing_files:
+        for file_path, _description in existing_files:
             backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{int(time.time())}")
             file_path.rename(backup_path)
             print(f"💾 Backup created: {backup_path}")
 
     elif existing_files and args.force:
         # Create backups when using --force
-        for file_path, description in existing_files:
+        for file_path, _description in existing_files:
             backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{int(time.time())}")
             file_path.rename(backup_path)
             print(f"💾 Backup created: {backup_path}")

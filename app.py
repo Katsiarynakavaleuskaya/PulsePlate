@@ -600,9 +600,7 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(float(weight_kg) / (height_m**2), 1)
 
 
-def normalize_flags(
-    gender: str, pregnant: str | bool, athlete: str | bool
-) -> dict[str, bool]:
+def normalize_flags(gender: str, pregnant: str | bool, athlete: str | bool) -> dict[str, bool]:
     gender_norm = {
         "male": "male",
         "муж": "male",

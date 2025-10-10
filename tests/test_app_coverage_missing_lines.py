@@ -44,19 +44,23 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_with_invalid_key(self, client):
         """Test get_api_key with invalid API key."""
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
+            from fastapi import HTTPException
+
             from app import get_api_key
 
             # Should raise HTTPException
-            with pytest.raises(Exception):
+            with pytest.raises(HTTPException):
                 get_api_key("invalid_key")
 
     def test_get_api_key_required_mode(self, client):
         """Test get_api_key in required mode."""
         with patch.dict(os.environ, {"API_KEY_REQUIRED": "true"}):
+            from fastapi import HTTPException
+
             from app import get_api_key
 
             # Should raise HTTPException when no API key is configured
-            with pytest.raises(Exception):
+            with pytest.raises(HTTPException):
                 get_api_key("any_key")
 
     def test_get_api_key_dev_mode(self, client):
@@ -71,13 +75,15 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_invalid_tokens(self, client):
         """Test get_api_key with invalid tokens."""
         with patch.dict(os.environ, {"APP_ENV": "dev", "API_KEY": ""}):
+            from fastapi import HTTPException
+
             from app import get_api_key
 
             # Test various invalid tokens
             invalid_tokens = ["", "invalid", "wrong", "bad", "null", "123"]  # Too short
 
             for token in invalid_tokens:
-                with pytest.raises(Exception):
+                with pytest.raises(HTTPException):
                     get_api_key(token)
 
     @pytest.mark.xfail(reason="Admin endpoints need special setup")

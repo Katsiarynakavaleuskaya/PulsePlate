@@ -14,7 +14,6 @@ from collections.abc import Iterable
 import os
 from pathlib import Path
 import re
-from typing import List, Tuple
 
 
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()

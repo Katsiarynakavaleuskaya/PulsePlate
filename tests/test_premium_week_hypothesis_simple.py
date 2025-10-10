@@ -4,7 +4,6 @@ Uses property-based testing to maximize coverage without complex mocking.
 """
 
 import os
-from typing import Dict, List
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient

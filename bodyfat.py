@@ -94,9 +94,7 @@ def estimate_all(data: dict[str, Any]) -> dict[str, object]:
 # ---------- FastAPI ----------
 class BodyFatRequest(BaseModel):
     height_m: float | None = Field(None, gt=0, description="Height in meters, must be positive")
-    weight_kg: float | None = Field(
-        None, gt=0, description="Weight in kilograms, must be positive"
-    )
+    weight_kg: float | None = Field(None, gt=0, description="Weight in kilograms, must be positive")
     age: int | None = Field(
         None, ge=1, le=120, description="Age in years, must be between 1 and 120"
     )

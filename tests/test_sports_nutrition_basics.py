@@ -291,7 +291,7 @@ class TestSportMapping:
         assert "boxing" in SPORT_MAPPING
 
         # Test mappings are valid SportCategory values
-        for sport_name, category in SPORT_MAPPING.items():
+        for _sport_name, category in SPORT_MAPPING.items():
             assert isinstance(category, SportCategory)
 
     def test_sport_mapping_endurance_sports(self):

@@ -1,7 +1,6 @@
 import csv
 import os
 import re
-from typing import Dict
 
 
 def _load_aliases(path: str = None) -> dict[str, str]:

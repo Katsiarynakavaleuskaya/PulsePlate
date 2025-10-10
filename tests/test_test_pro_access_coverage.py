@@ -7,7 +7,7 @@ import os
 
 # Import the module under test
 import sys
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest

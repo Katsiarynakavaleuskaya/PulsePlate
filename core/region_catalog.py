@@ -9,7 +9,7 @@ import csv
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 _logger = logging.getLogger(__name__)

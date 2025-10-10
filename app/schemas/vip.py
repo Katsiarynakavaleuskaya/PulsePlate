@@ -6,7 +6,7 @@ EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settin
 """
 
 from enum import Enum
-from typing import List, Literal, Optional, Set
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 

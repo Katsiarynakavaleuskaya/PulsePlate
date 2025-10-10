@@ -23,7 +23,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 
 ROOT = Path(".").resolve()
@@ -181,7 +180,7 @@ def main() -> int:
         return 0
 
     if args.apply_identical:
-        for can, others in suggestions:
+        for _can, others in suggestions:
             for p in others:
                 # Safety: skip tests unless included
                 if not args.include_tests and (ROOT / "tests") in p.parents:

@@ -11,7 +11,7 @@ EN: WHO-based nutrition targets calculation system.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
 
 # Type definitions for user characteristics

@@ -11,8 +11,6 @@ for optimizing nutrient intake through food choices.
 
 from __future__ import annotations
 
-from typing import Dict, List
-
 from .metabolism import calculate_all_bmr, calculate_all_tdee
 from .rules_who import (
     GOAL_MACRO_ADJUSTMENTS,

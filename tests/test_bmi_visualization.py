@@ -167,7 +167,7 @@ def test_bmi_visualization_different_groups():
     ]
 
     with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
-        for age, gender, pregnant, athlete, expected_group in test_cases:
+        for age, gender, pregnant, athlete, _expected_group in test_cases:
             with (
                 patch("matplotlib.pyplot.subplots") as mock_subplots,
                 patch("matplotlib.pyplot.tight_layout"),

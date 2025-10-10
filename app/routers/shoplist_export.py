@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timezone
 from io import BytesIO, StringIO
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Response
 from reportlab.lib.pagesizes import A4

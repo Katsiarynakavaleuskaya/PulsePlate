@@ -5,7 +5,7 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 from pathlib import Path
 import sqlite3
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 DB_PATH = Path("data/food.sqlite")

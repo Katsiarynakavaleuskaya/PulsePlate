@@ -762,7 +762,7 @@ class TestScoreNutrientCoverage:
         coverage = score_nutrient_coverage(consumed_nutrients, targets)
 
         # All nutrients should show 0% coverage
-        for nutrient_name, nutrient_coverage in coverage.items():
+        for _nutrient_name, nutrient_coverage in coverage.items():
             assert nutrient_coverage.consumed_amount == 0.0
             assert nutrient_coverage.status == "deficient"
 

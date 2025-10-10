@@ -12,7 +12,7 @@ import csv
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Optional, Union
 
 from .food_db import FoodItem
 

@@ -122,9 +122,7 @@ class TestSchedulerMissingCoverage:
         scheduler = DatabaseUpdateScheduler()
         scheduler.last_update_check = None
 
-        result = scheduler._should_check_for_updates(
-            datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
-        )
+        result = scheduler._should_check_for_updates(datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC))
         # Should return True when last_update_check is None
         assert result is True
 

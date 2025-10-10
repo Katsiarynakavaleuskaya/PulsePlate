@@ -231,7 +231,7 @@ class TestDefaultDatabases:
         assert len(recipe_db) > 0
 
         # Check that all values are Recipe objects
-        for recipe_name, recipe in recipe_db.items():
+        for _recipe_name, recipe in recipe_db.items():
             assert isinstance(recipe, Recipe)
             assert recipe.name is not None
             assert isinstance(recipe.ingredients, dict)

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -426,7 +426,9 @@ def test_menu_engine_new_booster_none_path():
     # With no meals and high micro targets, cov < 80 triggers booster path.
     targets = {
         "kcal": 2000,
-        "micro": dict.fromkeys(__import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0),
+        "micro": dict.fromkeys(
+            __import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0
+        ),
     }
     plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
         targets=targets,
@@ -443,7 +445,9 @@ def test_menu_engine_new_kcal_100_zero_path():
     # Force donor and zero macro food so kcal_100 == 0 and branch is skipped.
     targets = {
         "kcal": 2000,
-        "micro": dict.fromkeys(__import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0),
+        "micro": dict.fromkeys(
+            __import__("core.food_db_new", fromlist=["MICRO_KEYS"]).MICRO_KEYS, 100.0
+        ),
     }
     plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
         targets=targets,

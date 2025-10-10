@@ -8,7 +8,7 @@ Sprint 2: Shoplist с округлением до упаковок
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 
 @dataclass

@@ -2,7 +2,7 @@
 Comprehensive tests for core/daily_plate.py module to boost coverage to 97%.
 """
 
-from typing import Dict
+
 from unittest.mock import patch
 
 from core.daily_plate import (

@@ -8,7 +8,7 @@ This module implements professional-level BMI analysis including:
 - Obesity staging based on multiple metrics
 """
 
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 # Import i18n functionality
 from core.i18n import Language, t
@@ -61,9 +61,7 @@ def whr_ratio(waist_cm: float, hip_cm: float, sex: Literal["male", "female"]) ->
     return round(waist_cm / hip_cm, 3)
 
 
-def ffmi(
-    weight_kg: float, height_cm: float, bodyfat_pct: float | None = None
-) -> dict[str, float]:
+def ffmi(weight_kg: float, height_cm: float, bodyfat_pct: float | None = None) -> dict[str, float]:
     """Calculate Fat-Free Mass Index (FFMI).
 
     FFMI is a normalized measure of lean body mass that accounts for height.

@@ -6,7 +6,7 @@ EN: Router for generating weekly meal plans.
 """
 
 import math
-from typing import Dict, List, Literal, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -66,9 +66,7 @@ class WeekPlanRequest(BaseModel):
     age: int | None = Field(None, gt=10, lt=90)
     height_cm: int | None = Field(None, gt=100, lt=220)
     weight_kg: int | None = Field(None, gt=30, lt=300)
-    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] | None = (
-        "moderate"
-    )
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] | None = "moderate"
     goal: Literal["loss", "maintain", "gain"] | None = "maintain"
     diet_flags: list[str] = Field(default_factory=list)
     lang: Language = "en"

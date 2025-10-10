@@ -597,7 +597,7 @@ class TestIntegration:
         assert "Wednesday" in weekly_recipes
 
         # Проверяем каждый день
-        for day, recipes in weekly_recipes.items():
+        for _day, recipes in weekly_recipes.items():
             assert len(recipes) == 1
             recipe = recipes[0]
             assert isinstance(recipe, Recipe)

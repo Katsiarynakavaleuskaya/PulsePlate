@@ -169,7 +169,7 @@ class TestSportsNutritionCalculator:
         assert protein_reqs[SportCategory.COMBAT][1] >= protein_reqs[SportCategory.RECREATIONAL][1]
 
         # Все значения должны быть в разумных пределах (1.0-3.0 г/кг)
-        for sport, (min_protein, max_protein) in protein_reqs.items():
+        for _sport, (min_protein, max_protein) in protein_reqs.items():
             assert 1.0 <= min_protein <= 3.0
             assert 1.0 <= max_protein <= 3.0
             assert min_protein <= max_protein
@@ -182,7 +182,7 @@ class TestSportsNutritionCalculator:
         assert carb_reqs[SportCategory.ENDURANCE][1] > carb_reqs[SportCategory.STRENGTH][1]
 
         # Все значения должны быть в разумных пределах (3-12 г/кг)
-        for sport, (min_carbs, max_carbs) in carb_reqs.items():
+        for _sport, (min_carbs, max_carbs) in carb_reqs.items():
             assert 3 <= min_carbs <= 12
             assert 3 <= max_carbs <= 12
             assert min_carbs <= max_carbs
@@ -195,7 +195,7 @@ class TestSportsNutritionCalculator:
         assert hydration[SportCategory.ENDURANCE] > hydration[SportCategory.STRENGTH]
 
         # Все значения должны быть в разумных пределах (200-1000 мл/час)
-        for sport, fluid_ml in hydration.items():
+        for _sport, fluid_ml in hydration.items():
             assert 200 <= fluid_ml <= 1000
 
     def test_calculator_instantiation(self):

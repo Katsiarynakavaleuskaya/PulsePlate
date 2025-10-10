@@ -9,7 +9,7 @@ WHtR, расчёт «здорового» диапазона ИМТ, build_premi
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 
 # -------------------------

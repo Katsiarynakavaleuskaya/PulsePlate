@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 import signal
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from ..time_utils import now_utc
 from .update_manager import DatabaseUpdateManager, UpdateResult

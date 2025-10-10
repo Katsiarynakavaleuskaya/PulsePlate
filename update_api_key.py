@@ -26,7 +26,7 @@ Platform Notes:
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Union
 
 from secure_config import ENCRYPTION_AVAILABLE, encrypt_value
 

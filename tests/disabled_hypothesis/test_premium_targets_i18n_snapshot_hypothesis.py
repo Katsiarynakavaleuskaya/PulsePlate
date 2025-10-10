@@ -4,7 +4,6 @@ These tests ensure localization regression protection.
 """
 
 import os
-from typing import Dict
 
 from fastapi.testclient import TestClient
 from hypothesis import given, settings

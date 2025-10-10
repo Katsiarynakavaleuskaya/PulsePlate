@@ -1,7 +1,6 @@
 """Tests to boost coverage for core/food_apis/update_manager.py to 97%."""
 
 from pathlib import Path
-from typing import Type
 from unittest.mock import MagicMock, patch
 
 import pytest

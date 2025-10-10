@@ -86,9 +86,23 @@ force-single-line = false
 force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["E402", "F811", "F401", "F841"]
-"scripts/*.py" = ["E402", "T20"]
+"tests/*.py" = [
+    "E402",   # Module level import not at top of file
+    "F811",   # Redefinition of unused name
+    "F401",   # Imported but unused
+    "F841",   # Local variable assigned but never used
+    "B009",   # Do not call getattr with a constant - common in tests
+    "B004",   # Using hasattr(__call__) - acceptable in tests
+    "B010",   # Do not call setattr with constant - needed for test mocking
+    "B011",   # Do not assert False - valid pattern in tests
+    # B017 убран - будем использовать конкретные исключения для безопасности
+    "N806",   # Variable in function should be lowercase - test fixtures
+    "N812",   # Lowercase imported as non-lowercase - test abbreviations
+]
+"tests/edges/*.py" = ["B009", "B010", "N812"]  # Edge case tests need special patterns
+"scripts/*.py" = ["E402", "T20"]  # Scripts can have top-level imports
 "releases/**/*.py" = ["E402"]
+"setup_custom_mcp.py" = ["B007"]  # Loop variables intentionally unused
 
 [tool.pyright]
 pythonVersion = "3.13"

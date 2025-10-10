@@ -14,7 +14,7 @@ Data sources:
 Last updated: January 2025
 """
 
-from typing import Dict, Tuple, TypedDict
+from typing import TypedDict
 
 from .targets import LifeStage, Sex
 

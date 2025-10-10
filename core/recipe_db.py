@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from typing import Dict, Set
 
 from .food_db import FoodItem, parse_food_db
 

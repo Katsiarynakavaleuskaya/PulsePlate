@@ -1,7 +1,7 @@
 import math
 from pathlib import Path
 import sys
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import pytest
 

@@ -2,7 +2,7 @@ import os
 
 # optio, StrictFloatnal dotenv
 ##DOTENV_OPTIONAL##
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response

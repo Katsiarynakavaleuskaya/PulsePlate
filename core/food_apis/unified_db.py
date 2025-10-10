@@ -16,7 +16,7 @@ import importlib
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional
 
 from .usda_client import USDAClient, USDAFoodItem
 

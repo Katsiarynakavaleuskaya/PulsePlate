@@ -436,7 +436,7 @@ def test_result_types_and_ranges():
 
     # Check that all numeric values are finite
     targets = result["daily_targets"]
-    for key, value in targets.items():
+    for _key, value in targets.items():
         assert math.isfinite(value)
         assert value >= 0
 

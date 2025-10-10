@@ -152,7 +152,7 @@ class TestI18nMissingLines:
                 ("en_GB", "en"),  # Underscore separator
             ]
 
-            for input_locale, expected_result in normalization_tests:
+            for input_locale, _expected_result in normalization_tests:
                 result = normalize_lang(input_locale)
                 # Should normalize and process correctly
                 assert isinstance(result, str)

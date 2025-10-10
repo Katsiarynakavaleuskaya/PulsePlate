@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response

@@ -5,7 +5,7 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from bmi_core import auto_group, bmi_category, group_display_name
 

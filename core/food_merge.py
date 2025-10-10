@@ -11,7 +11,6 @@ from collections import defaultdict
 from collections.abc import Iterable
 from datetime import date
 from statistics import median
-from typing import Dict, List
 
 from .food_sources.base import FoodRecord
 

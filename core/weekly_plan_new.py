@@ -8,7 +8,7 @@ This module generates a 7-day meal plan with nutrient coverage analysis
 and shopping list aggregation.
 """
 
-from typing import List
+
 
 from .food_db_new import FoodDB
 from .meal_i18n import Language

@@ -17,7 +17,6 @@ import hashlib
 import json
 import logging
 import sqlite3
-from typing import Dict, List
 
 import pandas as pd
 from pydantic import ValidationError
