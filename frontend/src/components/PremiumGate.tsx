@@ -90,7 +90,6 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
     <>
       <div
         ref={previewRef}
-        {...({ inert: true } as any)}
         className="opacity-60 pointer-events-none"
         aria-label="Premium gated content"
       >

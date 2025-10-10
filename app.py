@@ -2033,9 +2033,14 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
             except Exception as e:
-                # Safety validation is optional; ignore errors
                 logger.debug(f"Safety validation failed (optional): {e}")
-                pass
+                # Add a warning so users know validation couldn't run
+                life_stage_warnings.append(
+                    {
+                        "code": "safety_validation_failed",
+                        "message": "Safety validation unavailable - please verify targets manually",
+                    }
+                )
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,

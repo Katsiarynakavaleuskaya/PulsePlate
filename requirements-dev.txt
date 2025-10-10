@@ -7,5 +7,4 @@ flake8==7.3.0
 bandit==1.8.6
 # safety==3.6.1b0  # Temporarily disabled due to typer compatibility issue
 mypy==1.18.2
-black==25.9.0
 asgi-lifespan==2.1.0

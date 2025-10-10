@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, defineProject } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,14 +18,17 @@ export default defineConfig({
     reporters: ["default", ["junit", {
       outputFile: "test-results/junit.xml"
     }]],
-    projects: [{
+  },
+  projects: [
+    defineProject({
       extends: true,
       plugins: [
-      // The plugin will run tests for the stories defined in your Storybook config
-      // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
-      storybookTest({
-        configDir: path.join(__dirname, '.storybook')
-      })],
+        // The plugin will run tests for the stories defined in your Storybook config
+        // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
+        storybookTest({
+          configDir: path.join(__dirname, '.storybook')
+        })
+      ],
       test: {
         name: 'storybook',
         browser: {
@@ -38,6 +41,6 @@ export default defineConfig({
         },
         setupFiles: ['.storybook/vitest.setup.ts']
       }
-    }]
-  }
+    })
+  ]
 });

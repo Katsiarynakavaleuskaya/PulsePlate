@@ -362,8 +362,8 @@ def get_unified_food_db() -> Any:
     try:
         asyncio.get_running_loop()
     except RuntimeError as e:
-        # Only swallow the expected "no running event loop" error
-        if "no running event loop" not in str(e).lower():
+        message = str(e).lower()
+        if "no running event loop" not in message and "no current event loop" not in message:
             # Unexpected RuntimeError, re-raise it
             raise
         # No running loop, we can proceed with asyncio.run()
