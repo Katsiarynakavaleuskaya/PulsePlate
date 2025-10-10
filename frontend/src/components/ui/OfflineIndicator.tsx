@@ -12,7 +12,7 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
   const [showIndicator, setShowIndicator] = useState(!initialOnline);
 
   useEffect(() => {
-    let hideTimeout: ReturnType<typeof setTimeout> | undefined;
+    let hideTimeout: number | undefined;
 
     const clearHideTimeout = () => {
       if (hideTimeout) {
