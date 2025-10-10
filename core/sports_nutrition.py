@@ -86,6 +86,12 @@ class SportsNutritionCalculator:
     EN: Sports nutrition calculator based on NASM/ACSM/IFPA guidelines.
     """
 
+    # Sport category groupings for nutrition calculations
+    HIGH_CARB_SPORTS = [SportCategory.ENDURANCE, SportCategory.TEAM]
+    STRENGTH_POWER_SPORTS = [SportCategory.STRENGTH, SportCategory.POWER]
+    CAFFEINE_SPORTS = [SportCategory.ENDURANCE, SportCategory.POWER, SportCategory.TEAM]
+    WEIGHT_CUTTING_SPORTS = [SportCategory.COMBAT, SportCategory.AESTHETIC]
+
     # NASM/ACSM Evidence-Based Guidelines
     SPORT_PROTEIN_REQUIREMENTS = {
         # Protein g/kg/day - based on ACSM/AND/DC Position Statement
@@ -193,7 +199,7 @@ class SportsNutritionCalculator:
             carb_loading_recommended=sport == SportCategory.ENDURANCE,
             weight_cutting_considerations=(
                 cls._get_weight_cutting_advice(sport)
-                if sport in [SportCategory.COMBAT, SportCategory.AESTHETIC]
+                if sport in cls.WEIGHT_CUTTING_SPORTS
                 else None
             ),
         )
@@ -236,9 +242,9 @@ class SportsNutritionCalculator:
     @staticmethod
     def _calculate_pre_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
         """Calculate pre-workout carb needs."""
-        if sport in [SportCategory.ENDURANCE, SportCategory.TEAM]:
+        if sport in SportsNutritionCalculator.HIGH_CARB_SPORTS:
             return round(daily_carbs * 0.15, 1)  # 15% of daily carbs 1-2h before
-        elif sport in [SportCategory.STRENGTH, SportCategory.POWER]:
+        elif sport in SportsNutritionCalculator.STRENGTH_POWER_SPORTS:
             return round(daily_carbs * 0.10, 1)  # 10% of daily carbs
         return None
 
@@ -250,14 +256,14 @@ class SportsNutritionCalculator:
     @staticmethod
     def _calculate_post_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
         """Calculate post-workout carb needs."""
-        if sport in [SportCategory.ENDURANCE, SportCategory.TEAM]:
+        if sport in SportsNutritionCalculator.HIGH_CARB_SPORTS:
             return round(daily_carbs * 0.20, 1)  # 20% for glycogen replenishment
         return round(daily_carbs * 0.15, 1)
 
     @staticmethod
     def _get_caffeine_timing(sport: SportCategory) -> str | None:
         """Get caffeine timing recommendations."""
-        if sport in [SportCategory.ENDURANCE, SportCategory.POWER, SportCategory.TEAM]:
+        if sport in SportsNutritionCalculator.CAFFEINE_SPORTS:
             return "30-60 minutes before training/competition"
         return None
 

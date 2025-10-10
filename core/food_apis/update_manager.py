@@ -177,6 +177,22 @@ class DatabaseUpdateManager:
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
 
+    def _create_no_change_result(
+        self, source: str, old_version: str | None, current_version: DatabaseVersion | None
+    ) -> UpdateResult:
+        """Create UpdateResult for when no changes are detected."""
+        return UpdateResult(
+            success=True,
+            source=source,
+            old_version=old_version,
+            new_version=old_version,  # No change
+            records_added=0,
+            records_updated=0,
+            records_removed=0,
+            errors=[],
+            duration_seconds=0.0,
+        )
+
     async def check_for_updates(self) -> dict[str, bool]:
         """
         RU: Проверяет наличие обновлений для всех источников данных.
@@ -296,17 +312,7 @@ class DatabaseUpdateManager:
 
             # Check if data actually changed (unless forced)
             if not force and current_version and current_version.checksum == checksum:
-                return UpdateResult(
-                    success=True,
-                    source=source,
-                    old_version=old_version,
-                    new_version=old_version,  # No change
-                    records_added=0,
-                    records_updated=0,
-                    records_removed=0,
-                    errors=[],
-                    duration_seconds=0.0,
-                )
+                return self._create_no_change_result(source, old_version, current_version)
 
             # Validate new data
             validation_errors = await self._validate_food_data(updated_foods)
@@ -441,17 +447,7 @@ class DatabaseUpdateManager:
 
             # Check if data actually changed (unless forced)
             if not force and current_version and current_version.checksum == temp_checksum:
-                return UpdateResult(
-                    success=True,
-                    source=source,
-                    old_version=old_version,
-                    new_version=old_version,  # No change
-                    records_added=0,
-                    records_updated=0,
-                    records_removed=0,
-                    errors=[],
-                    duration_seconds=0.0,
-                )
+                return self._create_no_change_result(source, old_version, current_version)
 
             # Validate new data
             validation_errors = await self._validate_food_data(unified_foods)
@@ -833,35 +829,34 @@ class DatabaseUpdateManager:
         - If has to_dict/model_dump: call it
         - Fallback: return a dict with all expected keys and placeholder values
         """
-        try:
-            # Only call asdict on dataclass instances, not types
-            if is_dataclass(type(food)):
-                return asdict(food)
-        except Exception as e:
-            # Skip serialization errors for this food item
+
+        def _log_serialization_error(method: str, food: Any, error: Exception) -> None:
+            """Log serialization errors with food details."""
             food_id = getattr(food, "source_id", "unknown")
             food_name = getattr(food, "name", "unknown")
             logger.warning(
-                f"Failed to serialize food item as dataclass - "
-                f"id: {food_id}, name: {food_name}, error: {e}"
+                f"Failed to serialize food using {method} - id: {food_id}, name: {food_name}, error: {error}"
             )
-            pass
 
+        # Try dataclass serialization
+        try:
+            if is_dataclass(type(food)):
+                return asdict(food)
+        except Exception as e:
+            _log_serialization_error("dataclass", food, e)
+
+        # Return dict as-is
         if isinstance(food, dict):
             return food
 
+        # Try common serialization methods
         for method_name in ("to_dict", "model_dump"):
             if hasattr(food, method_name):
                 try:
                     result = getattr(food, method_name)()
                     return dict(result) if not isinstance(result, dict) else result
                 except Exception as e:
-                    food_id = getattr(food, "source_id", "unknown")
-                    food_name = getattr(food, "name", "unknown")
-                    logger.warning(
-                        f"Failed to serialize food using {method_name} - "
-                        f"id: {food_id}, name: {food_name}, error: {e}"
-                    )
+                    _log_serialization_error(method_name, food, e)
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values

@@ -39,8 +39,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None  # type: ignore[assignment,misc]
-    create_async_engine = None  # type: ignore[assignment]
+    async_sessionmaker = None
+    create_async_engine = None
 
 
 def _build_engine_url() -> str:
@@ -48,6 +48,18 @@ def _build_engine_url() -> str:
     default_path = os.path.join("cache", "app.db")
     # Use file-based SQLite by default so the data survives across runs.
     return os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+
+
+def _check_async_availability() -> None:
+    """Check if async SQLAlchemy is available and configured."""
+    if AsyncSessionLocal is None:
+        if create_async_engine is None:
+            raise ImportError(
+                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+            )
+        raise RuntimeError(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
@@ -172,11 +184,11 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
         )
     except ImportError:
         # Fallback if async drivers are not available
-        _ASYNC_ENGINE = None  # type: ignore[assignment]
-        AsyncSessionLocal = None  # type: ignore[assignment]
-else:
-    _ASYNC_ENGINE = None  # type: ignore[assignment]
-    AsyncSessionLocal = None  # type: ignore[assignment]
+        _ASYNC_ENGINE = None
+        AsyncSessionLocal = None
+    else:
+        _ASYNC_ENGINE = None
+        AsyncSessionLocal = None
 
 async_engine: AsyncEngineType | None = _ASYNC_ENGINE
 
@@ -219,14 +231,7 @@ def session_scope() -> Generator[Session]:
 
 async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
-    if AsyncSessionLocal is None:
-        if create_async_engine is None:
-            raise ImportError(
-                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
-            )
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
-        )
+    _check_async_availability()
 
     session = AsyncSessionLocal()
     try:
@@ -238,10 +243,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
 @asynccontextmanager
 async def session_scope_async() -> AsyncGenerator[AsyncSessionType]:
     """Async context manager for atomic DB operations."""
-    if AsyncSessionLocal is None:
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
-        )
+    _check_async_availability()
 
     session = AsyncSessionLocal()
     try:

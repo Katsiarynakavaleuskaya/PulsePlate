@@ -191,7 +191,9 @@ def stage_obesity(
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
-    if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):  # High WHR risk
+    # High WHR risk thresholds by sex
+    whr_threshold = 0.95 if sex == "male" else 0.80
+    if whr >= whr_threshold:
         risk_factors += 1
 
     if risk_factors >= 2:
