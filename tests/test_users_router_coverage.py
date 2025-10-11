@@ -70,8 +70,8 @@ class TestUsersRouterCoverage:
                 "goal": "invalid",
             }
 
-            response = client.put(
-                "/api/v1/users/profile", json=invalid_data, headers={"X-API-Key": "test_key"}
+            response = client.post(
+                "/api/v1/users", json=invalid_data, headers={"X-API-Key": "test_key"}
             )
 
             # Should return validation error
@@ -89,8 +89,8 @@ class TestUsersRouterCoverage:
                 # Missing required fields
             }
 
-            response = client.put(
-                "/api/v1/users/profile", json=incomplete_data, headers={"X-API-Key": "test_key"}
+            response = client.post(
+                "/api/v1/users", json=incomplete_data, headers={"X-API-Key": "test_key"}
             )
 
             # Should return validation error
@@ -109,7 +109,7 @@ class TestUsersRouterCoverage:
             "goal": "maintain",
         }
 
-        response = client.put("/api/v1/users/profile", json=profile_data)
+        response = client.post("/api/v1/users", json=profile_data)
 
         # Should require API key
         assert response.status_code in [401, 403, 422]
