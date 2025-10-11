@@ -49,6 +49,8 @@ class TestFoodStoreCoverage:
             mock_con = MagicMock()
             mock_con.execute.return_value.fetchall.return_value = []
             mock_connect.return_value.__enter__.return_value = mock_con
+            mock_connect.return_value.__exit__.return_value = None
+            mock_connect.return_value.__exit__.return_value = None
 
             result = food_store.search_foods("", limit=10, offset=0)
             assert result == []
@@ -61,6 +63,8 @@ class TestFoodStoreCoverage:
             mock_row.__iter__ = Mock(return_value=iter(["food1", "Apple", 50, 0.3, 0.2, 13]))
             mock_con.execute.return_value.fetchall.return_value = [mock_row]
             mock_connect.return_value.__enter__.return_value = mock_con
+            mock_connect.return_value.__exit__.return_value = None
+            mock_connect.return_value.__exit__.return_value = None
 
             result = food_store.search_foods("apple", limit=10, offset=0)
             assert len(result) == 1
@@ -75,6 +79,8 @@ class TestFoodStoreCoverage:
             mock_con = MagicMock()
             mock_con.execute.return_value.fetchall.return_value = []
             mock_connect.return_value.__enter__.return_value = mock_con
+            mock_connect.return_value.__exit__.return_value = None
+            mock_connect.return_value.__exit__.return_value = None
 
             # Test with alias that should expand
             result = food_store.search_foods("йогурт", limit=10, offset=0)
@@ -90,6 +96,7 @@ class TestFoodStoreCoverage:
             )
             mock_con.execute.return_value.fetchone.return_value = mock_row
             mock_connect.return_value.__enter__.return_value = mock_con
+            mock_connect.return_value.__exit__.return_value = None
 
             result = food_store.get_food("food1")
             assert result is not None
@@ -103,6 +110,7 @@ class TestFoodStoreCoverage:
             mock_con = MagicMock()
             mock_con.execute.return_value.fetchone.return_value = None
             mock_connect.return_value.__enter__.return_value = mock_con
+            mock_connect.return_value.__exit__.return_value = None
 
             result = food_store.get_food("nonexistent")
             assert result is None

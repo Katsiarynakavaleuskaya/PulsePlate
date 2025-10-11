@@ -91,7 +91,8 @@ class TestFoodStoreCoverage:
                 "carbs_g": 14.0,
             }
         ]
-        mock_connect.return_value = mock_con
+        mock_connect.return_value.__enter__.return_value = mock_con
+        mock_connect.return_value.__exit__.return_value = None
 
         result = food_store.search_foods("apple", limit=10, offset=0)
 
@@ -116,7 +117,8 @@ class TestFoodStoreCoverage:
                 "carbs_g": 14.0,
             }
         ]
-        mock_connect.return_value = mock_con
+        mock_connect.return_value.__enter__.return_value = mock_con
+        mock_connect.return_value.__exit__.return_value = None
 
         result = food_store.search_foods("", limit=10, offset=0)
 
@@ -132,7 +134,8 @@ class TestFoodStoreCoverage:
         mock_con.__enter__.return_value = mock_con
         mock_con.__exit__.return_value = None
         mock_con.execute.return_value.fetchall.return_value = []
-        mock_connect.return_value = mock_con
+        mock_connect.return_value.__enter__.return_value = mock_con
+        mock_connect.return_value.__exit__.return_value = None
 
         result = food_store.search_foods(None, limit=10, offset=0)
 
@@ -155,7 +158,8 @@ class TestFoodStoreCoverage:
             "carbs_g": 14.0,
             "per_g": 100.0,
         }
-        mock_connect.return_value = mock_con
+        mock_connect.return_value.__enter__.return_value = mock_con
+        mock_connect.return_value.__exit__.return_value = None
 
         result = food_store.get_food("1")
 
@@ -171,7 +175,8 @@ class TestFoodStoreCoverage:
         mock_con.__enter__.return_value = mock_con
         mock_con.__exit__.return_value = None
         mock_con.execute.return_value.fetchone.return_value = None
-        mock_connect.return_value = mock_con
+        mock_connect.return_value.__enter__.return_value = mock_con
+        mock_connect.return_value.__exit__.return_value = None
 
         result = food_store.get_food("999")
 
