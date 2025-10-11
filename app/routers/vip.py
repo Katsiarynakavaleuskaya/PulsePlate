@@ -11,7 +11,6 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     HTTPException,
     status,
 )
-from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
@@ -258,8 +257,14 @@ def _require_api_key(raw_key: str | None = Depends(_api_key_header)) -> str:
         try:
             result = app_get_api_key(raw_key)
             if not isinstance(result, str):
-                # If get_api_key returns None or non-string, use a default test key
-                return "test-api-key"
+                # If get_api_key returns None or non-string, reject the request
+                logging.error(
+                    f"get_api_key returned non-str type: {type(result)!r}. Rejecting request."
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Authentication provider error",
+                )
             return result
         except HTTPException as exc:
             if exc.status_code == 403:
@@ -470,7 +475,7 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
 
 
 @router.get("/health", dependencies=[Depends(_require_api_key_strict)])
-def vip_health() -> dict[str, Any]:
+async def vip_health() -> dict[str, Any]:
     """
     RU: Проверка здоровья VIP модуля
     EN: VIP module health check

@@ -33,7 +33,7 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
           WHERE f.title MATCH ?
           LIMIT ? OFFSET ?
         """
-        query_params = [query, limit, offset]
+        query_params: list[object] = [query, limit, offset]
 
     with _con() as con:
         rows = con.execute(sql, query_params).fetchall()

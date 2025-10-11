@@ -22,23 +22,19 @@ namespace_packages = true
 # Exclude files/dirs that cause duplicate module mapping or are heavy/generated.
 # - app.py conflicts with package module "app" (app/__init__.py) for mypy module resolution.
 # - Exclude caches and build artifacts to keep runs stable and fast.
-exclude = '''
-(
-  ^app\.py$|
-  ^core/time_utils\.py$|
-  ^core/db\.py$|
-  ^cache/|
-  ^test_cache/|
-  ^frontend/build/|
-  ^htmlcov/|
-  ^releases/.*|
-  ^data/|
-  ^external/|
-  ^providers/.*|
-  ^releases/v0\.1\.0/.*|
-  ^releases/v0\.1\.0/BMI-App_2025_clean-0\.1\.0/app\.py$
-)
-'''
+exclude = [
+    "^app\\.py$",
+    "^core/time_utils\\.py$",
+    "^core/db\\.py$",
+    "^cache/",
+    "^test_cache/",
+    "^frontend/build/",
+    "^htmlcov/",
+    "^releases/",
+    "^data/",
+    "^external/",
+    "^providers/",
+]
 
 # Note: We use Ruff for both linting AND formatting (replaces Black + flake8 + isort)
 # Ruff is faster and fully compatible with Black's formatting style
@@ -63,7 +59,6 @@ line-ending = "auto"
 # UP - pyupgrade (modern Python syntax)
 # B - flake8-bugbear (common bugs)
 # C4 - flake8-comprehensions
-# T20 - flake8-print (no print statements in production)
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4"]
 
 ignore = [

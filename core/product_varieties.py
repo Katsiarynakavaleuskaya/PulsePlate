@@ -134,7 +134,7 @@ class ProductVarietiesManager:
             return
 
         try:
-            with open(self.csv_path, encoding="utf-8") as f:
+            with open(self.csv_path, encoding="utf-8", newline="") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     try:

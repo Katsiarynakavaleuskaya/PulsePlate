@@ -2,7 +2,7 @@ import os
 
 # optio, StrictFloatnal dotenv
 ##DOTENV_OPTIONAL##
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, StrictFloat, model_validator
 
 
 try:
-    pass  # type: ignore
+    pass
 
 except ImportError:
     # dotenv is optional; skip if missing in test env
@@ -256,10 +256,9 @@ def api_v1_health():
 
 
 # --- API v1: bmi ---
-from pydantic import BaseModel, Field
 
 
-class BMIRequest(BaseModel):
+class BMIRequestV1(BaseModel):
     weight_kg: StrictFloat = Field(..., gt=0, description="Weight in kilograms")
     height_cm: StrictFloat = Field(..., gt=0, description="Height in centimeters")
     group: str = Field("general", description="general|athlete|pregnant|elderly|teen")
@@ -303,7 +302,7 @@ def _interpretation(b: float, g: str) -> str:
 
 
 @app.post("/api/v1/bmi", response_model=BMIResponse)
-def api_v1_bmi(payload: BMIRequest) -> BMIResponse:
+def api_v1_bmi(payload: BMIRequestV1) -> BMIResponse:
     try:
         v = _bmi_value(payload.weight_kg, payload.height_cm)
     except ValueError as e:

@@ -164,7 +164,7 @@ jobs:
         run: npm run typecheck
 
       - name: Prepare test-results directory
-        run: mkdir -p frontend/test-results
+        run: mkdir -p test-results
 
       - name: Unit tests (jsdom)
         run: npm run test

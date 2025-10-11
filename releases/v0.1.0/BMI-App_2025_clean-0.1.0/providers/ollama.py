@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import httpx
-import requests
 
 from providers import ProviderBase
 
@@ -54,7 +53,7 @@ class OllamaProvider(ProviderBase):
                     # Если 200, но пусто — пойдём на /api/generate
                 else:
                     r.raise_for_status()
-        except (requests.RequestException, ConnectionError, TimeoutError):
+        except httpx.RequestError:
             # переходим ко 2-му пути ниже
             pass
 

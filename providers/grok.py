@@ -85,11 +85,13 @@ def _extract_status_code(exc: BaseException) -> int | None:
 
     status = getattr(exc, "status_code", None)
     if status is not None and isinstance(status, int):
-        return status
+        return int(status)
 
     response = getattr(exc, "response", None)
     if response is not None:
-        return getattr(response, "status_code", None)
+        status_code = getattr(response, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
 
     body = getattr(exc, "body", None)
     if isinstance(body, dict):

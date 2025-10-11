@@ -2,7 +2,6 @@ name: Accessibility Check
 permissions:
   contents: read
   issues: write
-  pull-requests: write
 
 on:
   pull_request:
@@ -100,7 +99,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: write
 
     steps:
       - name: Check accessibility results

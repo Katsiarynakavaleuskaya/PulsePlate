@@ -7,16 +7,19 @@ from importlib.machinery import ModuleSpec
 import importlib.util
 import os
 import sys
-from typing import cast
+import types
+from typing import Any, cast
 
 
 # Import FastAPI app and functions from the main module
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _base_dir)
 
 # Import from the main main.py file directly
-spec = importlib.util.spec_from_file_location("app_module", "main.py")
+spec_path = os.path.join(_base_dir, "main.py")
+spec = importlib.util.spec_from_file_location("app_module", spec_path)
 if spec is None or spec.loader is None:
     app = None
     get_api_key = None
@@ -63,7 +66,12 @@ class _RebindingModuleSpec(ModuleSpec):
         **kwargs: Keyword arguments passed to ModuleSpec
     """
 
-    def __init__(self, *args, owner_module=None, **kwargs):
+    def __init__(
+        self,
+        *args: Any,
+        owner_module: types.ModuleType | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the rebinding module spec.
 
         Args:
@@ -74,7 +82,7 @@ class _RebindingModuleSpec(ModuleSpec):
         super().__init__(*args, **kwargs)
         self._owner_module = owner_module
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> object:
         result = super().__getattribute__(name)
         # When 'name' attribute is accessed, ensure sys.modules binding is correct
         if name == "name":
@@ -127,7 +135,7 @@ __all__ = [
 app_module = _mod
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> object:
     """Allow access to attributes from the underlying module"""
     if _mod is not None and hasattr(_mod, name):
         return getattr(_mod, name)
