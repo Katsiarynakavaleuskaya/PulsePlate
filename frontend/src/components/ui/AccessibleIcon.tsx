@@ -23,6 +23,7 @@ export const AccessibleIcon: React.FC<AccessibleIconProps> = ({
   size = 'md',
   role: _role = 'img',
   'aria-hidden': ariaHidden = false,
+  ...props
 }) => {
   // Проверка в development режиме
   if (process.env.NODE_ENV === 'development' && !label?.trim()) {
