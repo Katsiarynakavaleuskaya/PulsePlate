@@ -12,9 +12,6 @@ on:
     paths:
       - "frontend/**"
 
-permissions:
-  contents: read
-
 jobs:
   accessibility-lint:
     name: Accessibility Linting

@@ -7,7 +7,7 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable, Generator
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 import logging
 import os
 from typing import TYPE_CHECKING, Any
@@ -168,18 +168,16 @@ _POOL_CONFIG = {
     "pool_pre_ping": True,
 }
 
-if ASYNC_DATABASE_URL and create_async_engine is not None:
-    try:
+if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker is not None:
+    with suppress(ImportError):
         async_kwargs: dict[str, Any] = {
             "echo": False,
             "future": True,
         }
 
-        if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
+        if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             # SQLite async doesn't support pooling
-            pass
-        else:
-            async_kwargs.update(_POOL_CONFIG)
+            async_kwargs |= _POOL_CONFIG
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
         AsyncSessionLocal = async_sessionmaker(
@@ -187,9 +185,6 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             autoflush=False,
             expire_on_commit=False,
         )
-    except ImportError:
-        # Fallback if async drivers are not available
-        pass
 
 async_engine: AsyncEngineType | None = _ASYNC_ENGINE
 
