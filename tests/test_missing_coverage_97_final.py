@@ -85,7 +85,7 @@ class TestMissingCoverage97Final:
             pytest.skip("core.food_apis module not available")
 
     def test_app_comprehensive_coverage(self):
-        """Test comprehensive app.py coverage - consolidated from multiple duplicate tests"""
+        """Test comprehensive main.py coverage - consolidated from multiple duplicate tests"""
         try:
             import app
 

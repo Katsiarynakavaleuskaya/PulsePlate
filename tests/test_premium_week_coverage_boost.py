@@ -16,10 +16,10 @@ try:
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    # Import the FastAPI app from app.py file
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    # Import the FastAPI app from main.py file
+    spec = importlib.util.spec_from_file_location("app_module", "main.py")
     if spec is None or spec.loader is None:
-        raise ImportError("Cannot load app.py")
+        raise ImportError("Cannot load main.py")
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)

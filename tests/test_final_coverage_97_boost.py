@@ -182,7 +182,7 @@ class TestUpdateManagerCoverage:
 
 
 class TestAppEndpointsCoverage:
-    """Tests for app.py uncovered endpoint lines."""
+    """Tests for main.py uncovered endpoint lines."""
 
     def test_root_endpoint(self, client):
         """Test root endpoint."""
@@ -213,7 +213,7 @@ class TestAppEndpointsCoverage:
 
 
 class TestAppErrorHandling:
-    """Tests for app.py error handling paths."""
+    """Tests for main.py error handling paths."""
 
     def test_invalid_json_payload(self, client):
         """Test endpoint with invalid JSON."""
@@ -242,7 +242,7 @@ class TestAppErrorHandling:
 
 
 class TestAppAdminEndpoints:
-    """Tests for app.py admin endpoints uncovered lines."""
+    """Tests for main.py admin endpoints uncovered lines."""
 
     def test_admin_status_without_key(self, client):
         """Test admin status without API key."""

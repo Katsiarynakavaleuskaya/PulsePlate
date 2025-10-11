@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py exception handlers
+Тесты для покрытия main.py exception handlers
 Покрывает строки: 1732, 1735-1739
 """
 
@@ -8,7 +8,7 @@ import pytest
 
 
 class TestAppExceptionHandlersCoverage:
-    """Тесты для покрытия app.py exception handlers"""
+    """Тесты для покрытия main.py exception handlers"""
 
     @pytest.fixture
     def client(self, test_environment):

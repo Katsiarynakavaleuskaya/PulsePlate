@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py lifespan событий
+Тесты для покрытия main.py lifespan событий
 Покрывает строки: 1505→exit, 1508→exit, 1520-1527, 1606, 1657-1660
 """
 
@@ -10,10 +10,10 @@ from starlette.types import ASGIApp
 
 
 class TestAppLifespanCoverage:
-    """Тесты для покрытия app.py lifespan событий"""
+    """Тесты для покрытия main.py lifespan событий"""
 
     def test_app_lifespan_startup_events_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan startup событий (строки 1520-1527)"""
+        """Тест покрытия main.py lifespan startup событий (строки 1520-1527)"""
         import app
 
         # Тестируем startup события через TestClient
@@ -29,7 +29,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_shutdown_events_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan shutdown событий (строки 1606, 1657-1660)"""
+        """Тест покрытия main.py lifespan shutdown событий (строки 1606, 1657-1660)"""
         import app
 
         # Тестируем shutdown события
@@ -45,7 +45,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_context_manager_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan context manager (строки 1505→exit, 1508→exit)"""
+        """Тест покрытия main.py lifespan context manager (строки 1505→exit, 1508→exit)"""
         import app
 
         # Тестируем lifespan context manager
@@ -60,10 +60,10 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_startup_with_mocks_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan startup с моками"""
+        """Тест покрытия main.py lifespan startup с моками"""
         import app
 
-        # Тестируем startup события без моков (так как они не существуют в app.py)
+        # Тестируем startup события без моков (так как они не существуют в main.py)
         client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что startup события вызываются
@@ -71,10 +71,10 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_shutdown_with_mocks_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan shutdown с моками"""
+        """Тест покрытия main.py lifespan shutdown с моками"""
         import app
 
-        # Тестируем shutdown события без моков (так как они не существуют в app.py)
+        # Тестируем shutdown события без моков (так как они не существуют в main.py)
         client = TestClient(cast(ASGIApp, app.app))
 
         # Проверяем, что shutdown события вызываются
@@ -82,7 +82,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_error_handling_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan error handling"""
+        """Тест покрытия main.py lifespan error handling"""
         import app
 
         # Тестируем error handling в lifespan
@@ -97,7 +97,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_async_context_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan async context"""
+        """Тест покрытия main.py lifespan async context"""
         import app
 
         # Тестируем async context в lifespan
@@ -112,7 +112,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_resource_cleanup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan resource cleanup"""
+        """Тест покрытия main.py lifespan resource cleanup"""
         import app
 
         # Тестируем resource cleanup в lifespan
@@ -127,7 +127,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_database_connection_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan database connection"""
+        """Тест покрытия main.py lifespan database connection"""
         import app
 
         # Тестируем database connection в lifespan
@@ -142,7 +142,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_logging_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan logging"""
+        """Тест покрытия main.py lifespan logging"""
         import app
 
         # Тестируем logging в lifespan
@@ -157,7 +157,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_configuration_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan configuration"""
+        """Тест покрытия main.py lifespan configuration"""
         import app
 
         # Тестируем configuration в lifespan
@@ -172,7 +172,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_middleware_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan middleware setup"""
+        """Тест покрытия main.py lifespan middleware setup"""
         import app
 
         # Тестируем middleware setup в lifespan
@@ -187,7 +187,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_router_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan router setup"""
+        """Тест покрытия main.py lifespan router setup"""
         import app
 
         # Тестируем router setup в lifespan
@@ -202,7 +202,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_graceful_shutdown_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan graceful shutdown"""
+        """Тест покрытия main.py lifespan graceful shutdown"""
         import app
 
         # Тестируем graceful shutdown в lifespan
@@ -217,7 +217,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_health_check_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan health check"""
+        """Тест покрытия main.py lifespan health check"""
         import app
 
         # Тестируем health check в lifespan
@@ -232,7 +232,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_metrics_collection_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan metrics collection"""
+        """Тест покрытия main.py lifespan metrics collection"""
         import app
 
         # Тестируем metrics collection в lifespan
@@ -247,7 +247,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_error_recovery_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan error recovery"""
+        """Тест покрытия main.py lifespan error recovery"""
         import app
 
         # Тестируем error recovery в lifespan
@@ -262,7 +262,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_performance_monitoring_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan performance monitoring"""
+        """Тест покрытия main.py lifespan performance monitoring"""
         import app
 
         # Тестируем performance monitoring в lifespan
@@ -277,7 +277,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_security_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan security setup"""
+        """Тест покрытия main.py lifespan security setup"""
         import app
 
         # Тестируем security setup в lifespan
@@ -292,7 +292,7 @@ class TestAppLifespanCoverage:
         assert response.status_code == 200
 
     def test_app_lifespan_caching_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan caching setup"""
+        """Тест покрытия main.py lifespan caching setup"""
         import app
 
         # Тестируем caching setup в lifespan

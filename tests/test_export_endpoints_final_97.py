@@ -27,11 +27,11 @@ import pathlib
 
 # Get the repository root directory
 repo_root = pathlib.Path(__file__).parent.parent
-app_path = repo_root / "app.py"
+app_path = repo_root / "main.py"
 
 spec = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
+    raise ImportError("Cannot load main.py")
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)

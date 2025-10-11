@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py production режим
+Тесты для покрытия main.py production режим
 Покрывает строки: 66-68
 """
 
@@ -10,10 +10,10 @@ from starlette.types import ASGIApp
 
 
 class TestAppProductionCoverage:
-    """Тесты для покрытия app.py production режим"""
+    """Тесты для покрытия main.py production режим"""
 
     def test_app_production_mode_coverage(self, production_environment):
-        """Тест покрытия app.py production режим (строки 66-68)"""
+        """Тест покрытия main.py production режим (строки 66-68)"""
         import app
 
         # Тестируем production режим
@@ -27,7 +27,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_api_key_validation_coverage(self, production_environment):
-        """Тест покрытия app.py production API key validation"""
+        """Тест покрытия main.py production API key validation"""
         import app
 
         # Тестируем production API key validation
@@ -50,7 +50,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200  # BMI is public now
 
     def test_app_production_environment_variables_coverage(self, production_environment):
-        """Тест покрытия app.py production environment variables"""
+        """Тест покрытия main.py production environment variables"""
         import app
 
         # Тестируем production environment variables
@@ -64,7 +64,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_security_coverage(self, production_environment):
-        """Тест покрытия app.py production security"""
+        """Тест покрытия main.py production security"""
         import app
 
         # Тестируем production security
@@ -79,7 +79,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_logging_coverage(self, production_environment):
-        """Тест покрытия app.py production logging"""
+        """Тест покрытия main.py production logging"""
         import app
 
         # Тестируем production logging
@@ -93,7 +93,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_error_handling_coverage(self, production_environment):
-        """Тест покрытия app.py production error handling"""
+        """Тест покрытия main.py production error handling"""
         import app
 
         # Тестируем production error handling
@@ -107,7 +107,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 404
 
     def test_app_production_middleware_coverage(self, production_environment):
-        """Тест покрытия app.py production middleware"""
+        """Тест покрытия main.py production middleware"""
         import app
 
         # Тестируем production middleware
@@ -121,7 +121,7 @@ class TestAppProductionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_production_cors_coverage(self, production_environment):
-        """Тест покрытия app.py production CORS"""
+        """Тест покрытия main.py production CORS"""
         import app
 
         # Тестируем production CORS
@@ -135,7 +135,7 @@ class TestAppProductionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_production_validation_coverage(self, production_environment):
-        """Тест покрытия app.py production validation"""
+        """Тест покрытия main.py production validation"""
         import app
 
         # Тестируем production validation
@@ -150,7 +150,7 @@ class TestAppProductionCoverage:
         assert response.status_code in [422, 401]
 
     def test_app_production_metrics_coverage(self, production_environment):
-        """Тест покрытия app.py production metrics"""
+        """Тест покрытия main.py production metrics"""
         import app
 
         # Тестируем production metrics
@@ -161,7 +161,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_health_check_coverage(self, production_environment):
-        """Тест покрытия app.py production health check"""
+        """Тест покрытия main.py production health check"""
         import app
 
         # Тестируем production health check
@@ -175,7 +175,7 @@ class TestAppProductionCoverage:
         assert "status" in health_data
 
     def test_app_production_openapi_coverage(self, production_environment):
-        """Тест покрытия app.py production OpenAPI"""
+        """Тест покрытия main.py production OpenAPI"""
         import app
 
         # Тестируем production OpenAPI
@@ -191,7 +191,7 @@ class TestAppProductionCoverage:
         assert "paths" in openapi_schema
 
     def test_app_production_docs_coverage(self, production_environment):
-        """Тест покрытия app.py production docs"""
+        """Тест покрытия main.py production docs"""
         import app
 
         # Тестируем production docs
@@ -202,7 +202,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_redoc_coverage(self, production_environment):
-        """Тест покрытия app.py production redoc"""
+        """Тест покрытия main.py production redoc"""
         import app
 
         # Тестируем production redoc
@@ -213,7 +213,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_router_coverage(self, production_environment):
-        """Тест покрытия app.py production router"""
+        """Тест покрытия main.py production router"""
         import app
 
         # Тестируем production router
@@ -228,7 +228,7 @@ class TestAppProductionCoverage:
         assert response.status_code in [200, 422]
 
     def test_app_production_lifespan_coverage(self, production_environment):
-        """Тест покрытия app.py production lifespan"""
+        """Тест покрытия main.py production lifespan"""
         import app
 
         # Тестируем production lifespan
@@ -242,7 +242,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_exception_handlers_coverage(self, production_environment):
-        """Тест покрытия app.py production exception handlers"""
+        """Тест покрытия main.py production exception handlers"""
         import app
 
         # Тестируем production exception handlers
@@ -256,7 +256,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 404
 
     def test_app_production_vip_endpoints_coverage(self, production_environment):
-        """Тест покрытия app.py production VIP endpoints"""
+        """Тест покрытия main.py production VIP endpoints"""
         import app
 
         # Тестируем production VIP endpoints
@@ -278,7 +278,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 200
 
     def test_app_production_admin_endpoints_coverage(self, production_environment):
-        """Тест покрытия app.py production admin endpoints"""
+        """Тест покрытия main.py production admin endpoints"""
         import app
 
         # Тестируем production admin endpoints
@@ -292,7 +292,7 @@ class TestAppProductionCoverage:
         assert response.status_code in [200, 404]
 
     def test_app_production_root_endpoint_coverage(self, production_environment):
-        """Тест покрытия app.py production root endpoint"""
+        """Тест покрытия main.py production root endpoint"""
         import app
 
         # Тестируем production root endpoint

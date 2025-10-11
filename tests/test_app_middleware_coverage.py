@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py middleware цепочки
+Тесты для покрытия main.py middleware цепочки
 Покрывает строки: 1869-1870, 1872-1873, 1904, 1954→1966, 1960→1959, 1987, 2014, 2061, 2064-2065
 """
 
@@ -10,7 +10,7 @@ from starlette.types import ASGIApp
 
 
 class TestAppMiddlewareCoverage:
-    """Тесты для покрытия app.py middleware цепочки"""
+    """Тесты для покрытия main.py middleware цепочки"""
 
     def setup_method(self):
         """Create a single TestClient for all tests to avoid duplication."""
@@ -19,7 +19,7 @@ class TestAppMiddlewareCoverage:
         self.client = TestClient(cast(ASGIApp, app.app))
 
     def test_app_middleware_execution_coverage(self, test_environment):
-        """Тест покрытия app.py middleware execution (строки 1869-1870, 1872-1873)"""
+        """Тест покрытия main.py middleware execution (строки 1869-1870, 1872-1873)"""
         # Тестируем middleware execution через различные endpoints
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -31,7 +31,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_cors_middleware_coverage(self, test_environment):
-        """Тест покрытия app.py CORS middleware (строки 1904, 1954→1966, 1960→1959)"""
+        """Тест покрытия main.py CORS middleware (строки 1904, 1954→1966, 1960→1959)"""
         # Тестируем CORS middleware через OPTIONS запросы
         response = self.client.options("/health")
         assert response.status_code in [200, 405]
@@ -43,7 +43,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_cors_middleware_headers_coverage(self, test_environment):
-        """Тест покрытия app.py CORS middleware headers"""
+        """Тест покрытия main.py CORS middleware headers"""
         # Тестируем CORS middleware с различными заголовками
         headers = {
             "Origin": "http://localhost:3000",
@@ -58,7 +58,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_middleware_setup_coverage(self, test_environment):
-        """Тест покрытия app.py middleware setup (строки 1987, 2014, 2061, 2064-2065)"""
+        """Тест покрытия main.py middleware setup (строки 1987, 2014, 2061, 2064-2065)"""
         # Тестируем middleware setup через различные запросы
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -78,7 +78,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 422]
 
     def test_app_middleware_order_coverage(self, test_environment):
-        """Тест покрытия app.py middleware order"""
+        """Тест покрытия main.py middleware order"""
         # Тестируем middleware order через различные запросы
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -90,7 +90,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_error_handling_coverage(self, test_environment):
-        """Тест покрытия app.py middleware error handling"""
+        """Тест покрытия main.py middleware error handling"""
         # Тестируем middleware error handling
         response = self.client.get("/nonexistent")
         assert response.status_code == 404
@@ -99,7 +99,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 404
 
     def test_app_middleware_headers_processing_coverage(self, test_environment):
-        """Тест покрытия app.py middleware headers processing"""
+        """Тест покрытия main.py middleware headers processing"""
         # Тестируем middleware headers processing
         headers = {
             "User-Agent": "test-agent",
@@ -114,7 +114,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_request_processing_coverage(self, test_environment):
-        """Тест покрытия app.py middleware request processing"""
+        """Тест покрытия main.py middleware request processing"""
         # Тестируем middleware request processing
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -127,7 +127,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_response_processing_coverage(self, test_environment):
-        """Тест покрытия app.py middleware response processing"""
+        """Тест покрытия main.py middleware response processing"""
         # Тестируем middleware response processing
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -137,7 +137,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_cors_preflight_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS preflight"""
+        """Тест покрытия main.py middleware CORS preflight"""
         # Тестируем CORS preflight requests
         response = self.client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
@@ -149,7 +149,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_middleware_cors_origin_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS origin"""
+        """Тест покрытия main.py middleware CORS origin"""
         # Тестируем CORS origin handling
         origins = [
             "http://localhost:3000",
@@ -164,7 +164,7 @@ class TestAppMiddlewareCoverage:
             assert response.status_code == 200
 
     def test_app_middleware_cors_methods_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS methods"""
+        """Тест покрытия main.py middleware CORS methods"""
         # Тестируем CORS methods handling
         methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 
@@ -190,7 +190,7 @@ class TestAppMiddlewareCoverage:
             assert response.status_code in [200, 405, 422]
 
     def test_app_middleware_cors_headers_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS headers"""
+        """Тест покрытия main.py middleware CORS headers"""
         # Тестируем CORS headers handling
         cors_headers = [
             "Content-Type",
@@ -206,7 +206,7 @@ class TestAppMiddlewareCoverage:
             assert response.status_code == 200
 
     def test_app_middleware_cors_credentials_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS credentials"""
+        """Тест покрытия main.py middleware CORS credentials"""
         # Тестируем CORS credentials handling
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -219,7 +219,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_cors_max_age_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS max age"""
+        """Тест покрытия main.py middleware CORS max age"""
         # Тестируем CORS max age handling
         response = self.client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
@@ -228,7 +228,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_middleware_cors_expose_headers_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS expose headers"""
+        """Тест покрытия main.py middleware CORS expose headers"""
         # Тестируем CORS expose headers handling
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -237,7 +237,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_cors_allow_origin_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS allow origin"""
+        """Тест покрытия main.py middleware CORS allow origin"""
         # Тестируем CORS allow origin handling
         response = self.client.get("/health")
         assert response.status_code == 200
@@ -246,7 +246,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code == 200
 
     def test_app_middleware_cors_allow_methods_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS allow methods"""
+        """Тест покрытия main.py middleware CORS allow methods"""
         # Тестируем CORS allow methods handling
         response = self.client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
@@ -255,7 +255,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_middleware_cors_allow_headers_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS allow headers"""
+        """Тест покрытия main.py middleware CORS allow headers"""
         # Тестируем CORS allow headers handling
         response = self.client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
@@ -264,7 +264,7 @@ class TestAppMiddlewareCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_middleware_cors_allow_credentials_coverage(self, test_environment):
-        """Тест покрытия app.py middleware CORS allow credentials"""
+        """Тест покрытия main.py middleware CORS allow credentials"""
         # Тестируем CORS allow credentials handling
         response = self.client.get("/health")
         assert response.status_code == 200

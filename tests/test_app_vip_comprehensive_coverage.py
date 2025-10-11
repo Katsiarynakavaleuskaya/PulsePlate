@@ -1,5 +1,5 @@
 """
-Comprehensive test coverage for app.py VIP functionality to improve coverage to 97%.
+Comprehensive test coverage for main.py VIP functionality to improve coverage to 97%.
 """
 
 from unittest.mock import patch
@@ -8,7 +8,7 @@ import pytest
 
 
 class TestAppVipComprehensiveCoverage:
-    """Comprehensive tests for app.py VIP functionality."""
+    """Comprehensive tests for main.py VIP functionality."""
 
     def test_vip_weekly_menu_endpoint(self, test_client):
         """Test the VIP weekly menu endpoint to cover missing lines."""

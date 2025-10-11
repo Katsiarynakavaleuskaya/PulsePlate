@@ -9,28 +9,28 @@ from typing import Any
 
 
 class AppLoadError(ImportError):
-    """Raised when app.py cannot be loaded."""
+    """Raised when main.py cannot be loaded."""
 
     pass
 
 
 def load_app() -> Any:
     """
-    Load FastAPI app dynamically from app.py file.
+    Load FastAPI app dynamically from main.py file.
 
     Returns:
         FastAPI app instance
 
     Raises:
-        AppLoadError: If app.py cannot be loaded
+        AppLoadError: If main.py cannot be loaded
     """
     # Ensure project root is in Python path
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    # Load app.py dynamically
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    # Load main.py dynamically
+    spec = importlib.util.spec_from_file_location("app_module", "main.py")
     if spec is None or spec.loader is None:
         raise AppLoadError()
 

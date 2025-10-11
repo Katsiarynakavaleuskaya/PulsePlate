@@ -4,10 +4,10 @@ import os
 from fastapi.testclient import TestClient
 
 
-spec = importlib.util.spec_from_file_location("app", "app.py")
+spec = importlib.util.spec_from_file_location("app", "main.py")
 
 if spec is None or spec.loader is None:
-    raise ImportError("Could not load app.py spec or loader is None")
+    raise ImportError("Could not load main.py spec or loader is None")
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)  # type: ignore
 client = TestClient(app_module.app)

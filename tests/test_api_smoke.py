@@ -8,19 +8,19 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the FastAPI app from app.py file
+# Import the FastAPI app from main.py file
 try:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "main.py")
     if spec is None or spec.loader is None:
-        raise ImportError("Cannot load app.py")
+        raise ImportError("Cannot load main.py")
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
     app = app_module.app
 except (ImportError, FileNotFoundError, AttributeError) as exc:  # pragma: no cover
-    pytest.skip(f"Skipping smoke tests: cannot import app.py ({exc})", allow_module_level=True)
+    pytest.skip(f"Skipping smoke tests: cannot import main.py ({exc})", allow_module_level=True)
 
 
 @pytest.fixture

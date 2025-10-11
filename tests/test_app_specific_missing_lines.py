@@ -1,5 +1,5 @@
 """
-Test coverage for specific missing lines in app.py to improve coverage to 97%.
+Test coverage for specific missing lines in main.py to improve coverage to 97%.
 """
 
 import os
@@ -9,7 +9,7 @@ import pytest
 
 
 class TestAppSpecificMissingLines:
-    """Tests for specific missing lines in app.py."""
+    """Tests for specific missing lines in main.py."""
 
     def test_slowapi_import_error(self):
         """Test slowapi import error handling."""

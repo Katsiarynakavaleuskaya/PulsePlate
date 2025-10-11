@@ -21,13 +21,13 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the FastAPI app from app.py file
+# Import the FastAPI app from main.py file
 import importlib.util
 
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
+spec = importlib.util.spec_from_file_location("app_module", "main.py")
 if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
+    raise ImportError("Cannot load main.py")
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
@@ -113,7 +113,7 @@ class TestEnhancedPlateAPI:
             assert "fraction" in item
             assert "label" in item
             assert "tooltip" in item
-            assert isinstance(item["fraction"], (int, float))
+            assert isinstance(item["fraction"], int | float)
             assert 0 <= item["fraction"] <= 1.5  # Allow cups > 1
 
     def test_plate_portions_hand_cup_method(self):

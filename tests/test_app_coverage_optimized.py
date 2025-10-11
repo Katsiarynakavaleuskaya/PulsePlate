@@ -1,4 +1,4 @@
-"""Final optimized app.py coverage tests - fast and reliable."""
+"""Final optimized main.py coverage tests - fast and reliable."""
 
 import os
 from unittest.mock import patch
@@ -31,7 +31,7 @@ def app_client():
 
 
 class TestAppCoverageFinal:
-    """Final optimized app.py coverage tests - fast and reliable."""
+    """Final optimized main.py coverage tests - fast and reliable."""
 
     def test_app_health_endpoints(self, app_client):
         """Test health and root endpoints."""

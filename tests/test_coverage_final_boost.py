@@ -83,7 +83,7 @@ class TestCoverageFinalBoost:
             pytest.skip(f"Module {module_name} not available")
 
     def test_app_missing_lines_coverage(self):
-        """Test app.py missing lines coverage"""
+        """Test main.py missing lines coverage"""
         import app
 
         # Test app module

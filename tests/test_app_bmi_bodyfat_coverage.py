@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py BMI и bodyfat endpoints
+Тесты для покрытия main.py BMI и bodyfat endpoints
 Покрывает строки: 504-505, 978, 995-996, 1008-1012, 1045-1049, 1093-1094, 1101-1102, 1109-1112, 1115-1118, 1121-1124, 1197
 """
 
@@ -13,7 +13,7 @@ from starlette.types import ASGIApp
 
 
 class TestAppBMIBodyfatCoverage:
-    """Тесты для покрытия app.py BMI и bodyfat endpoints"""
+    """Тесты для покрытия main.py BMI и bodyfat endpoints"""
 
     @pytest.mark.parametrize(
         "endpoint,valid_payload,invalid_payload",
@@ -50,7 +50,7 @@ class TestAppBMIBodyfatCoverage:
         if endpoint == "/api/v1/bmi":
             assert "bmi" in data
             assert "category" in data
-            assert isinstance(data["bmi"], (int, float))
+            assert isinstance(data["bmi"], int | float)
         else:  # bodyfat
             assert "methods" in data
             assert "median" in data

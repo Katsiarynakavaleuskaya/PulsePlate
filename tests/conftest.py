@@ -41,7 +41,7 @@ def setup_test_environment():
 
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return the module.
+    """Dynamically load main.py and return the module.
 
     This fixture depends on setup_test_environment to ensure
     API_KEY is set before loading the app.
@@ -49,10 +49,10 @@ def app_module() -> ModuleType:
     repo_root = Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root))
 
-    app_path = repo_root / "app.py"
+    app_path = repo_root / "main.py"
     spec = importlib.util.spec_from_file_location("app_module", str(app_path))
     if spec is None or spec.loader is None:
-        pytest.skip("Cannot load app.py", allow_module_level=True)
+        pytest.skip("Cannot load main.py", allow_module_level=True)
 
     # Type guard for mypy
     assert spec is not None

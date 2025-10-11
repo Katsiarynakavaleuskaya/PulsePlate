@@ -121,10 +121,10 @@ class TestRebindingModuleSpec:
             assert hasattr(app, export), f"Missing export: {export}"
 
     def test_app_module_fallback_exports(self):
-        """Test that fallback exports are defined even if app.py fails to load."""
+        """Test that fallback exports are defined even if main.py fails to load."""
         import app
 
-        # Test that optional exports exist (may be None if app.py didn't load)
+        # Test that optional exports exist (may be None if main.py didn't load)
         optional_exports = [
             "add_visualization_if_requested",
             "to_pdf_day",

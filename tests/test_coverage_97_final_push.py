@@ -68,7 +68,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_164_170_169(self, test_environment):
-        """Тест покрытия app.py строк 164-170, 169"""
+        """Тест покрытия main.py строк 164-170, 169"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -81,7 +81,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 404
 
     def test_app_coverage_missing_lines_205_208_210(self, test_environment):
-        """Тест покрытия app.py строк 205-208, 210"""
+        """Тест покрытия main.py строк 205-208, 210"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -94,7 +94,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [401, 403, 500, 503]
 
     def test_app_coverage_missing_lines_242_246_247(self, premium_disabled_environment):
-        """Тест покрытия app.py строк 242-246, 247"""
+        """Тест покрытия main.py строк 242-246, 247"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -108,7 +108,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [404, 503]
 
     def test_app_coverage_missing_lines_252_256(self, test_environment):
-        """Тест покрытия app.py строк 252-256"""
+        """Тест покрытия main.py строк 252-256"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -121,7 +121,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_504_505(self, test_environment):
-        """Тест покрытия app.py строк 504-505"""
+        """Тест покрытия main.py строк 504-505"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -142,7 +142,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_978_995_996(self, test_environment):
-        """Тест покрытия app.py строк 978, 995-996"""
+        """Тест покрытия main.py строк 978, 995-996"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -163,7 +163,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422]
 
     def test_app_coverage_missing_lines_1008_1012(self, test_environment):
-        """Тест покрытия app.py строк 1008-1012"""
+        """Тест покрытия main.py строк 1008-1012"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -184,7 +184,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422]
 
     def test_app_coverage_missing_lines_1045_1049(self, test_environment):
-        """Тест покрытия app.py строк 1045-1049"""
+        """Тест покрытия main.py строк 1045-1049"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -197,7 +197,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_1093_1094(self, test_environment):
-        """Тест покрытия app.py строк 1093-1094"""
+        """Тест покрытия main.py строк 1093-1094"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -210,7 +210,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 404]
 
     def test_app_coverage_missing_lines_1101_1102(self, test_environment):
-        """Тест покрытия app.py строк 1101-1102"""
+        """Тест покрытия main.py строк 1101-1102"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -223,7 +223,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 404]
 
     def test_app_coverage_missing_lines_1109_1112(self, test_environment):
-        """Тест покрытия app.py строк 1109-1112"""
+        """Тест покрытия main.py строк 1109-1112"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -244,7 +244,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422, 404]
 
     def test_app_coverage_missing_lines_1115_1118(self, test_environment):
-        """Тест покрытия app.py строк 1115-1118"""
+        """Тест покрытия main.py строк 1115-1118"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -265,7 +265,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422, 503, 404]
 
     def test_app_coverage_missing_lines_1121_1124(self, test_environment):
-        """Тест покрытия app.py строк 1121-1124"""
+        """Тест покрытия main.py строк 1121-1124"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -286,7 +286,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422, 503, 404]
 
     def test_app_coverage_missing_lines_1197(self, test_environment):
-        """Тест покрытия app.py строки 1197"""
+        """Тест покрытия main.py строки 1197"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -307,7 +307,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 422, 503, 404]
 
     def test_app_coverage_missing_lines_1325_1326_1328_1329(self, test_environment, dynamic_client):
-        """Тест покрытия app.py строк 1325-1326, 1328-1329"""
+        """Тест покрытия main.py строк 1325-1326, 1328-1329"""
         # Ensure clean state for this test
         import os
 
@@ -349,7 +349,7 @@ class TestCoverage97FinalPush:
             os.environ.update(original_env)
 
     def test_app_coverage_missing_lines_1342_1365(self, test_environment, dynamic_client):
-        """Тест покрытия app.py строк 1342-1365"""
+        """Тест покрытия main.py строк 1342-1365"""
         # Ensure clean state for this test
         import os
 
@@ -401,7 +401,7 @@ class TestCoverage97FinalPush:
             os.environ.update(original_env)
 
     def test_app_coverage_missing_lines_1505_1508_exit(self, test_environment):
-        """Тест покрытия app.py строк 1505->exit, 1508->exit"""
+        """Тест покрытия main.py строк 1505->exit, 1508->exit"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -411,7 +411,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_1520_1527(self, test_environment):
-        """Тест покрытия app.py строк 1520-1527"""
+        """Тест покрытия main.py строк 1520-1527"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -421,7 +421,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_1606_1657_1660(self, test_environment):
-        """Тест покрытия app.py строк 1606, 1657-1660"""
+        """Тест покрытия main.py строк 1606, 1657-1660"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -431,7 +431,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_1732_1735_1739(self, test_environment):
-        """Тест покрытия app.py строк 1732, 1735-1739"""
+        """Тест покрытия main.py строк 1732, 1735-1739"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -441,7 +441,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 404
 
     def test_app_coverage_missing_lines_1869_1870_1872_1873(self, test_environment):
-        """Тест покрытия app.py строк 1869-1870, 1872-1873"""
+        """Тест покрытия main.py строк 1869-1870, 1872-1873"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -451,7 +451,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_1904_1954_1966_1960_1959(self, test_environment):
-        """Тест покрытия app.py строк 1904, 1954->1966, 1960->1959"""
+        """Тест покрытия main.py строк 1904, 1954->1966, 1960->1959"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -461,7 +461,7 @@ class TestCoverage97FinalPush:
         assert response.status_code in [200, 405]
 
     def test_app_coverage_missing_lines_1987_2014_2061_2064_2065(self, test_environment):
-        """Тест покрытия app.py строк 1987, 2014, 2061, 2064-2065"""
+        """Тест покрытия main.py строк 1987, 2014, 2061, 2064-2065"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -471,7 +471,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_2095_2118_2151_2153(self, test_environment):
-        """Тест покрытия app.py строк 2095, 2118, 2151, 2153"""
+        """Тест покрытия main.py строк 2095, 2118, 2151, 2153"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -481,7 +481,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_2271_2272_2372_2400_2426(self, test_environment):
-        """Тест покрытия app.py строк 2271-2272, 2372, 2400-2426"""
+        """Тест покрытия main.py строк 2271-2272, 2372, 2400-2426"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -491,7 +491,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_2513_2586_2593_2600(self, test_environment):
-        """Тест покрытия app.py строк 2513, 2586, 2593, 2600"""
+        """Тест покрытия main.py строк 2513, 2586, 2593, 2600"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -501,7 +501,7 @@ class TestCoverage97FinalPush:
         assert response.status_code == 200
 
     def test_app_coverage_missing_lines_2693_2699_2706_2718_2722_2722_exit(self, test_environment):
-        """Тест покрытия app.py строк 2693, 2699, 2706, 2718->2722, 2722->exit"""
+        """Тест покрытия main.py строк 2693, 2699, 2706, 2718->2722, 2722->exit"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))

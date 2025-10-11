@@ -1,5 +1,5 @@
 """
-Test coverage for remaining missing lines in app.py to improve coverage to 97%.
+Test coverage for remaining missing lines in main.py to improve coverage to 97%.
 """
 
 import os
@@ -9,7 +9,7 @@ import pytest
 
 
 class TestAppRemainingCoverage:
-    """Tests for remaining missing lines in app.py."""
+    """Tests for remaining missing lines in main.py."""
 
     def test_calc_bmi_function(self):
         """Test the calc_bmi function."""

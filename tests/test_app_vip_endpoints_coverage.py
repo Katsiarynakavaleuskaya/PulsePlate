@@ -1,5 +1,5 @@
 """
-Тесты покрытия app.py VIP endpoints (строки 1325-1326, 1328-1329, 1342→1365)
+Тесты покрытия main.py VIP endpoints (строки 1325-1326, 1328-1329, 1342→1365)
 """
 
 from fastapi.testclient import TestClient
@@ -74,7 +74,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
     assert response.status_code in [401, 403, 422, 404]
 
     def test_app_vip_recipes_endpoint_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes endpoint"""
+        """Тест покрытия main.py VIP recipes endpoint"""
         client = test_client
 
         # Тестируем VIP recipes endpoint
@@ -86,7 +86,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_validation_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes validation"""
+        """Тест покрытия main.py VIP recipes validation"""
         client = test_client
 
         # Тестируем VIP recipes validation
@@ -98,7 +98,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [422, 404]
 
     def test_app_vip_recipes_calculation_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes calculation"""
+        """Тест покрытия main.py VIP recipes calculation"""
         client = test_client
 
         # Тестируем VIP recipes calculation
@@ -110,7 +110,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_response_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes response"""
+        """Тест покрытия main.py VIP recipes response"""
         client = test_client
 
         # Тестируем VIP recipes response
@@ -122,7 +122,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_error_handling_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes error handling"""
+        """Тест покрытия main.py VIP recipes error handling"""
         client = test_client
 
         # Тестируем VIP recipes error handling
@@ -134,7 +134,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_security_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes security"""
+        """Тест покрытия main.py VIP recipes security"""
         client = test_client
 
         # Тестируем VIP recipes security
@@ -153,7 +153,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [401, 403, 422, 404]
 
     def test_app_vip_recipes_logging_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes logging"""
+        """Тест покрытия main.py VIP recipes logging"""
         client = test_client
 
         # Тестируем VIP recipes logging
@@ -165,7 +165,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_metrics_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes metrics"""
+        """Тест покрытия main.py VIP recipes metrics"""
         client = test_client
 
         # Тестируем VIP recipes metrics
@@ -177,7 +177,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [200, 404]
 
     def test_app_vip_recipes_validation_error_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes validation error"""
+        """Тест покрытия main.py VIP recipes validation error"""
         client = test_client
 
         # Тестируем VIP recipes validation error
@@ -189,7 +189,7 @@ def test_app_vip_weekly_menu_security_missing_api_key(test_client: TestClient) -
         assert response.status_code in [422, 404]
 
     def test_app_vip_recipes_success_response_coverage(self, test_client: TestClient) -> None:
-        """Тест покрытия app.py VIP recipes success response"""
+        """Тест покрытия main.py VIP recipes success response"""
         client = test_client
 
         # Тестируем VIP recipes success response

@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 import pytest
 
 
-# Import the app correctly from app.py
-spec = importlib.util.spec_from_file_location("app", "app.py")
+# Import the app correctly from main.py
+spec = importlib.util.spec_from_file_location("app", "main.py")
 if spec is None:
-    raise ImportError("Could not load app.py spec")
+    raise ImportError("Could not load main.py spec")
 if spec.loader is None:
     raise ImportError("Spec loader is None")
 app_module = importlib.util.module_from_spec(spec)
@@ -112,7 +112,7 @@ class TestPremiumWeekAPI:
         assert isinstance(shopping_list, dict)
         for item_name, quantity in shopping_list.items():
             assert isinstance(item_name, str)
-            assert isinstance(quantity, (int, float))
+            assert isinstance(quantity, int | float)
 
 
 if __name__ == "__main__":

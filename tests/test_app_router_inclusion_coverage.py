@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py router inclusion
+Тесты для покрытия main.py router inclusion
 Покрывает строки: 2095, 2118, 2151, 2153
 """
 
@@ -18,10 +18,10 @@ def client(test_environment):
 
 
 class TestAppRouterInclusionCoverage:
-    """Тесты для покрытия app.py router inclusion"""
+    """Тесты для покрытия main.py router inclusion"""
 
     def test_app_router_inclusion_bmi_coverage(self, client):
-        """Тест покрытия app.py BMI router inclusion (строка 2095)"""
+        """Тест покрытия main.py BMI router inclusion (строка 2095)"""
         # Тестируем BMI router inclusion
         response = client.post(
             "/api/v1/bmi",
@@ -35,7 +35,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_router_inclusion_bodyfat_coverage(self, client):
-        """Тест покрытия app.py bodyfat router inclusion (строка 2118)"""
+        """Тест покрытия main.py bodyfat router inclusion (строка 2118)"""
         # Тестируем bodyfat router inclusion
         response = client.post(
             "/api/v1/bodyfat",
@@ -49,7 +49,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_router_inclusion_insight_coverage(self, client):
-        """Тест покрытия app.py insight router inclusion (строка 2151)"""
+        """Тест покрытия main.py insight router inclusion (строка 2151)"""
         # Тестируем insight router inclusion
         response = client.post(
             "/api/v1/insight",
@@ -63,7 +63,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_router_inclusion_vip_coverage(self, client):
-        """Тест покрытия app.py VIP router inclusion (строка 2153)"""
+        """Тест покрытия main.py VIP router inclusion (строка 2153)"""
         # Тестируем VIP router inclusion
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
@@ -84,7 +84,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 405]
 
     def test_app_router_inclusion_api_key_coverage(self, client):
-        """Тест покрытия app.py API key router inclusion"""
+        """Тест покрытия main.py API key router inclusion"""
         # Тестируем API key router inclusion
         response = client.get("/api/v1/api-key")
         assert response.status_code in [200, 404, 405]
@@ -93,7 +93,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_foods_coverage(self, client):
-        """Тест покрытия app.py foods router inclusion"""
+        """Тест покрытия main.py foods router inclusion"""
         # Тестируем foods router inclusion
         response = client.get("/api/v1/foods")
         assert response.status_code in [200, 404, 405]
@@ -102,7 +102,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_recipes_coverage(self, client):
-        """Тест покрытия app.py recipes router inclusion"""
+        """Тест покрытия main.py recipes router inclusion"""
         # Тестируем recipes router inclusion
         response = client.get("/api/v1/recipes")
         assert response.status_code in [200, 404, 405]
@@ -111,7 +111,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_users_coverage(self, client):
-        """Тест покрытия app.py users router inclusion"""
+        """Тест покрытия main.py users router inclusion"""
         # Тестируем users router inclusion
         response = client.get("/api/v1/users")
         assert response.status_code in [200, 404, 405]
@@ -120,7 +120,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_premium_week_coverage(self, client):
-        """Тест покрытия app.py premium week router inclusion"""
+        """Тест покрытия main.py premium week router inclusion"""
         # Тестируем premium week router inclusion
         response = client.get("/api/v1/premium/week")
         assert response.status_code in [200, 404, 405]
@@ -129,7 +129,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_bmi_pro_coverage(self, client):
-        """Тест покрытия app.py BMI pro router inclusion"""
+        """Тест покрытия main.py BMI pro router inclusion"""
         # Тестируем BMI pro router inclusion
         response = client.get("/api/v1/bmi-pro")
         assert response.status_code in [200, 404, 405]
@@ -138,7 +138,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405, 422]
 
     def test_app_router_inclusion_router_order_coverage(self, client):
-        """Тест покрытия app.py router order"""
+        """Тест покрытия main.py router order"""
         # Тестируем router order
         response = client.get("/health")
         assert response.status_code == 200
@@ -150,7 +150,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 200
 
     def test_app_router_inclusion_router_prefix_coverage(self, client):
-        """Тест покрытия app.py router prefix"""
+        """Тест покрытия main.py router prefix"""
         # Тестируем router prefix
         response = client.get("/api/v1/")
         assert response.status_code in [200, 404, 405]
@@ -159,7 +159,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 404, 405]
 
     def test_app_router_inclusion_router_tags_coverage(self, client):
-        """Тест покрытия app.py router tags"""
+        """Тест покрытия main.py router tags"""
         # Тестируем router tags
         response = client.get("/docs")
         assert response.status_code == 200
@@ -168,7 +168,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 200
 
     def test_app_router_inclusion_router_dependencies_coverage(self, client):
-        """Тест покрытия app.py router dependencies"""
+        """Тест покрытия main.py router dependencies"""
         # Тестируем router dependencies
         response = client.post(
             "/api/v1/bmi",
@@ -185,7 +185,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 422]
 
     def test_app_router_inclusion_router_responses_coverage(self, client):
-        """Тест покрытия app.py router responses"""
+        """Тест покрытия main.py router responses"""
         # Тестируем router responses
         response = client.post(
             "/api/v1/bmi",
@@ -203,7 +203,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code in [200, 422]
 
     def test_app_router_inclusion_router_middleware_coverage(self, client):
-        """Тест покрытия app.py router middleware"""
+        """Тест покрытия main.py router middleware"""
         # Тестируем router middleware
         response = client.get("/health")
         assert response.status_code == 200
@@ -212,7 +212,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 200
 
     def test_app_router_inclusion_router_exception_handlers_coverage(self, client):
-        """Тест покрытия app.py router exception handlers"""
+        """Тест покрытия main.py router exception handlers"""
         # Тестируем router exception handlers
         response = client.get("/nonexistent")
         assert response.status_code == 404
@@ -221,7 +221,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 404
 
     def test_app_router_inclusion_router_lifespan_coverage(self, client):
-        """Тест покрытия app.py router lifespan"""
+        """Тест покрытия main.py router lifespan"""
         # Тестируем router lifespan
         response = client.get("/health")
         assert response.status_code == 200
@@ -230,7 +230,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 200
 
     def test_app_router_inclusion_router_openapi_coverage(self, client):
-        """Тест покрытия app.py router OpenAPI"""
+        """Тест покрытия main.py router OpenAPI"""
         # Тестируем router OpenAPI
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -239,7 +239,7 @@ class TestAppRouterInclusionCoverage:
         assert response.status_code == 200
 
     def test_app_router_inclusion_router_validation_coverage(self, client):
-        """Тест покрытия app.py router validation"""
+        """Тест покрытия main.py router validation"""
         # Тестируем router validation
         response = client.post(
             "/api/v1/bmi",

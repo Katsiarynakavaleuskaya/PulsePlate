@@ -125,7 +125,7 @@ class TestAppCriticalLines97:
         response = client.get("/api/v1/recipes/search?query=")
         assert response.status_code == 200
         response_data = response.json()
-        assert isinstance(response_data, (list, dict))
+        assert isinstance(response_data, list | dict)
 
     def test_foods_endpoints_error_handling(self, client):
         """Тест error handling в foods endpoints"""
@@ -146,12 +146,12 @@ class TestAppCriticalLines97:
 
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-        # Import the FastAPI app from app.py file
+        # Import the FastAPI app from main.py file
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location("app_module", "app.py")
+        spec = importlib.util.spec_from_file_location("app_module", "main.py")
         if spec is None or spec.loader is None:
-            raise ImportError("Cannot load app.py")
+            raise ImportError("Cannot load main.py")
 
         app_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(app_module)
@@ -169,12 +169,12 @@ class TestAppCriticalLines97:
 
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-        # Import the FastAPI app from app.py file
+        # Import the FastAPI app from main.py file
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location("app_module", "app.py")
+        spec = importlib.util.spec_from_file_location("app_module", "main.py")
         if spec is None or spec.loader is None:
-            raise ImportError("Cannot load app.py")
+            raise ImportError("Cannot load main.py")
 
         app_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(app_module)

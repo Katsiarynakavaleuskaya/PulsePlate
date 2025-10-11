@@ -14,17 +14,17 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the FastAPI app from app.py file
+# Import the FastAPI app from main.py file
 import importlib.util
 import pathlib
 
 
 repo_root = pathlib.Path(__file__).parent.parent
-app_path = repo_root / "app.py"
+app_path = repo_root / "main.py"
 
 spec = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
-    raise ImportError(f"Cannot load app.py from {app_path}")
+    raise ImportError(f"Cannot load main.py from {app_path}")
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)

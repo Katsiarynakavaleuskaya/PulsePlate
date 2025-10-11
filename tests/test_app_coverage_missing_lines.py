@@ -1,5 +1,5 @@
 """
-Test coverage for missing lines in app.py to improve coverage to 97%.
+Test coverage for missing lines in main.py to improve coverage to 97%.
 """
 
 import os
@@ -9,7 +9,7 @@ import pytest
 
 
 class TestAppMissingLinesCoverage:
-    """Tests for missing lines in app.py."""
+    """Tests for missing lines in main.py."""
 
     def test_is_truthy_function(self):
         """Test the _is_truthy helper function."""

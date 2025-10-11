@@ -22,13 +22,13 @@ from fastapi.testclient import TestClient
 import pytest
 
 
-# Resolve app.py relative to this test file
+# Resolve main.py relative to this test file
 test_dir = os.path.dirname(os.path.abspath(__file__))
-app_path = os.path.join(os.path.dirname(test_dir), "app.py")
+app_path = os.path.join(os.path.dirname(test_dir), "main.py")
 
 spec = importlib.util.spec_from_file_location("app_module", app_path)
 if spec is None or spec.loader is None:
-    raise ImportError(f"Cannot load app.py from {app_path}")
+    raise ImportError(f"Cannot load main.py from {app_path}")
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)

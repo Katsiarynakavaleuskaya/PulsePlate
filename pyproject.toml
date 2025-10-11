@@ -25,7 +25,6 @@ namespace_packages = true
 exclude = '''
 (
   ^app\.py$|
-  ^app/routers/__init__\.py$|
   ^core/time_utils\.py$|
   ^core/db\.py$|
   ^cache/|

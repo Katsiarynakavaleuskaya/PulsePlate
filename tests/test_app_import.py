@@ -1,5 +1,5 @@
 """
-Simple test to import app.py and check its coverage.
+Simple test to import main.py and check its coverage.
 """
 
 from fastapi import FastAPI
@@ -8,7 +8,7 @@ import app
 
 
 def test_app_import():
-    """Test that app.py can be imported."""
+    """Test that main.py can be imported."""
     assert app is not None
     assert hasattr(app, "app")  # FastAPI app instance
     assert app.app is not None

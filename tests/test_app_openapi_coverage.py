@@ -1,5 +1,5 @@
 """
-Тесты для покрытия app.py OpenAPI generation
+Тесты для покрытия main.py OpenAPI generation
 Покрывает строки: 2271-2272, 2372, 2400-2426
 """
 
@@ -18,10 +18,10 @@ def client(test_environment):
 
 
 class TestAppOpenAPICoverage:
-    """Тесты для покрытия app.py OpenAPI generation"""
+    """Тесты для покрытия main.py OpenAPI generation"""
 
     def test_app_openapi_generation_coverage(self, client):
-        """Тест покрытия app.py OpenAPI generation (строки 2271-2272, 2372, 2400-2426)"""
+        """Тест покрытия main.py OpenAPI generation (строки 2271-2272, 2372, 2400-2426)"""
         # Тестируем OpenAPI generation
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -34,7 +34,7 @@ class TestAppOpenAPICoverage:
         assert "components" in openapi_schema
 
     def test_app_openapi_info_coverage(self, client):
-        """Тест покрытия app.py OpenAPI info"""
+        """Тест покрытия main.py OpenAPI info"""
         # Тестируем OpenAPI info
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -46,7 +46,7 @@ class TestAppOpenAPICoverage:
         # assert "description" in openapi_schema["info"]
 
     def test_app_openapi_paths_coverage(self, client):
-        """Тест покрытия app.py OpenAPI paths"""
+        """Тест покрытия main.py OpenAPI paths"""
         # Тестируем OpenAPI paths
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -63,7 +63,7 @@ class TestAppOpenAPICoverage:
         # assert "/openapi.json" in paths
 
     def test_app_openapi_components_coverage(self, client):
-        """Тест покрытия app.py OpenAPI components"""
+        """Тест покрытия main.py OpenAPI components"""
         # Тестируем OpenAPI components
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -76,7 +76,7 @@ class TestAppOpenAPICoverage:
         assert "securitySchemes" in components
 
     def test_app_openapi_schemas_coverage(self, client):
-        """Тест покрытия app.py OpenAPI schemas"""
+        """Тест покрытия main.py OpenAPI schemas"""
         # Тестируем OpenAPI schemas
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -93,7 +93,7 @@ class TestAppOpenAPICoverage:
         # assert "BMIResponse" in schemas
 
     def test_app_openapi_security_schemes_coverage(self, client):
-        """Тест покрытия app.py OpenAPI security schemes"""
+        """Тест покрытия main.py OpenAPI security schemes"""
         # Тестируем OpenAPI security schemes
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -105,7 +105,7 @@ class TestAppOpenAPICoverage:
         assert "APIKeyHeader" in security_schemes
 
     def test_app_openapi_operations_coverage(self, client):
-        """Тест покрытия app.py OpenAPI operations"""
+        """Тест покрытия main.py OpenAPI operations"""
         # Тестируем OpenAPI operations
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -119,7 +119,7 @@ class TestAppOpenAPICoverage:
         assert "post" in paths["/api/v1/bodyfat"]
 
     def test_app_openapi_parameters_coverage(self, client):
-        """Тест покрытия app.py OpenAPI parameters"""
+        """Тест покрытия main.py OpenAPI parameters"""
         # Тестируем OpenAPI parameters
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -134,7 +134,7 @@ class TestAppOpenAPICoverage:
             assert "requestBody" in post_operation
 
     def test_app_openapi_responses_coverage(self, client):
-        """Тест покрытия app.py OpenAPI responses"""
+        """Тест покрытия main.py OpenAPI responses"""
         # Тестируем OpenAPI responses
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -149,7 +149,7 @@ class TestAppOpenAPICoverage:
             assert "responses" in get_operation
 
     def test_app_openapi_tags_coverage(self, client):
-        """Тест покрытия app.py OpenAPI tags"""
+        """Тест покрытия main.py OpenAPI tags"""
         # Тестируем OpenAPI tags
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -161,7 +161,7 @@ class TestAppOpenAPICoverage:
         bmi_path = paths["/api/v1/bmi"]
 
     def test_app_openapi_summary_coverage(self, client):
-        """Тест покрытия app.py OpenAPI summary"""
+        """Тест покрытия main.py OpenAPI summary"""
         # Тестируем OpenAPI summary
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -176,7 +176,7 @@ class TestAppOpenAPICoverage:
             assert "summary" in get_operation
 
     def test_app_openapi_description_coverage(self, client):
-        """Тест покрытия app.py OpenAPI description"""
+        """Тест покрытия main.py OpenAPI description"""
         # Тестируем OpenAPI description
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -191,7 +191,7 @@ class TestAppOpenAPICoverage:
             assert "description" in post_operation
 
     def test_app_openapi_operation_id_coverage(self, client):
-        """Тест покрытия app.py OpenAPI operation ID"""
+        """Тест покрытия main.py OpenAPI operation ID"""
         # Тестируем OpenAPI operation ID
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -206,7 +206,7 @@ class TestAppOpenAPICoverage:
             assert "operationId" in get_operation
 
     def test_app_openapi_servers_coverage(self, client):
-        """Тест покрытия app.py OpenAPI servers"""
+        """Тест покрытия main.py OpenAPI servers"""
         # Тестируем OpenAPI servers
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -215,7 +215,7 @@ class TestAppOpenAPICoverage:
         # assert "servers" in response.json()
 
     def test_app_openapi_external_docs_coverage(self, client):
-        """Тест покрытия app.py OpenAPI external docs"""
+        """Тест покрытия main.py OpenAPI external docs"""
         # Тестируем OpenAPI external docs
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -224,7 +224,7 @@ class TestAppOpenAPICoverage:
         # assert "externalDocs" in response.json()
 
     def test_app_openapi_contact_coverage(self, client):
-        """Тест покрытия app.py OpenAPI contact"""
+        """Тест покрытия main.py OpenAPI contact"""
         # Тестируем OpenAPI contact
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -233,7 +233,7 @@ class TestAppOpenAPICoverage:
         # assert "contact" in response.json()["info"]
 
     def test_app_openapi_license_coverage(self, client):
-        """Тест покрытия app.py OpenAPI license"""
+        """Тест покрытия main.py OpenAPI license"""
         # Тестируем OpenAPI license
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -242,7 +242,7 @@ class TestAppOpenAPICoverage:
         # assert "license" in response.json()["info"]
 
     def test_app_openapi_terms_of_service_coverage(self, client):
-        """Тест покрытия app.py OpenAPI terms of service"""
+        """Тест покрытия main.py OpenAPI terms of service"""
         # Тестируем OpenAPI terms of service
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -251,7 +251,7 @@ class TestAppOpenAPICoverage:
         # assert "termsOfService" in response.json()["info"]
 
     def test_app_openapi_version_coverage(self, client):
-        """Тест покрытия app.py OpenAPI version"""
+        """Тест покрытия main.py OpenAPI version"""
         # Тестируем OpenAPI version
         response = client.get("/openapi.json")
         assert response.status_code == 200
@@ -262,7 +262,7 @@ class TestAppOpenAPICoverage:
         assert openapi_schema["openapi"].startswith("3.")
 
     def test_app_openapi_validation_coverage(self, client):
-        """Тест покрытия app.py OpenAPI validation"""
+        """Тест покрытия main.py OpenAPI validation"""
         # Тестируем OpenAPI validation
         response = client.get("/openapi.json")
         assert response.status_code == 200

@@ -13,12 +13,12 @@ try:
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    # Import the FastAPI app from app.py file
+    # Import the FastAPI app from main.py file
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "main.py")
     if spec is None or spec.loader is None:
-        raise ImportError("Cannot load app.py")
+        raise ImportError("Cannot load main.py")
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
@@ -39,7 +39,7 @@ def test_bmi_groups_exercise_branches(client, api_key, group: str):
     res = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": api_key})
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     data = res.json()
-    assert "bmi" in data and isinstance(data["bmi"], (int, float))
+    assert "bmi" in data and isinstance(data["bmi"], int | float)
     assert "category" in data
 
 
@@ -52,9 +52,9 @@ def test_insight_route_or_skip(client, api_key):
     res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": api_key})
     if res.status_code == 404:
         pytest.skip("No /insight route (skipping)")
-    assert (
-        res.status_code == 503
-    ), f"Expected 503 (service unavailable), got {res.status_code}: {res.text}"
+    assert res.status_code == 503, (
+        f"Expected 503 (service unavailable), got {res.status_code}: {res.text}"
+    )
 
 
 def test_debug_env_keys_or_skip(client):
