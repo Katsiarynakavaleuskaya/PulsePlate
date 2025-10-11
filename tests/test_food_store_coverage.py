@@ -52,6 +52,7 @@ class TestFoodStoreCoverage:
             mock_connect.return_value.__exit__.return_value = None
 
             result = food_store.search_foods("", limit=10, offset=0)
+            # Empty query should return empty list when mocked fetchall returns empty
             assert result == []
 
     def test_search_foods_with_query(self):
