@@ -17,5 +17,10 @@ ignore:
   - "test_quick_check.py"
   - "test_patch_verification.py"
   - "run_coverage_tests.py"
+  - "update_api_key.py" # CLI utility
+  - "verify_requirements.py" # Build-time script
+  - "secure_config.py" # Deployment config
   - "tests_strict/**"
   - "**/__init__.py"
+  - "**/__pycache__/**"
+  - "cache/**"

@@ -271,6 +271,30 @@ class TestBmiExtrasComprehensive:
         result = stage_obesity(bmi=32, wht=0.6, whr=0.96, sex="male", lang="en")
         assert int(result["risk_factors"]) >= 1
 
+    def test_stage_obesity_whr_threshold_coverage(self):
+        """Test WHR threshold coverage for both sexes."""
+        # Test male WHR threshold (0.95)
+        result = stage_obesity(bmi=22, wht=0.4, whr=0.95, sex="male", lang="en")
+        assert result["stage"] == "moderate_risk"  # One risk factor (WHR)
+
+        # Test female WHR threshold (0.80)
+        result = stage_obesity(bmi=22, wht=0.4, whr=0.80, sex="female", lang="en")
+        assert result["stage"] == "moderate_risk"  # One risk factor (WHR)
+
+    def test_stage_obesity_moderate_risk_coverage(self):
+        """Test moderate risk stage coverage."""
+        # Test with exactly one risk factor (WHR for male)
+        result = stage_obesity(bmi=22, wht=0.4, whr=0.96, sex="male", lang="en")
+        assert result["stage"] == "moderate_risk"
+        assert "Monitor health metrics" in result["recommendation"]
+
+    def test_stage_obesity_low_risk_coverage(self):
+        """Test low risk stage coverage."""
+        # Test with no risk factors
+        result = stage_obesity(bmi=22, wht=0.4, whr=0.8, sex="male", lang="en")
+        assert result["stage"] == "low_risk"
+        assert "Maintain current healthy habits" in result["recommendation"]
+
     def test_edge_case_values(self):
         """Test edge case values for all functions."""
         # Test exact threshold values for WHtR interpretation
