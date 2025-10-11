@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - Python <3.11 fallback
     from datetime import datetime
     from datetime import timezone as _timezone
 
-    UTC = UTC  # type: ignore[attr-defined]  # pragma: no cover
+    UTC = UTC  # pragma: no cover
 
 
 try:  # Python 3.9+
