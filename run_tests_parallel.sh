@@ -13,11 +13,15 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚀 Running tests with pytest-xdist (blast) for maximum speed${NC}"
 
 # Detect number of CPU cores
-CORES=$(python -c "import os; print(os.cpu_count())")
+CORES=$(python -c "import os; print(os.cpu_count() or 1)")
 echo -e "${YELLOW}📊 Detected ${CORES} CPU cores${NC}"
 
 # Default to using all cores, but allow override
 WORKERS=${1:-$CORES}
+if ! [[ "$WORKERS" =~ ^[0-9]+$ ]] || [ "$WORKERS" -lt 1 ]; then
+  echo -e "${RED}Invalid worker count '$WORKERS'; defaulting to 1${NC}"
+  WORKERS=1
+fi
 
 echo -e "${YELLOW}⚡ Using ${WORKERS} parallel workers${NC}"
 
@@ -27,7 +31,7 @@ echo -e "${GREEN}🏃 Starting parallel test execution...${NC}"
 # Use pytest-xdist with worksteal distribution for optimal load balancing
 python -m pytest \
     --dist=worksteal \
-    -n ${WORKERS} \
+    -n "${WORKERS}" \
     --cov=core \
     --cov=app \
     --cov-report=term-missing \
