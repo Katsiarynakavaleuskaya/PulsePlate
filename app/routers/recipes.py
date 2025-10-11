@@ -35,7 +35,7 @@ def list_recipes_search(query: str = Query("", max_length=64), limit: int = 20, 
     return list_recipes(query=query, limit=limit, offset=offset)
 
 
-@router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)
+@router.get("/api/v1/recipes/{recipe_id:path}", response_model=Recipe)
 def get_recipe(recipe_id: str):
     r = recipe_store.get_recipe(recipe_id)
     if not r:

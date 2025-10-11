@@ -31,7 +31,7 @@ def list_foods_search(query: str = Query("", max_length=64), limit: int = 20, of
     return list_foods(query=query, limit=limit, offset=offset)
 
 
-@router.get("/foods/{food_id}", response_model=FoodItem)
+@router.get("/foods/{food_id:path}", response_model=FoodItem)
 def get_food(food_id: str):
     row = food_store.get_food(food_id)
     if not row:
