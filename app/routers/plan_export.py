@@ -54,7 +54,7 @@ SLOGAN = {
     "es": "Siempre en tu pulso",
     "de": "Immer am Puls von dir",
 }
-DEFAULT_LANG = "en"
+DEFAULT_LANG: Language = "en"
 
 
 class SignRequest(BaseModel):

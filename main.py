@@ -291,7 +291,7 @@ async def admin_status():
 # Include API routers
 protected_dependency = Depends(_get_api_key_dynamic)
 
-app.include_router(foods_router)
+app.include_router(foods_router, prefix="/api/v1")
 app.include_router(recipes_router)
 app.include_router(users_router)
 app.include_router(export_router, dependencies=[protected_dependency])
