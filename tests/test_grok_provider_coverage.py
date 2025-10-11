@@ -20,7 +20,7 @@ class TestIsTransientException:
 
     def test_apiconnection_error_is_transient(self) -> None:
         """Test that APIConnectionError is considered transient."""
-        error = grok_module.APIConnectionError("Connection failed")
+        error = grok_module.APIConnectionError(request=MagicMock())
         assert grok_module.is_transient_exception(error) is True
 
     def test_other_exceptions_not_transient(self) -> None:
@@ -198,7 +198,7 @@ class TestGrokProvider:
         mock_response.choices[0].message.content = "Success after connection error"
 
         provider.client.chat.completions.create = AsyncMock(
-            side_effect=[grok_module.APIConnectionError("Connection failed"), mock_response]
+            side_effect=[grok_module.APIConnectionError(request=MagicMock()), mock_response]
         )
 
         result = await provider.generate("Test prompt")
