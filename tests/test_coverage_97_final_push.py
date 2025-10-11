@@ -308,71 +308,97 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_1325_1326_1328_1329(self, test_environment, dynamic_client):
         """Тест покрытия app.py строк 1325-1326, 1328-1329"""
-        client = dynamic_client
+        # Ensure clean state for this test
+        import os
 
-        # Тест VIP endpoints с различными данными
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 403, 422]
+        original_env = os.environ.copy()
+        try:
+            client = dynamic_client
 
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan",
-            json={
-                "sex": "female",
-                "age": 25,
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "active",
-                "goal": "loss",
-            },
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 403, 422]
+            # Тест VIP endpoints с различными данными
+            response = client.post(
+                "/api/v1/vip/menu/weekly/plan",
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175.0,
+                    "weight_kg": 70.0,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code in [200, 403, 422]
+
+            response = client.post(
+                "/api/v1/vip/menu/weekly/plan",
+                json={
+                    "sex": "female",
+                    "age": 25,
+                    "height_cm": 165.0,
+                    "weight_kg": 60.0,
+                    "activity": "active",
+                    "goal": "loss",
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code in [200, 403, 422]
+        finally:
+            # Restore original environment
+            os.environ.clear()
+            os.environ.update(original_env)
 
     def test_app_coverage_missing_lines_1342_1365(self, test_environment, dynamic_client):
         """Тест покрытия app.py строк 1342-1365"""
-        client = dynamic_client
+        # Ensure clean state for this test
+        import os
 
-        # Тест VIP recipes endpoint с различными данными
-        response = client.post(
-            "/api/v1/vip/recipes/weekly",
-            json={
-                "week_plan": {
-                    "days": [
-                        {
-                            "meals": [
-                                {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
-                            ]
-                        }
-                    ]
-                }
-            },
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 403, 422]
+        original_env = os.environ.copy()
+        try:
+            client = dynamic_client
 
-        response = client.post(
-            "/api/v1/vip/recipes/weekly",
-            json={
-                "week_plan": {
-                    "days": [
-                        {"meals": [{"ingredients": [{"name": "beef", "amount": 150, "unit": "g"}]}]}
-                    ]
-                }
-            },
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 403, 422]
+            # Тест VIP recipes endpoint с различными данными
+            response = client.post(
+                "/api/v1/vip/recipes/weekly",
+                json={
+                    "week_plan": {
+                        "days": [
+                            {
+                                "meals": [
+                                    {
+                                        "ingredients": [
+                                            {"name": "chicken", "amount": 100, "unit": "g"}
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code in [200, 403, 422]
+
+            response = client.post(
+                "/api/v1/vip/recipes/weekly",
+                json={
+                    "week_plan": {
+                        "days": [
+                            {
+                                "meals": [
+                                    {"ingredients": [{"name": "beef", "amount": 150, "unit": "g"}]}
+                                ]
+                            }
+                        ]
+                    }
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code in [200, 403, 422]
+        finally:
+            # Restore original environment
+            os.environ.clear()
+            os.environ.update(original_env)
 
     def test_app_coverage_missing_lines_1505_1508_exit(self, test_environment):
         """Тест покрытия app.py строк 1505->exit, 1508->exit"""

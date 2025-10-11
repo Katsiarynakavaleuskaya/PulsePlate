@@ -578,6 +578,11 @@ class TestUtilityFunctions:
     @patch("core.food_apis.unified_db._unified_db_instance", None)
     async def test_get_unified_food_db_new_instance(self):
         """Test getting new unified database instance."""
+        # Clear any existing instance to ensure clean test
+        import core.food_apis.unified_db
+
+        if hasattr(core.food_apis.unified_db, "_unified_db_instance"):
+            core.food_apis.unified_db._unified_db_instance = None
         db = await get_unified_food_db()
 
         assert db is not None
