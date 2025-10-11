@@ -21,18 +21,20 @@ class TestIsTransientException:
     def test_apiconnection_error_is_transient(self) -> None:
         """Test that APIConnectionError is considered transient."""
         # Create a mock APIConnectionError that matches the current openai SDK
-        error = grok_module.APIConnectionError()
+        error = grok_module.APIConnectionError(request=MagicMock())
         assert grok_module.is_transient_exception(error) is True
 
     def test_ratelimit_error_is_transient(self) -> None:
         """Test that RateLimitError is considered transient."""
         # Create a mock RateLimitError that matches the current openai SDK
-        error = grok_module.RateLimitError()
+        error = grok_module.RateLimitError(message="Rate limit exceeded")
         assert grok_module.is_transient_exception(error) is True
 
     def test_api_status_error_429_is_transient(self) -> None:
         """Test that APIStatusError with 429 is considered transient."""
-        error = grok_module.APIStatusError("Rate limit", status_code=429)
+        error = grok_module.APIStatusError(
+            message="Rate limit", response=MagicMock(), body=MagicMock()
+        )
         assert grok_module.is_transient_exception(error) is True
 
     def test_api_status_error_5xx_is_transient(self) -> None:
