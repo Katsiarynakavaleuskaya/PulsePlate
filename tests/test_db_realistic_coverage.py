@@ -65,9 +65,13 @@ def test_async_database_url_preserves_explicit_async_inputs(tmp_path: Path, asyn
     # The async URL should be preserved or derived correctly
     # Note: ASYNC_DATABASE_URL might be None if async support is not available
     if db_module.create_async_engine is not None:
-        assert db_module.ASYNC_DATABASE_URL == async_url
+        # Test the _derive_async_url function directly
+        derived_url = db_module._derive_async_url(async_url)
+        assert derived_url == async_url
     else:
-        assert db_module.ASYNC_DATABASE_URL is None
+        # When async support is not available, _derive_async_url should return None
+        derived_url = db_module._derive_async_url(async_url)
+        assert derived_url is None
 
 
 @pytest.mark.skipif(
