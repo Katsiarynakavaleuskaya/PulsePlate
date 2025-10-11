@@ -7,9 +7,9 @@ Sprint 4: Recipe Synth под меню
 
 from dataclasses import dataclass
 import json
+import logging
 from pathlib import Path
 import random
-from typing import Union
 
 
 @dataclass
@@ -86,7 +86,7 @@ class RecipeSynthesizer:
                     template = RecipeTemplate(**template_data)
                     self.templates[template.template_id] = template
             except Exception as e:
-                print(f"Error loading template {template_file}: {e}")
+                logging.warning("Error loading template %s: %s", template_file, e)
 
     def _create_default_templates(self):
         """Создает шаблоны рецептов по умолчанию"""

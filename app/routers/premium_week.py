@@ -6,7 +6,7 @@ EN: Router for generating weekly meal plans.
 """
 
 import math
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator

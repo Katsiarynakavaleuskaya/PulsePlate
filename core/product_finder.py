@@ -12,7 +12,6 @@ import csv
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Optional
 
 from .food_db import FoodItem, parse_food_db
 from .food_sources.base import FoodRecord

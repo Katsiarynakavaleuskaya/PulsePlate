@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import csv
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import BytesIO, StringIO
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response

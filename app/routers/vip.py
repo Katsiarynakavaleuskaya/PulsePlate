@@ -1,7 +1,7 @@
 from collections.abc import Callable
 import logging
 import os
-from typing import Any, Union
+from typing import Any
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -528,13 +528,13 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> dict[str, Any]:
             "menu": plan if plan is not None else {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
-    except Exception as exc:
-        logging.error(f"Exception in weekly_menu_plan: {exc}")
+    except Exception:
+        logging.exception("Exception in weekly_menu_plan")
         return {
             "status": "error",
             "echo": request.model_dump(),
             "menu": {"mode": "echo"},
-            "message": f"Weekly menu generation failed: {exc}",
+            "message": "Weekly menu generation failed",
         }
 
 

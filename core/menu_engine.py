@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import logging
-from typing import Any, Optional
+from typing import Any
 
 
 _logger = logging.getLogger(__name__)

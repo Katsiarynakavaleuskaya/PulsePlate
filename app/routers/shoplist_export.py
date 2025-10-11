@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import csv
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO, StringIO
 import logging
 from pathlib import Path

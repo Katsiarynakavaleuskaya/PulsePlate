@@ -17,7 +17,7 @@ import asyncio
 from dataclasses import dataclass
 import inspect
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 

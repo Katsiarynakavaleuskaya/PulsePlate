@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 import logging
 import os
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
@@ -131,9 +131,8 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except (InvalidRequestError, SQLAlchemyError) as e:
-                # Catch commit-related DB exceptions (InvalidRequestError, SQLAlchemyError)
-                # Log and continue to return the result despite commit failure
+            except Exception as e:  # noqa: BLE001
+                # Not all statements require/allow commit; log and ignore all commit errors
                 logger.debug(
                     "Commit failed or skipped for statement: %s",
                     e,
