@@ -38,8 +38,9 @@ def test_health_db_failure(monkeypatch) -> None:
         finally:
             session.close()
 
-    # Override the dependency
+    # Ensure clean state before test
     if app.app is not None:
+        app.app.dependency_overrides.clear()
         app.app.dependency_overrides[get_session] = broken_get_session
 
     try:
