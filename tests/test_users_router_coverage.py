@@ -15,7 +15,7 @@ class TestUsersRouterCoverage:
         """Test basic user profile retrieval."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             response = client.get("/api/v1/users/profile", headers={"X-API-Key": "test_key"})
@@ -36,7 +36,7 @@ class TestUsersRouterCoverage:
         """Test basic user profile update."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             profile_data = {
@@ -48,18 +48,18 @@ class TestUsersRouterCoverage:
                 "goal": "maintain",
             }
 
-            response = client.put(
-                "/api/v1/users/profile", json=profile_data, headers={"X-API-Key": "test_key"}
+            response = client.post(
+                "/api/v1/users", json=profile_data, headers={"X-API-Key": "test_key"}
             )
 
-            # Should update profile or return appropriate response
+            # Should create user or return appropriate response
             assert response.status_code in [200, 201, 422, 500]
 
     def test_update_user_profile_invalid_data(self):
         """Test user profile update with invalid data."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             invalid_data = {
@@ -81,7 +81,7 @@ class TestUsersRouterCoverage:
         """Test user profile update with missing required fields."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             incomplete_data = {
@@ -118,7 +118,7 @@ class TestUsersRouterCoverage:
         """Test basic user preferences retrieval."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             response = client.get("/api/v1/users/preferences", headers={"X-API-Key": "test_key"})
@@ -130,7 +130,7 @@ class TestUsersRouterCoverage:
         """Test basic user preferences update."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             preferences_data = {
@@ -153,7 +153,7 @@ class TestUsersRouterCoverage:
         """Test user preferences update with invalid data."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             invalid_data = {
@@ -194,7 +194,7 @@ class TestUsersRouterCoverage:
         """Test basic user stats retrieval."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             response = client.get("/api/v1/users/stats", headers={"X-API-Key": "test_key"})
@@ -215,7 +215,7 @@ class TestUsersRouterCoverage:
         """Test basic user account deletion."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             response = client.delete("/api/v1/users/account", headers={"X-API-Key": "test_key"})
@@ -236,7 +236,7 @@ class TestUsersRouterCoverage:
         """Test user profile with different activity levels."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             base_data = {
@@ -262,7 +262,7 @@ class TestUsersRouterCoverage:
         """Test user profile with different fitness goals."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             base_data = {
@@ -288,7 +288,7 @@ class TestUsersRouterCoverage:
         """Test user preferences with different diet flags."""
         client = TestClient(app)
 
-        with patch("app.routers.users.require_api_key") as mock_api_key:
+        with patch("app.routers.vip._require_api_key") as mock_api_key:
             mock_api_key.return_value = "test_key"
 
             base_data = {"allergies": [], "dislikes": [], "preferred_cuisine": "international"}

@@ -259,8 +259,8 @@ class TestSportsNutritionCoverage:
     """Additional tests to improve coverage of sports_nutrition.py."""
 
     def test_get_sports_nutrition_targets_function(self):
-        """Test the main get_sports_nutrition_targets function."""
-        from core.sports_nutrition import get_sports_nutrition_targets
+        """Test the main get_sport_recommendations function."""
+        from core.sports_nutrition import get_sport_recommendations
 
         profile = UserProfile(
             sex="male",
@@ -273,11 +273,13 @@ class TestSportsNutritionCoverage:
 
         # Test a few sport categories (not all to avoid import issues)
         for sport in [SportCategory.ENDURANCE, SportCategory.STRENGTH, SportCategory.TEAM]:
-            targets = get_sports_nutrition_targets(profile, sport)
+            targets = get_sport_recommendations(profile, sport)
             assert targets is not None
-            assert hasattr(targets, "protein_g_per_kg")
-            assert hasattr(targets, "carbs_g_per_kg")
-            assert hasattr(targets, "fat_g_per_kg")
+            assert isinstance(targets, dict)
+            assert "daily_targets" in targets
+            assert "protein_per_kg" in targets["daily_targets"]
+            assert "carbs_per_kg" in targets["daily_targets"]
+            assert "fat_per_kg" in targets["daily_targets"]
 
     def test_all_sport_categories_coverage(self):
         """Test all sport categories to ensure full coverage."""
