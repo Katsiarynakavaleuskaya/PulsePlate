@@ -117,7 +117,7 @@ jobs:
           fi
 
           # Merge PR
-          gh pr merge $PR_NUMBER --squash --delete-branch || {
+          gh pr merge "$PR_NUMBER" --squash --delete-branch || {
             echo "❌ Merge failed"
             exit 1
           }
