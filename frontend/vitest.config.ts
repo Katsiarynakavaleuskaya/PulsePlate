@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/**/*.spec.ts'],
     env: {
       VITE_API_BASE: 'http://localhost:3000',
       VITE_APP_TITLE: 'PulsePlate',

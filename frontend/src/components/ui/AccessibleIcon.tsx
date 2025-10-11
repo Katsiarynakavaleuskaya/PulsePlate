@@ -21,7 +21,7 @@ export const AccessibleIcon: React.FC<AccessibleIconProps> = ({
   label,
   className,
   size = 'md',
-  role = 'img',
+  role: _role = 'img',
   'aria-hidden': ariaHidden = false,
 }) => {
   // Проверка в development режиме
@@ -41,9 +41,9 @@ export const AccessibleIcon: React.FC<AccessibleIconProps> = ({
   return (
     <Icon
       className={cn(sizeClasses[size], className)}
-      role={role}
       aria-label={label}
       aria-hidden={ariaHidden}
+      {...props}
     />
   );
 };
