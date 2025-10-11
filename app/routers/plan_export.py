@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -30,6 +31,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from core.i18n import Language, normalize_lang, t
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
@@ -49,6 +51,7 @@ LOGO_CANDIDATES = (MASCOT_PATH, LOGO_PATH)
 SLOGAN = {
     "en": "Always on your Pulse",
     "ru": "Всегда на твоём пульсе",
+    "es": "Siempre en tu pulso",
     "de": "Immer am Puls von dir",
 }
 DEFAULT_LANG = "en"
@@ -78,7 +81,7 @@ def _safe_add(acc: float, value: Any) -> float:
 
 
 def sum_day_macros(day: dict[str, Any]) -> dict[str, float]:
-    totals = dict.fromkeys(MACRO_KEYS, 0.0)
+    totals: dict[str, float] = dict.fromkeys(MACRO_KEYS, 0.0)
     for meal in day.get("meals") or []:
         for item in meal.get("items") or []:
             for key in MACRO_KEYS:
@@ -87,7 +90,7 @@ def sum_day_macros(day: dict[str, Any]) -> dict[str, float]:
 
 
 def sum_week_macros(week: dict[str, Any]) -> dict[str, float]:
-    totals = dict.fromkeys(MACRO_KEYS, 0.0)
+    totals: dict[str, float] = dict.fromkeys(MACRO_KEYS, 0.0)
     for day in week.get("days") or []:
         day_totals = sum_day_macros(day)
         for key in MACRO_KEYS:
@@ -118,8 +121,10 @@ def _branded_header(story: list[Any], styles, font: str, doc_width: float, lang:
     else:
         image_flowable = Spacer(1, 1)
 
+    lang_code: Language = normalize_lang(lang)
+    title_text = t(lang_code, "export.header.title")
     title = Paragraph(
-        f'<font color="{BRAND_BLUE_HEX}"><b>PulsePlate — Weekly Plan</b></font>',
+        f'<font color="{BRAND_BLUE_HEX}"><b>{title_text}</b></font>',
         styles["Heading1"],
     )
     subtitle = Paragraph(
@@ -183,7 +188,7 @@ class PageNumCanvas(Canvas):
         Canvas.save(self)
 
     def draw_page_number(self, page_count: int) -> None:
-        page_num = f"p {self._pageNumber}/{page_count}"
+        page_num = f"p {self.getPageNumber()}/{page_count}"
         self.setFont("Helvetica", 9)
         self.setFillColor(BRAND_NAVY)
         self.drawRightString(200 * mm, 10 * mm, page_num)
@@ -291,17 +296,21 @@ def _require_valid_token(request: Request) -> None:
     exp = request.query_params.get("exp")
     sig = request.query_params.get("sig")
     if not exp or not sig:
-        raise HTTPException(status_code=403, detail="missing token")
+        raise HTTPException(status_code=403, detail=t(DEFAULT_LANG, "export.errors.missing_token"))
     try:
         exp_ts = int(exp)
     except ValueError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=403, detail="bad token") from exc
+        raise HTTPException(
+            status_code=403, detail=t(DEFAULT_LANG, "export.errors.bad_token")
+        ) from exc
     if not verify(EXPORT_TOKEN_SECRET, request.url.path, exp_ts, sig):
-        raise HTTPException(status_code=403, detail="invalid or expired token")
+        raise HTTPException(status_code=403, detail=t(DEFAULT_LANG, "export.errors.invalid_token"))
 
 
 @plan_router.get("/week/export.csv")
-def export_week_csv(request: Request, _guard: None = Depends(_require_valid_token)) -> Response:
+async def export_week_csv(
+    request: Request, _guard: None = Depends(_require_valid_token)
+) -> Response:
     week = _get_week_plan()
     totals = sum_week_macros(week)
     buffer = StringIO()
@@ -352,24 +361,24 @@ def _register_font() -> str:
         return "Helvetica"
 
 
-def _build_day_story(day: dict[str, Any], styles, font: str) -> list[Any]:
+def _build_day_story(day: dict[str, Any], styles, font: str, lang: Language) -> list[Any]:
     story: list[Any] = []
-    date = day.get("date") or "Day"
-    story.append(Paragraph(f"<b>{date}</b>", styles["Heading3"]))
+    date_text = day.get("date") or t(lang, "export.day.placeholder")
+    story.append(Paragraph(f"<b>{date_text}</b>", styles["Heading3"]))
     story.append(Spacer(1, 6))
 
     for meal in day.get("meals") or []:
-        meal_name = meal.get("name") or meal.get("meal") or "Meal"
+        meal_name = meal.get("name") or meal.get("meal") or t(lang, "export.meal.placeholder")
         story.append(Paragraph(meal_name, styles["Heading4"]))
         rows = [
             [
-                "Название",
-                "Кол-во",
-                "Ед.",
-                "ккал",
-                "Б",
-                "У",
-                "Ж",
+                t(lang, "export.table.name"),
+                t(lang, "export.table.quantity"),
+                t(lang, "export.table.unit"),
+                t(lang, "export.table.kcal"),
+                t(lang, "export.table.protein"),
+                t(lang, "export.table.carbs"),
+                t(lang, "export.table.fat"),
             ]
         ]
         for item in meal.get("items") or []:
@@ -404,9 +413,9 @@ def _build_day_story(day: dict[str, Any], styles, font: str) -> list[Any]:
 
 
 @plan_router.get("/week/export.pdf")
-def export_week_pdf(
+async def export_week_pdf(
     request: Request,
-    lang: str = Query(DEFAULT_LANG, pattern="^(en|ru|de)$"),
+    lang: Language = Query(DEFAULT_LANG, pattern="^(en|ru|es)$"),
     _guard: None = Depends(_require_valid_token),
 ) -> Response:
     week = _get_week_plan()
@@ -423,9 +432,10 @@ def export_week_pdf(
         bottomMargin=28,
     )
 
-    doc.title = "PulsePlate Weekly Plan"
+    doc_title = t(lang, "export.header.title")
+    doc.title = doc_title
     doc.author = "PulsePlate"
-    doc.subject = "PulsePlate weekly plan export (kcal)"
+    doc.subject = doc_title
     doc.creator = "PulsePlate"
     doc.keywords = "PulsePlate,kcal"
 
@@ -456,16 +466,21 @@ def export_week_pdf(
     _branded_header(story, styles, font, doc.width, lang)
     story.append(
         Paragraph(
-            datetime.now(UTC).strftime("Сгенерировано %Y-%m-%d %H:%M UTC"),
+            datetime.now(UTC).strftime(t(lang, "export.generated_at") + " %Y-%m-%d %H:%M UTC"),
             styles["Normal"],
         )
     )
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
+    story.append(Paragraph(f"<b>{t(lang, 'export.weekly_totals')}</b>", styles["Heading3"]))
     totals_table = Table(
         [
-            ["ккал", "Б", "У", "Ж"],
+            [
+                t(lang, "export.table.kcal"),
+                t(lang, "export.table.protein"),
+                t(lang, "export.table.carbs"),
+                t(lang, "export.table.fat"),
+            ],
             [
                 str(round(totals.get("energy_kcal", 0.0), 0)),
                 str(round(totals.get("protein_g", 0.0), 1)),
@@ -494,12 +509,13 @@ def export_week_pdf(
 
     days = week.get("days") or []
     for idx, day in enumerate(days):
-        story.extend(_build_day_story(day, styles, font))
+        story.extend(_build_day_story(day, styles, font, lang))
         if idx < len(days) - 1:
             story.append(PageBreak())
 
-    footer_text = f"PulsePlate · week of {_week_start(week)}"
-    doc.build(
+    footer_text = t(lang, "export.footer.text", date=_week_start(week))
+    await run_in_threadpool(
+        doc.build,
         story,
         onFirstPage=lambda can, d: _draw_footer(can, d, footer_text),
         onLaterPages=lambda can, d: _draw_footer(can, d, footer_text),
@@ -514,13 +530,13 @@ def export_week_pdf(
 
 
 @export_router.post("/sign")
-def sign_export_link(payload: SignRequest) -> dict[str, Any]:
+async def sign_export_link(payload: SignRequest) -> dict[str, Any]:
     path = payload.path
     if not path.startswith("/api/"):
-        raise HTTPException(status_code=400, detail="path must start with /api/")
+        raise HTTPException(status_code=400, detail=t(DEFAULT_LANG, "export.errors.invalid_path"))
     ttl = int(payload.ttl_seconds or EXPORT_TOKEN_TTL_SECONDS)
     if ttl <= 0:
-        raise HTTPException(status_code=400, detail="ttl must be positive")
+        raise HTTPException(status_code=400, detail=t(DEFAULT_LANG, "export.errors.invalid_ttl"))
     exp_ts = int((datetime.now(UTC) + timedelta(seconds=ttl)).timestamp())
     signature = sign(EXPORT_TOKEN_SECRET, path, exp_ts)
     query = urlencode({"exp": exp_ts, "sig": signature})

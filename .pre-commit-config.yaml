@@ -104,7 +104,7 @@ repos:
 
       - id: python-tests
         name: python tests (pytest, fast)
-        entry: python -m pytest tests/ --tb=line --disable-warnings --maxfail=3
+        entry: python -m pytest tests/ --tb=line --disable-warnings --maxfail=1
         language: system
         pass_filenames: false
         stages: [pre-push]

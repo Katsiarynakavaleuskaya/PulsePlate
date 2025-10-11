@@ -53,7 +53,6 @@ htmlcov/
 nosetests.xml
 coverage.xml
 test_results.xml
-tests/results.xml
 frontend/tests/*.xml
 frontend/test-results/
 test-results/

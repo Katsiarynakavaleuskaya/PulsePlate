@@ -814,8 +814,8 @@ async def get_regions() -> dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/search")
-def search_region_products(
+@router.get("/regions/{region}/search", dependencies=[Depends(_require_api_key_strict)])
+async def search_region_products(
     region: str, query: str, category: str = "", max_results: int = 20
 ) -> dict[str, Any]:
     """
@@ -878,8 +878,8 @@ def search_region_products(
         }
 
 
-@router.get("/regions/{region}/categories")
-def get_region_categories(region: str) -> dict[str, Any]:
+@router.get("/regions/{region}/categories", dependencies=[Depends(_require_api_key_strict)])
+async def get_region_categories(region: str) -> dict[str, Any]:
     """
     RU: Получить категории продуктов в регионе
     EN: Get product categories in region
@@ -917,8 +917,8 @@ def get_region_categories(region: str) -> dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/stores")
-def get_region_stores(region: str) -> dict[str, Any]:
+@router.get("/regions/{region}/stores", dependencies=[Depends(_require_api_key_strict)])
+async def get_region_stores(region: str) -> dict[str, Any]:
     """
     RU: Получить торговые сети в регионе
     EN: Get store chains in region
@@ -956,8 +956,8 @@ def get_region_stores(region: str) -> dict[str, Any]:
         }
 
 
-@router.get("/regions/compare/{product_name}")
-def compare_product_prices(product_name: str, regions: str = "es,us") -> dict[str, Any]:
+@router.get("/regions/compare/{product_name}", dependencies=[Depends(_require_api_key_strict)])
+async def compare_product_prices(product_name: str, regions: str = "es,us") -> dict[str, Any]:
     """
     RU: Сравнить цены продукта в разных регионах
     EN: Compare product prices across regions

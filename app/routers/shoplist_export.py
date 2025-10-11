@@ -7,6 +7,7 @@ integration with the richer generator pipeline.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 import csv
 from datetime import UTC, datetime
@@ -15,11 +16,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Query, Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+from core.i18n import Language, t
 
 
 router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
@@ -27,6 +30,7 @@ router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
 FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
 FONT_NAME = "DejaVuSans"
+DEFAULT_LANG: Language = "en"
 
 
 def _export_timestamp() -> str:
@@ -154,7 +158,7 @@ def _register_font_if_available() -> str:
         return "Helvetica"
 
 
-def _render_pdf(shop: dict[str, Any]) -> bytes:
+def _render_pdf(shop: dict[str, Any], lang: Language = DEFAULT_LANG) -> bytes:
     """Render a printable PDF representation of *shop*."""
     buf = BytesIO()
     page_w, page_h = A4
@@ -163,17 +167,22 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
     c = canvas.Canvas(buf, pagesize=A4)
 
     generated_at = datetime.now(UTC)
-    header = "Список покупок / Shoplist"
-    meta = f"Store: {shop.get('store', '-')}  |  Currency: {shop.get('currency', '')}"
+    header = t(lang, "shoplist.header.title")
+    meta = t(
+        lang,
+        "shoplist.meta",
+        store=shop.get("store", "-"),
+        currency=shop.get("currency", ""),
+    )
     total = shop.get("total_estimated")
 
     def draw_table_head(current_canvas: canvas.Canvas, ypos: float) -> float:
         current_canvas.setFont(font, 11)
-        current_canvas.drawString(40, ypos, "Aisle")
-        current_canvas.drawString(160, ypos, "Item")
-        current_canvas.drawString(380, ypos, "Qty")
-        current_canvas.drawString(430, ypos, "Unit")
-        current_canvas.drawString(470, ypos, "Note")
+        current_canvas.drawString(40, ypos, t(lang, "shoplist.columns.aisle"))
+        current_canvas.drawString(160, ypos, t(lang, "shoplist.columns.item"))
+        current_canvas.drawString(380, ypos, t(lang, "shoplist.columns.qty"))
+        current_canvas.drawString(430, ypos, t(lang, "shoplist.columns.unit"))
+        current_canvas.drawString(470, ypos, t(lang, "shoplist.columns.note"))
         ypos -= 14
         current_canvas.line(40, ypos, 550, ypos)
         return ypos - 10
@@ -183,10 +192,16 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
     c.setFont(font, 10)
     c.drawString(40, page_h - 70, meta)
     if isinstance(total, int | float):
+        total_str = t(
+            lang,
+            "shoplist.total",
+            total=f"{total}",
+            currency=shop.get("currency", ""),
+        )
         c.drawString(
             40,
             page_h - 85,
-            f"Estimated total: {total} {shop.get('currency', '')}",
+            total_str,
         )
 
     raw_rows = shop.get("items")
@@ -201,7 +216,7 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
         if y < 60:
             c.showPage()
             c.setFont(font, 16)
-            c.drawString(40, page_h - 50, "Список покупок (продолжение)")
+            c.drawString(40, page_h - 50, t(lang, "shoplist.continued"))
             y = draw_table_head(c, page_h - 70)
             c.setFont(font, 10)
 
@@ -216,7 +231,7 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
     c.drawRightString(
         550,
         30,
-        generated_at.strftime("Generated %Y-%m-%d %H:%M UTC"),
+        generated_at.strftime(t(lang, "export.generated_at") + " %Y-%m-%d %H:%M UTC"),
     )
     c.save()
 
@@ -224,13 +239,15 @@ def _render_pdf(shop: dict[str, Any]) -> bytes:
 
 
 @router.get("")
-def get_shoplist() -> dict[str, Any]:
+async def get_shoplist() -> dict[str, Any]:
     """Return the current shoplist in JSON form."""
     return _demo_shoplist()
 
 
 @router.get("/export.csv")
-def export_shoplist_csv() -> Response:
+async def export_shoplist_csv(
+    lang: Language = Query(DEFAULT_LANG, pattern="^(en|ru|es)$"),
+) -> Response:
     """Export the current shoplist as a CSV attachment."""
     shop = _demo_shoplist()
     items = shop.get("items", [])
@@ -250,10 +267,12 @@ def export_shoplist_csv() -> Response:
 
 
 @router.get("/export.pdf")
-def export_shoplist_pdf() -> Response:
+async def export_shoplist_pdf(
+    lang: Language = Query(DEFAULT_LANG, pattern="^(en|ru|es)$"),
+) -> Response:
     """Return a fully rendered PDF attachment for the shoplist."""
     shop = _demo_shoplist()
-    pdf_bytes = _render_pdf(shop)
+    pdf_bytes = await asyncio.to_thread(_render_pdf, shop, lang)
     filename = f"shoplist_{_export_timestamp()}.pdf"
     return Response(
         content=pdf_bytes,

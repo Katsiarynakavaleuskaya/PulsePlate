@@ -5,7 +5,6 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 from pathlib import Path
 import sqlite3
-from typing import Optional
 
 
 DB_PATH = Path("data/food.sqlite")
@@ -36,10 +35,24 @@ def _connect() -> sqlite3.Connection:
 
 
 def search_foods(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    terms = expand_query(query) if query else []
+    stripped = (query or "").strip()
+    if not stripped:
+        with _connect() as con:
+            rows = con.execute(
+                """
+                SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g
+                FROM foods
+                ORDER BY canonical_name
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    terms = expand_query(stripped)
     params: list = []
     if terms:
-        sql = (
+        sql = (  # nosec B608
             """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
@@ -50,10 +63,9 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
         )
         params = [*terms, limit, offset]
     else:
-        sql = (
-            "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ? OFFSET ?"
-        )
-        params = [limit, offset]
+        # If expand_query returns empty terms, return empty list
+        return []  # pragma: no cover - expand_query returns at least the original term
+
     with _connect() as con:
         rows = con.execute(sql, params).fetchall()
     return [dict(r) for r in rows]

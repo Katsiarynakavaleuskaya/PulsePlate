@@ -5,7 +5,6 @@ EN: Access to RecipeDB (SQLite) — search and details.
 
 from pathlib import Path
 import sqlite3
-from typing import Optional
 
 
 DB = Path("data/recipes.sqlite")
@@ -18,8 +17,6 @@ def _con():
 
 
 def search_recipes(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    from typing import Any
-
     # Handle empty or wildcard queries for FTS
     if not query or query == "*":
         sql = """

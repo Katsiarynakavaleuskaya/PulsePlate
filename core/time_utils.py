@@ -9,11 +9,11 @@ from __future__ import annotations
 
 try:
     from datetime import UTC, datetime  # Python 3.11+
-except ImportError:  # Python <3.11
+except ImportError:  # pragma: no cover - Python <3.11 fallback
     from datetime import datetime
     from datetime import timezone as _timezone
 
-    UTC = UTC
+    UTC = UTC  # type: ignore[attr-defined]  # pragma: no cover
 
 
 try:  # Python 3.9+

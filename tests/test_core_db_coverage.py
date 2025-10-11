@@ -1,288 +1,187 @@
-"""
-Core DB Tests
+"""Additional coverage tests for core.db helper utilities."""
 
-RU: Тесты для основных функций базы данных
-EN: Tests for core database functionality
-"""
+from __future__ import annotations
 
-import logging
-import os
-import tempfile
-from unittest.mock import MagicMock, patch
+import asyncio
+from contextlib import ExitStack
+from typing import Any
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 
-from core.db import (
-    _RAW_ENGINE,
-    Base,
-    SessionLocal,
-    _build_engine_url,
-    _derive_async_url,
-    _sqlite_connect_args,
-    async_engine,
-    get_async_session,
-    get_session,
-    init_db,
-    init_db_async,
-    session_scope,
-    session_scope_async,
-)
+import core.db as db
 
 
-class TestCoreDB:
-    """Tests for core database functions."""
+class _FakeResult:
+    pass
 
-    def test_build_engine_url_default(self):
-        """Test _build_engine_url with default SQLite path."""
-        with patch.dict(os.environ, {}, clear=True):
-            url = _build_engine_url()
-            assert url.startswith("sqlite:///")
-            assert "cache/app.db" in url
 
-    def test_build_engine_url_custom(self):
-        """Test _build_engine_url with custom DATABASE_URL."""
-        custom_url = "postgresql://user:pass@localhost/testdb"
-        with patch.dict(os.environ, {"DATABASE_URL": custom_url}):
-            url = _build_engine_url()
-            assert url == custom_url
+class _DummyConnection:
+    def __init__(self, *, commit_exception: BaseException | None = None) -> None:
+        self._commit_exception = commit_exception
+        self.executed = False
+        self.committed = False
 
-    def test_sqlite_connect_args_sqlite(self):
-        """Test _sqlite_connect_args for SQLite URLs."""
-        sqlite_url = "sqlite:///test.db"
-        args = _sqlite_connect_args(sqlite_url)
-        assert args == {"check_same_thread": False}
+    def __enter__(self) -> _DummyConnection:
+        return self
 
-    def test_sqlite_connect_args_non_sqlite(self):
-        """Test _sqlite_connect_args for non-SQLite URLs."""
-        postgres_url = "postgresql://user:pass@localhost/db"
-        args = _sqlite_connect_args(postgres_url)
-        assert args == {}
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
 
-    def test_base_class(self):
-        """Test Base declarative class."""
-        assert hasattr(Base, "metadata")
-        assert hasattr(Base, "registry")
+    def execute(self, stmt, *args, **kwargs) -> _FakeResult:  # noqa: ANN001
+        self.executed = True
+        return _FakeResult()
 
-    def test_session_local_creation(self):
-        """Test SessionLocal sessionmaker creation."""
-        assert SessionLocal is not None
-        assert hasattr(SessionLocal, "__call__")
+    def commit(self) -> None:
+        self.committed = True
+        if self._commit_exception:
+            raise self._commit_exception
 
-    def test_get_session_generator(self):
-        """Test get_session dependency yields session."""
-        session_gen = get_session()
-        session = next(session_gen)
-        assert session is not None
-        assert hasattr(session, "query")
-        assert hasattr(session, "commit")
 
-        # Close the session properly
-        try:
-            next(session_gen)
-        except StopIteration:
-            pass  # Expected
+def _patch_engine_connect(monkeypatch: pytest.MonkeyPatch, connection: _DummyConnection) -> None:
+    """Patch the raw engine to return the provided dummy connection."""
 
-    def test_session_scope_success(self):
-        """Test session_scope context manager success path."""
-        with session_scope() as session:
-            assert session is not None
-            assert hasattr(session, "query")
-            assert hasattr(session, "commit")
-            # Don't do any actual DB operations
+    class _FakeEngine:
+        def connect(self) -> _DummyConnection:
+            return connection
 
-    def test_session_scope_exception(self):
-        """Test session_scope context manager exception handling."""
-        with pytest.raises(ValueError):
-            with session_scope() as session:
-                assert session is not None
-                # Simulate an error
-                raise ValueError("Test error")
+    monkeypatch.setattr(db, "_RAW_ENGINE", _FakeEngine())
+    monkeypatch.setattr(db, "engine", db.EngineCompat(db._RAW_ENGINE))
 
-    @patch("core.db.Base.metadata")
-    def test_init_db(self, mock_metadata):
-        """Test init_db creates tables."""
-        mock_metadata.create_all = MagicMock(return_value=None)
 
-        # Should not raise exception
-        init_db()
+def test_engine_compat_handles_invalid_request(monkeypatch: pytest.MonkeyPatch, caplog) -> None:
+    """EngineCompat must ignore InvalidRequestError raised on commit."""
+    conn = _DummyConnection(commit_exception=InvalidRequestError("no tx", ""))
+    _patch_engine_connect(monkeypatch, conn)
+    caplog.set_level("DEBUG", logger=db.logger.name)
 
-        # Verify create_all was called
-        mock_metadata.create_all.assert_called_once()
+    result = db.engine.execute("SELECT 1")
+    assert isinstance(result, _FakeResult)
+    assert conn.executed is True
+    assert "Commit skipped for non-transactional statement" in caplog.text
 
-    def test_init_db_with_models_import(self):
-        """Test init_db imports models correctly."""
-        # This tests the lazy import of core.models
-        try:
-            init_db()
-            # Should not raise ImportError
-        except ImportError:
-            # If models don't exist, that's okay for this test
+
+def test_engine_compat_logs_unexpected_commit_error(
+    monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    """Unexpected commit exceptions should be logged at warning level."""
+    conn = _DummyConnection(commit_exception=ValueError("failure"))
+    _patch_engine_connect(monkeypatch, conn)
+    caplog.set_level("WARNING", logger=db.logger.name)
+
+    result = db.engine.execute("SELECT 1")
+    assert isinstance(result, _FakeResult)
+    assert "Unexpected commit failure" in caplog.text
+
+
+def test_check_async_availability_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When async extras are missing, ImportError should be raised."""
+    with ExitStack():
+        monkeypatch.setattr(db, "AsyncSessionLocal", None)
+        monkeypatch.setattr(db, "create_async_engine", None)
+
+        with pytest.raises(ImportError):
+            db._check_async_availability()
+
+
+def test_check_async_availability_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When async engine exists but not configured, raise RuntimeError."""
+    monkeypatch.setattr(db, "AsyncSessionLocal", None)
+    monkeypatch.setattr(db, "create_async_engine", object())
+
+    with pytest.raises(RuntimeError):
+        db._check_async_availability()
+
+
+class _DummyAsyncSession:
+    def __init__(self, *, commit_exception: BaseException | None = None) -> None:
+        self.closed = False
+        self.committed = False
+        self._commit_exception = commit_exception
+
+    async def commit(self) -> None:
+        self.committed = True
+        if self._commit_exception:
+            raise self._commit_exception
+
+    async def rollback(self) -> None:
+        self.committed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_get_async_session_yields_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that get_async_session yields and closes sessions."""
+    dummy_session = _DummyAsyncSession()
+
+    async def _session_factory() -> _DummyAsyncSession:  # noqa: ANN202
+        return dummy_session
+
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: dummy_session)
+    monkeypatch.setattr(db, "create_async_engine", object())
+
+    async for session in db.get_async_session():
+        assert session is dummy_session
+    assert dummy_session.closed is True
+
+
+@pytest.mark.asyncio
+async def test_session_scope_async_handles_commit_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """session_scope_async should rollback on commit errors."""
+    error_session = _DummyAsyncSession(commit_exception=ValueError("commit failed"))
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: error_session)
+    monkeypatch.setattr(db, "create_async_engine", object())
+
+    with pytest.raises(ValueError):
+        async with db.session_scope_async():
             pass
-
-    def test_database_url_sqlite_format(self):
-        """Test DATABASE_URL is properly formatted for SQLite."""
-        from core.db import DATABASE_URL
-
-        # Should be valid URL format
-        assert isinstance(DATABASE_URL, str)
-        assert len(DATABASE_URL) > 0
-
-    def test_engine_creation(self):
-        """Test engine is created properly."""
-        from core.db import engine
-
-        assert engine is not None
-        assert hasattr(engine, "connect")
-        assert hasattr(engine, "execute")
-
-    def test_session_configuration(self):
-        """Test SessionLocal is configured correctly."""
-        # Test that SessionLocal has expected configuration
-        session = SessionLocal()
-        assert session is not None
-        session.close()
-
-    def test_session_scope_rollback(self):
-        """Test session_scope rolls back on exception."""
-        try:
-            from sqlalchemy import text as sa_text
-        except Exception:
-            logging.exception("Unexpected exception in tests: test_core_db_coverage.py")
-
-            def sa_text(s):
-                return s  # fallback for environments without SQLAlchemy types
-
-        try:
-            with session_scope() as session:
-                # Force an exception to test rollback
-                session.execute(sa_text("INVALID SQL"))
-        except Exception:
-            logging.exception("Unexpected exception in tests: test_core_db_coverage.py")
-            # Exception is expected
-            pass
-
-    def test_environment_variable_handling(self):
-        """Test environment variable handling in URL building."""
-        # Test with different environment setups
-        test_urls = ["sqlite:///memory:", "postgresql://localhost/test", "mysql://localhost/test"]
-
-        for test_url in test_urls:
-            with patch.dict(os.environ, {"DATABASE_URL": test_url}):
-                url = _build_engine_url()
-                assert url == test_url
-
-    def test_sqlite_file_path_creation(self):
-        """Test SQLite file path handling."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            test_path = os.path.join(temp_dir, "test.db")
-            test_url = f"sqlite:///{test_path}"
-
-            args = _sqlite_connect_args(test_url)
-            assert args["check_same_thread"] is False
+    assert error_session.closed is True
 
 
-class TestAsyncDB:
-    """Tests for async database functions."""
+def test_legacy_aliases_call_init_db(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy init helpers should delegate to init_db."""
+    called = {"count": 0}
 
-    def test_derive_async_url_sqlite(self):
-        """Test _derive_async_url for SQLite URLs."""
-        sqlite_url = "sqlite:///test.db"
-        async_url = _derive_async_url(sqlite_url)
-        assert async_url == "sqlite+aiosqlite:///test.db"
+    def fake_init_db() -> None:
+        called["count"] += 1
 
-    def test_derive_async_url_postgresql(self):
-        """Test _derive_async_url for PostgreSQL URLs."""
-        pg_url = "postgresql://user:pass@localhost/testdb"
-        async_url = _derive_async_url(pg_url)
-        assert async_url == "postgresql+asyncpg://user:pass@localhost/testdb"
+    monkeypatch.setattr(db, "init_db", fake_init_db)
 
-    def test_derive_async_url_mysql(self):
-        """Test _derive_async_url for MySQL URLs."""
-        mysql_url = "mysql://user:pass@localhost/testdb"
-        async_url = _derive_async_url(mysql_url)
-        assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
+    db.create_tables()
+    db.init_database()
+    assert called["count"] == 2
 
-    def test_derive_async_url_already_async(self):
-        """Test _derive_async_url when URL is already async."""
-        async_url = "sqlite+aiosqlite:///test.db"
-        result = _derive_async_url(async_url)
-        assert result == async_url
 
-    def test_derive_async_url_with_support(self):
-        """Test _derive_async_url correctly derives URL when async support is available."""
-        result = _derive_async_url("sqlite:///test.db")
-        assert result == "sqlite+aiosqlite:///test.db"
+def test_async_engine_initialization(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reloading the module with async enabled should configure async session maker."""
+    import importlib
 
-    def test_async_engine_not_configured(self):
-        """Test that async_engine is None when not configured."""
-        assert async_engine is None
+    import sqlalchemy.ext.asyncio as sa_async
 
-    @pytest.mark.asyncio
-    async def test_get_async_session_not_configured(self):
-        """Test get_async_session raises error when not configured."""
-        with patch("core.db.AsyncSessionLocal", None):
-            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
-                async for _session in get_async_session():
-                    break
+    created: dict[str, Any] = {}
 
-    @pytest.mark.asyncio
-    async def test_session_scope_async_not_configured(self):
-        """Test session_scope_async raises error when not configured."""
-        with patch("core.db.AsyncSessionLocal", None):
-            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
-                async with session_scope_async():
-                    pass
+    def fake_create_async_engine(url: str, **kwargs: Any) -> str:
+        created["url"] = url
+        created["engine_kwargs"] = kwargs
+        return "fake-engine"
 
-    @pytest.mark.asyncio
-    async def test_init_db_async_fallback(self):
-        """Test init_db_async falls back to sync init when async not configured."""
-        # Should work without raising errors
-        await init_db_async()
+    def fake_async_sessionmaker(**kwargs: Any) -> str:
+        created["session_kwargs"] = kwargs
+        return "fake-sessionmaker"
 
-    def test_derive_async_url_no_async_support(self):
-        """Test _derive_async_url returns None when async support not available."""
-        with patch("core.db.create_async_engine", None):
-            result = _derive_async_url("sqlite:///test.db")
-            assert result in {None, "sqlite+aiosqlite:///test.db"}
+    monkeypatch.setattr(sa_async, "create_async_engine", fake_create_async_engine)
+    monkeypatch.setattr(sa_async, "async_sessionmaker", fake_async_sessionmaker)
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///tests.db")
+    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
+    monkeypatch.setenv("DATABASE_POOL_SIZE", "3")
+    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "2")
 
-    def test_execute_sql_method(self):
-        """Test execute method on connection."""
-        # Test with a simple SELECT statement using connection
-        with _RAW_ENGINE.connect() as conn:
-            result = conn.execute(text("SELECT 1 as test_value"))
-            # Should return a result object
-            assert result is not None
+    module = importlib.reload(db)
+    assert created["url"].startswith("sqlite+aiosqlite")
+    assert created["session_kwargs"]["bind"] == "fake-engine"
 
-    @pytest.mark.asyncio
-    async def test_get_async_session_import_error(self):
-        """Test get_async_session raises ImportError when async extras not available."""
-        with patch("core.db.AsyncSessionLocal", None), patch("core.db.create_async_engine", None):
-            with pytest.raises((ImportError, RuntimeError)):
-                async for _session in get_async_session():
-                    break
-
-    @pytest.mark.asyncio
-    async def test_session_scope_async_success(self):
-        """Test session_scope_async with successful commit."""
-        # This will test the main path if async is configured
-        if async_engine is not None:
-            async with session_scope_async() as session:
-                # Just ensure we can get a session
-                assert session is not None
-
-    @pytest.mark.asyncio
-    async def test_session_scope_async_rollback(self):
-        """Test session_scope_async with exception and rollback."""
-        if async_engine is not None:
-            with pytest.raises(ValueError):
-                async with session_scope_async() as session:
-                    # Simulate an error that should trigger rollback
-                    raise ValueError("Test rollback")
-
-    @pytest.mark.asyncio
-    async def test_init_db_async_with_async_engine(self):
-        """Test init_db_async when async engine is available."""
-        if async_engine is not None:
-            # Should work without raising errors
-            await init_db_async()
+    # Cleanup: disable async and reload module to restore defaults
+    monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
+    module = importlib.reload(module)

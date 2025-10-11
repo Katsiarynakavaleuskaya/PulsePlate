@@ -131,12 +131,14 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception as e:  # noqa: BLE001
-                # Not all statements require/allow commit; log and ignore all commit errors
+            except (InvalidRequestError, SQLAlchemyError) as exc:
+                # Not all statements require/allow commit; log and ignore expected commit errors
                 logger.debug(
-                    "Commit failed or skipped for statement: %s",
-                    e,
+                    "Commit skipped for non-transactional statement: %s",
+                    exc,
                 )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Unexpected commit failure: %s", exc, exc_info=True)
             return result
 
 
@@ -188,8 +190,6 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
     except ImportError:
         # Fallback if async drivers are not available
         pass
-    else:
-        pass
 
 async_engine: AsyncEngineType | None = _ASYNC_ENGINE
 
@@ -234,9 +234,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     _check_async_availability()
 
-    if AsyncSessionLocal is None:
-        raise RuntimeError("AsyncSessionLocal is not configured")
-
+    assert AsyncSessionLocal is not None  # Narrow type for type checkers
     session = AsyncSessionLocal()
     try:
         yield session
@@ -249,9 +247,7 @@ async def session_scope_async() -> AsyncGenerator[AsyncSessionType]:
     """Async context manager for atomic DB operations."""
     _check_async_availability()
 
-    if AsyncSessionLocal is None:
-        raise RuntimeError("AsyncSessionLocal is not configured")
-
+    assert AsyncSessionLocal is not None  # Narrow type for type checkers
     session = AsyncSessionLocal()
     try:
         yield session
@@ -274,7 +270,8 @@ def init_db() -> None:
     metadata = Base.metadata
     create_all = metadata.create_all
 
-    # Wrap create_all in a callable object with an assert_called_once helper, # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
+    # Wrap create_all in a callable object with an assert_called_once helper to
+    # avoid dynamic attribute assignment on a plain function (type checkers-friendly).
     class _CreateAllWrapper:
         def __init__(self, fn: Callable[..., Any]) -> None:
             self._fn = fn

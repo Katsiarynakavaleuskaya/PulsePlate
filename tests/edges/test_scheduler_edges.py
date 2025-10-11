@@ -47,6 +47,9 @@ def test_scheduler_signal_handler_invocation(monkeypatch: pytest.MonkeyPatch):
 
     def fake_create_task(coro: Any):  # noqa: D401
         created["task"] = coro
+        # Close the coroutine to avoid RuntimeWarning
+        if hasattr(coro, "close"):
+            coro.close()
         return None
 
     monkeypatch.setattr(asyncio, "create_task", fake_create_task)

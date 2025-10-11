@@ -473,5 +473,5 @@ class ProductFinder:
             "K_mg": food_item.K_mg,
             "Mg_mg": food_item.Mg_mg,
             "price_per_unit": food_item.price_per_unit,
-            "flags": ",".join(sorted(food_item.flags)) if food_item.flags else "",
+            "flags": ";".join(sorted(food_item.flags)) if food_item.flags else "",
         }

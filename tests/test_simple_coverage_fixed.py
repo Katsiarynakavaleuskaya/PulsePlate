@@ -4,7 +4,7 @@
 """
 
 import logging
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,7 +37,7 @@ class TestSimpleCoverageBoost:
                         vitamin_d_iu=(400, 600, 4000),
                     )
                     result = auto_repair_module.auto_repair_week_plan({}, targets)
-                    assert isinstance(result, (dict, type(None)))
+                    assert isinstance(result, dict | type(None))
                 except Exception:
                     logging.exception(
                         "Unexpected exception in tests: test_simple_coverage_fixed.py"
@@ -223,19 +223,19 @@ class TestSimpleCoverageBoost:
             if hasattr(rag_module, "_score"):
                 # Тест с пустыми строками
                 score = rag_module._score("", "")
-                assert isinstance(score, (int, float))
+                assert isinstance(score, int | float)
 
                 # Тест с одинаковыми строками
                 score = rag_module._score("test", "test")
-                assert isinstance(score, (int, float))
+                assert isinstance(score, int | float)
 
                 # Тест с частичным совпадением
                 score = rag_module._score("test query", "test text query")
-                assert isinstance(score, (int, float))
+                assert isinstance(score, int | float)
 
                 # Тест substring bonus
                 score = rag_module._score("test", "this is a test text")
-                assert isinstance(score, (int, float))
+                assert isinstance(score, int | float)
 
             # Тест _get_index для покрытия
             if hasattr(rag_module, "_get_index"):
@@ -529,19 +529,19 @@ class TestSimpleCoverageBoost:
         except ImportError:
             pytest.skip("Some core modules not available")
 
-    def test_unified_db_module_coverage(self):
+    @pytest.mark.asyncio
+    async def test_unified_db_module_coverage(self):
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
         try:
-            import core.food_apis.unified_db as unified_db_module
+            from core.food_apis.unified_db import get_unified_food_db
 
-            # Импортируем модуль для покрытия
-            assert hasattr(unified_db_module, "get_unified_food_db")
+            # Тест async функции с моком для избежания реальных DB операций
+            with patch("core.food_apis.unified_db.UnifiedFoodDatabase") as mock_db_class:
+                mock_db = MagicMock()
+                mock_db_class.return_value = mock_db
 
-            # Тест функции с моком для избежания реальных DB операций
-            with patch("sqlite3.connect") as mock_connect:
-                mock_connect.return_value = None
-                _ = unified_db_module.get_unified_food_db()
-                # Должен обработать None gracefully
+                _ = await get_unified_food_db()
+                # Должен вернуть mock database
 
         except ImportError:
             pytest.skip("unified_db module not available")

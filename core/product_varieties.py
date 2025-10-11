@@ -155,9 +155,11 @@ class ProductVarietiesManager:
                             Iodine_ug=float(row.get("Iodine_ug", 0)),
                             K_mg=float(row.get("K_mg", 0)),
                             Mg_mg=float(row.get("Mg_mg", 0)),
-                            flags=(
-                                set(row.get("flags", "").split(", ")) if row.get("flags") else set()
-                            ),
+                            flags={
+                                flag.strip()
+                                for flag in (row.get("flags") or "").split(",")
+                                if flag and flag.strip()
+                            },
                             notes=row.get("notes", ""),
                         )
 

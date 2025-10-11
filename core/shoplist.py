@@ -7,6 +7,7 @@ Sprint 2: Shoplist с округлением до упаковок
 
 import csv
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 
 
@@ -35,6 +36,8 @@ class ShoppingItem:
 
 class ShoplistGenerator:
     """Генератор списков покупок"""
+
+    logger = logging.getLogger(__name__)
 
     def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv"):
         self.packaging_rules_file = packaging_rules_file
@@ -66,16 +69,40 @@ class ShoplistGenerator:
                     for row in reader:
                         category = row.get("category", "default")
                         unit = row.get("unit", "g")
-                        packages = [
-                            float(x)
-                            for x in row.get("typical_packages", "100, 250, 500, 1000").split(", ")
-                        ]
+                        raw_packages = row.get("typical_packages", "100,250,500,1000")
+                        packages: list[float] = []
+                        for token in raw_packages.split(","):
+                            token = token.strip()
+                            if not token:
+                                continue
+                            try:
+                                packages.append(float(token))
+                            except ValueError as exc:
+                                self.logger.warning(
+                                    "Skipping invalid package size '%s' in %s: %s",
+                                    token,
+                                    self.packaging_rules_file,
+                                    exc,
+                                )
                         strategy = row.get("rounding_strategy", "up")
+                        baseline_rule = default_rules.get(category)
+                        baseline = (
+                            [float(size) for size in baseline_rule.typical_packages]
+                            if baseline_rule
+                            else [float(size) for size in default_rules["default"].typical_packages]
+                        )
+                        if not packages:
+                            packages = baseline
+                        elif baseline_rule is not None:
+                            packages = sorted({*baseline, *packages})
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:  # nosec B110
-                # Если не удалось загрузить, используем правила по умолчанию
-                pass
+            except Exception as exc:  # nosec B110
+                self.logger.warning(
+                    "Failed loading packaging rules from %s: %s",
+                    self.packaging_rules_file,
+                    exc,
+                )
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
         if not rules:

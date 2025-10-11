@@ -159,4 +159,5 @@ class TestCoverageBoost97:
 
             # Должно подняться RuntimeError при вызове из async контекста
             with pytest.raises(RuntimeError, match="cannot be called from async code"):
-                get_unified_food_db()
+                with pytest.warns(DeprecationWarning):
+                    get_unified_food_db()
