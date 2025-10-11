@@ -37,6 +37,11 @@ try:
 except Exception:
     PicoProvider = None  # type: ignore
 
+try:
+    from providers.llmflow import LLMFlowProvider  # LLMFlow service adapter
+except Exception:
+    LLMFlowProvider = None  # type: ignore
+
 
 class StubProvider(ProviderBase):
     name = "stub"
@@ -96,6 +101,34 @@ def get_provider() -> ProviderBase | GrokLiteProvider | None:
             except Exception:
                 # If both fail, return None
                 return None
+
+    if val in {"llmflow", "flow"}:
+        if LLMFlowProvider is None:
+            return None
+        endpoint = os.getenv("LLMFLOW_ENDPOINT", "http://127.0.0.1:7070")
+        flow_id = (os.getenv("LLMFLOW_FLOW_ID") or "").strip()
+        if not flow_id:
+            return None
+        api_key = (os.getenv("LLMFLOW_API_KEY") or "").strip() or ""
+        input_key = (os.getenv("LLMFLOW_INPUT_KEY") or "prompt").strip() or "prompt"
+        output_key_env = os.getenv("LLMFLOW_OUTPUT_KEY")
+        output_key = output_key_env.strip() if output_key_env and output_key_env.strip() else None
+        try:
+            timeout = float(os.getenv("LLMFLOW_TIMEOUT", "15"))
+        except ValueError:
+            timeout = 15.0
+
+        try:
+            return LLMFlowProvider(
+                endpoint=endpoint,
+                flow_id=flow_id,
+                api_key=api_key,
+                timeout=timeout,
+                input_key=input_key,
+                output_key=output_key,
+            )
+        except Exception:
+            return None
 
     # неизвестное значение — считаем, что провайдера нет
     return None

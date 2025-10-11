@@ -21,12 +21,22 @@ def setup_test_environment():
     This fixture runs automatically for the entire session to ensure
     API_KEY is configured before the app module is loaded.
     """
-    # Set API key for the entire test session
-    os.environ["API_KEY"] = "test_key"
+    # Preserve originals so we can restore exactly what user had
+    original_values = {
+        key: os.environ.get(key) for key in ("API_KEY", "APP_ENV", "ALLOW_DEV_API_KEY")
+    }
+
+    # Enable permissive dev mode for tests while avoiding strict API key checks
+    os.environ.pop("API_KEY", None)
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     yield
     # Clean up after all tests
-    if "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
+    for key, value in original_values.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 @pytest.fixture(scope="session")
@@ -43,6 +53,10 @@ def app_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("app_module", str(app_path))
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load app.py", allow_module_level=True)
+
+    # Type guard for mypy
+    assert spec is not None
+    assert spec.loader is not None
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)

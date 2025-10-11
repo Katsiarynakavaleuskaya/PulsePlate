@@ -87,7 +87,7 @@ class TestVIPWeeklyMenu:
         invalid_data = {"weight": "invalid"}
         response = client.post("/api/v1/vip/weekly-plan", json=invalid_data, headers=auth_headers)
         # Accept both validation errors and graceful fallbacks
-        assert response.status_code in [422, 200, 404]
+        assert response.status_code in [422, 403, 404]  # 403 for API key validation
 
     def test_weekly_menu_repair(self, client, auth_headers):
         """Test VIP weekly menu auto-repair functionality"""

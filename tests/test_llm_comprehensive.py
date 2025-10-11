@@ -331,6 +331,14 @@ class TestEnvironmentVariableHandling:
                 assert provider is not None
                 assert isinstance(provider, llm.StubProvider)
 
+    def test_llmflow_missing_provider_class(self):
+        """LLMFlow должен gracefully обрабатывать отсутствие провайдера"""
+        env = {"LLM_PROVIDER": "llmflow", "LLMFLOW_FLOW_ID": "demo"}
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(llm, "LLMFlowProvider", None):
+                provider = llm.get_provider()
+                assert provider is None
+
 
 class TestModuleImports:
     """Тесты обработки опциональных импортов"""

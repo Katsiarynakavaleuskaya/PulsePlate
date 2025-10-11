@@ -151,6 +151,42 @@ class TestGetProviderEdgeCases:
                 assert provider is None
                 assert mock_ollama.call_count == 2
 
+    def test_get_provider_llmflow_success(self):
+        """Тест успешного использования LLMFlow провайдера"""
+        env_patch = {
+            "LLM_PROVIDER": "llmflow",
+            "LLMFLOW_ENDPOINT": "http://127.0.0.1:8088",
+            "LLMFLOW_FLOW_ID": "demo-flow",
+            "LLMFLOW_API_KEY": "secret",
+            "LLMFLOW_INPUT_KEY": "question",
+            "LLMFLOW_OUTPUT_KEY": "answer",
+            "LLMFLOW_TIMEOUT": "12",
+        }
+        with patch.dict(os.environ, env_patch, clear=False):
+            with patch.object(llm, "LLMFlowProvider") as mock_llmflow:
+                provider_instance = Mock(name="llmflow")
+                mock_llmflow.return_value = provider_instance
+
+                provider = llm.get_provider()
+
+                assert provider is provider_instance
+                mock_llmflow.assert_called_once_with(
+                    endpoint="http://127.0.0.1:8088",
+                    flow_id="demo-flow",
+                    api_key="secret",
+                    timeout=12.0,
+                    input_key="question",
+                    output_key="answer",
+                )
+
+    def test_get_provider_llmflow_requires_flow_id(self):
+        """LLMFlow должен возвращать None при отсутствии flow_id"""
+        with patch.dict(
+            os.environ, {"LLM_PROVIDER": "llmflow", "LLMFLOW_FLOW_ID": ""}, clear=False
+        ):
+            provider = llm.get_provider()
+            assert provider is None
+
     @patch("llm.GrokProvider")
     def test_grok_provider_positional_args_fallback(self, mock_grok_class):
         """Тест fallback на позиционные аргументы для GrokProvider"""

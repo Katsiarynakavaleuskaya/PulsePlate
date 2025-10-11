@@ -1,8 +1,8 @@
-import { NavLink, useLocation, matchPath } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { matchPath, NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { tabRoutes } from "../config/routes";
-import { useState, useEffect, useRef } from "react";
 
 export default function TabBar() {
   const { pathname } = useLocation();
@@ -52,9 +52,15 @@ export default function TabBar() {
                 isClicked ? 'scale-95' : 'scale-100'
               }`}
               onClick={() => handleDisabledClick(to)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleDisabledClick(to);
+                }
+              }}
               role="tab"
-              aria-disabled="true"
               tabIndex={-1}
+              aria-disabled="true"
               title={t("auth.requiresApiKey")}
             >
               {/* Lock overlay */}

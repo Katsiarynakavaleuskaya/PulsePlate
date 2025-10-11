@@ -11,6 +11,22 @@ This repo uses a simple branch model designed to keep `main` always green.
   - `chore/<task>` for maintenance
 - Avoid direct pushes to `main`. Open a PR.
 
+## Accessibility Requirements
+
+**🚪 Accessibility Gatekeeper:** All PRs must pass accessibility checks before merge.
+
+### Required Checks
+
+- [ ] ESLint accessibility linting passes
+- [ ] Playwright accessibility tests pass
+- [ ] All interactive elements have proper ARIA labels
+- [ ] All images have descriptive alt text
+- [ ] All icons have accessible labels
+- [ ] Color contrast meets WCAG standards
+- [ ] Keyboard navigation works properly
+
+See [Accessibility Guide](docs/ACCESSIBILITY_GUIDE.md) for detailed requirements.
+
 ## Git Workflow: Merge vs Rebase
 
 **⚠️ Important:** Always use **merge** instead of **rebase** when syncing with remote.

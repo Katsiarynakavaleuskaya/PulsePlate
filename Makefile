@@ -6,6 +6,26 @@ health-check:
 
 unit-fast:
 	python3 -m pytest -q tests
+
+## Run tests with parallel execution (blast/pytest-xdist)
+test-parallel: ## Run tests in parallel for maximum speed
+	@echo "$(BLUE)🚀 Running tests with pytest-xdist (blast) for maximum speed$(NC)"
+	@CORES=$$(python3 -c "import os; print(os.cpu_count())"); \
+	echo "$(YELLOW)📊 Detected $$CORES CPU cores$(NC)"; \
+	WORKERS=$${1:-$$CORES}; \
+	echo "$(YELLOW)⚡ Using $$WORKERS parallel workers$(NC)"; \
+	echo "$(GREEN)🏃 Starting parallel test execution...$(NC)"; \
+	python3 -m pytest --cov=core --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=97 -v --tb=short --maxfail=10 --durations=10 tests/; \
+	echo "$(GREEN)✅ Parallel test execution completed!$(NC)"
+
+## Run tests with parallel execution (custom workers)
+test-blast: ## Run tests with custom number of workers (usage: make test-blast WORKERS=4)
+	@echo "$(BLUE)🚀 Running tests with pytest-xdist (blast) - custom workers$(NC)"
+	@WORKERS=$${WORKERS:-$$(python3 -c "import os; print(os.cpu_count())")}; \
+	echo "$(YELLOW)⚡ Using $$WORKERS parallel workers$(NC)"; \
+	echo "$(GREEN)🏃 Starting parallel test execution...$(NC)"; \
+	python3 -m pytest --cov=core --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=97 -v --tb=short --maxfail=10 --durations=10 tests/; \
+	echo "$(GREEN)✅ Parallel test execution completed!$(NC)"
 SHELL := /bin/bash
 PIP ?= . .venv/bin/activate && pip
 

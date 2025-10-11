@@ -33,7 +33,6 @@
 Автофикстура
 автоформатирование
 Автоформатирование
-Autodocs
 агрегации
 агрегировалась
 агрегировалось
@@ -1534,6 +1533,7 @@ Autodocs
 набора
 набором
 набрать
+навигировать
 название
 Название
 названий
@@ -3703,6 +3703,7 @@ aumentada
 aumentado
 aumentados
 autodocs
+Autodocs
 autoflush
 autopush
 autouse
@@ -3920,6 +3921,7 @@ katsiarynakavaleuskaya
 keyerror
 keyval
 kwargs
+labelledby
 lact
 lactancia
 Lactancia
@@ -4227,6 +4229,7 @@ visx
 vitamina
 vitd
 vlcd
+WCAG
 whitesmoke
 whtr
 wicg

@@ -36,6 +36,13 @@ def dynamic_app():
     """Load FastAPI app dynamically from app.py"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+    # Set up environment variables for the app
+    os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
+    os.environ.setdefault("VIP_MODULE_ENABLED", "true")
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+    os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+
     spec = importlib.util.spec_from_file_location("app_module", "app.py")
     if spec is None or spec.loader is None:
         raise AppLoadError()

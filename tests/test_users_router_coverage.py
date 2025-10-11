@@ -252,8 +252,8 @@ class TestUsersRouterCoverage:
             for activity in activities:
                 profile_data = {**base_data, "activity": activity}
 
-                response = client.put(
-                    "/api/v1/users/profile", json=profile_data, headers={"X-API-Key": "test_key"}
+                response = client.post(
+                    "/api/v1/users", json=profile_data, headers={"X-API-Key": "test_key"}
                 )
 
                 assert response.status_code in [200, 201, 422, 500]
@@ -278,8 +278,8 @@ class TestUsersRouterCoverage:
             for goal in goals:
                 profile_data = {**base_data, "goal": goal}
 
-                response = client.put(
-                    "/api/v1/users/profile", json=profile_data, headers={"X-API-Key": "test_key"}
+                response = client.post(
+                    "/api/v1/users", json=profile_data, headers={"X-API-Key": "test_key"}
                 )
 
                 assert response.status_code in [200, 201, 422, 500]
@@ -306,8 +306,8 @@ class TestUsersRouterCoverage:
             for diet_flags in diet_flags_combinations:
                 preferences_data = {**base_data, "diet_flags": diet_flags}
 
-                response = client.put(
-                    "/api/v1/users/preferences",
+                response = client.post(
+                    "/api/v1/users",
                     json=preferences_data,
                     headers={"X-API-Key": "test_key"},
                 )

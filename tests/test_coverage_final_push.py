@@ -38,6 +38,7 @@ class TestFinalCoveragePush:
         # Test basic endpoint still works
         response = client.get("/")
         assert response.status_code == 200
+        assert "BMI Calculator" in response.text
 
     def test_vip_import_fallbacks(self):
         """Test VIP router import fallback paths."""
@@ -62,6 +63,8 @@ class TestFinalCoveragePush:
             # Test VIP endpoints still work with fallbacks
             response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test-key"})
             assert response.status_code == 200
+            data = response.json()
+            assert data.get("status") in {"ok", "success"}
 
     def test_premium_bmr_calculator_endpoint(self):
         """Test premium BMR calculator endpoint."""
@@ -110,14 +113,17 @@ class TestFinalCoveragePush:
         # Test empty query
         response = client.get("/api/v1/foods/search?q=")
         assert response.status_code == 200
+        assert isinstance(response.json(), list)
 
         # Test very short query
         response = client.get("/api/v1/foods/search?q=a")
         assert response.status_code == 200
+        assert isinstance(response.json(), list)
 
         # Test special characters
         response = client.get("/api/v1/foods/search?q=%20%21%40%23")
         assert response.status_code == 200
+        assert isinstance(response.json(), list)
 
     def test_bmi_pro_edge_cases(self):
         """Test BMI endpoint edge cases."""
@@ -163,6 +169,8 @@ class TestFinalCoveragePush:
         # Health check with query params
         response = client.get("/api/v1/health?details=true")
         assert response.status_code == 200
+        details = response.json()
+        assert "status" in details
 
     def test_export_functionality(self):
         """Test insight endpoint functionality."""
@@ -242,7 +250,8 @@ class TestFinalCoveragePush:
 
         # Test preflight request
         response = client.get("/api/v1/health")
-        assert response.status_code == 200  # Health endpoint should work
+        assert response.status_code == 200
+        assert response.json().get("status") in {"ok", "error"}
 
     def test_malformed_json_handling(self):
         """Test malformed JSON handling."""

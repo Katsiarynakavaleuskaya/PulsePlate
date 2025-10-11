@@ -762,7 +762,7 @@ async def daily_shoplist(request: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/shoplist/formats", dependencies=[Depends(_require_api_key_strict)])
-def available_export_formats() -> dict[str, Any]:
+async def available_export_formats() -> dict[str, Any]:
     """
     RU: Получить доступные форматы экспорта списков покупок
     EN: Get available export formats for shopping lists
@@ -779,7 +779,7 @@ def available_export_formats() -> dict[str, Any]:
 
 
 @router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
-def get_regions() -> dict[str, Any]:
+async def get_regions() -> dict[str, Any]:
     """
     RU: Получить список доступных регионов
     EN: Get list of available regions
@@ -1194,7 +1194,7 @@ def get_recipe_templates() -> dict[str, Any]:
 
 
 @router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key_strict)])
-def auto_repair_weekly_plan(request: dict[str, Any]) -> dict[str, Any]:
+async def auto_repair_weekly_plan(request: dict[str, Any]) -> dict[str, Any]:
     """
     RU: Авто-ремонт недельного плана с UX-петлей
     EN: Auto-repair weekly plan with UX loop
@@ -1292,7 +1292,7 @@ async def get_manual_repair_suggestions(request: dict[str, Any] = Body(...)) -> 
 
 
 @router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
-def get_repair_strategies(x_api_key: str = Header(None)) -> dict[str, Any]:
+async def get_repair_strategies(x_api_key: str = Header(None)) -> dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта
     EN: Get available repair strategies
