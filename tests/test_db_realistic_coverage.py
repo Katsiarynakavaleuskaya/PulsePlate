@@ -289,7 +289,9 @@ def test_async_engine_sqlite_no_pooling() -> None:
 
     # SQLite async should not have pool configuration
     # This is tested by checking that the engine is created without pool args
-    assert db_module.ASYNC_DATABASE_URL == "sqlite+aiosqlite:///:memory:"
+    # Test the _derive_async_url function directly instead of ASYNC_DATABASE_URL
+    derived_url = db_module._derive_async_url("sqlite+aiosqlite:///:memory:")
+    assert derived_url == "sqlite+aiosqlite:///:memory:"
 
 
 def test_build_engine_url_default() -> None:

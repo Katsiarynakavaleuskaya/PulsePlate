@@ -20,12 +20,14 @@ class TestIsTransientException:
 
     def test_apiconnection_error_is_transient(self) -> None:
         """Test that APIConnectionError is considered transient."""
-        error = grok_module.APIConnectionError("Connection failed")
+        # Create a mock APIConnectionError that matches the current openai SDK
+        error = grok_module.APIConnectionError()
         assert grok_module.is_transient_exception(error) is True
 
     def test_ratelimit_error_is_transient(self) -> None:
         """Test that RateLimitError is considered transient."""
-        error = grok_module.RateLimitError("Rate limit exceeded")
+        # Create a mock RateLimitError that matches the current openai SDK
+        error = grok_module.RateLimitError()
         assert grok_module.is_transient_exception(error) is True
 
     def test_api_status_error_429_is_transient(self) -> None:
