@@ -140,8 +140,8 @@ class TestUsersRouterCoverage:
                 "preferred_cuisine": "mediterranean",
             }
 
-            response = client.put(
-                "/api/v1/users/preferences",
+            response = client.post(
+                "/api/v1/users",
                 json=preferences_data,
                 headers={"X-API-Key": "test_key"},
             )
@@ -163,8 +163,8 @@ class TestUsersRouterCoverage:
                 "preferred_cuisine": 456,  # Should be string
             }
 
-            response = client.put(
-                "/api/v1/users/preferences", json=invalid_data, headers={"X-API-Key": "test_key"}
+            response = client.post(
+                "/api/v1/users", json=invalid_data, headers={"X-API-Key": "test_key"}
             )
 
             # Should return validation error
@@ -185,7 +185,7 @@ class TestUsersRouterCoverage:
 
         preferences_data = {"diet_flags": ["VEG"], "allergies": ["nuts"]}
 
-        response = client.put("/api/v1/users/preferences", json=preferences_data)
+        response = client.post("/api/v1/users", json=preferences_data)
 
         # Should require API key
         assert response.status_code in [401, 403, 422]
