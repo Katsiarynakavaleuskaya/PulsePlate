@@ -2,6 +2,8 @@
 Global test configuration and fixtures for the project.
 """
 
+import copy
+import importlib
 import importlib.util
 import os
 import sys
@@ -13,9 +15,30 @@ from starlette.types import ASGIApp
 
 
 class AppLoadError(ImportError):
-    """Raised when app.py cannot be loaded."""
+    """Raised when main.py cannot be loaded."""
 
     pass
+
+
+@pytest.fixture(autouse=True)
+def _clean_env_and_singletons():
+    """Clean environment and singletons between tests."""
+    env_backup = copy.deepcopy(os.environ)
+    # Жёстко выставляем режим «production» и запрещаем dev-ключи, если это требуется тестами
+    os.environ["APP_ENV"] = "production"
+    os.environ["ALLOW_DEV_API_KEY"] = "false"
+    yield
+    # restore env
+    os.environ.clear()
+    os.environ.update(env_backup)
+    # При необходимости – сбросить кэш/синглтоны:
+    for mod in ("app", "app.routers.vip", "core.menu_engine"):
+        if mod in importlib.sys.modules:
+            try:
+                importlib.reload(importlib.import_module(mod))
+            except Exception as exc:
+                # Ignore reload errors for modules that might not exist
+                print(f"Warning: Could not reload module {mod}: {exc}")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -33,7 +56,7 @@ def init_test_database():
 
 @pytest.fixture(scope="session")
 def dynamic_app():
-    """Load FastAPI app dynamically from app.py"""
+    """Load FastAPI app dynamically from main.py"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     # Set up environment variables for the app
@@ -43,7 +66,7 @@ def dynamic_app():
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
 
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "main.py")
     if spec is None or spec.loader is None:
         raise AppLoadError()
 

@@ -11,6 +11,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     HTTPException,
     status,
 )
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
@@ -467,7 +468,7 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
 
 
-@router.get("/health")
+@router.get("/health", dependencies=[Depends(_require_api_key_strict)])
 def vip_health() -> dict[str, Any]:
     """
     RU: Проверка здоровья VIP модуля
@@ -642,7 +643,11 @@ async def weekly_menu_plan_alias(
         )
     except Exception as e:
         logging.exception("weekly-plan generation failed")
-        return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
+        # тесты ожидают status_code=200, но payload со статусом error
+        return JSONResponse(
+            status_code=200,
+            content={"status": "error", "message": f"Weekly plan generation failed: {str(e)}"},
+        )
 
 
 @router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key_strict)])
@@ -1145,8 +1150,8 @@ async def synthesize_weekly_recipes(request: dict[str, Any]) -> dict[str, Any]:
         }
 
 
-@router.get("/recipes/templates")
-def get_recipe_templates() -> dict[str, Any]:
+@router.get("/recipes/templates", dependencies=[Depends(_require_api_key_strict)])
+async def get_recipe_templates() -> dict[str, Any]:
     """
     RU: Получить доступные шаблоны рецептов
     EN: Get available recipe templates

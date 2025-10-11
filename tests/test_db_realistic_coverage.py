@@ -265,14 +265,17 @@ def test_async_engine_initialization_with_pool_config() -> None:
         env_updates["DATABASE_POOL_SIZE"] = "5"
         env_updates["DATABASE_MAX_OVERFLOW"] = "10"
 
-    _reload_with_env(_apply_env)
+    # Test pool config with environment variables
+    env_updates: dict[str, str] = {}
+    _apply_env(env_updates)
 
-    # Check that pool config is applied
-    # Note: _POOL_CONFIG is created at module import time, so it uses default values
-    # The environment variables are used when creating the engine, not in _POOL_CONFIG
-    assert db_module._POOL_CONFIG["pool_size"] == 10  # Default value
-    assert db_module._POOL_CONFIG["max_overflow"] == 20  # Default value
-    assert db_module._POOL_CONFIG["pool_pre_ping"] is True
+    with patch.dict(os.environ, env_updates, clear=False):
+        # Check that pool config is applied
+        # Note: _get_pool_config() reads environment variables dynamically
+        pool_config = db_module._get_pool_config()
+        assert pool_config["pool_size"] == 5  # From DATABASE_POOL_SIZE env var
+        assert pool_config["max_overflow"] == 10  # From DATABASE_MAX_OVERFLOW env var
+        assert pool_config["pool_pre_ping"] is True
 
 
 @pytest.mark.skipif(

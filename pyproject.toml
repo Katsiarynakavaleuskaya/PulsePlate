@@ -36,7 +36,8 @@ exclude = '''
   ^data/|
   ^external/|
   ^providers/.*|
-  ^releases/v0\.1\.0/.*
+  ^releases/v0\.1\.0/.*|
+  ^releases/v0\.1\.0/BMI-App_2025_clean-0\.1\.0/app\.py$
 )
 '''
 

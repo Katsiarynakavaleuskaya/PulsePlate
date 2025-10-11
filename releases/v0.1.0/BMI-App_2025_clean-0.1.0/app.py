@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, StrictFloat, model_validator
 try:
     pass  # type: ignore
 
-except Exception:
+except ImportError:
     # dotenv is optional; skip if missing in test env
     pass
 
@@ -211,7 +211,7 @@ def insight(req: InsightReq):
     # отложенный импорт, чтобы не падать, если файла нет
     try:
         from llm import get_provider
-    except Exception:
+    except ImportError:
         raise HTTPException(status_code=503, detail="LLM module is not available")
 
     provider = get_provider()

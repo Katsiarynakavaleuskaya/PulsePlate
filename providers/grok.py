@@ -2,7 +2,7 @@ from openai import AsyncOpenAI
 
 
 try:
-    import openai  # type: ignore[import-not-found]
+    import openai
 except ImportError as exc:  # pragma: no cover - openai is a strict dependency
     raise RuntimeError("GrokProvider requires the 'openai' package to be installed") from exc
 
@@ -84,7 +84,7 @@ def _extract_status_code(exc: BaseException) -> int | None:
     """Attempt to extract an HTTP status code from an OpenAI-style exception."""
 
     status = getattr(exc, "status_code", None)
-    if status is not None:
+    if status is not None and isinstance(status, int):
         return status
 
     response = getattr(exc, "response", None)

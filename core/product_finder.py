@@ -419,9 +419,14 @@ class ProductFinder:
             path_obj = Path(csv_path)
             if path_obj.parent and not path_obj.parent.exists():
                 path_obj.parent.mkdir(parents=True, exist_ok=True)
-        except Exception:  # nosec B110
+        except Exception as exc:  # nosec B110
+            logger.debug(
+                "Failed to prepare directory for CSV export %s: %s",
+                csv_path,
+                exc,
+                exc_info=True,
+            )
             # Best-effort; writing the file below will surface any errors
-            pass
 
         # Determine if we need to write header: file missing or empty
         csv_path_obj = Path(csv_path)

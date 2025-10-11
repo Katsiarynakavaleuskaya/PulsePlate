@@ -281,7 +281,7 @@ class ProductVarietiesManager:
         return comparison
 
     def recommend_variety(
-        self, product_name: str, user_preferences: dict[str, str]
+        self, product_name: str, user_preferences: dict[str, bool]
     ) -> ProductVariety | None:
         """
         RU: Рекомендовать сорт продукта на основе предпочтений пользователя.

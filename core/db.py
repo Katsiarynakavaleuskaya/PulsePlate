@@ -162,11 +162,15 @@ if create_async_engine is not None:
 
     ASYNC_DATABASE_URL = async_url
 
-_POOL_CONFIG = {
-    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
-    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-    "pool_pre_ping": True,
-}
+
+def _get_pool_config() -> dict[str, Any]:
+    """Get pool configuration from environment variables."""
+    return {
+        "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
+        "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
+        "pool_pre_ping": True,
+    }
+
 
 if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker is not None:
     with suppress(ImportError):
@@ -177,7 +181,7 @@ if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker
 
         if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             # SQLite async doesn't support pooling
-            async_kwargs |= _POOL_CONFIG
+            async_kwargs |= _get_pool_config()
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
         AsyncSessionLocal = async_sessionmaker(

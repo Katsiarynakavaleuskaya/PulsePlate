@@ -87,9 +87,9 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
                         baseline_rule = default_rules.get(category)
                         baseline = (
-                            [float(size) for size in baseline_rule.typical_packages]
+                            baseline_rule.typical_packages
                             if baseline_rule
-                            else [float(size) for size in default_rules["default"].typical_packages]
+                            else default_rules["default"].typical_packages
                         )
                         if not packages:
                             packages = baseline

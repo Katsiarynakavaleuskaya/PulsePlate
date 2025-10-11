@@ -15,8 +15,8 @@ from typing import cast
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import from the main app.py file directly
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
+# Import from the main main.py file directly
+spec = importlib.util.spec_from_file_location("app_module", "main.py")
 if spec is None or spec.loader is None:
     app = None
     get_api_key = None

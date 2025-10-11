@@ -239,7 +239,7 @@ def compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
         return None
     try:
         _validate_height(float(height_m))
-    except Exception:
+    except (ValueError, TypeError):
         return None
 
     # Мягкая обработка
@@ -250,7 +250,7 @@ def compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
 
     try:
         return round((float(waist_cm) / 100.0) / float(height_m), 2)
-    except Exception:
+    except (ValueError, TypeError, ZeroDivisionError):
         return None
 
 

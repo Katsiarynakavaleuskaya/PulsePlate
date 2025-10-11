@@ -69,7 +69,8 @@ def _build_index() -> list[tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
+            # Skip files that can't be read or decoded
             continue
         for ch in _chunk(text):
             if ch:

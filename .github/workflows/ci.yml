@@ -44,7 +44,7 @@ jobs:
             pip install -r requirements.txt
           fi
           # Ensure test tools available
-          pip install pytest pytest-cov pre-commit bandit
+          pip install pytest pytest-cov pytest-xdist pre-commit bandit
 
       - name: Pre-commit (lint/format/security quick checks)
         run: pre-commit run --all-files --show-diff-on-failure

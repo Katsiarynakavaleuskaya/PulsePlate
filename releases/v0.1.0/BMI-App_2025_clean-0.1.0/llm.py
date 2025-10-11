@@ -9,17 +9,17 @@ from providers import ProviderBase
 # Опциональные импорты — чтоб модуль грузился даже без установленных либ
 try:
     from providers.grok import GrokProvider  # xAI
-except Exception:
+except ImportError:
     GrokProvider = None  # type: ignore
 
 try:
     from providers.ollama import OllamaProvider  # локальные/совместимые
-except Exception:
+except ImportError:
     OllamaProvider = None  # type: ignore
 
 try:
     from providers.pico import PicoProvider  # если у тебя есть этот файл
-except Exception:
+except ImportError:
     PicoProvider = None  # type: ignore
 
 

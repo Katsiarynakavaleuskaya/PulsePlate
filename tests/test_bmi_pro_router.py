@@ -165,10 +165,10 @@ class TestBMIProRouter:
         )
         assert response.status_code == 422
 
-    @patch("app.routers.bmi_pro.calc_bmi")
-    def test_bmi_pro_calculation_error(self, mock_calc_bmi):
+    @patch("app.routers.bmi_pro.wht_ratio")
+    def test_bmi_pro_calculation_error(self, mock_wht_ratio):
         """Test BMI Pro endpoint with calculation error."""
-        mock_calc_bmi.side_effect = ValueError("Invalid calculation")
+        mock_wht_ratio.side_effect = ValueError("Invalid calculation")
 
         response = self.client.post(
             "/api/v1/bmi/pro",
