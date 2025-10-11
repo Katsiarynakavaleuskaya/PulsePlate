@@ -6,7 +6,7 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
 import logging
 import os
@@ -276,11 +276,11 @@ def init_db() -> None:
 
     # Wrap create_all in a callable object with an assert_called_once helper, # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
     class _CreateAllWrapper:
-        def __init__(self, fn):
+        def __init__(self, fn: Callable[..., Any]) -> None:
             self._fn = fn
             self._called = False
 
-        def __call__(self, *args, **kwargs):
+        def __call__(self, *args: Any, **kwargs: Any) -> Any:
             self._called = True
             return self._fn(*args, **kwargs)
 

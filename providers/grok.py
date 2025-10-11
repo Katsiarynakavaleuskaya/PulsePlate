@@ -51,9 +51,9 @@ def is_transient_exception(exc: BaseException) -> bool:
 
     # Проверяем HTTP status код для APIStatusError
     if isinstance(exc, APIStatusError):
-        status_code = exc.status_code
+        status_code: int = exc.status_code
         # Retry только для server errors (500-599) и rate limit (429)
-        return bool(status_code == 429 or (500 <= status_code < 600))
+        return status_code == 429 or (500 <= status_code < 600)
 
     return False
 

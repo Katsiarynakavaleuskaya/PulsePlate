@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from .targets import UserProfile
 
@@ -87,10 +87,10 @@ class SportsNutritionCalculator:
     """
 
     # Sport category groupings for nutrition calculations
-    HIGH_CARB_SPORTS = [SportCategory.ENDURANCE, SportCategory.TEAM]
-    STRENGTH_POWER_SPORTS = [SportCategory.STRENGTH, SportCategory.POWER]
-    CAFFEINE_SPORTS = [SportCategory.ENDURANCE, SportCategory.POWER, SportCategory.TEAM]
-    WEIGHT_CUTTING_SPORTS = [SportCategory.COMBAT, SportCategory.AESTHETIC]
+    HIGH_CARB_SPORTS = (SportCategory.ENDURANCE, SportCategory.TEAM)
+    STRENGTH_POWER_SPORTS = (SportCategory.STRENGTH, SportCategory.POWER)
+    CAFFEINE_SPORTS = (SportCategory.ENDURANCE, SportCategory.POWER, SportCategory.TEAM)
+    WEIGHT_CUTTING_SPORTS = (SportCategory.COMBAT, SportCategory.AESTHETIC)
 
     # NASM/ACSM Evidence-Based Guidelines
     SPORT_PROTEIN_REQUIREMENTS = {
@@ -239,31 +239,35 @@ class SportsNutritionCalculator:
 
         return max(0.8, fat_per_kg)  # Minimum for health
 
-    @staticmethod
-    def _calculate_pre_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
+    @classmethod
+    def _calculate_pre_workout_carbs(cls, sport: SportCategory, daily_carbs: float) -> float | None:
         """Calculate pre-workout carb needs."""
-        if sport in SportsNutritionCalculator.HIGH_CARB_SPORTS:
+        if sport in cls.HIGH_CARB_SPORTS:
             return round(daily_carbs * 0.15, 1)  # 15% of daily carbs 1-2h before
-        elif sport in SportsNutritionCalculator.STRENGTH_POWER_SPORTS:
+        elif sport in cls.STRENGTH_POWER_SPORTS:
             return round(daily_carbs * 0.10, 1)  # 10% of daily carbs
         return None
 
-    @staticmethod
-    def _calculate_post_workout_protein(sport: SportCategory, daily_protein: float) -> float | None:
+    @classmethod
+    def _calculate_post_workout_protein(
+        cls, _sport: SportCategory, daily_protein: float
+    ) -> float | None:
         """Calculate post-workout protein needs."""
         return round(daily_protein * 0.25, 1)  # ~25% of daily protein within 2h
 
-    @staticmethod
-    def _calculate_post_workout_carbs(sport: SportCategory, daily_carbs: float) -> float | None:
+    @classmethod
+    def _calculate_post_workout_carbs(
+        cls, sport: SportCategory, daily_carbs: float
+    ) -> float | None:
         """Calculate post-workout carb needs."""
-        if sport in SportsNutritionCalculator.HIGH_CARB_SPORTS:
+        if sport in cls.HIGH_CARB_SPORTS:
             return round(daily_carbs * 0.20, 1)  # 20% for glycogen replenishment
         return round(daily_carbs * 0.15, 1)
 
-    @staticmethod
-    def _get_caffeine_timing(sport: SportCategory) -> str | None:
+    @classmethod
+    def _get_caffeine_timing(cls, sport: SportCategory) -> str | None:
         """Get caffeine timing recommendations."""
-        if sport in SportsNutritionCalculator.CAFFEINE_SPORTS:
+        if sport in cls.CAFFEINE_SPORTS:
             return "30-60 minutes before training/competition"
         return None
 

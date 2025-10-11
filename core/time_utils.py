@@ -6,12 +6,19 @@ EN: Utilities for working with timezones and UTC-aware datetimes.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+
+try:
+    from datetime import UTC, datetime  # Python 3.11+
+except ImportError:  # Python <3.11
+    from datetime import datetime
+    from datetime import timezone as _timezone
+
+    UTC = UTC
 
 
 try:  # Python 3.9+
     from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover - fallback for very old runtimes
+except ImportError:  # pragma: no cover - fallback for very old runtimes
     ZoneInfo = None  # type: ignore
 
 

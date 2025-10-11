@@ -482,7 +482,7 @@ def vip_health() -> dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_plan(request: WeeklyPlanRequest) -> dict[str, Any]:
+async def weekly_menu_plan(request: WeeklyPlanRequest) -> dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
     EN: Weekly menu planning with VIP features
@@ -646,7 +646,7 @@ async def weekly_menu_plan_alias(
 
 
 @router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_repair(request: dict[str, Any]) -> dict[str, Any]:
+async def weekly_menu_repair(request: dict[str, Any]) -> dict[str, Any]:
     """
     RU: Авто-ремонт недельного меню на основе дефицитов
     EN: Auto-repair weekly menu based on nutrient gaps
@@ -670,7 +670,7 @@ def weekly_menu_repair(request: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/shoplist/weekly", dependencies=[Depends(_require_api_key_strict)])
-def weekly_shoplist(request: dict[str, Any]) -> dict[str, Any]:
+async def weekly_shoplist(request: dict[str, Any]) -> dict[str, Any]:
     """
     RU: Создание списка покупок на неделю с округлением до упаковок
     EN: Create weekly shopping list with package rounding
@@ -716,7 +716,7 @@ def weekly_shoplist(request: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/shoplist/daily", dependencies=[Depends(_require_api_key_strict)])
-def daily_shoplist(request: dict[str, Any]) -> dict[str, Any]:
+async def daily_shoplist(request: dict[str, Any]) -> dict[str, Any]:
     """
     RU: Создание списка покупок на день с округлением до упаковок
     EN: Create daily shopping list with package rounding
@@ -1017,7 +1017,7 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> dict[st
 
 
 @router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_recipe(request: dict[str, Any] = Body(...)) -> dict[str, Any]:
+async def synthesize_recipe(request: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """
     RU: Синтезировать рецепт на основе ингредиентов
     EN: Synthesize recipe based on ingredients
@@ -1044,14 +1044,14 @@ def synthesize_recipe(request: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 
 @router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_recipe_alias(request: dict[str, Any]) -> dict[str, Any]:
+async def synthesize_recipe_alias(request: dict[str, Any]) -> dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
-    result: dict[str, Any] = synthesize_recipe(request)
+    result: dict[str, Any] = await synthesize_recipe(request)
     return result
 
 
 @router.post("/recipes/weekly", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_weekly_recipes(request: dict[str, Any]) -> dict[str, Any]:
+async def synthesize_weekly_recipes(request: dict[str, Any]) -> dict[str, Any]:
     """
     RU: Синтезировать рецепты для недельного плана
     EN: Synthesize recipes for weekly meal plan
@@ -1270,7 +1270,7 @@ def auto_repair_weekly_plan(request: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key_strict)])
-def get_manual_repair_suggestions(request: dict[str, Any] = Body(...)) -> dict[str, Any]:
+async def get_manual_repair_suggestions(request: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """
     RU: Получить предложения для ручного ремонта
     EN: Get suggestions for manual repair

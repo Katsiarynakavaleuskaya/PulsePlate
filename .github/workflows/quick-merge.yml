@@ -1,125 +1,125 @@
 name: Quick Merge (Skip CodeRabbit)
 
 on:
-    workflow_dispatch:
-        inputs:
-            pr_number:
-                description: "PR number to merge (leave empty for current PR)"
-                required: false
-                type: string
-            skip_tests:
-                description: "Skip tests (use with caution)"
-                required: false
-                default: false
-                type: boolean
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to merge (leave empty for current PR)"
+        required: false
+        type: string
+      skip_tests:
+        description: "Skip tests (use with caution)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-    contents: write
-    pull-requests: write
-    checks: read
+  contents: write
+  pull-requests: write
+  checks: read
 
 jobs:
-    quick-merge:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  fetch-depth: 0
+  quick-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-            - name: Setup Node.js for frontend
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20"
+      - name: Setup Node.js for frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-            - name: Setup Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: "3.12"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-            - name: Install dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install -r requirements-dev.txt
-                  cd frontend && npm ci
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          cd frontend && npm ci
 
-            - name: Apply auto-fixes
-              run: |
-                  echo "🔧 Applying auto-fixes..."
+      - name: Apply auto-fixes
+        run: |
+          echo "🔧 Applying auto-fixes..."
 
-                  # Auto-fix ESLint issues
-                  (cd frontend && npm run lint:fix)
+          # Auto-fix ESLint issues
+          (cd frontend && npm run lint:fix)
 
-                  # Auto-fix Python formatting/linting
-                  pre-commit install --install-hooks || echo "⚠️  Pre-commit install had issues, continuing..."
-                  pre-commit run --all-files || echo "⚠️  Pre-commit found issues but continuing..."
+          # Auto-fix Python formatting/linting
+          pre-commit install --install-hooks || echo "⚠️  Pre-commit install had issues, continuing..."
+          pre-commit run --all-files || echo "⚠️  Pre-commit found issues but continuing..."
 
-            - name: Run tests (if not skipped)
-              if: ${{ !inputs.skip_tests }}
-              run: |
-                  echo "🧪 Running test suite..."
-                  python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=70
+      - name: Run tests (if not skipped)
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          echo "🧪 Running test suite..."
+          python -m pytest tests --cov=. --cov-report=xml --cov-fail-under=70
 
-            - name: Commit and push fixes
-              run: |
-                  git config --local user.email "action@github.com"
-                  git config --local user.name "GitHub Action"
+      - name: Commit and push fixes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
 
-                  # Get current branch
-                  BRANCH_NAME=$(git branch --show-current)
-                  echo "Current branch: $BRANCH_NAME"
+          # Get current branch
+          BRANCH_NAME=$(git branch --show-current)
+          echo "Current branch: $BRANCH_NAME"
 
-                  # Stage changes
-                  git add -A
+          # Stage changes
+          git add -A
 
-                  if git diff --cached --quiet; then
-                    echo "✅ No changes to commit"
-                  else
-                    # Commit changes
-                    git commit -m "🤖 Quick merge: Auto-fixes applied
+          if git diff --cached --quiet; then
+            echo "✅ No changes to commit"
+          else
+            # Commit changes
+            git commit -m "🤖 Quick merge: Auto-fixes applied
 
-                    * Applied ESLint auto-fixes
-                    * Applied pre-commit auto-fixes (ruff format, ruff check)
-                    * CodeRabbit review skipped for quick merge
-                    * Ready for merge" || {
-                      echo "❌ Commit failed"
-                      exit 1
-                    }
+            * Applied ESLint auto-fixes
+            * Applied pre-commit auto-fixes (ruff format, ruff check)
+            * CodeRabbit review skipped for quick merge
+            * Ready for merge" || {
+              echo "❌ Commit failed"
+              exit 1
+            }
 
-                    # Push changes
-                    git push origin "$BRANCH_NAME" || {
-                      echo "❌ Push failed"
-                      exit 1
-                    }
-                    echo "✅ Changes committed and pushed successfully"
-                  fi
+            # Push changes
+            git push origin "$BRANCH_NAME" || {
+              echo "❌ Push failed"
+              exit 1
+            }
+            echo "✅ Changes committed and pushed successfully"
+          fi
 
-            - name: Merge PR
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  PR_NUMBER: ${{ inputs.pr_number }}
-              run: |
-                  if [ -z "$PR_NUMBER" ]; then
-                    echo "❌ No PR number provided"
-                    echo "Please provide PR number via workflow input"
-                    exit 1
-                  fi
+      - name: Merge PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          if [ -z "$PR_NUMBER" ]; then
+            echo "❌ No PR number provided"
+            echo "Please provide PR number via workflow input"
+            exit 1
+          fi
 
-                  echo "🔄 Merging PR #$PR_NUMBER..."
+          echo "🔄 Merging PR #$PR_NUMBER..."
 
-                  # Check if PR is mergeable
-                  MERGEABLE=$(gh pr view $PR_NUMBER --json mergeable --jq '.mergeable')
-                  if [ "$MERGEABLE" != "true" ]; then
-                    echo "❌ PR is not mergeable (status: $MERGEABLE)"
-                    echo "Please resolve conflicts or wait for required checks"
-                    exit 1
-                  fi
+          # Check if PR is mergeable
+          MERGEABLE=$(gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable')
+          if [ "$MERGEABLE" != "MERGEABLE" ]; then
+            echo "❌ PR is not mergeable (status: ${MERGEABLE:-unknown})"
+            echo "Please resolve conflicts or wait for required checks"
+            exit 1
+          fi
 
-                  # Merge PR
-                  gh pr merge $PR_NUMBER --squash --delete-branch || {
-                    echo "❌ Merge failed"
-                    exit 1
-                  }
+          # Merge PR
+          gh pr merge $PR_NUMBER --squash --delete-branch || {
+            echo "❌ Merge failed"
+            exit 1
+          }
 
-                  echo "✅ PR #$PR_NUMBER merged successfully!"
+          echo "✅ PR #$PR_NUMBER merged successfully!"

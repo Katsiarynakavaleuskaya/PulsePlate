@@ -19,7 +19,7 @@ import json
 import logging
 from pathlib import Path
 import re
-from typing import Any, Optional
+from typing import Any
 import unicodedata
 
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
@@ -149,7 +149,7 @@ class DatabaseUpdateManager:
             return {}
 
         try:
-            with open(self.versions_file) as f:
+            with open(self.versions_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             return {
@@ -795,7 +795,7 @@ class DatabaseUpdateManager:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file) as f:
+        with open(backup_file, encoding="utf-8") as f:
             data = json.load(f)
 
         # Basic schema validation: ensure minimal keys exist

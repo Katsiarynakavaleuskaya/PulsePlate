@@ -8,7 +8,7 @@ This module implements professional-level BMI analysis including:
 - Obesity staging based on multiple metrics
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 # Import i18n functionality
 from core.i18n import Language, t
