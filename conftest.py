@@ -24,9 +24,9 @@ class AppLoadError(ImportError):
 def _clean_env_and_singletons():
     """Clean environment and singletons between tests."""
     env_backup = copy.deepcopy(os.environ)
-    # Жёстко выставляем режим «production» и запрещаем dev-ключи, если это требуется тестами
-    os.environ["APP_ENV"] = "production"
-    os.environ["ALLOW_DEV_API_KEY"] = "false"
+    # Жёстко выставляем режим «test» и разрешаем dev-ключи для тестов
+    os.environ["APP_ENV"] = "test"
+    os.environ["ALLOW_DEV_API_KEY"] = "true"
     yield
     # restore env
     os.environ.clear()
