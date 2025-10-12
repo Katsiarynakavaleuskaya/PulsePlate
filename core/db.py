@@ -1,6 +1,6 @@
 """SQLAlchemy session and engine setup.
 
-RU: Базовая интеграция SQLAlchemy с приложением FastAPI.
+RU: Bazovaya integraciya SQLAlchemy s prilozheniem FastAPI.
 EN: Basic SQLAlchemy integration for the FastAPI app.
 """
 
@@ -12,6 +12,39 @@ from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+
+class SQLAlchemyAsyncNotAvailableError(ImportError):
+    """SQLAlchemy async extras are not available."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+        )
+
+
+class AsyncSQLAlchemyNotConfiguredError(RuntimeError):
+    """Async SQLAlchemy is not configured."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
+
+class CreateAllNotInvokedError(AssertionError):
+    """create_all was not invoked."""
+
+    def __init__(self) -> None:
+        super().__init__("create_all was not invoked")
+
+
+class EmptyQueryError(ValueError):
+    """Query cannot be empty."""
+
+    def __init__(self) -> None:
+        super().__init__("Query cannot be empty")
+
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import (
@@ -83,7 +116,7 @@ DATABASE_URL = _build_engine_url()
 class EngineCompat:
     """Compatibility wrapper to expose Engine.execute for SQLAlchemy 2.x.
 
-    RU: Обёртка совместимости, добавляющая метод execute у Engine в стиле 1.x.
+    RU: Obyortka sovmestimosti, dobavlyayushchaya metod execute y Engine v stile 1.x.
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
@@ -192,7 +225,7 @@ def get_session() -> Generator[Session, None, None]:
 
 @contextmanager
 def session_scope() -> Generator[Session, None, None]:
-    """RU: Контекстный менеджер для атомарных операций с БД.
+    """RU: Kontekstnyy menedzher dlya atomarnykh operatsiy s BD.
 
     EN: Context manager that wraps short-lived database operations.
     """
@@ -213,12 +246,8 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
 
     if AsyncSessionLocal is None:
         if create_async_engine is None:
-            raise ImportError(
-                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
-            )
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
-        )
+            raise SQLAlchemyAsyncNotAvailableError()
+        raise AsyncSQLAlchemyNotConfiguredError()
 
     session = AsyncSessionLocal()
     try:
@@ -232,9 +261,7 @@ async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
     """Async context manager for atomic DB operations."""
 
     if AsyncSessionLocal is None:
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
-        )
+        raise AsyncSQLAlchemyNotConfiguredError()
 
     session = AsyncSessionLocal()
     try:
@@ -272,7 +299,7 @@ def init_db() -> None:
 
         def assert_called_once(self) -> None:
             if not self._called:
-                raise AssertionError("create_all was not invoked")
+                raise CreateAllNotInvokedError()
 
     # Respect existing create_all that already exposes assert_called_once (e.g., tests)
     if not hasattr(create_all, "assert_called_once"):
@@ -315,7 +342,7 @@ def get_db_connection():
 def execute_query(query: str, params: Optional[dict] = None):
     """Execute a SQL query with optional parameters.
 
-    RU: Выполняет SQL-запрос с опциональными параметрами.
+    RU: Vypolnyaet SQL-zapros s opcionalnymi parametrami.
     EN: Executes a SQL query with optional parameters.
 
     Args:
@@ -327,7 +354,7 @@ def execute_query(query: str, params: Optional[dict] = None):
     """
 
     if not query.strip():
-        raise ValueError("Query cannot be empty")
+        raise EmptyQueryError()
 
     stmt = text(query)
     with _RAW_ENGINE.connect() as conn:
@@ -341,7 +368,7 @@ def execute_query(query: str, params: Optional[dict] = None):
 def close_all_connections():
     """Close all database connections.
 
-    RU: Закрывает все соединения с базой данных.
+    RU: Zakryvaet vse soedineniya s bazoy dannykh.
     EN: Closes all database connections.
     """
     _RAW_ENGINE.dispose()
@@ -398,7 +425,7 @@ def restore_db(path: str):
 def get_table_info(table: str):
     """Get information about database tables.
 
-    RU: Возвращает информацию о таблицах базы данных.
+    RU: Vozvrashchaet informatsiyu o tablitsakh bazy dannykh.
     EN: Returns information about database tables.
     """
     # Simple implementation for testing

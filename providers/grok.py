@@ -10,6 +10,14 @@ from tenacity import (
 )
 
 
+class GrokError(RuntimeError):
+    """Grok provider error."""
+
+    def __init__(self, original_error: Exception) -> None:
+        super().__init__(f"Grok error: {type(original_error).__name__}: {original_error}")
+        self.original_error = original_error
+
+
 def is_transient_error(exception: Exception) -> bool:
     """
     Определяет, является ли ошибка временной/транзиентной и стоит ли её повторить.
@@ -81,7 +89,7 @@ def is_transient_error(exception: Exception) -> bool:
 class GrokProvider:
     """
     Minimal provider for x.ai (Grok) via compatible OpenAI SDK.
-    Совместим с вызовом из llm.py:
+    Sovmestim s vyzovom iz llm.py:
         GrokProvider(endpoint=..., model=..., api_key=...)
     """
 
@@ -112,4 +120,4 @@ class GrokProvider:
             return str(content.strip()) if content else ""
         except Exception as e:
             # Пробрасываем понятную ошибку наверх
-            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}") from e
+            raise GrokError(e) from e
