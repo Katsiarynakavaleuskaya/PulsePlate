@@ -37,7 +37,7 @@ jobs:
           EXCLUDES="frontend,node_modules,dist,build,test-results,.venv,venv,cache"
           SCAN_PATH="."
           bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json --exit-zero
-          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -s B101 --exit-zero
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -t B101 --exit-zero
 
       - name: Safety dependency scan
         continue-on-error: true

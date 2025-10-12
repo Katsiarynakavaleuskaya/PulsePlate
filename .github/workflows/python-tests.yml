@@ -62,6 +62,7 @@ jobs:
             -x
 
       - name: Upload test artifacts
+        if: always()
         uses: ./.github/actions/upload-artifacts
         with:
           coverage-file: coverage.xml
