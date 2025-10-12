@@ -10,7 +10,7 @@ from tenacity import (
 )
 
 
-def is_transient_error(exception: BaseException) -> bool:
+def is_transient_error(exception: Exception) -> bool:
     """
     Определяет, является ли ошибка временной/транзиентной и стоит ли её повторить.
 

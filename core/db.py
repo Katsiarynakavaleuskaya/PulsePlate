@@ -308,7 +308,7 @@ def get_db_connection():
     except Exception as e:
         import logging
 
-        logging.error(f"Failed to get database connection: {e}")
+        logging.exception("Failed to get database connection")
         raise
 
 
@@ -375,7 +375,7 @@ def ensure_tables():
     init_db()
 
 
-def backup_db():
+def backup_db(path: str):
     """Backup the database.
 
     RU: Создаёт резервную копию базы данных.
@@ -385,7 +385,7 @@ def backup_db():
     pass
 
 
-def restore_db():
+def restore_db(path: str):
     """Restore the database from backup.
 
     RU: Восстанавливает базу данных из резервной копии.
@@ -395,7 +395,7 @@ def restore_db():
     pass
 
 
-def get_table_info():
+def get_table_info(table: str):
     """Get information about database tables.
 
     RU: Возвращает информацию о таблицах базы данных.
@@ -405,7 +405,7 @@ def get_table_info():
     return {}
 
 
-def validate_schema():
+def validate_schema(table: str):
     """Validate database schema.
 
     RU: Проверяет схему базы данных.
