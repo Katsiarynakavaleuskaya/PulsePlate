@@ -106,9 +106,11 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:
+            except Exception as e:
                 # Not all statements require/allow commit; ignore commit errors
-                pass
+                import logging
+
+                logging.warning(f"Database commit failed: {e}")
             return result
 
 

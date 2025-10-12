@@ -6,6 +6,9 @@ on:
   push:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   pre-commit-checks:
     runs-on: ubuntu-latest
@@ -14,12 +17,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Install pre-commit
         run: pip install pre-commit
+
+      - name: Create mypy cache directory
+        run: mkdir -p .mypy_cache
 
       - name: Run pre-commit
         run: pre-commit run --all-files
@@ -55,13 +61,13 @@ jobs:
             if grep -q "uses: \./" "$workflow"; then
               echo "Found local action reference in $workflow"
               # Extract the path and check if it exists
-              grep "uses: \./" "$workflow" | while read line; do
+              while IFS= read -r line; do
                 path=$(echo "$line" | sed 's/.*uses: \.\/\(.*\)/\1/')
-                if [ ! -f "$path/action.yml" ] && [ ! -f "$path" ]; then
+                if [ ! -f "$path/action.yml" ] && [ ! -f "$path/action.yaml" ] && [ ! -f "$path" ]; then
                   echo "❌ Missing file: $path"
                   exit 1
                 fi
-              done
+              done < <(grep "uses: \./" "$workflow")
             fi
           done
           echo "✅ All referenced files exist"

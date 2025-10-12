@@ -57,7 +57,7 @@ class TestMenuEngineCoverage97:
                 )
                 # Should return a list of daily menus
                 assert isinstance(result, list)
-            except Exception:  # nosec B110  # nosec B110
+            except Exception:  # nosec B110
                 # It's okay if it raises an exception due to missing dependencies
                 pass
 

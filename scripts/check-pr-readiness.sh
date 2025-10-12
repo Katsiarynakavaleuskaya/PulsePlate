@@ -44,13 +44,13 @@ echo "Checking for missing referenced files..."
 for workflow in .github/workflows/*.yml; do
     if [ -f "$workflow" ]; then
         if grep -q "uses: \./" "$workflow"; then
-            grep "uses: \./" "$workflow" | while read line; do
+            while IFS= read -r line; do
                 path=$(echo "$line" | sed 's/.*uses: \.\/\(.*\)/\1/')
                 if [ ! -f "$path/action.yml" ] && [ ! -f "$path" ]; then
                     echo -e "${RED}❌ Missing file: $path${NC}"
                     exit 1
                 fi
-            done
+            done < <(grep "uses: \./" "$workflow")
         fi
     fi
 done
@@ -63,14 +63,21 @@ print_status 0 "Python syntax OK"
 
 # Check 5: YAML syntax
 echo "Checking YAML syntax..."
-find .github/ -name "*.yml" -exec python -c "import yaml; yaml.safe_load(open('{}'))" \; >/dev/null 2>&1
-print_status 0 "YAML syntax OK"
+yaml_errors=0
+for yaml_file in $(find .github/ -name "*.yml"); do
+    if ! python -c "import yaml; yaml.safe_load(open('$yaml_file'))" >/dev/null 2>&1; then
+        echo -e "${RED}❌ YAML syntax error in $yaml_file${NC}"
+        yaml_errors=1
+    fi
+done
+print_status $yaml_errors "YAML syntax OK"
 
 # Check 6: Pre-commit hooks
 echo "Running pre-commit hooks..."
 if command -v pre-commit >/dev/null 2>&1; then
     pre-commit run --all-files >/dev/null 2>&1
-    print_status 0 "Pre-commit hooks passed"
+    pre_commit_status=$?
+    print_status $pre_commit_status "Pre-commit hooks passed"
 else
     echo -e "${YELLOW}⚠️  pre-commit not installed, skipping${NC}"
 fi

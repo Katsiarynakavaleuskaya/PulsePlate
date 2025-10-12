@@ -188,8 +188,7 @@ def calculate_all_tdee(bmr_results: Dict[str, float], activity: ActivityLevel) -
 
 
 def get_activity_descriptions() -> Dict[str, str]:
-    """
-    Get human-readable descriptions for activity levels.
+    """Get human-readable descriptions for activity levels.
 
     Returns:
         Dictionary mapping activity levels to descriptions

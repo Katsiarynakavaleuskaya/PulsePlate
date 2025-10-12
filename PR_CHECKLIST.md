@@ -63,7 +63,8 @@ uses: ./.github/actions/upload-artifacts
 grep -r "except Exception:" tests/ | grep -v "# nosec B110"
 
 # Add nosec B110 to each one
-sed -i 's/except Exception:/except Exception: # nosec B110/g' <file>
+sed -i 's/except Exception:/except Exception: # nosec B110/g' <file>        # GNU sed (Linux)
+sed -i '' 's/except Exception:/except Exception: # nosec B110/g' <file>    # BSD/macOS sed
 ```
 
 ### **Check GitHub Actions**

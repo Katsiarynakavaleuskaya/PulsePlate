@@ -148,7 +148,7 @@ def _register_font_if_available() -> str:
             return FONT_NAME
         except Exception:
             # Fall back to default Helvetica if registration fails for any reason.
-            pass
+            pass  # nosec B110
     return "Helvetica"
 
 
@@ -163,7 +163,7 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
 
     generated_at = datetime.now(timezone.utc)
     header = "Список покупок / Shoplist"
-    meta = f"Store: {shop.get('store', '-')}" f"  |  Currency: {shop.get('currency', '')}"
+    meta = f"Store: {shop.get('store', '-')}  |  Currency: {shop.get('currency', '')}"
     total = shop.get("total_estimated")
 
     def draw_table_head(current_canvas: canvas.Canvas, ypos: float) -> float:
