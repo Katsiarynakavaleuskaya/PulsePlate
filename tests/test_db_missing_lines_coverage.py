@@ -10,6 +10,8 @@ import pytest
 from faker import Faker
 from sqlalchemy.exc import SQLAlchemyError
 
+from core.db import DatabaseCommitError
+
 fake = Faker()
 
 
@@ -42,16 +44,15 @@ class TestDbMissingLinesCoverage:
             # Create EngineCompat instance
             engine_compat = EngineCompat(mock_engine)
 
-            # Execute a statement - should handle commit exception gracefully
-            result = engine_compat.execute("SELECT 1")
-
-            # Should return the result despite commit failure
-            assert result == mock_result
+            # Execute a statement - should raise DatabaseCommitError on commit failure
+            with pytest.raises(DatabaseCommitError):
+                engine_compat.execute("SELECT 1")
 
             # Verify the methods were called
             mock_engine.connect.assert_called_once()
             mock_conn.execute.assert_called_once()
             mock_conn.commit.assert_called_once()
+            mock_conn.rollback.assert_called_once()
 
         except ImportError:
             pass
@@ -115,9 +116,9 @@ class TestDbMissingLinesCoverage:
 
                 engine_compat = EngineCompat(mock_engine)
 
-                # Should handle any exception gracefully (line 63: except Exception)
-                result = engine_compat.execute("SELECT 1")
-                assert result == mock_result
+                # Should raise DatabaseCommitError for any commit exception
+                with pytest.raises(DatabaseCommitError):
+                    engine_compat.execute("SELECT 1")
 
         except ImportError:
             pass
