@@ -155,33 +155,64 @@ def test_legacy_aliases_call_init_db(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_async_engine_initialization(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reloading the module with async enabled should configure async session maker."""
+    """Reload the module to cover both sqlite and pooled async URLs."""
     import importlib
 
+    import sqlalchemy
     import sqlalchemy.ext.asyncio as sa_async
 
-    created: dict[str, Any] = {}
+    created: dict[str, list[Any]] = {"urls": [], "engine_kwargs": [], "sessions": []}
 
     def fake_create_async_engine(url: str, **kwargs: Any) -> str:
-        created["url"] = url
-        created["engine_kwargs"] = kwargs
-        return "fake-engine"
+        created["urls"].append(url)
+        created["engine_kwargs"].append(kwargs)
+        return f"fake-engine-{len(created['urls'])}"
 
     def fake_async_sessionmaker(**kwargs: Any) -> str:
-        created["session_kwargs"] = kwargs
-        return "fake-sessionmaker"
+        created["sessions"].append(kwargs)
+        return f"fake-sessionmaker-{len(created['sessions'])}"
 
     monkeypatch.setattr(sa_async, "create_async_engine", fake_create_async_engine)
     monkeypatch.setattr(sa_async, "async_sessionmaker", fake_async_sessionmaker)
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///tests.db")
-    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
-    monkeypatch.setenv("DATABASE_POOL_SIZE", "3")
-    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "2")
+    original_create_engine = sqlalchemy.create_engine
 
-    module = importlib.reload(db)
-    assert created["url"].startswith("sqlite+aiosqlite")
-    assert created["session_kwargs"]["bind"] == "fake-engine"
+    class _FakeSyncEngine:
+        def connect(self) -> Any:  # pragma: no cover - helper for import-time wiring
+            class _Conn:
+                def __enter__(self) -> _Conn:
+                    return self
 
-    # Cleanup: disable async and reload module to restore defaults
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    return None
+
+                def execute(self, *args, **kwargs) -> None:
+                    return None
+
+                def commit(self) -> None:
+                    return None
+
+            return _Conn()
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda *args, **kwargs: _FakeSyncEngine())
+
+    def _reload_with(url: str) -> None:
+        monkeypatch.setenv("DATABASE_URL", url)
+        monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
+        monkeypatch.setenv("DATABASE_POOL_SIZE", "3")
+        monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "2")
+        importlib.reload(db)
+
+    _reload_with("sqlite:///tests.db")
+    assert created["urls"][0].startswith("sqlite+aiosqlite")
+    assert created["sessions"][0]["bind"] == "fake-engine-1"
+
+    _reload_with("postgresql://localhost/testdb")
+    assert created["urls"][1].startswith("postgresql+asyncpg")
+    assert created["engine_kwargs"][1]["pool_size"] == 3
+    assert created["sessions"][1]["bind"] == "fake-engine-2"
+
+    # Cleanup
     monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
-    module = importlib.reload(module)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(sqlalchemy, "create_engine", original_create_engine, raising=False)
+    importlib.reload(db)

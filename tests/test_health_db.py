@@ -9,7 +9,6 @@ from starlette.types import ASGIApp
 
 import app
 from core import db as db_module
-from core.db import get_session
 
 
 def test_health_db_ok() -> None:
@@ -38,10 +37,7 @@ def test_health_db_failure(monkeypatch) -> None:
         finally:
             session.close()
 
-    # Ensure clean state before test
-    if app.app is not None:
-        app.app.dependency_overrides.clear()
-        app.app.dependency_overrides[get_session] = broken_get_session
+    monkeypatch.setattr(db_module, "SessionLocal", lambda: BrokenSession())
 
     try:
         with TestClient(cast(ASGIApp, app.app)) as client:
@@ -50,6 +46,5 @@ def test_health_db_failure(monkeypatch) -> None:
         assert response.status_code == 503
         assert response.json()["detail"].lower().startswith("database")
     finally:
-        # Clean up the override
         if app.app is not None:
             app.app.dependency_overrides.clear()

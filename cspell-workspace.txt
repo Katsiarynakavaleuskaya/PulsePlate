@@ -2051,6 +2051,7 @@
 перезагрузка
 Перезапускаем
 перезапустим
+переимпортировать
 Переимпортируем
 переключение
 Переключение
@@ -4170,6 +4171,7 @@ shutil
 Sidi
 signum
 Sigue
+simplefilter
 skipif
 slowapi
 sobreestimar
