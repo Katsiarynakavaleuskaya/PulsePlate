@@ -22,16 +22,18 @@ def is_transient_error(exception: BaseException) -> bool:
     """
     # Unwrap chained exceptions to get the original underlying exception
     original_exception = exception
-    while hasattr(original_exception, "__cause__") and original_exception.__cause__ is not None:
-        original_exception = original_exception.__cause__
-    # Fallback to __context__ if __cause__ is not available
-    if (
-        original_exception == exception
-        and hasattr(original_exception, "__context__")
-        and original_exception.__context__ is not None
-    ):
-        original_exception = original_exception.__context__
-
+    seen: set[int] = set()
+    while isinstance(original_exception, BaseException) and id(original_exception) not in seen:
+        seen.add(id(original_exception))
+        next_exception = getattr(original_exception, "__cause__", None)
+        if next_exception is not None:
+            original_exception = next_exception
+            continue
+        next_exception = getattr(original_exception, "__context__", None)
+        if next_exception is not None:
+            original_exception = next_exception
+            continue
+        break
     # Network/connection errors - всегда транзиентные
     if isinstance(
         original_exception,
@@ -46,18 +48,18 @@ def is_transient_error(exception: BaseException) -> bool:
     ):
         return True
 
-    # Проверяем HTTP статус коды для OpenAI SDK ошибок
+    # Check HTTP status codes for OpenAI SDK errors
     if hasattr(original_exception, "response"):
         response = getattr(original_exception, "response", None)
         if response and hasattr(response, "status_code"):
             status_code = getattr(response, "status_code", None)
-            # 5xx - серверные ошибки (транзиентные)
-            # 429 - rate limiting (транзиентная)
-            # 408 - timeout (транзиентная)
+            # 5xx - server errors (transient)
+            # 429 - rate limiting (transient)
+            # 408 - timeout (transient)
             if status_code and (status_code in (408, 429) or 500 <= status_code < 600):
                 return True
 
-    # Проверяем строковое представление ошибки на наличие ключевых слов
+    # Check error string representation for transient keywords
     error_str = str(original_exception).lower()
     transient_keywords = [
         "timeout",
@@ -72,13 +74,13 @@ def is_transient_error(exception: BaseException) -> bool:
     if any(keyword in error_str for keyword in transient_keywords):
         return True
 
-    # Все остальные ошибки (auth, validation, etc.) - не транзиентные
+    # All other errors (auth, validation, etc.) - not transient
     return False
 
 
 class GrokProvider:
     """
-    Минималистичный провайдер к x.ai (Grok) через совместимый OpenAI SDK.
+    Minimal provider for x.ai (Grok) via compatible OpenAI SDK.
     Совместим с вызовом из llm.py:
         GrokProvider(endpoint=..., model=..., api_key=...)
     """
