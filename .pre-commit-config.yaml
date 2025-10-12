@@ -103,6 +103,22 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      # backend tests — run python tests before push
+      - id: backend-tests-pre-push
+        name: backend tests (pre-push)
+        entry: bash -c "python -m pytest tests/ -x --tb=short --maxfail=5 -q"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # frontend tests — run frontend tests before push
+      - id: frontend-tests-pre-push
+        name: frontend tests (pre-push)
+        entry: bash -c "cd frontend && npm test -- --watchAll=false --passWithNoTests"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"
   autofix_prs: true
