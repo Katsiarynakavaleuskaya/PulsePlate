@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run full test suite with accessibility checks
-        run: npm run test
+      - name: Run accessibility tests
+        run: npm run test:accessibility
         env:
           CI: true
           VITE_API_BASE: http://localhost:8000/api/v1
