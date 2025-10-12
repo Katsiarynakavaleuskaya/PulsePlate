@@ -1,10 +1,13 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { axe } from 'jest-axe';
+import '@testing-library/jest-dom';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { vi } from 'vitest';
 import { Toggle } from '../ui/Toggle';
 import { FormField, FormError } from '../ui/FormField';
+
+// Extend Jest matchers
+expect.extend(toHaveNoViolations);
 
 describe('Accessibility Tests', () => {
   describe('Toggle Component', () => {
@@ -27,6 +30,26 @@ describe('Accessibility Tests', () => {
       );
       await user.click(screen.getByText('Label Toggle'));
       expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('label click transfers focus to switch element', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(
+        <div role="main">
+          <Toggle label="Focus Transfer Toggle" checked={false} onChange={onChange} />
+        </div>
+      );
+
+      const switchElement = screen.getByRole('switch');
+      const label = screen.getByText('Focus Transfer Toggle');
+
+      // Click the label
+      await user.click(label);
+
+      // Verify that focus is transferred to the switch element
+      expect(switchElement).toHaveFocus();
+      expect(onChange).toHaveBeenCalledWith(true);
     });
 
     it('should not have accessibility violations when checked', async () => {
@@ -115,7 +138,7 @@ describe('Accessibility Tests', () => {
       const user = userEvent.setup();
       const handleChange = vi.fn();
 
-      const { container, rerender } = render(
+      const { container } = render(
         <div role="main">
           <Toggle
             label="Keyboard Test Toggle"
