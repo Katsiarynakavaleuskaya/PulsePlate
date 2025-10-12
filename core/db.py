@@ -261,6 +261,13 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
     if AsyncSessionLocal is None:
         if create_async_engine is None:
             raise SQLAlchemyAsyncNotAvailableError()
+        raise AsyncSQLAlchemyNotConfiguredError()
+
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    finally:
+        await session.close()
 
 
 @asynccontextmanager

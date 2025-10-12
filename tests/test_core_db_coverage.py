@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy import text
 
+from core.db import AsyncSQLAlchemyNotConfiguredError, SQLAlchemyAsyncNotAvailableError
+
 from core.db import (
     Base,
     SessionLocal,
@@ -220,7 +222,7 @@ class TestAsyncDB:
     async def test_get_async_session_not_configured(self):
         """Test get_async_session raises error when not configured."""
         with patch("core.db.AsyncSessionLocal", None):
-            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
+            with pytest.raises(AsyncSQLAlchemyNotConfiguredError):
                 async for _session in get_async_session():
                     break
 
@@ -256,7 +258,7 @@ class TestAsyncDB:
     async def test_get_async_session_import_error(self):
         """Test get_async_session raises ImportError when async extras not available."""
         with patch("core.db.AsyncSessionLocal", None), patch("core.db.create_async_engine", None):
-            with pytest.raises(ImportError, match="SQLAlchemy async extras are not available"):
+            with pytest.raises(SQLAlchemyAsyncNotAvailableError):
                 async for _session in get_async_session():
                     break
 
