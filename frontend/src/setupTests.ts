@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 // Extend Jest matchers with axe accessibility matchers
 expect.extend(toHaveNoViolations);
 
-// Configure Testing Library
+// Configure testing library to use data-testid attribute
 configure({ testIdAttribute: 'data-testid' });
 
 // Setup window.location for React Router tests
