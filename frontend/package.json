@@ -6,8 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run --environment jsdom --testTimeout=30000",
-    "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/components/__tests__/Accessibility.test.tsx",
+    "test": "vitest run --environment jsdom --testTimeout=30000 --reporter=junit --outputFile=test-results/junit.xml",
+    "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts"
   },
   "dependencies": {
