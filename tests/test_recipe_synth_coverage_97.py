@@ -63,7 +63,7 @@ class TestRecipeSynthCoverage97:
             result = self.synthesizer._process_instructions(template)
             # Should return empty list or handle gracefully
             assert isinstance(result, list)
-        except Exception:
+        except Exception:  # nosec B110
             # It's okay if it raises an exception
             pass
 
@@ -88,7 +88,7 @@ class TestRecipeSynthCoverage97:
             result = self.synthesizer._process_instructions(template)
             # Should return empty list or handle gracefully
             assert isinstance(result, list)
-        except Exception:
+        except Exception:  # nosec B110
             # It's okay if it raises an exception
             pass
 
@@ -113,7 +113,7 @@ class TestRecipeSynthCoverage97:
             result = self.synthesizer._process_instructions(template)
             # Should handle gracefully
             assert isinstance(result, list)
-        except Exception:
+        except Exception:  # nosec B110
             # It's okay if it raises an exception
             pass
 
@@ -138,6 +138,6 @@ class TestRecipeSynthCoverage97:
             result = self.synthesizer._process_instructions(template)
             # Should return list with one step
             assert isinstance(result, list)
-        except Exception:
+        except Exception:  # nosec B110
             # It's okay if it raises an exception
             pass

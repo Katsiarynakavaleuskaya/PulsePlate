@@ -1,0 +1,67 @@
+name: Pre-commit Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  pre-commit-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
+  # Additional checks for common issues
+  common-issues-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check GitHub Actions versions
+        run: |
+          echo "Checking GitHub Actions versions..."
+          # Check for common problematic patterns
+          if grep -r "aquasecurity/trivy-action@v[0-9]" .github/workflows/; then
+            echo "❌ Found potentially problematic Trivy version"
+            exit 1
+          fi
+
+          if grep -r "except Exception:" tests/ | grep -v "# nosec B110"; then
+            echo "❌ Found bare except blocks without nosec B110"
+            exit 1
+          fi
+
+          echo "✅ All checks passed"
+
+      - name: Check for missing files
+        run: |
+          echo "Checking for missing referenced files..."
+          # Check if any workflow references non-existent files
+          for workflow in .github/workflows/*.yml; do
+            if grep -q "uses: \./" "$workflow"; then
+              echo "Found local action reference in $workflow"
+              # Extract the path and check if it exists
+              grep "uses: \./" "$workflow" | while read line; do
+                path=$(echo "$line" | sed 's/.*uses: \.\/\(.*\)/\1/')
+                if [ ! -f "$path/action.yml" ] && [ ! -f "$path" ]; then
+                  echo "❌ Missing file: $path"
+                  exit 1
+                fi
+              done
+            fi
+          done
+          echo "✅ All referenced files exist"

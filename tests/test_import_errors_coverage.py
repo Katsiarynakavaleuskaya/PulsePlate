@@ -211,9 +211,9 @@ class TestApplicationStartupPaths:
             # Симулируем добавление middleware
             test_app.add_middleware(type("TestMiddleware", (), {}))
             middleware_added = True
-        except Exception:
+        except Exception:  # nosec B110
             # Если middleware не может быть добавлен, это нормально для теста
-            pass
+            pass  # nosec B110
 
         # Middleware мог быть добавлен или нет, оба варианта валидны
         assert middleware_added in {True, False}

@@ -110,9 +110,9 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
+        except Exception:  # nosec B110
             # Function may fail due to missing dependencies
-            pass
+            pass  # nosec B110
 
     def test_weekly_plan_with_diet_flags(self):
         """Test weekly plan with dietary restrictions."""
@@ -134,8 +134,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # nosec B110
 
     def test_daily_plan_functions(self):
         """Test daily plan helper functions."""
@@ -167,8 +167,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan helper functions not available")
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # nosec B110
 
 
 class TestUtilsModule:

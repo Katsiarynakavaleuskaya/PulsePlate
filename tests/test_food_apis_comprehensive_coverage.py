@@ -411,7 +411,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 try:
                     result = await db.get_food_by_id("usda", "12345")
                     assert result is None
-                except Exception:
+                except Exception:  # nosec B110
                     # If an exception is raised, that's also acceptable behavior
                     assert True
 

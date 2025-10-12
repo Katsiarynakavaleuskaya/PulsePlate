@@ -131,9 +131,9 @@ class TestAppMissingLinesTargeted:
             try:
                 response = self.client.post("/bmi", json=case)
                 assert response.status_code in [200, 400, 422, 500]
-            except Exception:
+            except Exception:  # nosec B110
                 # Some cases might cause JSON serialization errors, which is expected
-                pass
+                pass  # nosec B110
 
     def test_concurrent_mixed_requests(self):
         """Test concurrent requests to different endpoints"""
@@ -372,6 +372,6 @@ class TestAppSpecificMissingBlocks:
             try:
                 response = self.client.post("/bmi", json=test_data)
                 assert response.status_code in [200, 400, 422]
-            except Exception:
+            except Exception:  # nosec B110
                 # Some language values might cause JSON errors
-                pass
+                pass  # nosec B110

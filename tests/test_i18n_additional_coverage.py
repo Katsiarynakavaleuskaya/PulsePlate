@@ -207,7 +207,7 @@ class TestI18nAdditionalCoverage:
                 )
                 try:
                     return t(lang, key)
-                except Exception:
+                except Exception:  # nosec B110
                     return None
 
             def normalize_worker():

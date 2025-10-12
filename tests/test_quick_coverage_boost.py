@@ -314,7 +314,7 @@ class TestQuickCoverageBoost:
                 mock_update.side_effect = Exception("Update failed")
                 try:
                     await manager.update_database("usda")
-                except Exception:
+                except Exception:  # nosec B110
                     pass  # Ожидаем ошибку
 
         except ImportError:

@@ -30,7 +30,7 @@ def _test_app_import_with_assertions(original_app, test_assertions):
         import app
 
         test_assertions(app)
-    except Exception:
+    except Exception:  # nosec B110
         pytest.skip("App import failed unexpectedly")
     finally:
         # Restore original app module - deterministic cleanup

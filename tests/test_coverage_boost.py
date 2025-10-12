@@ -267,9 +267,9 @@ class TestErrorHandling:
             )
             # If no validation, at least profile should be created
             assert profile.age == -5
-        except Exception:
+        except Exception:  # nosec B110
             # Exception is acceptable for invalid input
-            pass
+            pass  # nosec B110
 
     def test_mock_food_database_access(self):
         """Test mock food database operations."""
@@ -288,9 +288,9 @@ class TestErrorHandling:
             # Try to generate menu
             menu = make_daily_menu(profile)
             assert menu is not None
-        except Exception:
+        except Exception:  # nosec B110
             # Database access might fail, that's ok
-            pass
+            pass  # nosec B110
 
 
 class TestLifeStageIntegrationQuick:

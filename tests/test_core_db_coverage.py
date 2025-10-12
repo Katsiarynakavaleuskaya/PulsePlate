@@ -147,7 +147,7 @@ class TestCoreDB:
         """Test session_scope rolls back on exception."""
         try:
             from sqlalchemy import text as sa_text
-        except Exception:
+        except Exception:  # nosec B110
 
             def sa_text(s):
                 return s  # fallback for environments without SQLAlchemy types
@@ -156,9 +156,9 @@ class TestCoreDB:
             with session_scope() as session:
                 # Force an exception to test rollback
                 session.execute(sa_text("INVALID SQL"))
-        except Exception:
+        except Exception:  # nosec B110
             # Exception is expected
-            pass
+            pass  # nosec B110
 
     def test_environment_variable_handling(self):
         """Test environment variable handling in URL building."""

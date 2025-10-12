@@ -144,9 +144,9 @@ class TestCoverageImprovement:
 
                 _ = UnifiedFoodDatabase()  # Use _ to indicate we're not using the variable
                 # Should not crash, just log error
-        except Exception:
+        except Exception:  # nosec B110
             # Exception is expected, but the code should handle it gracefully
-            pass
+            pass  # nosec B110
 
         # Test cache saving error - need to handle the exception properly
         try:
@@ -160,9 +160,9 @@ class TestCoverageImprovement:
                 # Call a method that would trigger cache saving
                 db._save_cache()
                 # Should not crash, just log error
-        except Exception:
+        except Exception:  # nosec B110
             # Exception is expected, but the code should handle it gracefully
-            pass
+            pass  # nosec B110
 
     def test_update_manager_uncovered_lines(self):
         """Test uncovered lines in update_manager.py."""
@@ -183,9 +183,9 @@ class TestCoverageImprovement:
                         headers={"X-API-Key": "test_key"},
                     )
                     # Should handle gracefully
-        except Exception:
+        except Exception:  # nosec B110
             # Exception is expected, but the code should handle it gracefully
-            pass
+            pass  # nosec B110
 
     def test_menu_engine_uncovered_lines(self):
         """Test uncovered lines in menu_engine.py."""

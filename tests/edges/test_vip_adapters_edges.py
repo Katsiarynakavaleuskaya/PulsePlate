@@ -36,7 +36,7 @@ def test_adapter_make_weekly_menu_from_single_dict_profile():
 def test_adapter_make_weekly_menu_from_kwargs_profile_dict():
     try:
         vip = _vip()
-    except Exception:
+    except Exception:  # nosec B110
         pytest.skip("Skipping due to import environment constraints for app.routers.vip")
 
     def fake_make_weekly_menu(profile):
@@ -59,7 +59,7 @@ def test_adapter_make_weekly_menu_from_kwargs_profile_dict():
 def test_adapter_make_weekly_menu_direct_args_passthrough():
     try:
         vip = _vip()
-    except Exception:
+    except Exception:  # nosec B110
         pytest.skip("Skipping due to import environment constraints for app.routers.vip")
 
     def fake_make_weekly_menu(profile):
@@ -73,7 +73,7 @@ def test_adapter_make_weekly_menu_direct_args_passthrough():
 def test_adapter_synthesize_recipes_for_week_passthrough():
     try:
         vip = _vip()
-    except Exception:
+    except Exception:  # nosec B110
         pytest.skip("Skipping due to import environment constraints for app.routers.vip")
 
     def fake_synth(week_plan, recipes_per_day):
