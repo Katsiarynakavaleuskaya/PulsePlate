@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
       - name: Build Docker image
         run: |
@@ -30,18 +30,20 @@ jobs:
 
       - name: Test Docker image
         run: |
+          set -euo pipefail
           # Basic smoke test
           docker run --rm pulseplate:latest python --version
           docker run --rm pulseplate:latest python -c "import app; print('App imports successfully')"
 
       - name: Security scan with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@bceef37a45815d6c5cfea1861a414ec7dbc00242
         with:
           image-ref: 'pulseplate:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'

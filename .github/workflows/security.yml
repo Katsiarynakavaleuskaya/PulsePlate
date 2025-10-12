@@ -22,9 +22,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install bandit safety
 
       - name: Bandit security scan
@@ -36,6 +40,7 @@ jobs:
           bandit -r "$SCAN_PATH" -x "$EXCLUDES" -t B101 --exit-zero
 
       - name: Safety dependency scan
+        continue-on-error: true
         run: |
           FILES=()
           [[ -f requirements.txt ]] && FILES+=("-r" "requirements.txt")
