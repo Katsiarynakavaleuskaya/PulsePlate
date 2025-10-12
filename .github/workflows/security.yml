@@ -29,12 +29,12 @@ jobs:
 
       - name: Bandit security scan
         run: |
-          bandit -r . -x frontend,node_modules,dist,build,test-results,.venv,venv,cache -f json -o bandit-report.json || true
+          bandit -r . -x frontend,node_modules,dist,build,test-results,.venv,venv,cache -f json -o bandit-report.json
           bandit -r . -x frontend,node_modules,dist,build,test-results,.venv,venv,cache -s B101
 
       - name: Safety dependency scan
         run: |
-          safety check --json --output safety-report.json || true
+          safety check --json --output safety-report.json
           safety check
 
       - name: Upload security reports
