@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run --environment jsdom --testTimeout=30000",
+    "test": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml",
+    "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts"
   },
   "dependencies": {
@@ -35,9 +36,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@axe-core/react": "^4.10.2",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
-    "@testing-library/user-event": "^14.5.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/crypto-js": "^4.2.2",
     "@types/html2canvas": "^1.0.0",
     "@types/jest": "^30.0.0",
@@ -50,6 +52,7 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.7",
     "globals": "^15.6.0",
+    "jest-axe": "^10.0.0",
     "jsdom": "^24.1.0",
     "msw": "^2.11.3",
     "openapi-typescript": "^7.9.1",

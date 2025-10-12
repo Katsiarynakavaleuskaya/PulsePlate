@@ -51,6 +51,7 @@ nosetests.xml
 coverage.xml
 test_results.xml
 frontend/tests/*.xml
+frontend/test-results/
 *.cover
 *.py,cover
 .hypothesis/
