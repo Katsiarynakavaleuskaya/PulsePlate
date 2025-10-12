@@ -35,22 +35,41 @@ jobs:
         run: |
           EXCLUDES="frontend,node_modules,dist,build,test-results,.venv,venv,cache"
           SCAN_PATH="."
-          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json || true
-          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -s B101 || true
+          set +e
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json
+          bandit_json_exit=$?
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -s B101
+          bandit_b101_exit=$?
+          set -e
+          echo "BANDIT_JSON_EXIT=$bandit_json_exit" >> "$GITHUB_ENV"
+          echo "BANDIT_B101_EXIT=$bandit_b101_exit" >> "$GITHUB_ENV"
+          if (( bandit_json_exit != 0 || bandit_b101_exit != 0 )); then
+            echo "SECURITY_FAILURE=true" >> "$GITHUB_ENV"
+          fi
 
       - name: Safety dependency scan
-        continue-on-error: true
         run: |
           FILES=()
           [[ -f requirements.txt ]] && FILES+=("-r" "requirements.txt")
           [[ -f requirements-dev.txt ]] && FILES+=("-r" "requirements-dev.txt")
+          set +e
           if (( ${#FILES[@]} )); then
-            safety check "${FILES[@]}" --json --output safety-report.json || true
-            safety check "${FILES[@]}" || true
+            safety check "${FILES[@]}" --json --output safety-report.json
+            safety_json_exit=$?
+            safety check "${FILES[@]}"
+            safety_console_exit=$?
           else
             echo "No requirements files found; falling back to environment scan."
-            safety check --json --output safety-report.json || true
-            safety check || true
+            safety check --json --output safety-report.json
+            safety_json_exit=$?
+            safety check
+            safety_console_exit=$?
+          fi
+          set -e
+          echo "SAFETY_JSON_EXIT=${safety_json_exit:-0}" >> "$GITHUB_ENV"
+          echo "SAFETY_CONSOLE_EXIT=${safety_console_exit:-0}" >> "$GITHUB_ENV"
+          if (( ${safety_json_exit:-0} != 0 || ${safety_console_exit:-0} != 0 )); then
+            echo "SECURITY_FAILURE=true" >> "$GITHUB_ENV"
           fi
 
       - name: Upload security reports
@@ -62,3 +81,13 @@ jobs:
             bandit-report.json
             safety-report.json
           if-no-files-found: ignore
+
+      - name: Fail on security findings
+        if: always() && env.SECURITY_FAILURE == 'true'
+        run: |
+          echo "Security scan found issues. Check the uploaded reports for details."
+          echo "Bandit JSON exit code: $BANDIT_JSON_EXIT"
+          echo "Bandit B101 exit code: $BANDIT_B101_EXIT"
+          echo "Safety JSON exit code: $SAFETY_JSON_EXIT"
+          echo "Safety console exit code: $SAFETY_CONSOLE_EXIT"
+          exit 1
