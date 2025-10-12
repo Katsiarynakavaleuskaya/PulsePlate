@@ -68,7 +68,9 @@ export function FormField({
 }
 
 export function FormError({ error }: { error?: string }) {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   return (
     <div

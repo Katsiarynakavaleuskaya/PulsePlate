@@ -60,6 +60,11 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
           // Without htmlFor the label provides name via aria-labelledby; emulate default label click toggle.
           event.preventDefault();
           onChange(!checked);
+          // Transfer focus to the switch element for accessibility
+          const switchElement = event.currentTarget.parentElement?.querySelector('[role="switch"]') as HTMLElement;
+          if (switchElement) {
+            switchElement.focus();
+          }
         }}
       >
         {label}
