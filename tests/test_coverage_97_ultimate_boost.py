@@ -166,9 +166,9 @@ class TestCoverage97UltimateBoost:
         for headers in admin_scenarios:
             response = client.get("/api/v1/admin/status", headers=headers)
             # Only allow client/authorization outcomes, fail on server errors
-            assert (
-                response.status_code < 500
-            ), f"Server error {response.status_code} for headers {headers}"
+            assert response.status_code < 500, (
+                f"Server error {response.status_code} for headers {headers}"
+            )
             assert response.status_code in [200, 401, 403, 404]
 
     def test_app_coverage_ultimate_boost_missing_lines_242_246_247(

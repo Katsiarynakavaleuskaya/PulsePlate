@@ -52,9 +52,9 @@ def test_insight_route_or_skip(client, api_key):
     res = client.post("/api/v1/insight", json={"text": "hello"}, headers={"X-API-Key": api_key})
     if res.status_code == 404:
         pytest.skip("No /insight route (skipping)")
-    assert (
-        res.status_code == 503
-    ), f"Expected 503 (service unavailable), got {res.status_code}: {res.text}"
+    assert res.status_code == 503, (
+        f"Expected 503 (service unavailable), got {res.status_code}: {res.text}"
+    )
 
 
 def test_debug_env_keys_or_skip(client):

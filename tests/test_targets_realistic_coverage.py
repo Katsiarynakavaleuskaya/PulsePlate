@@ -114,17 +114,17 @@ class TestTargetsRealisticCoverage:
 
                 # Test formula selection with body_fat (should return "katch")
                 best_formula = get_bmr_formula(user_data)
-                assert (
-                    best_formula == "katch"
-                ), f"Expected 'katch' with body_fat, got '{best_formula}'"
+                assert best_formula == "katch", (
+                    f"Expected 'katch' with body_fat, got '{best_formula}'"
+                )
 
                 # Test formula selection without body_fat (should return "mifflin")
                 user_data_no_fat = user_data.copy()
                 user_data_no_fat.pop("body_fat", None)  # Remove body_fat
                 best_formula_no_fat = get_bmr_formula(user_data_no_fat)
-                assert (
-                    best_formula_no_fat == "mifflin"
-                ), f"Expected 'mifflin' without body_fat, got '{best_formula_no_fat}'"
+                assert best_formula_no_fat == "mifflin", (
+                    f"Expected 'mifflin' without body_fat, got '{best_formula_no_fat}'"
+                )
 
         except ImportError:
             pytest.skip("core.targets module is unavailable in this environment")
