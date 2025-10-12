@@ -4195,6 +4195,7 @@ Uvicorn
 validkey
 válido
 venv
+virtualenv
 Visualización
 visx
 vitamina

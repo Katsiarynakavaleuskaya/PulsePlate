@@ -61,7 +61,7 @@ jobs:
           verbose: true
 
       - name: Upload test artifacts
-        uses: ./.github/workflows/upload-artifacts.yml
+        uses: ./.github/actions/upload-artifacts
         with:
           coverage-file: coverage.xml
           junit-file: tests/results.xml

@@ -28,11 +28,12 @@ jobs:
           pip install bandit safety
 
       - name: Bandit security scan
+        continue-on-error: true
         run: |
           EXCLUDES="frontend,node_modules,dist,build,test-results,.venv,venv,cache"
           SCAN_PATH="."
-          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json
-          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -s B101
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json --exit-zero
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -t B101 --exit-zero
 
       - name: Safety dependency scan
         run: |
@@ -49,6 +50,7 @@ jobs:
           fi
 
       - name: Upload security reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports

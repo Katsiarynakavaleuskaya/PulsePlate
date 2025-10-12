@@ -4,6 +4,7 @@ Target 93% coverage improvement with realistic nutrition target scenarios.
 """
 
 import logging
+from contextlib import suppress
 from faker import Faker
 from faker.providers import BaseProvider
 
@@ -65,7 +66,7 @@ class TestTargetsRealisticCoverage:
 
     def test_bmr_calculations_realistic(self):
         """Test BMR calculations with realistic demographic data"""
-        try:
+        with suppress(ImportError):
             from core.targets import calculate_bmr, get_bmr_formula
 
             # Generate realistic user profiles
@@ -82,32 +83,19 @@ class TestTargetsRealisticCoverage:
                 formulas = ["mifflin", "harris", "katch", "cunningham"]
 
                 for formula in formulas:
-                    try:
+                    with suppress(Exception):
                         bmr = calculate_bmr(**user_data, formula=formula)
                         assert isinstance(bmr, (int, float))
                         assert bmr > 0
-                    except Exception as e:
-                        logging.exception(
-                            "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                        )
-                        pass
 
                 # Test formula selection
-                try:
+                with suppress(Exception):
                     best_formula = get_bmr_formula(user_data)
                     assert best_formula in formulas
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
 
     def test_tdee_calculations_realistic(self):
         """Test TDEE calculations with realistic activity scenarios"""
-        try:
+        with suppress(ImportError):
             from core.targets import adjust_for_activity, calculate_tdee
 
             # Generate realistic scenarios
@@ -123,7 +111,7 @@ class TestTargetsRealisticCoverage:
                     "active_job": fake.boolean(),
                 }
 
-                try:
+                with suppress(Exception):
                     tdee = calculate_tdee(bmr, activity_level, **exercise_data)
                     assert isinstance(tdee, (int, float))
                     assert tdee >= bmr  # TDEE should be >= BMR
@@ -132,18 +120,9 @@ class TestTargetsRealisticCoverage:
                     adjusted = adjust_for_activity(bmr, activity_level)
                     assert adjusted >= bmr
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
-        try:
+        with suppress(ImportError):
             from core.targets import calculate_macros, get_macro_ratios
 
             # Generate realistic nutrition scenarios
@@ -161,7 +140,7 @@ class TestTargetsRealisticCoverage:
                     "dietary_restriction": restriction,
                 }
 
-                try:
+                with suppress(Exception):
                     macros = calculate_macros(calories, **user_profile)
                     assert isinstance(macros, dict)
 
@@ -179,18 +158,9 @@ class TestTargetsRealisticCoverage:
                     ratios = get_macro_ratios(goal, restriction)
                     assert isinstance(ratios, dict)
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_micronutrient_targets_realistic(self):
         """Test micronutrient targets with realistic user data"""
-        try:
+        with suppress(ImportError):
             from core.targets import calculate_micronutrient_targets, get_rda_values
 
             # Generate diverse user profiles
@@ -212,7 +182,7 @@ class TestTargetsRealisticCoverage:
                     "activity_level": fake.activity_level(),
                 }
 
-                try:
+                with suppress(Exception):
                     micro_targets = calculate_micronutrient_targets(**user_data)
                     assert isinstance(micro_targets, dict)
 
@@ -226,18 +196,9 @@ class TestTargetsRealisticCoverage:
                     rda = get_rda_values(user_data["age"], user_data["gender"])
                     assert isinstance(rda, dict)
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_calorie_adjustment_realistic(self):
         """Test calorie adjustments for realistic weight goals"""
-        try:
+        with suppress(ImportError):
             from core.targets import adjust_calories_for_goal, calculate_deficit_surplus
 
             # Generate realistic weight goal scenarios
@@ -251,7 +212,7 @@ class TestTargetsRealisticCoverage:
                     "conservative": fake.boolean(),
                 }
 
-                try:
+                with suppress(Exception):
                     adjusted_calories = adjust_calories_for_goal(current_calories, **goal_data)
                     assert isinstance(adjusted_calories, (int, float))
                     assert adjusted_calories > 800  # Minimum safe calories
@@ -260,18 +221,9 @@ class TestTargetsRealisticCoverage:
                     deficit_surplus = calculate_deficit_surplus(**goal_data)
                     assert isinstance(deficit_surplus, (int, float))
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_special_populations_realistic(self):
         """Test nutrition targets for special populations"""
-        try:
+        with suppress(ImportError):
             from core.targets import (
                 get_athlete_targets,
                 get_elderly_adjustments,
@@ -292,14 +244,9 @@ class TestTargetsRealisticCoverage:
                 elderly_profiles.append(profile)
 
             for profile in elderly_profiles:
-                try:
+                with suppress(Exception):
                     adjustments = get_elderly_adjustments(**profile)
                     assert isinstance(adjustments, dict)
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
 
             # Test athlete targets
             athlete_profiles = []
@@ -314,14 +261,9 @@ class TestTargetsRealisticCoverage:
                 athlete_profiles.append(profile)
 
             for profile in athlete_profiles:
-                try:
+                with suppress(Exception):
                     targets = get_athlete_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
 
             # Test pregnancy targets
             pregnancy_profiles = []
@@ -335,21 +277,13 @@ class TestTargetsRealisticCoverage:
                 pregnancy_profiles.append(profile)
 
             for profile in pregnancy_profiles:
-                try:
+                with suppress(Exception):
                     targets = get_pregnancy_targets(**profile)
                     assert isinstance(targets, dict)
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
 
     def test_nutrient_timing_realistic(self):
         """Test nutrient timing recommendations with realistic scenarios"""
-        try:
+        with suppress(ImportError):
             from core.targets import calculate_pre_post_workout, get_meal_timing
 
             # Generate realistic timing scenarios
@@ -362,7 +296,7 @@ class TestTargetsRealisticCoverage:
                     "workout_type": fake.random_element(["cardio", "strength", "mixed"]),
                 }
 
-                try:
+                with suppress(Exception):
                     meal_plan = get_meal_timing(**timing_data)
                     assert isinstance(meal_plan, dict)
 
@@ -372,18 +306,9 @@ class TestTargetsRealisticCoverage:
                     )
                     assert isinstance(workout_nutrition, dict)
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_hydration_targets_realistic(self):
         """Test hydration recommendations with realistic scenarios"""
-        try:
+        with suppress(ImportError):
             from core.targets import adjust_for_climate, calculate_hydration_needs
 
             # Generate realistic hydration scenarios
@@ -397,7 +322,7 @@ class TestTargetsRealisticCoverage:
                     "alcohol_intake": fake.random_int(min=0, max=50),
                 }
 
-                try:
+                with suppress(Exception):
                     base_hydration = calculate_hydration_needs(**hydration_data)
                     assert isinstance(base_hydration, (int, float))
                     assert base_hydration > 0
@@ -408,18 +333,9 @@ class TestTargetsRealisticCoverage:
                     )
                     assert adjusted_hydration >= base_hydration
 
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
-
     def test_supplement_recommendations_realistic(self):
         """Test supplement recommendations with realistic user profiles"""
-        try:
+        with suppress(ImportError):
             from core.targets import check_deficiency_risk, get_supplement_recommendations
 
             # Generate diverse user profiles
@@ -436,19 +352,10 @@ class TestTargetsRealisticCoverage:
                     ),
                 }
 
-                try:
+                with suppress(Exception):
                     supplements = get_supplement_recommendations(**user_profile)
                     assert isinstance(supplements, dict)
 
                     # Test deficiency risk assessment
                     risk_assessment = check_deficiency_risk(**user_profile)
                     assert isinstance(risk_assessment, dict)
-
-                except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
-                    pass
-
-        except ImportError:
-            pass
