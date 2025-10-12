@@ -424,9 +424,6 @@ def test_grok_is_transient_error_edge_cases():
     from providers.grok import is_transient_error
 
     # Test system-level exceptions (should not be retried)
-    import SystemExit
-    import KeyboardInterrupt
-
     # These should return False (don't retry system signals)
     assert not is_transient_error(SystemExit())
     assert not is_transient_error(KeyboardInterrupt())

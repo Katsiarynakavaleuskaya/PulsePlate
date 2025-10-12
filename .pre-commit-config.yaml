@@ -114,7 +114,7 @@ repos:
       # frontend tests — run frontend tests before push
       - id: frontend-tests-pre-push
         name: frontend tests (pre-push)
-        entry: bash -c "cd frontend && npm test -- --watchAll=false --passWithNoTests"
+        entry: bash -c "cd frontend && npm run test"
         language: system
         pass_filenames: false
         stages: [pre-push]

@@ -310,23 +310,30 @@ class TestDbRealisticCoverage:
             backup_path = os.path.join(temp_dir, "test_backup.db")
 
             # Test backup_db function accepts path parameter
+            # Test backup_db function accepts path parameter
             try:
                 backup_db(backup_path)
+            except (NotImplementedError, FileNotFoundError, PermissionError):
+                # Expected for placeholder implementations
+                pass
             except Exception:
-                # Expected for testing - function is placeholder
-                pass  # nosec B110
+                # Unexpected exception - fail the test
+                assert False, "Unexpected exception in backup_db"
 
             # Test restore_db function accepts path parameter
             try:
                 restore_db(backup_path)
+            except (NotImplementedError, FileNotFoundError, PermissionError):
+                # Expected for placeholder implementations
+                pass
             except Exception:
-                # Expected for testing - function is placeholder
-                pass  # nosec B110
+                # Unexpected exception - fail the test
+                assert False, "Unexpected exception in restore_db"
 
         # Test get_table_info function accepts table parameter
         result = get_table_info("test_table")
-        self.assertEqual(result, {})  # Should return empty dict for testing
+        assert result == {}  # Should return empty dict for testing
 
         # Test validate_schema function accepts table parameter
         result = validate_schema("test_table")
-        self.assertTrue(result)  # Should return True for testing
+        assert result is True  # Should return True for testing
