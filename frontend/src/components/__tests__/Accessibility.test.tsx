@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import { vi } from 'vitest';
@@ -72,11 +72,7 @@ describe('Accessibility Tests', () => {
       expect(switchElement).toHaveAttribute('disabled');
       expect(switchElement).toHaveClass('cursor-not-allowed');
 
-      const results = await axe(container, {
-        rules: {
-          'label': { enabled: false } // Disable label rule for hidden inputs
-        }
-      });
+      const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
@@ -122,11 +118,7 @@ describe('Accessibility Tests', () => {
       await user.keyboard('{Enter}');
       expect(handleChange).toHaveBeenCalledWith(false);
 
-      const results = await axe(container, {
-        rules: {
-          'label': { enabled: false } // Disable label rule for hidden inputs
-        }
-      });
+      const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
@@ -150,37 +142,10 @@ describe('Accessibility Tests', () => {
       // Verify focus styles are applied (focus:ring-2 focus:ring-blue-600)
       expect(switchElement).toHaveClass('focus:ring-2', 'focus:ring-blue-600', 'focus:ring-offset-2');
 
-      const results = await axe(container, {
-        rules: {
-          'label': { enabled: false } // Disable label rule for hidden inputs
-        }
-      });
+      const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
-    it('should handle disabled state properly', async () => {
-      const { container } = render(
-        <div role="main">
-          <Toggle
-            label="Disabled Focus Test"
-            checked={false}
-            onChange={() => {}}
-            disabled={true}
-          />
-        </div>
-      );
-
-      const disabledSwitch = screen.getByRole('switch');
-      expect(disabledSwitch).toHaveAttribute('disabled');
-      expect(disabledSwitch).toHaveClass('cursor-not-allowed');
-
-      const results = await axe(container, {
-        rules: {
-          'label': { enabled: false } // Disable label rule for hidden inputs
-        }
-      });
-      expect(results).toHaveNoViolations();
-    });
 
     it('should have proper ARIA attributes and state management', async () => {
       const { container, rerender } = render(
@@ -211,11 +176,7 @@ describe('Accessibility Tests', () => {
       );
       expect(switchElement).toHaveAttribute('aria-checked', 'true');
 
-      const results = await axe(container, {
-        rules: {
-          'label': { enabled: false } // Disable label rule for hidden inputs
-        }
-      });
+      const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
