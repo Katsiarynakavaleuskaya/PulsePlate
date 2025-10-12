@@ -357,3 +357,63 @@ def test_pico_generate_choices_and_response_and_else(monkeypatch):
     p.client.data = {"unknown": 1}  # type: ignore[attr-defined]
     out = _await_or_value(p.generate("t"))
     assert out == "{'unknown': 1}"
+
+
+def test_grok_is_transient_error():
+    """Test the is_transient_error function for various error types."""
+    from providers.grok import is_transient_error
+
+    # Test network errors
+    assert is_transient_error(httpx.ConnectError("Connection failed"))
+    assert is_transient_error(httpx.ConnectTimeout("Timeout"))
+    assert is_transient_error(httpx.ReadTimeout("Read timeout"))
+    assert is_transient_error(httpx.WriteTimeout("Write timeout"))
+    assert is_transient_error(httpx.PoolTimeout("Pool timeout"))
+    assert is_transient_error(httpx.RemoteProtocolError("Protocol error"))
+
+    # Test HTTP status codes - transient
+    class MockResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+    class MockException(Exception):
+        def __init__(self, status_code):
+            self.response = MockResponse(status_code)
+
+    # 5xx errors - transient
+    assert is_transient_error(MockException(500))
+    assert is_transient_error(MockException(502))
+    assert is_transient_error(MockException(503))
+
+    # 429 - rate limiting - transient
+    assert is_transient_error(MockException(429))
+
+    # 408 - timeout - transient
+    assert is_transient_error(MockException(408))
+
+    # Test error string keywords
+    class KeywordException(Exception):
+        def __init__(self, message):
+            super().__init__(message)
+
+    assert is_transient_error(KeywordException("Connection timeout"))
+    assert is_transient_error(KeywordException("Network error"))
+    assert is_transient_error(KeywordException("Rate limit exceeded"))
+    assert is_transient_error(KeywordException("Temporary failure"))
+
+    # Test non-transient errors
+    assert not is_transient_error(ValueError("Invalid input"))
+    assert not is_transient_error(MockException(400))  # Bad request
+    assert not is_transient_error(MockException(401))  # Unauthorized
+    assert not is_transient_error(MockException(403))  # Forbidden
+    assert not is_transient_error(MockException(404))  # Not found
+
+    # Test chained exceptions
+    try:
+        raise httpx.ConnectError("Original error")
+    except Exception as e:
+        try:
+            raise ValueError("Wrapper error") from e
+        except Exception as chained_exc:
+            # Should detect the original ConnectError as transient
+            assert is_transient_error(chained_exc)

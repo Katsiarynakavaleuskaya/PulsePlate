@@ -28,7 +28,7 @@ jobs:
         run: mkdir -p .mypy_cache
 
       - name: Run pre-commit
-        run: pre-commit run --all-files --exclude pydocstyle
+        run: pre-commit run --all-files --skip pydocstyle
 
   # Additional checks for common issues
   common-issues-check:

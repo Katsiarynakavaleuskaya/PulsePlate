@@ -75,7 +75,7 @@ class TestDbRealisticCoverage:
                         # Non-parameterized query
                         result = execute_query(query_data)
                     # Some might succeed with fallbacks
-                except Exception:
+                except Exception:  # nosec B110
                     # Expected for problematic queries
                     pass  # nosec B110
         except ImportError:
@@ -237,7 +237,7 @@ class TestDbRealisticCoverage:
                     else:
                         # Non-parameterized query
                         execute_query(query_data)
-                except Exception:
+                except Exception:  # nosec B110
                     # Expected for queries on non-existent tables
                     pass  # nosec B110
 

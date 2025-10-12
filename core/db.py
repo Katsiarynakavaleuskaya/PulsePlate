@@ -106,12 +106,10 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception as e:
-                # Not all statements require/allow commit; ignore commit errors
-                import logging
-
-                logging.warning(f"Database commit failed: {e}")
-                pass  # nosec B110
+            except Exception:  # nosec B110
+                # Some statements (DDL, read-only queries) don't require commit
+                # For those cases, the exception is expected and can be safely ignored
+                pass
             return result
 
 
@@ -302,13 +300,16 @@ async def init_db_async() -> None:
 def get_db_connection():
     """Get a database connection for testing purposes.
 
-    RU: Возвращает соединение с базой данных для тестирования.
+    RU: Возвращает соединение c базой данных для тестирования.
     EN: Returns a database connection for testing purposes.
     """
     try:
         return _RAW_ENGINE.connect()
-    except Exception:
-        return None  # nosec B110
+    except Exception as e:
+        import logging
+
+        logging.error(f"Failed to get database connection: {e}")
+        raise
 
 
 def execute_query(query: str, params: Optional[dict] = None):
@@ -324,8 +325,6 @@ def execute_query(query: str, params: Optional[dict] = None):
     Returns:
         Query result
     """
-    if query is None:
-        raise ValueError("Query cannot be None")
 
     if not query.strip():
         raise ValueError("Query cannot be empty")

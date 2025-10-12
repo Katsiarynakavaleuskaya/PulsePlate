@@ -20,10 +20,14 @@ def is_transient_error(exception: BaseException) -> bool:
     Returns:
         True если ошибка транзиентная и стоит повторить запрос
     """
+    # Don't retry system-level exceptions (KeyboardInterrupt, SystemExit, etc.)
+    if not isinstance(exception, Exception):
+        return False
+
     # Unwrap chained exceptions to get the original underlying exception
     original_exception = exception
     seen: set[int] = set()
-    while isinstance(original_exception, BaseException) and id(original_exception) not in seen:
+    while isinstance(original_exception, Exception) and id(original_exception) not in seen:
         seen.add(id(original_exception))
         next_exception = getattr(original_exception, "__cause__", None)
         if next_exception is not None:
@@ -61,7 +65,7 @@ def is_transient_error(exception: BaseException) -> bool:
 
     # Check error string representation for transient keywords
     error_str = str(original_exception).lower()
-    transient_keywords = [
+    transient_keywords = {
         "timeout",
         "connection",
         "network",
@@ -70,12 +74,8 @@ def is_transient_error(exception: BaseException) -> bool:
         "retry",
         "rate limit",
         "throttle",
-    ]
-    if any(keyword in error_str for keyword in transient_keywords):
-        return True
-
-    # All other errors (auth, validation, etc.) - not transient
-    return False
+    }
+    return any(keyword in error_str for keyword in transient_keywords)
 
 
 class GrokProvider:
@@ -112,4 +112,4 @@ class GrokProvider:
             return str(content.strip()) if content else ""
         except Exception as e:
             # Пробрасываем понятную ошибку наверх
-            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")
+            raise RuntimeError(f"Grok error: {type(e).__name__}: {e}") from e
