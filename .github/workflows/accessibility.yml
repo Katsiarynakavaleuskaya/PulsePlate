@@ -32,6 +32,9 @@ jobs:
 
       - name: Run full test suite with accessibility checks
         run: npm run test
+        env:
+          VITE_API_BASE: http://localhost:8000/api/v1
+          VITE_API_KEY: test_key
 
       - name: Upload test results
         if: always()
@@ -41,12 +44,3 @@ jobs:
           path: frontend/test-results/
           retention-days: 30
           if-no-files-found: ignore
-
-      - name: Publish test results
-        uses: EnricoMi/publish-unit-test-result-action@3a74b2957438d0b6e2e61d67b05318aa25c9e6c6
-        if: always()
-        with:
-          files: frontend/test-results/junit.xml
-          check_name: Accessibility Tests
-          comment_mode: always
-          comment_title: Accessibility Test Results

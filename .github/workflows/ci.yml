@@ -132,6 +132,9 @@ jobs:
 
       - name: Run vitest suite
         run: npx vitest run
+        env:
+          VITE_API_BASE: http://localhost:8000/api/v1
+          VITE_API_KEY: test_key
 
       - name: Build SPA
         run: npm run build
