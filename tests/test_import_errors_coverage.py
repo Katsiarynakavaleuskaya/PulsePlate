@@ -211,9 +211,9 @@ class TestApplicationStartupPaths:
             # Симулируем добавление middleware
             test_app.add_middleware(type("TestMiddleware", (), {}))
             middleware_added = True
-        except Exception:
+        except Exception as e:
             # Если middleware не может быть добавлен, это нормально для теста
-            pass
+            assert False, f"Unexpected exception in import errors test: {e}"
 
         # Middleware мог быть добавлен или нет, оба варианта валидны
         assert middleware_added in {True, False}

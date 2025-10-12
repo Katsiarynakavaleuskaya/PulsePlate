@@ -314,8 +314,8 @@ class TestQuickCoverageBoost:
                 mock_update.side_effect = Exception("Update failed")
                 try:
                     await manager.update_database("usda")
-                except Exception:
-                    pass  # Ожидаем ошибку
+                except Exception as e:
+                    pass  # nosec B110
 
         except ImportError:
             pytest.skip("update_manager module not available")

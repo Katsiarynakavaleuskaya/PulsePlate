@@ -28,7 +28,7 @@ class TestI18nRealisticCoverage:
                     assert isinstance(result, str)
                     assert len(result) > 0
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass
@@ -63,7 +63,7 @@ class TestI18nRealisticCoverage:
                     result = t(lang, common_key)
                     assert isinstance(result, str)
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass
@@ -85,7 +85,7 @@ class TestI18nRealisticCoverage:
                         assert isinstance(result_es, str)
                         assert result_ru != result_es  # Should be different
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass
@@ -107,7 +107,7 @@ class TestI18nRealisticCoverage:
                     assert isinstance(result, str)
                     assert len(result) > 10  # Validation messages should be descriptive
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass
@@ -129,7 +129,7 @@ class TestI18nRealisticCoverage:
                     result = t("ru", key)
                     assert isinstance(result, str)
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass
@@ -146,7 +146,7 @@ class TestI18nRealisticCoverage:
                     result = t("ru", key)
                     assert isinstance(result, str)
                 except Exception as e:
-                    # Expected for some edge cases in test environment
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in i18n test: {e}"
         except ImportError:
             pass

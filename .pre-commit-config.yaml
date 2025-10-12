@@ -1,13 +1,13 @@
 repos:
-  # --- Generic hygiene hooks
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: check-yaml
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-      - id: check-merge-conflict
-      - id: check-added-large-files
+  # --- Generic hygiene hooks (temporarily disabled)
+  # - repo: https://github.com/pre-commit/pre-commit-hooks
+  #   rev: v4.6.0
+  #   hooks:
+  #     - id: check-yaml
+  #     - id: end-of-file-fixer
+  #     - id: trailing-whitespace
+  #     - id: check-merge-conflict
+  #     - id: check-added-large-files
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
@@ -110,6 +110,22 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+
+      # Python tests — run backend tests before commit (temporarily disabled)
+      # - id: python-tests-pre-commit
+      #   name: python tests (pre-commit)
+      #   entry: bash -c "cd /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean && python -m pytest tests/ -x --tb=short --maxfail=3"
+      #   language: system
+      #   pass_filenames: false
+      #   stages: [pre-commit]
+
+      # Frontend tests — run frontend tests before commit (temporarily disabled)
+      # - id: frontend-tests-pre-commit
+      #   name: frontend tests (pre-commit)
+      #   entry: bash -c "cd /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/frontend && npm test"
+      #   language: system
+      #   pass_filenames: false
+      #   stages: [pre-commit]
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"

@@ -36,8 +36,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("food sources not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_food_categories_coverage(self):
         """Test food categories and classification."""
@@ -67,8 +67,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("food_categories not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_nutrition_analysis_coverage(self):
         """Test nutrition analysis modules."""
@@ -98,8 +98,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("nutrition_analysis not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_config_management_coverage(self):
         """Test configuration management."""
@@ -128,8 +128,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("config management not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_edge_case_coverage(self):
         """Test edge cases and error handling."""
@@ -145,10 +145,10 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
-        # Test with empty strings
+        # Test with empty strings - should raise KeyError for unsupported language
         try:
             from core.i18n import t
 
@@ -157,8 +157,11 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:
-            pass
+        except KeyError:
+            # Expected for empty language
+            pass  # nosec B110
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
         # Test with unicode
         try:
@@ -169,8 +172,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_comprehensive_core_modules(self):
         """Comprehensive test of all available core modules."""
@@ -202,8 +205,8 @@ class TestFinalCoreCoverage:
                 imported_count += 1
             except ImportError:
                 pass  # Module not available
-            except Exception:
-                pass  # Other import error
+            except Exception as e:
+                assert False, f"Unexpected exception in final core test: {e}"
 
         # We should be able to import at least some core modules
         assert imported_count >= 0  # Any number is OK
@@ -231,8 +234,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("menu_engine not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_auto_repair_comprehensive(self):
         """Comprehensive auto repair testing."""
@@ -261,8 +264,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("auto_repair not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_plate_comprehensive(self):
         """Comprehensive plate testing."""
@@ -293,8 +296,8 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("plate not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"
 
     def test_targets_comprehensive(self):
         """Comprehensive targets testing."""
@@ -321,5 +324,5 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pytest.skip("targets not available")
-        except Exception:
-            pass
+        except Exception as e:
+            assert False, f"Unexpected exception in final core test: {e}"

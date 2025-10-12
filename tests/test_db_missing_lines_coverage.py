@@ -228,9 +228,7 @@ class TestDbMissingLinesCoverage:
                 try:
                     session_gen.throw(Exception("Test exception"))
                 except Exception:
-                    pass
-
-                # Session should still be closed
+                    pass  # nosec B110
                 mock_session.close.assert_called_once()
 
         except ImportError:

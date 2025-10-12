@@ -37,8 +37,8 @@ class TestI18nMissingLines:
                     result = normalize_lang(locale)
                     # Line 420: if region in config["exceptions"]: return base
                     assert result in ["zh", "en", "es", "pt", "fr"]
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -64,8 +64,8 @@ class TestI18nMissingLines:
                     result = normalize_lang(locale)
                     # Should return configured default (line 423)
                     assert result in ["zh", "en", "es", "pt", "fr"]
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -83,8 +83,8 @@ class TestI18nMissingLines:
                     result = normalize_lang(lang)
                     # Should return the same language (line 427)
                     assert result == lang
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -111,8 +111,8 @@ class TestI18nMissingLines:
                     result = normalize_lang(lang)
                     # Should fallback to "en" (line 430)
                     assert result == "en"
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -148,8 +148,8 @@ class TestI18nMissingLines:
                     # Should handle gracefully and return valid language
                     assert isinstance(result, str)
                     assert len(result) >= 2
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -174,8 +174,8 @@ class TestI18nMissingLines:
                     result = normalize_lang(input_locale)
                     # Should normalize and process correctly
                     assert isinstance(result, str)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -201,9 +201,9 @@ class TestI18nMissingLines:
                     # Should handle gracefully
                     assert isinstance(result, str)
                     assert len(result) >= 2
-                except Exception:
-                    # Expected for some edge cases
-                    pass
+                except Exception as e:
+                    # All exceptions should be treated as test failures
+                    assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass
@@ -229,8 +229,8 @@ class TestI18nMissingLines:
                         # Should always return a valid language code
                         assert isinstance(result, str)
                         assert len(result) >= 2
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        assert False, f"Unexpected exception in i18n test: {e}"
 
         except ImportError:
             pass

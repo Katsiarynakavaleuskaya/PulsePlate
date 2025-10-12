@@ -101,7 +101,7 @@ class TestFoodDbNewRealisticCoverage:
                     # Should handle all cases gracefully
                     assert isinstance(results, (list, dict, type(None)))
                 except Exception as e:
-                    # Some edge cases might fail gracefully
+                    # All exceptions should be treated as test failures
                     assert False, f"Unexpected exception in food db test: {e}"
 
             # Test barcode searches
@@ -156,7 +156,7 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     validate_food_data(invalid)
                 except Exception as e:
-                    # Expected to fail
+                    # Invalid data should raise exceptions - this is expected behavior
                     assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
