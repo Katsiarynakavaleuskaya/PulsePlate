@@ -357,10 +357,8 @@ def get_db_connection() -> Connection:
     """
     try:
         return _RAW_ENGINE.connect()
-    except Exception as e:
-        import logging
-
-        logging.exception("Failed to get database connection")
+    except Exception as exc:
+        logger.exception("Failed to get database connection", exc_info=exc)
         raise
 
 
