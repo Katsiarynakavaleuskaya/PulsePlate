@@ -29,8 +29,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = cast(Any, None)
-    create_async_engine = cast(Any, None)
+    async_sessionmaker = None  # type: ignore
+    create_async_engine = None  # type: ignore
 
 
 def _build_engine_url() -> str:
@@ -160,11 +160,11 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
         )
     except ImportError:
         # Fallback if async drivers are not available
-        _ASYNC_ENGINE = None
-        AsyncSessionLocal = None
+        _ASYNC_ENGINE = None  # type: ignore
+        AsyncSessionLocal = None  # type: ignore
 else:
-    _ASYNC_ENGINE = None
-    AsyncSessionLocal = None
+    _ASYNC_ENGINE = None  # type: ignore
+    AsyncSessionLocal = None  # type: ignore
 
 async_engine: Optional[AsyncEngineType] = _ASYNC_ENGINE
 

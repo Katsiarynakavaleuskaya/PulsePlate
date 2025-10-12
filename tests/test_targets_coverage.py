@@ -45,7 +45,7 @@ class TestUserProfile:
 
     def test_user_profile_age_validation_low(self):
         """Test age validation - too low."""
-        with pytest.raises(ValueError, match="Age must be between 1 and 120 years"):
+        with pytest.raises(ValueError, match="Age must be between 1 and 120 \\(got [0-9]+\\)"):
             UserProfile(
                 sex="male",
                 age=0,  # Invalid age
@@ -57,7 +57,7 @@ class TestUserProfile:
 
     def test_user_profile_age_validation_high(self):
         """Test age validation - too high."""
-        with pytest.raises(ValueError, match="Age must be between 1 and 120 years"):
+        with pytest.raises(ValueError, match="Age must be between 1 and 120 \\(got [0-9]+\\)"):
             UserProfile(
                 sex="male",
                 age=121,  # Invalid age
@@ -93,7 +93,10 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_low(self):
         """Test deficit percentage validation - too low."""
-        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
+        with pytest.raises(
+            ValueError,
+            match="Deficit percentage must be between 5 and 25 if provided \\(got [0-9]+\\)",
+        ):
             UserProfile(
                 sex="female",
                 age=25,
@@ -106,7 +109,10 @@ class TestUserProfile:
 
     def test_user_profile_deficit_pct_validation_high(self):
         """Test deficit percentage validation - too high."""
-        with pytest.raises(ValueError, match="Deficit percentage must be between 5-25%"):
+        with pytest.raises(
+            ValueError,
+            match="Deficit percentage must be between 5 and 25 if provided \\(got [0-9]+\\)",
+        ):
             UserProfile(
                 sex="female",
                 age=25,
@@ -119,7 +125,10 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_low(self):
         """Test surplus percentage validation - too low."""
-        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
+        with pytest.raises(
+            ValueError,
+            match="Surplus percentage must be between 5 and 20 if provided \\(got [0-9]+\\)",
+        ):
             UserProfile(
                 sex="male",
                 age=25,
@@ -132,7 +141,10 @@ class TestUserProfile:
 
     def test_user_profile_surplus_pct_validation_high(self):
         """Test surplus percentage validation - too high."""
-        with pytest.raises(ValueError, match="Surplus percentage must be between 5-20%"):
+        with pytest.raises(
+            ValueError,
+            match="Surplus percentage must be between 5 and 20 if provided \\(got [0-9]+\\)",
+        ):
             UserProfile(
                 sex="male",
                 age=25,

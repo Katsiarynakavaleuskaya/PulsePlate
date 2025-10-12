@@ -8,6 +8,7 @@ EN: Food data merge logic.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 from collections.abc import Iterable
 from datetime import date
 from statistics import median
@@ -28,7 +29,7 @@ MICROS = [
 ]
 
 
-def _merge_values(values: list[float], strategy: str = "median") -> float:
+def _merge_values(values: list[float | None], strategy: str = "median") -> float:
     """
     RU: Объединить значения по стратегии.
     EN: Merge values by strategy.
@@ -48,7 +49,7 @@ def _merge_values(values: list[float], strategy: str = "median") -> float:
     return float(vals[0])
 
 
-def merge_records(streams: list[Iterable[FoodRecord]]) -> list[dict]:
+def merge_records(streams: list[Iterable[Any]]) -> list[dict]:
     """
     RU: Объединить записи из нескольких источников.
     EN: Merge records from multiple sources.
@@ -75,7 +76,7 @@ def merge_records(streams: list[Iterable[FoodRecord]]) -> list[dict]:
         fat = _merge_values([r.fat_g for r in rows])
         carbs = _merge_values([r.carbs_g for r in rows])
         fiber = _merge_values([r.fiber_g for r in rows])
-        sugar = _merge_values([r.sugar_g for r in rows])
+        sugar = _merge_values([getattr(r, "sugar_g", None) for r in rows])
 
         # Priority for micronutrients: if USDA present, take from USDA, otherwise median
         def micro_pick(key: str, rows: list) -> float:

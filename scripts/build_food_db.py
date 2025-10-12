@@ -7,6 +7,7 @@ EN: Build professional food database from CSV to Parquet/SQLite.
 
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -32,10 +33,10 @@ class FoodDatabaseBuilder:
     EN: Food database builder with full provenance tracking.
     """
 
-    def __init__(self, project_root: str = None):
+    def __init__(self, project_root: str | None = None):
         """Initialize builder with project paths."""
         if project_root is None:
-            project_root = Path(__file__).parent.parent
+            project_root = str(Path(__file__).parent.parent)
 
         self.project_root = Path(project_root)
         self.data_dir = self.project_root / "data"
@@ -52,7 +53,7 @@ class FoodDatabaseBuilder:
         self.data_dir.mkdir(exist_ok=True)
         self.external_dir.mkdir(exist_ok=True)
 
-    def load_source_data(self) -> tuple[List[Dict], List[Dict]]:
+    def load_source_data(self) -> tuple[List[Any], List[Any]]:
         """
         RU: Загрузить данные из всех источников (USDA + OFF).
         EN: Load data from all sources (USDA + OFF).
@@ -78,13 +79,13 @@ class FoodDatabaseBuilder:
         off_data = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
-            adapter = OFFAdapter(str(self.off_chunks_dir))
+            off_adapter = OFFAdapter(str(self.off_chunks_dir))
         else:
             print("  📊 Loading OFF from single file")
-            adapter = OFFAdapter()
+            off_adapter = OFFAdapter()
 
         try:
-            off_data = list(adapter.normalize())
+            off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
         except Exception as e:
             print(f"  ❌ OFF error: {e}")
@@ -307,9 +308,9 @@ class FoodDatabaseBuilder:
 
         # Calculate statistics
         total_foods = len(foods)
-        sources = {}
-        groups = {}
-        micronutrient_coverage = {}
+        sources: dict[str, int] = {}
+        groups: dict[str, int] = {}
+        micronutrient_coverage: dict[str, int] = {}
 
         for food in foods:
             # Source distribution
