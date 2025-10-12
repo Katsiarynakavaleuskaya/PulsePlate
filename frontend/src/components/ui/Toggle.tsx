@@ -55,10 +55,11 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         id={labelId}
         className="text-sm font-medium text-gray-700"
         style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
-        onClick={(event) => {
-          if (disabled) return;
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
           // Without htmlFor the label provides name via aria-labelledby; emulate default label click toggle.
-          event.preventDefault();
           onChange(!checked);
         }}
       >
