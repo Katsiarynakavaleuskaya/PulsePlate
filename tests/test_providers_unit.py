@@ -417,3 +417,49 @@ def test_grok_is_transient_error():
         except Exception as chained_exc:
             # Should detect the original ConnectError as transient
             assert is_transient_error(chained_exc)
+
+
+def test_grok_is_transient_error_edge_cases():
+    """Test edge cases for is_transient_error function."""
+    from providers.grok import is_transient_error
+
+    # Test system-level exceptions (should not be retried)
+    import SystemExit
+    import KeyboardInterrupt
+
+    # These should return False (don't retry system signals)
+    assert not is_transient_error(SystemExit())
+    assert not is_transient_error(KeyboardInterrupt())
+
+    # Test chained exceptions
+    try:
+        raise ValueError("Original error")
+    except ValueError as e:
+        try:
+            raise RuntimeError("Wrapper error") from e
+        except RuntimeError as chained:
+            # Should detect the original ValueError as not transient
+            assert not is_transient_error(chained)
+
+    # Test network error in chained exception
+    try:
+        raise httpx.ConnectError("Connection failed")
+    except httpx.ConnectError as e:
+        try:
+            raise ValueError("Wrapper") from e
+        except ValueError as chained:
+            # Should detect the original ConnectError as transient
+            assert is_transient_error(chained)
+
+    # Test keyword matching in nested exceptions
+    class CustomError(Exception):
+        def __init__(self, message):
+            super().__init__(message)
+
+    # Test that keyword matching works for complex error messages
+    complex_error = CustomError("Network timeout occurred during connection attempt")
+    assert is_transient_error(complex_error)
+
+    # Test non-transient keywords
+    auth_error = CustomError("Authentication failed: invalid credentials")
+    assert not is_transient_error(auth_error)
