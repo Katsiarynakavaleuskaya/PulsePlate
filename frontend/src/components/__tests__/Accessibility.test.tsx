@@ -193,8 +193,7 @@ describe('Accessibility Tests', () => {
 
       const results = await axe(container, {
         rules: {
-          'color-contrast': { enabled: true },
-          'label': { enabled: false } // Disable label rule for hidden inputs
+          'color-contrast': { enabled: true }
         }
       });
       expect(results).toHaveNoViolations();
