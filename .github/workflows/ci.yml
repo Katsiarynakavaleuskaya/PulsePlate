@@ -137,5 +137,12 @@ jobs:
           VITE_DEV_MODE: true
           VITE_ANALYTICS_ENABLED: false
 
+      - name: Upload frontend test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-junit
+          path: frontend/test-results/junit.xml
+          if-no-files-found: ignore
+
       - name: Build SPA
         run: npm run build
