@@ -21,6 +21,7 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
         className="sr-only"
+        aria-label={label}
       />
       <button
         role="switch"
@@ -51,7 +52,6 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
       </button>
       <label
         id={labelId}
-        htmlFor={inputId}
         className="text-sm font-medium text-gray-700"
         style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
       >
