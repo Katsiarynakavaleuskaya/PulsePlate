@@ -129,6 +129,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+      - name: Create .env file for tests
+        run: |
+          echo "VITE_API_BASE=http://localhost:8000/api/v1" > .env
+          echo "VITE_API_KEY=test_key" >> .env
+          echo "VITE_DEV_MODE=true" >> .env
+          echo "VITE_ANALYTICS_ENABLED=false" >> .env
 
       - name: Run vitest suite
         run: npx vitest run
