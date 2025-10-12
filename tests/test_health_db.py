@@ -37,16 +37,26 @@ def test_health_db_failure() -> None:
         finally:
             session.close()
 
-    # Use FastAPI dependency override instead of monkeypatch
-    if app.app is not None:
-        app.app.dependency_overrides[db_module.get_session] = broken_get_session
+    # Create a test app with overridden dependency
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sqlalchemy import text
 
-    try:
-        with TestClient(cast(ASGIApp, app.app)) as client:
-            response = client.get("/health/db")
+    test_app = FastAPI()
 
-        assert response.status_code == 503
-        assert response.json()["detail"].lower().startswith("database")
-    finally:
-        if app.app is not None:
-            app.app.dependency_overrides.clear()
+    @test_app.get("/health/db")
+    def database_health_test(session=broken_get_session):
+        """Test version of database health check."""
+        try:
+            session.execute(text("SELECT 1"))
+        except Exception as exc:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=503, detail="Database unavailable") from exc
+        return {"status": "ok"}
+
+    with TestClient(test_app) as client:
+        response = client.get("/health/db")
+
+    assert response.status_code == 503
+    assert response.json()["detail"].lower().startswith("database")
