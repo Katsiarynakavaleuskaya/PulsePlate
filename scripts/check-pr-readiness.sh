@@ -64,13 +64,20 @@ print_status 0 "Python syntax OK"
 # Check 5: YAML syntax
 echo "Checking YAML syntax..."
 yaml_errors=0
-for yaml_file in $(find .github/ -name "*.yml"); do
-    if ! python -c "import yaml; yaml.safe_load(open('$yaml_file'))" >/dev/null 2>&1; then
-        echo -e "${RED}❌ YAML syntax error in $yaml_file${NC}"
-        yaml_errors=1
-    fi
-done
-print_status $yaml_errors "YAML syntax OK"
+
+# Check if PyYAML is available
+if python -c "import yaml" >/dev/null 2>&1; then
+    for yaml_file in $(find .github/ -name "*.yml"); do
+        if ! python -c "import yaml; yaml.safe_load(open('$yaml_file'))" >/dev/null 2>&1; then
+            echo -e "${RED}❌ YAML syntax error in $yaml_file${NC}"
+            yaml_errors=1
+        fi
+    done
+    print_status $yaml_errors "YAML syntax OK"
+else
+    echo -e "${YELLOW}⚠️  PyYAML not installed, skipping YAML validation${NC}"
+    print_status 0 "YAML syntax check skipped (PyYAML not available)"
+fi
 
 # Check 6: Pre-commit hooks
 echo "Running pre-commit hooks..."

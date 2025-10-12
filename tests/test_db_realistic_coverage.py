@@ -48,19 +48,34 @@ class TestDbRealisticCoverage:
             from core.db import execute_query, get_db_connection
 
             # Test with realistic but problematic SQL
+            # Testing expected failures with parameterized queries
             problematic_queries = [
-                f"INSERT INTO users VALUES ('{fake.name()}', '{fake.email()}')",  # nosec B608
-                f"SELECT * FROM nonexistent_table WHERE id = {fake.random_int()}",  # nosec B608
+                # Testing INSERT with parameterized query (expected to fail due to missing table)
+                (
+                    "INSERT INTO users VALUES (:name, :email)",
+                    {"name": fake.name(), "email": fake.email()},
+                ),
+                # Testing SELECT with parameterized query (expected to fail due to nonexistent table)
+                ("SELECT * FROM nonexistent_table WHERE id = :id", {"id": fake.random_int()}),
+                # Testing invalid SQL syntax (expected to fail)
                 f"INVALID SQL SYNTAX {fake.sentence()}",
+                # Testing empty query (expected to fail)
                 "",
+                # Testing None query (expected to fail)
                 None,
             ]
 
-            for query in problematic_queries:
+            for query_data in problematic_queries:
                 try:
-                    result = execute_query(query)
+                    if isinstance(query_data, tuple):
+                        # Parameterized query
+                        query, params = query_data
+                        result = execute_query(query, params)
+                    else:
+                        # Non-parameterized query
+                        result = execute_query(query_data)
                     # Some might succeed with fallbacks
-                except Exception:  # nosec B110
+                except Exception:
                     # Expected for problematic queries
                     pass  # nosec B110
         except ImportError:
@@ -98,12 +113,13 @@ class TestDbRealisticCoverage:
                 try:
                     conn = get_db_connection()
                     if conn:
-                        # Simulate realistic database operations
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT 1")
-                        result = cursor.fetchone()
+                        # Simulate realistic database operations using SQLAlchemy
+                        from sqlalchemy import text
+
+                        result = conn.execute(text("SELECT 1"))
+                        row = result.fetchone()
                         conn.close()
-                        return result
+                        return row
                 except Exception:  # nosec B110
                     return None
 
@@ -191,21 +207,38 @@ class TestDbRealisticCoverage:
             from core.db import execute_query
 
             # Test with realistic but complex queries
+            # Testing query optimization with parameterized queries
             complex_queries = [
-                f"""SELECT * FROM users
-                       WHERE name LIKE '%{fake.first_name()}%'
-                       AND age > {fake.random_int(min=18, max=80)}""",  # nosec B608
-                f"""SELECT COUNT(*) FROM foods
-                       WHERE calories > {fake.random_int(min=100, max=500)}
-                       GROUP BY category""",  # nosec B608
+                # Testing LIKE query with parameterized search (expected to fail due to missing table)
+                (
+                    "SELECT * FROM users WHERE name LIKE :name_pattern AND age > :age",
+                    {
+                        "name_pattern": f"%{fake.first_name()}%",
+                        "age": fake.random_int(min=18, max=80),
+                    },
+                ),
+                # Testing COUNT query with parameterized filter (expected to fail due to missing table)
+                (
+                    "SELECT COUNT(*) FROM foods WHERE calories > :calories GROUP BY category",
+                    {"calories": fake.random_int(min=100, max=500)},
+                ),
+                # Testing simple query (expected to fail due to missing table)
                 "SELECT * FROM users ORDER BY created_at DESC LIMIT 100",
-                f"SELECT AVG(bmi) FROM user_stats WHERE updated > '{fake.date()}'",  # nosec B608
+                # Testing date comparison with parameterized query (expected to fail due to missing table)
+                ("SELECT AVG(bmi) FROM user_stats WHERE updated > :date", {"date": fake.date()}),
             ]
 
-            for query in complex_queries:
+            for query_data in complex_queries:
                 try:
-                    execute_query(query)
-                except Exception:  # nosec B110
+                    if isinstance(query_data, tuple):
+                        # Parameterized query
+                        query, params = query_data
+                        execute_query(query, params)
+                    else:
+                        # Non-parameterized query
+                        execute_query(query_data)
+                except Exception:
+                    # Expected for queries on non-existent tables
                     pass  # nosec B110
 
         except ImportError:

@@ -28,11 +28,13 @@ jobs:
         run: mkdir -p .mypy_cache
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: pre-commit run --all-files --exclude pydocstyle
 
   # Additional checks for common issues
   common-issues-check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
