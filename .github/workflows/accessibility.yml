@@ -48,5 +48,5 @@ jobs:
         with:
           files: frontend/test-results/junit.xml
           check_name: Accessibility Tests
-          comment_mode: create new
+          comment_mode: always
           comment_title: Accessibility Test Results
