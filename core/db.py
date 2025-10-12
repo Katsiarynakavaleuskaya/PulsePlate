@@ -6,12 +6,17 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
+from typing import Any, AsyncGenerator, Generator, Mapping, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Connection, Result
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 
 class SQLAlchemyAsyncNotAvailableError(ImportError):
@@ -139,10 +144,12 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:  # nosec B110
-                # Some statements (DDL, read-only queries) don't require commit
-                # For those cases, the exception is expected and can be safely ignored
-                pass
+            except Exception as err:
+                # Rollback on any commit failure
+                conn.rollback()
+                logger.exception("Database commit failed")
+                # Re-raise as SQLAlchemyError to propagate the failure
+                raise SQLAlchemyError("Database commit failed") from err
             return result
 
 
@@ -247,7 +254,18 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
     if AsyncSessionLocal is None:
         if create_async_engine is None:
             raise SQLAlchemyAsyncNotAvailableError()
+
+
+@asynccontextmanager
+async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
+    """Async context manager for atomic DB operations."""
+
+    if AsyncSessionLocal is None:
+        if create_async_engine is None:
+            raise SQLAlchemyAsyncNotAvailableError()
         raise AsyncSQLAlchemyNotConfiguredError()
+
+    # …rest of the function…
 
     session = AsyncSessionLocal()
     try:
@@ -324,7 +342,7 @@ async def init_db_async() -> None:
         await conn.run_sync(metadata.create_all)
 
 
-def get_db_connection():
+def get_db_connection() -> Connection:
     """Get a database connection for testing purposes.
 
     RU: Возвращает соединение c базой данных для тестирования.
@@ -339,7 +357,7 @@ def get_db_connection():
         raise
 
 
-def execute_query(query: str, params: Optional[dict] = None):
+def execute_query(query: str, params: Optional[Mapping[str, Any]] = None) -> Result[Any]:
     """Execute a SQL query with optional parameters.
 
     RU: Vypolnyaet SQL-zapros s opcionalnymi parametrami.
@@ -365,7 +383,7 @@ def execute_query(query: str, params: Optional[dict] = None):
         return result
 
 
-def close_all_connections():
+def close_all_connections() -> None:
     """Close all database connections.
 
     RU: Zakryvaet vse soedineniya s bazoy dannykh.
@@ -374,7 +392,7 @@ def close_all_connections():
     _RAW_ENGINE.dispose()
 
 
-def create_tables():
+def create_tables() -> None:
     """Create all database tables.
 
     RU: Создаёт все таблицы базы данных.
@@ -383,7 +401,7 @@ def create_tables():
     init_db()
 
 
-def get_schema_version():
+def get_schema_version() -> str:
     """Get the current database schema version.
 
     RU: Возвращает текущую версию схемы базы данных.
@@ -393,7 +411,7 @@ def get_schema_version():
     return "1.0"
 
 
-def ensure_tables():
+def ensure_tables() -> None:
     """Ensure all database tables exist.
 
     RU: Убеждается, что все таблицы базы данных существуют.
@@ -402,7 +420,7 @@ def ensure_tables():
     init_db()
 
 
-def backup_db(path: str):
+def backup_db(path: str) -> None:
     """Backup the database.
 
     RU: Создаёт резервную копию базы данных.
@@ -412,7 +430,7 @@ def backup_db(path: str):
     pass
 
 
-def restore_db(path: str):
+def restore_db(path: str) -> None:
     """Restore the database from backup.
 
     RU: Восстанавливает базу данных из резервной копии.
@@ -422,7 +440,7 @@ def restore_db(path: str):
     pass
 
 
-def get_table_info(table: str):
+def get_table_info(table: str) -> dict[str, Any]:
     """Get information about database tables.
 
     RU: Vozvrashchaet informatsiyu o tablitsakh bazy dannykh.
@@ -432,7 +450,7 @@ def get_table_info(table: str):
     return {}
 
 
-def validate_schema(table: str):
+def validate_schema(table: str) -> bool:
     """Validate database schema.
 
     RU: Проверяет схему базы данных.
