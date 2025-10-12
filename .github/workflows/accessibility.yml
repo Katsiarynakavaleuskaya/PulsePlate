@@ -12,6 +12,10 @@ permissions:
 
 jobs:
   accessibility:
+    timeout-minutes: 20
+    concurrency:
+      group: access-tests-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm
@@ -34,6 +38,7 @@ jobs:
       - name: Run full test suite with accessibility checks
         run: npm run test
         env:
+          CI: true
           VITE_API_BASE: http://localhost:8000/api/v1
           VITE_API_KEY: test_key
           VITE_DEV_MODE: true
@@ -41,7 +46,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: accessibility-test-results
           path: frontend/test-results/

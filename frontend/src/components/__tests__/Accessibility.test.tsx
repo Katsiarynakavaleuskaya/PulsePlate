@@ -61,17 +61,16 @@ describe('Accessibility Tests', () => {
           onChange={() => {}}
         />
       );
-      const switchElement = container.querySelector('[role="switch"]');
-      const labelId = switchElement?.getAttribute('aria-labelledby');
+      const switchElement = screen.getByRole('switch');
+      const labelId = switchElement.getAttribute('aria-labelledby')!;
 
       // Verify that aria-labelledby is set and points to a valid element
-      expect(labelId).toBeTruthy();
       expect(labelId).toMatch(/^toggle-label-/);
 
       // Find the label element by its ID
-      const label = container.querySelector(`[id="${labelId}"]`);
-      expect(label).toBeTruthy();
-      expect(label?.textContent).toBe('Accessibility Test Toggle');
+      const label = document.getElementById(labelId)!;
+      expect(label.textContent).toBe('Accessibility Test Toggle');
+      expect(switchElement).toHaveAccessibleName('Accessibility Test Toggle');
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();
@@ -89,8 +88,8 @@ describe('Accessibility Tests', () => {
         </div>
       );
 
-      const switchElement = container.querySelector('[role="switch"]');
-      expect(switchElement).toHaveAttribute('disabled');
+      const switchElement = screen.getByRole('switch');
+      expect(switchElement).toBeDisabled();
       expect(switchElement).toHaveClass('cursor-not-allowed');
 
       const results = await axe(container);
@@ -193,12 +192,16 @@ describe('Accessibility Tests', () => {
         </div>
       );
       expect(switchElement).toHaveAttribute('aria-checked', 'true');
+      const updatedSwitch = screen.getByRole('switch');
+      expect(updatedSwitch).toHaveAttribute('aria-checked', 'true');
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
-    it('should pass color contrast accessibility checks', async () => {
+    it.skip('should pass color contrast accessibility checks', async () => {
+      // JSDOM does not compute real styles, so axe color-contrast rule reports false negatives.
+      // Covered by browser-based axe run in Playwright suite (frontend/tests/accessibility.spec.ts).
       const { container } = render(
         <div role="main">
           <Toggle
