@@ -116,7 +116,7 @@ class TestWeeklyPlanModule:
             )
 
             # Create macro targets
-            macros = MacroTargets(protein_g=150, carbs_g=250, fat_g=70)
+            macros = MacroTargets(protein_g=150, carbs_g=250, fat_g=70, fiber_g=30)
 
             # Create micro targets (simplified)
             micros = MicroTargets(
@@ -138,8 +138,8 @@ class TestWeeklyPlanModule:
             activity = ActivityTargets(
                 moderate_aerobic_min=150,
                 vigorous_aerobic_min=75,
-                strength_training_min=60,
-                flexibility_min=30,
+                strength_sessions=2,
+                steps_daily=8000,
             )
 
             targets = NutritionTargets(
@@ -154,7 +154,10 @@ class TestWeeklyPlanModule:
             # Test with empty diet flags
             with patch("core.weekly_plan.parse_food_db", return_value={}):
                 with patch("core.weekly_plan.parse_recipe_db", return_value={}):
-                    with patch("core.weekly_plan.create_daily_plate", return_value={}):
+                    with patch(
+                        "core.weekly_plan.create_daily_plate",
+                        return_value={"meals": [], "micro_coverage": {}},
+                    ):
                         plan = generate_weekly_plan(targets, set())
                         assert isinstance(plan, (dict, type(None)))
 
@@ -188,7 +191,7 @@ class TestWeeklyPlanModule:
             )
 
             # Create macro targets
-            macros = MacroTargets(protein_g=120, carbs_g=200, fat_g=60)
+            macros = MacroTargets(protein_g=120, carbs_g=200, fat_g=60, fiber_g=25)
 
             # Create micro targets (simplified)
             micros = MicroTargets(
@@ -210,8 +213,8 @@ class TestWeeklyPlanModule:
             activity = ActivityTargets(
                 moderate_aerobic_min=120,
                 vigorous_aerobic_min=60,
-                strength_training_min=45,
-                flexibility_min=20,
+                strength_sessions=2,
+                steps_daily=7000,
             )
 
             targets = NutritionTargets(
@@ -228,7 +231,10 @@ class TestWeeklyPlanModule:
 
             with patch("core.weekly_plan.parse_food_db", return_value={}):
                 with patch("core.weekly_plan.parse_recipe_db", return_value={}):
-                    with patch("core.weekly_plan.create_daily_plate", return_value={}):
+                    with patch(
+                        "core.weekly_plan.create_daily_plate",
+                        return_value={"meals": [], "micro_coverage": {}},
+                    ):
                         plan = generate_weekly_plan(targets, diet_flags)
                         assert isinstance(plan, (dict, type(None)))
 
