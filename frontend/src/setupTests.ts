@@ -1,7 +1,14 @@
-// RU: Расширяем expect матчерами jest-dom для RTL.
-// EN: Extend expect with jest-dom matchers for RTL.
-import "@testing-library/jest-dom";
-import { server } from "./mocks/server";
+import '@testing-library/jest-dom';
+import { toHaveNoViolations } from 'jest-axe';
+import { configure } from '@testing-library/react';
+import { server } from './mocks/server';
+import { vi } from 'vitest';
+
+// Extend Jest matchers with axe accessibility matchers
+expect.extend(toHaveNoViolations);
+
+// Configure testing library to use data-testid attribute
+configure({ testIdAttribute: 'data-testid' });
 
 // Setup window.location for React Router tests
 delete (window as any).location;

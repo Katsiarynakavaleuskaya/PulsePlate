@@ -1,24 +1,28 @@
 # Cursor AI Configuration for PulsePlate Project
 
 ## AI Model Configuration
+
 - Primary Model: GPT-5 (OpenAI Pro)
 - Secondary Model: Codex (OpenAI Pro)
 - Fallback Model: Grok-3 (CometAPI)
 - Context: Full project understanding
 
 ## Project Context
+
 - FastAPI backend with 97% test coverage
 - iOS SwiftUI frontend with localization
 - HealthKit integration
 - VIP features for nutrition optimization
 
 ## Code Style
+
 - Python: Black formatter, line-length=100
 - Swift: Apple HIG guidelines
 - Type hints required
 - Comprehensive testing
 
 ## AI Instructions
+
 - Focus on health/nutrition domain
 - Maintain 97% test coverage
 - Follow Apple HIG for iOS
@@ -26,6 +30,7 @@
 - Prioritize user experience
 
 ## Model Priority
+
 1. **GPT-5**: Primary for complex reasoning, architecture decisions
 2. **Codex**: Secondary for code generation, refactoring
 3. **Grok-3**: Fallback for alternative perspectives, creative solutions
