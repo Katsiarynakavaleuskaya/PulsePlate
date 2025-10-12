@@ -20,9 +20,21 @@ def is_transient_error(exception: BaseException) -> bool:
     Returns:
         True если ошибка транзиентная и стоит повторить запрос
     """
+    # Unwrap chained exceptions to get the original underlying exception
+    original_exception = exception
+    while hasattr(original_exception, "__cause__") and original_exception.__cause__ is not None:
+        original_exception = original_exception.__cause__
+    # Fallback to __context__ if __cause__ is not available
+    if (
+        original_exception == exception
+        and hasattr(original_exception, "__context__")
+        and original_exception.__context__ is not None
+    ):
+        original_exception = original_exception.__context__
+
     # Network/connection errors - всегда транзиентные
     if isinstance(
-        exception,
+        original_exception,
         (
             httpx.ConnectError,
             httpx.ConnectTimeout,
@@ -35,8 +47,8 @@ def is_transient_error(exception: BaseException) -> bool:
         return True
 
     # Проверяем HTTP статус коды для OpenAI SDK ошибок
-    if hasattr(exception, "response"):
-        response = getattr(exception, "response", None)
+    if hasattr(original_exception, "response"):
+        response = getattr(original_exception, "response", None)
         if response and hasattr(response, "status_code"):
             status_code = getattr(response, "status_code", None)
             # 5xx - серверные ошибки (транзиентные)
@@ -46,7 +58,7 @@ def is_transient_error(exception: BaseException) -> bool:
                 return True
 
     # Проверяем строковое представление ошибки на наличие ключевых слов
-    error_str = str(exception).lower()
+    error_str = str(original_exception).lower()
     transient_keywords = [
         "timeout",
         "connection",

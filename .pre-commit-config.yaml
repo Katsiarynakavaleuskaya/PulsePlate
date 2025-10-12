@@ -9,16 +9,7 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
 
-  # --- Code style: Black
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
-    hooks:
-      - id: black
-        name: black (format)
-        language_version: python3
-        files: ^(?!frontend/).+\.py$
-
-  # --- Lint: Ruff (fast flake8 + isort)
+  # --- Lint: Ruff (fast flake8 + isort + black replacement)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:

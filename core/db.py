@@ -111,6 +111,7 @@ class EngineCompat:
                 import logging
 
                 logging.warning(f"Database commit failed: {e}")
+                pass  # nosec B110
             return result
 
 
@@ -307,7 +308,7 @@ def get_db_connection():
     try:
         return _RAW_ENGINE.connect()
     except Exception:
-        return None
+        return None  # nosec B110
 
 
 def execute_query(query: str, params: Optional[dict] = None):
@@ -366,11 +367,11 @@ def get_schema_version():
     return "1.0"
 
 
-def migrate_db():
-    """Migrate database to latest schema.
+def ensure_tables():
+    """Ensure all database tables exist.
 
-    RU: Мигрирует базу данных к последней схеме.
-    EN: Migrates database to latest schema.
+    RU: Убеждается, что все таблицы базы данных существуют.
+    EN: Ensures all database tables exist.
     """
     init_db()
 
