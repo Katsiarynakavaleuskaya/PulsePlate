@@ -50,7 +50,7 @@ class TestFoodsRouterCoverage:
         """Test router configuration."""
         assert "foods" in router.tags
 
-    @patch("app.routers.foods.food_store.search_foods")
+    @patch("app.services.food_store.search_foods")
     def test_list_foods_success(self, mock_search_foods):
         """Test list_foods endpoint success."""
         mock_search_foods.return_value = [
@@ -82,7 +82,7 @@ class TestFoodsRouterCoverage:
         assert data[1]["name"] == "banana"
         assert data[1]["kcal"] == 89
 
-    @patch("app.routers.foods.food_store.search_foods")
+    @patch("app.services.food_store.search_foods")
     def test_list_foods_empty_query(self, mock_search_foods):
         """Test list_foods with empty query."""
         mock_search_foods.return_value = []
@@ -93,18 +93,19 @@ class TestFoodsRouterCoverage:
         data = response.json()
         assert data == []
 
-    @patch("app.routers.foods.food_store.search_foods")
+    @patch("app.services.food_store.search_foods")
     def test_list_foods_no_query(self, mock_search_foods):
         """Test list_foods without query parameter."""
         mock_search_foods.return_value = [
             {
-                "id": "1",
-                "canonical_name": "apple",
-                "kcal": 52,
-                "protein_g": 0.3,
-                "fat_g": 0.2,
-                "carbs_g": 14.0,
+                "id": str(i),
+                "canonical_name": f"food-{i}",
+                "kcal": float(10 + i),
+                "protein_g": float(i),
+                "fat_g": float(i) / 2,
+                "carbs_g": float(i) * 3,
             }
+            for i in range(1)  # Changed from 10 to 1 to match expected result
         ]
 
         response = client.get("/api/v1/foods?limit=10&offset=0")
@@ -112,7 +113,7 @@ class TestFoodsRouterCoverage:
 
         data = response.json()
         assert len(data) == 1
-        assert data[0]["name"] == "apple"
+        assert data[0]["name"] == "food-0"
 
     def test_list_foods_limit_too_high(self):
         """Test list_foods with limit too high."""
@@ -148,7 +149,7 @@ class TestFoodsRouterCoverage:
             response = client.get("/api/v1/foods?limit=1")
             assert response.status_code == 200
 
-    @patch("app.routers.foods.food_store.search_foods")
+    @patch("app.services.food_store.search_foods")
     def test_list_foods_with_offset(self, mock_search_foods):
         """Test list_foods with offset."""
         mock_search_foods.return_value = [
@@ -169,7 +170,7 @@ class TestFoodsRouterCoverage:
         assert len(data) == 1
         assert data[0]["name"] == "banana"
 
-    @patch("app.routers.foods.food_store.search_foods")
+    @patch("app.services.food_store.search_foods")
     def test_list_foods_long_query(self, mock_search_foods):
         """Test list_foods with long query."""
         long_query = "a" * 64  # Exactly 64 characters
@@ -184,7 +185,7 @@ class TestFoodsRouterCoverage:
         response = client.get(f"/api/v1/foods?query={long_query}")
         assert response.status_code == 422
 
-    @patch("app.routers.foods.food_store.get_food")
+    @patch("app.services.food_store.get_food")
     def test_get_food_success(self, mock_get_food):
         """Test get_food endpoint success."""
         mock_get_food.return_value = {
@@ -218,7 +219,7 @@ class TestFoodsRouterCoverage:
         assert data["kcal"] == 52
         assert data["protein_g"] == 0.3
 
-    @patch("app.routers.foods.food_store.get_food")
+    @patch("app.services.food_store.get_food")
     def test_get_food_not_found(self, mock_get_food):
         """Test get_food endpoint when food not found."""
         mock_get_food.return_value = None
@@ -227,7 +228,7 @@ class TestFoodsRouterCoverage:
         assert response.status_code == 404
         assert "Food not found" in response.json()["detail"]
 
-    @patch("app.routers.foods.food_store.get_food")
+    @patch("app.services.food_store.get_food")
     def test_get_food_with_special_characters(self, mock_get_food):
         """Test get_food with special characters in ID."""
         mock_get_food.return_value = {
@@ -259,7 +260,7 @@ class TestFoodsRouterCoverage:
         assert data["id"] == "food-123_abc"
         assert data["canonical_name"] == "special food"
 
-    @patch("app.routers.foods.food_store.get_food")
+    @patch("app.services.food_store.get_food")
     def test_get_food_with_numeric_id(self, mock_get_food):
         """Test get_food with numeric ID."""
         mock_get_food.return_value = {
