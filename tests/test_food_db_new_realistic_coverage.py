@@ -60,10 +60,10 @@ class FoodProvider(BaseProvider):
         return self.random_element(self.food_categories)
 
     def nutrition_value(self):
-        return round(random.uniform(0, 500), 2)
+        return round(random.uniform(0, 500), 2)  # nosec B311
 
     def food_barcode(self):
-        return "".join([str(random.randint(0, 9)) for _ in range(13)])
+        return "".join([str(random.randint(0, 9)) for _ in range(13)])  # nosec B311
 
 
 fake.add_provider(FoodProvider)
@@ -100,9 +100,9 @@ class TestFoodDbNewRealisticCoverage:
                     results = search_foods(term)
                     # Should handle all cases gracefully
                     assert isinstance(results, (list, dict, type(None)))
-                except Exception:
+                except Exception as e:
                     # Some edge cases might fail gracefully
-                    pass
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Test barcode searches
             barcodes = [fake.food_barcode(), "123456789012", "", None, "invalid_barcode"]
@@ -110,8 +110,8 @@ class TestFoodDbNewRealisticCoverage:
             for barcode in barcodes:
                 try:
                     search_by_barcode(barcode)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -146,8 +146,8 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     validate_food_data(food)
                     normalize_food_data(food)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Test with invalid data
             invalid_samples = [{}, {"name": ""}, {"calories": -1}, {"protein": "invalid"}, None, []]
@@ -155,9 +155,9 @@ class TestFoodDbNewRealisticCoverage:
             for invalid in invalid_samples:
                 try:
                     validate_food_data(invalid)
-                except Exception:
+                except Exception as e:
                     # Expected to fail
-                    pass
+                    assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -170,14 +170,14 @@ class TestFoodDbNewRealisticCoverage:
             # Test database updates
             try:
                 update_food_database()
-            except Exception:
-                pass
+            except Exception as e:
+                assert False, f"Unexpected exception in food db test: {e}"
 
             # Test external source sync
             try:
                 sync_external_sources()
-            except Exception:
-                pass
+            except Exception as e:
+                assert False, f"Unexpected exception in food db test: {e}"
 
             # Test with realistic update scenarios
             update_scenarios = [
@@ -191,8 +191,8 @@ class TestFoodDbNewRealisticCoverage:
             for scenario in update_scenarios:
                 try:
                     update_food_database(**scenario)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -225,14 +225,14 @@ class TestFoodDbNewRealisticCoverage:
                     # Retrieve again
                     cached_again = get_cached_food(food_id)
 
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Test cache clearing
             try:
                 clear_cache()
-            except Exception:
-                pass
+            except Exception as e:
+                assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -253,8 +253,8 @@ class TestFoodDbNewRealisticCoverage:
             for query in usda_queries:
                 try:
                     result = fetch_from_usda(query)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Test OpenFood API calls
             openfood_barcodes = [fake.food_barcode(), "3017620422003", "invalid"]  # Real barcode
@@ -262,8 +262,8 @@ class TestFoodDbNewRealisticCoverage:
             for barcode in openfood_barcodes:
                 try:
                     result = fetch_from_openfood(barcode)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -295,8 +295,8 @@ class TestFoodDbNewRealisticCoverage:
                     try:
                         scaled = scale_nutrition(base_nutrition, size)
                         calculated = calculate_nutrition([base_nutrition, scaled])
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -312,8 +312,8 @@ class TestFoodDbNewRealisticCoverage:
             for format_type in export_formats:
                 try:
                     exported = export_foods(format=format_type, limit=100)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Generate realistic import data
             import_data = []
@@ -330,8 +330,8 @@ class TestFoodDbNewRealisticCoverage:
             # Test import
             try:
                 import_foods(import_data)
-            except Exception:
-                pass
+            except Exception as e:
+                assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -352,16 +352,16 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     fuzzy_results = fuzzy_search(variation)
                     exact_results = exact_search(original)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
             # Test category search
             categories = [fake.food_category() for _ in range(5)]
             for category in categories:
                 try:
                     category_results = category_search(category)
-                except Exception:
-                    pass
+                except Exception as e:
+                    assert False, f"Unexpected exception in food db test: {e}"
 
         except ImportError:
             pass
@@ -385,8 +385,8 @@ class TestFoodDbNewRealisticCoverage:
                         "results": len(results) if results else 0,
                         "duration": duration,
                     }
-                except Exception:
-                    return {"query": query, "results": 0, "duration": 0}
+                except Exception as e:
+                    return {"query": query, "results": 0, "duration": 0, "error": str(e)}
 
             # Concurrent search performance test
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:

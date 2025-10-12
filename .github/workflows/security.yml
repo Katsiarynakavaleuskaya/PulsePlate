@@ -54,13 +54,13 @@ jobs:
           [[ -f requirements-dev.txt ]] && FILES+=("-r" "requirements-dev.txt")
           set +e
           if (( ${#FILES[@]} )); then
-            safety check "${FILES[@]}" --json --output safety-report.json
+            safety check "${FILES[@]}" -o json > safety-report.json
             safety_json_exit=$?
             safety check "${FILES[@]}"
             safety_console_exit=$?
           else
             echo "No requirements files found; falling back to environment scan."
-            safety check --json --output safety-report.json
+            safety check -o json > safety-report.json
             safety_json_exit=$?
             safety check
             safety_console_exit=$?
