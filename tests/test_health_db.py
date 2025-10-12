@@ -20,7 +20,7 @@ def test_health_db_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_health_db_failure(monkeypatch) -> None:
+def test_health_db_failure() -> None:
     """RU: Ошибка БД приводит к 503. EN: DB failure surfaces as 503."""
 
     class BrokenSession:
@@ -37,7 +37,9 @@ def test_health_db_failure(monkeypatch) -> None:
         finally:
             session.close()
 
-    monkeypatch.setattr(db_module, "SessionLocal", lambda: BrokenSession())
+    # Use FastAPI dependency override instead of monkeypatch
+    if app.app is not None:
+        app.app.dependency_overrides[db_module.get_session] = broken_get_session
 
     try:
         with TestClient(cast(ASGIApp, app.app)) as client:
