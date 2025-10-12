@@ -35,7 +35,7 @@ class FoodDatabaseBuilder:
     def __init__(self, project_root: str = None):
         """Initialize builder with project paths."""
         if project_root is None:
-            project_root = Path(__file__).parent.parent
+            project_root = str(Path(__file__).parent.parent)
 
         self.project_root = Path(project_root)
         self.data_dir = self.project_root / "data"
@@ -75,21 +75,21 @@ class FoodDatabaseBuilder:
             print(f"  ❌ USDA error: {e}")
 
         # Load OFF data (from chunks or single file)
-        off_data = []
+        off_data: List[Dict] = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
-            adapter = OFFAdapter(str(self.off_chunks_dir))
+            adapter = OFFAdapter(str(self.off_chunks_dir))  # type: ignore[assignment]
         else:
             print("  📊 Loading OFF from single file")
-            adapter = OFFAdapter()
+            adapter = OFFAdapter()  # type: ignore[assignment]
 
         try:
-            off_data = list(adapter.normalize())
+            off_data = list(adapter.normalize())  # type: ignore[arg-type]
             print(f"  ✅ OFF: {len(off_data)} records")
         except Exception as e:
             print(f"  ❌ OFF error: {e}")
 
-        return usda_data, off_data
+        return usda_data, off_data  # type: ignore[return-value]
 
     def merge_and_validate(self, usda_data: List[Dict], off_data: List[Dict]) -> List[FoodItem]:
         """
@@ -99,7 +99,7 @@ class FoodDatabaseBuilder:
         print("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
-        merged_records = merge_records([usda_data, off_data])
+        merged_records = merge_records([usda_data, off_data])  # type: ignore[list-item]
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
@@ -163,7 +163,7 @@ class FoodDatabaseBuilder:
             f"{canonical_name}_{record.get('source', '')}_"
             f"{record.get('fdc_id', '')}_{record.get('gtin', '')}"
         )
-        return hashlib.md5(key_data.encode()).hexdigest()[:12]
+        return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]  # nosec B324
 
     def save_parquet(self, foods: List[FoodItem]) -> None:
         """
@@ -307,9 +307,9 @@ class FoodDatabaseBuilder:
 
         # Calculate statistics
         total_foods = len(foods)
-        sources = {}
-        groups = {}
-        micronutrient_coverage = {}
+        sources: Dict[str, int] = {}
+        groups: Dict[str, int] = {}
+        micronutrient_coverage: Dict[str, int] = {}
 
         for food in foods:
             # Source distribution

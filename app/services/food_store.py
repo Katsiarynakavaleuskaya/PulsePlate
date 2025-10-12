@@ -45,7 +45,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE """
-            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))
+            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))  # nosec B608
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]

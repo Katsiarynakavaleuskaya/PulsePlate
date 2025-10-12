@@ -3,7 +3,7 @@
 Анализ непокрытых строк для достижения 97% покрытия тестами.
 """
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
@@ -26,8 +26,7 @@ def run_coverage_analysis():
     )
 
     # Запускаем pytest с детальным отчетом покрытия
-
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603
         [
             sys.executable,
             "-m",

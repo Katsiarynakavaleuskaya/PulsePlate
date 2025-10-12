@@ -8,7 +8,7 @@ EN: Food database update scheduler.
 
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 # Add project root to Python path
@@ -38,7 +38,7 @@ def update_food_database():
     try:
         # Run the build script
         build_script = os.path.join(project_root, "scripts", "build_food_db.py")
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, build_script],
             cwd=project_root,
             capture_output=True,

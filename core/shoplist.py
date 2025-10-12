@@ -75,7 +75,7 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:
+            except Exception:  # nosec B110
                 # Если не удалось загрузить, используем правила по умолчанию
                 pass
 

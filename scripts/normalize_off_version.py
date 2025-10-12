@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -47,7 +47,7 @@ def set_version(v: str) -> None:
 
 
 def validate() -> int:
-    p = subprocess.run([sys.executable, "scripts/validate_data.py"], capture_output=True, text=True)
+    p = subprocess.run([sys.executable, "scripts/validate_data.py"], capture_output=True, text=True)  # nosec B603
     sys.stdout.write(p.stdout)
     sys.stderr.write(p.stderr)
     # 0 — OK, иначе деградировано

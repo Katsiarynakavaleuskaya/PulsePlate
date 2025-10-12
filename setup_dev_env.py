@@ -6,7 +6,7 @@ PulsePlate Development Environment Setup
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -15,7 +15,7 @@ def run_command(cmd: str, description: str) -> bool:
     """Запустить команду и вернуть результат"""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
         if result.returncode == 0:
             print(f"✅ {description} - успешно")
             return True

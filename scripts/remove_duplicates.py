@@ -81,7 +81,7 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
         # Full duplicates hash collection
         try:
             h = sha256_of(f)
-        except Exception:
+        except Exception:  # nosec B112
             continue
         by_hash.setdefault(h, []).append(f)
 
@@ -190,12 +190,12 @@ def main() -> int:
                 try:
                     p.unlink()
                     to_remove.append(p)
-                except Exception as e:
+                except Exception as e:  # nosec B110
                     print("   ! error removing", p, e)
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")
-        for p in removed + [str(x) for x in to_remove]:
+        for p in removed + [str(x) for x in to_remove]:  # type: ignore[assignment]
             print("  ", p)
     else:
         print(

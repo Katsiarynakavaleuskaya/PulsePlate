@@ -4,7 +4,7 @@
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
@@ -14,7 +14,7 @@ def run_command(cmd, description):
     print(f"Команда: {' '.join(cmd)}")
     print("=" * 60)
 
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())  # nosec B603
 
     print("STDOUT:")
     print(result.stdout)

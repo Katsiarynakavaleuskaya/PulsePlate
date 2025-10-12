@@ -99,7 +99,7 @@ def get_or_create_encryption_key() -> bytes:
         if temp_file.exists():
             try:
                 temp_file.unlink()
-            except Exception:
+            except Exception:  # nosec B110
                 pass  # Best effort cleanup
         raise OSError(
             f"Failed to write encryption key to {key_file}: {type(e).__name__}: {e}"

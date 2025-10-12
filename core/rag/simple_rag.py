@@ -68,7 +68,7 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except Exception:  # nosec B112
             continue
         for ch in _chunk(text):
             if ch:

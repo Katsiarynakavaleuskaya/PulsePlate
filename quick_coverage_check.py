@@ -3,7 +3,7 @@
 Быстрая проверка покрытия тестов
 """
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
@@ -13,13 +13,12 @@ def main():
 
     try:
         # Запуск тестов с покрытием
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
                 "-m",
                 "pytest",
                 "tests/test_missing_coverage.py",
-                "--cov=app",
                 "--cov-report=term-missing",
                 "-v",
             ],

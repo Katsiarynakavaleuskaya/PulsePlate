@@ -24,8 +24,8 @@ class OllamaProvider(ProviderBase):
         self.timeout_s = float(timeout_s)
 
     def generate(self, text: str) -> str:
+        # 1) /api/chat (если доступно)
         try:
-            # 1) /api/chat (если доступно)
             with httpx.Client(timeout=self.timeout_s) as c:
                 r = c.post(
                     f"{self.endpoint}/api/chat",
@@ -53,7 +53,7 @@ class OllamaProvider(ProviderBase):
                     # Если 200, но пусто — пойдём на /api/generate
                 else:
                     r.raise_for_status()
-        except Exception:
+        except Exception:  # nosec B110
             # переходим ко 2-му пути ниже
             pass
 

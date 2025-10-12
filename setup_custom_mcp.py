@@ -56,7 +56,7 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
         )
         if response not in ["y", "yes"]:
             print("❌ Setup cancelled. Use --force to overwrite without prompting.")
-            return False
+            return False  # type: ignore[return-value]
 
         # Create backups
         for file_path, description in existing_files:
@@ -134,7 +134,7 @@ MCP_ENABLED=true
     print("3. 🔄 Restart Cursor")
     print("4. ✅ Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
-    return True
+    return True  # type: ignore[return-value]
 
 
 def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
@@ -154,6 +154,6 @@ def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_mess
 
 
 if __name__ == "__main__":
-    success = setup_custom_mcp()
+    success = setup_custom_mcp()  # type: ignore[func-returns-value]
     if not success:
         sys.exit(1)

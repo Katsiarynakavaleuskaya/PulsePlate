@@ -69,7 +69,7 @@ class RecipeDB:
         if not candidates:
             # fallback: любой с совместимыми флагами
             candidates = [r for r in self.recipes if self._compatible(r.tags, diet_flags)]
-        return random.choice(candidates) if candidates else None
+        return random.choice(candidates) if candidates else None  # nosec B311
 
     def _compatible(self, recipe_flags: List[str], diet_flags: List[str]) -> bool:
         if "VEG" in diet_flags and "OMNI" in recipe_flags:
@@ -169,7 +169,7 @@ class RecipeDB:
         # первичное масштабирование
         grams = {k: max(10.0, float(v) * alpha) for k, v in grams.items()}
         # лёгкая рандомизация (±5%) для вариативности
-        grams = {k: v * (0.95 + 0.10 * random.random()) for k, v in grams.items()}
+        grams = {k: v * (0.95 + 0.10 * random.random()) for k, v in grams.items()}  # nosec B311
         nut = self._nutrition_for(grams)
 
         # если сильно промахнулись по цели >5%, подправим ещё раз

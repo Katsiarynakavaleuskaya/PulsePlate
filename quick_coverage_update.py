@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Quick coverage check for our progress."""
 
-import subprocess
+import subprocess  # nosec B404
 import time
 
 
@@ -25,7 +25,7 @@ def run_coverage_check():
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603
         elapsed = time.time() - start_time
 
         lines = result.stdout.split("\n")

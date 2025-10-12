@@ -4,15 +4,15 @@ Script to find and fix failing tests systematically
 """
 
 import glob
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 
 def run_test_file(test_file):
     """Run a single test file and return result"""
     try:
-        result = subprocess.run(
-            ["python", "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
+        result = subprocess.run(  # nosec B603
+            [sys.executable, "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
             capture_output=True,
             text=True,
             timeout=60,

@@ -337,7 +337,7 @@ def _register_font() -> str:
         if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return "Helvetica"
 

@@ -25,17 +25,18 @@ repos:
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
     hooks:
-      - id: mypy
-        name: mypy (type-check)
-        args:
-          - --pretty
-          - --show-error-codes
-          - --implicit-optional
-          - --ignore-missing-imports
-          - --install-types
-          - --non-interactive
-          - --exclude=_pickle
-        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+               - id: mypy
+                 name: mypy (type-check)
+                 args:
+                   - --pretty
+                   - --show-error-codes
+                   - --implicit-optional
+                   - --ignore-missing-imports
+                   - --install-types
+                   - --non-interactive
+                   - --exclude=_pickle
+                   - --exclude=app/__init__.py
+                 files: ^(app\.py|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit

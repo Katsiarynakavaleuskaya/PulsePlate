@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field, StrictFloat, model_validator
 
 try:
     pass  # type: ignore
-
-except Exception:
+except Exception:  # nosec B110
     # dotenv is optional; skip if missing in test env
     pass
 
