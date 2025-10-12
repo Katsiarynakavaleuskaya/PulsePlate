@@ -3680,6 +3680,8 @@ Análisis
 androide
 años
 Años
+apiconnection
+apitimeout
 appicon
 appiconset
 apropiadas
@@ -3788,6 +3790,7 @@ debe
 Deberías
 dedupe
 dejavu
+delattr
 delenv
 deriat
 desarrollar
@@ -3909,6 +3912,7 @@ isfinite
 isinstance
 isoformat
 isort
+issubclass
 issubset
 italian
 iterrows
@@ -3943,6 +3947,8 @@ LIFESTAGE
 ligera
 lightgreen
 Lista
+llmflow
+LLMFLOW
 localisation
 localtunnel
 logfile
@@ -4105,6 +4111,7 @@ pycodestyle
 pydantic
 Pydantic
 pyenv
+Pyflakes
 pyfloat
 pylint
 pymysql
@@ -4113,6 +4120,7 @@ pyproject
 pyright
 pytest
 pythonpath
+pyupgrade
 pywin
 qualname
 queso
