@@ -40,7 +40,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r requirements-dev.txt
+          if [[ -f requirements-dev.txt ]]; then
+            pip install -r requirements-dev.txt
+          elif [[ -f requirements.txt ]]; then
+            pip install -r requirements.txt
+          fi
 
       - name: Run tests with coverage (97% gate)
         env:
@@ -57,16 +61,10 @@ jobs:
             -o junit_family=legacy \
             -x
 
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload test artifacts
+        uses: ./.github/workflows/upload-artifacts.yml
         with:
-          name: coverage-xml-${{ matrix.python-version }}
-          path: coverage.xml
-          if-no-files-found: ignore
-
-      - name: Upload JUnit test report
-        uses: actions/upload-artifact@v4
-        with:
-          name: junit-${{ matrix.python-version }}
-          path: tests/results.xml
-          if-no-files-found: ignore
+          coverage-file: coverage.xml
+          junit-file: tests/results.xml
+          python-version: ${{ matrix.python-version }}
+          artifact-prefix: python-tests

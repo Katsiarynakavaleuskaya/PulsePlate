@@ -3757,6 +3757,7 @@ contextmanager
 coro
 coveragerc
 csvfile
+cunningham
 Databonsai
 dataclass
 dataclasses
@@ -4172,6 +4173,7 @@ testtarget
 TEXTCOLOR
 Tienes
 timedelta
+timeframe
 Tomate
 TOPPADDING
 transferrables

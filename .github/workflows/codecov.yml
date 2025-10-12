@@ -48,24 +48,25 @@ jobs:
 
       - name: Restore static data fixtures
         if: always()
-        run: git checkout -- data/food_aliases.csv cache/food_db/database_versions.json
+        run: git checkout -- data/food_aliases.csv cache/food_db/database_versions.json || true
 
       - name: Upload to Codecov
         if: ${{ github.event_name == 'push' }}
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true
 
-      - name: Upload JUnit test report
-        uses: actions/upload-artifact@v4
+      - name: Upload test artifacts
+        uses: ./.github/workflows/upload-artifacts.yml
         with:
-          name: junit
-          path: tests/results.xml
-          if-no-files-found: ignore
+          coverage-file: coverage.xml
+          junit-file: tests/results.xml
+          python-version: "3.12"
+          artifact-prefix: codecov
 
       - name: Upload test results to Codecov
         if: ${{ github.event_name == 'push' && !cancelled() }}

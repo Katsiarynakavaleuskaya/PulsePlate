@@ -29,13 +29,24 @@ jobs:
 
       - name: Bandit security scan
         run: |
-          bandit -r . -x frontend,node_modules,dist,build,test-results,.venv,venv,cache -f json -o bandit-report.json
-          bandit -r . -x frontend,node_modules,dist,build,test-results,.venv,venv,cache -s B101
+          EXCLUDES="frontend,node_modules,dist,build,test-results,.venv,venv,cache"
+          SCAN_PATH="."
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -f json -o bandit-report.json
+          bandit -r "$SCAN_PATH" -x "$EXCLUDES" -s B101
 
       - name: Safety dependency scan
         run: |
-          safety check --json --output safety-report.json
-          safety check
+          FILES=()
+          [[ -f requirements.txt ]] && FILES+=("-r" "requirements.txt")
+          [[ -f requirements-dev.txt ]] && FILES+=("-r" "requirements-dev.txt")
+          if (( ${#FILES[@]} )); then
+            safety check "${FILES[@]}" --json --output safety-report.json
+            safety check "${FILES[@]}"
+          else
+            echo "No requirements files found; falling back to environment scan."
+            safety check --json --output safety-report.json
+            safety check
+          fi
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
