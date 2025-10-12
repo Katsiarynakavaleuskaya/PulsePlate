@@ -45,6 +45,8 @@ class TestDirectCoreFunctions:
             pytest.skip("targets functions not available")
         except Exception:
             pass  # nosec B110
+
+    def test_auto_repair_functions(self):
         """Direct tests of auto repair functions."""
         try:
             from core.auto_repair import (

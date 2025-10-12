@@ -98,8 +98,58 @@ class TestWeeklyPlanModule:
             from core.targets import NutritionTargets
             from core.weekly_plan import generate_weekly_plan
 
-            # Create mock targets
-            targets = NutritionTargets(calories=2000, protein=150, carbs=250, fat=70)
+            # Create mock targets with proper structure
+            from core.targets import MacroTargets, MicroTargets, ActivityTargets, UserProfile
+            from faker import Faker
+
+            fake = Faker()
+
+            # Create a mock user profile
+            user_profile = UserProfile(
+                age=30,
+                sex="male",
+                weight_kg=70.0,
+                height_cm=175.0,
+                activity="moderate",
+                goal="maintain",
+                timezone="UTC",
+            )
+
+            # Create macro targets
+            macros = MacroTargets(protein_g=150, carbs_g=250, fat_g=70)
+
+            # Create micro targets (simplified)
+            micros = MicroTargets(
+                iron_mg=18.0,
+                calcium_mg=1000.0,
+                magnesium_mg=400.0,
+                zinc_mg=11.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=900.0,
+                vitamin_c_mg=90.0,
+            )
+
+            # Create activity targets
+            activity = ActivityTargets(
+                moderate_aerobic_min=150,
+                vigorous_aerobic_min=75,
+                strength_training_min=60,
+                flexibility_min=30,
+            )
+
+            targets = NutritionTargets(
+                kcal_daily=2000,
+                macros=macros,
+                water_ml_daily=2500,
+                micros=micros,
+                activity=activity,
+                calculated_for=user_profile,
+            )
 
             # Test with empty diet flags
             with patch("core.weekly_plan.parse_food_db", return_value={}):
@@ -120,8 +170,58 @@ class TestWeeklyPlanModule:
             from core.targets import NutritionTargets
             from core.weekly_plan import generate_weekly_plan
 
-            # Mock targets
-            targets = NutritionTargets(calories=1800, protein=120, carbs=200, fat=60)
+            # Create mock targets with proper structure
+            from core.targets import MacroTargets, MicroTargets, ActivityTargets, UserProfile
+            from faker import Faker
+
+            fake = Faker()
+
+            # Create a mock user profile
+            user_profile = UserProfile(
+                age=25,
+                sex="female",
+                weight_kg=60.0,
+                height_cm=165.0,
+                activity="light",
+                goal="lose",
+                timezone="UTC",
+            )
+
+            # Create macro targets
+            macros = MacroTargets(protein_g=120, carbs_g=200, fat_g=60)
+
+            # Create micro targets (simplified)
+            micros = MicroTargets(
+                iron_mg=18.0,
+                calcium_mg=1000.0,
+                magnesium_mg=400.0,
+                zinc_mg=8.0,
+                potassium_mg=3500.0,
+                iodine_ug=150.0,
+                selenium_ug=55.0,
+                folate_ug=400.0,
+                b12_ug=2.4,
+                vitamin_d_iu=600.0,
+                vitamin_a_ug=700.0,
+                vitamin_c_mg=75.0,
+            )
+
+            # Create activity targets
+            activity = ActivityTargets(
+                moderate_aerobic_min=120,
+                vigorous_aerobic_min=60,
+                strength_training_min=45,
+                flexibility_min=20,
+            )
+
+            targets = NutritionTargets(
+                kcal_daily=1800,
+                macros=macros,
+                water_ml_daily=2000,
+                micros=micros,
+                activity=activity,
+                calculated_for=user_profile,
+            )
 
             # Test with diet flags
             diet_flags = {"vegetarian", "gluten_free"}

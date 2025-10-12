@@ -111,7 +111,7 @@ class TestTargetsRealisticCoverage:
                     "active_job": fake.boolean(),
                 }
 
-                with suppress(Exception):
+                try:
                     tdee = calculate_tdee(bmr, activity_level, **exercise_data)
                     assert isinstance(tdee, (int, float))
                     assert tdee >= bmr  # TDEE should be >= BMR
@@ -119,6 +119,9 @@ class TestTargetsRealisticCoverage:
                     # Test activity adjustment
                     adjusted = adjust_for_activity(bmr, activity_level)
                     assert adjusted >= bmr
+                except (ImportError, AttributeError, TypeError, ValueError):
+                    # Expected exceptions for missing modules or invalid data
+                    pass  # nosec B110
 
     def test_macro_distribution_realistic(self):
         """Test macro distribution with realistic dietary scenarios"""
