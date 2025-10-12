@@ -36,7 +36,7 @@ jobs:
           docker run --rm pulseplate:latest python -c "import app; print('App imports successfully')"
 
       - name: Security scan with Trivy
-        uses: aquasecurity/trivy-action@662472033e021d55d94146f66f6058822b0b39fd
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'pulseplate:latest'
           format: 'sarif'
