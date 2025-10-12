@@ -51,6 +51,13 @@ class EmptyQueryError(ValueError):
         super().__init__("Query cannot be empty")
 
 
+class DatabaseCommitError(SQLAlchemyError):
+    """Database commit failed."""
+
+    def __init__(self) -> None:
+        super().__init__("Database commit failed")
+
+
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.ext.asyncio import (
         AsyncEngine as AsyncEngineType,
@@ -149,7 +156,7 @@ class EngineCompat:
                 conn.rollback()
                 logger.exception("Database commit failed")
                 # Re-raise as SQLAlchemyError to propagate the failure
-                raise SQLAlchemyError("Database commit failed") from err
+                raise DatabaseCommitError() from err
             return result
 
 
