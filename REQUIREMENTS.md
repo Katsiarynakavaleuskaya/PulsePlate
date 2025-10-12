@@ -5,6 +5,7 @@
 ### Production Dependencies
 
 **`requirements.txt`** - Canonical source for production packages
+
 - All production dependencies with exact versions
 - Used in production deployments
 - Updated by Dependabot
@@ -12,6 +13,7 @@
 ### Development Dependencies
 
 **`requirements-dev.txt`** - Development and testing tools
+
 ```bash
 -r requirements.txt  # Includes all production deps
 pytest==8.4.2
@@ -20,6 +22,7 @@ pytest-cov==7.0.0
 ```
 
 **`requirements-all.txt`** - All dependencies (prod + dev)
+
 ```bash
 -r requirements.txt  # Includes production deps
 pytest>=8.3         # Dev tools with minimum versions
@@ -27,6 +30,7 @@ pytest>=8.3         # Dev tools with minimum versions
 ```
 
 **`constraints.txt`** - Exact versions for reproducible dev environments
+
 ```bash
 pytest==8.4.2
 black==25.9.0
@@ -36,16 +40,19 @@ black==25.9.0
 ## 🚀 Installation
 
 ### Production Environment
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### Development Environment (with exact versions)
+
 ```bash
 pip install -r requirements-dev.txt -c constraints.txt
 ```
 
 ### All Dependencies (flexible versions)
+
 ```bash
 pip install -r requirements-all.txt
 ```
@@ -53,11 +60,13 @@ pip install -r requirements-all.txt
 ## ✅ Verification
 
 Check consistency between requirements files:
+
 ```bash
 python verify_requirements.py
 ```
 
 This script ensures:
+
 - `requirements-dev.txt` doesn't override `requirements.txt` versions
 - `requirements-all.txt` uses `-r requirements.txt` (not duplicate pins)
 - No version conflicts between files
@@ -65,11 +74,13 @@ This script ensures:
 ## 🔄 Updating Dependencies
 
 ### Update Production Dependency
+
 1. Dependabot creates PR with updated `requirements.txt`
 2. Review and merge PR
 3. Verify with `python verify_requirements.py`
 
 ### Update Dev Dependency
+
 1. Update version in `requirements-dev.txt`
 2. Update constraint in `constraints.txt` (if needed)
 3. Run `python verify_requirements.py`
