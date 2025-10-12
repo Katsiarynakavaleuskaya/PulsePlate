@@ -5,9 +5,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main, develop, feat/**, fix/** ]
+  pull_request:
+    branches: [ main, develop ]
 
 jobs:
   coverage:
