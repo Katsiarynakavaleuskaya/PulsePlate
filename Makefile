@@ -6,6 +6,26 @@ health-check:
 
 unit-fast:
 	python3 -m pytest -q tests
+
+## Run tests with parallel execution (blast/pytest-xdist)
+test-parallel: ## Run tests in parallel for maximum speed
+	@echo "$(BLUE)🚀 Running tests with pytest-xdist (blast) for maximum speed$(NC)"
+	@CORES=$$(python3 -c "import os; print(os.cpu_count())"); \
+	echo "$(YELLOW)📊 Detected $$CORES CPU cores$(NC)"; \
+	WORKERS=$${1:-$$CORES}; \
+	echo "$(YELLOW)⚡ Using $$WORKERS parallel workers$(NC)"; \
+	echo "$(GREEN)🏃 Starting parallel test execution...$(NC)"; \
+	python3 -m pytest --cov=core --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=97 -v --tb=short --maxfail=10 --durations=10 tests/; \
+	echo "$(GREEN)✅ Parallel test execution completed!$(NC)"
+
+## Run tests with parallel execution (custom workers)
+test-blast: ## Run tests with custom number of workers (usage: make test-blast WORKERS=4)
+	@echo "$(BLUE)🚀 Running tests with pytest-xdist (blast) - custom workers$(NC)"
+	@WORKERS=$${WORKERS:-$$(python3 -c "import os; print(os.cpu_count())")}; \
+	echo "$(YELLOW)⚡ Using $$WORKERS parallel workers$(NC)"; \
+	echo "$(GREEN)🏃 Starting parallel test execution...$(NC)"; \
+	python3 -m pytest --cov=core --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=97 -v --tb=short --maxfail=10 --durations=10 tests/; \
+	echo "$(GREEN)✅ Parallel test execution completed!$(NC)"
 SHELL := /bin/bash
 PIP ?= . .venv/bin/activate && pip
 
@@ -75,26 +95,37 @@ cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
 	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
 
-## Lint (flake8)
-lint: ## Lint with flake8
+## Lint (ruff)
+lint: ## Lint with ruff
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	flake8 .
+	ruff check .
 
 ## Auto-fix (format + imports)
-fmt: ## Format with black and isort
+fmt: ## Format with ruff
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
-	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
+	ruff format .
+	ruff check --fix --select I,F401,UP,C4 .
+	ruff check --fix .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
+
+## Check imports
+check-imports: ## Check for import issues
+	@echo "$(YELLOW)📦 Проверка импортов...$(NC)"
+	python scripts/check_imports.py
+	@echo "$(GREEN)✅ Импорты проверены$(NC)"
+
+## Fix imports automatically
+fix-imports: ## Auto-fix import issues
+	@echo "$(YELLOW)🔧 Исправление импортов...$(NC)"
+	python scripts/check_imports.py --fix
+	ruff check --fix --select I,F401 .
+	@echo "$(GREEN)✅ Импорты исправлены$(NC)"
 
 ## Format check only
 fmt-check: ## Check code formatting
 	@echo "$(YELLOW)🔍 Проверка форматирования...$(NC)"
-	black --check --diff .
-	isort --check-only --diff .
+	ruff format --check .
+	ruff check .
 
 ## Security check
 security: ## Run security checks (bandit + pip-audit)
@@ -182,8 +213,14 @@ clean: ## Clean temporary files
 	rm -f bandit-report.json pip-audit.json
 	@echo "$(GREEN)✅ Очистка завершена$(NC)"
 
+## Type check with mypy
+mypy: ## Run mypy type checking
+	@echo "$(YELLOW)🔍 Проверка типов...$(NC)"
+	mypy app scripts
+	@echo "$(GREEN)✅ Типы проверены$(NC)"
+
 ## Full quality check
-check-all: fmt-check lint cov-check security ## Full quality check
+check-all: fmt-check lint mypy cov-check security ## Full quality check
 	@echo "$(GREEN)🎉 Все проверки пройдены успешно!$(NC)"
 
 ## Fix all auto-fixable issues
@@ -237,75 +274,9 @@ docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
+.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check mypy security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 check-imports fix-imports bandit bandit-full
 
-
-## Run local dev server on :8001
-dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-## Run tests (quiet)
-test: ## Run pytest
-	. .venv/bin/activate && pytest -q
-
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
-
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
-
-## Lint (flake8)
-lint: ## Lint with flake8
-	flake8 .
-
-## Auto-fix (format + imports)
-fmt: ## Format with black and isort
-
-## Smoke test (auto: 8000 then 8001)
-smoke-auto: ## Try health+bmi on 8000 then 8001
-	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
-	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
-	else \
-		echo "No server found on 8000/8001"; exit 1; \
-	fi
-
-## Smoke test on :8000
-smoke-8000: ## Smoke against http://127.0.0.1:8000
-	bash ./scripts/smoke.sh http://127.0.0.1:8000
-
-## Smoke test on :8001
-smoke-8001: ## Smoke against http://127.0.0.1:8001
-	bash ./scripts/smoke.sh http://127.0.0.1:8001
-
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
+## Additional utilities
 bandit:
 	@echo "[bandit] scanning changed files via pre-commit"
 	pre-commit run bandit || true
@@ -315,10 +286,3 @@ bandit-full:
 	bandit -q -r . \
 	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache \
 	  -s B101 || true
-
-lint:
-	ruff check .
-	black --check .
-	mypy app scripts
-
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full

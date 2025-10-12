@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Zero Coverage Modules Tests
 
@@ -7,6 +6,7 @@ EN: Tests for modules with zero coverage
 """
 
 import logging
+
 import pytest
 
 

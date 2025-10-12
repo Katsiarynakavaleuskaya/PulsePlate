@@ -1,6 +1,8 @@
-import re
-import sys
 from pathlib import Path
+import re
+from re import Match
+import sys
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TEST_DIRS = [ROOT / "tests"]
@@ -20,24 +22,43 @@ EXCEPT_PATTERNS = [
 ]
 
 
+def dedupe_match(match: Match[str]) -> str:
+    """Keep only the first logging.exception line from duplicates"""
+    lines = match.group(0).splitlines()
+    # Find the first logging.exception line and preserve its formatting
+    for line in lines:
+        if "logging.exception(" in line:
+            return line + "\n"
+    return ""
+
+
 def ensure_logging_import(text: str) -> str:
     lines = text.splitlines()
-    for i, line in enumerate(lines[:30]):  # ищем в первой трети для скорости
+    for line in lines[:30]:  # search in first 30 lines for speed
         if line.strip().startswith("import logging") or line.strip().startswith("from logging"):
             return text
-    # Вставим после возможной строки с будущим __future__/docstring/encoding
+    # Insert after possible shebang/__future__/docstring/encoding line
     insert_at = 0
-    # пропустим шебанг / кодировку / __future__ / docstring блок
-    while insert_at < len(lines) and (
-        lines[insert_at].startswith("#!")
-        or "coding:" in lines[insert_at]
-        or lines[insert_at].strip().startswith("from __future__")
-        or lines[insert_at].strip().startswith('"""')
-        or lines[insert_at].strip().startswith("'''")
-    ):
-        insert_at += 1
+    in_docstring = False
+    docstring_delim = None
+    while insert_at < len(lines):
+        raw = lines[insert_at]
+        line = raw.strip()
+        if line.startswith("#!") or "coding:" in line or line.startswith("from __future__"):
+            insert_at += 1
+        elif not in_docstring and (line.startswith('"""') or line.startswith("'''")):
+            in_docstring = True
+            docstring_delim = '"""' if line.startswith('"""') else "'''"
+            if line.endswith(docstring_delim) and len(line) > 6:  # single-line docstring """..."""
+                in_docstring = False
+            insert_at += 1
+        elif in_docstring and docstring_delim in line:
+            in_docstring = False
+            insert_at += 1
+        else:
+            break
     lines.insert(insert_at, "import logging")
-    return "\n".join(lines) + ("\n" if not text.endswith("\n") else "")
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
 
 
 def replace_bare_except(text: str, file_hint: str) -> str:
@@ -53,21 +74,45 @@ def replace_bare_except(text: str, file_hint: str) -> str:
         if stripped == "except Exception: pass":
             # Replace "except Exception: pass" with proper logging
             indent = line[: len(line) - len(stripped)]
-            updated_lines.append(f"{indent}except Exception as e:")
+            updated_lines.append(f"{indent}except Exception:")
             updated_lines.append(
                 f"{indent}    logging.exception('Suppressed exception in tests: {file_hint}')"
             )
+            updated_lines.append(f"{indent}    pass")
             changed = True
             i += 1
         elif stripped == "except Exception:":
-            # Replace "except Exception:" with proper logging
-            indent = line[: len(line) - len(stripped)]
-            updated_lines.append(f"{indent}except Exception as e:")
-            updated_lines.append(
-                f"{indent}    logging.exception('Unexpected exception in tests: {file_hint}')"
-            )
-            changed = True
-            i += 1
+            # Check if logging.exception is already present in this except block
+            # Look ahead to see if there's already logging in the next few lines
+            has_logging = False
+            base_indent = len(line) - len(stripped)
+            look_ahead = 0
+            while i + look_ahead + 1 < len(lines):
+                next_line = lines[i + look_ahead + 1]
+                stripped_next = next_line.strip()
+                if "logging.exception(" in next_line:
+                    has_logging = True
+                    break
+                if stripped_next.startswith(("except ", "finally")):
+                    break
+                # stop when dedent out of current block
+                if stripped_next and (len(next_line) - len(next_line.lstrip())) <= base_indent:
+                    break
+                look_ahead += 1
+
+            if not has_logging:
+                # Add logging if not present
+                indent = line[: len(line) - len(stripped)]
+                updated_lines.append(f"{indent}except Exception:")
+                updated_lines.append(
+                    f"{indent}    logging.exception('Unexpected exception in tests: {file_hint}')"
+                )
+                changed = True
+                i += 1
+            else:
+                # Keep existing except block as is
+                updated_lines.append(line)
+                i += 1
         else:
             updated_lines.append(line)
             i += 1
@@ -75,6 +120,14 @@ def replace_bare_except(text: str, file_hint: str) -> str:
     result = "\n".join(updated_lines)
     if changed:
         result = ensure_logging_import(result)
+
+    # Deduplicate consecutive logging.exception calls
+    result = re.sub(
+        r"(\s*logging\.exception\([^\n]+\)\s*\n){2,}",
+        dedupe_match,
+        result,
+    )
+
     return result
 
 

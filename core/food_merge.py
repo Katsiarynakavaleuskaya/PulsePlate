@@ -8,11 +8,12 @@ EN: Food data merge logic.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date
 from statistics import median
-from typing import Dict, Iterable, List
 
 from .food_sources.base import FoodRecord
+
 
 # Micro nutrients list
 MICROS = [
@@ -27,7 +28,7 @@ MICROS = [
 ]
 
 
-def _merge_values(values: List[float], strategy: str = "median") -> float:
+def _merge_values(values: list[float], strategy: str = "median") -> float:
     """
     RU: Объединить значения по стратегии.
     EN: Merge values by strategy.
@@ -47,7 +48,7 @@ def _merge_values(values: List[float], strategy: str = "median") -> float:
     return float(vals[0])
 
 
-def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
+def merge_records(streams: list[Iterable[FoodRecord]]) -> list[dict]:
     """
     RU: Объединить записи из нескольких источников.
     EN: Merge records from multiple sources.
@@ -59,12 +60,12 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         List of merged food records as dictionaries
     """
     # Group records by canonical name
-    bucket: Dict[str, List[FoodRecord]] = defaultdict(list)
+    bucket: dict[str, list[FoodRecord]] = defaultdict(list)
     for stream in streams:
         for rec in stream:
             bucket[rec.name].append(rec)
 
-    merged: List[Dict] = []
+    merged: list[dict] = []
     today = date.today().isoformat()
 
     for name, rows in bucket.items():
@@ -74,9 +75,10 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
         fat = _merge_values([r.fat_g for r in rows])
         carbs = _merge_values([r.carbs_g for r in rows])
         fiber = _merge_values([r.fiber_g for r in rows])
+        sugar = _merge_values([r.sugar_g for r in rows])
 
         # Priority for micronutrients: if USDA present, take from USDA, otherwise median
-        def micro_pick(key: str) -> float:
+        def micro_pick(key: str, rows: list) -> float:
             # Get values from USDA source first
             usda_vals = [getattr(r, key) for r in rows if r.source == "USDA"]
             usda_vals = [v for v in usda_vals if v is not None and v >= 0]
@@ -108,8 +110,9 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
             "fat_g": round(fat, 2),
             "carbs_g": round(carbs, 2),
             "fiber_g": round(fiber, 2),
-            **{k: round(micro_pick(k), 3) for k in MICROS},
-            "flags": list(sorted(all_flags)),
+            "sugar_g": round(sugar, 2),
+            **{k: round(micro_pick(k, rows), 3) for k in MICROS},
+            "flags": sorted(all_flags),
             "price": 0.0,  # Can be populated from OFF later
             "source": "MERGED(" + ",".join(sources) + ")",
             "version_date": today,
@@ -123,7 +126,7 @@ def merge_records(streams: List[Iterable[FoodRecord]]) -> List[Dict]:
     return merged
 
 
-def _classify_food_group(record: Dict) -> str:
+def _classify_food_group(record: dict) -> str:
     """
     RU: Классифицировать продукт по группе на основе профиля макронутриентов.
     EN: Classify food by group based on macronutrient profile.

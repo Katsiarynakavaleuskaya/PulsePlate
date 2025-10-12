@@ -28,7 +28,10 @@
 авторизации
 авторизацию
 Автосписок
+автофикс
+автофиксом
 Автофикстура
+автоформатирование
 Автоформатирование
 агрегации
 агрегировалась
@@ -655,6 +658,8 @@
 доведения
 доза
 дозы
+докстринг
+докстринга
 Доктора
 документации
 документация
@@ -1162,6 +1167,7 @@
 комбинациями
 коммита
 коммитом
+коммиты
 компактную
 комплексной
 Комплексные
@@ -1202,6 +1208,7 @@
 контекстный
 Контекстный
 контракт
+контрибьюторами
 конфигурации
 конфигурация
 Конфигурация
@@ -1375,6 +1382,7 @@
 масштабируем
 Масштабируем
 Масштабирует
+матчерами
 мгновенные
 Мгновенные
 медиа
@@ -1525,6 +1533,7 @@
 набора
 набором
 набрать
+навигировать
 название
 Название
 названий
@@ -1633,6 +1642,8 @@
 неизвестным
 неизвестных
 неизменяемости
+Неинтуитивное
+неконфигурируемое
 некорректного
 Некорректный
 некорректным
@@ -2040,6 +2051,7 @@
 перезагрузка
 Перезапускаем
 перезапустим
+переимпортировать
 Переимпортируем
 переключение
 Переключение
@@ -2575,6 +2587,7 @@
 разработки
 РАЗРАБОТКИ
 разработку
+разработческих
 разработчика
 Разработчики
 разумная
@@ -3238,6 +3251,7 @@
 тренировки
 тренировок
 тренировочного
+триггерит
 тунец
 тыквенные
 тяжёлые
@@ -3440,6 +3454,7 @@
 Форматируем
 Форматирует
 форматов
+форматтер
 формату
 форматы
 формирования
@@ -3534,6 +3549,7 @@
 Чашка
 чашках
 чашки
+Чеклист
 человека
 через
 Через
@@ -3664,6 +3680,8 @@ Análisis
 androide
 años
 Años
+apiconnection
+apitimeout
 appicon
 appiconset
 apropiadas
@@ -3675,6 +3693,7 @@ ascii
 asdict
 ASGI
 asian
+asname
 astimezone
 asynccontextmanager
 asyncio
@@ -3686,6 +3705,8 @@ atletas
 aumentada
 aumentado
 aumentados
+autodocs
+Autodocs
 autoflush
 autopush
 autouse
@@ -3717,6 +3738,7 @@ cadera
 Cadera
 calcio
 Calcular
+cals
 cand
 canvasmaker
 caplog
@@ -3740,7 +3762,9 @@ classmethod
 claude
 cloudflared
 Cobalamin
+codemod
 codepoint
+commitizen
 completa
 completado
 compras
@@ -3757,13 +3781,16 @@ contextmanager
 coro
 coveragerc
 csvfile
+cunningham
 Databonsai
 dataclass
 dataclasses
 davinci
 debe
 Deberías
+dedupe
 dejavu
+delattr
 delenv
 deriat
 desarrollar
@@ -3885,6 +3912,7 @@ isfinite
 isinstance
 isoformat
 isort
+issubclass
 issubset
 italian
 iterrows
@@ -3898,6 +3926,8 @@ katsiarynakavaleuskaya
 keyerror
 keyval
 kwargs
+labelledby
+lact
 lactancia
 Lactancia
 lactat
@@ -3917,6 +3947,8 @@ LIFESTAGE
 ligera
 lightgreen
 Lista
+llmflow
+LLMFLOW
 localisation
 localtunnel
 logfile
@@ -3977,6 +4009,7 @@ nтекст
 NASM
 necesidades
 Necesitas
+networkidle
 NFKD
 niño
 nochange
@@ -3999,6 +4032,7 @@ Ollama
 OLLAMA
 omni
 onchange
+oneline
 opcional
 openai
 openapi
@@ -4007,7 +4041,6 @@ openfoodfacts
 oración
 osascript
 pagesizes
-passдулей
 pathlib
 pathsep
 pbxproj
@@ -4074,9 +4107,12 @@ puede
 pueden
 pulseplate
 pycache
+pycodestyle
 pydantic
 Pydantic
 pyenv
+Pyflakes
+pyfloat
 pylint
 pymysql
 pyplot
@@ -4084,6 +4120,7 @@ pyproject
 pyright
 pytest
 pythonpath
+pyupgrade
 pywin
 qualname
 queso
@@ -4142,6 +4179,7 @@ shutil
 Sidi
 signum
 Sigue
+simplefilter
 skipif
 slowapi
 sobreestimar
@@ -4170,8 +4208,10 @@ testpaths
 testportions
 testtarget
 TEXTCOLOR
+threadpool
 Tienes
 timedelta
+timeframe
 Tomate
 TOPPADDING
 transferrables
@@ -4193,10 +4233,14 @@ Uvicorn
 validkey
 válido
 venv
+verylonglanguagecode
+verylongregioncode
 Visualización
 visx
 vitamina
 vitd
+vlcd
+WCAG
 whitesmoke
 whtr
 wicg
@@ -4219,6 +4263,7 @@ yodo
 yogur
 Yogur
 yourco
+ypos
 yticks
 zoneinfo
 αβγδε
