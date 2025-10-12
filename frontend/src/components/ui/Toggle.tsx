@@ -21,6 +21,8 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
         className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
       />
       <button
         role="switch"
