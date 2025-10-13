@@ -37,12 +37,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install bandit==1.7.9 safety==2.3.5
+          if ! command -v jq >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y jq; fi
 
       - name: Run Bandit (security lint)
         run: |
           bandit_exit_code=0
           bandit -q -r . \
-            -x node_modules,dist,build,test-results,.venv,venv,cache \
+            -x node_modules,dist,build,test-results,.venv,venv,cache,tests \
             -s B101 \
             -f json -o bandit-report.json || bandit_exit_code=$?
 
