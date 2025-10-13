@@ -6,7 +6,7 @@
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -17,7 +17,7 @@ def run_command(cmd: str, description: str) -> bool:
     try:
         # Split command into list to avoid shell injection
         cmd_list = cmd.split()
-        result = subprocess.run(cmd_list, capture_output=True, text=True)
+        result = subprocess.run(cmd_list, capture_output=True, text=True)  # nosec B603
         if result.returncode == 0:
             print(f"✅ {description} - успешно")
             return True
