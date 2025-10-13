@@ -1,0 +1,27 @@
+name: Quick Merge
+
+on:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+jobs:
+  quick-merge:
+    if: contains(github.event.pull_request.labels.*.name, 'ready-to-merge')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge PR
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify merge
+        run: |
+          echo "✅ PR #${{ github.event.pull_request.number }} merged successfully!"
+          echo "🚀 Changes are now live on main branch"
