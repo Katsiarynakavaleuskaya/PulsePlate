@@ -1,0 +1,127 @@
+name: PR Automation
+
+permissions:
+  contents: write
+  pull-requests: read
+
+env:
+  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
+  SLEEP_SECONDS: '30'
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches: [main, develop, feat/**, fix/**]
+
+jobs:
+  wait-for-coderabbit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.wait.outputs.status }}
+    steps:
+      - name: Wait for CodeRabbit review
+        id: wait
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
+            const sleepSeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
+            const maxIterations = Math.ceil((timeoutMinutes * 60) / sleepSeconds);
+            const prNumber = context.payload.pull_request?.number;
+            if (!prNumber) {
+              core.setFailed('Unable to determine pull request number.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            function reviewCompleted(reviews) {
+              return reviews.some(review => {
+                if (!review || !review.state) {
+                  return false;
+                }
+                const reviewer = review.user?.login ?? '';
+                const normalizedState = review.state.toUpperCase();
+                const matchesReviewer = reviewer.includes('coderabbitai');
+                const matchesState = ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'].includes(normalizedState);
+                return matchesReviewer && matchesState;
+              });
+            }
+
+            for (let attempt = 1; attempt <= maxIterations; attempt += 1) {
+              const { data: reviews } = await github.rest.pulls.listReviews({
+                owner,
+                repo,
+                pull_number: prNumber,
+                per_page: 100,
+              });
+
+              if (reviewCompleted(reviews)) {
+                core.info(`CodeRabbit review completed on attempt ${attempt}.`);
+                core.setOutput('status', 'completed');
+                return;
+              }
+
+              core.info(`CodeRabbit review not complete (attempt ${attempt}/${maxIterations}). Waiting ${sleepSeconds}s...`);
+              await new Promise(resolve => setTimeout(resolve, sleepSeconds * 1000));
+            }
+
+            core.setFailed(`CodeRabbit review not completed within ${timeoutMinutes} minutes.`);
+
+  apply-auto-fixes:
+    needs: wait-for-coderabbit
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.wait-for-coderabbit.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run Ruff format
+        run: python -m ruff format .
+
+      - name: Run Ruff lint (auto-fix)
+        run: python -m ruff check --fix .
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: apply automated fixes"
+
+      - name: Push changes
+        if: steps.changes.outputs.changed == 'true'
+        run: git push
