@@ -18,4 +18,3 @@ psycopg[binary]==3.2.10
 email-validator==2.3.0
 faker==37.11.0
 cryptography==46.0.2
-pytest-asyncio==1.2.0
