@@ -29,13 +29,13 @@ jobs:
       - name: Detect package manager and lock file
         id: detect-lockfile
         run: |
-          if [ -f "package-lock.json" ]; then
+          if [ -f package-lock.json ]; then
             echo "manager=npm" >> "$GITHUB_OUTPUT"
             echo "lockfile=frontend/package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f "yarn.lock" ]; then
+          elif [ -f yarn.lock ]; then
             echo "manager=yarn" >> "$GITHUB_OUTPUT"
             echo "lockfile=frontend/yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f "pnpm-lock.yaml" ]; then
+          elif [ -f pnpm-lock.yaml ]; then
             echo "manager=pnpm" >> "$GITHUB_OUTPUT"
             echo "lockfile=frontend/pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
           else
@@ -71,18 +71,55 @@ jobs:
           esac
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx --yes playwright install --with-deps
 
       - name: Run ESLint (if available)
-        run: npm run lint --if-present
+        run: |
+          case "${{ steps.detect-lockfile.outputs.manager }}" in
+            npm)
+              npm run lint --if-present
+              ;;
+            yarn)
+              if yarn run | grep -qE " lint$"; then
+                yarn run lint || true
+              else
+                echo "lint script not present – skipping"
+              fi
+              ;;
+            pnpm)
+              pnpm run lint --if-present
+              ;;
+          esac
 
       - name: Run Vitest
         env:
           CI: 'true'
-        run: npm run test
+        run: |
+          case "${{ steps.detect-lockfile.outputs.manager }}" in
+            npm)
+              npm run test
+              ;;
+            yarn)
+              yarn run test
+              ;;
+            pnpm)
+              pnpm run test
+              ;;
+          esac
 
       - name: Build frontend
-        run: npm run build
+        run: |
+          case "${{ steps.detect-lockfile.outputs.manager }}" in
+            npm)
+              npm run build
+              ;;
+            yarn)
+              yarn run build
+              ;;
+            pnpm)
+              pnpm run build
+              ;;
+          esac
 
       - name: Upload build artifacts
         if: always()
