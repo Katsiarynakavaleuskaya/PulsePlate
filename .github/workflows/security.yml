@@ -32,18 +32,18 @@ jobs:
       - name: Install security tooling
         run: |
           python -m pip install --upgrade pip
-          pip install bandit safety
+          pip install bandit==1.7.9 safety==3.2.5
 
       - name: Run Bandit (security lint)
         run: |
           bandit -q -r . \
-            -x frontend,node_modules,dist,build,test-results,.venv,venv,cache \
+            -x node_modules,dist,build,test-results,.venv,venv,cache \
             -s B101 \
             -f json -o bandit-report.json
 
       - name: Run Safety (dependency audit)
         run: |
-          safety check --full-report -r requirements.txt > safety-report.txt || true
+          safety check --full-report -r requirements.txt > safety-report.txt
 
       - name: Upload security reports
         if: always()
