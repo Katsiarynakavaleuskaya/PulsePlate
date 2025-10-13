@@ -7,7 +7,6 @@ concurrency:
 on:
   pull_request_review:
     types: [submitted]
-    branches: [main, develop]
   workflow_dispatch:
     inputs:
       pull_request_number:
@@ -43,6 +42,18 @@ jobs:
           else
             PR_NUMBER="${{ github.event.pull_request.number }}"
           fi
+
+          # Validate PR_NUMBER is non-empty and consists only of digits
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Error: PR_NUMBER is empty" >&2
+            exit 1
+          fi
+
+          if ! echo "$PR_NUMBER" | grep -E '^[0-9]+$' > /dev/null; then
+            echo "Error: PR_NUMBER '$PR_NUMBER' is not a valid number (must contain only digits)" >&2
+            exit 1
+          fi
+
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Wait for CI checks
@@ -60,30 +71,74 @@ jobs:
             const startTime = Date.now();
 
             while (Date.now() - startTime < maxWaitTime) {
+              // Get PR details to obtain the head SHA
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              const prHeadSha = pr.head.sha;
+
+              // Get checks for the PR head SHA
               const { data: checks } = await github.rest.checks.listForRef({
                 owner,
                 repo,
-                ref: `refs/pull/${prNumber}/head`
+                ref: prHeadSha
+              });
+
+              // Also get commit statuses for comprehensive check coverage
+              const { data: statuses } = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: prHeadSha
               });
 
               const requiredChecks = ['CI/test (3.11)', 'CI/test (3.12)', 'CI/test (3.13)', 'Security Scan', 'Coverage'];
-              const completedChecks = checks.check_runs.filter(check =>
-                requiredChecks.some(required => check.name.includes(required)) &&
-                check.status === 'completed'
-              );
 
-              if (completedChecks.length >= requiredChecks.length) {
-                const failedChecks = completedChecks.filter(check => check.conclusion === 'failure');
-                if (failedChecks.length === 0) {
-                  core.info('All required CI checks passed');
-                  return;
-                } else {
-                  core.setFailed(`CI checks failed: ${failedChecks.map(c => c.name).join(', ')}`);
-                  return;
-                }
+              // Check that each required check exists and has passed with "success" conclusion
+              const checkResults = requiredChecks.map(requiredCheck => {
+                // Look for check runs first
+                const matchingCheck = checks.check_runs.find(check =>
+                  check.name === requiredCheck && check.status === 'completed'
+                );
+
+                // If not found in check runs, look in commit statuses
+                const matchingStatus = !matchingCheck ?
+                  statuses.statuses.find(status => status.context === requiredCheck) : null;
+
+                const found = !!matchingCheck || !!matchingStatus;
+                const passed = matchingCheck?.conclusion === 'success' || matchingStatus?.state === 'success';
+                const conclusion = matchingCheck?.conclusion || matchingStatus?.state;
+
+                return {
+                  name: requiredCheck,
+                  found,
+                  passed,
+                  conclusion
+                };
+              });
+
+              const allChecksFound = checkResults.every(result => result.found);
+              const allChecksPassed = checkResults.every(result => result.passed);
+
+              if (allChecksFound && allChecksPassed) {
+                core.info('All required CI checks passed');
+                return;
               }
 
-              core.info(`Waiting for CI checks... (${completedChecks.length}/${requiredChecks.length} completed)`);
+              // Find any required check that is not successful (including cancelled/skipped/neutral)
+              const nonSuccessChecks = checkResults.filter(result =>
+                result.found && result.conclusion !== 'success'
+              );
+
+              if (nonSuccessChecks.length > 0) {
+                core.setFailed(`CI checks not successful: ${nonSuccessChecks.map(c => `${c.name} (${c.conclusion})`).join(', ')}`);
+                return;
+              }
+
+              const completedCount = checkResults.filter(result => result.found).length;
+              core.info(`Waiting for CI checks... (${completedCount}/${requiredChecks.length} completed)`);
               await new Promise(resolve => setTimeout(resolve, checkInterval));
             }
 
@@ -103,6 +158,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -123,9 +179,9 @@ jobs:
               return { merged: false, reason: 'not-mergeable' };
             }
 
-            const requiredChecksOk = pr.mergeable_state === 'clean' || pr.mergeable_state === 'has_hooks';
+            const requiredChecksOk = pr.mergeable_state === 'clean';
             if (!requiredChecksOk) {
-              core.info(`Required checks not yet successful (mergeable_state=${pr.mergeable_state}).`);
+              core.info(`Required checks not yet successful (mergeable_state=${pr.mergeable_state}). Only 'clean' state is acceptable for merging.`);
               return { merged: false, reason: 'checks-pending' };
             }
 
@@ -143,9 +199,8 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          pr-number: ${{ steps.pr.outputs.pr_number }}
           script: |
-            const prNumber = parseInt(core.getInput('pr-number'));
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
