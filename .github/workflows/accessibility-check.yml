@@ -1,4 +1,4 @@
-name: Frontend CI
+name: Accessibility Tests
 
 permissions:
   contents: read
@@ -10,15 +10,18 @@ concurrency:
 on:
   pull_request:
     branches: [main, develop, feat/**, fix/**]
+    paths:
+      - 'frontend/**'
   push:
-    branches: [main, develop]
+    branches: [main, develop, feat/**, fix/**]
+    paths:
+      - 'frontend/**'
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  accessibility:
     runs-on: ubuntu-latest
-    env:
-      BUILD_OUTPUT_DIR: dist
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -30,31 +33,25 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx --yes playwright install --with-deps
+      - name: Prepare test-results directory
+        run: mkdir -p test-results
 
-      - name: Run ESLint (if available)
-        run: npm run lint --if-present
-
-      - name: Run Vitest
+      - name: Run accessibility test suite
         env:
           CI: 'true'
-        run: npm test
+        run: npm run test:accessibility -- --reporter=junit --outputFile=test-results/accessibility.xml
 
-      - name: Build frontend
-        run: npm run build
-
-      - name: Upload build artifacts
+      - name: Upload accessibility reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: frontend-build
-          path: frontend/${{ env.BUILD_OUTPUT_DIR || 'dist' }}/
+          name: accessibility-reports-${{ github.run_number }}
+          path: frontend/test-results/**
           if-no-files-found: ignore
           retention-days: 7
