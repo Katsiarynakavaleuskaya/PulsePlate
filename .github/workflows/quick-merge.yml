@@ -139,7 +139,7 @@ jobs:
             return { merged: true };
 
       - name: Delete branch
-        if: steps.merge.outputs.merged == 'true'
+        if: steps.merge.outputs.result && fromJSON(steps.merge.outputs.result).merged
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
