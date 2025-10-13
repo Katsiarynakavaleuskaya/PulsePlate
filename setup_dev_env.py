@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-PulsePlate Development Environment Setup
-Скрипт для настройки среды разработки PulsePlate
+"""PulsePlate Development Environment Setup.
+
+Скрипт для настройки среды разработки PulsePlate.
 """
 
 import os
@@ -12,10 +12,12 @@ from pathlib import Path
 
 
 def run_command(cmd: str, description: str) -> bool:
-    """Запустить команду и вернуть результат"""
+    """Запустить команду и вернуть результат."""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        # Split command into list to avoid shell injection
+        cmd_list = cmd.split()
+        result = subprocess.run(cmd_list, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"✅ {description} - успешно")
             return True
@@ -28,7 +30,7 @@ def run_command(cmd: str, description: str) -> bool:
 
 
 def check_python_version():
-    """Проверить версию Python"""
+    """Проверить версию Python."""
     version = sys.version_info
     print(f"🐍 Python версия: {version.major}.{version.minor}.{version.micro}")
     if version.major < 3 or (version.major == 3 and version.minor < 10):
@@ -38,7 +40,7 @@ def check_python_version():
 
 
 def check_dependencies():
-    """Проверить зависимости"""
+    """Проверить зависимости."""
     required_packages = [
         "fastapi",
         "pydantic",
@@ -62,7 +64,7 @@ def check_dependencies():
 
 
 def setup_environment():
-    """Настроить переменные окружения"""
+    """Настроить переменные окружения."""
     project_root = Path(__file__).parent
     pythonpath = ":".join(
         [
@@ -81,12 +83,12 @@ def setup_environment():
 
 
 def run_tests():
-    """Запустить тесты"""
+    """Запустить тесты."""
     return run_command("python -m pytest tests -q", "Запуск тестов")
 
 
 def run_coverage():
-    """Запустить проверку покрытия"""
+    """Запустить проверку покрытия."""
     return run_command(
         "python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q",
         "Проверка покрытия",
@@ -94,17 +96,17 @@ def run_coverage():
 
 
 def run_linting():
-    """Запустить линтинг"""
+    """Запустить линтинг."""
     return run_command("python -m flake8 .", "Линтинг кода")
 
 
 def format_code():
-    """Форматировать код"""
+    """Форматировать код."""
     return run_command("python -m black . --line-length=100", "Форматирование кода")
 
 
 def main():
-    """Основная функция"""
+    """Основная функция."""
     print("🚀 Настройка среды разработки PulsePlate")
     print("=" * 50)
 
