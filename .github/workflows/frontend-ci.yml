@@ -10,4 +10,4 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo 'Frontend CI temporarily disabled while reverting PR #154'
+      - run: echo "Frontend CI temporarily disabled while reverting PR #154"
