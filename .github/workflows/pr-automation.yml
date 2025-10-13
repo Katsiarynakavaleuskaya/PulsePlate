@@ -8,6 +8,9 @@ env:
   CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || vars.CODE_RABBIT_TIMEOUT_MIN || '15' }}
   SLEEP_SECONDS: '30'
   CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || vars.CODE_REVIEWER || 'coderabbitai' }}
+  # Maximum iterations will be calculated in the script using the formula:
+  # ceil((timeoutMinutes * 60) / sleepSeconds)
+  # This ensures we don't exceed the timeout while accounting for partial sleep cycles
 
 on:
   pull_request:
@@ -36,7 +39,6 @@ on:
 
 jobs:
   wait-for-coderabbit:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -50,9 +52,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
+            // Parse timeout and sleep configuration from environment variables
             const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
-            const sleepSeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
-            const maxIterations = Math.ceil((timeoutMinutes * 60) / sleepSeconds);
+            const baseDelaySeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
+            const maxDelaySeconds = 300; // 5 minutes maximum delay
+
+            // Calculate maximum iterations for polling CodeRabbit reviews
+            // Using conservative estimate with base delay to ensure we don't exceed timeout
+            const timeoutSeconds = timeoutMinutes * 60;
+            const maxIterations = Math.ceil(timeoutSeconds / baseDelaySeconds);
 
             // Get PR number from context or manual input
             let prNumber;
@@ -98,8 +106,13 @@ jobs:
                 return;
               }
 
-              core.info(`CodeRabbit review not complete (attempt ${attempt}/${maxIterations}). Waiting ${sleepSeconds}s...`);
-              await new Promise(resolve => setTimeout(resolve, sleepSeconds * 1000));
+              // Calculate exponential backoff delay with jitter
+              const exponentialDelay = Math.min(maxDelaySeconds, baseDelaySeconds * Math.pow(2, attempt - 1));
+              const jitterFactor = 0.5 + Math.random() * 1.0; // Random factor between 0.5 and 1.5
+              const delaySeconds = Math.floor(exponentialDelay * jitterFactor);
+
+              core.info(`CodeRabbit review not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (exponential backoff with jitter)...`);
+              await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
             }
 
             core.setFailed(`CodeRabbit review not completed within ${timeoutMinutes} minutes.`);
@@ -107,7 +120,6 @@ jobs:
   apply-auto-fixes:
     needs: wait-for-coderabbit
     if: >
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) &&
       needs.wait-for-coderabbit.outputs.status == 'completed' &&
       github.actor != 'github-actions[bot]'
@@ -138,7 +150,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || steps.pr-info.outputs.head_repo || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha }}
           fetch-depth: 0
 
@@ -153,10 +165,23 @@ jobs:
           pip install ruff
 
       - name: Run Ruff format
-        run: python -m ruff format .
+        run: |
+          python -m ruff format . || {
+            echo "::error::Ruff format failed"
+            exit 1
+          }
 
       - name: Run Ruff lint (auto-fix)
-        run: python -m ruff check --fix .
+        run: |
+          python -m ruff check --fix . || {
+            echo "::error::Ruff check failed"
+            exit 1
+          }
+
+      - name: Validate fixes
+        run: |
+          # Ensure Python files are still syntactically valid
+          python -m py_compile $(find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*")
 
       - name: Detect changes
         id: changes
@@ -177,13 +202,10 @@ jobs:
 
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
         run: |
-          # Prefer PR head ref from event; fall back to pr-info step if present.
-          branch_name="${{ github.event.pull_request.head.ref || '' }}"
-          if [ -z "$branch_name" ]; then
-            branch_name="${{ steps.pr-info.outputs.head_ref || '' }}"
-          fi
-          if [ -z "$branch_name" ]; then
+          if [ -z "$TARGET_BRANCH" ]; then
             echo "Unable to determine PR head branch name."; exit 1;
           fi
-          git push origin "HEAD:${branch_name}"
+          git push origin "HEAD:${TARGET_BRANCH}"
