@@ -40,22 +40,35 @@ jobs:
 
       - name: Run Bandit (security lint)
         run: |
+          bandit_exit_code=0
           bandit -q -r . \
             -x node_modules,dist,build,test-results,.venv,venv,cache \
             -s B101 \
-            -f json -o bandit-report.json || true
+            -f json -o bandit-report.json || bandit_exit_code=$?
 
-          # Analyze Bandit report for high severity issues
-          if [ -f bandit-report.json ]; then
-            echo "=== Bandit Report Analysis ==="
-            high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
-            if [ "$high_severity_count" -gt 0 ]; then
-              echo "❌ Found $high_severity_count HIGH severity security issues in Bandit report"
-              echo "::error::Bandit found $high_severity_count HIGH severity issues that must be addressed"
-              exit 1
-            else
-              echo "✅ No HIGH severity issues found in Bandit report"
-            fi
+          if [ "$bandit_exit_code" -gt 1 ]; then
+            echo "❌ Bandit failed to complete successfully (exit code: $bandit_exit_code)"
+            exit "$bandit_exit_code"
+          fi
+
+          if [ ! -f bandit-report.json ]; then
+            echo "❌ Bandit report was not generated"
+            exit 1
+          fi
+
+          echo "=== Bandit Report Analysis ==="
+          high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
+          if [ "$high_severity_count" -gt 0 ]; then
+            echo "❌ Found $high_severity_count HIGH severity security issues in Bandit report"
+            echo "::error::Bandit found $high_severity_count HIGH severity issues that must be addressed"
+            exit 1
+          fi
+
+          if [ "$bandit_exit_code" -eq 1 ]; then
+            echo "⚠️  Bandit reported issues below HIGH severity (exit code: $bandit_exit_code)"
+            echo "::warning::Bandit reported issues below HIGH severity – review bandit-report.json"
+          else
+            echo "✅ No HIGH severity issues found in Bandit report"
           fi
 
       - name: Run Safety (dependency audit)
