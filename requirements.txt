@@ -12,7 +12,7 @@ tenacity==9.1.2
 matplotlib==3.10.6
 reportlab==4.4.4
 sqlalchemy==2.0.43
-alembic==1.16.5
+alembic==1.17.0
 # Pin to the latest available 3.2.x; 3.2.1 does not exist on PyPI (CI failed)
 psycopg[binary]==3.2.10
 email-validator==2.3.0
