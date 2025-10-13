@@ -10,4 +10,4 @@ jobs:
   bandit:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Security scan temporarily disabled while reverting PR #154"
+      - run: echo 'Security scan temporarily disabled while reverting PR #154'
