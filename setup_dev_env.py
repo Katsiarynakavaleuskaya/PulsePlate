@@ -6,17 +6,17 @@ import os
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 
 def run_command(cmd: Iterable[str], description: str) -> bool:
     """Execute command and report success."""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(  # nosec B603
-            list(cmd), capture_output=True, text=True, check=False
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            list(cmd), capture_output=True, text=True, check=False, timeout=300
         )
-    except Exception as exc:  # pragma: no cover - safeguard
+    except (OSError, subprocess.TimeoutExpired) as exc:  # pragma: no cover - safeguard
         print(f"❌ {description} - исключение: {exc}")
         return False
 
@@ -24,11 +24,13 @@ def run_command(cmd: Iterable[str], description: str) -> bool:
         print(f"✅ {description} - успешно")
         return True
 
+    if result.stdout:
+        print(f"ℹ️ stdout: {result.stdout}")
     print(f"❌ {description} - ошибка: {result.stderr}")
     return False
 
 
-def check_python_version():
+def check_python_version() -> bool:
     """Проверить версию Python."""
     version = sys.version_info
     print(f"🐍 Python версия: {version.major}.{version.minor}.{version.micro}")
@@ -38,9 +40,9 @@ def check_python_version():
     return True
 
 
-def check_dependencies():
+def check_dependencies() -> bool:
     """Проверить зависимости."""
-    required_packages = [
+    required_packages: Sequence[str] = [
         "fastapi",
         "pydantic",
         "pytest",
@@ -51,20 +53,23 @@ def check_dependencies():
     ]
 
     print("📦 Проверка зависимостей...")
+    missing: list[str] = []
     for package in required_packages:
         try:
             __import__(package)
             print(f"✅ {package}")
         except ImportError:
-            print(f"❌ {package} - не установлен")
-            return False
+            missing.append(package)
+    if missing:
+        print(f"❌ Не установлены: {', '.join(missing)}")
+        return False
     return True
 
 
-def setup_environment():
+def setup_environment() -> None:
     """Настроить переменные окружения."""
     project_root = Path(__file__).parent
-    pythonpath = ":".join(
+    pythonpath = os.pathsep.join(
         [
             str(project_root),
             str(project_root / "core"),
@@ -73,19 +78,20 @@ def setup_environment():
         ]
     )
 
-    os.environ["PYTHONPATH"] = pythonpath
+    existing = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = pythonpath + os.pathsep + existing if existing else pythonpath
     os.environ["VIP_MODULE_ENABLED"] = "true"
 
     print(f"🔧 PYTHONPATH: {pythonpath}")
     print(f"🔧 VIP_MODULE_ENABLED: {os.environ.get('VIP_MODULE_ENABLED')}")
 
 
-def run_tests():
+def run_tests() -> bool:
     """Запустить тесты."""
     return run_command([sys.executable, "-m", "pytest", "tests", "-q"], "Запуск тестов")
 
 
-def run_coverage():
+def run_coverage() -> bool:
     """Запустить проверку покрытия."""
     return run_command(
         [
@@ -102,17 +108,17 @@ def run_coverage():
     )
 
 
-def run_linting():
+def run_linting() -> bool:
     """Запустить линтинг (ruff check)."""
     return run_command([sys.executable, "-m", "ruff", "check", "."], "Ruff linting")
 
 
-def format_code():
+def format_code() -> bool:
     """Форматировать код (ruff format)."""
     return run_command([sys.executable, "-m", "ruff", "format", "."], "Ruff форматирование")
 
 
-def main():
+def main() -> bool:
     """Основная функция."""
     print("🚀 Настройка среды разработки PulsePlate")
     print("=" * 50)

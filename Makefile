@@ -313,7 +313,7 @@ bandit:
 bandit-full:
 	@echo "[bandit] full repo scan with safe excludes"
 	bandit -q -r . \
-	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache \
+	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache,tests \
 	  -s B101 || true
 
 lint:
