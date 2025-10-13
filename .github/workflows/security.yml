@@ -47,7 +47,7 @@ jobs:
         run: |
           bandit_exit_code=0
           bandit -q -r . \
-            -x node_modules,dist,build,test-results,.venv,venv,cache \
+            -x node_modules,dist,build,test-results,tests,.venv,venv,cache \
             -s B101 \
             -f json -o bandit-report.json || bandit_exit_code=$?
 

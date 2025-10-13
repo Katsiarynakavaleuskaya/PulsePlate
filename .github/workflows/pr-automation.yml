@@ -1,9 +1,9 @@
 name: PR Automation
 
 env:
-  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
+  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || vars.CODE_RABBIT_TIMEOUT_MIN || '15' }}
   SLEEP_SECONDS: '30'
-  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
+  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || vars.CODE_REVIEWER || 'coderabbitai' }}
 
 on:
   pull_request:
@@ -13,10 +13,22 @@ on:
       - reopened
       - ready_for_review
     branches: [main, develop, feat/**, fix/**]
+  workflow_dispatch:
+    inputs:
+      coderabbit_timeout_min:
+        description: 'CodeRabbit timeout in minutes'
+        required: false
+        default: '15'
+        type: string
+      code_reviewer:
+        description: 'Code reviewer username'
+        required: false
+        default: 'coderabbitai'
+        type: string
 
 jobs:
   wait-for-coderabbit:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -79,9 +91,9 @@ jobs:
   apply-auto-fixes:
     needs: wait-for-coderabbit
     if: >
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      needs.wait-for-coderabbit.result == 'success' &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.wait-for-coderabbit.outputs.status == 'completed' &&
       github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -128,4 +140,6 @@ jobs:
 
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
-        run: git push
+        run: |
+          branch_name="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD)}"
+          git push origin "HEAD:${branch_name}"
