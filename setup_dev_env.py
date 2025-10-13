@@ -1,34 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-PulsePlate Development Environment Setup
-Скрипт для настройки среды разработки PulsePlate
-"""
+"""Настройка среды разработки PulsePlate."""
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
+from typing import Iterable, Sequence
 
 
-def run_command(cmd: str, description: str) -> bool:
-    """Запустить команду и вернуть результат"""
+def run_command(cmd: Iterable[str], description: str) -> bool:
+    """Execute command and report success."""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        if result.returncode == 0:
-            print(f"✅ {description} - успешно")
-            return True
-        else:
-            print(f"❌ {description} - ошибка: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"❌ {description} - исключение: {e}")
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            list(cmd), capture_output=True, text=True, check=False, timeout=300
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:  # pragma: no cover - safeguard
+        print(f"❌ {description} - исключение: {exc}")
         return False
 
+    if result.returncode == 0:
+        print(f"✅ {description} - успешно")
+        return True
 
-def check_python_version():
-    """Проверить версию Python"""
+    if result.stdout:
+        print(f"ℹ️ stdout: {result.stdout}")
+    print(f"❌ {description} - ошибка: {result.stderr}")
+    return False
+
+
+def check_python_version() -> bool:
+    """Проверить версию Python."""
     version = sys.version_info
     print(f"🐍 Python версия: {version.major}.{version.minor}.{version.micro}")
     if version.major < 3 or (version.major == 3 and version.minor < 10):
@@ -37,34 +40,36 @@ def check_python_version():
     return True
 
 
-def check_dependencies():
-    """Проверить зависимости"""
-    required_packages = [
+def check_dependencies() -> bool:
+    """Проверить зависимости."""
+    required_packages: Sequence[str] = [
         "fastapi",
         "pydantic",
         "pytest",
-        "black",
-        "flake8",
+        "ruff",
         "hypothesis",
         "uvicorn",
         "httpx",
     ]
 
     print("📦 Проверка зависимостей...")
+    missing: list[str] = []
     for package in required_packages:
         try:
             __import__(package)
             print(f"✅ {package}")
         except ImportError:
-            print(f"❌ {package} - не установлен")
-            return False
+            missing.append(package)
+    if missing:
+        print(f"❌ Не установлены: {', '.join(missing)}")
+        return False
     return True
 
 
-def setup_environment():
-    """Настроить переменные окружения"""
+def setup_environment() -> None:
+    """Настроить переменные окружения."""
     project_root = Path(__file__).parent
-    pythonpath = ":".join(
+    pythonpath = os.pathsep.join(
         [
             str(project_root),
             str(project_root / "core"),
@@ -73,38 +78,48 @@ def setup_environment():
         ]
     )
 
-    os.environ["PYTHONPATH"] = pythonpath
+    existing = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = pythonpath + os.pathsep + existing if existing else pythonpath
     os.environ["VIP_MODULE_ENABLED"] = "true"
 
     print(f"🔧 PYTHONPATH: {pythonpath}")
     print(f"🔧 VIP_MODULE_ENABLED: {os.environ.get('VIP_MODULE_ENABLED')}")
 
 
-def run_tests():
-    """Запустить тесты"""
-    return run_command("python -m pytest tests -q", "Запуск тестов")
+def run_tests() -> bool:
+    """Запустить тесты."""
+    return run_command([sys.executable, "-m", "pytest", "tests", "-q"], "Запуск тестов")
 
 
-def run_coverage():
-    """Запустить проверку покрытия"""
+def run_coverage() -> bool:
+    """Запустить проверку покрытия."""
     return run_command(
-        "python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q",
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests",
+            "--cov=.",
+            "--cov-report=term-missing",
+            "--cov-fail-under=97",
+            "-q",
+        ],
         "Проверка покрытия",
     )
 
 
-def run_linting():
-    """Запустить линтинг"""
-    return run_command("python -m flake8 .", "Линтинг кода")
+def run_linting() -> bool:
+    """Запустить линтинг (ruff check)."""
+    return run_command([sys.executable, "-m", "ruff", "check", "."], "Ruff linting")
 
 
-def format_code():
-    """Форматировать код"""
-    return run_command("python -m black . --line-length=100", "Форматирование кода")
+def format_code() -> bool:
+    """Форматировать код (ruff format)."""
+    return run_command([sys.executable, "-m", "ruff", "format", "."], "Ruff форматирование")
 
 
-def main():
-    """Основная функция"""
+def main() -> bool:
+    """Основная функция."""
     print("🚀 Настройка среды разработки PulsePlate")
     print("=" * 50)
 
