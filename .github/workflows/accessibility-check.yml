@@ -9,9 +9,9 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main, develop, feat/**, fix/**]
+    branches: [main, develop, feature/*, fix/*]
   push:
-    branches: [main, develop]
+    branches: [main, develop, feature/*, fix/*]
   workflow_dispatch:
 
 jobs:
