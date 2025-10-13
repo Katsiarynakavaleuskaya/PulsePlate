@@ -29,15 +29,15 @@ jobs:
       - name: Detect package manager and lock file
         id: detect-lockfile
         run: |
-          if [ -f "frontend/package-lock.json" ]; then
-            echo "manager=npm" >> $GITHUB_OUTPUT
-            echo "lockfile=frontend/package-lock.json" >> $GITHUB_OUTPUT
-          elif [ -f "frontend/yarn.lock" ]; then
-            echo "manager=yarn" >> $GITHUB_OUTPUT
-            echo "lockfile=frontend/yarn.lock" >> $GITHUB_OUTPUT
-          elif [ -f "frontend/pnpm-lock.yaml" ]; then
-            echo "manager=pnpm" >> $GITHUB_OUTPUT
-            echo "lockfile=frontend/pnpm-lock.yaml" >> $GITHUB_OUTPUT
+          if [ -f "package-lock.json" ]; then
+            echo "manager=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=frontend/package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f "yarn.lock" ]; then
+            echo "manager=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=frontend/yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f "pnpm-lock.yaml" ]; then
+            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=frontend/pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
           else
             echo "No lock file found in frontend directory."
             exit 1
@@ -52,19 +52,29 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ "${{ steps.detect-lockfile.outputs.manager }}" = "npm" ]; then
-            npm ci
-          elif [ "${{ steps.detect-lockfile.outputs.manager }}" = "yarn" ]; then
-            yarn install --frozen-lockfile
-          elif [ "${{ steps.detect-lockfile.outputs.manager }}" = "pnpm" ]; then
-            pnpm install --frozen-lockfile
-          else
-            echo "Unknown package manager: ${{ steps.detect-lockfile.outputs.manager }}"
-            exit 1
-          fi
+          case "${{ steps.detect-lockfile.outputs.manager }}" in
+            npm)
+              npm ci
+              ;;
+            yarn)
+              yarn install --frozen-lockfile --ignore-engines
+              ;;
+            pnpm)
+              corepack enable
+              corepack prepare pnpm@latest --activate
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "Unknown package manager: ${{ steps.detect-lockfile.outputs.manager }}"
+              exit 1
+              ;;
+          esac
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+
+      - name: Run ESLint (if available)
+        run: npm run lint --if-present
 
       - name: Run Vitest
         env:
