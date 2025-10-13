@@ -1,0 +1,170 @@
+name: Quick Merge
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  pull_request_review:
+    types: [submitted]
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: 'Pull request number to merge'
+        required: true
+        type: string
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    if: >
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'pull_request_review' &&
+          github.event.review.state == 'approved' &&
+          github.event.pull_request.user.login != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.base.ref == 'main'
+        )
+      )
+    steps:
+      - name: Determine pull request number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ github.event.inputs.pull_request_number }}"
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          fi
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for CI checks
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Wait up to 10 minutes for CI checks
+            const maxWaitTime = 10 * 60 * 1000; // 10 minutes
+            const checkInterval = 30 * 1000; // 30 seconds
+            const startTime = Date.now();
+
+            while (Date.now() - startTime < maxWaitTime) {
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: `refs/pull/${prNumber}/head`
+              });
+
+              const requiredChecks = ['CI/test (3.11)', 'CI/test (3.12)', 'CI/test (3.13)', 'Security Scan', 'Coverage'];
+              const completedChecks = checks.check_runs.filter(check =>
+                requiredChecks.some(required => check.name.includes(required)) &&
+                check.status === 'completed'
+              );
+
+              if (completedChecks.length >= requiredChecks.length) {
+                const failedChecks = completedChecks.filter(check => check.conclusion === 'failure');
+                if (failedChecks.length === 0) {
+                  core.info('All required CI checks passed');
+                  return;
+                } else {
+                  core.setFailed(`CI checks failed: ${failedChecks.map(c => c.name).join(', ')}`);
+                  return;
+                }
+              }
+
+              core.info(`Waiting for CI checks... (${completedChecks.length}/${requiredChecks.length} completed)`);
+              await new Promise(resolve => setTimeout(resolve, checkInterval));
+            }
+
+            core.setFailed('Timeout waiting for CI checks to complete');
+
+      - name: Enable auto-merge
+        uses: peter-evans/enable-pull-request-automerge@a660677d5469627102a1c1e11409dd063606628d
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.pr.outputs.pr_number }}
+          merge-method: squash
+
+      - name: Merge pull request
+        id: merge
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ steps.pr.outputs.pr_number }}
+          script: |
+            const prNumber = parseInt(core.getInput('pr-number'));
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.state !== 'open') {
+              core.info(`PR #${prNumber} is not open. Current state: ${pr.state}`);
+              return { merged: false, reason: 'not-open' };
+            }
+
+            if (!pr.mergeable) {
+              core.info(`PR #${prNumber} is not currently mergeable.`);
+              return { merged: false, reason: 'not-mergeable' };
+            }
+
+            const requiredChecksOk = pr.mergeable_state === 'clean' || pr.mergeable_state === 'has_hooks';
+            if (!requiredChecksOk) {
+              core.info(`Required checks not yet successful (mergeable_state=${pr.mergeable_state}).`);
+              return { merged: false, reason: 'checks-pending' };
+            }
+
+            await github.rest.pulls.merge({
+              owner,
+              repo,
+              pull_number: prNumber,
+              merge_method: 'squash',
+            });
+            core.info(`PR #${prNumber} merged successfully.`);
+            return { merged: true };
+
+      - name: Delete branch
+        if: steps.merge.outputs.merged == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ steps.pr.outputs.pr_number }}
+          script: |
+            const prNumber = parseInt(core.getInput('pr-number'));
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+
+            const headRef = pr.head.ref;
+            const headRepo = pr.head.repo;
+
+            if (headRepo && headRepo.full_name === context.repo.owner + '/' + context.repo.repo) {
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${headRef}`,
+              });
+              core.info(`Deleted branch ${headRef}`);
+            } else {
+              core.info('Branch belongs to a fork. Skipping deletion.');
+            }
