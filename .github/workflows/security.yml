@@ -36,7 +36,7 @@ jobs:
       - name: Install security tooling
         run: |
           python -m pip install --upgrade pip
-          pip install bandit==1.7.9 "safety<3"
+          pip install bandit==1.7.9 safety==2.3.5
 
       - name: Run Bandit (security lint)
         run: |
@@ -50,8 +50,9 @@ jobs:
             echo "=== Bandit Report Analysis ==="
             high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
             if [ "$high_severity_count" -gt 0 ]; then
-              echo "⚠️  Found $high_severity_count HIGH severity security issues in Bandit report"
-              echo "::warning::Bandit found $high_severity_count HIGH severity issues – see report for details"
+              echo "❌ Found $high_severity_count HIGH severity security issues in Bandit report"
+              echo "::error::Bandit found $high_severity_count HIGH severity issues that must be addressed"
+              exit 1
             else
               echo "✅ No HIGH severity issues found in Bandit report"
             fi
@@ -63,37 +64,28 @@ jobs:
           safety check --full-report -r requirements.txt > safety-report.txt 2>&1
           safety_exit_code=$?
 
-          # Parse Safety report for high/critical vulnerabilities
+          # Display Safety report
           if [ -f safety-report.txt ]; then
-            echo "=== Safety Report Analysis ==="
+            echo "=== Safety Report ==="
             cat safety-report.txt
-
-            # Check for high/critical vulnerabilities
-            high_critical_count=$(grep -c -E "(HIGH|CRITICAL)" safety-report.txt || echo "0")
-
-            if [ "$high_critical_count" -gt 0 ]; then
-              echo "❌ Found $high_critical_count HIGH/CRITICAL vulnerabilities"
-              echo "::error::Safety found $high_critical_count HIGH/CRITICAL vulnerabilities that must be addressed"
-              exit 1
-            else
-              echo "✅ No HIGH/CRITICAL vulnerabilities found"
-              case "$safety_exit_code" in
-                0)
-                  ;;
-                1)
-                  echo "⚠️  Safety found lower severity issues (exit code: $safety_exit_code)"
-                  echo "::warning::Safety found lower severity issues – see report for details"
-                  ;;
-                *)
-                  echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
-                  exit "$safety_exit_code"
-                  ;;
-              esac
-            fi
-          else
-            echo "❌ Safety report file not found"
-            exit 1
           fi
+
+          # Analyze Safety exit code (more reliable than grep parsing)
+          case "$safety_exit_code" in
+            0)
+              echo "✅ Safety check passed - no vulnerabilities found"
+              ;;
+            1)
+              echo "❌ Safety found vulnerabilities that must be addressed"
+              echo "::error::Safety found vulnerabilities - see report for details"
+              exit 1
+              ;;
+            *)
+              echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
+              echo "::error::Safety execution failed with exit code $safety_exit_code"
+              exit "$safety_exit_code"
+              ;;
+          esac
 
       - name: Upload security reports
         if: always()
