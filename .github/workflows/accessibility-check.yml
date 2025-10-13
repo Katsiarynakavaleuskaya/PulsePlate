@@ -9,11 +9,11 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main, develop, feature/*, fix/*]
+    branches: [main, develop, feat/**, fix/**]
     paths:
       - 'frontend/**'
   push:
-    branches: [main, develop, feature/*, fix/*]
+    branches: [main, develop, feat/**, fix/**]
     paths:
       - 'frontend/**'
   workflow_dispatch:
