@@ -9,6 +9,9 @@ on:
 jobs:
   quick-merge:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     if: github.event.review.state == 'approved' && github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - name: Checkout code
