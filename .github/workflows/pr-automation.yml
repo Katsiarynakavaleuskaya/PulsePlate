@@ -15,6 +15,10 @@ on:
     branches: [main, develop, feat/**, fix/**]
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: 'Pull request number (required for manual trigger)'
+        required: true
+        type: string
       coderabbit_timeout_min:
         description: 'CodeRabbit timeout in minutes'
         required: false
@@ -45,9 +49,17 @@ jobs:
             const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
             const sleepSeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
             const maxIterations = Math.ceil((timeoutMinutes * 60) / sleepSeconds);
-            const prNumber = context.payload.pull_request?.number;
+
+            // Get PR number from context or manual input
+            let prNumber;
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = context.payload.inputs.pr_number;
+            } else {
+              prNumber = context.payload.pull_request?.number;
+            }
+
             if (!prNumber) {
-              core.setFailed('Unable to determine pull request number.');
+              core.setFailed('Unable to determine pull request number. For manual triggers, provide pr_number input.');
               return;
             }
 
