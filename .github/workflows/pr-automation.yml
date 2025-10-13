@@ -1,5 +1,9 @@
 name: PR Automation
 
+concurrency:
+  group: pr-auto-fix-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.sha }}
+  cancel-in-progress: false
+
 env:
   CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || vars.CODE_RABBIT_TIMEOUT_MIN || '15' }}
   SLEEP_SECONDS: '30'
@@ -134,7 +138,9 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.event_name == 'workflow_dispatch' && steps.pr-info.outputs.head_sha || github.event.pull_request.head.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -172,9 +178,12 @@ jobs:
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            branch_name="${{ steps.pr-info.outputs.head_ref }}"
-          else
-            branch_name="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD)}"
+          # Prefer PR head ref from event; fall back to pr-info step if present.
+          branch_name="${{ github.event.pull_request.head.ref || '' }}"
+          if [ -z "$branch_name" ]; then
+            branch_name="${{ steps.pr-info.outputs.head_ref || '' }}"
+          fi
+          if [ -z "$branch_name" ]; then
+            echo "Unable to determine PR head branch name."; exit 1;
           fi
           git push origin "HEAD:${branch_name}"
