@@ -16,6 +16,10 @@ env:
   CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
   SLEEP_SECONDS: '30' # Interval for checking CodeRabbit status
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   wait-for-coderabbit:
     runs-on: ubuntu-latest
@@ -26,30 +30,33 @@ jobs:
       - name: Wait for CodeRabbit review completion
         id: wait_coderabbit
         run: |
-          TIMEOUT_SECONDS=$(( CODE_RABBIT_TIMEOUT_MIN * 60 ))
-          MAX_ITERATIONS=$(( TIMEOUT_SECONDS / SLEEP_SECONDS ))
-          echo "Waiting for CodeRabbit review for up to $CODE_RABBIT_TIMEOUT_MIN minutes..."
+          TIMEOUT_SECONDS=$(( ${CODE_RABBIT_TIMEOUT_MIN} * 60 ))
+          MAX_ITERATIONS=$(( ${TIMEOUT_SECONDS} / ${SLEEP_SECONDS} ))
+          echo "Waiting for CodeRabbit review for up to ${CODE_RABBIT_TIMEOUT_MIN} minutes..."
 
-          for i in $(seq 1 $MAX_ITERATIONS); do
-            echo "Checking CodeRabbit status (attempt $i/$MAX_ITERATIONS)..."
+          for i in $(seq 1 "${MAX_ITERATIONS}"); do
+            echo "Checking CodeRabbit status (attempt ${i}/${MAX_ITERATIONS})..."
             STATUS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews --jq '.[].state' | grep -E 'APPROVED|CHANGES_REQUESTED|COMMENTED' || echo "PENDING")
 
-            if echo "$STATUS" | grep -qE 'APPROVED|CHANGES_REQUESTED|COMMENTED'; then
-              echo "CodeRabbit review completed with status: $STATUS"
+            if echo "${STATUS}" | grep -qE 'APPROVED|CHANGES_REQUESTED|COMMENTED'; then
+              echo "CodeRabbit review completed with status: ${STATUS}"
               break
             fi
 
-            if [ $i -eq $MAX_ITERATIONS ]; then
-              echo "CodeRabbit review timed out after $CODE_RABBIT_TIMEOUT_MIN minutes."
+            if [ "${i}" -eq "${MAX_ITERATIONS}" ]; then
+              echo "CodeRabbit review timed out after ${CODE_RABBIT_TIMEOUT_MIN} minutes."
               exit 1
             fi
 
-            sleep $SLEEP_SECONDS
+            sleep "${SLEEP_SECONDS}"
           done
 
   apply-auto-fixes:
     needs: wait-for-coderabbit
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
