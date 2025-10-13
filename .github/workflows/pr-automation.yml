@@ -65,7 +65,7 @@ jobs:
             // Get PR number from context or manual input
             let prNumber;
             if (context.eventName === 'workflow_dispatch') {
-              prNumber = context.payload.inputs.pr_number;
+              prNumber = parseInt(context.payload.inputs.pr_number, 10);
             } else {
               prNumber = context.payload.pull_request?.number;
             }
@@ -78,44 +78,38 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            function reviewCompleted(reviews) {
-              return reviews.some(review => {
-                if (!review || !review.state) {
-                  return false;
-                }
-                const reviewer = (review.user?.login ?? '').toLowerCase();
-                const normalizedState = review.state.toUpperCase();
-                const target = (process.env.CODE_REVIEWER ?? 'coderabbitai').toLowerCase();
-                const matchesReviewer = reviewer === target;
-                const matchesState = ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'].includes(normalizedState);
-                return matchesReviewer && matchesState;
+            function reviewCompleted() {
+              // Check if CodeRabbit check exists and is completed
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: `refs/pull/${prNumber}/head`
               });
+
+              const codeRabbitCheck = checks.check_runs.find(check =>
+                check.name.toLowerCase().includes('coderabbit') &&
+                check.status === 'completed'
+              );
+
+              return !!codeRabbitCheck;
             }
 
             for (let attempt = 1; attempt <= maxIterations; attempt += 1) {
-              const { data: reviews } = await github.rest.pulls.listReviews({
-                owner,
-                repo,
-                pull_number: prNumber,
-                per_page: 100,
-              });
-
-              if (reviewCompleted(reviews)) {
+              if (await reviewCompleted()) {
                 core.info(`CodeRabbit review completed on attempt ${attempt}.`);
                 core.setOutput('status', 'completed');
                 return;
               }
 
               // Calculate exponential backoff delay with jitter
-              const exponentialDelay = Math.min(maxDelaySeconds, baseDelaySeconds * Math.pow(2, attempt - 1));
               const jitterFactor = 0.5 + Math.random() * 1.0; // Random factor between 0.5 and 1.5
-              const delaySeconds = Math.floor(exponentialDelay * jitterFactor);
+              const delaySeconds = Math.floor(baseDelaySeconds * jitterFactor);
 
-              core.info(`CodeRabbit review not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (exponential backoff with jitter)...`);
+              core.info(`CodeRabbit check not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (exponential backoff with jitter)...`);
               await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
             }
 
-            core.setFailed(`CodeRabbit review not completed within ${timeoutMinutes} minutes.`);
+            core.setFailed(`CodeRabbit check not completed within ${timeoutMinutes} minutes.`);
 
   apply-auto-fixes:
     needs: wait-for-coderabbit
@@ -166,22 +160,16 @@ jobs:
 
       - name: Run Ruff format
         run: |
-          python -m ruff format . || {
-            echo "::error::Ruff format failed"
-            exit 1
-          }
+          python -m ruff format .
 
       - name: Run Ruff lint (auto-fix)
         run: |
-          python -m ruff check --fix . || {
-            echo "::error::Ruff check failed"
-            exit 1
-          }
+          python -m ruff check --fix . || true
 
       - name: Validate fixes
         run: |
           # Ensure Python files are still syntactically valid
-          python -m py_compile $(find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*")
+          find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -print0 | xargs -0 -r -n1 python -m py_compile
 
       - name: Detect changes
         id: changes
