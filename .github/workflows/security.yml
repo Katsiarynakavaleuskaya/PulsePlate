@@ -65,10 +65,18 @@ jobs:
               exit 1
             else
               echo "✅ No HIGH/CRITICAL vulnerabilities found"
-              if [ "$safety_exit_code" -ne 0 ]; then
-                echo "⚠️  Safety found lower severity issues (exit code: $safety_exit_code)"
-                echo "::warning::Safety found lower severity issues - see report for details"
-              fi
+              case "$safety_exit_code" in
+                0)
+                  ;;
+                1)
+                  echo "⚠️  Safety found lower severity issues (exit code: $safety_exit_code)"
+                  echo "::warning::Safety found lower severity issues – see report for details"
+                  ;;
+                *)
+                  echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
+                  exit "$safety_exit_code"
+                  ;;
+              esac
             fi
           else
             echo "❌ Safety report file not found"
