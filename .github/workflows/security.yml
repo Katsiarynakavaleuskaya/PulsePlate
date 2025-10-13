@@ -43,7 +43,19 @@ jobs:
           bandit -q -r . \
             -x node_modules,dist,build,test-results,.venv,venv,cache \
             -s B101 \
-            -f json -o bandit-report.json
+            -f json -o bandit-report.json || true
+
+          # Analyze Bandit report for high severity issues
+          if [ -f bandit-report.json ]; then
+            echo "=== Bandit Report Analysis ==="
+            high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
+            if [ "$high_severity_count" -gt 0 ]; then
+              echo "⚠️  Found $high_severity_count HIGH severity security issues in Bandit report"
+              echo "::warning::Bandit found $high_severity_count HIGH severity issues – see report for details"
+            else
+              echo "✅ No HIGH severity issues found in Bandit report"
+            fi
+          fi
 
       - name: Run Safety (dependency audit)
         run: |
