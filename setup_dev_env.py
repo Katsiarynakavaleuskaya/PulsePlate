@@ -6,6 +6,7 @@
 """
 
 import os
+import shlex
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
@@ -15,8 +16,8 @@ def run_command(cmd: str, description: str) -> bool:
     """Запустить команду и вернуть результат."""
     print(f"🔄 {description}...")
     try:
-        # Split command into list to avoid shell injection
-        cmd_list = cmd.split()
+        # Use shlex.split() for safe command parsing to avoid injection
+        cmd_list = shlex.split(cmd)
         result = subprocess.run(cmd_list, capture_output=True, text=True)  # nosec B603
         if result.returncode == 0:
             print(f"✅ {description} - успешно")
