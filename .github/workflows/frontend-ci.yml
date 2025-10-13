@@ -79,7 +79,7 @@ jobs:
       - name: Run Vitest
         env:
           CI: 'true'
-        run: npm test
+        run: npm run test
 
       - name: Build frontend
         run: npm run build
@@ -89,6 +89,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: ${{ env.BUILD_OUTPUT_DIR || 'dist' }}/
+          path: frontend/${{ env.BUILD_OUTPUT_DIR || 'dist' }}/
           if-no-files-found: ignore
           retention-days: 7
