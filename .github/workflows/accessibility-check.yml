@@ -10,4 +10,4 @@ jobs:
   accessibility:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Accessibility workflow temporarily disabled while reverting PR #154"
+      - run: echo 'Accessibility workflow temporarily disabled while reverting PR #154'
