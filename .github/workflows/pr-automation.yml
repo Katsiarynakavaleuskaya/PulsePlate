@@ -112,10 +112,29 @@ jobs:
       contents: write
       pull-requests: read
     steps:
+      - name: Get PR information
+        id: pr-info
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.inputs.pr_number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_repo', pr.head.repo.full_name);
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && steps.pr-info.outputs.head_sha || github.event.pull_request.head.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -153,5 +172,9 @@ jobs:
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
         run: |
-          branch_name="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD)}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            branch_name="${{ steps.pr-info.outputs.head_ref }}"
+          else
+            branch_name="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD)}"
+          fi
           git push origin "HEAD:${branch_name}"
