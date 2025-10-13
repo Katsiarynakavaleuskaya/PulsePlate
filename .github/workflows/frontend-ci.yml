@@ -26,100 +26,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Detect package manager and lock file
-        id: detect-lockfile
-        run: |
-          if [ -f package-lock.json ]; then
-            echo "manager=npm" >> "$GITHUB_OUTPUT"
-            echo "lockfile=frontend/package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "manager=yarn" >> "$GITHUB_OUTPUT"
-            echo "lockfile=frontend/yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
-            echo "lockfile=frontend/pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "No lock file found in frontend directory."
-            exit 1
-          fi
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: ${{ steps.detect-lockfile.outputs.manager }}
-          cache-dependency-path: ${{ steps.detect-lockfile.outputs.lockfile }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: |
-          case "${{ steps.detect-lockfile.outputs.manager }}" in
-            npm)
-              npm ci
-              ;;
-            yarn)
-              yarn install --frozen-lockfile --ignore-engines
-              ;;
-            pnpm)
-              corepack enable
-              corepack prepare pnpm@latest --activate
-              pnpm install --frozen-lockfile
-              ;;
-            *)
-              echo "Unknown package manager: ${{ steps.detect-lockfile.outputs.manager }}"
-              exit 1
-              ;;
-          esac
+        run: npm ci
 
       - name: Install Playwright browsers
         run: npx --yes playwright install --with-deps
 
       - name: Run ESLint (if available)
-        run: |
-          case "${{ steps.detect-lockfile.outputs.manager }}" in
-            npm)
-              npm run lint --if-present
-              ;;
-            yarn)
-              if yarn run | grep -qE " lint$"; then
-                yarn run lint || true
-              else
-                echo "lint script not present – skipping"
-              fi
-              ;;
-            pnpm)
-              pnpm run lint --if-present
-              ;;
-          esac
+        run: npm run lint --if-present
 
       - name: Run Vitest
         env:
           CI: 'true'
-        run: |
-          case "${{ steps.detect-lockfile.outputs.manager }}" in
-            npm)
-              npm run test
-              ;;
-            yarn)
-              yarn run test
-              ;;
-            pnpm)
-              pnpm run test
-              ;;
-          esac
+        run: npm run test
 
       - name: Build frontend
-        run: |
-          case "${{ steps.detect-lockfile.outputs.manager }}" in
-            npm)
-              npm run build
-              ;;
-            yarn)
-              yarn run build
-              ;;
-            pnpm)
-              pnpm run build
-              ;;
-          esac
+        run: npm run build
 
       - name: Upload build artifacts
         if: always()
