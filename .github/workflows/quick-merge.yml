@@ -99,11 +99,11 @@ jobs:
       - name: Merge pull request
         id: merge
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          pr-number: ${{ steps.pr.outputs.pr_number }}
-          script: |
-            const prNumber = parseInt(core.getInput('pr-number'));
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
