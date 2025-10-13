@@ -1,33 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PulsePlate Development Environment Setup.
-
-Скрипт для настройки среды разработки PulsePlate.
-"""
+"""Настройка среды разработки PulsePlate."""
 
 import os
-import shlex
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
+from typing import Iterable
 
 
-def run_command(cmd: str, description: str) -> bool:
-    """Запустить команду и вернуть результат."""
+def run_command(cmd: Iterable[str], description: str) -> bool:
+    """Execute command and report success."""
     print(f"🔄 {description}...")
     try:
-        # Use shlex.split() for safe command parsing to avoid injection
-        cmd_list = shlex.split(cmd)
-        result = subprocess.run(cmd_list, capture_output=True, text=True)  # nosec B603
-        if result.returncode == 0:
-            print(f"✅ {description} - успешно")
-            return True
-        else:
-            print(f"❌ {description} - ошибка: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"❌ {description} - исключение: {e}")
+        result = subprocess.run(  # nosec B603
+            list(cmd), capture_output=True, text=True, check=False
+        )
+    except Exception as exc:  # pragma: no cover - safeguard
+        print(f"❌ {description} - исключение: {exc}")
         return False
+
+    if result.returncode == 0:
+        print(f"✅ {description} - успешно")
+        return True
+
+    print(f"❌ {description} - ошибка: {result.stderr}")
+    return False
 
 
 def check_python_version():
@@ -46,8 +44,7 @@ def check_dependencies():
         "fastapi",
         "pydantic",
         "pytest",
-        "black",
-        "flake8",
+        "ruff",
         "hypothesis",
         "uvicorn",
         "httpx",
@@ -85,25 +82,34 @@ def setup_environment():
 
 def run_tests():
     """Запустить тесты."""
-    return run_command("python -m pytest tests -q", "Запуск тестов")
+    return run_command([sys.executable, "-m", "pytest", "tests", "-q"], "Запуск тестов")
 
 
 def run_coverage():
     """Запустить проверку покрытия."""
     return run_command(
-        "python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -q",
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests",
+            "--cov=.",
+            "--cov-report=term-missing",
+            "--cov-fail-under=97",
+            "-q",
+        ],
         "Проверка покрытия",
     )
 
 
 def run_linting():
-    """Запустить линтинг."""
-    return run_command("python -m flake8 .", "Линтинг кода")
+    """Запустить линтинг (ruff check)."""
+    return run_command([sys.executable, "-m", "ruff", "check", "."], "Ruff linting")
 
 
 def format_code():
-    """Форматировать код."""
-    return run_command("python -m black . --line-length=100", "Форматирование кода")
+    """Форматировать код (ruff format)."""
+    return run_command([sys.executable, "-m", "ruff", "format", "."], "Ruff форматирование")
 
 
 def main():
