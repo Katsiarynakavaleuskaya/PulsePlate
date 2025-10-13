@@ -1,12 +1,9 @@
 name: PR Automation
 
-permissions:
-  contents: write
-  pull-requests: read
-
 env:
   CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
   SLEEP_SECONDS: '30'
+  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
 
 on:
   pull_request:
@@ -21,12 +18,14 @@ jobs:
   wait-for-coderabbit:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     outputs:
       status: ${{ steps.wait.outputs.status }}
     steps:
       - name: Wait for CodeRabbit review
         id: wait
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
@@ -48,9 +47,10 @@ jobs:
                 if (!review || !review.state) {
                   return false;
                 }
-                const reviewer = review.user?.login ?? '';
+                const reviewer = (review.user?.login ?? '').toLowerCase();
                 const normalizedState = review.state.toUpperCase();
-                const matchesReviewer = reviewer.includes('coderabbitai');
+                const target = (process.env.CODE_REVIEWER ?? 'coderabbitai').toLowerCase();
+                const matchesReviewer = reviewer === target;
                 const matchesState = ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'].includes(normalizedState);
                 return matchesReviewer && matchesState;
               });
@@ -81,16 +81,20 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      needs.wait-for-coderabbit.result == 'success'
+      needs.wait-for-coderabbit.result == 'success' &&
+      github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version-file: .python-version
 
