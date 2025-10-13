@@ -10,13 +10,18 @@ concurrency:
 on:
   pull_request:
     branches: [main, develop, feature/*, fix/*]
+    paths:
+      - 'frontend/**'
   push:
     branches: [main, develop, feature/*, fix/*]
+    paths:
+      - 'frontend/**'
   workflow_dispatch:
 
 jobs:
   accessibility:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -46,7 +51,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: accessibility-reports
-          path: frontend/test-results/
+          name: accessibility-reports-${{ github.run_number }}
+          path: frontend/test-results/**
           if-no-files-found: ignore
           retention-days: 7
