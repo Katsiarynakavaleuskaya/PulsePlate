@@ -1,5 +1,8 @@
 name: PR Automation
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -49,6 +52,8 @@ jobs:
 
   apply-auto-fixes:
     needs: wait-for-coderabbit
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
