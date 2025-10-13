@@ -78,7 +78,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            function reviewCompleted() {
+            async function reviewCompleted() {
               // Check if CodeRabbit check exists and is completed
               const { data: checks } = await github.rest.checks.listForRef({
                 owner,
@@ -87,7 +87,7 @@ jobs:
               });
 
               const codeRabbitCheck = checks.check_runs.find(check =>
-                check.name.toLowerCase().includes('coderabbit') &&
+                check.name === 'CodeRabbit' &&
                 check.status === 'completed'
               );
 
@@ -101,11 +101,11 @@ jobs:
                 return;
               }
 
-              // Calculate exponential backoff delay with jitter
+              // Calculate delay with jitter
               const jitterFactor = 0.5 + Math.random() * 1.0; // Random factor between 0.5 and 1.5
               const delaySeconds = Math.floor(baseDelaySeconds * jitterFactor);
 
-              core.info(`CodeRabbit check not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (exponential backoff with jitter)...`);
+              core.info(`CodeRabbit check not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (fixed delay with jitter)...`);
               await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
             }
 
