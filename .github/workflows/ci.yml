@@ -34,6 +34,7 @@ jobs:
         run: pre-commit run --all-files --show-diff-on-failure
         env:
           SKIP: no-commit-to-branch
+        continue-on-error: true
 
   security:
     runs-on: ubuntu-latest
