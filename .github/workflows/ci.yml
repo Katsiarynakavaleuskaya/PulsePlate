@@ -19,6 +19,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +96,13 @@ jobs:
       - name: Security scan with Bandit (non-blocking)
         if: always()
         run: |
-          bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov --output bandit-report.json
+          set -e
+          if [ -x scripts/ci_bandit.sh ]; then
+            bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov --output bandit-report.json
+          else
+            echo "::notice::scripts/ci_bandit.sh not found; running bandit directly"
+            bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
+          fi
         continue-on-error: true
 
       - name: Upload bandit artifact
@@ -116,6 +123,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: frontend

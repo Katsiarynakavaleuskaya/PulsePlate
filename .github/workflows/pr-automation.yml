@@ -7,7 +7,6 @@ concurrency:
 env:
   CODE_RABBIT_TIMEOUT_MIN: '30'
   SLEEP_SECONDS: '30'
-  CODE_REVIEWER: 'coderabbitai'
   CODE_RABBIT_CHECK_NAME: 'CodeRabbit'
 
 on:
@@ -28,11 +27,6 @@ on:
         description: 'CodeRabbit timeout in minutes'
         required: false
         default: '15'
-        type: string
-      code_reviewer:
-        description: 'Code reviewer username'
-        required: false
-        default: 'coderabbitai'
         type: string
 
 jobs:
@@ -98,7 +92,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '30', 10);
+            const timeoutFromInput = (context.eventName === 'workflow_dispatch')
+              ? parseInt(context.payload.inputs?.coderabbit_timeout_min ?? '', 10)
+              : NaN;
+            const timeoutMinutes = Number.isFinite(timeoutFromInput)
+              ? timeoutFromInput
+              : parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '30', 10);
             const baseDelaySeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
             const timeoutSeconds = timeoutMinutes * 60;
             const maxIterations = Math.ceil(timeoutSeconds / baseDelaySeconds);
@@ -143,15 +142,17 @@ jobs:
                 core.info(`[${attempt}/${maxIterations}] CodeRabbit check found: status=${check.status}, conclusion=${check.conclusion}`);
 
                 if (check.status === 'completed') {
-                  if (check.conclusion === 'success' || check.conclusion === 'neutral') {
+                  if (check.conclusion === 'success') {
                     core.info(`CodeRabbit review completed successfully on attempt ${attempt}`);
                     core.setOutput('status', 'completed');
-                    return;
+                  } else if (check.conclusion === 'neutral') {
+                    core.info('CodeRabbit concluded neutral; skipping auto-fixes.');
+                    core.setOutput('status', 'skipped');
                   } else {
                     core.warning(`CodeRabbit completed with conclusion: ${check.conclusion}`);
                     core.setOutput('status', 'failed');
-                    return;
                   }
+                  return;
                 }
               } else {
                 core.info(`[${attempt}/${maxIterations}] CodeRabbit check not found yet (expected name: '${checkName}')`);
@@ -174,6 +175,7 @@ jobs:
       (needs.wait-for-coderabbit.outputs.status == 'completed' || needs.wait-for-coderabbit.outputs.status == 'skipped') &&
       github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
