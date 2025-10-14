@@ -1,0 +1,60 @@
+name: 'Python Setup'
+description: 'Setup Python environment with dependencies'
+inputs:
+  python-version:
+    description: 'Python version to use'
+    required: true
+  install-dev-deps:
+    description: 'Install development dependencies (pre-commit, bandit, etc.)'
+    required: false
+    default: 'false'
+  install-test-deps:
+    description: 'Install test dependencies (pytest, pytest-cov)'
+    required: false
+    default: 'false'
+  working-directory:
+    description: 'Working directory for the job'
+    required: false
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: "pip"
+        cache-dependency-path: |
+          ${{ inputs.working-directory }}/requirements*.txt
+
+    - name: Install base dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euxo pipefail
+        python -m pip install --upgrade pip
+        if [[ -f requirements-dev.txt ]]; then
+          python -m pip install -r requirements-dev.txt
+        elif [[ -f requirements.txt ]]; then
+          python -m pip install -r requirements.txt
+        fi
+        if [[ ! -f requirements-dev.txt && ! -f requirements.txt ]]; then
+          echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
+        fi
+
+    - name: Install development dependencies
+      if: ${{ inputs.install-dev-deps == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euxo pipefail
+        python -m pip install 'pre-commit>=3.0.0,<4.0.0' 'bandit>=1.7.0,<2.0.0'
+
+    - name: Install test dependencies
+      if: ${{ inputs.install-test-deps == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euxo pipefail
+        python -m pip install 'pytest>=8.0.0,<9.0.0' 'pytest-cov>=4.0.0,<5.0.0'
