@@ -1,7 +1,7 @@
 name: Quick Merge
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pull_request_number || github.run_id }}
   cancel-in-progress: false
 
 on:
@@ -22,6 +22,7 @@ jobs:
       contents: write
       pull-requests: write
       checks: read
+      statuses: read
     if: >
       (
         github.event_name == 'workflow_dispatch' ||
@@ -171,6 +172,16 @@ jobs:
               pull_number: prNumber,
             });
 
+            // Enforce policies for workflow_dispatch as well
+            if (pr.base.ref !== 'main') {
+              core.info(`PR #${prNumber} targets '${pr.base.ref}', not 'main'. Aborting.`);
+              return { merged: false, reason: 'wrong-base' };
+            }
+            if (pr.user?.login === 'dependabot[bot]') {
+              core.info(`PR #${prNumber} is from Dependabot. Aborting.`);
+              return { merged: false, reason: 'dependabot' };
+            }
+
             if (pr.state !== 'open') {
               core.info(`PR #${prNumber} is not open. Current state: ${pr.state}`);
               return { merged: false, reason: 'not-open' };
@@ -218,12 +229,20 @@ jobs:
             const headRepo = pr.head.repo;
 
             if (headRepo && headRepo.full_name === `${context.repo.owner}/${context.repo.repo}`) {
-              await github.rest.git.deleteRef({
-                owner,
-                repo,
-                ref: `heads/${headRef}`,
-              });
-              core.info(`Deleted branch ${headRef}`);
+              try {
+                await github.rest.git.deleteRef({
+                  owner,
+                  repo,
+                  ref: `heads/${headRef}`,
+                });
+                core.info(`Deleted branch ${headRef}`);
+              } catch (err) {
+                if (err.status === 404 || err.status === 422) {
+                  core.info(`Branch ${headRef} already deleted or protected; skipping.`);
+                } else {
+                  throw err;
+                }
+              }
             } else {
               core.info('Branch belongs to a fork. Skipping deletion.');
             }
