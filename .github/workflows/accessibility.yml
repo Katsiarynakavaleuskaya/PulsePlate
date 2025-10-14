@@ -59,7 +59,7 @@ jobs:
 
       - name: Run accessibility test suite
         run: npm run test:accessibility -- --reporter=junit --outputFile=test-results/accessibility.xml
-        # env vars наследуются из job-level env
+        # env vars are inherited from job-level env
 
       - name: Upload accessibility reports
         if: always()
