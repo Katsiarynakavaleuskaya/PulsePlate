@@ -23,6 +23,7 @@ jobs:
       pull-requests: write
       checks: read
       statuses: read
+      administration: read
     if: >
       (
         github.event_name == 'workflow_dispatch' ||
@@ -31,7 +32,8 @@ jobs:
           github.event.review.state == 'approved' &&
           github.event.pull_request.user.login != 'dependabot[bot]' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
-          github.event.pull_request.base.ref == 'main'
+          github.event.pull_request.base.ref == 'main' &&
+          github.event.pull_request.draft == false
         )
       )
     steps:
@@ -98,9 +100,13 @@ jobs:
                 pull_number: prNumber,
               });
 
-              // Validate PR exists and is open
+              // Validate PR exists, is open, and not draft
               if (pr.state !== 'open') {
                 core.setFailed(`PR #${prNumber} is not open. Current state: ${pr.state}`);
+                return;
+              }
+              if (pr.draft) {
+                core.setFailed(`PR #${prNumber} is a draft. Drafts are not eligible for Quick Merge.`);
                 return;
               }
 
@@ -187,10 +193,24 @@ jobs:
               // Required checks are configurable via repo variable QUICK_MERGE_REQUIRED_CHECKS (CSV). Fallback to strict defaults.
               const defaultChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage'];
               const csv = (process.env.REQUIRED_CHECKS_CSV || '').trim();
-              const requiredChecks = (csv ? csv.split(',') : [])
+              let requiredChecks = (csv ? csv.split(',') : [])
                 .map(s => s.trim())
                 .filter(Boolean)
                 .filter((v, i, a) => a.indexOf(v) === i);
+              // Try deriving from branch protection (if token allows), then fall back
+              if (requiredChecks.length === 0) {
+                try {
+                  const bp = await github.rest.repos.getBranchProtection({ owner, repo, branch: pr.base.ref });
+                  const ctxs = bp.data.required_status_checks?.contexts ?? [];
+                  const checks = (bp.data.required_status_checks?.checks ?? []).map(c => c.context);
+                  const inferred = [...ctxs, ...checks].filter(Boolean);
+                  if (inferred.length) {
+                    requiredChecks = [...new Set(inferred)];
+                  }
+                } catch (e) {
+                  core.info(`Could not read branch protection: ${e.status || e.message}. Falling back to defaults.`);
+                }
+              }
               if (requiredChecks.length === 0) requiredChecks.push(...defaultChecks);
 
               if (!requiredChecks.length) {
@@ -305,15 +325,22 @@ jobs:
               core.info(`PR #${prNumber} is from Dependabot. Aborting.`);
               return { merged: false, reason: 'dependabot' };
             }
+            if (pr.draft) {
+              core.info(`PR #${prNumber} is a draft. Aborting.`);
+              return { merged: false, reason: 'draft' };
+            }
 
             // Require at least one approval when triggered via workflow_dispatch
             if (context.eventName === 'workflow_dispatch') {
-              const { data: reviews } = await github.rest.pulls.listReviews({
-                owner, repo, pull_number: prNumber, per_page: 100
-              });
-              const hasApproval = reviews.some(r => r.state === 'APPROVED');
-              if (!hasApproval) {
-                core.info(`PR #${prNumber} has no approvals. Aborting.`);
+              const q = `query($owner:String!,$repo:String!,$number:Int!){
+                repository(owner:$owner,name:$repo){
+                  pullRequest(number:$number){ reviewDecision }
+                }
+              }`;
+              const resp = await github.graphql(q, { owner, repo, number: prNumber });
+              const decision = resp.repository?.pullRequest?.reviewDecision;
+              if (decision !== 'APPROVED') {
+                core.info(`PR #${prNumber} reviewDecision='${decision}'. Aborting.`);
                 return { merged: false, reason: 'not-approved' };
               }
             }
