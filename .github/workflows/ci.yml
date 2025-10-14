@@ -140,7 +140,7 @@ jobs:
       - name: Upload to Codecov
         uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
-          files: ./coverage-artifacts/coverage.xml
+          files: ./coverage-artifacts/coverage-xml-3.12/coverage.xml
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
