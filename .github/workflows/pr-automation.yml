@@ -42,6 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
+      checks: read
     outputs:
       status: ${{ steps.wait.outputs.status }}
     steps:
@@ -103,8 +104,10 @@ jobs:
                 check.conclusion === 'success'
               );
 
-              // Log CodeRabbit check status for debugging
-              const allCodeRabbitChecks = checks.check_runs.filter(check => check.name === 'CodeRabbit');
+              // Log latest CodeRabbit check status for debugging (deterministic)
+              const allCodeRabbitChecks = checks.check_runs
+                .filter(check => check.name === 'CodeRabbit')
+                .sort((a, b) => new Date(b.completed_at || b.started_at || 0) - new Date(a.completed_at || a.started_at || 0));
               if (allCodeRabbitChecks.length > 0) {
                 const latestCheck = allCodeRabbitChecks[0];
                 core.info(`CodeRabbit check status: ${latestCheck.status}, conclusion: ${latestCheck.conclusion}`);
@@ -204,7 +207,7 @@ jobs:
       - name: Validate fixes
         run: |
           # Ensure Python files are still syntactically valid
-          find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -print0 | xargs -0 -r -n1 python -m py_compile
+          find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -exec python -m py_compile {} +
 
       - name: Detect changes
         id: changes
