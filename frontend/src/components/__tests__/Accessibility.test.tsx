@@ -1,18 +1,22 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
-import { vi, expect, describe, it } from 'vitest';
+import { vi, expect, describe, it, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { Toggle } from '../ui/Toggle';
 import { FormField, FormError } from '../ui/FormField';
 
 describe('Accessibility Tests', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   describe('Toggle Component', () => {
     it('label click toggles state and respects disabled', async () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
       const { rerender } = render(
-        <div role="main">
+        <div>
           <Toggle label="Label Toggle" checked={false} onChange={onChange} />
         </div>
       );
@@ -21,7 +25,7 @@ describe('Accessibility Tests', () => {
 
       onChange.mockClear();
       rerender(
-        <div role="main">
+        <div>
           <Toggle label="Label Toggle" checked={false} onChange={onChange} disabled />
         </div>
       );
@@ -33,7 +37,7 @@ describe('Accessibility Tests', () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
       render(
-        <div role="main">
+        <div>
           <Toggle label="Focus Transfer Toggle" checked={false} onChange={onChange} />
         </div>
       );
@@ -75,11 +79,13 @@ describe('Accessibility Tests', () => {
 
     it('should properly associate label with switch using aria-labelledby', async () => {
       const { container } = render(
-        <Toggle
-          label="Accessibility Test Toggle"
-          checked={true}
-          onChange={() => {}}
-        />
+        <div>
+          <Toggle
+            label="Accessibility Test Toggle"
+            checked={true}
+            onChange={() => {}}
+          />
+        </div>
       );
       const switchElement = screen.getByRole('switch');
       const labelId = switchElement.getAttribute('aria-labelledby')!;
@@ -98,7 +104,7 @@ describe('Accessibility Tests', () => {
 
     it('should not have accessibility violations when disabled', async () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <Toggle
             label="Disabled Toggle"
             checked={false}
@@ -119,7 +125,7 @@ describe('Accessibility Tests', () => {
     it('exposes only the switch in tab order', async () => {
       const user = userEvent.setup();
       const { container } = render(
-        <div role="main">
+        <div>
           <Toggle label="Tab Order" checked={false} onChange={() => {}} />
         </div>
       );
@@ -136,7 +142,7 @@ describe('Accessibility Tests', () => {
       const handleChange = vi.fn();
 
       const { container } = render(
-        <div role="main">
+        <div>
           <Toggle
             label="Keyboard Test Toggle"
             checked={false}
@@ -161,7 +167,7 @@ describe('Accessibility Tests', () => {
 
     it('should have proper focus management and visible focus styles', async () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <Toggle
             label="Focus Test Toggle"
             checked={false}
@@ -186,7 +192,7 @@ describe('Accessibility Tests', () => {
 
     it('should have proper ARIA attributes and state management', async () => {
       const { container, rerender } = render(
-        <div role="main">
+        <div>
           <Toggle
             label="ARIA Test Toggle"
             checked={false}
@@ -203,7 +209,7 @@ describe('Accessibility Tests', () => {
 
       // Test checked state
       rerender(
-        <div role="main">
+        <div>
           <Toggle
             label="ARIA Test Toggle"
             checked={true}
@@ -223,7 +229,7 @@ describe('Accessibility Tests', () => {
       // JSDOM does not compute real styles, so axe color-contrast rule reports false negatives.
       // Covered by browser-based axe run in Playwright suite (frontend/tests/accessibility.spec.ts).
       const { container } = render(
-        <div role="main">
+        <div>
           <Toggle
             label="Contrast Test Toggle"
             checked={true}
@@ -244,7 +250,7 @@ describe('Accessibility Tests', () => {
   describe('FormField Component', () => {
     it('should not have accessibility violations with basic input', async () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <FormField
             label="Test Field"
             name="test"
@@ -264,7 +270,7 @@ describe('Accessibility Tests', () => {
 
     it('should properly handle required fields and ARIA attributes', async () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <FormField
             label="Required Field"
             name="required"
@@ -287,7 +293,7 @@ describe('Accessibility Tests', () => {
       const error = { message: 'This field is required', type: 'required' };
 
       const { container } = render(
-        <div role="main">
+        <div>
           <FormField
             label="Error Field"
             name="error"
@@ -312,7 +318,7 @@ describe('Accessibility Tests', () => {
       const user = userEvent.setup();
 
       const { container } = render(
-        <div role="main">
+        <div>
           <FormField
             label="Focus Test Field"
             name="focus"
@@ -338,7 +344,7 @@ describe('Accessibility Tests', () => {
   describe('FormError Component', () => {
     it('should have proper ARIA live region attributes', async () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <FormError error="Test error message" />
         </div>
       );
@@ -354,7 +360,7 @@ describe('Accessibility Tests', () => {
 
     it('should not render when no error is provided', () => {
       const { container } = render(
-        <div role="main">
+        <div>
           <FormError />
         </div>
       );
