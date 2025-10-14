@@ -299,14 +299,14 @@ jobs:
                 return;
               }
 
-              const completedCount = checkResults.filter(result => result.found).length;
-              const pendingCount = checkResults.filter(result => !result.found).length;
+              const completedCount = checkResults.filter(result => result && result.found).length;
+              const pendingCount = checkResults.filter(result => result && !result.found).length;
               const failedCount = nonSuccessChecks.length;
 
               // Enhanced logging with detailed status
               core.info(`CI Check Status: ${completedCount}/${requiredChecks.length} completed, ${pendingCount} pending, ${failedCount} failed`);
               if (pendingCount > 0) {
-                const pendingChecks = checkResults.filter(result => !result.found).map(r => r.name).join(', ');
+                const pendingChecks = checkResults.filter(result => result && !result.found).map(r => r.name).join(', ');
                 core.info(`Pending checks: ${pendingChecks}`);
               }
 
