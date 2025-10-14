@@ -18,7 +18,7 @@ name: Codecov Upload
 #   uses: ./.github/workflows/codecov-upload.yml
 #   with:
 #     coverage-file: 'coverage.xml'
-#     coverage-artifact: 'coverage-report'  # Download artifact before upload
+#     coverage-artifact: 'coverage-report'  # Download artifact to ./coverage-artifact/ before upload
 #     fail_on_codecov_error: false  # Override to not fail CI on upload errors
 
 on:
@@ -74,6 +74,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.coverage-artifact }}
+          path: ./coverage-artifact
+
+      - name: Verify coverage file exists
+        if: ${{ inputs.coverage-artifact != '' }}
+        run: |
+          if [ ! -f "${{ inputs.coverage-file }}" ]; then
+            echo "::error::Coverage file '${{ inputs.coverage-file }}' not found after downloading artifact '${{ inputs.coverage-artifact }}'"
+            echo "Available files in current directory:"
+            find . -name "*.xml" -o -name "*.json" -o -name "coverage*" | head -10
+            exit 1
+          fi
+          echo "✅ Coverage file '${{ inputs.coverage-file }}' found successfully"
 
       - name: Upload to Codecov
         if: ${{ !inputs.skip-upload }}
