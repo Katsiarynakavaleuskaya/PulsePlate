@@ -9,10 +9,10 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'json'],
       reportsDirectory: 'coverage',
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80
+        lines: 95,
+        functions: 95,
+        branches: 95,
+        statements: 95
       },
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/types/**']
