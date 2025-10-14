@@ -95,8 +95,18 @@ jobs:
 
               const codeRabbitCheck = checks.check_runs.find(check =>
                 check.name === 'CodeRabbit' &&
-                check.status === 'completed'
+                check.status === 'completed' &&
+                check.conclusion === 'success'
               );
+
+              // Log CodeRabbit check status for debugging
+              const allCodeRabbitChecks = checks.check_runs.filter(check => check.name === 'CodeRabbit');
+              if (allCodeRabbitChecks.length > 0) {
+                const latestCheck = allCodeRabbitChecks[0];
+                core.info(`CodeRabbit check status: ${latestCheck.status}, conclusion: ${latestCheck.conclusion}`);
+              } else {
+                core.info('No CodeRabbit check found');
+              }
 
               return !!codeRabbitCheck;
             }
