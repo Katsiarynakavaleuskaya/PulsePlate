@@ -15,7 +15,7 @@ inputs:
   working-directory:
     description: 'Working directory for the job'
     required: false
-    default: ''
+    default: '.'
 
 runs:
   using: 'composite'
