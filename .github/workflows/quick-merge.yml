@@ -128,9 +128,10 @@ jobs:
                 return;
               }
 
-              // Find any required check that is not successful (excluding pending)
+              // Find any required check that has terminal failure states (excluding pending/in_progress)
+              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error'];
               const nonSuccessChecks = checkResults.filter(result =>
-                result.found && !result.passed
+                result.found && terminalFailureStates.includes(result.conclusion)
               );
 
               if (nonSuccessChecks.length > 0) {
