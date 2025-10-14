@@ -160,11 +160,12 @@ jobs:
 
             // Wait duration is configurable via workflow inputs, repository variables, or env with sane defaults
             const maxWaitMinutes = parseInt(
-              '${{ github.event.inputs.wait_timeout_min }}' ||
-              process.env.QUICK_MERGE_MAX_WAIT_MIN ||
-              '10', 10
+              (${{ github.event.inputs.wait_timeout_min != '' }} ? '${{ github.event.inputs.wait_timeout_min }}' : null)
+              ?? process.env.QUICK_MERGE_MAX_WAIT_MIN
+              ?? '10',
+              10
             );
-            const pollSeconds = parseInt(process.env.QUICK_MERGE_POLL_SEC || '30', 10);
+            const pollSeconds = parseInt(process.env.QUICK_MERGE_POLL_SEC ?? '30', 10);
             const maxWaitTime = maxWaitMinutes * 60 * 1000;
             const checkInterval = pollSeconds * 1000;
             const startTime = Date.now();
@@ -232,8 +233,8 @@ jobs:
                 try {
                   const bp = await github.rest.repos.getBranchProtection({ owner, repo, branch: pr.base.ref });
                   const ctxs = bp.data.required_status_checks?.contexts ?? [];
-                  const checks = (bp.data.required_status_checks?.checks ?? []).map(c => c.context);
-                  const inferred = [...ctxs, ...checks].filter(Boolean);
+                  const bpChecks = (bp.data.required_status_checks?.checks ?? []).map(c => c.context);
+                  const inferred = [...ctxs, ...bpChecks].filter(Boolean);
                   if (inferred.length) {
                     requiredChecks = [...new Set(inferred)];
                   }
@@ -268,10 +269,14 @@ jobs:
                       s.context.endsWith(requiredCheck)
                     )
                   : null;
-                const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
-                const isPendingStatus = conclusion === 'pending';
-                const found = !!matchingCheck || (!!matchingStatus && !isPendingStatus);
-                const passed = conclusion === 'success';
+            const checkTime = matchingCheck?.completed_at ? new Date(matchingCheck.completed_at).getTime() : 0;
+            const statusTime = (matchingStatus?.updated_at || matchingStatus?.created_at)
+              ? new Date(matchingStatus.updated_at || matchingStatus.created_at).getTime() : 0;
+            const useStatus = statusTime > checkTime;
+            const conclusion = useStatus ? matchingStatus?.state : matchingCheck?.conclusion;
+            const isPending = conclusion === 'pending' || conclusion === 'queued' || conclusion === 'in_progress';
+            const found = !!matchingCheck || (!!matchingStatus && !isPending);
+            const passed = conclusion === 'success';
 
                 return {
                   name: requiredCheck,
