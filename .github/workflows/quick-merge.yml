@@ -95,7 +95,7 @@ jobs:
                 ref: prHeadSha
               });
 
-              const requiredChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage'];
+              const requiredChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
 
               // Check that each required check exists and has passed with "success" conclusion
               const checkResults = requiredChecks.map(requiredCheck => {
@@ -181,7 +181,11 @@ jobs:
             }
 
             if (!pr.mergeable) {
-              core.info(`PR #${prNumber} is not currently mergeable.`);
+              if (pr.mergeable === null) {
+                core.info(`PR #${prNumber} mergeable status is still being calculated.`);
+              } else {
+                core.info(`PR #${prNumber} is not currently mergeable.`);
+              }
               return { merged: false, reason: 'not-mergeable' };
             }
 

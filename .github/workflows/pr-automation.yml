@@ -65,6 +65,10 @@ jobs:
             let prNumber;
             if (context.eventName === 'workflow_dispatch') {
               prNumber = parseInt(context.payload.inputs.pr_number, 10);
+              if (isNaN(prNumber)) {
+                core.setFailed(`Invalid PR number input: "${context.payload.inputs.pr_number}". Must be a valid integer.`);
+                return;
+              }
             } else {
               prNumber = context.payload.pull_request?.number;
             }
@@ -157,12 +161,22 @@ jobs:
             core.setOutput('head_sha', pr.head.sha);
             core.setOutput('head_repo', pr.head.repo.full_name);
 
+      - name: Validate PR head SHA
+        run: |
+          if [ -z "${{ github.event.pull_request.head.sha }}" ] && [ -z "${{ steps.pr-info.outputs.head_sha }}" ]; then
+            echo "Error: Cannot determine PR head SHA. This workflow requires a valid PR head SHA to checkout the correct commit."
+            echo "github.event.pull_request.head.sha: ${{ github.event.pull_request.head.sha }}"
+            echo "steps.pr-info.outputs.head_sha: ${{ steps.pr-info.outputs.head_sha }}"
+            exit 1
+          fi
+          echo "PR head SHA validated successfully"
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.event.pull_request.head.repo.full_name || steps.pr-info.outputs.head_repo || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha }}
           fetch-depth: 0
 
       - name: Set up Python
