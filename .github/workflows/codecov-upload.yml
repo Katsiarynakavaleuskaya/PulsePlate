@@ -1,0 +1,107 @@
+name: Codecov Upload
+
+# Reusable workflow for uploading coverage reports to Codecov
+#
+# Inputs:
+#   - coverage-file: Path to coverage XML file (required)
+#   - flags: Codecov flags for categorization (default: 'unittests')
+#   - python-version: Python version for context (default: '3.12')
+#   - name: Custom name for this upload (default: 'codecov-upload')
+#   - skip-upload: Skip the upload step (default: false)
+#   - fail_on_codecov_error: Whether to fail CI if Codecov upload fails (default: true)
+#   - coverage-artifact: Name of the coverage artifact to download (optional)
+#
+# Secrets:
+#   - CODECOV_TOKEN: Codecov token (optional)
+#
+# Usage example:
+#   uses: ./.github/workflows/codecov-upload.yml
+#   with:
+#     coverage-file: 'coverage.xml'
+#     coverage-artifact: 'coverage-report'  # Download artifact to ./coverage-artifact/ before upload
+#     fail_on_codecov_error: false  # Override to not fail CI on upload errors
+#   secrets: inherit  # Forward CODECOV_TOKEN (if used) from the caller
+
+on:
+  workflow_call:
+    inputs:
+      coverage-file:
+        description: 'Path to coverage XML file'
+        required: true
+        type: string
+      flags:
+        description: 'Codecov flags for categorization'
+        required: false
+        type: string
+        default: 'unittests'
+      python-version:
+        description: 'Python version for context'
+        required: false
+        type: string
+        default: '3.12'
+      name:
+        description: 'Custom name for this upload'
+        required: false
+        type: string
+        default: 'codecov-upload'
+      skip-upload:
+        description: 'Skip the upload step (useful for testing or conditional uploads)'
+        required: false
+        type: boolean
+        default: false
+      fail_on_codecov_error:
+        description: 'Whether to fail CI if Codecov upload fails (default: true for quality assurance)'
+        required: false
+        type: boolean
+        default: true
+      coverage-artifact:
+        description: 'Name of the coverage artifact to download (optional)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Codecov token (optional)'
+        required: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage artifact
+        if: ${{ inputs['coverage-artifact'] != '' }}
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: ${{ inputs['coverage-artifact'] }}
+          path: ./coverage-artifact
+
+      - name: Verify coverage file exists
+        if: ${{ inputs['coverage-artifact'] != '' }}
+        run: |
+          if [ ! -f "${{ inputs['coverage-file'] }}" ]; then
+            echo "::error::Coverage file '${{ inputs['coverage-file'] }}' not found after downloading artifact '${{ inputs['coverage-artifact'] }}'"
+            echo "Available files in current directory:"
+            find . -name "*.xml" -o -name "*.json" -o -name "coverage*" | head -10
+            exit 1
+          fi
+          echo "✅ Coverage file '${{ inputs['coverage-file'] }}' found successfully"
+
+      - name: Upload to Codecov
+        if: ${{ !inputs['skip-upload'] }}
+        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
+        with:
+          files: ${{ inputs['coverage-file'] }}
+          flags: ${{ inputs.flags }}
+          name: ${{ inputs.name }}
+          fail_ci_if_error: ${{ inputs['fail_on_codecov_error'] }}
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          PYTHON_VERSION: ${{ inputs['python-version'] }}
