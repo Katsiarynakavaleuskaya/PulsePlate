@@ -3,6 +3,9 @@ name: CI
 # Note: Action versions are pinned to specific commit SHAs for security and stability.
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
+env:
+  COVERAGE_PY: "3.12"
+
 permissions:
   contents: read
 
@@ -70,6 +73,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -108,10 +112,10 @@ jobs:
           python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -x --maxfail=5
 
       - name: Upload coverage artifact (3.12 only)
-        if: ${{ always() && matrix.python-version == '3.12' }}
+        if: ${{ always() && matrix.python-version == env.COVERAGE_PY }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-xml-3.12
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -132,6 +136,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      id-token: write
     # Upload on push and PRs; still runs even if tests fail
     if: ${{ always() && (github.event_name == 'push' || github.event_name == 'pull_request') }}
     steps:
@@ -141,7 +146,7 @@ jobs:
       - name: Download coverage artifact (Python 3.12)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-3.12
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: ./coverage-artifacts
         continue-on-error: true
 
@@ -150,7 +155,7 @@ jobs:
         with:
           files: ./coverage-artifacts/coverage.xml
           fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
         continue-on-error: true
 
   frontend:
