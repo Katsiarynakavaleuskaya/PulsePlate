@@ -1,5 +1,24 @@
 name: Codecov Upload
 
+# Reusable workflow for uploading coverage reports to Codecov
+#
+# Inputs:
+#   - coverage-file: Path to coverage XML file (required)
+#   - flags: Codecov flags for categorization (default: 'unittests')
+#   - python-version: Python version for context (default: '3.12')
+#   - name: Custom name for this upload (default: 'codecov-upload')
+#   - skip-upload: Skip the upload step (default: false)
+#   - fail_on_codecov_error: Whether to fail CI if Codecov upload fails (default: true)
+#
+# Secrets:
+#   - CODECOV_TOKEN: Codecov token (optional)
+#
+# Usage example:
+#   uses: ./.github/workflows/codecov-upload.yml
+#   with:
+#     coverage-file: 'coverage.xml'
+#     fail_on_codecov_error: false  # Override to not fail CI on upload errors
+
 on:
   workflow_call:
     inputs:
@@ -22,6 +41,16 @@ on:
         required: false
         type: string
         default: 'codecov-upload'
+      skip-upload:
+        description: 'Skip the upload step (useful for testing or conditional uploads)'
+        required: false
+        type: boolean
+        default: false
+      fail_on_codecov_error:
+        description: 'Whether to fail CI if Codecov upload fails (default: true for quality assurance)'
+        required: false
+        type: boolean
+        default: true
     secrets:
       CODECOV_TOKEN:
         description: 'Codecov token (optional)'
@@ -34,13 +63,13 @@ jobs:
       contents: read
     steps:
       - name: Upload to Codecov
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ !inputs.skip-upload }}
         uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
           files: ${{ inputs.coverage-file }}
           flags: ${{ inputs.flags }}
           name: ${{ inputs.name }}
-          fail_ci_if_error: false
+          fail_ci_if_error: ${{ inputs.fail_on_codecov_error }}
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
         env:
