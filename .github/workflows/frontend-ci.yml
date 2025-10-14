@@ -25,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_OUTPUT_DIR: dist
+      VITE_API_BASE: "http://localhost:8000/api/v1"
+      VITE_API_KEY: "test_key"
+      VITE_DEV_MODE: "true"
+      VITE_ANALYTICS_ENABLED: "false"
+      CI: "true"
     defaults:
       run:
         working-directory: frontend
@@ -50,11 +55,7 @@ jobs:
 
       - name: Run vitest suite
         run: npm run test
-        env:
-          VITE_API_BASE: http://localhost:8000/api/v1
-          VITE_API_KEY: test_key
-          VITE_DEV_MODE: true
-          VITE_ANALYTICS_ENABLED: false
+        # env vars наследуются из job-level env
 
       - name: Build frontend
         run: npm run build
