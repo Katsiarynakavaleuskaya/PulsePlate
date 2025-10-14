@@ -5,9 +5,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
+  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '30' }}
   SLEEP_SECONDS: '30'
   CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
+  CODE_RABBIT_CHECK_NAME: ${{ vars.CODE_RABBIT_CHECK_NAME || 'CodeRabbit' }}
   # Maximum iterations will be calculated in the script using the formula:
   # ceil((timeoutMinutes * 60) / sleepSeconds)
   # This ensures we don't exceed the timeout while accounting for partial sleep cycles
@@ -98,25 +99,19 @@ jobs:
                 ref: headSha
               });
 
-              const codeRabbitCheck = checks.check_runs.find(check =>
-                (check.name === 'CodeRabbit' ||
-                 check.name.includes('CodeRabbit')) &&
-                check.status === 'completed' &&
-                check.conclusion === 'success'
-              );
-
+              const checkName = process.env.CODE_RABBIT_CHECK_NAME || 'CodeRabbit';
               // Log latest CodeRabbit check status for debugging (deterministic)
               const allCodeRabbitChecks = checks.check_runs
-                .filter(check => check.name === 'CodeRabbit' || check.name.includes('CodeRabbit'))
+                .filter(check => check.name === checkName || check.name.includes(checkName))
                 .sort((a, b) => new Date(b.completed_at || b.started_at || 0) - new Date(a.completed_at || a.started_at || 0));
               if (allCodeRabbitChecks.length > 0) {
                 const latestCheck = allCodeRabbitChecks[0];
-                core.info(`CodeRabbit check status: ${latestCheck.status}, conclusion: ${latestCheck.conclusion}`);
+                core.info(`CodeRabbit check '${checkName}' status: ${latestCheck.status}, conclusion: ${latestCheck.conclusion}`);
+                return latestCheck.status === 'completed' && latestCheck.conclusion === 'success';
               } else {
-                core.info('No CodeRabbit check found');
+                core.info(`No CodeRabbit check found (expected name contains '${checkName}')`);
+                return false;
               }
-
-              return !!codeRabbitCheck;
             }
 
             for (let attempt = 1; attempt <= maxIterations; attempt += 1) {
@@ -207,8 +202,16 @@ jobs:
 
       - name: Validate fixes
         run: |
-          # Ensure Python files are still syntactically valid
-          find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -exec python -m py_compile {} +
+          # Ensure Python files are still syntactically valid; report all failures
+          failed=0
+          while IFS= read -r -d '' f; do
+            echo "Compiling $f"
+            if ! python -m py_compile "$f" 2>&1; then
+              echo "::error file=$f::py_compile failed"
+              failed=1
+            fi
+          done < <(find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/venv/*" -print0)
+          exit $failed
 
       - name: Detect changes
         id: changes
