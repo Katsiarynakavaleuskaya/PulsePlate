@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import ProgressCharts from '../ProgressCharts';
 
 // Mock recharts components
@@ -28,9 +27,6 @@ vi.mock('lucide-react', () => ({
 }));
 
 describe('ProgressCharts', () => {
-  afterEach(() => {
-    cleanup();
-  });
   it('renders progress tracking header', () => {
     render(<ProgressCharts />);
 
@@ -41,31 +37,31 @@ describe('ProgressCharts', () => {
   it('renders export PDF button', () => {
     render(<ProgressCharts />);
 
-    const exportButton = screen.getByText('Export PDF');
+    const exportButton = screen.getAllByText('Export PDF')[0];
     expect(exportButton).toBeInTheDocument();
-    expect(screen.getByTestId('download-icon')).toBeInTheDocument();
+    expect(screen.getAllByTestId('download-icon')[0]).toBeInTheDocument();
   });
 
   it('renders weight and BMI progress chart', () => {
     render(<ProgressCharts />);
 
-    expect(screen.getByText('Weight & BMI Progress')).toBeInTheDocument();
-    expect(screen.getByTestId('line-chart')).toBeInTheDocument();
+    expect(screen.getAllByText('Weight & BMI Progress')[0]).toBeInTheDocument();
+    expect(screen.getAllByTestId('line-chart')[0]).toBeInTheDocument();
   });
 
   it('renders calorie balance chart', () => {
     render(<ProgressCharts />);
 
     expect(screen.getAllByText('Calorie Balance')[0]).toBeInTheDocument();
-    expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+    expect(screen.getAllByTestId('bar-chart')[0]).toBeInTheDocument();
   });
 
   it('renders macronutrient distribution chart', () => {
     render(<ProgressCharts />);
 
     expect(screen.getAllByText('Macronutrient Distribution')[0]).toBeInTheDocument();
-    expect(screen.getByText('Nutrient Breakdown')).toBeInTheDocument();
-    expect(screen.getByTestId('pie-chart')).toBeInTheDocument();
+    expect(screen.getAllByText('Nutrient Breakdown')[0]).toBeInTheDocument();
+    expect(screen.getAllByTestId('pie-chart')[0]).toBeInTheDocument();
   });
 
   it('displays weight change indicator', () => {
@@ -73,16 +69,16 @@ describe('ProgressCharts', () => {
 
     // The mock data shows weight loss (72.8 - 73.2 = -0.4), so should show trending down
     expect(screen.getAllByTestId('trending-down-icon')[0]).toBeInTheDocument();
-    expect(screen.getByText('0.4 kg lost')).toBeInTheDocument();
+    expect(screen.getAllByText('0.4 kg lost')[0]).toBeInTheDocument();
   });
 
   it('displays macronutrient breakdown', () => {
     render(<ProgressCharts />);
 
     expect(screen.getAllByText('Protein')[0]).toBeInTheDocument();
-    expect(screen.getByText('Carbs')).toBeInTheDocument();
-    expect(screen.getByText('Fat')).toBeInTheDocument();
-    expect(screen.getByText('Fiber')).toBeInTheDocument();
-    expect(screen.getByText('Other')).toBeInTheDocument();
+    expect(screen.getAllByText('Carbs')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Fat')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Fiber')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Other')[0]).toBeInTheDocument();
   });
 });

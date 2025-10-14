@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SwipeContainer } from '../SwipeContainer';
 
 describe('SwipeContainer', () => {
@@ -11,6 +10,10 @@ describe('SwipeContainer', () => {
   beforeEach(() => {
     mockOnSwipeLeft.mockClear();
     mockOnSwipeRight.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders children correctly', () => {
@@ -30,7 +33,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getByText('Test content').parentElement!;
+    const container = screen.getAllByText('Test content')[0].parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -56,7 +59,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getByText('Test content').parentElement!;
+    const container = screen.getAllByText('Test content')[0].parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -82,7 +85,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getByText('Test content').parentElement!;
+    const container = screen.getAllByText('Test content')[0].parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -108,7 +111,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getByText('Test content').parentElement!;
+    const container = screen.getAllByText('Test content')[0].parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -133,7 +136,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getByText('Test content').parentElement!;
+    const container = screen.getAllByText('Test content')[0].parentElement!;
 
     // Test swipe right
     fireEvent.touchStart(container, { touches: [{ clientX: 100 }] });

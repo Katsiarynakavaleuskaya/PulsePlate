@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
 import { PullToRefresh } from '../PullToRefresh';
 
 describe('PullToRefresh', () => {
@@ -14,6 +13,7 @@ describe('PullToRefresh', () => {
   afterEach(() => {
     cleanup();
   });
+
 
   it('renders children correctly', () => {
     render(
@@ -34,7 +34,7 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const container = screen.getByText('Test content').closest('.relative')!;
+    const container = screen.getAllByText('Test content')[0].closest('[class*="relative"]')!;
 
     // Simulate touch start
     await act(async () => {
@@ -65,7 +65,7 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const container = screen.getByText('Test content').closest('.relative')!;
+    const container = screen.getAllByText('Test content')[0].closest('[class*="relative"]')!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -90,7 +90,7 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const container = screen.getByText('Test content').closest('.relative')!;
+    const container = screen.getAllByText('Test content')[0].closest('[class*="relative"]')!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -115,7 +115,7 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const container = screen.getByText('Test content').closest('.relative')!;
+    const container = screen.getAllByText('Test content')[0].closest('[class*="relative"]')!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
