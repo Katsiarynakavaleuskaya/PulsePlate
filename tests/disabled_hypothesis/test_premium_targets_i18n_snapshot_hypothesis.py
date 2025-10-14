@@ -144,9 +144,9 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
                     "child": ["infantil", "pediátricas"],
                 }
                 expected_keywords = spanish_keywords.get(life_stage, [])
-                assert any(
-                    keyword in message for keyword in expected_keywords
-                ), f"Expected Spanish keywords {expected_keywords} not found in message: {message}"
+                assert any(keyword in message for keyword in expected_keywords), (
+                    f"Expected Spanish keywords {expected_keywords} not found in message: {message}"
+                )
 
             elif lang == "ru":
                 russian_keywords = {
@@ -163,9 +163,9 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
                     "child": ["детский", "педиатрические"],
                 }
                 expected_keywords = russian_keywords.get(life_stage, [])
-                assert any(
-                    keyword in message for keyword in expected_keywords
-                ), f"Expected Russian keywords {expected_keywords} not found in message: {message}"
+                assert any(keyword in message for keyword in expected_keywords), (
+                    f"Expected Russian keywords {expected_keywords} not found in message: {message}"
+                )
 
     @given(
         sex=st.sampled_from(["male", "female"]),
@@ -320,9 +320,9 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
 
         # Should contain Spanish pregnancy-related terms
         spanish_terms = ["embarazo", "pregnancy", "especializada", "especialized"]
-        assert any(
-            term in message for term in spanish_terms
-        ), f"Expected Spanish pregnancy terms not found in message: {message}"
+        assert any(term in message for term in spanish_terms), (
+            f"Expected Spanish pregnancy terms not found in message: {message}"
+        )
 
     def test_ru_specific_snapshot_regression(self):
         """Test specific RU snapshot regression protection."""
@@ -362,6 +362,6 @@ class TestPremiumTargetsI18nSnapshotHypothesis:
             "micronutrients",
             "differ",
         ]
-        assert any(
-            term in message for term in russian_terms
-        ), f"Expected Russian elderly terms not found in message: {message}"
+        assert any(term in message for term in russian_terms), (
+            f"Expected Russian elderly terms not found in message: {message}"
+        )
