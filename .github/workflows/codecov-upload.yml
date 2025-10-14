@@ -1,0 +1,47 @@
+name: Codecov Upload
+
+on:
+  workflow_call:
+    inputs:
+      coverage-file:
+        description: 'Path to coverage XML file'
+        required: true
+        type: string
+      flags:
+        description: 'Codecov flags for categorization'
+        required: false
+        type: string
+        default: 'unittests'
+      python-version:
+        description: 'Python version for context'
+        required: false
+        type: string
+        default: '3.12'
+      name:
+        description: 'Custom name for this upload'
+        required: false
+        type: string
+        default: 'codecov-upload'
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Codecov token (optional)'
+        required: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Upload to Codecov
+        if: ${{ github.event_name == 'push' }}
+        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
+        with:
+          files: ${{ inputs.coverage-file }}
+          flags: ${{ inputs.flags }}
+          name: ${{ inputs.name }}
+          fail_ci_if_error: false
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
