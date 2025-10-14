@@ -126,6 +126,8 @@ jobs:
 
       - name: Wait for CI checks
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          REQUIRED_CHECKS_CSV: ${{ vars.QUICK_MERGE_REQUIRED_CHECKS }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -155,13 +157,13 @@ jobs:
 
               const prHeadSha = pr.head.sha;
 
-              // Get checks for the PR head SHA
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner,
-                repo,
-                ref: prHeadSha,
-                per_page: 100
-              });
+              // Get checks for the PR head SHA (paginate to avoid truncation)
+              const checkRuns = await github.paginate(
+                github.rest.checks.listForRef,
+                { owner, repo, ref: prHeadSha, per_page: 100 },
+                (res) => res.data.check_runs
+              );
+              const checks = { check_runs: checkRuns };
 
               // Also get commit statuses for comprehensive check coverage
               const { data: statuses } = await github.rest.repos.getCombinedStatusForRef({
@@ -170,27 +172,35 @@ jobs:
                 ref: prHeadSha
               });
 
-              // Required check names must match CI job names from .github/workflows/ci.yml
-              // If CI workflow changes, update these names accordingly to maintain auto-merge functionality
-              // Alternative approaches: use repository variables, workflow inputs, or pattern matching for looser coupling
-              const requiredChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
+              // Required checks are configurable via repo variable QUICK_MERGE_REQUIRED_CHECKS (CSV). Fallback to strict defaults.
+              const defaultChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
+              const csv = (process.env.REQUIRED_CHECKS_CSV || '').trim();
+              const requiredChecks = (csv ? csv.split(',') : [])
+                .map(s => s.trim())
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i);
+              if (requiredChecks.length === 0) requiredChecks.push(...defaultChecks);
+
+              if (!requiredChecks.length) {
+                core.setFailed('No required checks configured or inferred. Set repo variable REQUIRED_CHECKS or provide workflow_dispatch input requiredChecks.');
+                return;
+              }
 
               // Check that each required check exists and has passed with "success" conclusion
+              const expectedWorkflow = `${context.workflow}`; // current workflow name as prefix when GitHub composes check names
               const checkResults = requiredChecks.map(requiredCheck => {
-                // Look for check runs first with suffix matching
+                // Look for latest completed check run with suffix matching
                 const matchingCheck = checks.check_runs
                   .filter(cr => cr.status === 'completed')
-                  .find(cr =>
+                  .filter(cr =>
                     cr.name === requiredCheck ||
                     cr.name.endsWith(` / ${requiredCheck}`)
-                  );
+                  )
+                  .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
 
                 // If not found in check runs, look in commit statuses with suffix matching
                 const matchingStatus = !matchingCheck
-                  ? statuses.statuses.find(s =>
-                      s.context === requiredCheck ||
-                      s.context.endsWith(` / ${requiredCheck}`)
-                    )
+                  ? statuses.statuses.find(s => s.context === requiredCheck || s.context === `${expectedWorkflow} / ${requiredCheck}`)
                   : null;
                 const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
                 const isPendingStatus = conclusion === 'pending';
@@ -214,7 +224,7 @@ jobs:
               }
 
               // Find any required check that has terminal failure states (excluding pending/in_progress)
-              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error', 'neutral', 'skipped'];
+              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error', 'skipped'];
               const nonSuccessChecks = checkResults.filter(result =>
                 result.found && terminalFailureStates.includes(result.conclusion)
               );
@@ -234,6 +244,7 @@ jobs:
             core.setFailed('Timeout waiting for CI checks to complete');
 
       - name: Merge pull request
+        if: ${{ success() }}
 
         id: merge
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
