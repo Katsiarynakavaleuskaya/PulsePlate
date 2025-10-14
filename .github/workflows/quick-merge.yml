@@ -94,7 +94,7 @@ jobs:
                 ref: prHeadSha
               });
 
-              const requiredChecks = ['CI/test (3.11)', 'CI/test (3.12)', 'CI/test (3.13)', 'Security Scan', 'Coverage'];
+              const requiredChecks = ['CI / test (3.11)', 'CI / test (3.12)', 'CI / test (3.13)', 'Security Scan', 'Coverage'];
 
               // Check that each required check exists and has passed with "success" conclusion
               const checkResults = requiredChecks.map(requiredCheck => {

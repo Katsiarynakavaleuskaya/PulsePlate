@@ -78,11 +78,19 @@ jobs:
             const repo = context.repo.repo;
 
             async function reviewCompleted() {
+              // Get PR to fetch head SHA
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+              const headSha = pr.head.sha;
+
               // Check if CodeRabbit check exists and is completed
               const { data: checks } = await github.rest.checks.listForRef({
                 owner,
                 repo,
-                ref: `refs/pull/${prNumber}/head`
+                ref: headSha
               });
 
               const codeRabbitCheck = checks.check_runs.find(check =>
@@ -194,7 +202,7 @@ jobs:
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
         env:
-          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref || 'main' }}
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
         run: |
           if [ -z "$TARGET_BRANCH" ]; then
             echo "Unable to determine PR head branch name."; exit 1;
