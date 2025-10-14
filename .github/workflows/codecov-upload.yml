@@ -9,6 +9,7 @@ name: Codecov Upload
 #   - name: Custom name for this upload (default: 'codecov-upload')
 #   - skip-upload: Skip the upload step (default: false)
 #   - fail_on_codecov_error: Whether to fail CI if Codecov upload fails (default: true)
+#   - coverage-artifact: Name of the coverage artifact to download (optional)
 #
 # Secrets:
 #   - CODECOV_TOKEN: Codecov token (optional)
@@ -17,6 +18,7 @@ name: Codecov Upload
 #   uses: ./.github/workflows/codecov-upload.yml
 #   with:
 #     coverage-file: 'coverage.xml'
+#     coverage-artifact: 'coverage-report'  # Download artifact before upload
 #     fail_on_codecov_error: false  # Override to not fail CI on upload errors
 
 on:
@@ -51,6 +53,11 @@ on:
         required: false
         type: boolean
         default: true
+      coverage-artifact:
+        description: 'Name of the coverage artifact to download (optional)'
+        required: false
+        type: string
+        default: ''
     secrets:
       CODECOV_TOKEN:
         description: 'Codecov token (optional)'
@@ -62,6 +69,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Download coverage artifact
+        if: ${{ inputs.coverage-artifact != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.coverage-artifact }}
+
       - name: Upload to Codecov
         if: ${{ !inputs.skip-upload }}
         uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
