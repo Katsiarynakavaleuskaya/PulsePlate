@@ -27,23 +27,23 @@ class TestBMIPropertyBased:
         bmi = bmi_value(weight, height_m)
 
         # Property 1: BMI should always be positive
-        assert (
-            bmi > 0
-        ), f"BMI should be positive, got {bmi} for weight={weight}, height={height_cm}cm"
+        assert bmi > 0, (
+            f"BMI should be positive, got {bmi} for weight={weight}, height={height_cm}cm"
+        )
 
         # Property 2: BMI should be proportional to weight
         # If we double the weight, BMI should increase
         bmi_double_weight = bmi_value(weight * 2, height_m)
-        assert (
-            bmi_double_weight > bmi
-        ), f"BMI should increase with weight: {bmi} -> {bmi_double_weight}"
+        assert bmi_double_weight > bmi, (
+            f"BMI should increase with weight: {bmi} -> {bmi_double_weight}"
+        )
 
         # Property 3: BMI should be inversely proportional to height squared
         # If we double the height, BMI should decrease
         bmi_double_height = bmi_value(weight, height_m * 2)
-        assert (
-            bmi > bmi_double_height
-        ), f"BMI should decrease with height: {bmi} -> {bmi_double_height}"
+        assert bmi > bmi_double_height, (
+            f"BMI should decrease with height: {bmi} -> {bmi_double_height}"
+        )
 
     @given(
         weight=st.floats(min_value=1.0, max_value=500.0),
@@ -74,17 +74,17 @@ class TestBMIPropertyBased:
 
         # Property: Categories should be consistent with BMI ranges
         if bmi < 18.5:
-            assert (
-                "underweight" in category.lower() or "under" in category.lower()
-            ), f"BMI {bmi} should indicate underweight, got {category}"
+            assert "underweight" in category.lower() or "under" in category.lower(), (
+                f"BMI {bmi} should indicate underweight, got {category}"
+            )
         elif 18.5 <= bmi < 25:
-            assert (
-                "normal" in category.lower() or "healthy" in category.lower()
-            ), f"BMI {bmi} should indicate normal/healthy, got {category}"
+            assert "normal" in category.lower() or "healthy" in category.lower(), (
+                f"BMI {bmi} should indicate normal/healthy, got {category}"
+            )
         elif 25 <= bmi < 30:
-            assert (
-                "overweight" in category.lower() or "over" in category.lower()
-            ), f"BMI {bmi} should indicate overweight, got {category}"
+            assert "overweight" in category.lower() or "over" in category.lower(), (
+                f"BMI {bmi} should indicate overweight, got {category}"
+            )
         else:  # bmi >= 30
             assert "obese" in category.lower(), f"BMI {bmi} should indicate obese, got {category}"
 
@@ -124,9 +124,9 @@ class TestLifeStageWarningsPropertyBased:
 
         # Property: Teen warnings should appear for ages 12-18 with teen life stage
         teen_warnings = [w for w in warnings if w["code"] == "teen"]
-        assert (
-            len(teen_warnings) == 1
-        ), f"Should have exactly one teen warning, got {len(teen_warnings)}"
+        assert len(teen_warnings) == 1, (
+            f"Should have exactly one teen warning, got {len(teen_warnings)}"
+        )
 
         # Property: Message should be localized
         message = teen_warnings[0]["message"]
@@ -142,9 +142,9 @@ class TestLifeStageWarningsPropertyBased:
 
         # Property: Pregnant warnings should always appear for pregnant life stage
         pregnant_warnings = [w for w in warnings if w["code"] == "pregnant"]
-        assert (
-            len(pregnant_warnings) == 1
-        ), f"Should have exactly one pregnant warning, got {len(pregnant_warnings)}"
+        assert len(pregnant_warnings) == 1, (
+            f"Should have exactly one pregnant warning, got {len(pregnant_warnings)}"
+        )
 
         # Property: Message should be localized
         message = pregnant_warnings[0]["message"]
@@ -160,9 +160,9 @@ class TestLifeStageWarningsPropertyBased:
 
         # Property: Elderly warnings should appear for ages 51+ with elderly life stage
         elderly_warnings = [w for w in warnings if w["code"] == "elderly"]
-        assert (
-            len(elderly_warnings) == 1
-        ), f"Should have exactly one elderly warning, got {len(elderly_warnings)}"
+        assert len(elderly_warnings) == 1, (
+            f"Should have exactly one elderly warning, got {len(elderly_warnings)}"
+        )
 
         # Property: Message should be localized
         message = elderly_warnings[0]["message"]
@@ -193,21 +193,21 @@ class TestDataValidationPropertyBased:
 
         # Property 2: Values should be of expected types
         for key, value in data.items():
-            assert isinstance(
-                value, (int, float, str, bool, list)
-            ), f"Value for {key} should be valid type, got {type(value)}"
+            assert isinstance(value, (int, float, str, bool, list)), (
+                f"Value for {key} should be valid type, got {type(value)}"
+            )
 
             # Property 3: If value is string, it should not be too long
             if isinstance(value, str):
-                assert (
-                    len(value) <= 1000
-                ), f"String value for {key} should not be too long: {len(value)}"
+                assert len(value) <= 1000, (
+                    f"String value for {key} should not be too long: {len(value)}"
+                )
 
             # Property 4: If value is list, it should not be too large
             if isinstance(value, list):
-                assert (
-                    len(value) <= 100
-                ), f"List value for {key} should not be too large: {len(value)}"
+                assert len(value) <= 100, (
+                    f"List value for {key} should not be too large: {len(value)}"
+                )
 
     @given(numbers=st.lists(st.floats(min_value=0.1, max_value=1000.0), min_size=1, max_size=50))
     def test_nutrition_calculations_properties(self, numbers):
@@ -238,9 +238,9 @@ class TestEdgeCasesPropertyBased:
 
         # Property 2: Converting back should give original value
         original = percentage / 100
-        assert (
-            abs(original - value) < 1e-10
-        ), f"Round-trip conversion failed: {value} -> {percentage} -> {original}"
+        assert abs(original - value) < 1e-10, (
+            f"Round-trip conversion failed: {value} -> {percentage} -> {original}"
+        )
 
     @given(text_input=st.text(min_size=1, max_size=100))
     def test_text_processing_properties(self, text_input):

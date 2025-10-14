@@ -1,5 +1,8 @@
 name: CI
 
+# Note: Action versions are pinned to specific commit SHAs for security and stability.
+# Periodically update these SHAs to newer versions for security updates and bug fixes.
+
 permissions:
   contents: read
 
@@ -16,6 +19,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -23,12 +27,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       # Node.js setup removed - not needed for Python project
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
@@ -71,14 +75,14 @@ jobs:
       # Static data fixtures restoration removed - cache/ is in .gitignore
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
 
       - name: Upload JUnit test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: junit-${{ matrix.python-version }}
           path: tests/results.xml
@@ -92,12 +96,18 @@ jobs:
       - name: Security scan with Bandit (non-blocking)
         if: always()
         run: |
-          bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov --output bandit-report.json
+          set -e
+          if [ -x scripts/ci_bandit.sh ]; then
+            bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov --output bandit-report.json
+          else
+            echo "::notice::scripts/ci_bandit.sh not found; running bandit directly"
+            bandit -r . -x tests,tests_strict,htmlcov -f json -o bandit-report.json || true
+          fi
         continue-on-error: true
 
       - name: Upload bandit artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bandit-report-${{ matrix.python-version }}
           path: bandit-report.json
@@ -105,7 +115,7 @@ jobs:
 
       - name: Upload to Codecov (optional)
         if: ${{ github.event_name == 'push' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
           files: coverage.xml
           fail_ci_if_error: false
@@ -113,15 +123,16 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm

@@ -1,0 +1,460 @@
+name: Quick Merge
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pull_request_number || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: 'Pull request number to merge'
+        required: true
+        type: string
+      required_checks_json:
+        description: 'JSON array of required check names (optional, defaults to standard CI checks)'
+        required: false
+        type: string
+      wait_timeout_min:
+        description: 'Maximum wait time in minutes for CI checks (default: 10)'
+        required: false
+        type: string
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
+    if: >
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'pull_request_review' &&
+          github.event.review.state == 'approved' &&
+          github.event.pull_request.user.login != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.base.ref == 'main' &&
+          github.event.pull_request.draft == false
+        )
+      )
+    steps:
+      - name: Validate workflow_dispatch inputs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ github.event.inputs.pull_request_number }}" ]; then
+            echo "Error: pull_request_number input is required for workflow_dispatch"
+            exit 1
+          fi
+
+          # Validate PR number format
+          if ! echo "${{ github.event.inputs.pull_request_number }}" | grep -E '^[0-9]+$' > /dev/null; then
+            echo "Error: pull_request_number must be a valid number"
+            exit 1
+          fi
+
+          echo "Workflow dispatch validation passed"
+
+      - name: Determine pull request number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ github.event.inputs.pull_request_number }}"
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          fi
+
+          # Validate PR_NUMBER is non-empty and consists only of digits
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Error: PR_NUMBER is empty" >&2
+            exit 1
+          fi
+
+          if ! echo "$PR_NUMBER" | grep -E '^[0-9]+$' > /dev/null; then
+            echo "Error: PR_NUMBER '$PR_NUMBER' is not a valid number (must contain only digits)" >&2
+            exit 1
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Export PR_NUMBER to env
+        run: |
+          if [ -z "${{ steps.pr.outputs.pr_number }}" ] || ! echo "${{ steps.pr.outputs.pr_number }}" | grep -E '^[0-9]+$' >/dev/null; then
+            echo "Error: steps.pr.outputs.pr_number is missing or not numeric" >&2
+            exit 1
+          fi
+          echo "PR_NUMBER=${{ steps.pr.outputs.pr_number }}" >> "$GITHUB_ENV"
+
+      - name: Validate PR for workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}', 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            try {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+
+              // Validate PR exists, is open, and not draft
+              if (pr.state !== 'open') {
+                core.setFailed(`PR #${prNumber} is not open. Current state: ${pr.state}`);
+                return;
+              }
+              if (pr.draft) {
+                core.setFailed(`PR #${prNumber} is a draft. Drafts are not eligible for Quick Merge.`);
+                return;
+              }
+
+              // Validate PR targets main branch
+              if (pr.base.ref !== 'main') {
+                core.setFailed(`PR #${prNumber} targets '${pr.base.ref}', not 'main'. Only PRs targeting main are allowed.`);
+                return;
+              }
+
+              // Validate PR is from the same repository
+              if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+                core.setFailed(`PR #${prNumber} is from '${pr.head.repo.full_name}', not '${owner}/${repo}'. Only PRs from the same repository are allowed.`);
+                return;
+              }
+
+              // Validate PR is not from Dependabot
+              if (pr.user?.login === 'dependabot[bot]') {
+                core.setFailed(`PR #${prNumber} is from Dependabot. Dependabot PRs are not allowed for auto-merge.`);
+                return;
+              }
+
+              core.info(`PR #${prNumber} validation passed: open, targets main, from same repo, not Dependabot`);
+
+            } catch (error) {
+              if (error.status === 404) {
+                core.setFailed(`PR #${prNumber} not found in ${owner}/${repo}`);
+              } else {
+                core.setFailed(`Failed to fetch PR #${prNumber}: ${error.message}`);
+              }
+            }
+
+      - name: Wait for CI checks
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          REQUIRED_CHECKS_CSV: ${{ vars.QUICK_MERGE_REQUIRED_CHECKS }}
+          QUICK_MERGE_MAX_WAIT_MIN: ${{ vars.QUICK_MERGE_MAX_WAIT_MIN }}
+          QUICK_MERGE_POLL_SEC: ${{ vars.QUICK_MERGE_POLL_SEC }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}', 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Wait duration is configurable via workflow inputs, repository variables, or env with sane defaults
+            const maxWaitMinutes = parseInt(
+              '${{ github.event.inputs.wait_timeout_min }}' ||
+              process.env.QUICK_MERGE_MAX_WAIT_MIN ||
+              '10', 10
+            );
+            const pollSeconds = parseInt(process.env.QUICK_MERGE_POLL_SEC || '30', 10);
+            const maxWaitTime = maxWaitMinutes * 60 * 1000;
+            const checkInterval = pollSeconds * 1000;
+            const startTime = Date.now();
+
+            while (Date.now() - startTime < maxWaitTime) {
+              // Get PR details to obtain the head SHA
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              // Early policy guard for workflow_dispatch as well
+              if (pr.base.ref !== 'main' || pr.user?.login === 'dependabot[bot]') {
+                core.info(`Skipping wait: base='${pr.base.ref}', author='${pr.user?.login}'.`);
+                core.setFailed('PR does not meet Quick Merge policy.');
+                return;
+              }
+
+              const prHeadSha = pr.head.sha;
+
+              // Get checks for the PR head SHA (paginate to avoid truncation)
+              const checkRuns = await github.paginate(
+                github.rest.checks.listForRef,
+                { owner, repo, ref: prHeadSha, per_page: 100 },
+                (res) => res.data.check_runs
+              );
+              const checks = { check_runs: checkRuns };
+
+              // Also get commit statuses for comprehensive check coverage
+              const { data: statuses } = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: prHeadSha
+              });
+
+            // Required checks are configurable via workflow inputs, repo variable, or env. Fallback to strict defaults.
+            const defaultChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage'];
+            let requiredChecks = [];
+
+            // Try workflow input first (JSON array)
+            const inputChecks = '${{ github.event.inputs.required_checks_json }}';
+            if (inputChecks && inputChecks !== '') {
+              try {
+                requiredChecks = JSON.parse(inputChecks);
+                core.info(`Using required checks from workflow input: ${requiredChecks.join(', ')}`);
+              } catch (e) {
+                core.warning(`Invalid JSON in required_checks_json input: ${e.message}. Falling back to defaults.`);
+              }
+            }
+
+            // Fallback to CSV env var
+            if (requiredChecks.length === 0) {
+              const csv = (process.env.REQUIRED_CHECKS_CSV || '').trim();
+              requiredChecks = (csv ? csv.split(',') : [])
+                .map(s => s.trim())
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i);
+              if (requiredChecks.length > 0) {
+                core.info(`Using required checks from env var: ${requiredChecks.join(', ')}`);
+              }
+            }
+              // Try deriving from branch protection (if token allows), then fall back
+              if (requiredChecks.length === 0) {
+                try {
+                  const bp = await github.rest.repos.getBranchProtection({ owner, repo, branch: pr.base.ref });
+                  const ctxs = bp.data.required_status_checks?.contexts ?? [];
+                  const checks = (bp.data.required_status_checks?.checks ?? []).map(c => c.context);
+                  const inferred = [...ctxs, ...checks].filter(Boolean);
+                  if (inferred.length) {
+                    requiredChecks = [...new Set(inferred)];
+                  }
+                } catch (e) {
+                  core.info(`Could not read branch protection: ${e.status || e.message}. Falling back to defaults.`);
+                }
+              }
+              if (requiredChecks.length === 0) requiredChecks.push(...defaultChecks);
+
+              if (!requiredChecks.length) {
+                core.setFailed('No required checks configured or inferred. Set repository variable QUICK_MERGE_REQUIRED_CHECKS (CSV) to override defaults.');
+                return;
+              }
+
+              // Check that each required check exists and has passed with "success" conclusion
+              const checkResults = requiredChecks.map(requiredCheck => {
+                // Look for latest completed check run with suffix matching
+                const matchingCheck = checks.check_runs
+                  .filter(cr => cr.status === 'completed')
+                  .filter(cr =>
+                    cr.name === requiredCheck ||
+                    cr.name.endsWith(` / ${requiredCheck}`) ||
+                    cr.name.endsWith(requiredCheck)
+                  )
+                  .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
+
+                // If not found in check runs, look in commit statuses with suffix matching
+                const matchingStatus = !matchingCheck
+                  ? statuses.statuses.find(s =>
+                      s.context === requiredCheck ||
+                      s.context.endsWith(` / ${requiredCheck}`) ||
+                      s.context.endsWith(requiredCheck)
+                    )
+                  : null;
+                const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
+                const isPendingStatus = conclusion === 'pending';
+                const found = !!matchingCheck || (!!matchingStatus && !isPendingStatus);
+                const passed = conclusion === 'success';
+
+                return {
+                  name: requiredCheck,
+                  found,
+                  passed,
+                  conclusion
+                };
+              });
+
+              const allChecksFound = checkResults.every(result => result.found);
+              const allChecksPassed = checkResults.every(result => result.passed);
+
+              if (allChecksFound && allChecksPassed) {
+                core.info('All required CI checks passed');
+                return;
+              }
+
+              // Find any required check that has terminal failure states (excluding pending/in_progress)
+              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error', 'skipped', 'neutral'];
+              const nonSuccessChecks = (checkResults || [])
+                .filter(result => result && result.found && terminalFailureStates.includes(result.conclusion));
+
+              if (nonSuccessChecks.length > 0) {
+                core.setFailed(`CI checks not successful: ${nonSuccessChecks.map(c => `${c.name} (${c.conclusion})`).join(', ')}`);
+                return;
+              }
+
+              const completedCount = checkResults.filter(result => result && result.found).length;
+              const pendingCount = checkResults.filter(result => result && !result.found).length;
+              const failedCount = nonSuccessChecks.length;
+
+              // Enhanced logging with detailed status
+              core.info(`CI Check Status: ${completedCount}/${requiredChecks.length} completed, ${pendingCount} pending, ${failedCount} failed`);
+              if (pendingCount > 0) {
+                const pendingChecks = checkResults.filter(result => result && !result.found).map(r => r.name).join(', ');
+                core.info(`Pending checks: ${pendingChecks}`);
+              }
+
+              const MAX_JITTER_MS = 5000; // 5s upper bound to reduce thundering herd and provide backoff breathing room
+              const jitter = Math.floor(Math.random() * MAX_JITTER_MS);
+              await new Promise(resolve => setTimeout(resolve, checkInterval + jitter));
+            }
+
+            core.setFailed('Timeout waiting for CI checks to complete');
+
+      - name: Merge pull request
+        if: ${{ success() }}
+
+        id: merge
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+
+            // Wait for mergeability to be computed with exponential backoff
+            const maxRetries = 15; // Increased from 10
+            let retryCount = 0;
+            while ((pr.mergeable === null || pr.mergeable_state === 'unknown') && retryCount < maxRetries) {
+              retryCount++;
+              const delay = Math.min(3000 * Math.pow(1.5, retryCount - 1), 10000); // Exponential backoff, max 10s
+              core.info(`Waiting for mergeability computation (attempt ${retryCount}/${maxRetries}, delay: ${delay}ms)`);
+              await new Promise(r => setTimeout(r, delay));
+              const res = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+              pr = res.data;
+            }
+
+            // Check if mergeability polling was exhausted
+            if (pr.mergeable === null || pr.mergeable_state === 'unknown') {
+              core.setFailed(`Mergeability polling exhausted after ${maxRetries} attempts. PR #${prNumber} in ${owner}/${repo} still has mergeable=${pr.mergeable}, mergeable_state='${pr.mergeable_state}'. GitHub may need more time to compute mergeability.`);
+              return { merged: false, reason: 'mergeability-timeout' };
+            }
+
+            // Enforce policies for workflow_dispatch as well
+            if (pr.base.ref !== 'main') {
+              core.info(`PR #${prNumber} targets '${pr.base.ref}', not 'main'. Aborting.`);
+              return { merged: false, reason: 'wrong-base' };
+            }
+            if (pr.user?.login === 'dependabot[bot]') {
+              core.info(`PR #${prNumber} is from Dependabot. Aborting.`);
+              return { merged: false, reason: 'dependabot' };
+            }
+            if (pr.draft) {
+              core.info(`PR #${prNumber} is a draft. Aborting.`);
+              return { merged: false, reason: 'draft' };
+            }
+
+            // Require at least one approval when triggered via workflow_dispatch
+            if (context.eventName === 'workflow_dispatch') {
+              const q = `query($owner:String!,$repo:String!,$number:Int!){
+                repository(owner:$owner,name:$repo){
+                  pullRequest(number:$number){ reviewDecision }
+                }
+              }`;
+              const resp = await github.graphql(q, { owner, repo, number: prNumber });
+              const decision = resp.repository?.pullRequest?.reviewDecision;
+              if (decision !== 'APPROVED') {
+                core.info(`PR #${prNumber} reviewDecision='${decision}'. Aborting.`);
+                return { merged: false, reason: 'not-approved' };
+              }
+            }
+
+            if (pr.state !== 'open') {
+              core.info(`PR #${prNumber} is not open. Current state: ${pr.state}`);
+              return { merged: false, reason: 'not-open' };
+            }
+
+            if (!pr.mergeable) {
+              if (pr.mergeable === null) {
+                core.info(`PR #${prNumber} mergeable status is still being calculated.`);
+              } else {
+                core.info(`PR #${prNumber} is not currently mergeable.`);
+              }
+              return { merged: false, reason: 'not-mergeable' };
+            }
+
+            const requiredChecksOk = pr.mergeable_state === 'clean';
+            if (!requiredChecksOk) {
+              core.info(`Required checks not yet successful (mergeable_state=${pr.mergeable_state}). Only 'clean' state is acceptable for merging.`);
+              return { merged: false, reason: 'checks-pending' };
+            }
+
+            await github.rest.pulls.merge({
+              owner,
+              repo,
+              pull_number: prNumber,
+              merge_method: 'squash',
+            });
+            core.info(`PR #${prNumber} merged successfully.`);
+            return { merged: true };
+
+      - name: Delete branch
+        if: steps.merge.outputs.result && fromJSON(steps.merge.outputs.result).merged
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+
+            const headRef = pr.head.ref;
+            const baseRef = pr.base.ref;
+            const headRepo = pr.head.repo;
+
+            if (headRef === baseRef) {
+              core.info(`Head ref matches base ref (${baseRef}); skipping deletion as a safety measure.`);
+              return;
+            }
+
+            if (headRepo && headRepo.full_name === `${context.repo.owner}/${context.repo.repo}`) {
+              try {
+                await github.rest.git.deleteRef({
+                  owner,
+                  repo,
+                  ref: `heads/${headRef}`,
+                });
+                core.info(`Deleted branch ${headRef}`);
+              } catch (err) {
+                if (err.status === 404 || err.status === 422) {
+                  core.info(`Branch ${headRef} already deleted or protected; skipping.`);
+                } else {
+                  throw err;
+                }
+              }
+            } else {
+              core.info('Branch belongs to a fork. Skipping deletion.');
+            }
