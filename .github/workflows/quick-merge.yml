@@ -95,7 +95,7 @@ jobs:
                 ref: prHeadSha
               });
 
-              const requiredChecks = ['CI / test (3.11)', 'CI / test (3.12)', 'CI / test (3.13)', 'Security Scan', 'Coverage'];
+              const requiredChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage'];
 
               // Check that each required check exists and has passed with "success" conclusion
               const checkResults = requiredChecks.map(requiredCheck => {
@@ -107,7 +107,6 @@ jobs:
                 // If not found in check runs, look in commit statuses
                 const matchingStatus = !matchingCheck ?
                   statuses.statuses.find(status => status.context === requiredCheck) : null;
-
                 const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
                 const isPendingStatus = conclusion === 'pending';
                 const found = !!matchingCheck || (!!matchingStatus && !isPendingStatus);
@@ -148,13 +147,7 @@ jobs:
             core.setFailed('Timeout waiting for CI checks to complete');
 
       - name: Enable auto-merge
-        uses: peter-evans/enable-pull-request-automerge@a660677d5469627102a1c1e11409dd063606628d
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.pr.outputs.pr_number }}
-          merge-method: squash
 
-      - name: Merge pull request
         id: merge
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         env:
