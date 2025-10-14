@@ -95,18 +95,27 @@ jobs:
                 ref: prHeadSha
               });
 
-              const requiredChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
+              const requiredChecks = ['tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
 
               // Check that each required check exists and has passed with "success" conclusion
               const checkResults = requiredChecks.map(requiredCheck => {
-                // Look for check runs first
-                const matchingCheck = checks.check_runs.find(check =>
-                  check.name === requiredCheck && check.status === 'completed'
-                );
+                // Look for check runs first with suffix matching
+                const matchingCheck = checks.check_runs
+                  .filter(cr => cr.status === 'completed')
+                  .find(cr =>
+                    cr.name === requiredCheck ||
+                    cr.name.endsWith(` / ${requiredCheck}`) ||
+                    cr.name.endsWith(requiredCheck)
+                  );
 
-                // If not found in check runs, look in commit statuses
-                const matchingStatus = !matchingCheck ?
-                  statuses.statuses.find(status => status.context === requiredCheck) : null;
+                // If not found in check runs, look in commit statuses with suffix matching
+                const matchingStatus = !matchingCheck
+                  ? statuses.statuses.find(s =>
+                      s.context === requiredCheck ||
+                      s.context.endsWith(` / ${requiredCheck}`) ||
+                      s.context.endsWith(requiredCheck)
+                    )
+                  : null;
                 const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
                 const isPendingStatus = conclusion === 'pending';
                 const found = !!matchingCheck || (!!matchingStatus && !isPendingStatus);
@@ -141,12 +150,13 @@ jobs:
 
               const completedCount = checkResults.filter(result => result.found).length;
               core.info(`Waiting for CI checks... (${completedCount}/${requiredChecks.length} completed)`);
-              await new Promise(resolve => setTimeout(resolve, checkInterval));
+              const jitter = Math.floor(Math.random() * 5000); // up to 5s
+              await new Promise(resolve => setTimeout(resolve, checkInterval + jitter));
             }
 
             core.setFailed('Timeout waiting for CI checks to complete');
 
-      - name: Enable auto-merge
+      - name: Merge pull request
 
         id: merge
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
@@ -159,11 +169,18 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            const { data: pr } = await github.rest.pulls.get({
+            let { data: pr } = await github.rest.pulls.get({
               owner,
               repo,
               pull_number: prNumber,
             });
+
+            // Wait briefly for mergeability to be computed
+            for (let i = 0; (pr.mergeable === null || pr.mergeable_state === 'unknown') && i < 10; i++) {
+              await new Promise(r => setTimeout(r, 3000));
+              const res = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+              pr = res.data;
+            }
 
             // Enforce policies for workflow_dispatch as well
             if (pr.base.ref !== 'main') {
@@ -223,7 +240,13 @@ jobs:
             });
 
             const headRef = pr.head.ref;
+            const baseRef = pr.base.ref;
             const headRepo = pr.head.repo;
+
+            if (headRef === baseRef) {
+              core.info(`Head ref matches base ref (${baseRef}); skipping deletion as a safety measure.`);
+              return;
+            }
 
             if (headRepo && headRepo.full_name === `${context.repo.owner}/${context.repo.repo}`) {
               try {
