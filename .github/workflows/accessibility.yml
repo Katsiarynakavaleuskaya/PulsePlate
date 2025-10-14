@@ -2,6 +2,7 @@ name: Accessibility Tests
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: accessibility-reports-${{ github.run_number }}
+          name: accessibility-reports
           path: frontend/test-results/**
           if-no-files-found: ignore
           retention-days: 7
