@@ -1,5 +1,8 @@
 name: CI
 
+# Note: Action versions are pinned to specific commit SHAs for security and stability.
+# Periodically update these SHAs to newer versions for security updates and bug fixes.
+
 permissions:
   contents: read
 
@@ -71,14 +74,14 @@ jobs:
       # Static data fixtures restoration removed - cache/ is in .gitignore
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
 
       - name: Upload JUnit test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: junit-${{ matrix.python-version }}
           path: tests/results.xml
@@ -97,7 +100,7 @@ jobs:
 
       - name: Upload bandit artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bandit-report-${{ matrix.python-version }}
           path: bandit-report.json
@@ -105,7 +108,7 @@ jobs:
 
       - name: Upload to Codecov (optional)
         if: ${{ github.event_name == 'push' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
           files: coverage.xml
           fail_ci_if_error: false

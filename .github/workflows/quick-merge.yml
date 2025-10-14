@@ -35,6 +35,22 @@ jobs:
         )
       )
     steps:
+      - name: Validate workflow_dispatch inputs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ github.event.inputs.pull_request_number }}" ]; then
+            echo "Error: pull_request_number input is required for workflow_dispatch"
+            exit 1
+          fi
+
+          # Validate PR number format
+          if ! echo "${{ github.event.inputs.pull_request_number }}" | grep -E '^[0-9]+$' > /dev/null; then
+            echo "Error: pull_request_number must be a valid number"
+            exit 1
+          fi
+
+          echo "Workflow dispatch validation passed"
+
       - name: Determine pull request number
         id: pr
         run: |
@@ -57,8 +73,59 @@ jobs:
 
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
+      - name: Validate PR for workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}', 10);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            try {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+
+              // Validate PR exists and is open
+              if (pr.state !== 'open') {
+                core.setFailed(`PR #${prNumber} is not open. Current state: ${pr.state}`);
+                return;
+              }
+
+              // Validate PR targets main branch
+              if (pr.base.ref !== 'main') {
+                core.setFailed(`PR #${prNumber} targets '${pr.base.ref}', not 'main'. Only PRs targeting main are allowed.`);
+                return;
+              }
+
+              // Validate PR is from the same repository
+              if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+                core.setFailed(`PR #${prNumber} is from '${pr.head.repo.full_name}', not '${owner}/${repo}'. Only PRs from the same repository are allowed.`);
+                return;
+              }
+
+              // Validate PR is not from Dependabot
+              if (pr.user?.login === 'dependabot[bot]') {
+                core.setFailed(`PR #${prNumber} is from Dependabot. Dependabot PRs are not allowed for auto-merge.`);
+                return;
+              }
+
+              core.info(`PR #${prNumber} validation passed: open, targets main, from same repo, not Dependabot`);
+
+            } catch (error) {
+              if (error.status === 404) {
+                core.setFailed(`PR #${prNumber} not found in ${owner}/${repo}`);
+              } else {
+                core.setFailed(`Failed to fetch PR #${prNumber}: ${error.message}`);
+              }
+            }
+
       - name: Wait for CI checks
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -104,7 +171,10 @@ jobs:
                 per_page: 100
               });
 
-              const requiredChecks = ['tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
+              // Required check names must match CI job names from .github/workflows/ci.yml
+              // If CI workflow changes, update these names accordingly to maintain auto-merge functionality
+              // Alternative approaches: use repository variables, workflow inputs, or pattern matching for looser coupling
+              const requiredChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
 
               // Check that each required check exists and has passed with "success" conclusion
               const checkResults = requiredChecks.map(requiredCheck => {
@@ -113,16 +183,14 @@ jobs:
                   .filter(cr => cr.status === 'completed')
                   .find(cr =>
                     cr.name === requiredCheck ||
-                    cr.name.endsWith(` / ${requiredCheck}`) ||
-                    cr.name.endsWith(requiredCheck)
+                    cr.name.endsWith(` / ${requiredCheck}`)
                   );
 
                 // If not found in check runs, look in commit statuses with suffix matching
                 const matchingStatus = !matchingCheck
                   ? statuses.statuses.find(s =>
                       s.context === requiredCheck ||
-                      s.context.endsWith(` / ${requiredCheck}`) ||
-                      s.context.endsWith(requiredCheck)
+                      s.context.endsWith(` / ${requiredCheck}`)
                     )
                   : null;
                 const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
@@ -133,6 +201,10 @@ jobs:
                 return {
                   name: requiredCheck,
                   found,
+                  passed,
+                  conclusion
+                };
+              });
                   passed,
                   conclusion
                 };
@@ -169,7 +241,7 @@ jobs:
       - name: Merge pull request
 
         id: merge
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        uses: actions/github-script@v6
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
@@ -185,11 +257,22 @@ jobs:
               pull_number: prNumber,
             });
 
-            // Wait briefly for mergeability to be computed
-            for (let i = 0; (pr.mergeable === null || pr.mergeable_state === 'unknown') && i < 10; i++) {
-              await new Promise(r => setTimeout(r, 3000));
+            // Wait for mergeability to be computed with exponential backoff
+            const maxRetries = 15; // Increased from 10
+            let retryCount = 0;
+            while ((pr.mergeable === null || pr.mergeable_state === 'unknown') && retryCount < maxRetries) {
+              retryCount++;
+              const delay = Math.min(3000 * Math.pow(1.5, retryCount - 1), 10000); // Exponential backoff, max 10s
+              core.info(`Waiting for mergeability computation (attempt ${retryCount}/${maxRetries}, delay: ${delay}ms)`);
+              await new Promise(r => setTimeout(r, delay));
               const res = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
               pr = res.data;
+            }
+
+            // Check if mergeability polling was exhausted
+            if (pr.mergeable === null || pr.mergeable_state === 'unknown') {
+              core.setFailed(`Mergeability polling exhausted after ${maxRetries} attempts. PR #${prNumber} in ${owner}/${repo} still has mergeable=${pr.mergeable}, mergeable_state='${pr.mergeable_state}'. GitHub may need more time to compute mergeability.`);
+              return { merged: false, reason: 'mergeability-timeout' };
             }
 
             // Enforce policies for workflow_dispatch as well
@@ -233,7 +316,7 @@ jobs:
 
       - name: Delete branch
         if: steps.merge.outputs.result && fromJSON(steps.merge.outputs.result).merged
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        uses: actions/github-script@v6
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
