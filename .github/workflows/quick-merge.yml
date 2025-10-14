@@ -107,9 +107,10 @@ jobs:
                 const matchingStatus = !matchingCheck ?
                   statuses.statuses.find(status => status.context === requiredCheck) : null;
 
-                const found = !!matchingCheck || !!matchingStatus;
-                const passed = matchingCheck?.conclusion === 'success' || matchingStatus?.state === 'success';
-                const conclusion = matchingCheck?.conclusion || matchingStatus?.state;
+                const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
+                const isPendingStatus = conclusion === 'pending';
+                const found = !!matchingCheck || (!!matchingStatus && !isPendingStatus);
+                const passed = conclusion === 'success';
 
                 return {
                   name: requiredCheck,
@@ -127,9 +128,9 @@ jobs:
                 return;
               }
 
-              // Find any required check that is not successful (including cancelled/skipped/neutral)
+              // Find any required check that is not successful (excluding pending)
               const nonSuccessChecks = checkResults.filter(result =>
-                result.found && result.conclusion !== 'success'
+                result.found && !result.passed
               );
 
               if (nonSuccessChecks.length > 0) {
