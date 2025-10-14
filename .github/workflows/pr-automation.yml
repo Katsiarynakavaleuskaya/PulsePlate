@@ -5,9 +5,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '30' }}
+  CODE_RABBIT_TIMEOUT_MIN: '30'
   SLEEP_SECONDS: '30'
-  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
+  CODE_REVIEWER: 'coderabbitai'
   CODE_RABBIT_CHECK_NAME: 'CodeRabbit'
 
 on:
@@ -98,7 +98,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
+            const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '30', 10);
             const baseDelaySeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
             const timeoutSeconds = timeoutMinutes * 60;
             const maxIterations = Math.ceil(timeoutSeconds / baseDelaySeconds);
