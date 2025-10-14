@@ -8,7 +8,7 @@ env:
   CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '30' }}
   SLEEP_SECONDS: '30'
   CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
-  CODE_RABBIT_CHECK_NAME: ${{ vars.CODE_RABBIT_CHECK_NAME || 'CodeRabbit' }}
+  CODE_RABBIT_CHECK_NAME: 'CodeRabbit'
 
 on:
   pull_request:
