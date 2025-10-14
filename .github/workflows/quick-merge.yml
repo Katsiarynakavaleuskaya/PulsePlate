@@ -23,7 +23,6 @@ jobs:
       pull-requests: write
       checks: read
       statuses: read
-      administration: read
     if: >
       (
         github.event_name == 'workflow_dispatch' ||
@@ -191,7 +190,7 @@ jobs:
               });
 
               // Required checks are configurable via repo variable QUICK_MERGE_REQUIRED_CHECKS (CSV). Fallback to strict defaults.
-              const defaultChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage'];
+              const defaultChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage'];
               const csv = (process.env.REQUIRED_CHECKS_CSV || '').trim();
               let requiredChecks = (csv ? csv.split(',') : [])
                 .map(s => s.trim())
