@@ -44,7 +44,7 @@ def test_api_endpoint_multilingual():
 
         # Check that the response is successful
         assert response.status_code == 200, (
-            f"Failed for language {lang}\n" f"Response body: {response.json()}"
+            f"Failed for language {lang}\nResponse body: {response.json()}"
         )
 
         # Parse the response
