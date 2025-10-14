@@ -1,54 +1,71 @@
 name: Accessibility Tests
 
-on:
-  push:
-    branches: [ main, develop, feat/**, fix/** ]
-  pull_request:
-    branches: [ main, develop ]
-
 permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'frontend/vite.config.ts'
+      - 'frontend/package.json'
+      - 'frontend/tsconfig.json'
+      - '.github/workflows/accessibility.yml'
+  push:
+    branches: [main, feat/**, fix/**]
+    paths:
+      - 'frontend/**'
+      - 'frontend/vite.config.ts'
+      - 'frontend/package.json'
+      - 'frontend/tsconfig.json'
+      - '.github/workflows/accessibility.yml'
+  workflow_dispatch:
+
 jobs:
   accessibility:
-    timeout-minutes: 20
-    concurrency:
-      group: access-tests-${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VITE_API_BASE: "http://localhost:8000/api/v1"
+      VITE_API_KEY: "test_key"
+      VITE_DEV_MODE: "true"
+      VITE_ANALYTICS_ENABLED: "false"
+      CI: "true"
     defaults:
       run:
         working-directory: frontend
-
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 20
+          node-version: '20'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run accessibility tests
-        run: npm run test:accessibility
-        env:
-          CI: true
-          VITE_API_BASE: http://localhost:8000/api/v1
-          VITE_API_KEY: test_key
-          VITE_DEV_MODE: true
-          VITE_ANALYTICS_ENABLED: false
+      - name: Prepare test-results directory
+        run: mkdir -p test-results
 
-      - name: Upload test results
+      - name: Run accessibility test suite
+        run: npm run test:accessibility -- --reporter=junit --outputFile=test-results/accessibility.xml
+        # env vars are inherited from job-level env
+
+      - name: Upload accessibility reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: accessibility-test-results
-          path: frontend/test-results/
-          retention-days: 30
+          name: accessibility-reports
+          path: frontend/test-results/**
           if-no-files-found: ignore
+          retention-days: 7
