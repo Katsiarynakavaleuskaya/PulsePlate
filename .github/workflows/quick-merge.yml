@@ -2,7 +2,7 @@ name: Quick Merge
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pull_request_number || github.run_id }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 on:
   pull_request_review:
@@ -79,20 +79,29 @@ jobs:
                 pull_number: prNumber
               });
 
+              // Early policy guard for workflow_dispatch as well
+              if (pr.base.ref !== 'main' || pr.user?.login === 'dependabot[bot]') {
+                core.info(`Skipping wait: base='${pr.base.ref}', author='${pr.user?.login}'.`);
+                core.setFailed('PR does not meet Quick Merge policy.');
+                return;
+              }
+
               const prHeadSha = pr.head.sha;
 
               // Get checks for the PR head SHA
               const { data: checks } = await github.rest.checks.listForRef({
                 owner,
                 repo,
-                ref: prHeadSha
+                ref: prHeadSha,
+                per_page: 100
               });
 
               // Also get commit statuses for comprehensive check coverage
               const { data: statuses } = await github.rest.repos.getCombinedStatusForRef({
                 owner,
                 repo,
-                ref: prHeadSha
+                ref: prHeadSha,
+                per_page: 100
               });
 
               const requiredChecks = ['tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];

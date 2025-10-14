@@ -190,7 +190,7 @@ jobs:
       - name: Install tooling
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install ruff==0.6.9
 
       - name: Run Ruff format
         run: |
@@ -227,7 +227,12 @@ jobs:
           git commit -m "chore: apply automated fixes"
 
       - name: Push changes
-        if: steps.changes.outputs.changed == 'true'
+        if: >
+          steps.changes.outputs.changed == 'true' &&
+          (
+            github.event.pull_request.head.repo.full_name == github.repository ||
+            steps.pr-info.outputs.head_repo == github.repository
+          )
         env:
           TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
         run: |
