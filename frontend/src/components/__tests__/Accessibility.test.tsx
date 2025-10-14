@@ -2,11 +2,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { axe, toHaveNoViolations } from 'jest-axe';
-import { vi } from 'vitest';
+import { vi, expect } from 'vitest';
 import { Toggle } from '../ui/Toggle';
 import { FormField, FormError } from '../ui/FormField';
 
-// Extend Jest matchers
+// Extend Vitest matchers
 expect.extend(toHaveNoViolations);
 
 describe('Accessibility Tests', () => {
