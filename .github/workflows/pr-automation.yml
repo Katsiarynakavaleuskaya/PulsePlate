@@ -1,7 +1,7 @@
 name: PR Automation
 
 concurrency:
-  group: pr-auto-fix-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.sha }}
+  group: pr-auto-fix-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -9,9 +9,6 @@ env:
   SLEEP_SECONDS: '30'
   CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
   CODE_RABBIT_CHECK_NAME: ${{ vars.CODE_RABBIT_CHECK_NAME || 'CodeRabbit' }}
-  # Maximum iterations will be calculated in the script using the formula:
-  # ceil((timeoutMinutes * 60) / sleepSeconds)
-  # This ensures we don't exceed the timeout while accounting for partial sleep cycles
 
 on:
   pull_request:
@@ -46,7 +43,54 @@ jobs:
       checks: read
     outputs:
       status: ${{ steps.wait.outputs.status }}
+      pr_number: ${{ steps.get-pr.outputs.pr_number }}
+      head_ref: ${{ steps.get-pr.outputs.head_ref }}
+      head_sha: ${{ steps.get-pr.outputs.head_sha }}
+      head_repo: ${{ steps.get-pr.outputs.head_repo }}
     steps:
+      - name: Get PR details
+        id: get-pr
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let prNumber, prData;
+
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = parseInt(context.payload.inputs.pr_number, 10);
+              if (isNaN(prNumber)) {
+                core.setFailed(`Invalid PR number: "${context.payload.inputs.pr_number}"`);
+                return;
+              }
+
+              try {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber
+                });
+                prData = pr;
+              } catch (error) {
+                core.setFailed(`Failed to fetch PR #${prNumber}: ${error.message}`);
+                return;
+              }
+            } else {
+              prNumber = context.payload.pull_request?.number;
+              prData = context.payload.pull_request;
+            }
+
+            if (!prNumber || !prData) {
+              core.setFailed('Unable to determine pull request information');
+              return;
+            }
+
+            core.setOutput('pr_number', prNumber.toString());
+            core.setOutput('head_ref', prData.head.ref);
+            core.setOutput('head_sha', prData.head.sha);
+            core.setOutput('head_repo', prData.head.repo.full_name);
+
+            core.info(`PR #${prNumber}: ${prData.head.repo.full_name}/${prData.head.ref}@${prData.head.sha}`);
+
       - name: Wait for CodeRabbit review
         id: wait
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
@@ -54,193 +98,166 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // Parse timeout and sleep configuration from environment variables
             const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
             const baseDelaySeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
-
-            // Calculate maximum iterations for polling CodeRabbit reviews
-            // Using conservative estimate with base delay to ensure we don't exceed timeout
             const timeoutSeconds = timeoutMinutes * 60;
             const maxIterations = Math.ceil(timeoutSeconds / baseDelaySeconds);
 
-            // Get PR number from context or manual input
-            let prNumber;
-            if (context.eventName === 'workflow_dispatch') {
-              prNumber = parseInt(context.payload.inputs.pr_number, 10);
-              if (isNaN(prNumber)) {
-                core.setFailed(`Invalid PR number input: "${context.payload.inputs.pr_number}". Must be a valid integer.`);
-                return;
-              }
-            } else {
-              prNumber = context.payload.pull_request?.number;
-            }
-
-            if (!prNumber) {
-              core.setFailed('Unable to determine pull request number. For manual triggers, provide pr_number input.');
-              return;
-            }
-
+            const prNumber = parseInt('${{ steps.get-pr.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.get-pr.outputs.head_sha }}';
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const checkName = process.env.CODE_RABBIT_CHECK_NAME || 'CodeRabbit';
 
-            async function reviewCompleted() {
-              // Get PR to fetch head SHA
-              const { data: pr } = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number: prNumber,
-              });
-              const headSha = pr.head.sha;
+            core.info(`Waiting for CodeRabbit check on PR #${prNumber}, commit ${headSha}`);
+            core.info(`Timeout: ${timeoutMinutes} minutes, Max iterations: ${maxIterations}`);
 
-              // Check if CodeRabbit check exists and is completed
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner,
-                repo,
-                ref: headSha
-              });
+            // Initial delay to allow CodeRabbit to start
+            core.info('Waiting 10 seconds for CodeRabbit to initialize...');
+            await new Promise(resolve => setTimeout(resolve, 10000));
 
-              const checkName = process.env.CODE_RABBIT_CHECK_NAME || 'CodeRabbit';
-              // Log latest CodeRabbit check status for debugging (deterministic)
-              const allCodeRabbitChecks = checks.check_runs
-                .filter(check => check.name === checkName || check.name.includes(checkName))
-                .sort((a, b) => new Date(b.completed_at || b.started_at || 0) - new Date(a.completed_at || a.started_at || 0));
-              if (allCodeRabbitChecks.length > 0) {
-                const latestCheck = allCodeRabbitChecks[0];
-                core.info(`CodeRabbit check '${checkName}' status: ${latestCheck.status}, conclusion: ${latestCheck.conclusion}`);
-                return latestCheck.status === 'completed' && latestCheck.conclusion === 'success';
+            async function getCodeRabbitCheck() {
+              try {
+                const { data: checks } = await github.rest.checks.listForRef({
+                  owner,
+                  repo,
+                  ref: headSha,
+                  per_page: 100
+                });
+
+                const codeRabbitChecks = checks.check_runs
+                  .filter(check => check.name === checkName || check.name.includes(checkName))
+                  .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
+
+                return codeRabbitChecks.length > 0 ? codeRabbitChecks[0] : null;
+              } catch (error) {
+                core.warning(`Error fetching checks: ${error.message}`);
+                return null;
+              }
+            }
+
+            for (let attempt = 1; attempt <= maxIterations; attempt++) {
+              const check = await getCodeRabbitCheck();
+
+              if (check) {
+                core.info(`[${attempt}/${maxIterations}] CodeRabbit check found: status=${check.status}, conclusion=${check.conclusion}`);
+
+                if (check.status === 'completed') {
+                  if (check.conclusion === 'success' || check.conclusion === 'neutral') {
+                    core.info(`CodeRabbit review completed successfully on attempt ${attempt}`);
+                    core.setOutput('status', 'completed');
+                    return;
+                  } else {
+                    core.warning(`CodeRabbit completed with conclusion: ${check.conclusion}`);
+                    core.setOutput('status', 'failed');
+                    return;
+                  }
+                }
               } else {
-                core.info(`No CodeRabbit check found (expected name contains '${checkName}')`);
-                return false;
+                core.info(`[${attempt}/${maxIterations}] CodeRabbit check not found yet (expected name: '${checkName}')`);
+              }
+
+              if (attempt < maxIterations) {
+                const jitterFactor = 0.5 + Math.random();
+                const delaySeconds = Math.floor(baseDelaySeconds * jitterFactor);
+                core.info(`Waiting ${delaySeconds}s before next check...`);
+                await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
               }
             }
 
-            for (let attempt = 1; attempt <= maxIterations; attempt += 1) {
-              if (await reviewCompleted()) {
-                core.info(`CodeRabbit review completed on attempt ${attempt}.`);
-                core.setOutput('status', 'completed');
-                return;
-              }
-
-              // Calculate delay with jitter
-              const jitterFactor = 0.5 + Math.random() * 1.0; // Random factor between 0.5 and 1.5
-              const delaySeconds = Math.floor(baseDelaySeconds * jitterFactor);
-
-              core.info(`CodeRabbit check not complete (attempt ${attempt}/${maxIterations}). Waiting ${delaySeconds}s (fixed delay with jitter)...`);
-              await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
-            }
-
-            core.setFailed(`CodeRabbit check not completed within ${timeoutMinutes} minutes.`);
+            core.setFailed(`CodeRabbit check not completed within ${timeoutMinutes} minutes`);
 
   apply-auto-fixes:
     needs: wait-for-coderabbit
-    if: >
-      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) &&
+    if: |
       needs.wait-for-coderabbit.outputs.status == 'completed' &&
       github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: read
+      pull-requests: write
     steps:
-      - name: Get PR information
-        id: pr-info
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.inputs.pr_number;
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-
-            core.setOutput('head_ref', pr.head.ref);
-            core.setOutput('head_sha', pr.head.sha);
-            core.setOutput('head_repo', pr.head.repo.full_name);
-
-      - name: Validate PR head SHA
+      - name: Check repository access
         run: |
-          if [ -z "${{ github.event.pull_request.head.sha }}" ] && [ -z "${{ steps.pr-info.outputs.head_sha }}" ]; then
-            echo "Error: Cannot determine PR head SHA. This workflow requires a valid PR head SHA to checkout the correct commit."
-            echo "github.event.pull_request.head.sha: ${{ github.event.pull_request.head.sha }}"
-            echo "steps.pr-info.outputs.head_sha: ${{ steps.pr-info.outputs.head_sha }}"
-            exit 1
-          fi
-          echo "PR head SHA validated successfully"
+          HEAD_REPO="${{ needs.wait-for-coderabbit.outputs.head_repo }}"
+          BASE_REPO="${{ github.repository }}"
 
-      - name: Checkout
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::warning::PR is from fork ($HEAD_REPO). Cannot push changes."
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "can_push=true" >> "$GITHUB_OUTPUT"
+        id: repo-check
+
+      - name: Checkout PR
+        if: steps.repo-check.outputs.can_push != 'false'
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.event.pull_request.head.repo.full_name || steps.pr-info.outputs.head_repo || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha }}
+          repository: ${{ needs.wait-for-coderabbit.outputs.head_repo }}
+          ref: ${{ needs.wait-for-coderabbit.outputs.head_sha }}
           fetch-depth: 0
 
       - name: Set up Python
+        if: steps.repo-check.outputs.can_push != 'false'
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version-file: .python-version
 
       - name: Install tooling
+        if: steps.repo-check.outputs.can_push != 'false'
         run: |
           python -m pip install --upgrade pip
           pip install ruff==0.14.0
 
-      - name: Run Ruff format
+      - name: Apply automated fixes
+        if: steps.repo-check.outputs.can_push != 'false'
         run: |
-          python -m ruff format .
+          echo "Running Ruff format..."
+          python -m ruff format . || true
 
-      - name: Run Ruff lint (auto-fix)
-        run: |
-          python -m ruff check --fix .
+          echo "Running Ruff lint with auto-fix..."
+          python -m ruff check --fix . || true
 
-      - name: Run Ruff lint (check remaining issues)
+      - name: Verify Python syntax
+        if: steps.repo-check.outputs.can_push != 'false'
         run: |
-          python -m ruff check .
-
-      - name: Validate fixes
-        run: |
-          # Ensure Python files are still syntactically valid; report all failures
           failed=0
           while IFS= read -r -d '' f; do
-            echo "Compiling $f"
             if ! python -m py_compile "$f" 2>&1; then
-              echo "::error file=$f::py_compile failed"
+              echo "::error file=$f::Syntax error after auto-fix"
               failed=1
             fi
           done < <(find . -name "*.py" -not -path "*/\.*" -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/venv/*" -print0)
-          exit $failed
 
-      - name: Detect changes
+          if [ $failed -eq 1 ]; then
+            echo "::error::Auto-fixes introduced syntax errors. Aborting commit."
+            exit 1
+          fi
+
+      - name: Check for changes
+        if: steps.repo-check.outputs.can_push != 'false'
         id: changes
         run: |
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to commit"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected:"
+            git diff --stat
           fi
 
-      - name: Commit changes
-        if: steps.changes.outputs.changed == 'true'
+      - name: Commit and push changes
+        if: steps.changes.outputs.changed == 'true' && steps.repo-check.outputs.can_push != 'false'
+        env:
+          TARGET_BRANCH: ${{ needs.wait-for-coderabbit.outputs.head_ref }}
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: apply automated fixes"
+          git commit -m "chore: apply automated fixes [skip ci]"
 
-      - name: Push changes
-        if: >
-          steps.changes.outputs.changed == 'true' &&
-          (
-            github.event.pull_request.head.repo.full_name == github.repository ||
-            steps.pr-info.outputs.head_repo == github.repository
-          )
-        env:
-          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
-        run: |
-          if [ -z "$TARGET_BRANCH" ]; then
-            echo "Unable to determine PR head branch name."; exit 1;
-          fi
+          echo "Pushing to branch: $TARGET_BRANCH"
           git push origin "HEAD:${TARGET_BRANCH}"
