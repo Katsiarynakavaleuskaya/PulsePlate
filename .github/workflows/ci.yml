@@ -51,11 +51,12 @@ jobs:
       - name: Security scan with Bandit
         run: |
           set -e
+          EXCLUDES="tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache"
           if [ -f scripts/ci_bandit.sh ]; then
-            bash scripts/ci_bandit.sh --exclude tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache --output bandit-report.json
+            bash scripts/ci_bandit.sh --exclude "$EXCLUDES" --output bandit-report.json
           else
             echo "::notice::scripts/ci_bandit.sh not found; running bandit directly"
-            bandit -r . -x tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache -f json -o bandit-report.json
+            bandit -r . -x "$EXCLUDES" -f json -o bandit-report.json
           fi
         continue-on-error: true
 
@@ -174,3 +175,21 @@ jobs:
 
       - name: Build SPA
         run: npm run build
+
+      - name: Upload frontend build artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: frontend-build
+          path: frontend/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload frontend test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: frontend-test-results
+          path: frontend/coverage
+          if-no-files-found: ignore
+          retention-days: 7
