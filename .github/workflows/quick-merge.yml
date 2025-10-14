@@ -61,7 +61,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}');
+            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}', 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -197,10 +197,12 @@ jobs:
       - name: Delete branch
         if: steps.merge.outputs.result && fromJSON(steps.merge.outputs.result).merged
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.pr_number }}');
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -213,7 +215,7 @@ jobs:
             const headRef = pr.head.ref;
             const headRepo = pr.head.repo;
 
-            if (headRepo && headRepo.full_name === context.repo.owner + '/' + context.repo.repo) {
+            if (headRepo && headRepo.full_name === `${context.repo.owner}/${context.repo.repo}`) {
               await github.rest.git.deleteRef({
                 owner,
                 repo,

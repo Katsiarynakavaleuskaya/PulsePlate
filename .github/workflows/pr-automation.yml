@@ -5,9 +5,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || vars.CODE_RABBIT_TIMEOUT_MIN || '15' }}
+  CODE_RABBIT_TIMEOUT_MIN: ${{ github.event.inputs.coderabbit_timeout_min || '15' }}
   SLEEP_SECONDS: '30'
-  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || vars.CODE_REVIEWER || 'coderabbitai' }}
+  CODE_REVIEWER: ${{ github.event.inputs.code_reviewer || 'coderabbitai' }}
   # Maximum iterations will be calculated in the script using the formula:
   # ceil((timeoutMinutes * 60) / sleepSeconds)
   # This ensures we don't exceed the timeout while accounting for partial sleep cycles
@@ -55,7 +55,6 @@ jobs:
             // Parse timeout and sleep configuration from environment variables
             const timeoutMinutes = parseInt(process.env.CODE_RABBIT_TIMEOUT_MIN ?? '15', 10);
             const baseDelaySeconds = parseInt(process.env.SLEEP_SECONDS ?? '30', 10);
-            const maxDelaySeconds = 300; // 5 minutes maximum delay
 
             // Calculate maximum iterations for polling CodeRabbit reviews
             // Using conservative estimate with base delay to ensure we don't exceed timeout
@@ -145,7 +144,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.event.pull_request.head.repo.full_name || steps.pr-info.outputs.head_repo || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha }}
+          ref: ${{ github.event.pull_request.head.sha || steps.pr-info.outputs.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -164,7 +163,11 @@ jobs:
 
       - name: Run Ruff lint (auto-fix)
         run: |
-          python -m ruff check --fix . || true
+          python -m ruff check --fix .
+
+      - name: Run Ruff lint (check remaining issues)
+        run: |
+          python -m ruff check .
 
       - name: Validate fixes
         run: |
@@ -191,7 +194,7 @@ jobs:
       - name: Push changes
         if: steps.changes.outputs.changed == 'true'
         env:
-          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref || 'main' }}
         run: |
           if [ -z "$TARGET_BRANCH" ]; then
             echo "Unable to determine PR head branch name."; exit 1;
