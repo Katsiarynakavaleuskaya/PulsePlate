@@ -61,5 +61,9 @@
   "claudeCodeChat.permissions.yoloMode": true,
   "editor.tabCompletion": "on",
   "diffEditor.codeLens": true,
-  "MutableAI.upsell": true
+  "MutableAI.upsell": true,
+  "github.copilot.enable": {
+    "markdown": true,
+    "plaintext": true
+  }
 }
