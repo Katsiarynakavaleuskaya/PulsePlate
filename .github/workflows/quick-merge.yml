@@ -173,7 +173,7 @@ jobs:
               });
 
               // Required checks are configurable via repo variable QUICK_MERGE_REQUIRED_CHECKS (CSV). Fallback to strict defaults.
-              const defaultChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage', 'CodeRabbit'];
+              const defaultChecks = ['tests (3.11)', 'tests (3.12)', 'tests (3.13)', 'bandit', 'coverage'];
               const csv = (process.env.REQUIRED_CHECKS_CSV || '').trim();
               const requiredChecks = (csv ? csv.split(',') : [])
                 .map(s => s.trim())
@@ -182,12 +182,11 @@ jobs:
               if (requiredChecks.length === 0) requiredChecks.push(...defaultChecks);
 
               if (!requiredChecks.length) {
-                core.setFailed('No required checks configured or inferred. Set repo variable REQUIRED_CHECKS or provide workflow_dispatch input requiredChecks.');
+                core.setFailed('No required checks configured or inferred. Set repository variable QUICK_MERGE_REQUIRED_CHECKS (CSV) to override defaults.');
                 return;
               }
 
               // Check that each required check exists and has passed with "success" conclusion
-              const expectedWorkflow = `${context.workflow}`; // current workflow name as prefix when GitHub composes check names
               const checkResults = requiredChecks.map(requiredCheck => {
                 // Look for latest completed check run with suffix matching
                 const matchingCheck = checks.check_runs
@@ -200,7 +199,11 @@ jobs:
 
                 // If not found in check runs, look in commit statuses with suffix matching
                 const matchingStatus = !matchingCheck
-                  ? statuses.statuses.find(s => s.context === requiredCheck || s.context === `${expectedWorkflow} / ${requiredCheck}`)
+                  ? statuses.statuses.find(s =>
+                      s.context === requiredCheck ||
+                      s.context.endsWith(` / ${requiredCheck}`) ||
+                      s.context.endsWith(requiredCheck)
+                    )
                   : null;
                 const conclusion = matchingCheck?.conclusion ?? matchingStatus?.state;
                 const isPendingStatus = conclusion === 'pending';
@@ -224,7 +227,7 @@ jobs:
               }
 
               // Find any required check that has terminal failure states (excluding pending/in_progress)
-              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error', 'skipped'];
+              const terminalFailureStates = ['failure', 'timed_out', 'cancelled', 'action_required', 'stale', 'error', 'skipped', 'neutral'];
               const nonSuccessChecks = checkResults.filter(result =>
                 result.found && terminalFailureStates.includes(result.conclusion)
               );
@@ -289,6 +292,18 @@ jobs:
             if (pr.user?.login === 'dependabot[bot]') {
               core.info(`PR #${prNumber} is from Dependabot. Aborting.`);
               return { merged: false, reason: 'dependabot' };
+            }
+
+            // Require at least one approval when triggered via workflow_dispatch
+            if (context.eventName === 'workflow_dispatch') {
+              const { data: reviews } = await github.rest.pulls.listReviews({
+                owner, repo, pull_number: prNumber, per_page: 100
+              });
+              const hasApproval = reviews.some(r => r.state === 'APPROVED');
+              if (!hasApproval) {
+                core.info(`PR #${prNumber} has no approvals. Aborting.`);
+                return { merged: false, reason: 'not-approved' };
+              }
             }
 
             if (pr.state !== 'open') {

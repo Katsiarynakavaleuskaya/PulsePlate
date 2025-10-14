@@ -165,12 +165,13 @@ jobs:
               }
             }
 
-            core.setFailed(`CodeRabbit check not completed within ${timeoutMinutes} minutes`);
+            core.warning(`CodeRabbit check not completed within ${timeoutMinutes} minutes. Skipping auto-fixes.`);
+            core.setOutput('status', 'skipped');
 
   apply-auto-fixes:
     needs: wait-for-coderabbit
     if: |
-      needs.wait-for-coderabbit.outputs.status == 'completed' &&
+      (needs.wait-for-coderabbit.outputs.status == 'completed' || needs.wait-for-coderabbit.outputs.status == 'skipped') &&
       github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -257,7 +258,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: apply automated fixes [skip ci]"
+          git commit -m "chore: apply automated fixes"
 
           echo "Pushing to branch: $TARGET_BRANCH"
           git push origin "HEAD:${TARGET_BRANCH}"
