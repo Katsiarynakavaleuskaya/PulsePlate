@@ -25,6 +25,8 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
         cache: "pip"
+        cache-dependency-path: |
+          ${{ inputs.working-directory }}/requirements*.txt
 
     - name: Install base dependencies
       shell: bash
@@ -33,9 +35,9 @@ runs:
         set -euxo pipefail
         python -m pip install --upgrade pip
         if [[ -f requirements-dev.txt ]]; then
-          pip install -r requirements-dev.txt
+          python -m pip install -r requirements-dev.txt
         elif [[ -f requirements.txt ]]; then
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt
         fi
         if [[ ! -f requirements-dev.txt && ! -f requirements.txt ]]; then
           echo "::notice::No requirements-dev.txt or requirements.txt found; skipping base dependency install"
@@ -47,7 +49,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        pip install 'pre-commit>=3.0.0,<4.0.0' 'bandit>=1.7.0,<2.0.0'
+        python -m pip install 'pre-commit>=3.0.0,<4.0.0' 'bandit>=1.7.0,<2.0.0'
 
     - name: Install test dependencies
       if: ${{ inputs.install-test-deps == 'true' }}
@@ -55,4 +57,4 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euxo pipefail
-        pip install 'pytest>=8.0.0,<9.0.0' 'pytest-cov>=4.0.0,<5.0.0'
+        python -m pip install 'pytest>=8.0.0,<9.0.0' 'pytest-cov>=4.0.0,<5.0.0'

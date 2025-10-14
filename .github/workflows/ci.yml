@@ -151,6 +151,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload to Codecov
+        if: ${{ hashFiles('./coverage-artifacts/coverage.xml') != '' }}
         uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
           files: ./coverage-artifacts/coverage.xml
