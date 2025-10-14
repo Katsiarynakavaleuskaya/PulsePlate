@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import ProgressCharts from '../ProgressCharts';
 
 // Mock recharts components
@@ -27,6 +28,9 @@ vi.mock('lucide-react', () => ({
 }));
 
 describe('ProgressCharts', () => {
+  afterEach(() => {
+    cleanup();
+  });
   it('renders progress tracking header', () => {
     render(<ProgressCharts />);
 
@@ -52,14 +56,14 @@ describe('ProgressCharts', () => {
   it('renders calorie balance chart', () => {
     render(<ProgressCharts />);
 
-    expect(screen.getByText('Calorie Balance')).toBeInTheDocument();
+    expect(screen.getAllByText('Calorie Balance')[0]).toBeInTheDocument();
     expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
   });
 
   it('renders macronutrient distribution chart', () => {
     render(<ProgressCharts />);
 
-    expect(screen.getByText('Macronutrient Distribution')).toBeInTheDocument();
+    expect(screen.getAllByText('Macronutrient Distribution')[0]).toBeInTheDocument();
     expect(screen.getByText('Nutrient Breakdown')).toBeInTheDocument();
     expect(screen.getByTestId('pie-chart')).toBeInTheDocument();
   });
@@ -68,14 +72,14 @@ describe('ProgressCharts', () => {
     render(<ProgressCharts />);
 
     // The mock data shows weight loss (72.8 - 73.2 = -0.4), so should show trending down
-    expect(screen.getByTestId('trending-down-icon')).toBeInTheDocument();
+    expect(screen.getAllByTestId('trending-down-icon')[0]).toBeInTheDocument();
     expect(screen.getByText('0.4 kg lost')).toBeInTheDocument();
   });
 
   it('displays macronutrient breakdown', () => {
     render(<ProgressCharts />);
 
-    expect(screen.getByText('Protein')).toBeInTheDocument();
+    expect(screen.getAllByText('Protein')[0]).toBeInTheDocument();
     expect(screen.getByText('Carbs')).toBeInTheDocument();
     expect(screen.getByText('Fat')).toBeInTheDocument();
     expect(screen.getByText('Fiber')).toBeInTheDocument();

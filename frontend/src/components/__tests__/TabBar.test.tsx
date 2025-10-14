@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 
 // Mock function declared before mocks (hoisting-safe)
 const mockUseAuth = vi.fn();
@@ -59,12 +60,16 @@ describe('TabBar', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   describe('without API key', () => {
     it('shows lock icons for protected routes', () => {
       renderTabBar(null);
 
       // Check that protected tabs have lock icons
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getAllByText('Plate')[0].closest('div');
       const progressTab = screen.getByText('Progress').closest('div');
 
       expect(plateTab).toBeInTheDocument();
@@ -85,7 +90,7 @@ describe('TabBar', () => {
     it('shows disabled styling for protected routes', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getAllByText('Plate')[0].closest('div');
       const progressTab = screen.getByText('Progress').closest('div');
 
       expect(plateTab).toHaveClass('cursor-not-allowed');
@@ -98,7 +103,7 @@ describe('TabBar', () => {
     it('shows click feedback for disabled tabs', async () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getAllByText('Plate')[0].closest('div');
 
       // Click on disabled tab
       fireEvent.click(plateTab!);
@@ -120,7 +125,7 @@ describe('TabBar', () => {
     it('shows accessible labels for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getAllByText('Plate')[0].closest('div');
 
       expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
@@ -168,7 +173,7 @@ describe('TabBar', () => {
     it('has proper ARIA attributes for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getAllByText('Plate')[0].closest('div');
       const progressTab = screen.getByText('Progress').closest('div');
 
       expect(plateTab).toHaveAttribute('aria-disabled', 'true');
