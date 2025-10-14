@@ -20,6 +20,7 @@ name: Codecov Upload
 #     coverage-file: 'coverage.xml'
 #     coverage-artifact: 'coverage-report'  # Download artifact to ./coverage-artifact/ before upload
 #     fail_on_codecov_error: false  # Override to not fail CI on upload errors
+#   secrets: inherit  # Forward CODECOV_TOKEN (if used) from the caller
 
 on:
   workflow_call:
@@ -69,33 +70,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Download coverage artifact
-        if: ${{ inputs.coverage-artifact != '' }}
-        uses: actions/download-artifact@v4
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
-          name: ${{ inputs.coverage-artifact }}
+          fetch-depth: 0
+
+      - name: Download coverage artifact
+        if: ${{ inputs['coverage-artifact'] != '' }}
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: ${{ inputs['coverage-artifact'] }}
           path: ./coverage-artifact
 
       - name: Verify coverage file exists
-        if: ${{ inputs.coverage-artifact != '' }}
+        if: ${{ inputs['coverage-artifact'] != '' }}
         run: |
-          if [ ! -f "${{ inputs.coverage-file }}" ]; then
-            echo "::error::Coverage file '${{ inputs.coverage-file }}' not found after downloading artifact '${{ inputs.coverage-artifact }}'"
+          if [ ! -f "${{ inputs['coverage-file'] }}" ]; then
+            echo "::error::Coverage file '${{ inputs['coverage-file'] }}' not found after downloading artifact '${{ inputs['coverage-artifact'] }}'"
             echo "Available files in current directory:"
             find . -name "*.xml" -o -name "*.json" -o -name "coverage*" | head -10
             exit 1
           fi
-          echo "✅ Coverage file '${{ inputs.coverage-file }}' found successfully"
+          echo "✅ Coverage file '${{ inputs['coverage-file'] }}' found successfully"
 
       - name: Upload to Codecov
-        if: ${{ !inputs.skip-upload }}
+        if: ${{ !inputs['skip-upload'] }}
         uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
         with:
-          files: ${{ inputs.coverage-file }}
+          files: ${{ inputs['coverage-file'] }}
           flags: ${{ inputs.flags }}
           name: ${{ inputs.name }}
-          fail_ci_if_error: ${{ inputs.fail_on_codecov_error }}
+          fail_ci_if_error: ${{ inputs['fail_on_codecov_error'] }}
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
         env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
+          PYTHON_VERSION: ${{ inputs['python-version'] }}
