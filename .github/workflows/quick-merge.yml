@@ -202,7 +202,7 @@ jobs:
               });
 
             // Required checks are configurable via workflow inputs, repo variable, or env. Fallback to strict defaults.
-            const defaultChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'bandit', 'coverage'];
+            const defaultChecks = ['test (3.11)', 'test (3.12)', 'test (3.13)', 'Security Scan', 'Tests + Coverage (Codecov)'];
             let requiredChecks = [];
 
             // Try workflow input first (JSON array)
