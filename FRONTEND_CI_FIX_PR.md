@@ -22,7 +22,7 @@ Invalid Chai property: toHaveNoViolations
 **File:** `frontend/src/test/setup.ts`
 
 **Added:**
-- ✅ jest-axe matcher registration: `expect.extend({ toHaveNoViolations } as any)`
+- ✅ jest-axe matcher registration: `expect.extend(toHaveNoViolations)`
 - ✅ Optional chaining for MSW server methods (safer)
 - ✅ `onUnhandledRequest: "bypass"` in MSW config
 
@@ -46,14 +46,28 @@ Invalid Chai property: toHaveNoViolations
 // Before
 expect(results).toHaveNoViolations();
 
-// After
-try {
-  expect(results).toHaveNoViolations();
-} catch {
-  // Fallback: if matcher doesn't work, check violations directly
-  expect(results.violations.length).toBe(0);
-}
+// After - Improved targeted approach
+// Helper function to safely check accessibility violations
+const expectNoViolations = (results: any) => {
+  // Check if toHaveNoViolations matcher exists
+  if (typeof expect(results).toHaveNoViolations === 'function') {
+    expect(results).toHaveNoViolations();
+  } else {
+    // Fallback: check violations directly when matcher is not available
+    expect(results.violations.length).toBe(0);
+  }
+};
+
+// Usage in tests
+const results = await axe(container);
+expectNoViolations(results);
 ```
+
+**Why this approach is better:**
+- **Targeted fallback**: Only uses fallback when the matcher doesn't exist, not for all errors
+- **Preserves real failures**: Genuine test failures are not hidden by catch-all blocks
+- **Cleaner code**: Single helper function instead of repeated try-catch blocks
+- **Better debugging**: Real accessibility violations will still throw proper errors
 
 ---
 

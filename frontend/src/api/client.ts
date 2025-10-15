@@ -2,6 +2,7 @@
 // EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
 import { logError } from "../lib/analytics";
+import type { components } from "./schema";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
 
 /**
@@ -326,9 +327,7 @@ export type {
 } from "./premium";
 
 // Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
-export type WeekPlanResponse = {
-  days: Array<{ date: string; meals: Array<{ name: string; kcal: number }> }>;
-};
+export type WeekPlanResponse = components["schemas"]["WeekPlanResponse"];
 
 // Endpoints
 
