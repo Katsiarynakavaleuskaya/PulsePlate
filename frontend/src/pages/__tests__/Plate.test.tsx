@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import Plate from '../Plate';
+import { PREMIUM_GATE_SOURCES } from '../../config/constants';
 
 // Mock usePremium hook
 vi.mock('../../lib/usePremium', () => ({
@@ -69,6 +70,6 @@ describe('Plate', () => {
     render(<Plate />);
 
     const premiumGate = screen.getByTestId('premium-gate');
-    expect(premiumGate).toHaveAttribute('data-source', 'plate_page');
+    expect(premiumGate).toHaveAttribute('data-source', PREMIUM_GATE_SOURCES.PLATE_PAGE);
   });
 });
