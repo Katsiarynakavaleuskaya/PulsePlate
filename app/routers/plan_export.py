@@ -339,7 +339,7 @@ def _register_font() -> str:
         if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-    except Exception as e:
+    except (OSError, IOError) as e:
         # Font registration failed, fallback to default
         # Log the error for debugging but continue with fallback
         logger.warning("Failed to register font %s: %s", FONT_NAME, e)
