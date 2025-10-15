@@ -49,7 +49,7 @@ describe('ErrorBoundary', () => {
 
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
     expect(screen.getByText(/We encountered an unexpected error/)).toBeInTheDocument();
-    expect(screen.getByText('Refresh Page')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refresh page/i })).toBeInTheDocument();
   });
 
   it('renders custom fallback when provided', () => {

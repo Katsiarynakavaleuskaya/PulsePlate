@@ -1,6 +1,7 @@
 import { expect, beforeAll, afterEach, afterAll, vi } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { toHaveNoViolations } from "jest-axe";
+import { cleanup } from "@testing-library/react";
 import { server } from "../mocks/server";
 
 // Mock window.location.replace globally to prevent jsdom errors
@@ -32,6 +33,7 @@ afterEach(() => {
   if (server?.resetHandlers) {
     server.resetHandlers();
   }
+  cleanup(); // Global cleanup after each test
 });
 
 // Clean up after all tests

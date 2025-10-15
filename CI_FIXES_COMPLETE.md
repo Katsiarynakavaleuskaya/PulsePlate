@@ -43,7 +43,7 @@ env:
 
 ## 📊 Test Results
 
-```
+```text
 ✓ Test Files  23 passed (23)
 ✓ Tests  176 passed | 1 skipped (177)
 ✓ Duration  2.75s

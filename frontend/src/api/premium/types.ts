@@ -1,4 +1,5 @@
 import { api, ApiOptions } from '../client';
+import type { components } from '../schema';
 
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 
@@ -82,18 +83,8 @@ export type BmrApiResponse = {
   method?: string;
 };
 
-export type PlateRequest = {
-  sex: 'male' | 'female';
-  age: number;
-  height_cm: number;
-  weight_kg: number;
-  activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-  goal: 'loss' | 'maintain' | 'gain';
-  deficit_pct?: number | null;
-  surplus_pct?: number | null;
-  bodyfat?: number | null;
-  diet_flags?: string[] | null;
-};
+// OpenAPI generated types
+export type PlateRequest = components["schemas"]["PlateRequest"];
 
 export type PlateApiResponse = {
   kcal: number;
@@ -104,20 +95,8 @@ export type PlateApiResponse = {
   day_micros?: Record<string, number>;
 };
 
-export type TargetsRequest = {
-  sex: 'male' | 'female';
-  age: number;
-  height_cm: number;
-  weight_kg: number;
-  activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-  goal?: 'loss' | 'maintain' | 'gain';
-  deficit_pct?: number | null;
-  surplus_pct?: number | null;
-  bodyfat?: number | null;
-  diet_flags?: string[] | null;
-  life_stage?: 'child' | 'teen' | 'adult' | 'pregnant' | 'lactating' | 'elderly';
-  lang?: string;
-};
+// OpenAPI generated types
+export type TargetsRequest = components["schemas"]["WHOTargetsRequest"];
 
 export type TargetsApiResponse = {
   kcal_daily: number;

@@ -3,6 +3,7 @@
 
 import { logError } from "../lib/analytics";
 import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
+import type { components } from "./schema";
 
 /**
  * Dependencies for API client that can be injected for testing
@@ -325,10 +326,8 @@ export type {
   TargetsApiResponse,
 } from "./premium";
 
-// Типы минимальные — ровно чтобы начать (уточним позже из OpenAPI)
-export type WeekPlanResponse = {
-  days: Array<{ date: string; meals: Array<{ name: string; kcal: number }> }>;
-};
+// OpenAPI generated types
+export type WeekPlanResponse = components["schemas"]["WeekPlanResponse"];
 
 // Endpoints
 

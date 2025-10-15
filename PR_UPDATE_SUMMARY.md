@@ -34,7 +34,7 @@
 
 ## 📊 Final Statistics
 
-```
+```text
 13 files changed, 704 insertions(+), 76 deletions(-)
 Net change: +628 lines
 ```
@@ -52,13 +52,13 @@ Net change: +628 lines
 ## 🧪 Expected CI Results
 
 **Before our fix:**
-```
+```text
 ❌ Invalid Chai property: toHaveNoViolations
 ❌ CI failing on accessibility tests
 ```
 
 **After our fix:**
-```
+```text
 ✅ All tests pass
 ✅ No jest-axe matcher conflicts
 ✅ Accessibility tests validate correctly
