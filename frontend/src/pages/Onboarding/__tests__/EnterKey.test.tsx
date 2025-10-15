@@ -1,7 +1,7 @@
 /// <reference types="vitest/globals" />
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import EnterKey from '../EnterKey';
 import { AuthProvider } from '../../../lib/auth';

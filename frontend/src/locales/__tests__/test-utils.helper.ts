@@ -32,7 +32,8 @@ export const checkLengths = (obj: any, path = ''): string[] => {
 
   if (typeof obj === 'string') {
     if (obj.length < 1 || obj.length > maxLength) {
-      issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${obj.substring(0, 50)}..."`);
+      const displayed = obj.length > 50 ? obj.substring(0, 50) + "..." : obj;
+      issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${displayed}"`);
     }
   } else if (typeof obj === 'object' && obj !== null) {
     for (const [key, value] of Object.entries(obj)) {
@@ -48,7 +49,10 @@ export class TestLogger {
   private logs: string[] = [];
 
   warn(message: string, ...args: any[]) {
-    const logEntry = `${message} ${args.join(' ')}`;
+    const serializedArgs = args.length > 0
+      ? args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+      : '';
+    const logEntry = serializedArgs ? `${message} ${serializedArgs}` : message;
     this.logs.push(logEntry);
     // Only log to console in development
     if (process.env.NODE_ENV !== 'test') {

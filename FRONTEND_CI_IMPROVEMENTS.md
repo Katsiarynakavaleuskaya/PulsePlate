@@ -68,7 +68,7 @@ Successfully improved the frontend CI workflow with comprehensive test fixes, co
 **Changes**:
 - Added `all: true` to include all source files in coverage
 - Enhanced exclude patterns for test files, config files, and build artifacts
-- Maintained 95% coverage thresholds for lines, functions, branches, statements
+- Updated coverage thresholds to 97% for lines, functions, branches, statements (matching project standard)
 
 ### 6. CI Workflow Optimization ✅
 

@@ -62,7 +62,12 @@ describe('Accessibility Tests', () => {
         />
       );
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should not have accessibility violations when unchecked', async () => {
@@ -74,7 +79,12 @@ describe('Accessibility Tests', () => {
         />
       );
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should properly associate label with switch using aria-labelledby', async () => {
@@ -99,7 +109,12 @@ describe('Accessibility Tests', () => {
       expect(switchElement).toHaveAccessibleName('Accessibility Test Toggle');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should not have accessibility violations when disabled', async () => {
@@ -119,7 +134,12 @@ describe('Accessibility Tests', () => {
       expect(switchElement).toHaveClass('cursor-not-allowed');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('exposes only the switch in tab order', async () => {
@@ -162,7 +182,12 @@ describe('Accessibility Tests', () => {
       expect(handleChange).toHaveBeenCalledWith(true);
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should have proper focus management and visible focus styles', async () => {
@@ -186,7 +211,12 @@ describe('Accessibility Tests', () => {
       expect(switchElement).toHaveClass('focus:ring-2', 'focus:ring-blue-600', 'focus:ring-offset-2');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
 
@@ -222,7 +252,12 @@ describe('Accessibility Tests', () => {
       expect(updatedSwitch).toHaveAttribute('aria-checked', 'true');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it.skip('should pass color contrast accessibility checks', async () => {
@@ -243,7 +278,12 @@ describe('Accessibility Tests', () => {
           'color-contrast': { enabled: true }
         }
       });
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
   });
 
@@ -265,7 +305,12 @@ describe('Accessibility Tests', () => {
       expect(input).toHaveAttribute('placeholder', 'Enter text');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should properly handle required fields and ARIA attributes', async () => {
@@ -286,7 +331,12 @@ describe('Accessibility Tests', () => {
       expect(label).toHaveTextContent('*');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should properly associate error messages with inputs', async () => {
@@ -311,7 +361,12 @@ describe('Accessibility Tests', () => {
       expect(errorMessage).toHaveAttribute('role', 'alert');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should support keyboard navigation and focus management', async () => {
@@ -337,7 +392,12 @@ describe('Accessibility Tests', () => {
       expect(input).toHaveValue('test input');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
   });
 
@@ -355,7 +415,12 @@ describe('Accessibility Tests', () => {
       expect(errorElement).toHaveTextContent('Test error message');
 
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      try {
+        expect(results).toHaveNoViolations();
+      } catch {
+        // Fallback: if matcher doesn't work, check violations directly
+        expect(results.violations.length).toBe(0);
+      }
     });
 
     it('should not render when no error is provided', () => {
