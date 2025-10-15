@@ -8,11 +8,12 @@ import { FormField, FormError } from '../ui/FormField';
 
 // Helper function to safely check accessibility violations
 const expectNoViolations = (results: any) => {
-  // Check if toHaveNoViolations matcher exists
-  if (typeof expect(results).toHaveNoViolations === 'function') {
+  try {
+    // Prefer matcher when available
+    // @ts-ignore - matcher may not be typed in this context
     expect(results).toHaveNoViolations();
-  } else {
-    // Fallback: check violations directly when matcher is not available
+  } catch {
+    // Fallback when matcher is not registered
     expect(results.violations.length).toBe(0);
   }
 };

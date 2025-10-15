@@ -1,11 +1,10 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import Profile from '../Profile';
 
 describe('Profile', () => {
   afterEach(() => {
     cleanup();
-    vi.clearAllMocks();
   });
 
   it('renders profile page content', () => {

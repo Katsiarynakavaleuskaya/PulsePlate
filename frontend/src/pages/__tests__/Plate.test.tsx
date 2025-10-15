@@ -30,7 +30,7 @@ describe('Plate', () => {
     render(<Plate />);
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByText('Plate')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Plate' })).toBeInTheDocument();
     expect(screen.getByText('Loading…')).toBeInTheDocument();
   });
 
@@ -40,12 +40,12 @@ describe('Plate', () => {
     render(<Plate />);
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByText('Plate')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Plate' })).toBeInTheDocument();
     expect(screen.getByTestId('premium-gate')).toBeInTheDocument();
     expect(screen.getByText('Premium-only section preview…')).toBeInTheDocument();
   });
 
-  it('passes correct props to PremiumGate', () => {
+  it('passes correct isPremium prop to PremiumGate', () => {
     vi.mocked(usePremium).mockReturnValue(false);
 
     render(<Plate />);

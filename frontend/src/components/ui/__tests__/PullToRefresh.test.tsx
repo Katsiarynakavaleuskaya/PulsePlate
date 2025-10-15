@@ -35,7 +35,9 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const pullToRefreshContainer = container.firstChild as HTMLElement;
+    const first = container.firstChild;
+    if (!first) throw new Error('Container element not found');
+    const pullToRefreshContainer = first as HTMLElement;
 
     // Simulate touch start
     await act(async () => {
@@ -66,7 +68,9 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const pullToRefreshContainer = container.firstChild as HTMLElement;
+    const first = container.firstChild;
+    if (!first) throw new Error('Container element not found');
+    const pullToRefreshContainer = first as HTMLElement;
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
@@ -91,7 +95,9 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const pullToRefreshContainer = container.firstChild as HTMLElement;
+    const first = container.firstChild;
+    if (!first) throw new Error('Container element not found');
+    const pullToRefreshContainer = first as HTMLElement;
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
@@ -116,7 +122,9 @@ describe('PullToRefresh', () => {
       </PullToRefresh>
     );
 
-    const pullToRefreshContainer = container.firstChild as HTMLElement;
+    const first = container.firstChild;
+    if (!first) throw new Error('Container element not found');
+    const pullToRefreshContainer = first as HTMLElement;
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
