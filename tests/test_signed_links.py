@@ -21,7 +21,7 @@ def test_hmac_verify_wrong_signature() -> None:
     secret = "y"  # nosec B105
     path = "/api/y"
     exp = 200
-    sig = sign(secret, path, exp)
+    # Test that an invalid signature fails verification
     assert not verify(secret, path, exp, "invalid", now_ts=0)
 
 
