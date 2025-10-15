@@ -48,7 +48,7 @@ make help | head -20
 
 **B. RecursionError:**
 
-- Переписать mock imports без **import** patching
+- Переписать mock imports без `__import__` patching
 - Использовать более простые mock patterns
 
 **C. Authentication:**

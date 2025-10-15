@@ -12,6 +12,7 @@ PulsePlate is a comprehensive FastAPI-based nutrition and meal planning applicat
 - **`app/routers/`** - Modular API routes (foods, recipes, vip, premium_week, bmi_pro)
 - **`core/`** - Business logic modules (menu_engine, targets, plate, food_apis)
 - **`tests/`** - Comprehensive test suite with 97% coverage requirement
+- **`frontend/`** - Vite-based React app with Vitest tests, Playwright e2e, and coverage reports
 
 ### Feature Flag System
 
@@ -36,6 +37,12 @@ pytest --cov=. --cov-fail-under=97 -q
 
 # Use the test task for convenience
 python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -x
+
+# Frontend tests with coverage
+cd frontend
+npm ci
+npm run test -- --coverage
+# Coverage reports in frontend/coverage (text, lcov, json)
 ```
 
 ### Environment Setup
@@ -43,6 +50,11 @@ python -m pytest tests --cov=. --cov-report=term-missing --cov-fail-under=97 -x
 - **Python 3.13.5** (pinned in `.python-version`, `.tool-versions`)
 - Install via: `pyenv install 3.13.5 && pyenv local 3.13.5`
 - Dependencies: `pip install -r requirements-dev.txt -r requirements.txt`
+
+- **Frontend prerequisites**
+- - **Node.js** (pinned via `engines` in `frontend/package.json`; use `nvm`/`volta`)
+- - Install deps: `cd frontend && npm ci`
+- - Playwright: `npx playwright install --with-deps` (consider moving to separate e2e job in CI)
 
 ### Code Standards
 
@@ -91,7 +103,8 @@ _function = resolve_attr("function_name", fallback_function, _candidates)
 
 ### Coverage Targets
 
-- **Minimum**: 97% line coverage enforced in CI
+- **Backend (pytest)**: 97% line coverage enforced in CI
+- **Frontend (Vitest)**: thresholds set in `frontend/vitest.config.ts` (V8 coverage: text, lcov, json)
 - **Test Types**: Unit, integration, property-based (disabled), API smoke tests
 - **Mocking**: Extensive use of pytest mocks for external dependencies
 
@@ -101,6 +114,7 @@ _function = resolve_attr("function_name", fallback_function, _candidates)
 - `test_*_api.py` - API endpoint tests
 - `test_*_smoke.py` - Basic functionality tests
 - `disabled_hypothesis/` - Property-based tests (isolated due to performance)
+- Frontend: `frontend/src/**/*.test.ts{x,}` and component tests under `frontend/src/components/**/__tests__/`
 
 ### Common Test Utilities
 

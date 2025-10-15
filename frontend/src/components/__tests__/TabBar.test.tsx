@@ -70,8 +70,8 @@ describe('TabBar', () => {
       renderTabBar(null);
 
       // Check that protected tabs have lock icons
-      const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toBeInTheDocument();
       expect(progressTab).toBeInTheDocument();
@@ -91,8 +91,8 @@ describe('TabBar', () => {
     it('shows disabled styling for protected routes', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toHaveClass('cursor-not-allowed');
       expect(progressTab).toHaveClass('cursor-not-allowed');
@@ -104,7 +104,7 @@ describe('TabBar', () => {
     it('shows click feedback for disabled tabs', async () => {
       renderTabBar(null);
 
-      const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
 
       // Click on disabled tab
       fireEvent.click(plateTab!);
@@ -126,7 +126,7 @@ describe('TabBar', () => {
     it('shows accessible labels for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
 
       expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
@@ -174,8 +174,8 @@ describe('TabBar', () => {
     it('has proper ARIA attributes for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toHaveAttribute('aria-disabled', 'true');
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');

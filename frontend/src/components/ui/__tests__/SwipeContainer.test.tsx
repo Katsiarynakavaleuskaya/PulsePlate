@@ -34,7 +34,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getAllByText('Test content')[0].parentElement!;
+    const container = screen.getByText('Test content').parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -60,7 +60,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getAllByText('Test content')[0].parentElement!;
+    const container = screen.getByText('Test content').parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -86,7 +86,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getAllByText('Test content')[0].parentElement!;
+    const container = screen.getByText('Test content').parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -112,7 +112,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getAllByText('Test content')[0].parentElement!;
+    const container = screen.getByText('Test content').parentElement!;
 
     // Simulate touch start
     fireEvent.touchStart(container, {
@@ -137,7 +137,7 @@ describe('SwipeContainer', () => {
       </SwipeContainer>
     );
 
-    const container = screen.getAllByText('Test content')[0].parentElement!;
+    const container = screen.getByText('Test content').parentElement!;
 
     // Test swipe right
     fireEvent.touchStart(container, { touches: [{ clientX: 100 }] });

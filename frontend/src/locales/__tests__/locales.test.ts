@@ -10,7 +10,7 @@ import {
   MAX_ALLOWED_DUPLICATES,
   STRING_LENGTH_LIMITS,
   TestLogger
-} from './test-utils';
+} from './test-utils.helper';
 
 // Test constants imported from test-utils
 

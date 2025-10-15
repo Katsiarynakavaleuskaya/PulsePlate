@@ -79,7 +79,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    const refreshButton = screen.getAllByRole('button', { name: /refresh page/i })[0];
+    const refreshButton = screen.getByRole('button', { name: /refresh page/i });
     fireEvent.click(refreshButton);
 
     expect(mockReload).toHaveBeenCalled();

@@ -47,10 +47,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # TODO: Consider moving Playwright install to separate e2e job if unit tests don't need browsers
-      - name: Install Playwright browsers
-        run: npx --yes playwright install --with-deps
-
       - name: Run ESLint (if available)
         run: npm run lint --if-present
 
