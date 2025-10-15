@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -30,6 +31,8 @@ from reportlab.platypus import (
 
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
+
+logger = logging.getLogger(__name__)
 
 plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
 export_router = APIRouter(prefix="/api/v1/export", tags=["export"])
@@ -211,7 +214,6 @@ def _get_week_plan() -> Dict[str, Any]:
 
     Replace this stub with the real planner integration when available.
     """
-
     return {
         "days": [
             {
@@ -337,8 +339,10 @@ def _register_font() -> str:
         if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-    except Exception:
-        pass
+    except Exception as e:
+        # Font registration failed, fallback to default
+        # Log the error for debugging but continue with fallback
+        logger.warning("Failed to register font %s: %s", FONT_NAME, e)
     return "Helvetica"
 
 
