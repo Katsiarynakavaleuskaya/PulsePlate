@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResultView from "../ResultView";
 import { mockPlateData } from "../mocks";
-import { mockValues } from "./test-utils";
+import { mockValues } from "../test-utils";
 
 const translations: Record<string, string> = {
   "nutrition.macros.title": "Макронутриенты и калории",

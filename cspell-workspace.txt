@@ -3724,6 +3724,7 @@ capsys
 carb
 CARB
 carbohidratos
+cartesian
 cellvalues
 celsius
 Cena

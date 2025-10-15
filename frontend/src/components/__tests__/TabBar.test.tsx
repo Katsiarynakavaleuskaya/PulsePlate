@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
 // Mock function declared before mocks (hoisting-safe)
 const mockUseAuth = vi.fn();
@@ -59,13 +59,19 @@ describe('TabBar', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
+
+
   describe('without API key', () => {
     it('shows lock icons for protected routes', () => {
       renderTabBar(null);
 
       // Check that protected tabs have lock icons
-      const plateTab = screen.getByText('Plate').closest('div');
-      const progressTab = screen.getByText('Progress').closest('div');
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toBeInTheDocument();
       expect(progressTab).toBeInTheDocument();
@@ -85,8 +91,8 @@ describe('TabBar', () => {
     it('shows disabled styling for protected routes', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
-      const progressTab = screen.getByText('Progress').closest('div');
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toHaveClass('cursor-not-allowed');
       expect(progressTab).toHaveClass('cursor-not-allowed');
@@ -98,7 +104,7 @@ describe('TabBar', () => {
     it('shows click feedback for disabled tabs', async () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
 
       // Click on disabled tab
       fireEvent.click(plateTab!);
@@ -120,7 +126,7 @@ describe('TabBar', () => {
     it('shows accessible labels for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
 
       expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
       expect(plateTab).toHaveAttribute('tabindex', '-1');
@@ -132,9 +138,9 @@ describe('TabBar', () => {
       renderTabBar('test-api-key');
 
       // All tabs should be NavLink elements (not disabled spans)
-      const homeTab = screen.getByText('Home').closest('a');
-      const plateTab = screen.getByText('Plate').closest('a');
-      const progressTab = screen.getByText('Progress').closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(homeTab).toBeInTheDocument();
       expect(plateTab).toBeInTheDocument();
@@ -149,7 +155,7 @@ describe('TabBar', () => {
       renderTabBar('test-api-key');
 
       // The indicator bar should be present for the "Home" tab (default active route)
-      const homeTab = screen.getByText('Home').closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
       const indicatorBar = homeTab?.querySelector('div.bg-primary.rounded-full');
       expect(indicatorBar).toBeInTheDocument();
     });
@@ -157,7 +163,7 @@ describe('TabBar', () => {
     it('shows hover effects for available tabs', () => {
       renderTabBar('test-api-key');
 
-      const homeTab = screen.getByText('Home').closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
 
       expect(homeTab).toHaveClass('hover:scale-105');
       expect(homeTab).toHaveClass('transition-all');
@@ -168,8 +174,8 @@ describe('TabBar', () => {
     it('has proper ARIA attributes for disabled tabs', () => {
       renderTabBar(null);
 
-      const plateTab = screen.getByText('Plate').closest('div');
-      const progressTab = screen.getByText('Progress').closest('div');
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(plateTab).toHaveAttribute('aria-disabled', 'true');
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');

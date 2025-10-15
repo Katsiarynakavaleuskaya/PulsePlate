@@ -2,6 +2,7 @@
 
 // Constants
 export const MAX_ALLOWED_DUPLICATES = 50;
+export const MAX_DISPLAY_LENGTH = 50;
 export const STRING_LENGTH_LIMITS = {
   default: 500,
   extended: 1000,
@@ -9,7 +10,9 @@ export const STRING_LENGTH_LIMITS = {
 
 // Helper functions
 export const collectKeyPaths = (obj: unknown, prefix = ''): string[] => {
-  if (obj === null || typeof obj !== 'object') return [];
+  if (obj === null || typeof obj !== 'object') {
+    return [];
+  }
   return Object.entries(obj).flatMap(([key, value]) => {
     const currentPath = prefix ? `${prefix}.${key}` : key;
     return [
@@ -26,16 +29,19 @@ export const getMaxLength = (path: string): number => {
   return STRING_LENGTH_LIMITS.default;
 };
 
-export const checkLengths = (obj: any, path = ''): string[] => {
+export const checkLengths = (obj: unknown, path = ''): string[] => {
   const issues: string[] = [];
   const maxLength = getMaxLength(path);
 
   if (typeof obj === 'string') {
     if (obj.length < 1 || obj.length > maxLength) {
-      issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${obj.substring(0, 50)}..."`);
+      const displayed = obj.length > MAX_DISPLAY_LENGTH ? obj.substring(0, MAX_DISPLAY_LENGTH) + "..." : obj;
+      issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${displayed}"`);
     }
   } else if (typeof obj === 'object' && obj !== null) {
-    for (const [key, value] of Object.entries(obj)) {
+    // Type narrowing: obj is now known to be a non-null object
+    const objRecord = obj as Record<string, unknown>;
+    for (const [key, value] of Object.entries(objRecord)) {
       issues.push(...checkLengths(value, path ? `${path}.${key}` : key));
     }
   }
@@ -48,7 +54,10 @@ export class TestLogger {
   private logs: string[] = [];
 
   warn(message: string, ...args: any[]) {
-    const logEntry = `${message} ${args.join(' ')}`;
+    const serializedArgs = args.length > 0
+      ? args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
+      : '';
+    const logEntry = serializedArgs ? `${message} ${serializedArgs}` : message;
     this.logs.push(logEntry);
     // Only log to console in development
     if (process.env.NODE_ENV !== 'test') {
