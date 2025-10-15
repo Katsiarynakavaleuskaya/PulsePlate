@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
+
 import { describe, expect, it, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import GlassCard from "../GlassCard";
@@ -26,12 +27,12 @@ describe("GlassCard", () => {
       </GlassCard>
     );
 
-    const wrapper = screen.getAllByTestId("glass-card")[0];
+    const wrapper = screen.getByTestId("glass-card");
     expect(wrapper).toHaveClass("rounded-2xl");
     expect(wrapper).toHaveClass("bg-white/10");
     expect(wrapper).toHaveClass("text-white");
 
-    const inner = screen.getAllByTestId("inner")[0].parentElement as HTMLElement;
+    const inner = screen.getByTestId("inner").parentElement as HTMLElement;
     expect(inner).toHaveClass("p-4");
   });
 
@@ -49,7 +50,7 @@ describe("GlassCard", () => {
         </GlassCard>
       );
 
-      const wrapper = screen.getAllByTestId("glass-card")[0];
+      const wrapper = screen.getByTestId("glass-card");
       expectedClasses.forEach((cls) => {
         expect(wrapper).toHaveClass(cls);
       });
@@ -71,7 +72,7 @@ describe("GlassCard", () => {
         </GlassCard>
       );
 
-      const inner = screen.getAllByTestId("inner")[0].parentElement as HTMLElement;
+      const inner = screen.getByTestId("inner").parentElement as HTMLElement;
       if (expectedClass) {
         expect(inner).toHaveClass(expectedClass);
       } else {
@@ -100,7 +101,7 @@ describe("GlassCard", () => {
       </GlassCard>
     );
 
-    const wrapper = screen.getAllByTestId("glass-card")[0];
+    const wrapper = screen.getByTestId("glass-card");
     expect(wrapper).not.toHaveAttribute("aria-label");
     expect(wrapper).not.toHaveAttribute("aria-labelledby");
   });
@@ -118,7 +119,7 @@ describe("GlassCard", () => {
       </GlassCard>
     );
 
-    const wrapper = screen.getAllByTestId("glass-card")[0];
+    const wrapper = screen.getByTestId("glass-card");
     expect(wrapper).toHaveClass("custom-wrapper");
     expect(wrapper).toHaveAttribute("id", "test-card");
 
@@ -133,7 +134,7 @@ describe("GlassCard", () => {
         <span>content</span>
       </GlassCard>
     );
-    const wrapper = screen.getAllByTestId("glass-card")[0];
+    const wrapper = screen.getByTestId("glass-card");
     // Expect default (neutral) classes
     expect(wrapper).toHaveClass("border-white/15");
     expect(wrapper).toHaveClass("bg-white/10");
@@ -146,7 +147,7 @@ describe("GlassCard", () => {
         <span data-testid="inner" />
       </GlassCard>
     );
-    const inner = screen.getAllByTestId("inner")[0].parentElement as HTMLElement;
+    const inner = screen.getByTestId("inner").parentElement as HTMLElement;
     expect(inner).toHaveClass("p-4");
   });
 });

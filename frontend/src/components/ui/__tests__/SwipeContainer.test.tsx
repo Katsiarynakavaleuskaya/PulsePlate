@@ -16,6 +16,7 @@ describe('SwipeContainer', () => {
     cleanup();
   });
 
+
   it('renders children correctly', () => {
     render(
       <SwipeContainer>

@@ -64,13 +64,14 @@ describe('TabBar', () => {
   });
 
 
+
   describe('without API key', () => {
     it('shows lock icons for protected routes', () => {
       renderTabBar(null);
 
       // Check that protected tabs have lock icons
       const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByText('Progress')[0].closest('div');
+      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
 
       expect(plateTab).toBeInTheDocument();
       expect(progressTab).toBeInTheDocument();
@@ -91,7 +92,7 @@ describe('TabBar', () => {
       renderTabBar(null);
 
       const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByText('Progress')[0].closest('div');
+      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
 
       expect(plateTab).toHaveClass('cursor-not-allowed');
       expect(progressTab).toHaveClass('cursor-not-allowed');
@@ -137,9 +138,9 @@ describe('TabBar', () => {
       renderTabBar('test-api-key');
 
       // All tabs should be NavLink elements (not disabled spans)
-      const homeTab = screen.getAllByText('Home')[0].closest('a');
-      const plateTab = screen.getAllByText('Plate')[0].closest('a');
-      const progressTab = screen.getAllByText('Progress')[0].closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
+      const plateTab = screen.getByRole('tab', { name: /plate/i });
+      const progressTab = screen.getByRole('tab', { name: /progress/i });
 
       expect(homeTab).toBeInTheDocument();
       expect(plateTab).toBeInTheDocument();
@@ -154,7 +155,7 @@ describe('TabBar', () => {
       renderTabBar('test-api-key');
 
       // The indicator bar should be present for the "Home" tab (default active route)
-      const homeTab = screen.getAllByText('Home')[0].closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
       const indicatorBar = homeTab?.querySelector('div.bg-primary.rounded-full');
       expect(indicatorBar).toBeInTheDocument();
     });
@@ -162,7 +163,7 @@ describe('TabBar', () => {
     it('shows hover effects for available tabs', () => {
       renderTabBar('test-api-key');
 
-      const homeTab = screen.getAllByText('Home')[0].closest('a');
+      const homeTab = screen.getByRole('tab', { name: /home/i });
 
       expect(homeTab).toHaveClass('hover:scale-105');
       expect(homeTab).toHaveClass('transition-all');
@@ -174,7 +175,7 @@ describe('TabBar', () => {
       renderTabBar(null);
 
       const plateTab = screen.getAllByRole('tab', { name: /plate/i })[0];
-      const progressTab = screen.getAllByText('Progress')[0].closest('div');
+      const progressTab = screen.getAllByRole('tab', { name: /progress/i })[0];
 
       expect(plateTab).toHaveAttribute('aria-disabled', 'true');
       expect(progressTab).toHaveAttribute('aria-disabled', 'true');
