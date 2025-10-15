@@ -796,6 +796,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/premium/plan/week-flexible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Week Plan */
+        post: operations["generate_week_plan_api_v1_premium_plan_week_flexible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/db": {
         parameters: {
             query?: never;
@@ -974,7 +991,7 @@ export interface paths {
         put?: never;
         /**
          * Bmi Endpoint V1
-         * @description V1 BMI endpoint with API key authentication.
+         * @description V1 BMI endpoint (public access).
          */
         post: operations["bmi_endpoint_v1_api_v1_bmi_post"];
         delete?: never;
@@ -1517,23 +1534,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/premium/plan/week-flexible": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Week Plan */
-        post: operations["generate_week_plan_api_v1_premium_plan_week_flexible_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1802,9 +1802,7 @@ export interface components {
              * Data
              * @description Additional error data
              */
-            data?: {
-                [key: string]: unknown;
-            };
+            data?: Record<string, never>;
         };
         /**
          * FoodHit
@@ -1958,9 +1956,7 @@ export interface components {
         NutrientGapsResponse: {
             /** Gaps */
             gaps: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: Record<string, never>;
             };
             /** Food Recommendations */
             food_recommendations: string[];
@@ -2001,7 +1997,7 @@ export interface components {
             /** Bodyfat */
             bodyfat?: number | null;
             /** Diet Flags */
-            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST")[] | null;
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
         };
         /** PlateResponse */
         PlateResponse: {
@@ -2012,11 +2008,11 @@ export interface components {
                 [key: string]: number;
             };
             /** Portions */
-            portions: components["schemas"]["Portion"];
+            portions: Record<string, never>;
             /** Layout */
-            layout: components["schemas"]["LayoutItem"][];
+            layout: components["schemas"]["VisualShape"][];
             /** Meals */
-            meals: components["schemas"]["Meal"][];
+            meals: Record<string, never>[];
             /**
              * Day Micros
              * @default {}
@@ -2190,50 +2186,6 @@ export interface components {
             /** Tooltip */
             tooltip: string;
         };
-        /** Portion */
-        Portion: {
-            /** Protein Palm */
-            protein_palm: number;
-            /** Fat Thumbs */
-            fat_thumbs: number;
-            /** Carb Cups */
-            carb_cups: number;
-            /** Veg Cups */
-            veg_cups: number;
-            /** Meals Per Day */
-            meals_per_day: number;
-        };
-        /** LayoutItem */
-        LayoutItem: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "plate_sector" | "bowl" | "marker";
-            /** Fraction */
-            fraction: number;
-            /** Label */
-            label: string;
-            /** Tooltip */
-            tooltip: string;
-        };
-        /** Meal */
-        Meal: {
-            /** Title */
-            title: string;
-            /** Kcal */
-            kcal: number;
-            /** Protein G */
-            protein_g: number;
-            /** Fat G */
-            fat_g: number;
-            /** Carbs G */
-            carbs_g: number;
-            /** Micros */
-            micros?: {
-                [key: string]: number;
-            };
-        };
         /**
          * WHOTargetsRequest
          * @description RU: Запрос на расчёт целей по нормам ВОЗ.
@@ -2269,7 +2221,7 @@ export interface components {
             /** Bodyfat */
             bodyfat?: number | null;
             /** Diet Flags */
-            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST")[] | null;
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
             /**
              * Life Stage
              * @default adult
@@ -2347,9 +2299,7 @@ export interface components {
         /** WeekPlanResponse */
         WeekPlanResponse: {
             /** Daily Menus */
-            daily_menus: {
-                [key: string]: unknown;
-            }[];
+            daily_menus: Record<string, never>[];
             /** Weekly Coverage */
             weekly_coverage: {
                 [key: string]: number;
@@ -2370,13 +2320,9 @@ export interface components {
          */
         WeeklyMenuResponse: {
             /** Week Summary */
-            week_summary: {
-                [key: string]: unknown;
-            };
+            week_summary: Record<string, never>;
             /** Daily Menus */
-            daily_menus: {
-                [key: string]: unknown;
-            }[];
+            daily_menus: Record<string, never>[];
             /** Weekly Coverage */
             weekly_coverage: {
                 [key: string]: number;
@@ -2445,23 +2391,17 @@ export interface components {
              * Preferences
              * @description User preferences
              */
-            preferences?: {
-                [key: string]: unknown;
-            };
+            preferences?: Record<string, never>;
             /**
              * Goals
              * @description Nutrition goals
              */
-            goals?: {
-                [key: string]: unknown;
-            };
+            goals?: Record<string, never>;
             /**
              * Constraints
              * @description Dietary constraints
              */
-            constraints?: {
-                [key: string]: unknown;
-            };
+            constraints?: Record<string, never>;
         } & {
             [key: string]: unknown;
         };
@@ -2480,9 +2420,7 @@ export interface components {
              * Data
              * @description Weekly plan data
              */
-            data?: {
-                [key: string]: unknown;
-            };
+            data?: Record<string, never>;
             /**
              * Message
              * @description Additional message
@@ -2890,9 +2828,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -2972,9 +2908,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3034,9 +2968,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3060,9 +2992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3120,9 +3050,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3132,9 +3060,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3157,9 +3083,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3169,9 +3093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3194,9 +3116,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3206,9 +3126,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3237,9 +3155,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3259,9 +3175,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3287,9 +3201,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3320,9 +3232,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3353,9 +3263,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3388,9 +3296,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3413,9 +3319,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3425,9 +3329,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3450,9 +3352,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3462,9 +3362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3487,9 +3385,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3499,9 +3395,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3530,9 +3424,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -3546,9 +3438,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3558,9 +3448,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3583,9 +3471,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3595,9 +3481,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -3628,9 +3512,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_week_plan_api_v1_premium_plan_week_flexible_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeekPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeekPlanResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4378,9 +4293,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -4550,39 +4463,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BMIProResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_week_plan_api_v1_premium_plan_week_flexible_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WeekPlanRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WeekPlanResponse"];
                 };
             };
             /** @description Validation Error */

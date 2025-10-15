@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import Progress from '../Progress';
 
 // Mock ProgressCharts component
@@ -8,7 +8,6 @@ vi.mock('../../features/progress/ProgressCharts', () => ({
 }));
 
 afterEach(() => {
-  cleanup();
   vi.clearAllMocks();
 });
 

@@ -3,7 +3,8 @@
 ## 🎯 Problem
 
 CI tests failing with error:
-```
+
+```text
 Invalid Chai property: toHaveNoViolations
 ```
 
@@ -14,19 +15,23 @@ Invalid Chai property: toHaveNoViolations
 ## 🔧 Solution
 
 ### 1. Removed Duplicate Setup Files
+
 - ❌ Deleted `frontend/src/test-setup.ts`
 - ❌ Deleted `frontend/src/setupTests.ts`
 - ✅ Kept only `frontend/src/test/setup.ts` (single source of truth)
 
 ### 2. Updated Main Setup File
+
 **File:** `frontend/src/test/setup.ts`
 
 **Added:**
-- ✅ jest-axe matcher registration: `expect.extend({ toHaveNoViolations } as any)`
+
+- ✅ jest-axe matcher registration: `expect.extend(toHaveNoViolations)`
 - ✅ Optional chaining for MSW server methods (safer)
 - ✅ `onUnhandledRequest: "bypass"` in MSW config
 
 ### 3. Added TypeScript Types
+
 **File:** `frontend/src/vitest.d.ts` (NEW)
 
 - ✅ Type definitions for `toHaveNoViolations()` matcher
@@ -34,32 +39,51 @@ Invalid Chai property: toHaveNoViolations
 - ✅ JSDoc documentation
 
 ### 4. Updated TypeScript Configuration
+
 **File:** `frontend/tsconfig.json`
 
 - ✅ Added `src/vitest.d.ts` to include array
 
 ### 5. Added Fallback in Accessibility Tests
+
 **File:** `frontend/src/components/__tests__/Accessibility.test.tsx`
 
 **Changed 13 occurrences:**
+
 ```typescript
 // Before
 expect(results).toHaveNoViolations();
 
-// After
-try {
-  expect(results).toHaveNoViolations();
-} catch {
-  // Fallback: if matcher doesn't work, check violations directly
-  expect(results.violations.length).toBe(0);
-}
+// After - Improved targeted approach
+// Helper function to safely check accessibility violations
+const expectNoViolations = (results: any) => {
+  // Check if toHaveNoViolations matcher exists
+  if (typeof expect(results).toHaveNoViolations === 'function') {
+    expect(results).toHaveNoViolations();
+  } else {
+    // Fallback: check violations directly when matcher is not available
+    expect(results.violations.length).toBe(0);
+  }
+};
+
+// Usage in tests
+const results = await axe(container);
+expectNoViolations(results);
 ```
+
+**Why this approach is better:**
+
+- **Targeted fallback**: Only uses fallback when the matcher doesn't exist, not for all errors
+- **Preserves real failures**: Genuine test failures are not hidden by catch-all blocks
+- **Cleaner code**: Single helper function instead of repeated try-catch blocks
+- **Better debugging**: Real accessibility violations will still throw proper errors
 
 ---
 
 ## ✅ Testing
 
 ### Local Verification
+
 ```bash
 cd frontend
 
@@ -77,6 +101,7 @@ npm run build
 ```
 
 ### Expected Results
+
 - ✅ All tests pass
 - ✅ No `Invalid Chai property` errors
 - ✅ Accessibility tests validate correctly
@@ -87,7 +112,8 @@ npm run build
 ## 📊 Changes
 
 ### Files Changed: 10
-```
+
+```text
  FRONTEND_CI_IMPROVEMENTS.md                        |  2 +-
  .../components/__tests__/Accessibility.test.tsx    | 91 ++++++++++++++++++----
  .../src/locales/__tests__/test-utils.helper.ts     |  8 +-
@@ -108,12 +134,14 @@ npm run build
 ## 🎬 Before/After
 
 ### Before
+
 - ❌ CI failing with `Invalid Chai property: toHaveNoViolations`
 - ❌ Three setup files with conflicting registrations
 - ❌ Missing TypeScript types for jest-axe
 - ❌ No fallback for matcher failures
 
 ### After
+
 - ✅ CI green (all tests pass)
 - ✅ Single setup file (single source of truth)
 - ✅ Full TypeScript support with autocomplete
@@ -139,6 +167,7 @@ npm run build
 ## 📝 Next Steps
 
 After merge:
+
 1. **PR #2:** OpenAPI Infrastructure
    - Auto-generate TypeScript types from backend schema
    - Create base ApiClient with auth handling

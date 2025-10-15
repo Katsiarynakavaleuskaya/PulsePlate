@@ -55,7 +55,7 @@ repos:
         types: [python]
         # Changed-files only (fast path). Full scan added below on pre-push/CI.
         exclude: |
-          ^frontend/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+          ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
         args:
           - -q
           - -s
