@@ -63,10 +63,44 @@ const DEFAULT_ACTIVITY_MULTIPLIERS: Record<keyof typeof ACTIVITY_MAP, number> = 
 };
 
 /**
- * Diet flags for frontend validation. Note: Backend may not support all flags.
- * Filter against backend capabilities before API calls.
+ * Diet flags handling
+ * - UI allows a broad set (`validDietFlags`)
+ * - API (OpenAPI) currently supports a narrower enum: VEG | GF | DAIRY_FREE | LOW_COST
+ * - Normalize and filter before sending to API to satisfy Typescript and backend contract
  */
-const SUPPORTED_DIET_FLAGS = new Set(validDietFlags);
+const UI_DIET_FLAGS = new Set(validDietFlags);
+const BACKEND_DIET_FLAGS = new Set(["VEG", "GF", "DAIRY_FREE", "LOW_COST"] as const);
+
+const normalizeDietFlagsForApi = (flags: ReadonlyArray<string>): Array<"VEG" | "GF" | "DAIRY_FREE" | "LOW_COST"> => {
+  const mapped: Array<string> = [];
+  for (const flag of flags) {
+    if (!UI_DIET_FLAGS.has(flag as any)) continue;
+    switch (flag) {
+      case "VEGAN":
+        mapped.push("VEG");
+        break;
+      case "KETO":
+      case "LOW_CARB":
+      case "HIGH_PROTEIN":
+      case "PALEO":
+      case "MEDITERRANEAN":
+        // Not sent to backend; handled locally in UI/macros if needed
+        break;
+      case "VEG":
+      case "GF":
+      case "DAIRY_FREE":
+      case "LOW_COST":
+        mapped.push(flag);
+        break;
+      default:
+        break;
+    }
+  }
+  const unique = Array.from(new Set(mapped)).filter((f): f is "VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" =>
+    BACKEND_DIET_FLAGS.has(f as any),
+  );
+  return unique;
+};
 
 const FALLBACK_LANG: SetupSupportedLang = 'en';
 
@@ -178,8 +212,8 @@ const mapGoalToApi = (goal: SetupFormValues['goal']) => {
 };
 
 const filterDietFlags = (flags: SetupFormValues['diet_flags']) => {
-  const supported = flags.filter(flag => SUPPORTED_DIET_FLAGS.has(flag));
-  return supported.length ? supported : null;
+  const normalized = normalizeDietFlagsForApi(flags);
+  return normalized.length ? normalized : null;
 };
 
 const determineLifeStage = (age: number): 'child' | 'teen' | 'adult' | 'elderly' => {
