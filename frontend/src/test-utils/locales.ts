@@ -29,7 +29,7 @@ export const getMaxLength = (path: string): number => {
   return STRING_LENGTH_LIMITS.default;
 };
 
-export const checkLengths = (obj: any, path = ''): string[] => {
+export const checkLengths = (obj: unknown, path = ''): string[] => {
   const issues: string[] = [];
   const maxLength = getMaxLength(path);
 
@@ -39,7 +39,9 @@ export const checkLengths = (obj: any, path = ''): string[] => {
       issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${displayed}"`);
     }
   } else if (typeof obj === 'object' && obj !== null) {
-    for (const [key, value] of Object.entries(obj)) {
+    // Type narrowing: obj is now known to be a non-null object
+    const objRecord = obj as Record<string, unknown>;
+    for (const [key, value] of Object.entries(objRecord)) {
       issues.push(...checkLengths(value, path ? `${path}.${key}` : key));
     }
   }

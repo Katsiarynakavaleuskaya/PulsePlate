@@ -9,6 +9,7 @@ vi.mock('../../features/progress/ProgressCharts', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 describe('Progress', () => {

@@ -7,18 +7,25 @@ const mockNavigator = {
   onLine: true,
 };
 
-Object.defineProperty(window, 'navigator', {
-  value: mockNavigator,
-  writable: true,
-});
-
 describe('OfflineIndicator', () => {
+  const originalNavigator = window.navigator;
+
   beforeEach(() => {
+    Object.defineProperty(window, 'navigator', {
+      value: mockNavigator,
+      writable: true,
+      configurable: true,
+    });
     mockNavigator.onLine = true;
     vi.clearAllMocks();
   });
 
   afterEach(() => {
+    Object.defineProperty(window, 'navigator', {
+      value: originalNavigator,
+      writable: true,
+      configurable: true,
+    });
     cleanup();
     vi.restoreAllMocks();
   });
@@ -75,6 +82,65 @@ describe('OfflineIndicator', () => {
 
     const indicator = screen.getByRole('status');
     expect(indicator).toHaveClass('custom-class');
+  });
+
+  it('cleans up event listeners on unmount', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
+
+    const { unmount } = render(<OfflineIndicator />);
+    unmount();
+
+    expect(removeSpy).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('offline', expect.any(Function));
+  });
+
+  it('cancels hide timeout when going offline while showing "Back online"', () => {
+    vi.useFakeTimers();
+    render(<OfflineIndicator />);
+
+    // Go online
+    mockNavigator.onLine = true;
+    act(() => {
+      fireEvent(window, new Event('online'));
+    });
+    expect(screen.getByText('Back online')).toBeInTheDocument();
+
+    // Go offline before timeout
+    mockNavigator.onLine = false;
+    act(() => {
+      fireEvent(window, new Event('offline'));
+    });
+
+    expect(screen.getByText('You are offline')).toBeInTheDocument();
+    expect(screen.queryByText('Back online')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('handles rapid online/offline transitions', () => {
+    vi.useFakeTimers();
+    render(<OfflineIndicator />);
+
+    // Rapid offline -> online -> offline
+    mockNavigator.onLine = false;
+    act(() => {
+      fireEvent(window, new Event('offline'));
+    });
+
+    mockNavigator.onLine = true;
+    act(() => {
+      fireEvent(window, new Event('online'));
+    });
+
+    mockNavigator.onLine = false;
+    act(() => {
+      fireEvent(window, new Event('offline'));
+    });
+
+    expect(screen.getByText('You are offline')).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
 });

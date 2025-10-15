@@ -9,8 +9,8 @@ vi.mock('../../lib/usePremium', () => ({
 
 // Mock PremiumGate component
 vi.mock('../../components/PremiumGate', () => ({
-  default: ({ children, isPremium }: { children: React.ReactNode; isPremium: boolean }) => (
-    <div data-testid="premium-gate" data-premium={isPremium}>
+  default: ({ children, isPremium, source }: { children: React.ReactNode; isPremium: boolean; source: string }) => (
+    <div data-testid="premium-gate" data-premium={isPremium} data-source={source}>
       {children}
     </div>
   )
@@ -21,6 +21,7 @@ import { usePremium } from '../../lib/usePremium';
 describe('Plate', () => {
   afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
   });
 
   it('renders loading state when premium status is undefined', () => {
@@ -60,5 +61,14 @@ describe('Plate', () => {
 
     const main = screen.getByRole('main');
     expect(main).toHaveClass('p-4');
+  });
+
+  it('passes correct source prop to PremiumGate', () => {
+    vi.mocked(usePremium).mockReturnValue(true);
+
+    render(<Plate />);
+
+    const premiumGate = screen.getByTestId('premium-gate');
+    expect(premiumGate).toHaveAttribute('data-source', 'plate_page');
   });
 });

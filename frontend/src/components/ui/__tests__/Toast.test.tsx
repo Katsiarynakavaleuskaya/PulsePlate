@@ -10,11 +10,11 @@ vi.mock('react-hot-toast', () => ({
     loading: vi.fn(),
     dismiss: vi.fn(),
   },
-  Toaster: ({ children, ...props }: any) => (
+  Toaster: vi.fn(({ children, ...props }: any) => (
     <div data-testid="toaster" {...props}>
       {children}
     </div>
-  ),
+  )),
 }));
 
 describe('Toaster', () => {
@@ -28,10 +28,19 @@ describe('Toaster', () => {
     expect(screen.getByTestId('toaster')).toBeInTheDocument();
   });
 
-  it('has correct position and styling', () => {
+  it('configures toaster with correct options', async () => {
+    const { Toaster: MockToaster } = await import('react-hot-toast');
+
     render(<Toaster />);
 
-    const toaster = screen.getByTestId('toaster');
-    expect(toaster).toHaveAttribute('position', 'top-right');
+    expect(MockToaster).toHaveBeenCalledWith(
+      expect.objectContaining({
+        position: 'top-right',
+        toastOptions: expect.objectContaining({
+          duration: 4000,
+        }),
+      }),
+      expect.anything()
+    );
   });
 });
