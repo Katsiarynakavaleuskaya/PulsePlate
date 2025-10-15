@@ -14,12 +14,22 @@ declare global {
        * expect(results).toHaveNoViolations();
        */
       toHaveNoViolations(): T;
-      toHaveNoViolations(results?: AxeResults): T;
     }
 
     interface AsymmetricMatchersContaining {
       toHaveNoViolations(): void;
     }
+  }
+}
+
+// Extend Vitest's expect interface to include jest-axe matchers
+declare module "vitest" {
+  interface Assertion<T = any> {
+    toHaveNoViolations(): T;
+  }
+
+  interface AsymmetricMatchersContaining {
+    toHaveNoViolations(): void;
   }
 }
 

@@ -1,4 +1,5 @@
 // Test utilities for locale validation
+import { describe, it, expect } from 'vitest';
 
 // Constants
 export const MAX_ALLOWED_DUPLICATES = 50;
@@ -68,3 +69,24 @@ export class TestLogger {
     this.logs = [];
   }
 }
+
+// Test suite to prevent "No test suite found" error
+describe('test-utils.helper', () => {
+  it('should export utility functions', () => {
+    expect(MAX_ALLOWED_DUPLICATES).toBe(50);
+    expect(STRING_LENGTH_LIMITS.default).toBe(500);
+    expect(STRING_LENGTH_LIMITS.extended).toBe(1000);
+    expect(typeof collectKeyPaths).toBe('function');
+    expect(typeof getMaxLength).toBe('function');
+    expect(typeof checkLengths).toBe('function');
+    expect(typeof TestLogger).toBe('function');
+  });
+
+  it('should have working TestLogger', () => {
+    const logger = new TestLogger();
+    logger.warn('test message');
+    expect(logger.getLogs()).toHaveLength(1);
+    logger.clear();
+    expect(logger.getLogs()).toHaveLength(0);
+  });
+});
