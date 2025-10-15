@@ -17,7 +17,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import (
     Image,
@@ -339,10 +339,11 @@ def _register_font() -> str:
         if FONT_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-    except (OSError, IOError) as e:
+    except (OSError, IOError, ValueError, TTFError) as e:
         # Font registration failed, fallback to default
         # Log the error for debugging but continue with fallback
         logger.warning("Failed to register font %s: %s", FONT_NAME, e)
+    # Use built-in Helvetica font as fallback
     return "Helvetica"
 
 
