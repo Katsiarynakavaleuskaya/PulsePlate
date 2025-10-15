@@ -1,3 +1,4 @@
 # Test reports
 test-results/
 junit.xml
+coverage/

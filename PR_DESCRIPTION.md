@@ -5,17 +5,20 @@ Implement comprehensive API client authentication with 401 error handling, mock 
 ## 🔧 Changes Made
 
 ### Core Authentication Features
+
 - **UnauthorizedError class**: Custom error class for specific 401 Unauthorized detection
 - **Smart 401 handling**: Supports both SPA navigation (via navigate callback) and traditional redirects
 - **API key validation**: `validateApiKey()` function with proper error handling
 - **Circular dependency fix**: Clean imports from `auth/storage` module
 
 ### API Client Enhancements
+
 - **Mock fallback system**: Automatic fallback to mock data when network requests fail
 - **Enhanced error handling**: Specific error types and better logging
 - **Test-friendly architecture**: Global overrides for testing without circular dependencies
 
 ### Comprehensive Testing
+
 - **8 test cases** covering all authentication scenarios
 - **Network error handling**: Tests for failed requests
 - **401 response handling**: Tests for unauthorized responses with navigation
@@ -26,6 +29,7 @@ Implement comprehensive API client authentication with 401 error handling, mock 
 ## 📁 Files Changed
 
 ### `frontend/src/api/client.ts`
+
 - Added `UnauthorizedError` class
 - Enhanced 401 error handling with SPA navigation support
 - Added mock fallback system for offline/development use
@@ -33,6 +37,7 @@ Implement comprehensive API client authentication with 401 error handling, mock 
 - Added comprehensive docstrings
 
 ### `frontend/src/api/__tests__/client.test.ts`
+
 - Complete test rewrite with 8 comprehensive test cases
 - Mock setup for storage functions and API base URL
 - Tests for all authentication flows and error scenarios

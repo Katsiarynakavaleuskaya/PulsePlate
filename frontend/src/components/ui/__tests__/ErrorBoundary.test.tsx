@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 // Component that throws an error
-function ErrorComponent() {
+function ErrorComponent(): never {
   throw new Error('Test error');
 }
 
@@ -23,6 +23,12 @@ describe('ErrorBoundary', () => {
   afterAll(() => {
     console.error = originalError;
   });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+
 
   it('renders children when no error occurs', () => {
     render(
@@ -73,7 +79,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    const refreshButton = screen.getByText('Refresh Page');
+    const refreshButton = screen.getByRole('button', { name: /refresh page/i });
     fireEvent.click(refreshButton);
 
     expect(mockReload).toHaveBeenCalled();

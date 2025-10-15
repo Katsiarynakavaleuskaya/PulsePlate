@@ -47,14 +47,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx --yes playwright install --with-deps
-
       - name: Run ESLint (if available)
         run: npm run lint --if-present
 
       - name: Run vitest suite
-        run: npm run test
+        run: npm run test -- --coverage
         # env vars наследуются из job-level env
 
       - name: Build frontend
@@ -65,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: frontend-build
-          path: frontend/dist
+          path: frontend/${{ env.BUILD_OUTPUT_DIR }}
           if-no-files-found: ignore
           retention-days: 7
 
