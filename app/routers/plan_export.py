@@ -342,7 +342,7 @@ def _register_font() -> str:
     except (OSError, TTFError, ValueError) as e:
         # Font registration failed, fallback to default
         # Log the error for debugging but continue with fallback
-        logger.warning("Failed to register font %s: %s", FONT_NAME, e)
+        logger.warning("Failed to register font %s: %s", FONT_NAME, e, exc_info=True)
     # Use built-in Helvetica font as fallback
     return "Helvetica"
 
