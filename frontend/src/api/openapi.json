@@ -870,9 +870,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -886,9 +883,6 @@
         "description": "Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
         "operationId": "weekly_menu_plan_alias_api_v1_vip_weekly_plan_post",
         "security": [
-          {
-            "APIKeyHeader": []
-          },
           {
             "APIKeyHeader": []
           }
@@ -991,9 +985,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1041,9 +1032,6 @@
           }
         },
         "security": [
-          {
-            "APIKeyHeader": []
-          },
           {
             "APIKeyHeader": []
           }
@@ -1095,9 +1083,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1126,9 +1111,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1155,9 +1137,6 @@
           }
         },
         "security": [
-          {
-            "APIKeyHeader": []
-          },
           {
             "APIKeyHeader": []
           }
@@ -1444,9 +1423,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1496,9 +1472,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1546,9 +1519,6 @@
           }
         },
         "security": [
-          {
-            "APIKeyHeader": []
-          },
           {
             "APIKeyHeader": []
           }
@@ -1628,9 +1598,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1680,9 +1647,6 @@
         "security": [
           {
             "APIKeyHeader": []
-          },
-          {
-            "APIKeyHeader": []
           }
         ]
       }
@@ -1696,9 +1660,6 @@
         "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u0438 \u0440\u0435\u043c\u043e\u043d\u0442\u0430\nEN: Get available repair strategies\n\nArgs:\n    x_api_key: API key for VIP access\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u0439",
         "operationId": "get_repair_strategies_api_v1_vip_auto_repair_strategies_get",
         "security": [
-          {
-            "APIKeyHeader": []
-          },
           {
             "APIKeyHeader": []
           }
