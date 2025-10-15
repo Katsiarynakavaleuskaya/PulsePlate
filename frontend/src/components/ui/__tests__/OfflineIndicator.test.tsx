@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { OfflineIndicator } from '../OfflineIndicator';
 
 // Mock navigator.onLine
@@ -19,6 +19,7 @@ describe('OfflineIndicator', () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 
@@ -26,7 +27,8 @@ describe('OfflineIndicator', () => {
     render(<OfflineIndicator />);
 
     // Should not show indicator when online
-    expect(screen.queryByTestId('offline-indicator')).not.toBeInTheDocument();
+    expect(screen.queryByText('You are offline')).not.toBeInTheDocument();
+    expect(screen.queryByText('Back online')).not.toBeInTheDocument();
   });
 
   it('shows offline indicator when offline', () => {
@@ -38,33 +40,41 @@ describe('OfflineIndicator', () => {
   });
 
   it('handles online/offline events', () => {
+    vi.useFakeTimers();
     render(<OfflineIndicator />);
 
     // Simulate going offline
     mockNavigator.onLine = false;
-    fireEvent(window, new Event('offline'));
+    act(() => {
+      fireEvent(window, new Event('offline'));
+    });
 
     expect(screen.getByText('You are offline')).toBeInTheDocument();
 
     // Simulate going back online
     mockNavigator.onLine = true;
-    fireEvent(window, new Event('online'));
+    act(() => {
+      fireEvent(window, new Event('online'));
+    });
 
     // Should show "Back online" message briefly
     expect(screen.getByText('Back online')).toBeInTheDocument();
+
+    // Verify message disappears after 3 seconds
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.queryByText('Back online')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
   it('applies custom className', () => {
     mockNavigator.onLine = false;
     render(<OfflineIndicator className="custom-class" />);
 
-    const indicator = screen.getByText('You are offline').closest('div');
+    const indicator = screen.getByRole('status');
     expect(indicator).toHaveClass('custom-class');
   });
 
-  it('handles browser environment check', () => {
-    // This test is skipped as it's complex to mock properly in jsdom
-    // The component handles non-browser environments gracefully
-    expect(true).toBe(true);
-  });
 });

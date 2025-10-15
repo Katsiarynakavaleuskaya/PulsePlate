@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import Progress from '../Progress';
 
 // Mock ProgressCharts component
 vi.mock('../../features/progress/ProgressCharts', () => ({
   default: () => <div data-testid="progress-charts">ProgressCharts</div>
 }));
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('Progress', () => {
   it('renders progress page with ProgressCharts', () => {

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import Plate from '../Plate';
 
 // Mock usePremium hook
@@ -19,6 +19,10 @@ vi.mock('../../components/PremiumGate', () => ({
 import { usePremium } from '../../lib/usePremium';
 
 describe('Plate', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders loading state when premium status is undefined', () => {
     vi.mocked(usePremium).mockReturnValue(undefined);
 

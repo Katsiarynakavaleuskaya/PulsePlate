@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import App from '../App';
 
 // Mock the components that are used in App
@@ -48,6 +48,10 @@ vi.mock('../config/routes', () => ({
 }));
 
 describe('App', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders the main app structure', () => {
     render(<App />);
 

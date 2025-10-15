@@ -14,7 +14,7 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov', 'json'],
+      reporters: ['text', 'lcov', 'json'],
       reportsDirectory: 'coverage',
       all: true,
              thresholds: {

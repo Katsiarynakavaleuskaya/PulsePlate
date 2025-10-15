@@ -1,8 +1,8 @@
 // Test utilities for locale validation
-import { describe, it, expect } from 'vitest';
 
 // Constants
 export const MAX_ALLOWED_DUPLICATES = 50;
+export const MAX_DISPLAY_LENGTH = 50;
 export const STRING_LENGTH_LIMITS = {
   default: 500,
   extended: 1000,
@@ -10,7 +10,9 @@ export const STRING_LENGTH_LIMITS = {
 
 // Helper functions
 export const collectKeyPaths = (obj: unknown, prefix = ''): string[] => {
-  if (obj === null || typeof obj !== 'object') return [];
+  if (obj === null || typeof obj !== 'object') {
+    return [];
+  }
   return Object.entries(obj).flatMap(([key, value]) => {
     const currentPath = prefix ? `${prefix}.${key}` : key;
     return [
@@ -33,7 +35,7 @@ export const checkLengths = (obj: any, path = ''): string[] => {
 
   if (typeof obj === 'string') {
     if (obj.length < 1 || obj.length > maxLength) {
-      const displayed = obj.length > 50 ? obj.substring(0, 50) + "..." : obj;
+      const displayed = obj.length > MAX_DISPLAY_LENGTH ? obj.substring(0, MAX_DISPLAY_LENGTH) + "..." : obj;
       issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${displayed}"`);
     }
   } else if (typeof obj === 'object' && obj !== null) {

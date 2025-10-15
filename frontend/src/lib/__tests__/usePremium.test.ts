@@ -30,34 +30,14 @@ describe('usePremium', () => {
     const { result } = renderHook(() => usePremium());
 
     // After useEffect runs, it should be false (empty localStorage)
-    act(() => {
-      // Trigger the effect
-    });
-
     expect(result.current).toBe(false);
   });
 
-  it('returns false when localStorage has no premium value', () => {
-    localStorageMock.getItem.mockReturnValue(null);
-
-    const { result } = renderHook(() => usePremium());
-
-    // Wait for useEffect to run
-    act(() => {
-      // Trigger the effect
-    });
-
-    expect(result.current).toBe(false);
-  });
 
   it('returns true when localStorage has premium value as "true"', () => {
     localStorageMock.getItem.mockReturnValue('true');
 
     const { result } = renderHook(() => usePremium());
-
-    act(() => {
-      // Trigger the effect
-    });
 
     expect(result.current).toBe(true);
   });
@@ -66,10 +46,6 @@ describe('usePremium', () => {
     localStorageMock.getItem.mockReturnValue('false');
 
     const { result } = renderHook(() => usePremium());
-
-    act(() => {
-      // Trigger the effect
-    });
 
     expect(result.current).toBe(false);
   });
@@ -81,10 +57,6 @@ describe('usePremium', () => {
 
     const { result } = renderHook(() => usePremium());
 
-    act(() => {
-      // Trigger the effect
-    });
-
     expect(result.current).toBe(false);
   });
 
@@ -92,9 +64,6 @@ describe('usePremium', () => {
     const { result } = renderHook(() => usePremium());
 
     // Initial state
-    act(() => {
-      // Trigger the effect
-    });
     expect(result.current).toBe(false);
 
     // Simulate storage event
@@ -114,9 +83,6 @@ describe('usePremium', () => {
     const { result } = renderHook(() => usePremium());
 
     // Initial state
-    act(() => {
-      // Trigger the effect
-    });
     expect(result.current).toBe(false);
 
     // Simulate storage event for different key
@@ -137,9 +103,6 @@ describe('usePremium', () => {
     const { result } = renderHook(() => usePremium());
 
     // Initial state
-    act(() => {
-      // Trigger the effect
-    });
     expect(result.current).toBe(false);
 
     // Change localStorage value
