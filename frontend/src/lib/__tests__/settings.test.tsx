@@ -1,12 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, renderHook, act, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, renderHook, act } from '@testing-library/react';
 import { SettingsProvider, useSettings } from '../settings';
 
 describe('SettingsProvider', () => {
-  afterEach(() => {
-    cleanup();
-  });
-
   it('renders children', () => {
     render(
       <SettingsProvider>
