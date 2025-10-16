@@ -8,16 +8,16 @@
 /**
  * Feature flag values from environment variables
  */
-const getFeatureFlagsInternal = (env: any = import.meta.env) => {
+const getFeatureFlagsInternal = (env: ImportMetaEnv = import.meta.env) => {
   return {
     // VIP Module - enables VIP-specific features
-    vipModule: env?.VITE_VIP_MODULE_ENABLED === 'true',
+    vipModule: env.VITE_VIP_MODULE_ENABLED === 'true',
 
     // Analytics - enables user analytics tracking
-    analytics: env?.VITE_ANALYTICS_ENABLED !== 'false', // default: true
+    analytics: env.VITE_ANALYTICS_ENABLED !== 'false', // default: true
 
     // Development features
-    devMode: env?.DEV === true,
+    devMode: env.DEV === true,
   } as const;
 };
 
@@ -41,15 +41,13 @@ export type FeatureFlags = ReturnType<typeof getFeatureFlagsInternal>;
  */
 export const getFeatureFlags = getFeatureFlagsInternal;
 
-// Cache flags for app lifecycle
-const cachedFlags = getFeatureFlagsInternal();
-
 /**
  * Individual feature flag getters for convenience
+ * These re-evaluate flags on each call to ensure fresh values
  */
-export const isVipModuleEnabled = () => cachedFlags.vipModule;
-export const isAnalyticsEnabled = () => cachedFlags.analytics;
-export const isDevMode = () => cachedFlags.devMode;
+export const isVipModuleEnabled = () => getFeatureFlagsInternal().vipModule;
+export const isAnalyticsEnabled = () => getFeatureFlagsInternal().analytics;
+export const isDevMode = () => getFeatureFlagsInternal().devMode;
 
 /**
  * Feature flag names for debugging and analytics
