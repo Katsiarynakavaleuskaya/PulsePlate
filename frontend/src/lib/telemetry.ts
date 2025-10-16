@@ -241,6 +241,9 @@ export function updateTelemetryFeatureFlags(flagState: Record<string, boolean>):
  * Call this periodically or on user activity
  */
 export function refreshTelemetrySession(): string {
+  if (!isAnalyticsEnabled()) {
+    return '';
+  }
   return refreshSession();
 }
 

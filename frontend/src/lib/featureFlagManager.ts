@@ -61,7 +61,7 @@ function isValidFeatureFlagKey(key: string): boolean {
     /^vipModule$/,
     /^analytics$/,
     /^devMode$/,
-    /^[a-zA-Z][a-zA-Z0-9]*$/, // Standard camelCase identifiers
+    /^[a-z][a-zA-Z0-9]*$/, // Standard camelCase identifiers (lowercase-starting)
   ];
 
   return validPatterns.some(pattern => pattern.test(key));

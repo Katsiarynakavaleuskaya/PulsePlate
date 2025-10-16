@@ -200,7 +200,6 @@ describe('FeatureFlagManager', () => {
       const flags = getCurrentFeatureFlags();
       expect(flags).toEqual({
         validFlag: true,
-        UPPERCASE: false,
         camelCase: true,
       });
     });

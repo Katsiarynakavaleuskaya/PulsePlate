@@ -5,7 +5,7 @@
  * Automatically handles feature flag checks and provides type-safe event tracking.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useMemo } from 'react';
 import { vipTelemetry, isTelemetryEnabled } from './telemetry';
 import { useVipModule } from './useFeatureFlag';
 
@@ -35,63 +35,63 @@ export function useTelemetry() {
   const isVip = useVipModule();
   const isEnabled = isTelemetryEnabled();
 
-  const track = {
+  const track = useMemo(() => ({
     /**
      * Track VIP module view
      */
-    moduleViewed: useCallback((source: string) => {
+    moduleViewed: (source: string) => {
       if (!isEnabled) return;
       vipTelemetry.moduleViewed(source, isVip);
-    }, [isEnabled, isVip]),
+    },
 
     /**
      * Track VIP feature click
      */
-    featureClicked: useCallback((featureName: string, source: string) => {
+    featureClicked: (featureName: string, source: string) => {
       if (!isEnabled) return;
       vipTelemetry.featureClicked(featureName, source, isVip);
-    }, [isEnabled, isVip]),
+    },
 
     /**
      * Track paywall view
      */
-    paywallViewed: useCallback((source: string, context: string, isRetry?: boolean) => {
+    paywallViewed: (source: string, context: string, isRetry?: boolean) => {
       if (!isEnabled) return;
       vipTelemetry.paywallViewed(source, context, isRetry);
-    }, [isEnabled]),
+    },
 
     /**
      * Track paywall dismissal
      */
-    paywallDismissed: useCallback((source: string, dismissMethod: string, viewDuration?: number) => {
+    paywallDismissed: (source: string, dismissMethod: string, viewDuration?: number) => {
       if (!isEnabled) return;
       vipTelemetry.paywallDismissed(source, dismissMethod, viewDuration);
-    }, [isEnabled]),
+    },
 
     /**
      * Track upgrade click
      */
-    upgradeClicked: useCallback((source: string, context: string, isRetry?: boolean) => {
+    upgradeClicked: (source: string, context: string, isRetry?: boolean) => {
       if (!isEnabled) return;
       vipTelemetry.upgradeClicked(source, context, isRetry);
-    }, [isEnabled]),
+    },
 
     /**
      * Track VIP gate interaction
      */
-    gateInteracted: useCallback((featureName: string, interactionType: string) => {
+    gateInteracted: (featureName: string, interactionType: string) => {
       if (!isEnabled) return;
       vipTelemetry.gateInteracted(featureName, interactionType, isVip);
-    }, [isEnabled, isVip]),
+    },
 
     /**
      * Track VIP badge view
      */
-    badgeViewed: useCallback((component: string, variant: string) => {
+    badgeViewed: (component: string, variant: string) => {
       if (!isEnabled) return;
       vipTelemetry.badgeViewed(component, variant, isVip);
-    }, [isEnabled, isVip]),
-  };
+    },
+  }), [isEnabled, isVip]);
 
   return {
     track,
@@ -118,7 +118,6 @@ export function useTelemetry() {
  */
 export function useVipModuleTracking(source: string, autoTrack: boolean = true) {
   const { track, isEnabled, isVip } = useTelemetry();
-  const hasAutoTracked = useRef(false);
 
   const trackView = useCallback(() => {
     if (isEnabled && isVip) {
@@ -128,11 +127,10 @@ export function useVipModuleTracking(source: string, autoTrack: boolean = true) 
 
   // Auto-track on mount if enabled (only once)
   useEffect(() => {
-    if (autoTrack && !hasAutoTracked.current) {
-      trackView();
-      hasAutoTracked.current = true;
+    if (autoTrack && isEnabled && isVip) {
+      track.moduleViewed(source);
     }
-  }, [autoTrack, trackView]);
+  }, []); // Empty dependency array ensures it runs only on mount
 
   return {
     trackView,
