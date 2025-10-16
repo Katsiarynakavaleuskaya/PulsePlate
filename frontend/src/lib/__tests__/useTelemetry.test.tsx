@@ -122,9 +122,16 @@ describe('useTelemetry', () => {
     it('should auto-track on mount when VIP is enabled', () => {
       mockUseVipModule.mockReturnValue(true);
 
-      renderHook(() => useVipModuleTracking('dashboard'));
+      const { rerender } = renderHook(() => useVipModuleTracking('dashboard'));
 
       expect(mockVipTelemetry.moduleViewed).toHaveBeenCalledWith('dashboard', true);
+
+      // Clear the mock and rerender to ensure it doesn't track again
+      mockVipTelemetry.moduleViewed.mockClear();
+      rerender();
+
+      // Should not track again on re-render
+      expect(mockVipTelemetry.moduleViewed).not.toHaveBeenCalled();
     });
 
     it('should not auto-track when VIP is disabled', () => {
