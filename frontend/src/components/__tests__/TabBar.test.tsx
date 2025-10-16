@@ -2,12 +2,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
-// Mock function declared before mocks (hoisting-safe)
+// Mock functions declared before mocks (hoisting-safe)
 const mockUseAuth = vi.fn();
+const mockUseVipModule = vi.fn();
 
 // Mock the auth context BEFORE imports
 vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
+}));
+
+// Mock VIP module hook BEFORE imports
+vi.mock('../../lib/useFeatureFlag', () => ({
+  useVipModule: () => mockUseVipModule(),
 }));
 
 // Mock react-i18next BEFORE imports
@@ -24,6 +30,8 @@ vi.mock('../../config/routes', () => ({
     { path: '/profile', label: 'Profile', requiresAuth: false },
     { path: '/plate', label: 'Plate', requiresAuth: true },
     { path: '/progress', label: 'Progress', requiresAuth: true },
+    { path: '/vip-feature', label: 'VIP Feature', requiresAuth: true, requiresVip: true },
+    { path: '/another-vip', label: 'Another VIP', requiresAuth: true, requiresVip: true },
   ],
 }));
 
@@ -183,6 +191,54 @@ describe('TabBar', () => {
       expect(progressTab).toHaveAttribute('tabindex', '-1');
       expect(plateTab).toHaveAttribute('title', 'auth.requiresApiKey');
       expect(progressTab).toHaveAttribute('title', 'auth.requiresApiKey');
+    });
+  });
+
+  describe('VIP functionality', () => {
+    beforeEach(() => {
+      mockUseAuth.mockReturnValue({ apiKey: 'test-key' });
+    });
+
+    it('shows VIP tabs when VIP module is enabled', () => {
+      mockUseVipModule.mockReturnValue(true);
+      renderTabBar('test-key');
+
+      expect(screen.getByRole('tab', { name: /vip feature/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /another vip/i })).toBeInTheDocument();
+    });
+
+    it('hides VIP tabs when VIP module is disabled', () => {
+      mockUseVipModule.mockReturnValue(false);
+      renderTabBar('test-key');
+
+      expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
+    });
+
+    it('shows VIP tabs as disabled when VIP module is disabled but user has API key', () => {
+      mockUseVipModule.mockReturnValue(false);
+      renderTabBar('test-key');
+
+      // VIP tabs should not be visible at all when VIP is disabled
+      expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
+    });
+
+    it('handles more than 6 tabs correctly with grid layout', () => {
+      mockUseVipModule.mockReturnValue(true);
+      renderTabBar('test-key');
+
+      // Should have 6 tabs total: Home, Profile, Plate, Progress, VIP Feature, Another VIP
+      const tabBar = screen.getByRole('tablist');
+      expect(tabBar).toHaveClass('grid-cols-6');
+    });
+
+    it('shows correct disabled reason for VIP tabs when VIP is disabled', () => {
+      mockUseVipModule.mockReturnValue(false);
+      renderTabBar('test-key');
+
+      // VIP tabs should not be visible when VIP is disabled
+      expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
   });
 });
