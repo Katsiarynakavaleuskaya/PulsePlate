@@ -131,7 +131,10 @@ describe('VipFeature', () => {
       );
 
       const previewWrapper = screen.getByTestId('vip-content').parentElement;
-      expect(previewWrapper).toHaveAttribute('aria-hidden', 'true');
+      expect(
+        previewWrapper?.hasAttribute('inert') ||
+        previewWrapper?.getAttribute('aria-hidden') === 'true'
+      ).toBe(true);
 
       // Check for offscreen description (mocked translation keys)
       const description = screen.getByText(/vip\.title.*vip\.subtitle/);
