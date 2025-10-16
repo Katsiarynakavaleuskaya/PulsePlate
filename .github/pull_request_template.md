@@ -33,11 +33,7 @@
 
 ### Additional Considerations
 
-- [ ] **Documentation**: Code is properly documented and README updated if needed
 - [ ] **Breaking Changes**: Any breaking changes are documented and migration path provided
-- [ ] **Performance**: No significant performance regressions introduced
-- [ ] **Security**: Security implications have been considered and addressed
-- [ ] **Accessibility**: Changes meet WCAG 2.1 AA standards where applicable
 
 ## 🎯 Description
 
