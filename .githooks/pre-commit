@@ -11,7 +11,7 @@ if ! ./scripts/clean-cache.sh 2>&1 | grep -v "^🧹\|^✅\|^📋"; then
 fi
 
 # 2. Check if any cache files are staged
-CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$)')
+CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$)' || true)
 
 if [ ! -z "$CACHE_FILES" ]; then
     echo "❌ Cache files detected in staged changes:"
@@ -52,8 +52,8 @@ if [ ! -z "$FRONTEND_CHANGES" ]; then
         echo "🧪 Running tests for changed files..."
         CHANGED_TEST_FILES=""
         for file in $FRONTEND_CHANGES; do
-            # Convert frontend/src/path/file.tsx to src/path/file.test.tsx
-            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]]; then
+            # Convert frontend/src/path/file.tsx to src/path/file.test.tsx (exclude test files)
+            if [[ $file =~ ^frontend/src/(?!.*\.test\.(ts|tsx)$)(.+)\.(ts|tsx)$ ]]; then
                 test_file="src/${BASH_REMATCH[1]}.test.${BASH_REMATCH[2]}"
                 if [ -f "$test_file" ]; then
                     CHANGED_TEST_FILES="$CHANGED_TEST_FILES $test_file"
@@ -64,13 +64,13 @@ if [ ! -z "$FRONTEND_CHANGES" ]; then
         # Run specific tests if any, otherwise run all tests
         if [ ! -z "$CHANGED_TEST_FILES" ]; then
             echo "Running tests for: $CHANGED_TEST_FILES"
-            if ! npm test -- --run $CHANGED_TEST_FILES; then
+            if ! npm test --if-present -- --run $CHANGED_TEST_FILES; then
                 echo "❌ Tests failed. Please fix failing tests before committing."
                 exit 1
             fi
         else
             echo "Running all tests..."
-            if ! npm test -- --run; then
+            if ! npm test --if-present -- --run; then
                 echo "❌ Tests failed. Please fix failing tests before committing."
                 exit 1
             fi
