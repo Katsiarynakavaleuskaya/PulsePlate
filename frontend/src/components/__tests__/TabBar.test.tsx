@@ -215,7 +215,7 @@ describe('TabBar', () => {
       expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
 
-    it('hides VIP tabs when VIP module is disabled and user has API key', () => {
+    it('hides VIP tabs when VIP module is disabled even with API key', () => {
       mockUseVipModule.mockReturnValue(false);
       renderTabBar('test-key');
 
@@ -224,7 +224,7 @@ describe('TabBar', () => {
       expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
 
-    it('handles more than 6 tabs correctly with grid layout', () => {
+    it('handles 6 tabs with correct grid layout', () => {
       mockUseVipModule.mockReturnValue(true);
       renderTabBar('test-key');
 

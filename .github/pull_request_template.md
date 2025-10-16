@@ -1,47 +1,45 @@
+# Pull Request
+
+## 📋 Checklist
+
+### Code Quality
+- [ ] **No Duplication**: I have checked for and removed any duplicate code, imports, or logic
+- [ ] **ESLint Clean**: `npm run lint` passes with 0 warnings
+- [ ] **TypeScript Clean**: `npm run type-check` passes with 0 errors
+- [ ] **Tests Pass**: All tests pass and coverage is maintained or improved
+
+### Duplication Prevention
+- [ ] **Static Analysis**: ESLint rules for duplication are satisfied
+- [ ] **Shared Components**: Common UI patterns are extracted to reusable components
+- [ ] **Business Logic**: Repeated logic is moved to custom hooks or services
+- [ ] **Code Generation**: API types are generated from OpenAPI schema
+
+### Testing
+- [ ] **Unit Tests**: New functionality has unit tests
+- [ ] **Integration Tests**: Critical paths are covered
+- [ ] **No Duplicate Tests**: Test cases are unique and non-redundant
+- [ ] **Snapshot Tests**: UI changes have snapshot tests where appropriate
+
+## 🎯 Description
+
+<!-- Describe what this PR does -->
+
+## 🔍 Duplication Check
+
+<!-- List any potential duplications you found and how you addressed them -->
+
+## 🧪 Testing
+
+<!-- How was this tested? -->
+
+## 📸 Screenshots (if applicable)
+
+<!-- Add screenshots for UI changes -->
+
+## 🔗 Related Issues
+
+<!-- Link to related issues -->
+
 ---
-name: General PR
-about: Default template for most pull requests
-labels: []
----
 
-# Title
-<!-- Conventional commit: feat|fix|chore|docs|refactor|test|perf(scope): ... -->
-
-## Summary
-- Что изменилось?
-- Почему / ссылка на задачу.
-
-## Scope & Files
-- Основные изменения (файлы, модули).
-- Out of scope / TODO (кратко).
-
-## Acceptance Criteria
-- Перечисли ключевые критерии завершенности.
-
-## Tests
-- [ ] Unit / logic
-- [ ] Integration / e2e
-- [ ] Manual / QA steps (ниже)
-
-```bash
-# команды для локальной проверки
-npm run lint
-npm test
-npm run build
-```
-
-## QA Checklist
-- [ ] Happy-path сценарии
-- [ ] Ошибки / таймауты / фоллбек
-- [ ] Доступность / UX проверены
-
-## Risks & Next Steps
-- Риски / фичефлаги / мониторинг
-- Следующие шаги после мержа
-
-<details>
-<summary>Optional: a11y / Security / Performance / Marketing / Docs</summary>
-
-См. [docs/pr-checks.md](../docs/pr-checks.md) — общие требования и подсказки.
-
-</details>
+**Note**: This PR template helps maintain code quality and prevents duplication. Please check all boxes before requesting review.
