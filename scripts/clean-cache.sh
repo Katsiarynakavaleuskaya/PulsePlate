@@ -4,7 +4,7 @@
 echo "🧹 Cleaning Python cache files..."
 
 # Remove __pycache__ directories
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -depth -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # Remove .pyc files
 find . -type f -name "*.pyc" -delete 2>/dev/null || true

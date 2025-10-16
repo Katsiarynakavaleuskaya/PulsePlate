@@ -2473,6 +2473,7 @@
 пройти
 Проконсультируйтесь
 промахнулись
+промпты
 пропускаем
 пропущенными
 пропущено
@@ -4190,6 +4191,7 @@ Tienes
 timedelta
 Tomate
 TOPPADDING
+touchpoints
 transferrables
 truediv
 ttfonts
