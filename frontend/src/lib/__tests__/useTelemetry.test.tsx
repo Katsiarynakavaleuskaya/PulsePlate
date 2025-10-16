@@ -130,7 +130,23 @@ describe('useTelemetry', () => {
       mockVipTelemetry.moduleViewed.mockClear();
       rerender();
 
-      // Should not track again on re-render
+      // Should not track again on re-render (auto-tracking only happens once)
+      expect(mockVipTelemetry.moduleViewed).not.toHaveBeenCalled();
+    });
+
+    it('should use fresh values when dependencies change', () => {
+      mockUseVipModule.mockReturnValue(false);
+
+      const { rerender } = renderHook(() => useVipModuleTracking('dashboard'));
+
+      // Should not track when VIP is disabled
+      expect(mockVipTelemetry.moduleViewed).not.toHaveBeenCalled();
+
+      // Change VIP status
+      mockUseVipModule.mockReturnValue(true);
+      rerender();
+
+      // Should still not auto-track again (only happens once on mount)
       expect(mockVipTelemetry.moduleViewed).not.toHaveBeenCalled();
     });
 

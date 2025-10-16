@@ -7,6 +7,8 @@
 
 import { log } from './analytics';
 import { isAnalyticsEnabled } from '../config/features';
+import { getSessionId, refreshSession, clearSession } from './sessionManager';
+import { getCurrentFeatureFlags, initializeFeatureFlags, updateFeatureFlags, clearFeatureFlags } from './featureFlagManager';
 
 /**
  * VIP-specific event types
@@ -26,9 +28,9 @@ export type VipEventType =
 export interface BaseEventPayload {
   /** Timestamp when event occurred */
   timestamp?: number;
-  /** User session identifier (TODO: implement session tracking) */
+  /** User session identifier */
   sessionId?: string;
-  /** Feature flag state at time of event (TODO: capture flag state) */
+  /** Feature flag state at time of event */
   featureFlags?: Record<string, boolean>;
 }
 
@@ -133,9 +135,15 @@ export function trackVipEvent<T extends VipEventType>(
     return;
   }
 
-  // Add timestamp if not provided
+  // Get current session and feature flags
+  const sessionId = getSessionId();
+  const featureFlags = getCurrentFeatureFlags();
+
+  // Add timestamp, sessionId, and featureFlags if not provided
   const enrichedPayload = {
     timestamp: Date.now(),
+    sessionId,
+    featureFlags,
     ...payload,
   };
 
@@ -203,3 +211,43 @@ export const vipTelemetry = {
 export const isTelemetryEnabled = (): boolean => {
   return isAnalyticsEnabled();
 };
+
+/**
+ * Initialize telemetry system
+ * Call this once at app startup
+ */
+export function initializeTelemetry(): void {
+  if (!isAnalyticsEnabled()) {
+    return;
+  }
+
+  // Initialize feature flags
+  initializeFeatureFlags();
+
+  // Ensure we have a valid session
+  getSessionId();
+}
+
+/**
+ * Update feature flags for telemetry
+ * Call this when feature flags change
+ */
+export function updateTelemetryFeatureFlags(flagState: Record<string, boolean>): void {
+  updateFeatureFlags(flagState);
+}
+
+/**
+ * Refresh telemetry session
+ * Call this periodically or on user activity
+ */
+export function refreshTelemetrySession(): string {
+  return refreshSession();
+}
+
+/**
+ * Clear telemetry data (for privacy/sign-out)
+ */
+export function clearTelemetryData(): void {
+  clearSession();
+  clearFeatureFlags();
+}
