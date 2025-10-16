@@ -178,22 +178,31 @@
 
 ## 🔄 ПАРАЛЛЕЛЬНЫЕ ДОРОЖКИ
 
+> **Непрерывная работа параллельно с основными фазами**
+
 ### 🎨 Design System & a11y
 
-- [ ] **Create design tokens** (Navy/Blue/Green/Heart colors, 44×44pt targets)
+> **Владелец**: Frontend Team | **Каденция**: Еженедельно
+
 - [ ] **Build UI components**: Button, Card, TabBar, Skeleton, ErrorState, EmptyState, SwipeContainer
 - [ ] **Set up Storybook** с @storybook/test для interactive component tests
 - [ ] **Ensure WCAG 2.1 Level AA** compliance (contrast ≥ 4.5:1, focus traps)
+- [ ] **Design tokens**: See PR #2.2 Design Tokens Foundation (Phase 2 deliverable)
 
 ### 📱 iOS Synchronization
+
+> **Владелец**: iOS Team | **Каденция**: По мере необходимости
 
 - [ ] **Synchronize texts/iconography/micro-animations** с SwiftUI screens
 - [ ] **Align navigation and naming** (RU/EN/ES locales)
 
 ### 📊 Telemetry & Product Metrics
 
+> **Владелец**: Product Team | **Каденция**: Еженедельно
+
 - [ ] **Track events**: open_targets, generate_plan, open_shoplist, click_autorepair, paywall_view
 - [ ] **Create dashboard**: conversion от Targets → Shoplist → Paywall
+- [ ] **Telemetry foundation**: See PR #2.4 Telemetry Foundation (Phase 2 deliverable)
 
 ---
 
@@ -267,6 +276,13 @@
 
 - [ ] **≥60% пользователей** доходят от Targets до Weekly Plan
 - [ ] **≥20% открывают Shoplist** при включённом флаге
+
+### 💰 Monetization
+
+- [ ] **Paywall visibility**: ≥80% пользователей видят CTA при переходе Shopping List/Auto-Repair
+- [ ] **CTA engagement**: ≥15% click-through rate на "Upgrade to VIP" промпты
+- [ ] **Conversion rate**: ≥5% пользователей завершают purchase flow после просмотра paywall
+- [ ] **Revenue readiness**: 100% payment integration touchpoints протестированы и задокументированы
 
 ---
 
