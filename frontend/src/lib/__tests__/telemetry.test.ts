@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { trackVipEvent, vipTelemetry, isTelemetryEnabled } from '../telemetry';
 import { isAnalyticsEnabled } from '../../config/features';
+import { getSessionId } from '../sessionManager';
+import { getCurrentFeatureFlags } from '../featureFlagManager';
 
 // Mock the analytics module
 vi.mock('../analytics', () => ({
@@ -12,15 +14,33 @@ vi.mock('../../config/features', () => ({
   isAnalyticsEnabled: vi.fn(),
 }));
 
+// Mock session manager
+vi.mock('../sessionManager', () => ({
+  getSessionId: vi.fn(),
+}));
+
+// Mock feature flag manager
+vi.mock('../featureFlagManager', () => ({
+  getCurrentFeatureFlags: vi.fn(),
+}));
+
 describe('Telemetry', () => {
   let mockLog: any;
   const mockIsAnalyticsEnabled = vi.mocked(isAnalyticsEnabled);
+  const mockGetSessionId = vi.mocked(getSessionId);
+  const mockGetCurrentFeatureFlags = vi.mocked(getCurrentFeatureFlags);
 
   beforeEach(async () => {
     const analyticsModule = await import('../analytics');
     mockLog = vi.mocked(analyticsModule.log);
     vi.clearAllMocks();
     mockIsAnalyticsEnabled.mockReturnValue(true);
+    mockGetSessionId.mockReturnValue('test-session-123');
+    mockGetCurrentFeatureFlags.mockReturnValue({
+      vipModule: true,
+      analytics: true,
+      devMode: false,
+    });
   });
 
   afterEach(() => {
@@ -36,6 +56,12 @@ describe('Telemetry', () => {
 
       expect(mockLog).toHaveBeenCalledWith('vip_module_viewed', {
         timestamp: expect.any(Number),
+        sessionId: 'test-session-123',
+        featureFlags: {
+          vipModule: true,
+          analytics: true,
+          devMode: false,
+        },
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -72,15 +98,24 @@ describe('Telemetry', () => {
     it('should preserve provided timestamp', () => {
       const customTimestamp = 1234567890;
 
-      trackVipEvent('vip_feature_clicked', {
+      // Use a direct call to trackVipEvent with timestamp in payload
+      const payload = {
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
         timestamp: customTimestamp,
-      });
+      } as any;
+
+      trackVipEvent('vip_feature_clicked', payload);
 
       expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
         timestamp: customTimestamp,
+        sessionId: 'test-session-123',
+        featureFlags: {
+          vipModule: true,
+          analytics: true,
+          devMode: false,
+        },
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
@@ -95,6 +130,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_module_viewed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           vipEnabled: true,
         });
@@ -107,6 +148,12 @@ describe('Telemetry', () => {
 
       expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
         timestamp: expect.any(Number),
+        sessionId: 'test-session-123',
+        featureFlags: {
+          vipModule: true,
+          analytics: true,
+          devMode: false,
+        },
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
@@ -120,6 +167,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_paywall_viewed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           context: 'feature_gate',
           isRetry: true,
@@ -131,6 +184,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_paywall_viewed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           context: 'feature_gate',
         });
@@ -143,6 +202,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_paywall_dismissed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           dismissMethod: 'close_button',
           viewDuration: 5000,
@@ -154,6 +219,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_paywall_dismissed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           dismissMethod: 'backdrop',
         });
@@ -166,6 +237,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_upgrade_clicked', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           source: 'dashboard',
           context: 'paywall',
           isRetry: false,
@@ -179,6 +256,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_gate_interacted', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           featureName: 'advanced_analytics',
           interactionType: 'click',
           isVip: true,
@@ -192,6 +275,12 @@ describe('Telemetry', () => {
 
         expect(mockLog).toHaveBeenCalledWith('vip_badge_viewed', {
           timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
           component: 'header',
           variant: 'medium',
           isVip: false,

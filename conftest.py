@@ -86,7 +86,6 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
 
     # Override API key validation for all tests
     try:
-        import app as app_module
         from app import app as fastapi_app
 
         # Simple pass-through that accepts any non-empty API key

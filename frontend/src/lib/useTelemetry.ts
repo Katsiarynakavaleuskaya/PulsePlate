@@ -5,7 +5,7 @@
  * Automatically handles feature flag checks and provides type-safe event tracking.
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { vipTelemetry, isTelemetryEnabled } from './telemetry';
 import { useVipModule } from './useFeatureFlag';
 
@@ -118,6 +118,7 @@ export function useTelemetry() {
  */
 export function useVipModuleTracking(source: string, autoTrack: boolean = true) {
   const { track, isEnabled, isVip } = useTelemetry();
+  const hasAutoTracked = useRef(false);
 
   const trackView = useCallback(() => {
     if (isEnabled && isVip) {
@@ -125,12 +126,13 @@ export function useVipModuleTracking(source: string, autoTrack: boolean = true) 
     }
   }, [track, isEnabled, isVip, source]);
 
-  // Auto-track on mount if enabled
+  // Auto-track on mount if enabled (only once)
   useEffect(() => {
-    if (autoTrack) {
+    if (autoTrack && !hasAutoTracked.current) {
       trackView();
+      hasAutoTracked.current = true;
     }
-  }, []); // Empty dependency array ensures it runs only on mount
+  }, [autoTrack, trackView]);
 
   return {
     trackView,
