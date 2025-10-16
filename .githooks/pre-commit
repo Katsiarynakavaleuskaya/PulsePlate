@@ -4,7 +4,7 @@
 echo "🧹 Running pre-commit cache cleanup..."
 
 # Clean Python cache files
-if ! ./scripts/clean-cache.sh >/dev/null 2>&1; then
+if ! ./scripts/clean-cache.sh 2>&1 | grep -v "^🧹\|^✅\|^📋"; then
     echo "⚠️  Warning: Cache cleanup script failed"
 fi
 
