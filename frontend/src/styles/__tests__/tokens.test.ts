@@ -152,9 +152,13 @@ describe('Design Tokens', () => {
       expect(borderRadius.none).toBe('0');
       expect(borderRadius.sm).toBe('0.125rem');
       expect(borderRadius.base).toBe('0.25rem');
+      expect(borderRadius.md).toBe('0.375rem');
       expect(borderRadius.lg).toBe('0.5rem');
+      expect(borderRadius.xl).toBe('0.75rem');
+      expect(borderRadius['2xl']).toBe('1rem');
       expect(borderRadius.full).toBe('9999px');
     });
+  });
   });
 
   describe('Shadows', () => {
