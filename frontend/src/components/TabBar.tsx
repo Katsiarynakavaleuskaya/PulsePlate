@@ -3,13 +3,15 @@ import { useAuth } from "../auth/AuthContext";
 import { useTranslation } from "react-i18next";
 import { tabRoutes } from "../config/routes";
 import { useState, useEffect, useRef } from "react";
+import { useVipModule } from "../lib/useFeatureFlag";
 
 export default function TabBar() {
   const { pathname } = useLocation();
   const { apiKey } = useAuth();
   const { t } = useTranslation();
+  const isVipEnabled = useVipModule();
   const [clickedDisabled, setClickedDisabled] = useState<string | null>(null);
-  const timeoutRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
@@ -33,15 +35,21 @@ export default function TabBar() {
     }, 300);
   };
 
+  // Calculate number of visible tabs for dynamic grid
+  const visibleTabs = tabRoutes.filter(route => !route.requiresVip || isVipEnabled);
+  const gridCols = `grid-cols-${visibleTabs.length}`;
+
   return (
     <nav
       role="tablist"
       aria-label="Main tabs"
-      className="fixed bottom-0 inset-x-0 grid grid-cols-4 border-t border-muted/30 bg-navy"
+      className={`fixed bottom-0 inset-x-0 grid ${gridCols} border-t border-muted/30 bg-navy`}
     >
-      {tabRoutes.map(({ path: to, label, requiresAuth }) => {
+      {tabRoutes
+        .filter(route => !route.requiresVip || isVipEnabled) // Hide VIP routes when VIP is disabled
+        .map(({ path: to, label, requiresAuth, requiresVip }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
-        const isDisabled = requiresAuth && !apiKey;
+        const isDisabled = (requiresAuth && !apiKey) || (requiresVip && !isVipEnabled);
         const isClicked = clickedDisabled === to;
 
         if (isDisabled) {
