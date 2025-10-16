@@ -27,7 +27,7 @@ export interface VipGateProps {
 export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unknown", message }) => {
   // Use hook if isVip is not provided (backward compatibility)
   const hookVipStatus = useVipModule();
-  const actualIsVip = isVip !== undefined ? isVip : hookVipStatus;
+  const actualIsVip = isVip ?? hookVipStatus;
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
   const previewRef = useInert(!actualIsVip);
@@ -82,7 +82,6 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
       <div
         ref={previewRef}
         className="opacity-60 pointer-events-none"
-        aria-label={t('vip.gatedAria')}
       >
         {children}
       </div>

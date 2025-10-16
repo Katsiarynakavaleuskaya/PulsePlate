@@ -152,17 +152,6 @@ describe('VipFeature', () => {
       expect(screen.getByTestId('vip-content')).toBeInTheDocument();
     });
 
-    it('should open Paywall dialog when CTA is clicked', async () => {
-      render(<VipGate />);
-
-      // Click the CTA button
-      const ctaButton = screen.getByRole('button', { name: /Upgrade to VIP access/i });
-      ctaButton.click();
-
-      // Assert that the Paywall dialog appears
-      expect(await screen.findByTestId('paywall')).toBeInTheDocument();
-    });
-
     it('opens paywall on CTA click', () => {
       render(
         <VipGate isVip={false}>
@@ -170,7 +159,7 @@ describe('VipFeature', () => {
         </VipGate>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /vip.cta/i }));
+      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
       expect(screen.getByTestId('paywall')).toBeInTheDocument();
     });
   });

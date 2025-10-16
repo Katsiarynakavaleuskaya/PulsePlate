@@ -32,18 +32,15 @@ export function useInert(shouldBeInert: boolean = true) {
     } else {
       // Fallback: set aria-hidden and remove tabindex from descendants
       element.setAttribute("aria-hidden", "true");
-      const focusables = element.querySelectorAll<HTMLElement>(
-        'a, button, input, textarea, select, details, [tabindex]'
-      );
+const focusables = element.querySelectorAll<HTMLElement>(
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe'
+);
       focusables.forEach((el) => {
         if (el.hasAttribute("tabindex")) {
           el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
         }
         el.setAttribute("tabindex", "-1");
-        if ("disabled" in el && !(el as HTMLButtonElement).disabled) {
-          (el as HTMLButtonElement).disabled = true;
-          el.setAttribute("data-pp-disabled", "true");
-        }
+
       });
       return () => {
         element.removeAttribute("aria-hidden");

@@ -83,9 +83,9 @@ public extension VideoAssets {
 }
 SWIFT
 
-echo "\n🎉 Generated: $GEN_SWIFT_FILE"
+echo -e "\n🎉 Generated: $GEN_SWIFT_FILE"
 echo "   Cases: ${#copied_basenames[@]} (${copied_basenames[*]})"
 
-echo "\nNext steps:"
+echo -e "\nNext steps:"
 echo "- Open Xcode and build. The files in Resources/Video will be embedded into the app bundle."
 echo "- Use them by base name (without .mp4), e.g.: VideoPlayerView(videoName: \"${copied_basenames[0]:-your_video}\")."
