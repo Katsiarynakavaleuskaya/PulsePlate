@@ -1,0 +1,156 @@
+/**
+ * Design System Utilities
+ *
+ * Utility classes for common design patterns and components.
+ * Uses design tokens from tokens.css for consistent styling.
+ */
+
+/* ============================================================================
+   COLOR UTILITIES
+   ============================================================================ */
+
+/* Text colors */
+.text-navy { color: var(--color-navy-500); }
+.text-navy-100 { color: var(--color-navy-100); }
+.text-navy-300 { color: var(--color-navy-300); }
+.text-navy-700 { color: var(--color-navy-700); }
+.text-navy-900 { color: var(--color-navy-900); }
+
+.text-blue { color: var(--color-blue-500); }
+.text-blue-100 { color: var(--color-blue-100); }
+.text-blue-300 { color: var(--color-blue-300); }
+.text-blue-700 { color: var(--color-blue-700); }
+.text-blue-900 { color: var(--color-blue-900); }
+
+.text-green { color: var(--color-green-500); }
+.text-green-100 { color: var(--color-green-100); }
+.text-green-300 { color: var(--color-green-300); }
+.text-green-700 { color: var(--color-green-700); }
+.text-green-900 { color: var(--color-green-900); }
+
+.text-heart { color: var(--color-heart-500); }
+.text-heart-100 { color: var(--color-heart-100); }
+.text-heart-300 { color: var(--color-heart-300); }
+.text-heart-700 { color: var(--color-heart-700); }
+.text-heart-900 { color: var(--color-heart-900); }
+
+/* Background colors */
+.bg-navy { background-color: var(--color-navy-500); }
+.bg-navy-100 { background-color: var(--color-navy-100); }
+.bg-navy-300 { background-color: var(--color-navy-300); }
+.bg-navy-700 { background-color: var(--color-navy-700); }
+.bg-navy-900 { background-color: var(--color-navy-900); }
+
+.bg-blue { background-color: var(--color-blue-500); }
+.bg-blue-100 { background-color: var(--color-blue-100); }
+.bg-blue-300 { background-color: var(--color-blue-300); }
+.bg-blue-700 { background-color: var(--color-blue-700); }
+.bg-blue-900 { background-color: var(--color-blue-900); }
+
+.bg-green { background-color: var(--color-green-500); }
+.bg-green-100 { background-color: var(--color-green-100); }
+.bg-green-300 { background-color: var(--color-green-300); }
+.bg-green-700 { background-color: var(--color-green-700); }
+.bg-green-900 { background-color: var(--color-green-900); }
+
+.bg-heart { background-color: var(--color-heart-500); }
+.bg-heart-100 { background-color: var(--color-heart-100); }
+.bg-heart-300 { background-color: var(--color-heart-300); }
+.bg-heart-700 { background-color: var(--color-heart-700); }
+.bg-heart-900 { background-color: var(--color-heart-900); }
+
+/* Semantic color utilities */
+.text-primary { color: var(--color-primary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-error { color: var(--color-error); }
+.text-info { color: var(--color-info); }
+
+.bg-primary { background-color: var(--color-primary); }
+.bg-success { background-color: var(--color-success); }
+.bg-warning { background-color: var(--color-warning); }
+.bg-error { background-color: var(--color-error); }
+.bg-info { background-color: var(--color-info); }
+
+/* ============================================================================
+   SPACING UTILITIES
+   ============================================================================ */
+
+/* Touch-friendly padding */
+.p-touch { padding: var(--spacing-touch); }
+.p-touch-large { padding: var(--spacing-touch-large); }
+
+/* Directional touch padding */
+.pt-touch { padding-top: var(--spacing-touch); }
+.pb-touch { padding-bottom: var(--spacing-touch); }
+.pl-touch { padding-left: var(--spacing-touch); }
+.pr-touch { padding-right: var(--spacing-touch); }
+
+.pt-touch-large { padding-top: var(--spacing-touch-large); }
+.pb-touch-large { padding-bottom: var(--spacing-touch-large); }
+.pl-touch-large { padding-left: var(--spacing-touch-large); }
+.pr-touch-large { padding-right: var(--spacing-touch-large); }
+
+/* ============================================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================================ */
+
+.text-heading {
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-size: var(--font-size-2xl);
+}
+
+.text-body {
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  font-size: var(--font-size-base);
+}
+
+.text-caption {
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-snug);
+  font-size: var(--font-size-sm);
+}
+
+/* ============================================================================
+   COMPONENT UTILITIES
+   ============================================================================ */
+
+/* Button utilities */
+.btn-touch {
+  min-height: var(--spacing-touch);
+  padding: var(--spacing-button-md);
+  border-radius: var(--radius-md);
+}
+
+.btn-touch-large {
+  min-height: var(--spacing-touch-large);
+  padding: var(--spacing-button-lg);
+  border-radius: var(--radius-lg);
+}
+
+/* Input utilities */
+.input-touch {
+  min-height: var(--spacing-touch);
+  padding: var(--spacing-input-md);
+  border-radius: var(--radius-md);
+}
+
+/* Card utilities */
+.card-surface {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-surface-muted {
+  background-color: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
