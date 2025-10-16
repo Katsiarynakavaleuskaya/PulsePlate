@@ -195,7 +195,7 @@ def main() -> int:
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")
-        for p in removed + [str(x) for x in to_remove]:
+        for p in removed + [str(p) for p in to_remove]:
             print("  ", p)
     else:
         print(

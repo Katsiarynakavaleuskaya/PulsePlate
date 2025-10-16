@@ -60,7 +60,7 @@ export default tseslint.config(
       // Duplication prevention rules
       'no-duplicate-imports': 'error',
       'no-duplicate-case': 'error',
-      'no-duplicate-keys': 'error',
+      'no-dupe-keys': 'error',
       'no-redeclare': 'error',
       'no-var': 'error', // Prefer const/let to avoid hoisting issues
       'prefer-const': 'error'

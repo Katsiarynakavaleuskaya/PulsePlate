@@ -73,8 +73,6 @@ jobs:
       - name: Run ESLint with duplication checks
         run: |
           npm run lint --if-present
-          # Check for duplicate imports and code patterns
-          npx eslint src --ext .ts,.tsx --rule 'no-duplicate-imports: error' --rule 'no-duplicate-case: error' --rule 'no-duplicate-keys: error' --if-present
 
       - name: Run vitest suite
         run: npm run test -- --coverage
