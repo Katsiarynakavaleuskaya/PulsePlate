@@ -91,6 +91,9 @@
   --color-focus-rgb: 59, 130, 246;
   --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
 
+  /* Native control highlight */
+  accent-color: var(--color-primary);
+
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
   --pp-primary: var(--color-primary);
@@ -202,6 +205,19 @@
   --z-skip-link: 1600;
   --z-toast: 1700;
   --z-tooltip: 1800;
+
+  /* ============================================================================
+     BREAKPOINT VARIABLES
+     ============================================================================ */
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* Native control highlight */
+  accent-color: var(--color-primary);
 }
 
 /* ============================================================================
@@ -257,6 +273,7 @@ html[data-theme="dark"] {
   --color-error: var(--color-error-dark);
   --color-info: var(--color-info-dark);
   --color-focus: var(--color-focus-dark);
+  --color-focus-rgb: var(--color-focus-dark-rgb);
   --color-focus-shadow: var(--color-focus-shadow-dark);
 
   /* Adjust shadows for dark mode */
@@ -293,6 +310,7 @@ html[data-theme="light"] {
     --color-error: var(--color-error-dark);
     --color-info: var(--color-info-dark);
     --color-focus: var(--color-focus-dark);
+    --color-focus-rgb: var(--color-focus-dark-rgb);
     --color-focus-shadow: var(--color-focus-shadow-dark);
 
     /* Adjust shadows for dark mode */
