@@ -4,10 +4,13 @@
 echo "🧹 Running pre-commit cache cleanup..."
 
 # Clean Python cache files
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find . -type f -name "*.pyc" -delete 2>/dev/null || true
-find . -type f -name "*.pyo" -delete 2>/dev/null || true
-find . -type f -name "*.pyd" -delete 2>/dev/null || true
+# Pre-commit hook to clean cache files
+echo "🧹 Running pre-commit cache cleanup..."
+
+# Clean Python cache files
+if ! ./scripts/clean-cache.sh >/dev/null 2>&1; then
+    echo "⚠️  Warning: Cache cleanup script failed"
+fi
 
 # Check if any cache files are staged
 CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$)')
