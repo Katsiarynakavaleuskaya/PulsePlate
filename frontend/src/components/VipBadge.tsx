@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useVipModule } from '../lib/useFeatureFlag';
@@ -33,11 +33,13 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
   const { t } = useTranslation();
   const { track } = useTelemetry();
   const { badgeViewed } = track;
+  const hasTracked = useRef(false);
 
-  // Track badge view on mount
+  // Track badge view on mount (only once)
   useEffect(() => {
-    if (isVipEnabled) {
+    if (isVipEnabled && !hasTracked.current) {
       badgeViewed(component, variant);
+      hasTracked.current = true;
     }
   }, [isVipEnabled, badgeViewed, component, variant]);
 
