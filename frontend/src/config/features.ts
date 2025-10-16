@@ -8,7 +8,7 @@
 /**
  * Feature flag values from environment variables
  */
-const getFeatureFlagsInternal = (env = import.meta.env) => {
+const getFeatureFlagsInternal = (env: any = import.meta.env) => {
   return {
     // VIP Module - enables VIP-specific features
     vipModule: env?.VITE_VIP_MODULE_ENABLED === 'true',
@@ -41,12 +41,15 @@ export type FeatureFlags = ReturnType<typeof getFeatureFlagsInternal>;
  */
 export const getFeatureFlags = getFeatureFlagsInternal;
 
+// Cache flags for app lifecycle
+const cachedFlags = getFeatureFlagsInternal();
+
 /**
  * Individual feature flag getters for convenience
  */
-export const isVipModuleEnabled = () => getFeatureFlags().vipModule;
-export const isAnalyticsEnabled = () => getFeatureFlags().analytics;
-export const isDevMode = () => getFeatureFlags().devMode;
+export const isVipModuleEnabled = () => cachedFlags.vipModule;
+export const isAnalyticsEnabled = () => cachedFlags.analytics;
+export const isDevMode = () => cachedFlags.devMode;
 
 /**
  * Feature flag names for debugging and analytics
