@@ -41,9 +41,9 @@ fi
 echo "🔧 Checking for duplicate function names..."
 DUPLICATE_FUNCTIONS=$(
   find frontend/src -type f \( -name "*.ts" -o -name "*.tsx" \) -print0 \
-  | xargs -0 grep -hE "^\s*function\b|^\s*const\s+[a-zA-Z_][a-zA-Z0-9_]*\s*=" \
-  | grep -oE "function\s+[a-zA-Z_][a-zA-Z0-9_]*|const\s+[a-zA-Z_][a-zA-Z0-9_]*" \
-  | sed -E 's/^(function|const)\s+//' \
+  | xargs -0 grep -hE "^\s*(export\s+)?(async\s+)?function\b|^\s*(export\s+)?(const|let|var)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*[=:]\s*(async\s+)?\(|^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*{" \
+  | grep -oE "(export\s+)?(async\s+)?function\s+[a-zA-Z_][a-zA-Z0-9_]*|(export\s+)?(const|let|var)\s+[a-zA-Z_][a-zA-Z0-9_]*|^[a-zA-Z_][a-zA-Z0-9_]*\s*\(" \
+  | sed -E 's/^(export\s+)?(async\s+)?function\s+//; s/^(export\s+)?(const|let|var)\s+//; s/\s*\(.*$//' \
   | sort | uniq -d || true
 )
 if [ ! -z "$DUPLICATE_FUNCTIONS" ]; then

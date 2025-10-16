@@ -75,6 +75,7 @@
   --color-warning: #f59e0b;
   --color-error: var(--color-heart-500);
   --color-info: var(--color-blue-500);
+  --color-focus: var(--color-blue-500);
 
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
@@ -193,32 +194,60 @@
    DARK MODE OVERRIDES
    ============================================================================ */
 
+/* Shared dark mode token definitions */
+:root {
+  /* Dark mode semantic colors */
+  --color-primary-dark: var(--color-blue-400);
+  --color-primary-foreground-dark: #fff;
+  --color-bg-dark: var(--color-navy-900);
+  --color-surface-dark: var(--color-navy-800);
+  --color-surface-muted-dark: var(--color-navy-700);
+  --color-border-dark: var(--color-navy-600);
+  --color-text-dark: var(--color-navy-50);
+  --color-text-muted-dark: var(--color-navy-300);
+
+  /* Dark mode status colors */
+  --color-success-dark: var(--color-green-400);
+  --color-warning-dark: #fbbf24;
+  --color-error-dark: var(--color-heart-400);
+  --color-info-dark: var(--color-blue-400);
+  --color-focus-dark: var(--color-blue-400);
+
+  /* Dark mode shadows */
+  --shadow-sm-dark: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-base-dark: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md-dark: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg-dark: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl-dark: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+}
+
 /* Attribute-based dark mode (for manual theme switching) */
 [data-theme="dark"] {
   color-scheme: dark;
 
   /* Override semantic colors for dark mode */
-  --color-primary: var(--color-blue-400);
-  --color-primary-foreground: #fff;
-  --color-bg: var(--color-navy-900);
-  --color-surface: var(--color-navy-800);
-  --color-surface-muted: var(--color-navy-700);
-  --color-border: var(--color-navy-600);
-  --color-text: var(--color-navy-50);
-  --color-text-muted: var(--color-navy-300);
+  --color-primary: var(--color-primary-dark);
+  --color-primary-foreground: var(--color-primary-foreground-dark);
+  --color-bg: var(--color-bg-dark);
+  --color-surface: var(--color-surface-dark);
+  --color-surface-muted: var(--color-surface-muted-dark);
+  --color-border: var(--color-border-dark);
+  --color-text: var(--color-text-dark);
+  --color-text-muted: var(--color-text-muted-dark);
 
   /* Override status colors for dark mode */
-  --color-success: var(--color-green-400);
-  --color-warning: #fbbf24;
-  --color-error: var(--color-heart-400);
-  --color-info: var(--color-blue-400);
+  --color-success: var(--color-success-dark);
+  --color-warning: var(--color-warning-dark);
+  --color-error: var(--color-error-dark);
+  --color-info: var(--color-info-dark);
+  --color-focus: var(--color-focus-dark);
 
   /* Adjust shadows for dark mode */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+  --shadow-sm: var(--shadow-sm-dark);
+  --shadow-base: var(--shadow-base-dark);
+  --shadow-md: var(--shadow-md-dark);
+  --shadow-lg: var(--shadow-lg-dark);
+  --shadow-xl: var(--shadow-xl-dark);
 }
 
 /* System preference-based dark mode (fallback when no data-theme is set) */
@@ -227,27 +256,28 @@
     color-scheme: dark;
 
     /* Override semantic colors for dark mode */
-    --color-primary: var(--color-blue-400);
-    --color-primary-foreground: #fff;
-    --color-bg: var(--color-navy-900);
-    --color-surface: var(--color-navy-800);
-    --color-surface-muted: var(--color-navy-700);
-    --color-border: var(--color-navy-600);
-    --color-text: var(--color-navy-50);
-    --color-text-muted: var(--color-navy-300);
+    --color-primary: var(--color-primary-dark);
+    --color-primary-foreground: var(--color-primary-foreground-dark);
+    --color-bg: var(--color-bg-dark);
+    --color-surface: var(--color-surface-dark);
+    --color-surface-muted: var(--color-surface-muted-dark);
+    --color-border: var(--color-border-dark);
+    --color-text: var(--color-text-dark);
+    --color-text-muted: var(--color-text-muted-dark);
 
     /* Override status colors for dark mode */
-    --color-success: var(--color-green-400);
-    --color-warning: #fbbf24;
-    --color-error: var(--color-heart-400);
-    --color-info: var(--color-blue-400);
+    --color-success: var(--color-success-dark);
+    --color-warning: var(--color-warning-dark);
+    --color-error: var(--color-error-dark);
+    --color-info: var(--color-info-dark);
+    --color-focus: var(--color-focus-dark);
 
     /* Adjust shadows for dark mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+    --shadow-sm: var(--shadow-sm-dark);
+    --shadow-base: var(--shadow-base-dark);
+    --shadow-md: var(--shadow-md-dark);
+    --shadow-lg: var(--shadow-lg-dark);
+    --shadow-xl: var(--shadow-xl-dark);
   }
 }
 

@@ -186,7 +186,7 @@ if [ "$CACHE_RULES" -eq 0 ]; then
     HEALTH_SCORE=$((HEALTH_SCORE - 20))
 fi
 
-if [ ! -f .githooks/pre-commit ]; then
+if [ ! -f .githooks/pre-commit ] && [ ! -f .git/hooks/pre-commit ] && [ ! -f .pre-commit-config.yaml ]; then
     HEALTH_SCORE=$((HEALTH_SCORE - 10))
 fi
 
