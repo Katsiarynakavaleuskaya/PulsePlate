@@ -74,6 +74,15 @@
   --color-error: var(--color-heart-500);
   --color-info: var(--color-blue-500);
 
+  /* Base UI semantic tokens */
+  --color-primary: var(--color-blue-600);
+  --color-primary-foreground: #fff;
+  --color-bg: #fff;
+  --color-surface: var(--color-navy-50);
+  --color-surface-muted: var(--color-navy-100);
+  --color-border: var(--color-navy-200);
+  --color-text: var(--color-navy-900);
+  --color-text-muted: var(--color-navy-500);
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
   --pp-primary: var(--color-blue-500);
