@@ -47,7 +47,7 @@ export default function TabBar() {
       aria-label="Main tabs"
       className={`fixed bottom-0 inset-x-0 grid ${getGridColsClass(visibleTabsCount)} border-t border-muted/30 bg-navy`}
     >
-      {visibleTabs.map(({ path: to, label, requiresAuth, requiresVip }) => {
+      {visibleTabs.map(({ path: to, label, requiresAuth }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
         const isDisabled = requiresAuth && !apiKey;
         const isClicked = clickedDisabled === to;

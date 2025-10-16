@@ -1,22 +1,93 @@
 #!/bin/bash
+set -euo pipefail
 
-# Clean Python cache files
-echo "🧹 Cleaning Python cache files..."
+# Enhanced Python cache cleanup script
+# Cleans all Python cache files and provides detailed reporting
 
-# Remove __pycache__ directories
-find . -depth -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+echo "🧹 Enhanced Python Cache Cleanup"
+echo "================================="
 
-# Remove .pyc files
-find . -type f -name "*.pyc" -delete 2>/dev/null || true
+# Count files before cleanup
+echo "📊 Analyzing cache files before cleanup..."
 
-# Remove .pyo files
-find . -type f -name "*.pyo" -delete 2>/dev/null || true
+# Utility to count NUL-separated results safely
+count_null_separated() {
+    local count=0
+    while IFS= read -r -d '' _; do
+        ((count++))
+    done
+    printf '%d\n' "$count"
+}
 
-# Remove .pyd files (Windows)
-find . -type f -name "*.pyd" -delete 2>/dev/null || true
+PYCACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null))
+PYC_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null))
+PYO_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null))
+PYD_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null))
 
-echo "✅ Cache cleanup completed"
+echo "Found:"
+echo "  📁 __pycache__ directories: $PYCACHE_COUNT"
+echo "  🐍 .pyc files: $PYC_COUNT"
+echo "  🐍 .pyo files: $PYO_COUNT"
+echo "  🐍 .pyd files: $PYD_COUNT"
+
+if [ "$PYCACHE_COUNT" -eq 0 ] && [ "$PYC_COUNT" -eq 0 ] && [ "$PYO_COUNT" -eq 0 ] && [ "$PYD_COUNT" -eq 0 ]; then
+    echo "✅ No cache files found - repository is clean!"
+    exit 0
+fi
+
+echo ""
+echo "🗑️  Starting cleanup..."
+
+# Remove __pycache__ directories (skip .git)
+REMOVED_DIRS=0
+while IFS= read -r -d '' dir; do
+    rm -rf "$dir" && echo "  🗂️  Removed: $dir" && ((REMOVED_DIRS++))
+done < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null)
+
+# Remove .pyc files (skip .git)
+REMOVED_PYC=0
+while IFS= read -r -d '' file; do
+    if [ -f "$file" ]; then
+        rm -f "$file"
+        echo "  🐍 Removed: $file"
+        ((REMOVED_PYC++))
+    fi
+done < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null)
+
+# Remove .pyo files (skip .git)
+REMOVED_PYO=0
+while IFS= read -r -d '' file; do
+    if [ -f "$file" ]; then
+        rm -f "$file"
+        echo "  🐍 Removed: $file"
+        ((REMOVED_PYO++))
+    fi
+done < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null)
+
+# Remove .pyd files (Windows) (skip .git)
+REMOVED_PYD=0
+while IFS= read -r -d '' file; do
+    if [ -f "$file" ]; then
+        rm -f "$file"
+        echo "  🐍 Removed: $file"
+        ((REMOVED_PYD++))
+    fi
+done < <(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null)
+
+echo ""
+echo "📊 Cleanup Summary:"
+echo "  📁 __pycache__ directories removed: $REMOVED_DIRS"
+echo "  🐍 .pyc files removed: $REMOVED_PYC"
+echo "  🐍 .pyo files removed: $REMOVED_PYO"
+echo "  🐍 .pyd files removed: $REMOVED_PYD"
+
+TOTAL_REMOVED=$((REMOVED_DIRS + REMOVED_PYC + REMOVED_PYO + REMOVED_PYD))
+echo "  📈 Total items removed: $TOTAL_REMOVED"
+
+echo ""
+echo "✅ Cache cleanup completed successfully!"
 
 # Show git status to verify
+echo ""
 echo "📋 Current git status:"
-git status --porcelain | head -10
+git status --porcelain 2>/dev/null | head -10 || echo "  (No git repository or no changes)"
