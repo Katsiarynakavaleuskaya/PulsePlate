@@ -73,7 +73,10 @@
   "vip": {
     "title": "Desbloquear VIP",
     "subtitle": "Análisis avanzado, funciones premium, soporte prioritario.",
-    "cta": "Actualizar a VIP"
+    "cta": "Actualizar a VIP",
+    "badge": "VIP",
+    "badgeAria": "Estado VIP",
+    "gatedAria": "Contenido con acceso VIP"
   },
   "paywall": {
     "title": "Desbloquear Premium",

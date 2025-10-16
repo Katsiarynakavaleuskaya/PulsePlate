@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import {
   VipFeature,
   VipBadge,
@@ -89,7 +89,7 @@ describe('VipFeature', () => {
 
       render(<VipBadge />);
 
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
     });
 
     it('should not render when VIP is disabled', () => {
@@ -122,6 +122,57 @@ describe('VipFeature', () => {
       expect(screen.getByTestId('vip-content')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /vip.cta/i })).toBeInTheDocument();
     });
+
+    it('should render legacy gate UI when no children provided', () => {
+      render(<VipGate />);
+
+      expect(screen.getByText('VIP Feature')).toBeInTheDocument();
+      expect(screen.getByText('vip.subtitle')).toBeInTheDocument();
+      expect(screen.getByText('vip.cta')).toBeInTheDocument();
+    });
+
+    it('should render legacy gate UI with custom message', () => {
+      const customMessage = 'Custom VIP message';
+      render(<VipGate message={customMessage} />);
+
+      expect(screen.getByText('VIP Feature')).toBeInTheDocument();
+      expect(screen.getByText(customMessage)).toBeInTheDocument();
+      expect(screen.getByText('vip.cta')).toBeInTheDocument();
+    });
+
+    it('should use useVipModule hook when isVip not provided', () => {
+      mockUseVipModule.mockReturnValue(true);
+
+      render(
+        <VipGate>
+          <div data-testid="vip-content">VIP Content</div>
+        </VipGate>
+      );
+
+      expect(screen.getByTestId('vip-content')).toBeInTheDocument();
+    });
+
+    it('should open Paywall dialog when CTA is clicked', async () => {
+      render(<VipGate />);
+
+      // Click the CTA button
+      const ctaButton = screen.getByRole('button', { name: /Upgrade to VIP access/i });
+      ctaButton.click();
+
+      // Assert that the Paywall dialog appears
+      expect(await screen.findByTestId('paywall')).toBeInTheDocument();
+    });
+
+    it('opens paywall on CTA click', () => {
+      render(
+        <VipGate isVip={false}>
+          <div>Preview</div>
+        </VipGate>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /vip.cta/i }));
+      expect(screen.getByTestId('paywall')).toBeInTheDocument();
+    });
   });
 
   describe('VipBadge variants', () => {
@@ -129,26 +180,26 @@ describe('VipFeature', () => {
       mockUseVipModule.mockReturnValue(true);
 
       const { rerender } = render(<VipBadge size="sm" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
 
       rerender(<VipBadge size="md" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
 
       rerender(<VipBadge size="lg" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
     });
 
     it('should render with different variants', () => {
       mockUseVipModule.mockReturnValue(true);
 
       const { rerender } = render(<VipBadge variant="default" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
 
       rerender(<VipBadge variant="outline" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
 
       rerender(<VipBadge variant="subtle" />);
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
     });
   });
 
@@ -159,7 +210,7 @@ describe('VipFeature', () => {
       render(<VipPageHeader title="VIP Dashboard" />);
 
       expect(screen.getByText('VIP Dashboard')).toBeInTheDocument();
-      expect(screen.getByText('VIP')).toBeInTheDocument();
+      expect(screen.getByText('vip.badge')).toBeInTheDocument();
     });
 
     it('should render subtitle when provided', () => {
@@ -202,6 +253,20 @@ describe('VipFeature', () => {
       );
 
       expect(screen.getByTestId('icon')).toBeInTheDocument();
+    });
+
+    it('should render children inside VipFeatureCard', () => {
+      render(
+        <VipFeatureCard
+          title="Child Test"
+          description="Testing children"
+        >
+          <div data-testid="vip-feature-child">Child Content</div>
+        </VipFeatureCard>
+      );
+
+      expect(screen.getByTestId('vip-feature-child')).toBeInTheDocument();
+      expect(screen.getByText('Child Content')).toBeInTheDocument();
     });
   });
 

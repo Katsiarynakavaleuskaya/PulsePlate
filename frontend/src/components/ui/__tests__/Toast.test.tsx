@@ -1,21 +1,24 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { Toaster } from '../Toast';
+import { Toaster, showSuccess, showError, showInfo, showWarning, showLoading, dismissToast, dismissAllToasts } from '../Toast';
 
 // Mock react-hot-toast
-vi.mock('react-hot-toast', () => ({
-  default: {
-    success: vi.fn(),
-    error: vi.fn(),
-    loading: vi.fn(),
-    dismiss: vi.fn(),
-  },
-  Toaster: vi.fn(({ children, ...props }: any) => (
-    <div data-testid="toaster" {...props}>
-      {children}
-    </div>
-  )),
-}));
+vi.mock('react-hot-toast', () => {
+  const mockToast = vi.fn();
+  mockToast.success = vi.fn();
+  mockToast.error = vi.fn();
+  mockToast.loading = vi.fn();
+  mockToast.dismiss = vi.fn();
+
+  return {
+    default: mockToast,
+    Toaster: vi.fn(({ children, ...props }: any) => (
+      <div data-testid="toaster" {...props}>
+        {children}
+      </div>
+    )),
+  };
+});
 
 describe('Toaster', () => {
   afterEach(() => {
@@ -42,5 +45,71 @@ describe('Toaster', () => {
       }),
       expect.anything()
     );
+  });
+});
+
+describe('Toast functions', () => {
+  let mockToast: any;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const toastModule = await import('react-hot-toast');
+    mockToast = toastModule.default;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('showSuccess calls toast.success with message', () => {
+    const message = 'Success message';
+    showSuccess(message);
+    expect(mockToast.success).toHaveBeenCalledWith(message);
+  });
+
+  it('showError calls toast.error with message', () => {
+    const message = 'Error message';
+    showError(message);
+    expect(mockToast.error).toHaveBeenCalledWith(message);
+  });
+
+  it('showInfo calls toast with message and info icon', () => {
+    const message = 'Info message';
+    showInfo(message);
+    expect(mockToast).toHaveBeenCalledWith(message, {
+      icon: expect.any(Object),
+    });
+  });
+
+  it('showWarning calls toast with message and warning icon', () => {
+    const message = 'Warning message';
+    showWarning(message);
+    expect(mockToast).toHaveBeenCalledWith(message, {
+      icon: expect.any(Object),
+      style: {
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+      },
+    });
+  });
+
+  it('showLoading calls toast.loading with message and returns toast id', () => {
+    const message = 'Loading message';
+    const mockToastId = 'toast-123';
+    mockToast.loading.mockReturnValue(mockToastId);
+
+    const result = showLoading(message);
+    expect(mockToast.loading).toHaveBeenCalledWith(message);
+    expect(result).toBe(mockToastId);
+  });
+
+  it('dismissToast calls toast.dismiss with toast id', () => {
+    const toastId = 'toast-123';
+    dismissToast(toastId);
+    expect(mockToast.dismiss).toHaveBeenCalledWith(toastId);
+  });
+
+  it('dismissAllToasts calls toast.dismiss without arguments', () => {
+    dismissAllToasts();
+    expect(mockToast.dismiss).toHaveBeenCalledWith();
   });
 });
