@@ -85,7 +85,7 @@ function createNewSession(): string {
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
   } catch (error) {
-    console.warn('[Telemetry] Failed to store session data:', error);
+    console.warn('[Telemetry] Failed to store session data:', error instanceof Error ? error.message : error);
   }
 
   return sessionId;

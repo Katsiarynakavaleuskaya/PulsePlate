@@ -185,6 +185,7 @@ describe('useTelemetry', () => {
     it('should not track when telemetry is disabled', async () => {
       const { isTelemetryEnabled } = await import('../telemetry');
       vi.mocked(isTelemetryEnabled).mockReturnValue(false);
+      mockUseVipModule.mockReturnValue(true);
 
       const { result } = renderHook(() => useVipModuleTracking('dashboard', false));
 

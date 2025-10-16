@@ -32,13 +32,14 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
   const isVipEnabled = useVipModule();
   const { t } = useTranslation();
   const { track } = useTelemetry();
+  const { badgeViewed } = track;
 
   // Track badge view on mount
   useEffect(() => {
     if (isVipEnabled) {
-      track.badgeViewed(component, variant);
+      badgeViewed(component, variant);
     }
-  }, [isVipEnabled, track, component, variant]);
+  }, [isVipEnabled, badgeViewed, component, variant]);
 
   if (!isVipEnabled) {
     return null;
