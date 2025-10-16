@@ -75,7 +75,15 @@ export const VipGate: React.FC<{ message?: string }> = ({
       <p className="text-gray-600 dark:text-gray-400 mb-4">
         {message}
       </p>
-      <button className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity">
+      <button
+        type="button"
+        className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+        aria-label="Upgrade to VIP access"
+        onClick={() => {
+          // TODO: Navigate to upgrade page or open upgrade modal
+          console.log('Upgrade to VIP clicked');
+        }}
+      >
         Upgrade to VIP
       </button>
     </div>

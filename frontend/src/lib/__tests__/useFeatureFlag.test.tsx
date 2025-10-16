@@ -2,8 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { cleanup } from '@testing-library/react';
+import { renderHook, cleanup } from '@testing-library/react';
 
 // Mock the entire features module
 vi.mock('../../config/features', () => ({
