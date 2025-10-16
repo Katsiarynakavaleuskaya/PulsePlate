@@ -1,5 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useInert } from "../lib/useInert";
 import Paywall from "./Paywall/BeforeAfter";
 // import { log, Events } from "../lib/analytics"; // TODO: Add analytics when needed
 
@@ -22,67 +23,8 @@ type Props = {
 export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
-  const previewRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useInert(!isPremium);
   const describedById = useId();
-
-  useEffect(() => {
-    const root = previewRef.current;
-    if (!root) {
-      return;
-    }
-
-    // Feature-detect inert support explicitly
-    const hasInertSupport = 'inert' in HTMLElement.prototype ||
-                           ('inert' in root && typeof (root as any).inert === 'boolean');
-
-    if (hasInertSupport) {
-      // Use native inert when supported
-      const prevInert = (root as any).inert;
-      (root as any).inert = true;
-      return () => {
-        (root as any).inert = prevInert;
-      };
-    } else {
-      // Fallback: set aria-hidden and remove tabindex from descendants
-      root.setAttribute("aria-hidden", "true");
-      const focusables = root.querySelectorAll<HTMLElement>(
-        'a, button, input, textarea, select, details, [tabindex]'
-      );
-      focusables.forEach((el) => {
-        if (el.hasAttribute("tabindex")) {
-          el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
-        }
-        el.setAttribute("tabindex", "-1");
-        if ("disabled" in el && !(el as HTMLButtonElement).disabled) {
-          (el as HTMLButtonElement).disabled = true;
-          el.setAttribute("data-pp-disabled", "true");
-        }
-      });
-      return () => {
-        root.removeAttribute("aria-hidden");
-        const restore = root.querySelectorAll<HTMLElement>(
-          '[data-pp-prev-tabindex], [tabindex="-1"], [data-pp-disabled]'
-        );
-        restore.forEach((el) => {
-          const prev = el.getAttribute("data-pp-prev-tabindex");
-          if (prev !== null) {
-            if (prev === "") {
-              el.removeAttribute("tabindex");
-            } else {
-              el.setAttribute("tabindex", prev);
-            }
-            el.removeAttribute("data-pp-prev-tabindex");
-          } else if (el.getAttribute("tabindex") === "-1") {
-            el.removeAttribute("tabindex");
-          }
-          if (el.getAttribute("data-pp-disabled") === "true") {
-            (el as HTMLButtonElement).disabled = false;
-            el.removeAttribute("data-pp-disabled");
-          }
-        });
-      };
-    }
-  }, []);
 
   if (isPremium) return <>{children}</>;
 

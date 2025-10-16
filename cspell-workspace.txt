@@ -3713,6 +3713,7 @@ Bajo
 barcodes
 barh
 Bariatric
+basenames
 bbox
 behaviour
 bmax
@@ -3890,6 +3891,7 @@ imageset
 Immer
 importlib
 importorskip
+iname
 indicadores
 infantil
 ings
@@ -3997,6 +3999,7 @@ necesidades
 Necesitas
 NFKD
 niño
+nocasematch
 nochange
 nokey
 noopener
