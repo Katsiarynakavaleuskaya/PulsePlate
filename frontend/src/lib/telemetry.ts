@@ -26,9 +26,9 @@ export type VipEventType =
 export interface BaseEventPayload {
   /** Timestamp when event occurred */
   timestamp?: number;
-  /** User session identifier */
+  /** User session identifier (TODO: implement session tracking) */
   sessionId?: string;
-  /** Feature flag state at time of event */
+  /** Feature flag state at time of event (TODO: capture flag state) */
   featureFlags?: Record<string, boolean>;
 }
 
@@ -109,11 +109,24 @@ export type VipEventPayload =
   | VipBadgeViewedPayload;
 
 /**
+ * Type mapping for event payloads
+ */
+type EventPayloadMap = {
+  'vip_module_viewed': Omit<VipModuleViewedPayload, 'timestamp'>;
+  'vip_feature_clicked': Omit<VipFeatureClickedPayload, 'timestamp'>;
+  'vip_paywall_viewed': Omit<VipPaywallViewedPayload, 'timestamp'>;
+  'vip_paywall_dismissed': Omit<VipPaywallDismissedPayload, 'timestamp'>;
+  'vip_upgrade_clicked': Omit<VipUpgradeClickedPayload, 'timestamp'>;
+  'vip_gate_interacted': Omit<VipGateInteractedPayload, 'timestamp'>;
+  'vip_badge_viewed': Omit<VipBadgeViewedPayload, 'timestamp'>;
+};
+
+/**
  * Enhanced analytics function with VIP event support
  */
 export function trackVipEvent<T extends VipEventType>(
   eventType: T,
-  payload: any
+  payload: EventPayloadMap[T]
 ): void {
   // Only track if analytics is enabled
   if (!isAnalyticsEnabled()) {
@@ -126,8 +139,8 @@ export function trackVipEvent<T extends VipEventType>(
     ...payload,
   };
 
-  // Log the event with VIP prefix for easy filtering
-  log(`vip_${eventType}`, enrichedPayload);
+  // Log the event (already has vip_ prefix)
+  log(eventType, enrichedPayload);
 }
 
 /**

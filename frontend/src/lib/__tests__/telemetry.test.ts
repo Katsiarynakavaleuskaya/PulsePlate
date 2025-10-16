@@ -19,9 +19,6 @@ describe('Telemetry', () => {
   beforeEach(async () => {
     const analyticsModule = await import('../analytics');
     mockLog = vi.mocked(analyticsModule.log);
-  });
-
-  beforeEach(() => {
     vi.clearAllMocks();
     mockIsAnalyticsEnabled.mockReturnValue(true);
   });
@@ -37,7 +34,7 @@ describe('Telemetry', () => {
         vipEnabled: true,
       });
 
-      expect(mockLog).toHaveBeenCalledWith('vip_vip_module_viewed', {
+      expect(mockLog).toHaveBeenCalledWith('vip_module_viewed', {
         timestamp: expect.any(Number),
         source: 'dashboard',
         vipEnabled: true,
@@ -75,16 +72,18 @@ describe('Telemetry', () => {
     it('should preserve provided timestamp', () => {
       const customTimestamp = 1234567890;
 
-      trackVipEvent('vip_paywall_viewed', {
+      trackVipEvent('vip_feature_clicked', {
+        featureName: 'advanced_analytics',
         source: 'dashboard',
-        context: 'feature_gate',
+        isVip: false,
         timestamp: customTimestamp,
       });
 
-      expect(mockLog).toHaveBeenCalledWith('vip_vip_paywall_viewed', {
+      expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
         timestamp: customTimestamp,
+        featureName: 'advanced_analytics',
         source: 'dashboard',
-        context: 'feature_gate',
+        isVip: false,
       });
     });
   });
@@ -94,7 +93,7 @@ describe('Telemetry', () => {
       it('should track VIP module view', () => {
         vipTelemetry.moduleViewed('dashboard', true);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_module_viewed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_module_viewed', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           vipEnabled: true,
@@ -106,12 +105,12 @@ describe('Telemetry', () => {
       it('should track VIP feature click', () => {
         vipTelemetry.featureClicked('advanced_analytics', 'dashboard', false);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_feature_clicked', {
-          timestamp: expect.any(Number),
-          featureName: 'advanced_analytics',
-          source: 'dashboard',
-          isVip: false,
-        });
+      expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
+        timestamp: expect.any(Number),
+        featureName: 'advanced_analytics',
+        source: 'dashboard',
+        isVip: false,
+      });
       });
     });
 
@@ -119,7 +118,7 @@ describe('Telemetry', () => {
       it('should track paywall view', () => {
         vipTelemetry.paywallViewed('dashboard', 'feature_gate', true);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_paywall_viewed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_paywall_viewed', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           context: 'feature_gate',
@@ -130,7 +129,7 @@ describe('Telemetry', () => {
       it('should track paywall view without isRetry', () => {
         vipTelemetry.paywallViewed('dashboard', 'feature_gate');
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_paywall_viewed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_paywall_viewed', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           context: 'feature_gate',
@@ -142,7 +141,7 @@ describe('Telemetry', () => {
       it('should track paywall dismissal', () => {
         vipTelemetry.paywallDismissed('dashboard', 'close_button', 5000);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_paywall_dismissed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_paywall_dismissed', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           dismissMethod: 'close_button',
@@ -153,7 +152,7 @@ describe('Telemetry', () => {
       it('should track paywall dismissal without viewDuration', () => {
         vipTelemetry.paywallDismissed('dashboard', 'backdrop');
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_paywall_dismissed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_paywall_dismissed', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           dismissMethod: 'backdrop',
@@ -165,7 +164,7 @@ describe('Telemetry', () => {
       it('should track upgrade click', () => {
         vipTelemetry.upgradeClicked('dashboard', 'paywall', false);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_upgrade_clicked', {
+        expect(mockLog).toHaveBeenCalledWith('vip_upgrade_clicked', {
           timestamp: expect.any(Number),
           source: 'dashboard',
           context: 'paywall',
@@ -178,7 +177,7 @@ describe('Telemetry', () => {
       it('should track VIP gate interaction', () => {
         vipTelemetry.gateInteracted('advanced_analytics', 'click', true);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_gate_interacted', {
+        expect(mockLog).toHaveBeenCalledWith('vip_gate_interacted', {
           timestamp: expect.any(Number),
           featureName: 'advanced_analytics',
           interactionType: 'click',
@@ -191,7 +190,7 @@ describe('Telemetry', () => {
       it('should track VIP badge view', () => {
         vipTelemetry.badgeViewed('header', 'medium', false);
 
-        expect(mockLog).toHaveBeenCalledWith('vip_vip_badge_viewed', {
+        expect(mockLog).toHaveBeenCalledWith('vip_badge_viewed', {
           timestamp: expect.any(Number),
           component: 'header',
           variant: 'medium',

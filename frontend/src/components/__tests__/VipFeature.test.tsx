@@ -289,7 +289,7 @@ describe('VipFeature', () => {
 
       render(<VipBadge component="header" size="md" />);
 
-      expect(mockTrack.badgeViewed).toHaveBeenCalledWith('header', 'md');
+      expect(mockTrack.badgeViewed).toHaveBeenCalledWith('header', 'default');
     });
 
     it('should not track badge view when VIP is disabled', () => {
