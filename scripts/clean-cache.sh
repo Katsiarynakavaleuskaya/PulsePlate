@@ -41,12 +41,8 @@ echo "🗑️  Starting cleanup..."
 # Remove __pycache__ directories (skip .git)
 REMOVED_DIRS=0
 while IFS= read -r -d '' dir; do
-    if [ -d "$dir" ]; then
-        rm -rf "$dir"
-        echo "  🗂️  Removed: $dir"
-        ((REMOVED_DIRS++))
-    fi
-done < <(find . -path ./.git -prune -o -depth -type d -name "__pycache__" -print0 2>/dev/null)
+    rm -rf "$dir" && echo "  🗂️  Removed: $dir" && ((REMOVED_DIRS++))
+done < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null)
 
 # Remove .pyc files (skip .git)
 REMOVED_PYC=0

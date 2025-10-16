@@ -23,7 +23,7 @@ if [ ! -z "$CACHE_FILES" ]; then
 fi
 
 # 3. Check for frontend changes and run tests
-FRONTEND_CHANGES=$(git diff --cached --name-only | grep "^frontend/" || true)
+FRONTEND_CHANGES=$(git diff --cached --name-only | grep -E "^frontend/(src/|package\.json)" || true)
 
 if [ ! -z "$FRONTEND_CHANGES" ]; then
     echo "🎨 Frontend changes detected, running tests..."
@@ -50,27 +50,34 @@ if [ ! -z "$FRONTEND_CHANGES" ]; then
 
         # Run tests for changed files
         echo "🧪 Running tests for changed files..."
-        CHANGED_TEST_FILES=""
+        declare -a CHANGED_TEST_FILES=()
         for file in $FRONTEND_CHANGES; do
-            # Convert frontend/src/path/file.tsx to src/path/file.test.tsx (exclude test files)
-            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]] && [[ ! $file =~ \.test\.(ts|tsx)$ ]]; then
-                test_file="src/${BASH_REMATCH[1]}.test.${BASH_REMATCH[2]}"
+            # Consider only TS/TSX under frontend/src/
+            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]]; then
+                rel="${BASH_REMATCH[1]}"   # path without extension, may include ".test"
+                ext="${BASH_REMATCH[2]}"
+                # If the changed file is a test, run it; otherwise, map to its sibling test file.
+                if [[ "$rel" == *.test ]]; then
+                    test_file="src/${rel}.${ext}"
+                else
+                    test_file="src/${rel}.test.${ext}"
+                fi
                 if [ -f "$test_file" ]; then
-                    CHANGED_TEST_FILES="$CHANGED_TEST_FILES $test_file"
+                    CHANGED_TEST_FILES+=("$test_file")
                 fi
             fi
         done
 
         # Run specific tests if any, otherwise run all tests
-        if [ ! -z "$CHANGED_TEST_FILES" ]; then
-            echo "Running tests for: $CHANGED_TEST_FILES"
-            if ! npm test --if-present -- --run $CHANGED_TEST_FILES; then
+        if [ ${#CHANGED_TEST_FILES[@]} -gt 0 ]; then
+            echo "Running tests for: ${CHANGED_TEST_FILES[*]}"
+            if ! npm run test --if-present -- --run "${CHANGED_TEST_FILES[@]}"; then
                 echo "❌ Tests failed. Please fix failing tests before committing."
                 exit 1
             fi
         else
             echo "Running all tests..."
-            if ! npm test --if-present -- --run; then
+            if ! npm run test --if-present -- --run; then
                 echo "❌ Tests failed. Please fix failing tests before committing."
                 exit 1
             fi
