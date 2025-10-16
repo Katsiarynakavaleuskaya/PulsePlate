@@ -1,18 +1,221 @@
-/* Design tokens — shared across the app
-   RU: Базовые токены бренда (цвета/радиусы/отступы).
-   EN: Brand base tokens (colors/radius/spacing). */
+/**
+ * CSS Custom Properties for Design Tokens
+ *
+ * Provides CSS variables for dynamic theming and runtime customization.
+ * These variables can be overridden for dark mode, user preferences, etc.
+ */
 
 :root {
-  /* Colors */
-  --pp-navy:   #0F172A; /* background navy */
-  --pp-primary:#339FFF; /* primary blue (CTA) */
-  --pp-gold:   #D4AF37; /* accent gold (pulse ring) */
-  --pp-accent: #20C997; /* nutrition/positive */
-  --pp-text:   #FFFFFF; /* primary text on navy */
-  --pp-muted:  #94A3B8; /* secondary text */
+  /* ============================================================================
+     COLOR VARIABLES
+     ============================================================================ */
 
-  /* Surface */
-  --pp-radius-xl: 20px;
-  --pp-space-2: 8px;
-  --pp-space-3: 12px;
+  /* Navy theme */
+  --color-navy-50: #f0f4f8;
+  --color-navy-100: #d9e2ec;
+  --color-navy-200: #bcccdc;
+  --color-navy-300: #9fb3c8;
+  --color-navy-400: #829ab1;
+  --color-navy-500: #627d98;
+  --color-navy-600: #486581;
+  --color-navy-700: #334e68;
+  --color-navy-800: #243b53;
+  --color-navy-900: #102a43;
+
+  /* Blue accent */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+
+  /* Green success */
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-200: #bbf7d0;
+  --color-green-300: #86efac;
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+  --color-green-800: #166534;
+  --color-green-900: #14532d;
+
+  /* Heart/Red accent */
+  --color-heart-50: #fef2f2;
+  --color-heart-100: #fee2e2;
+  --color-heart-200: #fecaca;
+  --color-heart-300: #fca5a5;
+  --color-heart-400: #f87171;
+  --color-heart-500: #ef4444;
+  --color-heart-600: #dc2626;
+  --color-heart-700: #b91c1c;
+  --color-heart-800: #991b1b;
+  --color-heart-900: #7f1d1d;
+
+  /* Semantic colors */
+  --color-success: var(--color-green-500);
+  --color-warning: #f59e0b;
+  --color-error: var(--color-heart-500);
+  --color-info: var(--color-blue-500);
+
+  /* ============================================================================
+     SPACING VARIABLES
+     ============================================================================ */
+
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+  --spacing-24: 6rem;
+
+  /* Touch targets */
+  --spacing-touch: 2.75rem; /* 44px */
+  --spacing-touch-large: 3.5rem; /* 56px */
+
+  /* ============================================================================
+     TYPOGRAPHY VARIABLES
+     ============================================================================ */
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* ============================================================================
+     BORDER RADIUS VARIABLES
+     ============================================================================ */
+
+  --radius-none: 0;
+  --radius-sm: 0.125rem;
+  --radius-base: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* ============================================================================
+     SHADOW VARIABLES
+     ============================================================================ */
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ============================================================================
+     Z-INDEX VARIABLES
+     ============================================================================ */
+
+  --z-hide: -1;
+  --z-auto: auto;
+  --z-base: 0;
+  --z-docked: 10;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-banner: 1200;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-skip-link: 1600;
+  --z-toast: 1700;
+  --z-tooltip: 1800;
+}
+
+/* ============================================================================
+   DARK MODE OVERRIDES
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Override colors for dark mode */
+    --color-navy-50: #102a43;
+    --color-navy-100: #243b53;
+    --color-navy-200: #334e68;
+    --color-navy-300: #486581;
+    --color-navy-400: #627d98;
+    --color-navy-500: #829ab1;
+    --color-navy-600: #9fb3c8;
+    --color-navy-700: #bcccdc;
+    --color-navy-800: #d9e2ec;
+    --color-navy-900: #f0f4f8;
+
+    /* Adjust shadows for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+/* Color utilities */
+.text-navy { color: var(--color-navy-500); }
+.text-blue { color: var(--color-blue-500); }
+.text-green { color: var(--color-green-500); }
+.text-heart { color: var(--color-heart-500); }
+
+.bg-navy { background-color: var(--color-navy-500); }
+.bg-blue { background-color: var(--color-blue-500); }
+.bg-green { background-color: var(--color-green-500); }
+.bg-heart { background-color: var(--color-heart-500); }
+
+/* Spacing utilities */
+.p-touch { padding: var(--spacing-touch); }
+.p-touch-large { padding: var(--spacing-touch-large); }
+
+/* Typography utilities */
+.text-heading {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.text-body {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+.text-caption {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-snug);
+  font-size: var(--font-size-sm);
 }
