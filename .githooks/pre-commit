@@ -4,10 +4,6 @@
 echo "🧹 Running pre-commit cache cleanup..."
 
 # Clean Python cache files
-# Pre-commit hook to clean cache files
-echo "🧹 Running pre-commit cache cleanup..."
-
-# Clean Python cache files
 if ! ./scripts/clean-cache.sh >/dev/null 2>&1; then
     echo "⚠️  Warning: Cache cleanup script failed"
 fi
