@@ -88,7 +88,8 @@
   --color-error: var(--color-heart-500);
   --color-info: var(--color-blue-500);
   --color-focus: var(--color-blue-500);
-  --color-focus-shadow: rgba(59, 130, 246, 0.1);
+  --color-focus-rgb: 59, 130, 246;
+  --color-focus-shadow: rgba(var(--color-focus-rgb), 0.1);
 
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
@@ -225,7 +226,8 @@
   --color-error-dark: var(--color-heart-400);
   --color-info-dark: var(--color-blue-400);
   --color-focus-dark: var(--color-blue-400);
-  --color-focus-shadow-dark: rgba(59, 130, 246, 0.2);
+  --color-focus-dark-rgb: 96, 165, 250;
+  --color-focus-shadow-dark: rgba(var(--color-focus-dark-rgb), 0.2);
 
   /* Dark mode shadows */
   --shadow-sm-dark: 0 1px 2px 0 rgb(0 0 0 / 0.3);
