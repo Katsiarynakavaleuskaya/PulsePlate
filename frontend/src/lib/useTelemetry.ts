@@ -66,7 +66,7 @@ export function useTelemetry() {
     paywallDismissed: useCallback((source: string, dismissMethod: string, viewDuration?: number) => {
       if (!isEnabled) return;
       vipTelemetry.paywallDismissed(source, dismissMethod, viewDuration);
-    }, [isEnabled, isVip]),
+    }, [isEnabled]),
 
     /**
      * Track upgrade click
