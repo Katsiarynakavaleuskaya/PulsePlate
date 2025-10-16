@@ -1,14 +1,16 @@
 #!/bin/bash
+set -euo pipefail
 
-# Pre-commit hook to clean cache files
-echo "🧹 Running pre-commit cache cleanup..."
+# Enhanced pre-commit hook with comprehensive checks
+echo "🔍 Running pre-commit checks..."
 
-# Clean Python cache files
+# 1. Clean Python cache files
+echo "🧹 Cleaning cache files..."
 if ! ./scripts/clean-cache.sh 2>&1 | grep -v "^🧹\|^✅\|^📋"; then
     echo "⚠️  Warning: Cache cleanup script failed"
 fi
 
-# Check if any cache files are staged
+# 2. Check if any cache files are staged
 CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$)')
 
 if [ ! -z "$CACHE_FILES" ]; then
@@ -20,5 +22,81 @@ if [ ! -z "$CACHE_FILES" ]; then
     exit 1
 fi
 
-echo "✅ No cache files detected in staged changes"
+# 3. Check for frontend changes and run tests
+FRONTEND_CHANGES=$(git diff --cached --name-only | grep "^frontend/" || true)
+
+if [ ! -z "$FRONTEND_CHANGES" ]; then
+    echo "🎨 Frontend changes detected, running tests..."
+
+    # Check if we're in the right directory
+    if [ ! -f "frontend/package.json" ]; then
+        echo "⚠️  Warning: frontend/package.json not found, skipping frontend tests"
+    else
+        cd frontend
+
+        # Run linting
+        echo "🔍 Running ESLint..."
+        if ! npm run lint --if-present; then
+            echo "❌ ESLint failed. Please fix linting errors before committing."
+            exit 1
+        fi
+
+        # Run type checking
+        echo "🔍 Running TypeScript type check..."
+        if ! npm run type-check --if-present; then
+            echo "❌ TypeScript type check failed. Please fix type errors before committing."
+            exit 1
+        fi
+
+        # Run tests for changed files
+        echo "🧪 Running tests for changed files..."
+        CHANGED_TEST_FILES=""
+        for file in $FRONTEND_CHANGES; do
+            # Convert frontend/src/path/file.tsx to src/path/file.test.tsx
+            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]]; then
+                test_file="src/${BASH_REMATCH[1]}.test.${BASH_REMATCH[2]}"
+                if [ -f "$test_file" ]; then
+                    CHANGED_TEST_FILES="$CHANGED_TEST_FILES $test_file"
+                fi
+            fi
+        done
+
+        # Run specific tests if any, otherwise run all tests
+        if [ ! -z "$CHANGED_TEST_FILES" ]; then
+            echo "Running tests for: $CHANGED_TEST_FILES"
+            if ! npm test -- --run $CHANGED_TEST_FILES; then
+                echo "❌ Tests failed. Please fix failing tests before committing."
+                exit 1
+            fi
+        else
+            echo "Running all tests..."
+            if ! npm test -- --run; then
+                echo "❌ Tests failed. Please fix failing tests before committing."
+                exit 1
+            fi
+        fi
+
+        cd ..
+    fi
+fi
+
+# 4. Check for Python changes and run basic checks
+PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
+
+if [ ! -z "$PYTHON_CHANGES" ]; then
+    echo "🐍 Python changes detected, running basic checks..."
+
+    # Check Python syntax
+    for file in $PYTHON_CHANGES; do
+        if [ -f "$file" ]; then
+            echo "Checking syntax: $file"
+            if ! python -m py_compile "$file"; then
+                echo "❌ Python syntax error in $file"
+                exit 1
+            fi
+        fi
+    done
+fi
+
+echo "✅ All pre-commit checks passed!"
 exit 0
