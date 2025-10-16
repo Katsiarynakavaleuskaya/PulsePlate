@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Check for duplicate imports in TypeScript files
 echo "📦 Checking for duplicate imports..."
-DUPLICATE_IMPORTS=$(find frontend/src -name "*.ts" -o -name "*.tsx" | xargs grep -l "import.*from.*import" || true)
+DUPLICATE_IMPORTS=$(find frontend/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec grep -h "from ['\"].*['\"]" {} \; | sort | uniq -d || true)
 if [ ! -z "$DUPLICATE_IMPORTS" ]; then
     echo "❌ Found files with potential duplicate imports:"
     echo "$DUPLICATE_IMPORTS"
@@ -16,7 +16,7 @@ fi
 
 # Check for duplicate test cases
 echo "🧪 Checking for duplicate test cases..."
-DUPLICATE_TESTS=$(find frontend/src -name "*.test.ts" -o -name "*.test.tsx" | xargs grep -n "it(" | sort | uniq -d || true)
+DUPLICATE_TESTS=$(find frontend/src -type f \( -name "*.test.ts" -o -name "*.test.tsx" \) -exec grep -oh "it(['\"][^'\"]*['\"]" {} \; | sort | uniq -d || true)
 if [ ! -z "$DUPLICATE_TESTS" ]; then
     echo "❌ Found potential duplicate test cases:"
     echo "$DUPLICATE_TESTS"
