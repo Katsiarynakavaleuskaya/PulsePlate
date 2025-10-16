@@ -16,6 +16,8 @@ export * from './usePremium';
 
 // Analytics
 export * from './analytics';
+export * from './telemetry';
+export * from './useTelemetry';
 
 // Settings
 export * from './settings';
