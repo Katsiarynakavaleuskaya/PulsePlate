@@ -58,11 +58,32 @@
   --color-heart-800: #991b1b;
   --color-heart-900: #7f1d1d;
 
-  /* Semantic colors */
+  /* Base UI semantic tokens */
+  --color-primary: var(--color-blue-600);
+  --color-primary-foreground: #fff;
+  --color-bg: #fff;
+  --color-surface: var(--color-navy-50);
+  --color-surface-muted: var(--color-navy-100);
+  --color-border: var(--color-navy-200);
+  --color-text: var(--color-navy-900);
+  --color-text-muted: var(--color-navy-500);
+
+  /* Status semantic colors */
   --color-success: var(--color-green-500);
   --color-warning: #f59e0b;
   --color-error: var(--color-heart-500);
   --color-info: var(--color-blue-500);
+
+  /* Legacy aliases (deprecated) */
+  --pp-navy: var(--color-navy-900);
+  --pp-primary: var(--color-blue-500);
+  --pp-gold: #D4AF37;
+  --pp-accent: #20C997;
+  --pp-text: #FFFFFF;
+  --pp-muted: #94A3B8;
+  --pp-radius-xl: 1.25rem;
+  --pp-space-2: var(--spacing-2);
+  --pp-space-3: var(--spacing-3);
 
   /* ============================================================================
      SPACING VARIABLES
@@ -89,6 +110,8 @@
   /* ============================================================================
      TYPOGRAPHY VARIABLES
      ============================================================================ */
+
+  --font-family-base: Inter, system-ui, sans-serif;
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -158,6 +181,45 @@
    DARK MODE OVERRIDES
    ============================================================================ */
 
+/* Attribute-based dark mode (for manual theme switching) */
+[data-theme="dark"] {
+  /* Override colors for dark mode */
+  --color-navy-50: #102a43;
+  --color-navy-100: #243b53;
+  --color-navy-200: #334e68;
+  --color-navy-300: #486581;
+  --color-navy-400: #627d98;
+  --color-navy-500: #829ab1;
+  --color-navy-600: #9fb3c8;
+  --color-navy-700: #bcccdc;
+  --color-navy-800: #d9e2ec;
+  --color-navy-900: #f0f4f8;
+
+  /* Override semantic colors for dark mode */
+  --color-primary: var(--color-blue-400);
+  --color-primary-foreground: var(--color-navy-900);
+  --color-bg: var(--color-navy-900);
+  --color-surface: var(--color-navy-800);
+  --color-surface-muted: var(--color-navy-700);
+  --color-border: var(--color-navy-600);
+  --color-text: var(--color-navy-50);
+  --color-text-muted: var(--color-navy-300);
+
+  /* Override status colors for dark mode */
+  --color-success: var(--color-green-400);
+  --color-warning: #fbbf24;
+  --color-error: var(--color-heart-400);
+  --color-info: var(--color-blue-400);
+
+  /* Adjust shadows for dark mode */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+}
+
+/* System preference-based dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
     /* Override colors for dark mode */
@@ -172,6 +234,22 @@
     --color-navy-800: #d9e2ec;
     --color-navy-900: #f0f4f8;
 
+    /* Override semantic colors for dark mode */
+    --color-primary: var(--color-blue-400);
+    --color-primary-foreground: var(--color-navy-900);
+    --color-bg: var(--color-navy-900);
+    --color-surface: var(--color-navy-800);
+    --color-surface-muted: var(--color-navy-700);
+    --color-border: var(--color-navy-600);
+    --color-text: var(--color-navy-50);
+    --color-text-muted: var(--color-navy-300);
+
+    /* Override status colors for dark mode */
+    --color-success: var(--color-green-400);
+    --color-warning: #fbbf24;
+    --color-error: var(--color-heart-400);
+    --color-info: var(--color-blue-400);
+
     /* Adjust shadows for dark mode */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
     --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
@@ -181,41 +259,3 @@
   }
 }
 
-/* ============================================================================
-   UTILITY CLASSES
-   ============================================================================ */
-
-/* Color utilities */
-.text-navy { color: var(--color-navy-500); }
-.text-blue { color: var(--color-blue-500); }
-.text-green { color: var(--color-green-500); }
-.text-heart { color: var(--color-heart-500); }
-
-.bg-navy { background-color: var(--color-navy-500); }
-.bg-blue { background-color: var(--color-blue-500); }
-.bg-green { background-color: var(--color-green-500); }
-.bg-heart { background-color: var(--color-heart-500); }
-
-/* Spacing utilities */
-.p-touch { padding: var(--spacing-touch); }
-.p-touch-large { padding: var(--spacing-touch-large); }
-
-/* Typography utilities */
-.text-heading {
-  font-family: Inter, system-ui, sans-serif;
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-}
-
-.text-body {
-  font-family: Inter, system-ui, sans-serif;
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-normal);
-}
-
-.text-caption {
-  font-family: Inter, system-ui, sans-serif;
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-snug);
-  font-size: var(--font-size-sm);
-}
