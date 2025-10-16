@@ -1,10 +1,12 @@
+import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { Toaster, showSuccess, showError, showInfo, showWarning, showLoading, dismissToast, dismissAllToasts } from '../Toast';
+import { Info, AlertCircle } from 'lucide-react';
 
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => {
-  const mockToast = vi.fn();
+  const mockToast = vi.fn() as any;
   mockToast.success = vi.fn();
   mockToast.error = vi.fn();
   mockToast.loading = vi.fn();
@@ -77,7 +79,9 @@ describe('Toast functions', () => {
     const message = 'Info message';
     showInfo(message);
     expect(mockToast).toHaveBeenCalledWith(message, {
-      icon: expect.any(Object),
+      icon: expect.objectContaining({
+        type: Info,
+      }),
     });
   });
 
@@ -85,7 +89,9 @@ describe('Toast functions', () => {
     const message = 'Warning message';
     showWarning(message);
     expect(mockToast).toHaveBeenCalledWith(message, {
-      icon: expect.any(Object),
+      icon: expect.objectContaining({
+        type: AlertCircle,
+      }),
       style: {
         borderColor: 'rgba(245, 158, 11, 0.3)',
       },

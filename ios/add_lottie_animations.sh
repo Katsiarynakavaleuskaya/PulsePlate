@@ -36,6 +36,7 @@ for src in "$@"; do
   shopt -s nocasematch
   if [[ ! "$ext" =~ ^(json)$ ]]; then
     echo "⚠️ Skipping unsupported file (only .json): $src" >&2
+    shopt -u nocasematch
     continue
   fi
   shopt -u nocasematch
@@ -54,7 +55,14 @@ done
 while IFS= read -r -d '' f; do
   bn="$(basename "$f")";
   bn_no_ext="${bn%.*}";
-  if [[ " ${copied_basenames[*]} " != *" $bn_no_ext "* ]]; then
+  seen=false
+  for existing in "${copied_basenames[@]}"; do
+    if [[ "$existing" == "$bn_no_ext" ]]; then
+      seen=true
+      break
+    fi
+  done
+  if [ "$seen" = false ]; then
     copied_basenames+=("$bn_no_ext")
   fi
 done < <(find "$TARGET_RES_DIR" -maxdepth 1 -type f -iname "*.json" -print0)
@@ -83,9 +91,9 @@ public extension LottieAssets {
 }
 SWIFT
 
-echo "\n🎉 Generated: $GEN_SWIFT_FILE"
+echo -e "\n🎉 Generated: $GEN_SWIFT_FILE"
 echo "   Cases: ${#copied_basenames[@]} (${copied_basenames[*]})"
 
-echo "\nNext steps:"
+echo -e "\nNext steps:"
 echo "- Open Xcode and build. The files in Resources/Lottie will be embedded into the app bundle."
 echo "- Use them via LottieAnimation.named(\"animation_name\"), e.g.: LottieAnimation.named(LottieAssets.fitchef_blink.rawValue)"

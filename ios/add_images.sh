@@ -83,9 +83,7 @@ public extension ImageAssets {
 }
 SWIFT
 
-echo "\n🎉 Generated: $GEN_SWIFT_FILE"
-echo "   Cases: ${#copied_basenames[@]} (${copied_basenames[*]})"
-
-echo "\nNext steps:"
+printf '\n🎉 Generated: %s\n' "$GEN_SWIFT_FILE"
+printf '   Cases: %s (%s)\n\nNext steps:\n' "${#copied_basenames[@]}" "${copied_basenames[*]}"
 echo "- Open Xcode and build. The files in Resources/Images will be embedded into the app bundle."
 echo "- Use them via SwiftUI Image(name,bundle:.module), e.g.: Image(ImageAssets.fitchef_icon.rawValue, bundle: .module)"
