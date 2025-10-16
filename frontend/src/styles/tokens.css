@@ -228,9 +228,9 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
 }
 
-/* System preference-based dark mode */
+/* System preference-based dark mode (fallback when no data-theme is set) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     /* Override colors for dark mode */
     --color-navy-50: #102a43;
     --color-navy-100: #243b53;
