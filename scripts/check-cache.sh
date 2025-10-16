@@ -27,10 +27,10 @@ PYO_FILES=$(find . -path ./.git -prune -o -type f -name "*.pyo" -print 2>/dev/nu
 PYD_FILES=$(find . -path ./.git -prune -o -type f -name "*.pyd" -print 2>/dev/null)
 
 # Robust counting that handles empty strings and whitespace
-PYCACHE_COUNT=$(printf '%s\n' "$PYCACHE_DIRS" | grep -v '^[[:space:]]*$' | wc -l)
-PYC_COUNT=$(printf '%s\n' "$PYC_FILES" | grep -v '^[[:space:]]*$' | wc -l)
-PYO_COUNT=$(printf '%s\n' "$PYO_FILES" | grep -v '^[[:space:]]*$' | wc -l)
-PYD_COUNT=$(printf '%s\n' "$PYD_FILES" | grep -v '^[[:space:]]*$' | wc -l)
+PYCACHE_COUNT=$(if [ -n "$PYCACHE_DIRS" ]; then printf '%s\n' "$PYCACHE_DIRS" | grep -v '^[[:space:]]*$' | wc -l; else echo 0; fi)
+PYC_COUNT=$(if [ -n "$PYC_FILES" ]; then printf '%s\n' "$PYC_FILES" | grep -v '^[[:space:]]*$' | wc -l; else echo 0; fi)
+PYO_COUNT=$(if [ -n "$PYO_FILES" ]; then printf '%s\n' "$PYO_FILES" | grep -v '^[[:space:]]*$' | wc -l; else echo 0; fi)
+PYD_COUNT=$(if [ -n "$PYD_FILES" ]; then printf '%s\n' "$PYD_FILES" | grep -v '^[[:space:]]*$' | wc -l; else echo 0; fi)
 
 echo "📁 __pycache__ directories: $PYCACHE_COUNT"
 echo "🐍 .pyc files: $PYC_COUNT"
@@ -73,7 +73,7 @@ if [ "$TOTAL_CACHE_FILES" -gt 0 ]; then
     echo "🏆 Largest cache directories:"
     # Portable: use KB sizes and numeric sort
     find . -path ./.git -prune -o -type d -name "__pycache__" -exec du -sk {} + 2>/dev/null \
-      | sort -nr | head -5 | awk '{ printf "  📁 %s: %sK\n", $2, $1 }' || echo "  (No cache directories found)"
+      | sort -nr | head -5 | awk '{ size=$1; $1=""; sub(/^ /,""); printf "  📁 %s: %sK\n", $0, size }' || echo "  (No cache directories found)"
 
     # Show cache files by directory
     echo ""
@@ -94,13 +94,13 @@ echo ""
 echo "🔧 .gitignore Analysis:"
 
 if [ -f .gitignore ]; then
-    CACHE_RULES=$(grep -E -v '^[[:space:]]*#' .gitignore | grep -E "(pycache|\.pyc|\.pyo|\.pyd)" | wc -l)
+    CACHE_RULES=$(awk '!/^[[:space:]]*#/ && /pycache|\.pyc|\.pyo|\.pyd/' .gitignore | wc -l)
     echo "  📋 Cache-related .gitignore rules: $CACHE_RULES"
 
     if [ "$CACHE_RULES" -gt 0 ]; then
         echo "  ✅ .gitignore contains cache rules"
         echo "  📝 Current cache rules:"
-        grep -E -v '^[[:space:]]*#' .gitignore | grep -E "(pycache|\.pyc|\.pyo|\.pyd)" | sed 's/^/    /'
+        awk '!/^[[:space:]]*#/ && /pycache|\.pyc|\.pyo|\.pyd/' .gitignore | sed 's/^/    /'
     else
         echo "  ⚠️  No cache rules found in .gitignore"
     fi
@@ -148,13 +148,13 @@ echo ""
 echo "🔍 Git Tracking Analysis:"
 
 if git rev-parse --git-dir > /dev/null 2>&1; then
-    TRACKED_CACHE=$(git ls-files | grep -E "(pycache|\.pyc|\.pyo|\.pyd)" | wc -l)
+    TRACKED_CACHE=$(git ls-files | { grep -E "(pycache|\.pyc|\.pyo|\.pyd)" || true; } | wc -l)
     echo "  📊 Cache files tracked by git: $TRACKED_CACHE"
 
 if [ "$TRACKED_CACHE" -gt 0 ]; then
     echo "  ⚠️  Warning: Some cache files are tracked by git!"
     echo "  📝 Tracked cache files:"
-    git ls-files | grep -E "(pycache|\.pyc|\.pyo|\.pyd)" | head -10 | sed 's/^/    /'
+    git ls-files | { grep -E "(pycache|\.pyc|\.pyo|\.pyd)" || true; } | head -10 | sed 's/^/    /'
     if [ "$TRACKED_CACHE" -gt 10 ]; then
         echo "    ... and $((TRACKED_CACHE - 10)) more"
     fi
@@ -211,8 +211,8 @@ fi
 
 if [ "$TRACKED_CACHE" -gt 0 ]; then
     echo "  🚫 Remove cache files from git tracking:"
-    echo "     git rm -r --cached **/__pycache__"
-    echo "     git rm --cached **/*.pyc"
+    echo "     find . -type d -name '__pycache__' -print0 | xargs -0 git rm -r --cached"
+    echo "     find . -type f -name '*.pyc' -print0 | xargs -0 git rm --cached"
 fi
 
 if [ "$CACHE_RULES" -eq 0 ]; then

@@ -46,7 +46,7 @@ DUPLICATE_FUNCTIONS=$(
   | sed -E 's/^(export\s+)?(async\s+)?function\s+//; s/^(export\s+)?(const|let|var)\s+//; s/\s*\(.*$//' \
   | sort | uniq -d || true
 )
-if [ ! -z "$DUPLICATE_FUNCTIONS" ]; then
+if [ -n "$DUPLICATE_FUNCTIONS" ]; then
     echo "⚠️  Found potential duplicate function names:"
     echo "$DUPLICATE_FUNCTIONS"
     echo "Note: This might be false positive for legitimate function overloading"
@@ -59,7 +59,7 @@ DUPLICATE_STRINGS=$(
   | xargs -0 grep -ohE '"[^"]{20,}"' \
   | sort | uniq -c | sort -nr | head -10 || true
 )
-if [ ! -z "$DUPLICATE_STRINGS" ]; then
+if [ -n "$DUPLICATE_STRINGS" ]; then
     echo "📊 Most common strings (potential candidates for constants):"
     echo "$DUPLICATE_STRINGS"
 fi

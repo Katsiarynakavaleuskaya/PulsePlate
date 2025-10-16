@@ -60,6 +60,18 @@
   --color-heart-800: #991b1b;
   --color-heart-900: #7f1d1d;
 
+  /* Neutral grays */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
   /* Base UI semantic tokens */
   --color-primary: var(--color-blue-600);
   --color-primary-foreground: #fff;
@@ -76,6 +88,7 @@
   --color-error: var(--color-heart-500);
   --color-info: var(--color-blue-500);
   --color-focus: var(--color-blue-500);
+  --color-focus-shadow: rgba(59, 130, 246, 0.1);
 
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
@@ -212,6 +225,7 @@
   --color-error-dark: var(--color-heart-400);
   --color-info-dark: var(--color-blue-400);
   --color-focus-dark: var(--color-blue-400);
+  --color-focus-shadow-dark: rgba(59, 130, 246, 0.2);
 
   /* Dark mode shadows */
   --shadow-sm-dark: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -241,6 +255,7 @@ html[data-theme="dark"] {
   --color-error: var(--color-error-dark);
   --color-info: var(--color-info-dark);
   --color-focus: var(--color-focus-dark);
+  --color-focus-shadow: var(--color-focus-shadow-dark);
 
   /* Adjust shadows for dark mode */
   --shadow-sm: var(--shadow-sm-dark);
@@ -276,6 +291,7 @@ html[data-theme="light"] {
     --color-error: var(--color-error-dark);
     --color-info: var(--color-info-dark);
     --color-focus: var(--color-focus-dark);
+    --color-focus-shadow: var(--color-focus-shadow-dark);
 
     /* Adjust shadows for dark mode */
     --shadow-sm: var(--shadow-sm-dark);
