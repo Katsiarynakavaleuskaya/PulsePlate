@@ -58,13 +58,12 @@ describe('Design Tokens', () => {
     });
 
     it('should have proper color progression (darker to lighter)', () => {
-      const navyValues = Object.values(colors.navy);
       // 500 should be the base color
-      expect(navyValues[4]).toBe('#627d98'); // navy-500
+      expect(colors.navy[500]).toBe('#627d98'); // navy-500
 
       // Higher numbers should be darker
-      expect(navyValues[5]).toBe('#486581'); // navy-600
-      expect(navyValues[6]).toBe('#334e68'); // navy-700
+      expect(colors.navy[600]).toBe('#486581'); // navy-600
+      expect(colors.navy[700]).toBe('#334e68'); // navy-700
     });
   });
 
@@ -159,7 +158,6 @@ describe('Design Tokens', () => {
       expect(borderRadius.full).toBe('9999px');
     });
   });
-  });
 
   describe('Shadows', () => {
     it('should have defined shadow values', () => {
@@ -239,7 +237,7 @@ describe('Design Tokens', () => {
 
     it('should have touch-friendly spacing', () => {
       // Touch targets should be at least 44px
-      const touchTarget = parseFloat(spacing.touch);
+      const touchTarget = parseFloat(spacing.touch.replace('rem', ''));
       expect(touchTarget).toBeGreaterThanOrEqual(2.75); // 44px in rem
     });
   });
