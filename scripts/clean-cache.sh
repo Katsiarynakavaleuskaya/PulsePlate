@@ -10,10 +10,19 @@ echo "================================="
 # Count files before cleanup
 echo "📊 Analyzing cache files before cleanup..."
 
-PYCACHE_COUNT=$(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null | grep -zc .)
-PYC_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null | grep -zc .)
-PYO_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null | grep -zc .)
-PYD_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null | grep -zc .)
+# Utility to count NUL-separated results safely
+count_null_separated() {
+    local count=0
+    while IFS= read -r -d '' _; do
+        ((count++))
+    done
+    printf '%d\n' "$count"
+}
+
+PYCACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null))
+PYC_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null))
+PYO_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null))
+PYD_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null))
 
 echo "Found:"
 echo "  📁 __pycache__ directories: $PYCACHE_COUNT"
