@@ -6,6 +6,8 @@
  */
 
 :root {
+  color-scheme: light;
+
   /* ============================================================================
      COLOR VARIABLES
      ============================================================================ */
@@ -85,11 +87,11 @@
   --color-text-muted: var(--color-navy-500);
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
-  --pp-primary: var(--color-blue-500);
+  --pp-primary: var(--color-primary);
   --pp-gold: #D4AF37;
   --pp-accent: #20C997;
-  --pp-text: #FFFFFF;
-  --pp-muted: #94A3B8;
+  --pp-text: var(--color-text);
+  --pp-muted: var(--color-text-muted);
   --pp-radius-xl: 1.25rem;
   --pp-space-2: var(--spacing-2);
   --pp-space-3: var(--spacing-3);
@@ -192,21 +194,11 @@
 
 /* Attribute-based dark mode (for manual theme switching) */
 [data-theme="dark"] {
-  /* Override colors for dark mode */
-  --color-navy-50: #102a43;
-  --color-navy-100: #243b53;
-  --color-navy-200: #334e68;
-  --color-navy-300: #486581;
-  --color-navy-400: #627d98;
-  --color-navy-500: #829ab1;
-  --color-navy-600: #9fb3c8;
-  --color-navy-700: #bcccdc;
-  --color-navy-800: #d9e2ec;
-  --color-navy-900: #f0f4f8;
+  color-scheme: dark;
 
   /* Override semantic colors for dark mode */
   --color-primary: var(--color-blue-400);
-  --color-primary-foreground: var(--color-navy-900);
+  --color-primary-foreground: #fff;
   --color-bg: var(--color-navy-900);
   --color-surface: var(--color-navy-800);
   --color-surface-muted: var(--color-navy-700);
@@ -231,21 +223,11 @@
 /* System preference-based dark mode (fallback when no data-theme is set) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    /* Override colors for dark mode */
-    --color-navy-50: #102a43;
-    --color-navy-100: #243b53;
-    --color-navy-200: #334e68;
-    --color-navy-300: #486581;
-    --color-navy-400: #627d98;
-    --color-navy-500: #829ab1;
-    --color-navy-600: #9fb3c8;
-    --color-navy-700: #bcccdc;
-    --color-navy-800: #d9e2ec;
-    --color-navy-900: #f0f4f8;
+    color-scheme: dark;
 
     /* Override semantic colors for dark mode */
     --color-primary: var(--color-blue-400);
-    --color-primary-foreground: var(--color-navy-900);
+    --color-primary-foreground: #fff;
     --color-bg: var(--color-navy-900);
     --color-surface: var(--color-navy-800);
     --color-surface-muted: var(--color-navy-700);
