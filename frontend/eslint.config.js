@@ -61,7 +61,8 @@ export default tseslint.config(
       'no-duplicate-imports': 'error',
       'no-duplicate-case': 'error',
       'no-dupe-keys': 'error',
-      'no-redeclare': 'error',
+      'no-redeclare': 'off', // Disable base rule in favor of TypeScript version
+      '@typescript-eslint/no-redeclare': 'error',
       'no-var': 'error', // Prefer const/let to avoid hoisting issues
       'prefer-const': 'error'
     },

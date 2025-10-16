@@ -39,7 +39,7 @@ export type FeatureFlags = ReturnType<typeof getFeatureFlagsInternal>;
  * }
  * ```
  */
-export const getFeatureFlags = getFeatureFlagsInternal;
+export const getFeatureFlags = () => FLAGS;
 
 /**
  * Cached feature flags (evaluated once at module load)
