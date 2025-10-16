@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { tabRoutes } from "../config/routes";
 import { useState, useEffect, useRef } from "react";
 import { useVipModule } from "../lib/useFeatureFlag";
+import { getGridColsClass } from "./TabBar.helpers";
 
 export default function TabBar() {
   const { pathname } = useLocation();
@@ -11,7 +12,7 @@ export default function TabBar() {
   const { t } = useTranslation();
   const isVipEnabled = useVipModule();
   const [clickedDisabled, setClickedDisabled] = useState<string | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -39,18 +40,6 @@ export default function TabBar() {
   const visibleTabs = tabRoutes.filter(route => !route.requiresVip || isVipEnabled);
   const visibleTabsCount = Math.min(Math.max(visibleTabs.length, 1), 6); // Clamp to 1-6 range
 
-  // Map count to explicit Tailwind classes
-  const getGridColsClass = (count: number): string => {
-    switch (count) {
-      case 1: return 'grid-cols-1';
-      case 2: return 'grid-cols-2';
-      case 3: return 'grid-cols-3';
-      case 4: return 'grid-cols-4';
-      case 5: return 'grid-cols-5';
-      case 6: return 'grid-cols-6';
-      default: return 'grid-cols-3'; // fallback
-    }
-  };
 
   return (
     <nav
@@ -58,9 +47,7 @@ export default function TabBar() {
       aria-label="Main tabs"
       className={`fixed bottom-0 inset-x-0 grid ${getGridColsClass(visibleTabsCount)} border-t border-muted/30 bg-navy`}
     >
-      {tabRoutes
-        .filter(route => !route.requiresVip || isVipEnabled) // Hide VIP routes when VIP is disabled
-        .map(({ path: to, label, requiresAuth, requiresVip }) => {
+      {visibleTabs.map(({ path: to, label, requiresAuth, requiresVip }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
         const isDisabled = (requiresAuth && !apiKey) || (requiresVip && !isVipEnabled);
         const isClicked = clickedDisabled === to;
@@ -76,7 +63,7 @@ export default function TabBar() {
               role="tab"
               aria-disabled="true"
               tabIndex={-1}
-              title={t("auth.requiresApiKey")}
+              title={requiresVip && !isVipEnabled ? t("vip.requiresVip") : t("auth.requiresApiKey")}
             >
               {/* Lock overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-navy/80 rounded-lg backdrop-blur-sm">

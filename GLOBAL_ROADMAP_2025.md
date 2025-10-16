@@ -49,19 +49,9 @@
 
 ## 🔄 ФАЗА 2: OpenAPI Infrastructure (Week 2) - В ПРОЦЕССЕ
 
-### ✅ PR #2.1: Feature Flags Setup - ЗАВЕРШЕНО
-- **Статус**: ЗАВЕРШЕНО ✅
-- **Цель**: Базовая инфраструктура для VIP модулей через feature flags
-- **Решение**:
-  - Создан `src/config/features.ts` с типизированными флагами
-  - Добавлены React хуки: `useFeatureFlag()`, `useVipModule()`, `useAnalytics()`
-  - Созданы VIP компоненты: `VipFeature`, `VipBadge`, `VipGate`
-  - Интеграция с TabBar для условного отображения VIP табов
-  - **Ключевое решение**: Мок по модулям вместо мока `import.meta.env` (Vite-специфичный подход)
-- **Тестирование**: 25 тестов покрывают всю функциональность
+## 🔄 ФАЗА 2: OpenAPI Infrastructure (Week 2) - В ПРОЦЕССЕ
 
-**Результат**: Полная инфраструктура feature flags готова ✅
-
+### 📋 PR #2.2: Design Tokens Foundation (≤150 строк) - ПЛАНИРУЕТСЯ
 ### 📋 PR #2.2: Design Tokens Foundation (≤150 строк) - ПЛАНИРУЕТСЯ
 - **Цель**: Единая система дизайн-токенов для консистентного UI
 - **Критерии**: Цвета, размеры, типографика определены; CSS custom properties работают

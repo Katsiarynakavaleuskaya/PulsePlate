@@ -14,7 +14,7 @@ export { default as PremiumGate } from './PremiumGate';
 export * from './VipFeature';
 
 // Paywall components
-export * from './Paywall/BeforeAfter';
+export { default as BeforeAfter } from './Paywall/BeforeAfter';
 
 // UI components
 export * from './ui';

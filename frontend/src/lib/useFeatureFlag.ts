@@ -53,8 +53,7 @@ export const useFeatureFlag = (): FeatureFlags => {
  * ```
  */
 export const useFeatureFlagValue = (flagName: FeatureFlagName): boolean => {
-  const flags = useFeatureFlag();
-  return flags[flagName];
+  return useMemo(() => getFeatureFlags()[flagName], [flagName]);
 };
 
 /**
