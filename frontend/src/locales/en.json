@@ -73,7 +73,10 @@
   "vip": {
     "title": "Unlock VIP",
     "subtitle": "Advanced analytics, premium features, priority support.",
-    "cta": "Upgrade to VIP"
+    "cta": "Upgrade to VIP",
+    "badge": "VIP",
+    "badgeAria": "VIP status",
+    "gatedAria": "VIP gated content"
   },
   "paywall": {
     "title": "Unlock Premium",
