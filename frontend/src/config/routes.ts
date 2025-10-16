@@ -12,6 +12,7 @@ export interface RouteConfig {
   requiresAuth: boolean;
   component: ComponentType;
   hideTabBar?: boolean;
+  requiresVip?: boolean;
 }
 
 // Union type for all route paths to ensure exhaustiveness
