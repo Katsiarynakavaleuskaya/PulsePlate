@@ -7,6 +7,10 @@ set -euo pipefail
 echo "🔍 Python Cache Analysis Report"
 echo "==============================="
 
+# Initialize variables
+TRACKED_CACHE=0
+CACHE_RULES=0
+
 # Check if we're in a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
     echo "⚠️  Warning: Not in a git repository"
@@ -22,10 +26,11 @@ PYC_FILES=$(find . -path ./.git -prune -o -type f -name "*.pyc" -print 2>/dev/nu
 PYO_FILES=$(find . -path ./.git -prune -o -type f -name "*.pyo" -print 2>/dev/null)
 PYD_FILES=$(find . -path ./.git -prune -o -type f -name "*.pyd" -print 2>/dev/null)
 
-PYCACHE_COUNT=$(echo "$PYCACHE_DIRS" | grep -c "^" || echo "0")
-PYC_COUNT=$(echo "$PYC_FILES" | grep -c "^" || echo "0")
-PYO_COUNT=$(echo "$PYO_FILES" | grep -c "^" || echo "0")
-PYD_COUNT=$(echo "$PYD_FILES" | grep -c "^" || echo "0")
+# Robust counting that handles empty strings and whitespace
+PYCACHE_COUNT=$(printf '%s\n' "$PYCACHE_DIRS" | grep -v '^[[:space:]]*$' | wc -l)
+PYC_COUNT=$(printf '%s\n' "$PYC_FILES" | grep -v '^[[:space:]]*$' | wc -l)
+PYO_COUNT=$(printf '%s\n' "$PYO_FILES" | grep -v '^[[:space:]]*$' | wc -l)
+PYD_COUNT=$(printf '%s\n' "$PYD_FILES" | grep -v '^[[:space:]]*$' | wc -l)
 
 echo "📁 __pycache__ directories: $PYCACHE_COUNT"
 echo "🐍 .pyc files: $PYC_COUNT"
@@ -42,8 +47,25 @@ echo ""
 echo "💾 Size Analysis:"
 
 if [ "$TOTAL_CACHE_FILES" -gt 0 ]; then
-    # Calculate size of cache files
-    CACHE_SIZE=$(find . -path ./.git -prune -o \( -name "__pycache__" -o -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -exec du -ch {} + 2>/dev/null | tail -1 | cut -f1 || echo "0")
+    # Calculate size of cache files (portable approach)
+    if du --version >/dev/null 2>&1; then
+        # GNU du available, use -ch for human readable
+        CACHE_SIZE=$(find . -path ./.git -prune -o \( -name "__pycache__" -o -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -exec du -ch {} + 2>/dev/null | tail -1 | cut -f1)
+    else
+        # BSD/macOS du, use -sk and convert to human readable
+        CACHE_SIZE_KB=$(find . -path ./.git -prune -o \( -name "__pycache__" -o -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -exec du -sk {} + 2>/dev/null | awk '{sum+=$1} END {print sum}')
+        if [ -n "$CACHE_SIZE_KB" ] && [ "$CACHE_SIZE_KB" -gt 0 ]; then
+            CACHE_SIZE="${CACHE_SIZE_KB}K"
+        else
+            CACHE_SIZE="0"
+        fi
+    fi
+
+    # Ensure CACHE_SIZE is never empty
+    if [ -z "$CACHE_SIZE" ]; then
+        CACHE_SIZE="0"
+    fi
+
     echo "  📏 Total cache size: $CACHE_SIZE"
 
     # Show largest cache directories
@@ -54,7 +76,7 @@ if [ "$TOTAL_CACHE_FILES" -gt 0 ]; then
     # Show cache files by directory
     echo ""
     echo "📂 Cache files by directory:"
-    find . -path ./.git -prune -o -type d -name "__pycache__" -print 2>/dev/null | while read -r dir; do
+    find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null | while IFS= read -r -d '' dir; do
         if [ -d "$dir" ]; then
             COUNT=$(find "$dir" -name "*.pyc" -o -name "*.pyo" | wc -l)
             SIZE=$(du -sh "$dir" 2>/dev/null | cut -f1 || echo "0")

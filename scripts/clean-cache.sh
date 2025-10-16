@@ -10,10 +10,10 @@ echo "================================="
 # Count files before cleanup
 echo "📊 Analyzing cache files before cleanup..."
 
-PYCACHE_COUNT=$(find . -path ./.git -prune -o -type d -name "__pycache__" -print | wc -l)
-PYC_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyc" -print | wc -l)
-PYO_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyo" -print | wc -l)
-PYD_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyd" -print | wc -l)
+PYCACHE_COUNT=$(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null | grep -zc .)
+PYC_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null | grep -zc .)
+PYO_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null | grep -zc .)
+PYD_COUNT=$(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null | grep -zc .)
 
 echo "Found:"
 echo "  📁 __pycache__ directories: $PYCACHE_COUNT"
@@ -85,4 +85,4 @@ echo "✅ Cache cleanup completed successfully!"
 # Show git status to verify
 echo ""
 echo "📋 Current git status:"
-git status --porcelain | head -10 || echo "  (No git repository or no changes)"
+git status --porcelain 2>/dev/null | head -10 || echo "  (No git repository or no changes)"
