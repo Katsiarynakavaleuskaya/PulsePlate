@@ -3,7 +3,7 @@
 ## 📋 Checklist
 
 ### Code Quality
-- [ ] **No Duplication**: I have checked for and removed any duplicate code, imports, or logic
+
 - [ ] **ESLint Clean**: lint script passes with 0 warnings
 - [ ] **TypeScript Clean**: type-check script passes with 0 errors
 - [ ] **Tests Pass**: All tests pass and coverage is maintained or improved
@@ -16,12 +16,15 @@
 - [ ] **CI**: All workflows green for this PR
 
 ### Duplication Prevention
+
+- [ ] **No Duplication**: I have checked for and removed any duplicate code, imports, or logic
 - [ ] **Static Analysis**: ESLint rules for duplication are satisfied
 - [ ] **Shared Components**: Common UI patterns are extracted to reusable components
 - [ ] **Business Logic**: Repeated logic is moved to custom hooks or services
 - [ ] **No exact duplicate tests in the same test suite** (tests that cover the same functionality in different contexts (unit vs integration) or distinct edge cases are allowed)
 
 ### Testing Checklist
+
 - [ ] **Unit Tests**: New functionality has unit tests
 - [ ] **Integration Tests**: Critical paths are covered
 - [ ] **Snapshot Tests**: UI changes have snapshot tests where appropriate
@@ -29,6 +32,7 @@
 - [ ] **Visual Regression**: Visual checks run for changed UI (if applicable)
 
 ### Additional Considerations
+
 - [ ] **Documentation**: Code is properly documented and README updated if needed
 - [ ] **Breaking Changes**: Any breaking changes are documented and migration path provided
 - [ ] **Performance**: No significant performance regressions introduced
