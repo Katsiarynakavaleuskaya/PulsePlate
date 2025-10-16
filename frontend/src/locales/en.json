@@ -70,6 +70,11 @@
     "kcal": "kcal",
     "noItems": "No items"
   },
+  "vip": {
+    "title": "Unlock VIP",
+    "subtitle": "Advanced analytics, premium features, priority support.",
+    "cta": "Upgrade to VIP"
+  },
   "paywall": {
     "title": "Unlock Premium",
     "subtitle": "Personalized plate, micro-balance, weekly plan.",
