@@ -18,6 +18,21 @@ vi.mock('../../lib/useFeatureFlag', () => ({
   useVipModule: () => mockUseVipModule(),
 }));
 
+// Mock useTelemetry hook
+const mockUseTelemetry = vi.fn();
+const mockTrack = {
+  moduleViewed: vi.fn(),
+  featureClicked: vi.fn(),
+  paywallViewed: vi.fn(),
+  paywallDismissed: vi.fn(),
+  upgradeClicked: vi.fn(),
+  gateInteracted: vi.fn(),
+  badgeViewed: vi.fn(),
+};
+vi.mock('../../lib/useTelemetry', () => ({
+  useTelemetry: () => mockUseTelemetry(),
+}));
+
 // Mock useTranslation
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -38,6 +53,13 @@ vi.mock('../Paywall/BeforeAfter', () => ({
 describe('VipFeature', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Setup default telemetry mock
+    mockUseTelemetry.mockReturnValue({
+      track: mockTrack,
+      isEnabled: true,
+      isVip: false,
+    });
   });
 
   afterEach(() => {
@@ -185,6 +207,49 @@ describe('VipFeature', () => {
       fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
       expect(screen.getByTestId('paywall')).toBeInTheDocument();
     });
+
+    it('should track telemetry events on gate interaction', () => {
+
+      render(
+        <VipGate isVip={false} source="dashboard">
+          <div>Preview</div>
+        </VipGate>
+      );
+
+      // Click the CTA button
+      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
+
+      expect(mockTrack.gateInteracted).toHaveBeenCalledWith('preview_gate', 'click');
+      expect(mockTrack.upgradeClicked).toHaveBeenCalledWith('dashboard', 'preview_gate');
+    });
+
+    it('should track paywall dismissal', () => {
+
+      render(
+        <VipGate isVip={false} source="dashboard">
+          <div>Preview</div>
+        </VipGate>
+      );
+
+      // Open paywall
+      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
+
+      // Close paywall
+      fireEvent.click(screen.getByText('Close'));
+
+      expect(mockTrack.paywallDismissed).toHaveBeenCalledWith('dashboard', 'close_button');
+    });
+
+    it('should track legacy gate telemetry events', () => {
+
+      render(<VipGate source="dashboard" />);
+
+      // Click the CTA button
+      fireEvent.click(screen.getByRole('button', { name: /Upgrade to VIP access/i }));
+
+      expect(mockTrack.gateInteracted).toHaveBeenCalledWith('legacy_gate', 'click');
+      expect(mockTrack.upgradeClicked).toHaveBeenCalledWith('dashboard', 'legacy_gate');
+    });
   });
 
   describe('VipBadge variants', () => {
@@ -212,6 +277,32 @@ describe('VipFeature', () => {
 
       rerender(<VipBadge variant="subtle" />);
       expect(screen.getByText('vip.badge')).toBeInTheDocument();
+    });
+
+    it('should track badge view on mount', () => {
+      mockUseTelemetry.mockReturnValue({
+        track: mockTrack,
+        isEnabled: true,
+        isVip: true,
+      });
+      mockUseVipModule.mockReturnValue(true);
+
+      render(<VipBadge component="header" size="md" />);
+
+      expect(mockTrack.badgeViewed).toHaveBeenCalledWith('header', 'md');
+    });
+
+    it('should not track badge view when VIP is disabled', () => {
+      mockUseTelemetry.mockReturnValue({
+        track: mockTrack,
+        isEnabled: true,
+        isVip: false,
+      });
+      mockUseVipModule.mockReturnValue(false);
+
+      render(<VipBadge component="header" size="md" />);
+
+      expect(mockTrack.badgeViewed).not.toHaveBeenCalled();
     });
   });
 
