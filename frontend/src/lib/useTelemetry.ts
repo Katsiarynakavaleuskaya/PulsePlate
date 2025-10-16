@@ -118,6 +118,7 @@ export function useTelemetry() {
  */
 export function useVipModuleTracking(source: string, autoTrack: boolean = true) {
   const { track, isEnabled, isVip } = useTelemetry();
+  const hasAutoTracked = useRef(false);
 
   const trackView = useCallback(() => {
     if (isEnabled && isVip) {
@@ -127,10 +128,11 @@ export function useVipModuleTracking(source: string, autoTrack: boolean = true) 
 
   // Auto-track on mount if enabled (only once)
   useEffect(() => {
-    if (autoTrack && isEnabled && isVip) {
-      track.moduleViewed(source);
+    if (autoTrack && !hasAutoTracked.current) {
+      trackView();
+      hasAutoTracked.current = true;
     }
-  }, []); // Empty dependency array ensures it runs only on mount
+  }, [autoTrack, trackView]);
 
   return {
     trackView,

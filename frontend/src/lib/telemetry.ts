@@ -242,7 +242,7 @@ export function updateTelemetryFeatureFlags(flagState: Record<string, boolean>):
  */
 export function refreshTelemetrySession(): string {
   if (!isAnalyticsEnabled()) {
-    return '';
+    return 'disabled';
   }
   return refreshSession();
 }
