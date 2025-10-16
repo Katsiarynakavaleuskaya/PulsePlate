@@ -215,12 +215,13 @@ describe('TabBar', () => {
       expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
 
-    it('shows VIP tabs as disabled when VIP module is disabled but user has API key', () => {
+    it('hides VIP tabs when VIP module is disabled and user has API key', () => {
       mockUseVipModule.mockReturnValue(false);
       renderTabBar('test-key');
 
       // VIP tabs should not be visible at all when VIP is disabled
       expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
 
     it('handles more than 6 tabs correctly with grid layout', () => {
@@ -230,15 +231,6 @@ describe('TabBar', () => {
       // Should have 6 tabs total: Home, Profile, Plate, Progress, VIP Feature, Another VIP
       const tabBar = screen.getByRole('tablist');
       expect(tabBar).toHaveClass('grid-cols-6');
-    });
-
-    it('shows correct disabled reason for VIP tabs when VIP is disabled', () => {
-      mockUseVipModule.mockReturnValue(false);
-      renderTabBar('test-key');
-
-      // VIP tabs should not be visible when VIP is disabled
-      expect(screen.queryByRole('tab', { name: /vip feature/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('tab', { name: /another vip/i })).not.toBeInTheDocument();
     });
   });
 });
