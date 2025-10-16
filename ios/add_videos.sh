@@ -36,6 +36,7 @@ for src in "$@"; do
   shopt -s nocasematch
   if [[ ! "$ext" =~ ^(mp4)$ ]]; then
     echo "⚠️ Skipping unsupported file (only .mp4): $src" >&2
+    shopt -u nocasematch
     continue
   fi
   shopt -u nocasematch
@@ -54,7 +55,14 @@ done
 while IFS= read -r -d '' f; do
   bn="$(basename "$f")";
   bn_no_ext="${bn%.*}";
-  if [[ " ${copied_basenames[*]} " != *" $bn_no_ext "* ]]; then
+  seen=false
+  for existing in "${copied_basenames[@]}"; do
+    if [[ "$existing" == "$bn_no_ext" ]]; then
+      seen=true
+      break
+    fi
+  done
+  if [ "$seen" = false ]; then
     copied_basenames+=("$bn_no_ext")
   fi
 done < <(find "$TARGET_RES_DIR" -maxdepth 1 -type f -iname "*.mp4" -print0)
