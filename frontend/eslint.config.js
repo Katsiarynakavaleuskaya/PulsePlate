@@ -56,7 +56,14 @@ export default tseslint.config(
       'no-cond-assign': 'warn',
       'no-func-assign': 'warn',
       'no-prototype-builtins': 'warn',
-      '@typescript-eslint/no-this-alias': 'warn'
+      '@typescript-eslint/no-this-alias': 'warn',
+      // Duplication prevention rules
+      'no-duplicate-imports': 'error',
+      'no-duplicate-case': 'error',
+      'no-duplicate-keys': 'error',
+      'no-redeclare': 'error',
+      'no-var': 'error', // Prefer const/let to avoid hoisting issues
+      'prefer-const': 'error'
     },
   },
   {

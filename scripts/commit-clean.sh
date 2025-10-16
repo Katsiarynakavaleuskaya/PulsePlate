@@ -22,17 +22,22 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# Check git status
+# Check git status once
 echo "📋 Files to be committed:"
-git status --porcelain
+CHANGES="$(git status --porcelain)"
+echo "$CHANGES"
 
-# If there are changes, commit them
-if [ ! -z "$(git status --porcelain)" ]; then
-    echo ""
-    echo "💾 Committing changes..."
-    git add -u  # Only stage tracked files
-    git commit -m "$1"
-    echo "✅ Commit completed successfully"
+if [ -n "$CHANGES" ]; then
+  if [ -z "${1:-}" ]; then
+    echo "❌ Error: Commit message required"
+    echo "Usage: $0 \"commit message\""
+    exit 1
+  fi
+  echo ""
+  echo "💾 Committing changes..."
+  git add -u  # Only stage tracked files
+  git commit -m "$1"
+  echo "✅ Commit completed successfully"
 else
-    echo "ℹ️  No changes to commit"
+  echo "ℹ️  No changes to commit"
 fi
