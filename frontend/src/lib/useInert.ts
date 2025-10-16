@@ -31,6 +31,7 @@ export function useInert(shouldBeInert: boolean = true) {
       };
     } else {
       // Fallback: set aria-hidden and remove tabindex from descendants
+      const previousAriaHidden = element.getAttribute("aria-hidden");
       element.setAttribute("aria-hidden", "true");
       const focusables = element.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe'
@@ -38,6 +39,8 @@ export function useInert(shouldBeInert: boolean = true) {
       focusables.forEach((el) => {
         if (el.hasAttribute("tabindex")) {
           el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
+        } else {
+          el.setAttribute("data-pp-tabindex-added", "true");
         }
         el.setAttribute("tabindex", "-1");
 
@@ -48,9 +51,13 @@ export function useInert(shouldBeInert: boolean = true) {
         }
       });
       return () => {
-        element.removeAttribute("aria-hidden");
+        if (previousAriaHidden === null) {
+          element.removeAttribute("aria-hidden");
+        } else {
+          element.setAttribute("aria-hidden", previousAriaHidden);
+        }
         const restore = element.querySelectorAll<HTMLElement>(
-          '[data-pp-prev-tabindex], [tabindex="-1"], [data-pp-disabled]'
+          '[data-pp-prev-tabindex], [data-pp-tabindex-added], [data-pp-disabled]'
         );
         restore.forEach((el) => {
           const prev = el.getAttribute("data-pp-prev-tabindex");
@@ -61,8 +68,10 @@ export function useInert(shouldBeInert: boolean = true) {
               el.setAttribute("tabindex", prev);
             }
             el.removeAttribute("data-pp-prev-tabindex");
-          } else if (el.getAttribute("tabindex") === "-1") {
+          }
+          if (el.getAttribute("data-pp-tabindex-added") === "true") {
             el.removeAttribute("tabindex");
+            el.removeAttribute("data-pp-tabindex-added");
           }
           if (el.getAttribute("data-pp-disabled") === "true") {
             (el as HTMLButtonElement).disabled = false;

@@ -58,9 +58,6 @@ describe('Toast functions', () => {
     mockToast = toastModule.default;
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('showSuccess calls toast.success with message', () => {
     const message = 'Success message';
@@ -80,6 +77,9 @@ describe('Toast functions', () => {
     expect(mockToast).toHaveBeenCalledWith(message, {
       icon: expect.objectContaining({
         type: Info,
+        props: expect.objectContaining({
+          className: 'w-5 h-5 text-blue-400',
+        }),
       }),
     });
   });
@@ -90,6 +90,9 @@ describe('Toast functions', () => {
     expect(mockToast).toHaveBeenCalledWith(message, {
       icon: expect.objectContaining({
         type: AlertCircle,
+        props: expect.objectContaining({
+          className: 'w-5 h-5 text-yellow-400',
+        }),
       }),
       style: {
         borderColor: 'rgba(245, 158, 11, 0.3)',

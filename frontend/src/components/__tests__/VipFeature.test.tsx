@@ -123,6 +123,26 @@ describe('VipFeature', () => {
       expect(screen.getByRole('button', { name: /vip.cta/i })).toBeInTheDocument();
     });
 
+    it('should apply accessibility attributes when VIP is disabled', () => {
+      render(
+        <VipGate isVip={false}>
+          <div data-testid="vip-content">VIP Content</div>
+        </VipGate>
+      );
+
+      const previewWrapper = screen.getByTestId('vip-content').parentElement;
+      expect(previewWrapper).toHaveAttribute('aria-hidden', 'true');
+
+      // Check for offscreen description (mocked translation keys)
+      const description = screen.getByText(/vip\.title.*vip\.subtitle/);
+      expect(description).toHaveClass('sr-only');
+
+      // Check that button has proper ARIA attributes
+      const button = screen.getByRole('button', { name: /vip\.cta/i });
+      expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(button).toHaveAttribute('aria-describedby');
+    });
+
     it('should render legacy gate UI when no children provided', () => {
       render(<VipGate />);
 
