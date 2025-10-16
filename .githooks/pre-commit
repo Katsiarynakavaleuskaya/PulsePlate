@@ -6,7 +6,7 @@ echo "🔍 Running pre-commit checks..."
 
 # 1. Clean Python cache files
 echo "🧹 Cleaning cache files..."
-if ! ./scripts/clean-cache.sh 2>&1 | grep -v "^🧹\|^✅\|^📋"; then
+if ! ./scripts/clean-cache.sh > /dev/null 2>&1; then
     echo "⚠️  Warning: Cache cleanup script failed"
 fi
 
@@ -53,7 +53,7 @@ if [ ! -z "$FRONTEND_CHANGES" ]; then
         CHANGED_TEST_FILES=""
         for file in $FRONTEND_CHANGES; do
             # Convert frontend/src/path/file.tsx to src/path/file.test.tsx (exclude test files)
-            if [[ $file =~ ^frontend/src/(?!.*\.test\.(ts|tsx)$)(.+)\.(ts|tsx)$ ]]; then
+            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]] && [[ ! $file =~ \.test\.(ts|tsx)$ ]]; then
                 test_file="src/${BASH_REMATCH[1]}.test.${BASH_REMATCH[2]}"
                 if [ -f "$test_file" ]; then
                     CHANGED_TEST_FILES="$CHANGED_TEST_FILES $test_file"
