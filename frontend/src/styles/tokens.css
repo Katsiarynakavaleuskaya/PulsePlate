@@ -222,7 +222,7 @@
 }
 
 /* Attribute-based dark mode (for manual theme switching) */
-[data-theme="dark"] {
+html[data-theme="dark"] {
   color-scheme: dark;
 
   /* Override semantic colors for dark mode */
@@ -250,9 +250,14 @@
   --shadow-xl: var(--shadow-xl-dark);
 }
 
+/* Explicit light mode forcing */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
 /* System preference-based dark mode (fallback when no data-theme is set) */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
+  html:not([data-theme]) {
     color-scheme: dark;
 
     /* Override semantic colors for dark mode */

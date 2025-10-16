@@ -266,7 +266,7 @@ describe('Design Tokens', () => {
 
       const contrastRatio = getContrastRatio(navy600, white);
       expect(contrastRatio).toBeGreaterThanOrEqual(4.5);
-      
+
       // Test that navy-50 on navy-900 has good contrast
       const navy50 = colors.navy[50];
       const navy900 = colors.navy[900];
