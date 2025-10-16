@@ -49,7 +49,7 @@ export default function TabBar() {
     >
       {visibleTabs.map(({ path: to, label, requiresAuth, requiresVip }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
-        const isDisabled = (requiresAuth && !apiKey) || (requiresVip && !isVipEnabled);
+        const isDisabled = requiresAuth && !apiKey;
         const isClicked = clickedDisabled === to;
 
         if (isDisabled) {
@@ -63,7 +63,7 @@ export default function TabBar() {
               role="tab"
               aria-disabled="true"
               tabIndex={-1}
-              title={requiresVip && !isVipEnabled ? t("vip.requiresVip") : t("auth.requiresApiKey")}
+              title={t("auth.requiresApiKey")}
             >
               {/* Lock overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-navy/80 rounded-lg backdrop-blur-sm">
