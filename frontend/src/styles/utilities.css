@@ -91,6 +91,21 @@
 .pl-touch-large { padding-left: var(--spacing-touch-large); }
 .pr-touch-large { padding-right: var(--spacing-touch-large); }
 
+/* Touch-friendly margin */
+.m-touch { margin: var(--spacing-touch); }
+.m-touch-large { margin: var(--spacing-touch-large); }
+
+/* Directional touch margin */
+.mt-touch { margin-top: var(--spacing-touch); }
+.mb-touch { margin-bottom: var(--spacing-touch); }
+.ml-touch { margin-left: var(--spacing-touch); }
+.mr-touch { margin-right: var(--spacing-touch); }
+
+.mt-touch-large { margin-top: var(--spacing-touch-large); }
+.mb-touch-large { margin-bottom: var(--spacing-touch-large); }
+.ml-touch-large { margin-left: var(--spacing-touch-large); }
+.mr-touch-large { margin-right: var(--spacing-touch-large); }
+
 /* ============================================================================
    TYPOGRAPHY UTILITIES
    ============================================================================ */
@@ -127,9 +142,39 @@
   border-radius: var(--radius-md);
 }
 
+.btn-touch:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn-touch:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.btn-touch:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
 .btn-touch-large {
   min-height: var(--spacing-touch-large);
   padding: var(--spacing-button-lg);
+  border-radius: var(--radius-lg);
+}
+
+.btn-touch-large:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn-touch-large:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.btn-touch-large:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
   border-radius: var(--radius-lg);
 }
 
@@ -138,6 +183,13 @@
   min-height: var(--spacing-touch);
   padding: var(--spacing-input-md);
   border-radius: var(--radius-md);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-touch:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* Card utilities */
