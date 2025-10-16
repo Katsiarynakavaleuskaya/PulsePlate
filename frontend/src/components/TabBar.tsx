@@ -37,13 +37,26 @@ export default function TabBar() {
 
   // Calculate number of visible tabs for dynamic grid
   const visibleTabs = tabRoutes.filter(route => !route.requiresVip || isVipEnabled);
-  const gridCols = `grid-cols-${visibleTabs.length}`;
+  const visibleTabsCount = Math.min(Math.max(visibleTabs.length, 1), 6); // Clamp to 1-6 range
+
+  // Map count to explicit Tailwind classes
+  const getGridColsClass = (count: number): string => {
+    switch (count) {
+      case 1: return 'grid-cols-1';
+      case 2: return 'grid-cols-2';
+      case 3: return 'grid-cols-3';
+      case 4: return 'grid-cols-4';
+      case 5: return 'grid-cols-5';
+      case 6: return 'grid-cols-6';
+      default: return 'grid-cols-3'; // fallback
+    }
+  };
 
   return (
     <nav
       role="tablist"
       aria-label="Main tabs"
-      className={`fixed bottom-0 inset-x-0 grid ${gridCols} border-t border-muted/30 bg-navy`}
+      className={`fixed bottom-0 inset-x-0 grid ${getGridColsClass(visibleTabsCount)} border-t border-muted/30 bg-navy`}
     >
       {tabRoutes
         .filter(route => !route.requiresVip || isVipEnabled) // Hide VIP routes when VIP is disabled

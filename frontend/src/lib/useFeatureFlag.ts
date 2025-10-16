@@ -1,8 +1,10 @@
 /**
  * Feature Flag Hook
  *
- * React hook for accessing feature flags with reactive updates.
+ * React hook for accessing feature flags from environment variables.
  * Provides type-safe access to feature flags throughout the application.
+ * Note: Flags are read at initialization and are static for the app lifecycle.
+ * Changes require rebuild/reload or a different dynamic source.
  */
 
 import { useMemo } from 'react';

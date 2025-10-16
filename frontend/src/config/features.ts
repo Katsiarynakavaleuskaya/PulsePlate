@@ -8,7 +8,7 @@
 /**
  * Feature flag values from environment variables
  */
-const getFeatureFlagsInternal = (env = (import.meta as any).env) => {
+const getFeatureFlagsInternal = (env = import.meta.env) => {
   return {
     // VIP Module - enables VIP-specific features
     vipModule: env?.VITE_VIP_MODULE_ENABLED === 'true',
