@@ -42,12 +42,16 @@ export type FeatureFlags = ReturnType<typeof getFeatureFlagsInternal>;
 export const getFeatureFlags = getFeatureFlagsInternal;
 
 /**
- * Individual feature flag getters for convenience
- * These re-evaluate flags on each call to ensure fresh values
+ * Cached feature flags (evaluated once at module load)
  */
-export const isVipModuleEnabled = () => getFeatureFlagsInternal().vipModule;
-export const isAnalyticsEnabled = () => getFeatureFlagsInternal().analytics;
-export const isDevMode = () => getFeatureFlagsInternal().devMode;
+const FLAGS = getFeatureFlagsInternal();
+
+/**
+ * Individual feature flag getters for convenience
+ */
+export const isVipModuleEnabled = () => FLAGS.vipModule;
+export const isAnalyticsEnabled = () => FLAGS.analytics;
+export const isDevMode = () => FLAGS.devMode;
 
 /**
  * Feature flag names for debugging and analytics
