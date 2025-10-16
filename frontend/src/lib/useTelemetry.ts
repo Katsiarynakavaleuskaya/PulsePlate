@@ -58,7 +58,7 @@ export function useTelemetry() {
     paywallViewed: useCallback((source: string, context: string, isRetry?: boolean) => {
       if (!isEnabled) return;
       vipTelemetry.paywallViewed(source, context, isRetry);
-    }, [isEnabled, isVip]),
+    }, [isEnabled]),
 
     /**
      * Track paywall dismissal
