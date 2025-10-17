@@ -21,18 +21,27 @@ const VIP_KEYS = ['title', 'subtitle', 'cta', 'badge', 'badgeAria', 'gatedAria']
 const VIP_TERMINOLOGY = {
   en: {
     title: 'Unlock VIP',
+    subtitle: 'Advanced analytics, premium features, priority support.',
+    cta: 'Upgrade to VIP',
     badge: 'VIP',
-    cta: 'Upgrade to VIP'
+    badgeAria: 'VIP status',
+    gatedAria: 'VIP gated content'
   },
   ru: {
     title: 'Откройте VIP',
+    subtitle: 'Расширенная аналитика, премиум-функции, приоритетная поддержка.',
+    cta: 'Перейти на VIP',
     badge: 'VIP',
-    cta: 'Перейти на VIP'
+    badgeAria: 'Статус VIP',
+    gatedAria: 'Контент с VIP-ограничением'
   },
   es: {
     title: 'Desbloquear VIP',
+    subtitle: 'Análisis avanzado, funciones premium, soporte prioritario.',
+    cta: 'Actualizar a VIP',
     badge: 'VIP',
-    cta: 'Actualizar a VIP'
+    badgeAria: 'Estado VIP',
+    gatedAria: 'Contenido con acceso VIP'
   }
 } as const;
 
@@ -426,9 +435,10 @@ describe('Locale JSON Structure and Content', () => {
           const { vip } = locale;
           const expected = VIP_TERMINOLOGY[lang];
 
-          expect(vip.title).toBe(expected.title);
-          expect(vip.badge).toBe(expected.badge);
-          expect(vip.cta).toBe(expected.cta);
+          // Validate all VIP keys
+          for (const key of VIP_KEYS) {
+            expect(vip[key]).toBe(expected[key]);
+          }
         }
       });
     });
