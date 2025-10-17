@@ -11,9 +11,12 @@ import ru from '../ru.json';
 import es from '../es.json';
 
 // Test configuration constants
-const MAX_LONG_STRINGS = 150; // Maximum acceptable number of long strings
-const TOP_LONG_STRINGS = 10; // Number of longest strings to log for debugging
-const CRITICAL_MAX_LENGTH = 80; // Maximum length for critical UI strings
+/** Maximum acceptable number of long strings across all locales - based on comprehensive localization dataset size */
+const MAX_LONG_STRINGS = 150;
+/** Number of longest strings to log for debugging - balances detail with log readability */
+const TOP_LONG_STRINGS = 10;
+/** Maximum length for critical UI strings (buttons, CTAs, titles) - based on mobile UI constraints */
+const CRITICAL_MAX_LENGTH = 80;
 
 describe('UI Layout Compatibility with Localized Strings', () => {
   const locales = { en, ru, es } as const;
@@ -144,7 +147,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
       }
 
       // Validate that we have reasonable number of long strings
-      // Note: 96 long strings is acceptable for a comprehensive localization
+      // Note: MAX_LONG_STRINGS (150) long strings is acceptable for a comprehensive localization
       expect(longStrings.length, `Too many long strings detected (${longStrings.length}) - consider shortening translations (max: ${MAX_LONG_STRINGS})`).toBeLessThan(MAX_LONG_STRINGS);
 
       // Log for debugging only in development
