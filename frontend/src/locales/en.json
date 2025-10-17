@@ -200,5 +200,56 @@
       "unit": "L/day",
       "tip": "💡 Tip: Drink water evenly throughout the day. Increase intake during physical activity or hot weather."
     }
+  },
+  "chart": {
+    "day": "Day",
+    "kcal": "kcal"
+  },
+  "week": {
+    "noData": "No data for this week",
+    "title": "Weekly Progress",
+    "refresh": "Refresh week",
+    "chartAccessibility": "Weekly energy chart",
+    "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
+  },
+  "health": {
+    "permissionMessage": "Allow access to Health to display nutrition and progress.",
+    "request": "Request HealthKit access",
+    "alertTitle": "HealthKit Access"
+  },
+  "units": {
+    "kg": "kg",
+    "kcal": "kcal",
+    "gram": "g"
+  },
+  "abbreviations": {
+    "protein": "P",
+    "fat": "F",
+    "carbs": "C"
+  },
+  "language": {
+    "settings": "Language",
+    "nameEn": "English",
+    "nameRu": "Russian",
+    "nameEs": "Spanish"
+  },
+  "profile": {
+    "languageSection": "Language",
+    "languageValue": "English / Russian / Spanish",
+    "legalSection": "Legal",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfUse": "Terms of Use",
+    "screenAccessibilityLabel": "Profile screen"
+  },
+  "mascot": {
+    "plateHint": "Tap to set nutrition goals!",
+    "homeWelcome": "Welcome to PulsePlate!",
+    "progressGreat": "Great progress today!"
+  },
+  "settings": {
+    "title": "Settings"
+  },
+  "accessibility": {
+    "homeScreen": "Home Screen"
   }
 }

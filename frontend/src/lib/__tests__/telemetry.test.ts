@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { trackVipEvent, vipTelemetry, isTelemetryEnabled } from '../telemetry';
+import { trackVipEvent, vipTelemetry, isTelemetryEnabled, EventType } from '../telemetry';
+import { validateEventPayload } from '../telemetry/eventRegistry';
 import { isAnalyticsEnabled } from '../../config/features';
 import { getSessionId } from '../sessionManager';
 import { getCurrentFeatureFlags } from '../featureFlagManager';
@@ -49,7 +50,7 @@ describe('Telemetry', () => {
 
   describe('trackVipEvent', () => {
     it('should track event when analytics is enabled', () => {
-      trackVipEvent('vip_module_viewed', {
+      trackVipEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -67,10 +68,16 @@ describe('Telemetry', () => {
       });
     });
 
+    it('should not log when payload is invalid', () => {
+      // Missing required fields for VIP_FEATURE_CLICKED
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, { source: 'dashboard' } as any);
+      expect(mockLog).not.toHaveBeenCalled();
+    });
+
     it('should not track event when analytics is disabled', () => {
       mockIsAnalyticsEnabled.mockReturnValue(false);
 
-      trackVipEvent('vip_module_viewed', {
+      trackVipEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -81,7 +88,7 @@ describe('Telemetry', () => {
     it('should add timestamp if not provided', () => {
       const beforeTime = Date.now();
 
-      trackVipEvent('vip_feature_clicked', {
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
@@ -106,7 +113,7 @@ describe('Telemetry', () => {
         timestamp: customTimestamp,
       } as any;
 
-      trackVipEvent('vip_feature_clicked', payload);
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, payload);
 
       expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
         timestamp: customTimestamp,
@@ -300,6 +307,127 @@ describe('Telemetry', () => {
       mockIsAnalyticsEnabled.mockReturnValue(false);
 
       expect(isTelemetryEnabled()).toBe(false);
+    });
+  });
+
+  describe('validateEventPayload', () => {
+    it('should validate correct payload types', () => {
+      const validPayload = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      };
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, validPayload)).toBe(true);
+    });
+
+    it('should reject payload with wrong field types', () => {
+      const invalidPayload = {
+        source: 123, // Should be string
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any; // Cast to any to test runtime validation
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, invalidPayload)).toBe(false);
+    });
+
+    it('should reject payload with missing required fields', () => {
+      const incompletePayload = {
+        source: 'dashboard',
+        // Missing vipEnabled
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any; // Cast to any to test runtime validation
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, incompletePayload)).toBe(false);
+    });
+
+    it('should accept payload with optional fields undefined', () => {
+      const payloadWithOptionalUndefined = {
+        source: 'dashboard',
+        context: 'test',
+        // isRetry is optional and undefined
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      };
+
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithOptionalUndefined)).toBe(true);
+    });
+
+    it('should reject payload with wrong optional field types', () => {
+      const payloadWithWrongOptionalType = {
+        source: 'dashboard',
+        context: 'test',
+        isRetry: 'yes', // Should be boolean
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any; // Cast to any to test runtime validation
+
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(false);
+    });
+
+    it('should reject payload with wrong BaseEventPayload field types', () => {
+      const payloadWithWrongTimestamp = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: 'invalid', // Should be number
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongTimestamp)).toBe(false);
+
+      const payloadWithWrongSessionId = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 123, // Should be string
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongSessionId)).toBe(false);
+
+      const payloadWithWrongFeatureFlags = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: 'invalid' // Should be object
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongFeatureFlags)).toBe(false);
+    });
+
+    it('should reject null values for BaseEventPayload fields', () => {
+      const payloadWithNullFeatureFlags = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: null // Should not be null
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithNullFeatureFlags)).toBe(false);
+    });
+
+    it('should reject null values for optional fields', () => {
+      const payloadWithNullOptionalField = {
+        source: 'dashboard',
+        context: 'test',
+        isRetry: null, // Should not be null for optional field
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithNullOptionalField)).toBe(false);
     });
   });
 });
