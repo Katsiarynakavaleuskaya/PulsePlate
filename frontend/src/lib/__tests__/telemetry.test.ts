@@ -429,5 +429,17 @@ describe('Telemetry', () => {
 
       expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithNullOptionalField)).toBe(false);
     });
+
+    it('should reject featureFlags with non-boolean values', () => {
+      const payloadWithInvalidFeatureFlags = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: 'true' } // Should be boolean, not string
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithInvalidFeatureFlags)).toBe(false);
+    });
   });
 });
