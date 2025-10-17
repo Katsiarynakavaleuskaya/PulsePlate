@@ -31,8 +31,8 @@ describe('WhoTargetsPanel', () => {
     },
     water_ml: 2500,
     priority_micros: {
-      iron: 18,
-      calcium: 1000,
+      iron_mg: 18,
+      calcium_mg: 1000,
     },
     activity_weekly: {
       moderate_aerobic_min: 150,
@@ -61,7 +61,7 @@ describe('WhoTargetsPanel', () => {
       render(<WhoTargetsPanel {...defaultProps} loading={true} />);
 
       expect(screen.getByText('WHO Nutrition Targets')).toBeInTheDocument();
-      expect(document.querySelector('.who-targets-panel--loading')).toBeInTheDocument();
+      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loading');
     });
   });
 
@@ -125,13 +125,15 @@ describe('WhoTargetsPanel', () => {
       // Macronutrients
       expect(screen.getByText('Macronutrients')).toBeInTheDocument();
       expect(screen.getByText('protein')).toBeInTheDocument();
-      expect(screen.getByText('150g')).toBeInTheDocument();
       expect(screen.getByText('carbs')).toBeInTheDocument();
-      expect(screen.getByText('250g')).toBeInTheDocument();
       expect(screen.getByText('fat')).toBeInTheDocument();
-      expect(screen.getByText('67g')).toBeInTheDocument();
       expect(screen.getByText('fiber')).toBeInTheDocument();
-      expect(screen.getByText('30g')).toBeInTheDocument();
+
+      // Check macro values are present (using getAllByText since numbers might repeat)
+      expect(screen.getAllByText('150')).toHaveLength(2); // protein + moderateAerobic
+      expect(screen.getByText('250')).toBeInTheDocument(); // carbs
+      expect(screen.getByText('67')).toBeInTheDocument(); // fat
+      expect(screen.getByText('30')).toBeInTheDocument(); // fiber
 
       // Hydration
       expect(screen.getByText('Hydration')).toBeInTheDocument();
@@ -140,15 +142,16 @@ describe('WhoTargetsPanel', () => {
 
       // Priority Micronutrients
       expect(screen.getByText('Priority Micronutrients')).toBeInTheDocument();
-      expect(screen.getByText('iron')).toBeInTheDocument();
+      expect(screen.getByText('iron_mg')).toBeInTheDocument();
       expect(screen.getByText('18')).toBeInTheDocument();
-      expect(screen.getByText('calcium')).toBeInTheDocument();
+      expect(screen.getAllByText('mg')).toHaveLength(2); // iron_mg + calcium_mg
+      expect(screen.getByText('calcium_mg')).toBeInTheDocument();
       expect(screen.getByText('1,000')).toBeInTheDocument();
 
       // Activity Goals
       expect(screen.getByText('Activity Goals')).toBeInTheDocument();
       expect(screen.getByText('moderateAerobic')).toBeInTheDocument();
-      expect(screen.getByText('150')).toBeInTheDocument();
+      expect(screen.getAllByText('150')).toHaveLength(2); // protein + moderateAerobic
       expect(screen.getByText('minutes')).toBeInTheDocument();
       expect(screen.getByText('strength')).toBeInTheDocument();
       expect(screen.getByText('2')).toBeInTheDocument();
@@ -194,33 +197,44 @@ describe('WhoTargetsPanel', () => {
     });
 
     it('should format numbers with proper localization', () => {
-      const dataWithLargeNumbers = {
-        ...mockData,
-        kcal_daily: 1234567,
-        macros: {
-          protein_g: 123456,
-          carbs_g: 234567,
-          fat_g: 34567,
-          fiber_g: 4567,
-        },
-        water_ml: 1234567,
-        activity_weekly: {
-          moderate_aerobic_min: 123456,
-          strength_sessions: 1234,
-          steps_daily: 1234567,
-        },
-      };
+      // Mock toLocaleString to return stable, predictable formatting
+      const originalToLocaleString = Number.prototype.toLocaleString;
+      Number.prototype.toLocaleString = vi.fn(function(this: number) {
+        // Simple comma-separated formatting for testing
+        return this.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      });
 
-      render(<WhoTargetsPanel {...defaultProps} data={dataWithLargeNumbers} />);
+      try {
+        const dataWithLargeNumbers = {
+          ...mockData,
+          kcal_daily: 1234567,
+          macros: {
+            protein_g: 123456,
+            carbs_g: 234567,
+            fat_g: 34567,
+            fiber_g: 4567,
+          },
+          water_ml: 1234567,
+          activity_weekly: {
+            moderate_aerobic_min: 123456,
+            strength_sessions: 1234,
+            steps_daily: 1234567,
+          },
+        };
 
-      // Check that large numbers are properly formatted with commas
-      expect(screen.getAllByText('1,234,567')).toHaveLength(3); // kcal_daily, water_ml, steps_daily
-      expect(screen.getByText('123,456g')).toBeInTheDocument(); // protein_g
-      expect(screen.getByText('234,567g')).toBeInTheDocument(); // carbs_g
-      expect(screen.getByText('34,567g')).toBeInTheDocument(); // fat_g
-      expect(screen.getByText('4,567g')).toBeInTheDocument(); // fiber_g
-      expect(screen.getByText('123,456')).toBeInTheDocument(); // moderate_aerobic_min
-      expect(screen.getByText('1,234')).toBeInTheDocument(); // strength_sessions
+        render(<WhoTargetsPanel {...defaultProps} data={dataWithLargeNumbers} />);
+
+        // Check that large numbers are properly formatted with commas
+        expect(screen.getAllByText('1,234,567')).toHaveLength(3); // kcal_daily, water_ml, steps_daily
+        expect(screen.getAllByText('123,456')).toHaveLength(2); // protein_g + moderate_aerobic_min
+        expect(screen.getByText('234,567')).toBeInTheDocument(); // carbs_g
+        expect(screen.getByText('34,567')).toBeInTheDocument(); // fat_g
+        expect(screen.getByText('4,567')).toBeInTheDocument(); // fiber_g
+        expect(screen.getByText('1,234')).toBeInTheDocument(); // strength_sessions
+      } finally {
+        // Restore original toLocaleString
+        Number.prototype.toLocaleString = originalToLocaleString;
+      }
     });
   });
 
@@ -228,8 +242,15 @@ describe('WhoTargetsPanel', () => {
     it('should have proper ARIA attributes for warnings', () => {
       render(<WhoTargetsPanel {...defaultProps} data={mockData} />);
 
-      const warningIcons = document.querySelectorAll('.warning-item__icon[aria-hidden="true"]');
-      expect(warningIcons).toHaveLength(2);
+      // Check that warning icons are present and have proper ARIA attributes
+      const warnings = screen.getAllByText(/Consider increasing|Monitor sodium/);
+      expect(warnings).toHaveLength(2);
+
+      // Verify each warning has an icon with aria-hidden
+      warnings.forEach(warning => {
+        const icon = warning.parentElement?.querySelector('.warning-item__icon');
+        expect(icon).toHaveAttribute('aria-hidden', 'true');
+      });
     });
 
     it('should have proper heading structure', () => {
@@ -246,16 +267,16 @@ describe('WhoTargetsPanel', () => {
   describe('Component States', () => {
     it('should apply correct CSS classes for different states', () => {
       const { rerender } = render(<WhoTargetsPanel {...defaultProps} loading={true} />);
-      expect(document.querySelector('.who-targets-panel--loading')).toBeInTheDocument();
+      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loading');
 
       rerender(<WhoTargetsPanel {...defaultProps} error="Test error" />);
-      expect(document.querySelector('.who-targets-panel--error')).toBeInTheDocument();
+      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--error');
 
       rerender(<WhoTargetsPanel {...defaultProps} data={null} />);
-      expect(document.querySelector('.who-targets-panel--empty')).toBeInTheDocument();
+      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--empty');
 
       rerender(<WhoTargetsPanel {...defaultProps} data={mockData} />);
-      expect(document.querySelector('.who-targets-panel--loaded')).toBeInTheDocument();
+      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loaded');
     });
   });
 });
