@@ -404,5 +404,30 @@ describe('Telemetry', () => {
 
       expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongFeatureFlags)).toBe(false);
     });
+
+    it('should reject null values for BaseEventPayload fields', () => {
+      const payloadWithNullFeatureFlags = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: null // Should not be null
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithNullFeatureFlags)).toBe(false);
+    });
+
+    it('should reject null values for optional fields', () => {
+      const payloadWithNullOptionalField = {
+        source: 'dashboard',
+        context: 'test',
+        isRetry: null, // Should not be null for optional field
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithNullOptionalField)).toBe(false);
+    });
   });
 });

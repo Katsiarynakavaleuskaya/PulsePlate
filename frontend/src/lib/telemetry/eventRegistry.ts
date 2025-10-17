@@ -179,7 +179,7 @@ export function validateEventPayload<T extends EventType>(
     console.error(`Invalid type for 'sessionId': expected 'string', got '${typeof payload.sessionId}'`);
     return false;
   }
-  if ('featureFlags' in payload && (typeof payload.featureFlags !== 'object' || Array.isArray(payload.featureFlags))) {
+  if ('featureFlags' in payload && (payload.featureFlags === null || typeof payload.featureFlags !== 'object' || Array.isArray(payload.featureFlags))) {
     console.error(`Invalid type for 'featureFlags': expected 'object', got '${typeof payload.featureFlags}'`);
     return false;
   }
@@ -195,8 +195,14 @@ export function validateEventPayload<T extends EventType>(
     }
 
     // Skip type validation for optional fields that are undefined
-    if (!fieldSchema.required && (value === undefined || value === null)) {
+    if (!fieldSchema.required && value === undefined) {
       continue;
+    }
+
+    // Reject null for optional fields
+    if (!fieldSchema.required && value === null) {
+      console.error(`Field '${fieldName}' in event '${eventType}' cannot be null (use undefined for optional fields)`);
+      return false;
     }
 
     // Perform type validation
