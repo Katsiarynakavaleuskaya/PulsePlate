@@ -19,7 +19,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             {t('whoTargets.calories.title', 'Daily Calories')}
           </h3>
           <div className="target-card__value">
-            {data.kcal_daily.toLocaleString()}
+            {typeof data.kcal_daily === 'number'
+              ? data.kcal_daily.toLocaleString()
+              : String(data.kcal_daily)}
             <span className="target-card__unit">
               {t('whoTargets.calories.unit', 'kcal')}
             </span>
@@ -90,7 +92,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             {t('whoTargets.hydration.title', 'Hydration')}
           </h3>
           <div className="target-card__value">
-            {data.water_ml.toLocaleString()}
+            {typeof data.water_ml === 'number'
+              ? data.water_ml.toLocaleString()
+              : String(data.water_ml)}
             <span className="target-card__unit">
               {t('whoTargets.hydration.unit', 'ml')}
             </span>
@@ -115,7 +119,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                 <li key={micro} className="micros-item">
                   <span className="micros-item__label">{micro}</span>
                   <span className="micros-item__value">
-                    {value.toLocaleString()}
+                    {typeof value === 'number'
+                      ? value.toLocaleString()
+                      : String(value)}
                   </span>
                 </li>
               ))}
@@ -138,7 +144,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                 {t('whoTargets.activity.moderateAerobic', 'Moderate Aerobic')}
               </span>
               <span className="activity-item__value">
-                {data.activity_weekly.moderate_aerobic_min.toLocaleString()}
+                {typeof data.activity_weekly.moderate_aerobic_min === 'number'
+                  ? data.activity_weekly.moderate_aerobic_min.toLocaleString()
+                  : String(data.activity_weekly.moderate_aerobic_min)}
                 <span className="activity-item__unit">
                   {t('whoTargets.activity.minutes', 'min/week')}
                 </span>
@@ -149,7 +157,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                 {t('whoTargets.activity.strength', 'Strength Training')}
               </span>
               <span className="activity-item__value">
-                {data.activity_weekly.strength_sessions.toLocaleString()}
+                {typeof data.activity_weekly.strength_sessions === 'number'
+                  ? data.activity_weekly.strength_sessions.toLocaleString()
+                  : String(data.activity_weekly.strength_sessions)}
                 <span className="activity-item__unit">
                   {t('whoTargets.activity.sessions', 'sessions/week')}
                 </span>
@@ -160,7 +170,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                 {t('whoTargets.activity.steps', 'Daily Steps')}
               </span>
               <span className="activity-item__value">
-                {data.activity_weekly.steps_daily.toLocaleString()}
+                {typeof data.activity_weekly.steps_daily === 'number'
+                  ? data.activity_weekly.steps_daily.toLocaleString()
+                  : String(data.activity_weekly.steps_daily)}
                 <span className="activity-item__unit">
                   {t('whoTargets.activity.stepsUnit', 'steps')}
                 </span>

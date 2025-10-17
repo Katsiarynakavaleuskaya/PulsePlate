@@ -164,6 +164,9 @@ describe('WhoTargetsPanel', () => {
 
       // CTA Button
       expect(screen.getByText('Save & Get Weekly Plan')).toBeInTheDocument();
+
+      // Note: calculation_date is part of the API response but not displayed in UI
+      // If the component displays it in the future, add assertion here
     });
 
     it('should call onSaveAndContinue when CTA button is clicked', () => {
