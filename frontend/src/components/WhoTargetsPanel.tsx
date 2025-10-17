@@ -27,7 +27,10 @@ export function WhoTargetsPanel({
 
   if (loading) {
     return (
-      <div className={clsx('who-targets-panel', 'who-targets-panel--loading', className)}>
+      <div
+        className={clsx('who-targets-panel', 'who-targets-panel--loading', className)}
+        data-testid="who-targets-panel"
+      >
         <div className="who-targets-panel__header">
           <h2 className="who-targets-panel__title">
             {t('whoTargets.title', 'WHO Nutrition Targets')}
@@ -42,7 +45,10 @@ export function WhoTargetsPanel({
 
   if (error) {
     return (
-      <div className={clsx('who-targets-panel', 'who-targets-panel--error', className)}>
+      <div
+        className={clsx('who-targets-panel', 'who-targets-panel--error', className)}
+        data-testid="who-targets-panel"
+      >
         <div className="who-targets-panel__header">
           <h2 className="who-targets-panel__title">
             {t('whoTargets.title', 'WHO Nutrition Targets')}
@@ -57,7 +63,10 @@ export function WhoTargetsPanel({
 
   if (!data) {
     return (
-      <div className={clsx('who-targets-panel', 'who-targets-panel--empty', className)}>
+      <div
+        className={clsx('who-targets-panel', 'who-targets-panel--empty', className)}
+        data-testid="who-targets-panel"
+      >
         <div className="who-targets-panel__header">
           <h2 className="who-targets-panel__title">
             {t('whoTargets.title', 'WHO Nutrition Targets')}
@@ -71,7 +80,10 @@ export function WhoTargetsPanel({
   }
 
   return (
-    <div className={clsx('who-targets-panel', 'who-targets-panel--loaded', className)}>
+    <div
+      className={clsx('who-targets-panel', 'who-targets-panel--loaded', className)}
+      data-testid="who-targets-panel"
+    >
       <div className="who-targets-panel__header">
         <h2 className="who-targets-panel__title">
           {t('whoTargets.title', 'WHO Nutrition Targets')}

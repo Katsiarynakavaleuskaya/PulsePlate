@@ -1,12 +1,58 @@
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import type { TargetsApiResponse } from '../../api/premium/types';
+import { MICRO_CONFIG } from '../../pages/NutritionSetup/hooks';
 
 // Helper function for consistent numeric formatting
 function formatNumericValue(value: unknown): string {
   if (value == null) return '—';
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
+
+// Helper function to get micronutrient unit
+function getMicronutrientUnit(microKey: string, locale: string): string {
+  const meta = MICRO_CONFIG[microKey];
+  if (meta && meta.units) {
+    return meta.units[locale as keyof typeof meta.units] || meta.units.en;
+  }
+
+  // Fallback: extract unit from key name
+  if (/_mg$/i.test(microKey)) {
+    return locale === 'ru' ? 'мг' : 'mg';
+  } else if (/_ug$/i.test(microKey) || /_(mcg)$/i.test(microKey)) {
+    return locale === 'ru' ? 'мкг' : 'mcg';
+  } else if (/_iu$/i.test(microKey)) {
+    return locale === 'ru' ? 'МЕ' : locale === 'es' ? 'UI' : 'IU';
+  }
+
+  return '';
+}
+
+// Constants for performance optimization
+const MACRO_FIELDS = [
+  { key: 'protein', fieldPath: 'protein_g' },
+  { key: 'carbs', fieldPath: 'carbs_g' },
+  { key: 'fat', fieldPath: 'fat_g' },
+  { key: 'fiber', fieldPath: 'fiber_g' },
+] as const;
+
+const ACTIVITY_FIELDS = [
+  {
+    key: 'moderateAerobic',
+    fieldPath: 'moderate_aerobic_min',
+    unitKey: 'minutes'
+  },
+  {
+    key: 'strength',
+    fieldPath: 'strength_sessions',
+    unitKey: 'sessions'
+  },
+  {
+    key: 'steps',
+    fieldPath: 'steps_daily',
+    unitKey: 'stepsUnit'
+  },
+] as const;
 
 interface TargetCardProps {
   data: TargetsApiResponse;
@@ -45,21 +91,29 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
         </div>
         <div className="target-card__content">
           <div className="macro-grid">
-            {[
-              { key: 'protein', field: data.macros.protein_g },
-              { key: 'carbs', field: data.macros.carbs_g },
-              { key: 'fat', field: data.macros.fat_g },
-              { key: 'fiber', field: data.macros.fiber_g },
-            ].map(({ key, field }) => (
+            {MACRO_FIELDS.map(({ key, fieldPath }) => {
+              const field = data.macros[fieldPath];
+              return (
               <div key={key} className="macro-item">
                 <span className="macro-item__label">
                   {t(`whoTargets.macros.${key}`, key)}
                 </span>
                 <span className="macro-item__value">
-                  {formatNumericValue(field)}g
+                  {(() => {
+                    const formatted = formatNumericValue(field);
+                    return formatted === '—' ? '—' : (
+                      <>
+                        {formatted}
+                        <span className="macro-item__unit">
+                          {t('whoTargets.macros.unit', 'g')}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -92,16 +146,27 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
           </div>
           <div className="target-card__content">
             <ul className="micros-list">
-              {Object.entries(data.priority_micros).map(([micro, value]) => (
-                <li key={micro} className="micros-item">
-                  <span className="micros-item__label">
-                    {t(`whoTargets.micros.${micro}`, micro)}
-                  </span>
-                  <span className="micros-item__value">
-                    {formatNumericValue(value)}
-                  </span>
-                </li>
-              ))}
+              {Object.entries(data.priority_micros).map(([micro, value]) => {
+                const unit = getMicronutrientUnit(micro, 'en'); // Use 'en' as fallback, could be made dynamic
+                return (
+                  <li key={micro} className="micros-item">
+                    <span className="micros-item__label">
+                      {t(`whoTargets.micros.${micro}`, micro)}
+                    </span>
+                    <span className="micros-item__value">
+                      {(() => {
+                        const formatted = formatNumericValue(value);
+                        return formatted === '—' ? '—' : (
+                          <>
+                            {formatted}
+                            {unit && <span className="micros-item__unit">{unit}</span>}
+                          </>
+                        );
+                      })()}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -116,23 +181,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
         </div>
         <div className="target-card__content">
           <div className="activity-grid">
-            {[
-              {
-                key: 'moderateAerobic',
-                field: data.activity_weekly.moderate_aerobic_min,
-                unitKey: 'minutes'
-              },
-              {
-                key: 'strength',
-                field: data.activity_weekly.strength_sessions,
-                unitKey: 'sessions'
-              },
-              {
-                key: 'steps',
-                field: data.activity_weekly.steps_daily,
-                unitKey: 'stepsUnit'
-              },
-            ].map(({ key, field, unitKey }) => (
+            {ACTIVITY_FIELDS.map(({ key, fieldPath, unitKey }) => {
+              const field = data.activity_weekly[fieldPath];
+              return (
               <div key={key} className="activity-item">
                 <span className="activity-item__label">
                   {t(`whoTargets.activity.${key}`, key)}
@@ -144,7 +195,8 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                   </span>
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -160,11 +212,11 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
           <div className="target-card__content">
             <ul className="warning-list">
               {data.warnings.map((warning, index) => (
-                <li key={`${warning.message}-${index}`} className="warning-item">
+                <li key={index} className="warning-item">
                   <span className="warning-item__icon" aria-hidden="true">⚠️</span>
                   <span className="warning-item__text">
                     {/* Note: warning.message is pre-localized from API */}
-                    {t(warning.message, warning.message)}
+                    {warning.message}
                   </span>
                 </li>
               ))}
