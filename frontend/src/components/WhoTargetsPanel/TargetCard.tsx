@@ -101,6 +101,29 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
         </p>
       </div>
 
+      {/* Priority Micronutrients */}
+      {Object.keys(data.priority_micros).length > 0 && (
+        <div className="target-card">
+          <div className="target-card__header">
+            <h3 className="target-card__title">
+              {t('whoTargets.micros.title', 'Priority Micronutrients')}
+            </h3>
+          </div>
+          <div className="target-card__content">
+            <ul className="micros-list">
+              {Object.entries(data.priority_micros).map(([micro, value]) => (
+                <li key={micro} className="micros-item">
+                  <span className="micros-item__label">{micro}</span>
+                  <span className="micros-item__value">
+                    {value.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* Activity Goals */}
       <div className="target-card">
         <div className="target-card__header">
