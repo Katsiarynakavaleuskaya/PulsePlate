@@ -14,6 +14,28 @@ import {
 
 // Test constants imported from test-utils
 
+// VIP translation keys that should be consistent across all locales
+const VIP_KEYS = ['title', 'subtitle', 'cta', 'badge', 'badgeAria', 'gatedAria'] as const;
+
+// Expected VIP terminology values for each locale
+const VIP_TERMINOLOGY = {
+  en: {
+    title: 'Unlock VIP',
+    badge: 'VIP',
+    cta: 'Upgrade to VIP'
+  },
+  ru: {
+    title: 'Откройте VIP',
+    badge: 'VIP',
+    cta: 'Перейти на VIP'
+  },
+  es: {
+    title: 'Desbloquear VIP',
+    badge: 'VIP',
+    cta: 'Actualizar a VIP'
+  }
+} as const;
+
 describe('Locale JSON Structure and Content', () => {
   const locales = { en, ru, es } as const;
   const languages = Object.keys(locales) as Array<keyof typeof locales>;
@@ -384,11 +406,9 @@ describe('Locale JSON Structure and Content', () => {
 
     describe('VIP Translation Quality', () => {
       it('should have consistent VIP keys across all locales', () => {
-        const vipKeys = ['title', 'subtitle', 'cta', 'badge', 'badgeAria', 'gatedAria'];
-
         for (const lang of languages) {
-          const vip = locales[lang].vip;
-          for (const key of vipKeys) {
+          const { vip } = locales[lang];
+          for (const key of VIP_KEYS) {
             expect(vip[key]).toBeDefined();
             expect(vip[key]).not.toBe('');
           }
@@ -396,20 +416,14 @@ describe('Locale JSON Structure and Content', () => {
       });
 
       it('should use appropriate VIP terminology', () => {
-        // English
-        expect(en.vip.title).toBe('Unlock VIP');
-        expect(en.vip.badge).toBe('VIP');
-        expect(en.vip.cta).toBe('Upgrade to VIP');
+        for (const lang of languages) {
+          const { vip } = locales[lang];
+          const expected = VIP_TERMINOLOGY[lang];
 
-        // Russian
-        expect(ru.vip.title).toBe('Откройте VIP');
-        expect(ru.vip.badge).toBe('VIP');
-        expect(ru.vip.cta).toBe('Перейти на VIP');
-
-        // Spanish
-        expect(es.vip.title).toBe('Desbloquear VIP');
-        expect(es.vip.badge).toBe('VIP');
-        expect(es.vip.cta).toBe('Actualizar a VIP');
+          expect(vip.title).toBe(expected.title);
+          expect(vip.badge).toBe(expected.badge);
+          expect(vip.cta).toBe(expected.cta);
+        }
       });
     });
   });
