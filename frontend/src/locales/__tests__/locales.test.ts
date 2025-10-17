@@ -452,11 +452,19 @@ describe('Locale JSON Structure and Content', () => {
             const vipTitle = locale.vip.title.toLowerCase();
             const paywallTitle = locale.paywall.title.toLowerCase();
 
-            // Should not mix "VIP" and "Premium" terminology
-            const hasVip = vipTitle.includes('vip') || paywallTitle.includes('vip');
-            const hasPremium = vipTitle.includes('premium') || paywallTitle.includes('premium');
+            // Check if each section uses VIP or Premium
+            const vipUsesVip = vipTitle.includes('vip');
+            const vipUsesPremium = vipTitle.includes('premium');
+            const paywallUsesVip = paywallTitle.includes('vip');
+            const paywallUsesPremium = paywallTitle.includes('premium');
 
-            expect(hasVip || hasPremium, `Inconsistent terminology in ${lang}: mixing VIP and Premium`).toBe(true);
+            // Both sections should use the same term (either both VIP or both Premium)
+            const bothUseVip = vipUsesVip && paywallUsesVip && !vipUsesPremium && !paywallUsesPremium;
+            const bothUsePremium = vipUsesPremium && paywallUsesPremium && !vipUsesVip && !paywallUsesVip;
+
+            expect(bothUseVip || bothUsePremium,
+              `Inconsistent terminology in ${lang}: VIP section uses ${vipUsesVip ? 'VIP' : 'Premium'}, paywall uses ${paywallUsesVip ? 'VIP' : 'Premium'}`
+            ).toBe(true);
           }
         }
       });
@@ -464,20 +472,37 @@ describe('Locale JSON Structure and Content', () => {
 
     describe('Translation Quality Standards', () => {
       it('should avoid common translation mistakes', () => {
-        const commonMistakes = [
-          /\b(?:the|a|an)\s+(?:the|a|an)\b/i, // Double articles
-          /\b(?:is|are|was|were)\s+(?:is|are|was|were)\b/i, // Double verbs
-          /\b(?:and|or)\s+(?:and|or)\b/i, // Double conjunctions
+        // Language-specific mistake patterns
+        const mistakePatterns = {
+          en: [
+            /\b(?:the|a|an)\s+(?:the|a|an)\b/i, // Double articles
+            /\b(?:is|are|was|were)\s+(?:is|are|was|were)\b/i, // Double verbs
+            /\b(?:and|or)\s+(?:and|or)\b/i, // Double conjunctions
+          ],
+          ru: [
+            /\b(?:и|или)\s+(?:и|или)\b/i, // Double conjunctions
+            /\b(?:это|эта|этот)\s+(?:это|эта|этот)\b/i, // Double demonstratives
+          ],
+          es: [
+            /\b(?:y|o)\s+(?:y|o)\b/i, // Double conjunctions
+            /\b(?:el|la|los|las)\s+(?:el|la|los|las)\b/i, // Double articles
+          ]
+        };
+
+        // Common patterns for all languages
+        const commonPatterns = [
           /\s{2,}/, // Multiple spaces
           /[.!?]{2,}/, // Multiple punctuation
         ];
 
         for (const lang of languages) {
           const issues: string[] = [];
+          const langPatterns = mistakePatterns[lang as keyof typeof mistakePatterns] || [];
+          const allPatterns = [...langPatterns, ...commonPatterns];
 
           const checkForMistakes = (obj: any, path = '') => {
             if (typeof obj === 'string') {
-              for (const pattern of commonMistakes) {
+              for (const pattern of allPatterns) {
                 if (pattern.test(obj)) {
                   issues.push(`${path}: Translation mistake detected: "${obj}"`);
                 }
@@ -512,6 +537,11 @@ describe('Locale JSON Structure and Content', () => {
 
           const compareLengths = (enObj: any, otherObj: any, path = '') => {
             if (typeof enObj === 'string' && typeof otherObj === 'string') {
+              // Skip comparison if English string is empty to avoid division by zero
+              if (enObj.length === 0) {
+                return;
+              }
+
               const ratio = otherObj.length / enObj.length;
               if (ratio > maxRatio) {
                 issues.push(`${path}: ${lang} translation is ${ratio.toFixed(1)}x longer than English (max: ${maxRatio})`);
