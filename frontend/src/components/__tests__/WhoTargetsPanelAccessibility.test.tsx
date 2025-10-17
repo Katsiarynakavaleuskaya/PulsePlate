@@ -88,11 +88,13 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(results).toHaveNoViolations();
     });
 
-    it('should have proper loading indicators for screen readers', () => {
+    it('should announce loading state to screen readers via ARIA attributes', () => {
       render(<WhoTargetsPanel {...createProps({ loading: true })} />);
 
-      // Check for loading state indicators
       const loadingElement = screen.getByTestId('who-targets-panel');
+      // Check for ARIA busy state and live region
+      expect(loadingElement).toHaveAttribute('aria-busy', 'true');
+      expect(loadingElement).toHaveAttribute('aria-live', 'polite');
       expect(loadingElement).toHaveClass('who-targets-panel--loading');
     });
   });
@@ -126,11 +128,17 @@ describe('WhoTargetsPanel Accessibility', () => {
 
       const retryButton = screen.getByRole('button', { name: /try again/i });
 
-      // Test keyboard interaction
       retryButton.focus();
       expect(retryButton).toHaveFocus();
 
-      fireEvent.click(retryButton);
+      // Test Enter key activation
+      fireEvent.keyDown(retryButton, { key: 'Enter', code: 'Enter' });
+      expect(mockRetry).toHaveBeenCalled();
+
+      mockRetry.mockClear();
+
+      // Test Space key activation
+      fireEvent.keyDown(retryButton, { key: ' ', code: 'Space' });
       expect(mockRetry).toHaveBeenCalled();
     });
   });
@@ -287,11 +295,17 @@ describe('WhoTargetsPanel Accessibility', () => {
     it('should announce loading state changes to screen readers', () => {
       const { rerender } = render(<WhoTargetsPanel {...createProps({ loading: true })} />);
 
-      // Check for loading announcement
-      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loading');
+      // Check for ARIA loading state
+      const panel = screen.getByTestId('who-targets-panel');
+      expect(panel).toHaveAttribute('aria-busy', 'true');
+      expect(panel).toHaveAttribute('aria-live', 'polite');
 
       // Switch to loaded state
       rerender(<WhoTargetsPanel {...createProps({ data: mockData })} />);
+
+      // Verify aria-busy is removed
+      expect(panel).not.toHaveAttribute('aria-busy', 'true');
+      expect(panel).not.toHaveAttribute('aria-live', 'polite');
 
       // Check that content is properly announced
       expect(screen.getByText(/calories/i)).toBeInTheDocument();
@@ -338,8 +352,14 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
       expect(button).toHaveFocus();
 
-      // Test button activation (click works for both mouse and keyboard)
-      fireEvent.click(button);
+      // Test Enter key activation
+      fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
+      expect(mockSave).toHaveBeenCalled();
+
+      mockSave.mockClear();
+
+      // Test Space key activation
+      fireEvent.keyDown(button, { key: ' ', code: 'Space' });
       expect(mockSave).toHaveBeenCalled();
     });
 
@@ -379,17 +399,14 @@ describe('WhoTargetsPanel Accessibility', () => {
       const button = screen.getByRole('button', { name: /save & get weekly plan/i });
       button.focus();
 
-      // Test that Enter key triggers button activation
-      // Note: In React, we need to simulate the click event that would be triggered by Enter
       fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
+      expect(mockSave).toHaveBeenCalled();
 
-      // The button should be focusable and accessible via keyboard
-      expect(button).toHaveFocus();
-      expect(button).not.toHaveAttribute('tabindex', '-1');
+      mockSave.mockClear();
 
-      // Note: The actual button activation via Enter would require the component
-      // to handle onKeyDown events, which is not implemented in the current component
-      // This test verifies keyboard accessibility compliance
+      // Test Space key
+      fireEvent.keyDown(button, { key: ' ', code: 'Space' });
+      expect(mockSave).toHaveBeenCalled();
     });
   });
 });

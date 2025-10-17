@@ -31,6 +31,8 @@ export function WhoTargetsPanel({
       <div
         className={clsx('who-targets-panel', 'who-targets-panel--loading', className)}
         data-testid="who-targets-panel"
+        aria-busy="true"
+        aria-live="polite"
       >
         <div className="who-targets-panel__header">
           <h2 className="who-targets-panel__title">
@@ -103,6 +105,12 @@ export function WhoTargetsPanel({
             type="button"
             className="btn btn--primary btn--large"
             onClick={onSaveAndContinue}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSaveAndContinue();
+              }
+            }}
           >
             {t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
           </button>
