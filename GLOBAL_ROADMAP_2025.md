@@ -241,8 +241,30 @@
 
 > **Владелец**: iOS Team | **Каденция**: По мере необходимости
 
-- [ ] **Synchronize texts/iconography/micro-animations** с SwiftUI screens
-- [ ] **Align navigation and naming** (RU/EN/ES locales)
+#### ✅ Frontend Ready (PR #2.7 Completed)
+- [x] **iOS-compatible localization keys** added to all locales (EN/RU/ES)
+- [x] **Chart, week, health, units sections** prepared for iOS sync
+- [x] **Language, profile, mascot, settings keys** aligned with iOS format
+- [x] **Accessibility labels** ready for iOS integration
+
+#### 🔄 iOS Development Tasks (When iOS Development Resumes)
+- [ ] **Update iOS Localizable.strings** to match frontend structure
+- [ ] **Implement SwiftUI components** using new localization keys
+- [ ] **Synchronize navigation flow** between iOS and frontend
+- [ ] **Align micro-animations** and iconography
+- [ ] **Test cross-platform consistency** (RU/EN/ES locales)
+- [ ] **HealthKit integration** using prepared health.* keys
+- [ ] **Profile and settings screens** using profile.* and settings.* keys
+- [ ] **Mascot messages** using mascot.* keys for consistency
+
+#### 📋 iOS Development Roadmap (When Ready)
+- [ ] **Phase 1**: Update iOS Localizable.strings with new key structure
+- [ ] **Phase 2**: Implement SwiftUI screens using prepared localization keys
+- [ ] **Phase 3**: HealthKit integration with health.* keys
+- [ ] **Phase 4**: Profile and settings screens with profile.* and settings.* keys
+- [ ] **Phase 5**: Chart and progress screens with chart.* and week.* keys
+- [ ] **Phase 6**: Mascot integration with mascot.* keys
+- [ ] **Phase 7**: Cross-platform testing and consistency validation
 
 ### 📊 Telemetry & Product Metrics
 
@@ -346,13 +368,14 @@
 ## 🎉 Текущий статус
 
 - ✅ **ФАЗА 1 ЗАВЕРШЕНА**: CI стабилизирован, все тесты проходят
-- 🔄 **ФАЗА 2 В ПРОЦЕССЕ**: OpenAPI Infrastructure
+- ✅ **ФАЗА 2 ЗАВЕРШЕНА**: OpenAPI Infrastructure & iOS Preparation
   - ✅ **PR #2.1 ЗАВЕРШЕН**: Feature Flags Setup (25 тестов, мок по модулям)
   - ✅ **PR #2.2 ЗАВЕРШЕН**: Design Tokens Foundation (21 тест, CSS custom properties)
   - ✅ **PR #2.3 ЗАВЕРШЕН**: VIP Components Base (25 тестов, useInert хук)
   - ✅ **PR #2.4 ЗАВЕРШЕН**: Telemetry Foundation (56 тестов, type-safe события)
-  - 🔄 **PR #2.5 В ПРОЦЕССЕ**: VIP i18n Keys (32 теста, centralized terminology mapping)
-  - 📋 **PR #2.6-2.7 ПЛАНИРУЮТСЯ**: i18n Validation & Quality, iOS-Frontend Sync
+  - ✅ **PR #2.5 ЗАВЕРШЕН**: VIP i18n Keys (35 тестов, centralized terminology mapping)
+  - ✅ **PR #2.6 ЗАВЕРШЕН**: i18n Validation & Quality (35 тестов, language-specific patterns)
+  - ✅ **PR #2.7 ЗАВЕРШЕН**: iOS-Frontend Sync Preparation (iOS-compatible keys)
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
-**Текущий этап**: PR #2.5 (VIP i18n Keys) 🔄
+**Текущий этап**: Готов к ФАЗЕ 3 (WHO Targets E2E) 🚀
