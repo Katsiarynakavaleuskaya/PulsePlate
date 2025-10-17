@@ -19,7 +19,7 @@
 
 ## 🧪 Стратегия тестирования и моков
 
-In GLOBAL_ROADMAP_2025.md around lines 72 to 114, Phase 2 PR entries #2.2, #2.3 and #2.4 are marked "ЗАВЕРШЕНО ✅" but the status summary at line 325 says "📋 **PR #2.2-2.5 ПЛАНИРУЮТСЯ**", causing a mismatch; pick the authoritative state (completed or planned) and make them consistent by either updating the line-325 summary to reflect that PRs #2.2–2.4 are completed (change wording and emoji to show completion and adjust numbering if needed) or revert the individual PR sections to planned (remove ✔️/ЗАВЕРШЕНО and use planning language), then run a quick pass to ensure numbering, emojis, and RU/EN phrasing are consistent across the document.### Моки по модулям (не по классам)
+### Моки по модулям (не по классам)
 
 - **Принцип**: Мокаем модули целиком, а не отдельные классы
 - **Пример**: `vi.mock('../telemetry')` вместо `vi.mock('../telemetry', { SomeClass: ... })`
@@ -116,16 +116,19 @@ In GLOBAL_ROADMAP_2025.md around lines 72 to 114, Phase 2 PR entries #2.2, #2.3 
 
 **Результат**: Полная система телеметрии готова ✅
 
-### 📋 PR #2.5: VIP i18n Keys (≤50 строк) - ПЛАНИРУЕТСЯ
+### ✅ PR #2.5: VIP i18n Keys
 
+- **Статус**: ЗАВЕРШЕНО ✅
 - **Цель**: Добавить VIP-related переводы для новых компонентов
-- **Критерии**: Все VIP компоненты локализованы; тесты проходят
+- **Решение**:
+  - Добавлены VIP термины в cspell словарь (VIP, vip)
+  - Создана centralized terminology mapping для VIP переводов
+  - Добавлены comprehensive тесты для VIP translation quality (2 новых теста)
+  - Исправлена TypeScript ошибка с типами локалей (as const assertion)
+  - Применена object destructuring в тестах для лучшей читаемости
+  - **Ключевое решение**: Централизованное сопоставление VIP терминологии вместо hard-coded строк
 
-#### Задачи
-
-- [ ] **Добавить VIP переводы** в `locales/*.json` (vip.badge, vip.gate, vip.paywall)
-- [ ] **Обновить существующие ключи** для консистентности
-- [ ] **Добавить тесты** для новых ключей
+**Результат**: Полная локализация VIP компонентов готова ✅
 
 ### 📋 PR #2.6: i18n Validation & Quality (≤50 строк) - ПЛАНИРУЕТСЯ
 
@@ -348,7 +351,8 @@ In GLOBAL_ROADMAP_2025.md around lines 72 to 114, Phase 2 PR entries #2.2, #2.3 
   - ✅ **PR #2.2 ЗАВЕРШЕН**: Design Tokens Foundation (21 тест, CSS custom properties)
   - ✅ **PR #2.3 ЗАВЕРШЕН**: VIP Components Base (25 тестов, useInert хук)
   - ✅ **PR #2.4 ЗАВЕРШЕН**: Telemetry Foundation (56 тестов, type-safe события)
-  - 📋 **PR #2.5-2.7 ПЛАНИРУЮТСЯ**: VIP i18n Keys, i18n Validation, iOS-Frontend Sync
+  - ✅ **PR #2.5 ЗАВЕРШЕН**: VIP i18n Keys (32 теста, centralized terminology mapping)
+  - 📋 **PR #2.6-2.7 ПЛАНИРУЮТСЯ**: i18n Validation & Quality, iOS-Frontend Sync
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
-**Готов к следующему этапу**: PR #2.5 (VIP i18n Keys) 🚀
+**Готов к следующему этапу**: PR #2.6 (i18n Validation & Quality) 🚀
