@@ -186,4 +186,123 @@ describe('WHO Targets i18n', () => {
       });
     });
   });
+
+  describe('Edge Cases & Fallback Handling', () => {
+    it('should handle missing translation keys gracefully', () => {
+      // Test that accessing non-existent keys doesn't crash
+      const testMissingKey = (locale: string, data: any) => {
+        expect(() => {
+          const missingKey = (data.whoTargets as any)['nonExistentSection'];
+          expect(missingKey).toBeUndefined();
+        }).not.toThrow();
+      };
+
+      Object.entries(locales).forEach(([locale, data]) => {
+        testMissingKey(locale, data);
+      });
+    });
+
+    it('should have consistent fallback structure for nested keys', () => {
+      // Test that nested object access is safe
+      const testNestedAccess = (locale: string, data: any) => {
+        expect(() => {
+          const nestedKey = (data.whoTargets.macros as any)['nonExistentMacro'];
+          expect(nestedKey).toBeUndefined();
+        }).not.toThrow();
+      };
+
+      Object.entries(locales).forEach(([locale, data]) => {
+        testNestedAccess(locale, data);
+      });
+    });
+
+    it('should validate that all required keys exist before testing content', () => {
+      // This test ensures our test suite doesn't break if keys are missing
+      const requiredKeys = [
+        'whoTargets.calories.title',
+        'whoTargets.macros.protein',
+        'whoTargets.hydration.unit',
+        'whoTargets.micros.iron_mg',
+        'whoTargets.activity.moderateAerobic',
+        'whoTargets.warnings.title',
+        'whoTargets.empty.message',
+        'whoTargets.error.retry'
+      ];
+
+      Object.entries(locales).forEach(([locale, data]) => {
+        requiredKeys.forEach(keyPath => {
+          const keys = keyPath.split('.');
+          let current = data;
+
+          for (const key of keys) {
+            expect(
+              current,
+              `Missing parent object for ${keyPath} in ${locale}`
+            ).toBeDefined();
+            current = (current as any)[key];
+          }
+
+          expect(
+            current,
+            `Missing key ${keyPath} in ${locale}`
+          ).toBeDefined();
+        });
+      });
+    });
+
+    it('should handle empty or null values appropriately', () => {
+      // Test that our validation catches empty values
+      Object.entries(locales).forEach(([locale, data]) => {
+        const checkForEmptyValues = (obj: any, path: string = '') => {
+          Object.entries(obj).forEach(([key, value]) => {
+            const currentPath = path ? `${path}.${key}` : key;
+
+            if (typeof value === 'object' && value !== null) {
+              checkForEmptyValues(value, currentPath);
+            } else {
+              // Ensure no empty strings, null, or undefined values
+              expect(
+                value,
+                `Empty or null value at ${currentPath} in ${locale}`
+              ).toBeTruthy();
+              expect(
+                typeof value,
+                `Non-string value at ${currentPath} in ${locale}`
+              ).toBe('string');
+              expect(
+                (value as string).trim().length,
+                `Whitespace-only value at ${currentPath} in ${locale}`
+              ).toBeGreaterThan(0);
+            }
+          });
+        };
+
+        checkForEmptyValues(data.whoTargets);
+      });
+    });
+
+    it('should validate translation key format consistency', () => {
+      // Test that translation keys follow consistent naming patterns
+      const validateKeyFormat = (obj: any, path: string = '') => {
+        Object.entries(obj).forEach(([key, value]) => {
+          const currentPath = path ? `${path}.${key}` : key;
+
+          // Check that keys use camelCase or snake_case consistently
+          const isValidKey = /^[a-z][a-zA-Z0-9_]*$/.test(key);
+          expect(
+            isValidKey,
+            `Invalid key format '${key}' at ${currentPath}`
+          ).toBe(true);
+
+          if (typeof value === 'object' && value !== null) {
+            validateKeyFormat(value, currentPath);
+          }
+        });
+      };
+
+      Object.entries(locales).forEach(([locale, data]) => {
+        validateKeyFormat(data.whoTargets);
+      });
+    });
+  });
 });
