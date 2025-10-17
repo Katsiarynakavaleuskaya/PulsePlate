@@ -296,6 +296,10 @@
     "error": {
       "title": "No se Pudieron Calcular los Objetivos",
       "retry": "Intentar de Nuevo"
+    },
+    "cta": {
+      "saveAndContinue": "Guardar y Obtener Plan",
+      "description": "Guarda tus objetivos nutricionales y procede a generar tu plan semanal personalizado de comidas"
     }
   }
 }

@@ -101,9 +101,12 @@ export function WhoTargetsPanel({
 
         {/* CTA Button */}
         <div className="who-targets-panel__actions">
+          <p id="who-targets-cta-description" className="sr-only">
+            {t('whoTargets.cta.description', 'Save your nutrition targets and proceed to generate your personalized weekly meal plan')}
+          </p>
           <button
             type="button"
-            className="btn btn--primary btn--large"
+            className="btn btn--primary btn-touch-large"
             onClick={onSaveAndContinue}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -111,6 +114,8 @@ export function WhoTargetsPanel({
                 onSaveAndContinue();
               }
             }}
+            aria-label={t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
+            aria-describedby="who-targets-cta-description"
           >
             {t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
           </button>
