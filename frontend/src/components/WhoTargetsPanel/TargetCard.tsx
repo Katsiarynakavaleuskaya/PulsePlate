@@ -4,6 +4,7 @@ import type { TargetsApiResponse } from '../../api/premium/types';
 
 // Helper function for consistent numeric formatting
 function formatNumericValue(value: unknown): string {
+  if (value == null) return '—';
   return typeof value === 'number' ? value.toLocaleString() : String(value);
 }
 
