@@ -6,7 +6,6 @@ import es from '../es.json';
 import {
   collectKeyPaths,
   checkLengths,
-  getMaxLength,
   MAX_ALLOWED_DUPLICATES,
   STRING_LENGTH_LIMITS,
   TestLogger

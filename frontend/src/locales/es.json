@@ -210,7 +210,7 @@
     "title": "Progreso Semanal",
     "refresh": "Actualizar semana",
     "chartAccessibility": "Gráfico de energía semanal",
-    "progressAccessibilityLine": "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@"
+    "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
   },
   "health": {
     "permissionMessage": "Permitir acceso a Health para mostrar nutrición y progreso.",

@@ -242,29 +242,16 @@
 > **Владелец**: iOS Team | **Каденция**: По мере необходимости
 
 #### ✅ Frontend Ready (PR #2.7 Completed)
+
 - [x] **iOS-compatible localization keys** added to all locales (EN/RU/ES)
 - [x] **Chart, week, health, units sections** prepared for iOS sync
 - [x] **Language, profile, mascot, settings keys** aligned with iOS format
 - [x] **Accessibility labels** ready for iOS integration
 
-#### 🔄 iOS Development Tasks (When iOS Development Resumes)
-- [ ] **Update iOS Localizable.strings** to match frontend structure
-- [ ] **Implement SwiftUI components** using new localization keys
-- [ ] **Synchronize navigation flow** between iOS and frontend
-- [ ] **Align micro-animations** and iconography
-- [ ] **Test cross-platform consistency** (RU/EN/ES locales)
-- [ ] **HealthKit integration** using prepared health.* keys
-- [ ] **Profile and settings screens** using profile.* and settings.* keys
-- [ ] **Mascot messages** using mascot.* keys for consistency
+#### 📋 Detailed iOS Development Plan
+> **See**: [IOS_DEVELOPMENT_ROADMAP.md](./IOS_DEVELOPMENT_ROADMAP.md) for complete iOS development phases and tasks
 
-#### 📋 iOS Development Roadmap (When Ready)
-- [ ] **Phase 1**: Update iOS Localizable.strings with new key structure
-- [ ] **Phase 2**: Implement SwiftUI screens using prepared localization keys
-- [ ] **Phase 3**: HealthKit integration with health.* keys
-- [ ] **Phase 4**: Profile and settings screens with profile.* and settings.* keys
-- [ ] **Phase 5**: Chart and progress screens with chart.* and week.* keys
-- [ ] **Phase 6**: Mascot integration with mascot.* keys
-- [ ] **Phase 7**: Cross-platform testing and consistency validation
+**Quick Status**: Frontend ready for iOS synchronization. iOS team can resume development using prepared localization structure.
 
 ### 📊 Telemetry & Product Metrics
 

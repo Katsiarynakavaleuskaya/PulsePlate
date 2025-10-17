@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { trackVipEvent, vipTelemetry, isTelemetryEnabled } from '../telemetry';
+import { trackVipEvent, vipTelemetry, isTelemetryEnabled, EventType } from '../telemetry';
 import { isAnalyticsEnabled } from '../../config/features';
 import { getSessionId } from '../sessionManager';
 import { getCurrentFeatureFlags } from '../featureFlagManager';
@@ -49,7 +49,7 @@ describe('Telemetry', () => {
 
   describe('trackVipEvent', () => {
     it('should track event when analytics is enabled', () => {
-      trackVipEvent('vip_module_viewed', {
+      trackVipEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -70,7 +70,7 @@ describe('Telemetry', () => {
     it('should not track event when analytics is disabled', () => {
       mockIsAnalyticsEnabled.mockReturnValue(false);
 
-      trackVipEvent('vip_module_viewed', {
+      trackVipEvent(EventType.VIP_MODULE_VIEWED, {
         source: 'dashboard',
         vipEnabled: true,
       });
@@ -81,7 +81,7 @@ describe('Telemetry', () => {
     it('should add timestamp if not provided', () => {
       const beforeTime = Date.now();
 
-      trackVipEvent('vip_feature_clicked', {
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
         featureName: 'advanced_analytics',
         source: 'dashboard',
         isVip: false,
@@ -106,7 +106,7 @@ describe('Telemetry', () => {
         timestamp: customTimestamp,
       } as any;
 
-      trackVipEvent('vip_feature_clicked', payload);
+      trackVipEvent(EventType.VIP_FEATURE_CLICKED, payload);
 
       expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
         timestamp: customTimestamp,

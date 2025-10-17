@@ -3,100 +3,48 @@
  *
  * Centralized telemetry system for VIP events and user analytics.
  * Provides type-safe event tracking with automatic feature flag integration.
+ *
+ * Uses centralized event registry to prevent event definition divergence.
  */
 
 import { log } from './analytics';
 import { isAnalyticsEnabled } from '../config/features';
 import { getSessionId, refreshSession, clearSession } from './sessionManager';
 import { getCurrentFeatureFlags, initializeFeatureFlags, updateFeatureFlags, clearFeatureFlags } from './featureFlagManager';
+import {
+  EventType,
+  EventPayloadMap,
+  validateEventPayload,
+  type BaseEventPayload,
+  type VipModuleViewedPayload,
+  type VipFeatureClickedPayload,
+  type VipPaywallViewedPayload,
+  type VipPaywallDismissedPayload,
+  type VipUpgradeClickedPayload,
+  type VipGateInteractedPayload,
+  type VipBadgeViewedPayload,
+} from './telemetry/eventRegistry';
 
 /**
- * VIP-specific event types
+ * VIP-specific event types (imported from centralized registry)
  */
-export type VipEventType =
-  | 'vip_module_viewed'
-  | 'vip_feature_clicked'
-  | 'vip_paywall_viewed'
-  | 'vip_paywall_dismissed'
-  | 'vip_upgrade_clicked'
-  | 'vip_gate_interacted'
-  | 'vip_badge_viewed';
+export type VipEventType = EventType;
 
-/**
- * Base event payload structure
- */
-export interface BaseEventPayload {
-  /** Timestamp when event occurred */
-  timestamp?: number;
-  /** User session identifier */
-  sessionId?: string;
-  /** Feature flag state at time of event */
-  featureFlags?: Record<string, boolean>;
-}
+// Re-export EventType for external use
+export { EventType };
 
-/**
- * VIP-specific event payloads
- */
-export interface VipModuleViewedPayload extends BaseEventPayload {
-  /** Source page or component that triggered the view */
-  source: string;
-  /** Whether VIP module is currently enabled */
-  vipEnabled: boolean;
-}
-
-export interface VipFeatureClickedPayload extends BaseEventPayload {
-  /** Name of the VIP feature that was clicked */
-  featureName: string;
-  /** Component or page where the click occurred */
-  source: string;
-  /** Whether user is currently VIP */
-  isVip: boolean;
-}
-
-export interface VipPaywallViewedPayload extends BaseEventPayload {
-  /** Source that triggered the paywall */
-  source: string;
-  /** Context of the paywall (e.g., 'feature_gate', 'upgrade_prompt') */
-  context: string;
-  /** Whether this is a retry (user has seen paywall before) */
-  isRetry?: boolean;
-}
-
-export interface VipPaywallDismissedPayload extends BaseEventPayload {
-  /** Source that triggered the paywall */
-  source: string;
-  /** How the paywall was dismissed ('close_button', 'backdrop', 'escape') */
-  dismissMethod: string;
-  /** Time spent viewing paywall in milliseconds */
-  viewDuration?: number;
-}
-
-export interface VipUpgradeClickedPayload extends BaseEventPayload {
-  /** Source that triggered the upgrade */
-  source: string;
-  /** Context of the upgrade (e.g., 'paywall', 'feature_gate') */
-  context: string;
-  /** Whether this is a retry (user has clicked upgrade before) */
-  isRetry?: boolean;
-}
-
-export interface VipGateInteractedPayload extends BaseEventPayload {
-  /** Name of the gated feature */
-  featureName: string;
-  /** Type of interaction ('click', 'hover', 'focus') */
-  interactionType: string;
-  /** Whether user is currently VIP */
-  isVip: boolean;
-}
-
-export interface VipBadgeViewedPayload extends BaseEventPayload {
-  /** Component where badge was viewed */
-  component: string;
-  /** Badge variant ('small', 'medium', 'large') */
-  variant: string;
-  /** Whether user is currently VIP */
-  isVip: boolean;
-}
+// Re-export types for backward compatibility
+export type {
+  BaseEventPayload,
+  VipModuleViewedPayload,
+  VipFeatureClickedPayload,
+  VipPaywallViewedPayload,
+  VipPaywallDismissedPayload,
+  VipUpgradeClickedPayload,
+  VipGateInteractedPayload,
+  VipBadgeViewedPayload,
+  EventPayloadMap,
+};
 
 /**
  * Union type for all VIP event payloads
@@ -111,146 +59,153 @@ export type VipEventPayload =
   | VipBadgeViewedPayload;
 
 /**
- * Type mapping for event payloads
+ * Core telemetry tracking function
  */
-type EventPayloadMap = {
-  'vip_module_viewed': Omit<VipModuleViewedPayload, 'timestamp'>;
-  'vip_feature_clicked': Omit<VipFeatureClickedPayload, 'timestamp'>;
-  'vip_paywall_viewed': Omit<VipPaywallViewedPayload, 'timestamp'>;
-  'vip_paywall_dismissed': Omit<VipPaywallDismissedPayload, 'timestamp'>;
-  'vip_upgrade_clicked': Omit<VipUpgradeClickedPayload, 'timestamp'>;
-  'vip_gate_interacted': Omit<VipGateInteractedPayload, 'timestamp'>;
-  'vip_badge_viewed': Omit<VipBadgeViewedPayload, 'timestamp'>;
-};
-
-/**
- * Enhanced analytics function with VIP event support
- */
-export function trackVipEvent<T extends VipEventType>(
+export function trackVipEvent<T extends EventType>(
   eventType: T,
   payload: EventPayloadMap[T]
 ): void {
-  // Only track if analytics is enabled
   if (!isAnalyticsEnabled()) {
     return;
   }
 
-  // Get current session and feature flags
-  const sessionId = getSessionId();
-  const featureFlags = getCurrentFeatureFlags();
+  // Validate payload using centralized registry
+  if (!validateEventPayload(eventType, payload)) {
+    console.error(`Invalid payload for event ${eventType}:`, payload);
+    return;
+  }
 
-  // Add timestamp, sessionId, and featureFlags if not provided
+  // Enrich payload with session and feature flag data
   const enrichedPayload = {
-    timestamp: Date.now(),
-    sessionId,
-    featureFlags,
     ...payload,
+    timestamp: payload.timestamp || Date.now(),
+    sessionId: getSessionId(),
+    featureFlags: getCurrentFeatureFlags(),
   };
 
-  // Log the event (already has vip_ prefix)
-  log(eventType, enrichedPayload);
+  // Log the event
+  log(eventType, enrichedPayload as unknown as Record<string, unknown>);
 }
 
 /**
- * Convenience functions for common VIP events
+ * VIP telemetry tracking functions
  */
 export const vipTelemetry = {
   /**
-   * Track when VIP module is viewed
+   * Track VIP module view
    */
   moduleViewed: (source: string, vipEnabled: boolean) => {
-    trackVipEvent('vip_module_viewed', { source, vipEnabled });
+    trackVipEvent(EventType.VIP_MODULE_VIEWED, {
+      source,
+      vipEnabled,
+    });
   },
 
   /**
-   * Track when a VIP feature is clicked
+   * Track VIP feature click
    */
   featureClicked: (featureName: string, source: string, isVip: boolean) => {
-    trackVipEvent('vip_feature_clicked', { featureName, source, isVip });
+    trackVipEvent(EventType.VIP_FEATURE_CLICKED, {
+      featureName,
+      source,
+      isVip,
+    });
   },
 
   /**
-   * Track when paywall is viewed
+   * Track VIP paywall view
    */
   paywallViewed: (source: string, context: string, isRetry?: boolean) => {
-    trackVipEvent('vip_paywall_viewed', { source, context, isRetry });
+    trackVipEvent(EventType.VIP_PAYWALL_VIEWED, {
+      source,
+      context,
+      isRetry,
+    });
   },
 
   /**
-   * Track when paywall is dismissed
+   * Track VIP paywall dismissal
    */
   paywallDismissed: (source: string, dismissMethod: string, viewDuration?: number) => {
-    trackVipEvent('vip_paywall_dismissed', { source, dismissMethod, viewDuration });
+    trackVipEvent(EventType.VIP_PAYWALL_DISMISSED, {
+      source,
+      dismissMethod,
+      viewDuration,
+    });
   },
 
   /**
-   * Track when upgrade is clicked
+   * Track VIP upgrade click
    */
   upgradeClicked: (source: string, context: string, isRetry?: boolean) => {
-    trackVipEvent('vip_upgrade_clicked', { source, context, isRetry });
+    trackVipEvent(EventType.VIP_UPGRADE_CLICKED, {
+      source,
+      context,
+      isRetry,
+    });
   },
 
   /**
-   * Track when VIP gate is interacted with
+   * Track VIP gate interaction
    */
   gateInteracted: (featureName: string, interactionType: string, isVip: boolean) => {
-    trackVipEvent('vip_gate_interacted', { featureName, interactionType, isVip });
+    trackVipEvent(EventType.VIP_GATE_INTERACTED, {
+      featureName,
+      interactionType,
+      isVip,
+    });
   },
 
   /**
-   * Track when VIP badge is viewed
+   * Track VIP badge view
    */
   badgeViewed: (component: string, variant: string, isVip: boolean) => {
-    trackVipEvent('vip_badge_viewed', { component, variant, isVip });
+    trackVipEvent(EventType.VIP_BADGE_VIEWED, {
+      component,
+      variant,
+      isVip,
+    });
   },
-};
-
-/**
- * Utility to check if telemetry is enabled
- */
-export const isTelemetryEnabled = (): boolean => {
-  return isAnalyticsEnabled();
 };
 
 /**
  * Initialize telemetry system
- * Call this once at app startup
  */
 export function initializeTelemetry(): void {
-  if (!isAnalyticsEnabled()) {
-    return;
-  }
-
-  // Initialize feature flags
   initializeFeatureFlags();
-
-  // Ensure we have a valid session
-  getSessionId();
+  refreshSession();
 }
 
 /**
  * Update feature flags for telemetry
- * Call this when feature flags change
  */
-export function updateTelemetryFeatureFlags(flagState: Record<string, boolean>): void {
-  updateFeatureFlags(flagState);
+export function updateTelemetryFeatureFlags(flags: Record<string, boolean>): void {
+  updateFeatureFlags(flags);
 }
 
 /**
  * Refresh telemetry session
- * Call this periodically or on user activity
  */
-export function refreshTelemetrySession(): string {
+export function refreshTelemetrySession(): string | 'disabled' {
   if (!isAnalyticsEnabled()) {
     return 'disabled';
   }
-  return refreshSession();
+
+  refreshSession();
+  return getSessionId();
 }
 
 /**
- * Clear telemetry data (for privacy/sign-out)
+ * Clear telemetry data
  */
 export function clearTelemetryData(): void {
   clearSession();
   clearFeatureFlags();
+}
+
+/**
+ * Check if telemetry is enabled
+ */
+export function isTelemetryEnabled(): boolean {
+  return isAnalyticsEnabled();
 }
