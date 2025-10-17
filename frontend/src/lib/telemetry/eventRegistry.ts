@@ -170,6 +170,20 @@ export function validateEventPayload<T extends EventType>(
     return false;
   }
 
+  // Validate BaseEventPayload fields if present
+  if ('timestamp' in payload && typeof payload.timestamp !== 'number') {
+    console.error(`Invalid type for 'timestamp': expected 'number', got '${typeof payload.timestamp}'`);
+    return false;
+  }
+  if ('sessionId' in payload && typeof payload.sessionId !== 'string') {
+    console.error(`Invalid type for 'sessionId': expected 'string', got '${typeof payload.sessionId}'`);
+    return false;
+  }
+  if ('featureFlags' in payload && (typeof payload.featureFlags !== 'object' || Array.isArray(payload.featureFlags))) {
+    console.error(`Invalid type for 'featureFlags': expected 'object', got '${typeof payload.featureFlags}'`);
+    return false;
+  }
+
   // Validate each field according to its schema
   for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {
     const value = payload[fieldName as keyof EventPayloadMap[T]];

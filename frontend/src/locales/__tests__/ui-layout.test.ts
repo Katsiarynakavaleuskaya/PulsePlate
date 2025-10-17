@@ -10,6 +10,11 @@ import en from '../en.json';
 import ru from '../ru.json';
 import es from '../es.json';
 
+// Test configuration constants
+const MAX_LONG_STRINGS = 150; // Maximum acceptable number of long strings
+const TOP_LONG_STRINGS = 10; // Number of longest strings to log for debugging
+const CRITICAL_MAX_LENGTH = 80; // Maximum length for critical UI strings
+
 describe('UI Layout Compatibility with Localized Strings', () => {
   const locales = { en, ru, es } as const;
   const languages = Object.keys(locales) as Array<keyof typeof locales>;
@@ -40,7 +45,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
           expect(ratio, `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`).toBeLessThanOrEqual(4.0);
 
           // Store test results for potential debugging (only in development)
-          if (process.env.NODE_ENV === 'development' && process.env.DEBUG_UI_TESTS === 'true') {
+          if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_UI_TESTS === 'true') {
             console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
           }
         }
@@ -140,14 +145,14 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
       // Validate that we have reasonable number of long strings
       // Note: 96 long strings is acceptable for a comprehensive localization
-      expect(longStrings.length, 'Too many long strings detected - consider shortening translations').toBeLessThan(150);
+      expect(longStrings.length, `Too many long strings detected (${longStrings.length}) - consider shortening translations (max: ${MAX_LONG_STRINGS})`).toBeLessThan(MAX_LONG_STRINGS);
 
       // Log for debugging only in development
       if (longStrings.length > 0 && process.env.VITEST_VERBOSE_LOCALES === '1') {
         console.log('\n=== Long Strings Requiring UI Review ===');
         longStrings
           .sort((a, b) => b.length - a.length)
-          .slice(0, 10) // Top 10 longest strings
+          .slice(0, TOP_LONG_STRINGS) // Top longest strings for debugging
           .forEach(item => {
             console.log(`${item.language.toUpperCase()}: ${item.key} (${item.length} chars) - "${item.value}"`);
           });
@@ -159,8 +164,8 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         item.key.includes('cta') ||
         item.key.includes('title')
       );
-      const excessiveStrings = criticalAreas.filter(item => item.length > 80);
-      expect(excessiveStrings, `Found ${excessiveStrings.length} excessively long strings in critical UI areas`).toHaveLength(0);
+      const excessiveStrings = criticalAreas.filter(item => item.length > CRITICAL_MAX_LENGTH);
+      expect(excessiveStrings, `Found ${excessiveStrings.length} excessively long strings in critical UI areas (max: ${CRITICAL_MAX_LENGTH} chars)`).toHaveLength(0);
     });
   });
 
