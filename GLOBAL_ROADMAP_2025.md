@@ -171,22 +171,24 @@
 
 **Результат**: Базовый компонент WHO Targets готов ✅
 
-### 📋 PR #3.2: WHO Targets i18n & Localization
+### ✅ PR #3.2: WHO Targets i18n & Localization
 
-- **Статус**: ПЛАНИРУЕТСЯ 📋
+- **Статус**: ЗАВЕРШЕНО ✅
 - **Цель**: Полная локализация WHO Targets компонента
 - **Критерии**: Все тексты локализованы (RU/EN/ES); тесты локализации проходят
 
 #### Задачи
 
-- [ ] **Add i18n keys** для WHO Targets (RU/EN/ES)
-- [ ] **Localize all texts** и сообщения
-- [ ] **Add localization tests** для consistency
-- [ ] **Validate text lengths** для UI layout
+- [x] **Add i18n keys** для WHO Targets (RU/EN/ES)
+- [x] **Localize all texts** и сообщения
+- [x] **Add localization tests** для consistency
+- [x] **Validate text lengths** для UI layout
 
-### 📋 PR #3.3: WHO Targets Accessibility & UX
+**Результат**: Полная локализация WHO Targets готова ✅
 
-- **Статус**: ПЛАНИРУЕТСЯ 📋
+### 🔄 PR #3.3: WHO Targets Accessibility & UX
+
+- **Статус**: В ПРОЦЕССЕ 🔄
 - **Цель**: Полная accessibility compliance и UX оптимизация
 - **Критерии**: a11y-тест проходит; keyboard navigation работает; screen reader support
 
@@ -196,6 +198,10 @@
 - [ ] **Implement keyboard navigation** для всех элементов
 - [ ] **Add screen reader support** с proper ARIA labels
 - [ ] **Optimize focus management** и tab order
+- [ ] **Fix remaining CodeRabbit feedback** from previous PRs
+- [ ] **Add comprehensive component tests** for WHO Targets
+- [ ] **Improve code quality** and performance
+- [ ] **Achieve 97% test coverage** for changed files
 
 ### 📋 PR #3.4: WHO Targets Integration & Testing
 
