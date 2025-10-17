@@ -103,7 +103,6 @@ describe('Telemetry', () => {
     });
 
     it('should preserve provided timestamp', () => {
-      vi.useFakeTimers();
       const customTimestamp = 1234567890;
 
       // Use a direct call to trackVipEvent with timestamp in payload
@@ -128,7 +127,6 @@ describe('Telemetry', () => {
         source: 'dashboard',
         isVip: false,
       });
-      vi.useRealTimers();
     });
   });
 
@@ -373,6 +371,38 @@ describe('Telemetry', () => {
       } as any; // Cast to any to test runtime validation
 
       expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(false);
+    });
+
+    it('should reject payload with wrong BaseEventPayload field types', () => {
+      const payloadWithWrongTimestamp = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: 'invalid', // Should be number
+        sessionId: 'test-session',
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongTimestamp)).toBe(false);
+
+      const payloadWithWrongSessionId = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 123, // Should be string
+        featureFlags: { vip: true }
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongSessionId)).toBe(false);
+
+      const payloadWithWrongFeatureFlags = {
+        source: 'dashboard',
+        vipEnabled: true,
+        timestamp: Date.now(),
+        sessionId: 'test-session',
+        featureFlags: 'invalid' // Should be object
+      } as any;
+
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongFeatureFlags)).toBe(false);
     });
   });
 });
