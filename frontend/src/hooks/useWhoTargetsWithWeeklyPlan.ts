@@ -67,20 +67,20 @@ export function useWhoTargetsWithWeeklyPlan(
     setWeeklyPlanError(null);
 
     try {
-      // First fetch targets if not already available
-      let targets = targetsData;
-      if (!targets) {
-        setTargetsLoading(true);
-        try {
-          targets = await getTargets(request);
-          setTargetsData(targets);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
-          setTargetsError(errorMessage);
-          throw error;
-        } finally {
-          setTargetsLoading(false);
-        }
+      // Always fetch fresh targets to ensure consistency with the request
+      setTargetsLoading(true);
+      setTargetsError(null);
+
+      let targets: TargetsApiResponse;
+      try {
+        targets = await getTargets(request);
+        setTargetsData(targets);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
+        setTargetsError(errorMessage);
+        throw error;
+      } finally {
+        setTargetsLoading(false);
       }
 
       // Then generate weekly plan
@@ -88,9 +88,7 @@ export function useWhoTargetsWithWeeklyPlan(
       setWeeklyPlanData(weeklyPlan);
 
       // Call success callback with both data
-      if (targets && weeklyPlan) {
-        options.onSuccess?.(targets, weeklyPlan);
-      }
+      options.onSuccess?.(targets, weeklyPlan);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.weeklyPlanFailed', 'Failed to generate weekly plan');
       setWeeklyPlanError(errorMessage);
@@ -98,7 +96,7 @@ export function useWhoTargetsWithWeeklyPlan(
     } finally {
       setWeeklyPlanLoading(false);
     }
-  }, [targetsData, t, options]);
+  }, [t, options]);
 
   const retry = useCallback(() => {
     if (lastRequest) {
