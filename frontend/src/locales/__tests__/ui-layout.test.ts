@@ -30,15 +30,19 @@ describe('UI Layout Compatibility with Localized Strings', () => {
       for (const key of criticalKeys) {
         const enValue = getNestedValue(en, key);
         const ruValue = getNestedValue(ru, key);
+        expect(enValue, `Missing EN key: ${key}`).toBeTruthy();
+        expect(ruValue, `Missing RU key: ${key}`).toBeTruthy();
 
         if (enValue && ruValue) {
-          const ratio = ruValue.length / enValue.length;
+          const ratio = enValue.length === 0 ? 0 : ruValue.length / enValue.length;
 
           // Russian strings should not exceed 4x English length
           expect(ratio, `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`).toBeLessThanOrEqual(4.0);
 
-          // Log for manual UI testing
-          console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
+          // Store test results for potential debugging (only in development)
+          if (process.env.NODE_ENV === 'development' && process.env.DEBUG_UI_TESTS === 'true') {
+            console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
+          }
         }
       }
     });
@@ -56,6 +60,8 @@ describe('UI Layout Compatibility with Localized Strings', () => {
       for (const key of buttonKeys) {
         const enValue = getNestedValue(en, key);
         const ruValue = getNestedValue(ru, key);
+        expect(enValue, `Missing EN key: ${key}`).toBeTruthy();
+        expect(ruValue, `Missing RU key: ${key}`).toBeTruthy();
 
         if (enValue && ruValue) {
           // Button text should be reasonable length for mobile UI
@@ -77,6 +83,8 @@ describe('UI Layout Compatibility with Localized Strings', () => {
       for (const key of accessibilityKeys) {
         const enValue = getNestedValue(en, key);
         const ruValue = getNestedValue(ru, key);
+        expect(enValue, `Missing EN key: ${key}`).toBeTruthy();
+        expect(ruValue, `Missing RU key: ${key}`).toBeTruthy();
 
         if (enValue && ruValue) {
           // Accessibility labels should be concise but descriptive
@@ -130,8 +138,12 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         findLongStrings(locales[lang], '', lang);
       }
 
-      // Log long strings for manual review
-      if (longStrings.length > 0) {
+      // Validate that we have reasonable number of long strings
+      // Note: 96 long strings is acceptable for a comprehensive localization
+      expect(longStrings.length, 'Too many long strings detected - consider shortening translations').toBeLessThan(150);
+
+      // Log for debugging only in development
+      if (longStrings.length > 0 && process.env.VITEST_VERBOSE_LOCALES === '1') {
         console.log('\n=== Long Strings Requiring UI Review ===');
         longStrings
           .sort((a, b) => b.length - a.length)
@@ -141,17 +153,46 @@ describe('UI Layout Compatibility with Localized Strings', () => {
           });
       }
 
-      // This test passes but logs strings that need manual UI testing
-      expect(longStrings.length).toBeGreaterThanOrEqual(0);
+      // Assert that strings in critical UI areas don't exceed reasonable limits
+      const criticalAreas = longStrings.filter(item =>
+        item.key.includes('button') ||
+        item.key.includes('cta') ||
+        item.key.includes('title')
+      );
+      const excessiveStrings = criticalAreas.filter(item => item.length > 80);
+      expect(excessiveStrings, `Found ${excessiveStrings.length} excessively long strings in critical UI areas`).toHaveLength(0);
+    });
+  });
+
+  describe('Localization placeholder invariants', () => {
+    it('week.progressAccessibilityLine has identical placeholder sets across locales', () => {
+      const rx = /{(\w+)}/g;
+      const keys = (s: string) => {
+        const out = new Set<string>();
+        let m: RegExpExecArray | null;
+        while ((m = rx.exec(s))) out.add(m[1]);
+        return out;
+      };
+      const enSet = keys(en.week.progressAccessibilityLine);
+      const ruSet = keys(ru.week.progressAccessibilityLine);
+      const esSet = keys(es.week.progressAccessibilityLine);
+      expect(ruSet).toEqual(enSet);
+      expect(esSet).toEqual(enSet);
     });
   });
 });
 
 /**
- * Helper function to get nested object values by dot notation
+ * Helper function to get nested object values by dot notation with type safety
  */
-function getNestedValue(obj: any, path: string): string | undefined {
-  return path.split('.').reduce((current, key) => {
-    return current && typeof current === 'object' ? current[key] : undefined;
+function getNestedValue(obj: Record<string, unknown>, path: string): string | undefined {
+  const value = path.split('.').reduce<unknown>((current, key) => {
+    if (current && typeof current === 'object' && current !== null) {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
   }, obj);
+
+  // Type guard to ensure we return only strings
+  return typeof value === 'string' ? value : undefined;
 }
