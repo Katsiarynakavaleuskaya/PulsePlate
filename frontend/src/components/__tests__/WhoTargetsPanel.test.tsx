@@ -124,13 +124,13 @@ describe('WhoTargetsPanel', () => {
 
       // Macronutrients
       expect(screen.getByText('Macronutrients')).toBeInTheDocument();
-      expect(screen.getByText('Protein')).toBeInTheDocument();
+      expect(screen.getByText('protein')).toBeInTheDocument();
       expect(screen.getByText('150g')).toBeInTheDocument();
-      expect(screen.getByText('Carbs')).toBeInTheDocument();
+      expect(screen.getByText('carbs')).toBeInTheDocument();
       expect(screen.getByText('250g')).toBeInTheDocument();
-      expect(screen.getByText('Fat')).toBeInTheDocument();
+      expect(screen.getByText('fat')).toBeInTheDocument();
       expect(screen.getByText('67g')).toBeInTheDocument();
-      expect(screen.getByText('Fiber')).toBeInTheDocument();
+      expect(screen.getByText('fiber')).toBeInTheDocument();
       expect(screen.getByText('30g')).toBeInTheDocument();
 
       // Hydration
@@ -147,15 +147,15 @@ describe('WhoTargetsPanel', () => {
 
       // Activity Goals
       expect(screen.getByText('Activity Goals')).toBeInTheDocument();
-      expect(screen.getByText('Moderate Aerobic')).toBeInTheDocument();
+      expect(screen.getByText('moderateAerobic')).toBeInTheDocument();
       expect(screen.getByText('150')).toBeInTheDocument();
-      expect(screen.getByText('min/week')).toBeInTheDocument();
-      expect(screen.getByText('Strength Training')).toBeInTheDocument();
+      expect(screen.getByText('minutes')).toBeInTheDocument();
+      expect(screen.getByText('strength')).toBeInTheDocument();
       expect(screen.getByText('2')).toBeInTheDocument();
-      expect(screen.getByText('sessions/week')).toBeInTheDocument();
-      expect(screen.getByText('Daily Steps')).toBeInTheDocument();
-      expect(screen.getByText('10,000')).toBeInTheDocument();
+      expect(screen.getByText('sessions')).toBeInTheDocument();
       expect(screen.getByText('steps')).toBeInTheDocument();
+      expect(screen.getByText('10,000')).toBeInTheDocument();
+      expect(screen.getByText('stepsUnit')).toBeInTheDocument();
 
       // Warnings
       expect(screen.getByText('Important Notes')).toBeInTheDocument();
