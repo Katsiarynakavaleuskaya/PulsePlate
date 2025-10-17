@@ -7,9 +7,13 @@ import { WhoTargetsSkeleton } from './Skeleton';
 import { WhoTargetsErrorState } from './ErrorState';
 import { WhoTargetsEmptyState } from './EmptyState';
 
+import type { TargetsRequest } from '../../api/premium/types';
+import type { WeeklyMenuResponse } from '../../api/premium/weekly-plan';
+import { WhoTargetsPanel } from '../WhoTargetsPanel';
+
 interface IntegratedWhoTargetsPanelProps {
   request: TargetsRequest | null;
-  onWeeklyPlanGenerated?: (weeklyPlan: any) => void;
+  onWeeklyPlanGenerated?: (weeklyPlan: WeeklyMenuResponse) => void;
   onError?: (error: Error) => void;
   className?: string;
 }
@@ -40,13 +44,7 @@ export function IntegratedWhoTargetsPanel({
     },
   });
 
-  // Auto-fetch targets when request is provided
-  React.useEffect(() => {
-    if (request && !targetsData && !targetsLoading) {
-      // This would be handled by the parent component or a separate effect
-      // For now, we'll rely on the parent to call saveAndGetWeeklyPlan
-    }
-  }, [request, targetsData, targetsLoading]);
+
 
   const handleSaveAndContinue = async () => {
     if (!request) {

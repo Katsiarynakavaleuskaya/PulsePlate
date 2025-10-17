@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { WhoTargetsPanel } from '../WhoTargetsPanel';
@@ -355,7 +355,8 @@ describe('WhoTargetsPanel Accessibility', () => {
   });
 
   describe('Keyboard Navigation', () => {
-    it('should support standard keyboard navigation patterns', () => {
+    it('should support standard keyboard navigation patterns', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
@@ -365,14 +366,14 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
       expect(button).toHaveFocus();
 
-      // Test Enter key activation
-      fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
+      // Test Enter key activation (browser automatically triggers click)
+      await user.keyboard('{Enter}');
       expect(mockSave).toHaveBeenCalled();
 
       mockSave.mockClear();
 
-      // Test Space key activation
-      fireEvent.keyDown(button, { key: ' ', code: 'Space' });
+      // Test Space key activation (browser automatically triggers click)
+      await user.keyboard(' ');
       expect(mockSave).toHaveBeenCalled();
     });
 
@@ -398,12 +399,12 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
 
       // Test various key events don't cause errors
-      expect(async () => {
+      await expect((async () => {
         await user.keyboard('{Enter}');
         await user.keyboard(' ');
         await user.keyboard('{Escape}');
         await user.keyboard('{Tab}');
-      }).not.toThrow();
+      })()).resolves.not.toThrow();
     });
 
     it('should support Enter key activation for main button', async () => {
@@ -414,6 +415,7 @@ describe('WhoTargetsPanel Accessibility', () => {
       const button = screen.getByRole('button', { name: /save & get weekly plan/i });
       button.focus();
 
+      // Test Enter key activation (browser automatically triggers click)
       await user.keyboard('{Enter}');
       expect(mockSave).toHaveBeenCalled();
     });
@@ -426,7 +428,7 @@ describe('WhoTargetsPanel Accessibility', () => {
       const button = screen.getByRole('button', { name: /save & get weekly plan/i });
       button.focus();
 
-      // Test Space key
+      // Test Space key (browser automatically triggers click)
       await user.keyboard(' ');
       expect(mockSave).toHaveBeenCalled();
     });

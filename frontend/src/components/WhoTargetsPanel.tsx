@@ -105,19 +105,12 @@ export function WhoTargetsPanel({
             <p id="who-targets-cta-description" className="sr-only">
               {t('whoTargets.cta.description', 'Save your nutrition targets and proceed to generate your personalized weekly meal plan')}
             </p>
-            <button
-              type="button"
-              className="btn btn--primary btn-touch-large"
-              onClick={onSaveAndContinue}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSaveAndContinue();
-                }
-              }}
-              aria-label={t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
-              aria-describedby="who-targets-cta-description"
-            >
+              <button
+                type="button"
+                className="btn btn--primary btn-touch-large"
+                onClick={onSaveAndContinue}
+                aria-describedby="who-targets-cta-description"
+              >
               {t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
             </button>
           </div>

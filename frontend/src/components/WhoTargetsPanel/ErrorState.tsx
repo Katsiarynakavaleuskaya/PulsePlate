@@ -26,16 +26,6 @@ export function WhoTargetsErrorState({ error, onRetry, className }: ErrorStatePr
           type="button"
           className="btn btn--primary btn-touch"
           onClick={onRetry || (() => window.location.reload())}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              if (onRetry) {
-                onRetry();
-              } else {
-                window.location.reload();
-              }
-            }
-          }}
         >
           {t('whoTargets.error.retry', 'Try Again')}
         </button>
