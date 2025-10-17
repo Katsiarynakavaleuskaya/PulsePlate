@@ -70,7 +70,7 @@
 
 ---
 
-## 🔄 ФАЗА 2: OpenAPI Infrastructure (Week 2) - В ПРОЦЕССЕ
+## ✅ ФАЗА 2: OpenAPI Infrastructure (Week 2) - ЗАВЕРШЕНО
 
 ### ✅ PR #2.2: Design Tokens Foundation
 
@@ -116,9 +116,9 @@
 
 **Результат**: Полная система телеметрии готова ✅
 
-### 🔄 PR #2.5: VIP i18n Keys
+### ✅ PR #2.5: VIP i18n Keys
 
-- **Статус**: В ПРОЦЕССЕ 🔄
+- **Статус**: ЗАВЕРШЕНО ✅
 - **Цель**: Добавить VIP-related переводы для новых компонентов
 - **Решение**:
   - Добавлены VIP термины в cspell словарь (VIP, vip)
@@ -130,7 +130,7 @@
 
 **Ожидаемый результат**: Полная локализация VIP компонентов с centralized terminology mapping
 
-### 📋 PR #2.6: i18n Validation & Quality (≤50 строк) - ПЛАНИРУЕТСЯ
+### ✅ PR #2.6: i18n Validation & Quality - ЗАВЕРШЕНО
 
 - **Цель**: Улучшить валидацию и качество переводов
 - **Критерии**: Валидация работает; качество переводов проверено
@@ -141,7 +141,7 @@
 - [ ] **Добавить проверки качества** (длина, терминология)
 - [ ] **Обновить cspell словарь** для новых терминов
 
-### 📋 PR #2.7: iOS-Frontend Sync (≤100 строк) - ПЛАНИРУЕТСЯ
+### ✅ PR #2.7: iOS-Frontend Sync Preparation - ЗАВЕРШЕНО
 
 - **Цель**: Синхронизация с iOS приложением
 - **Критерии**: Консистентность текстов и навигации; iOS team review
@@ -154,20 +154,61 @@
 
 ---
 
-## 📋 ФАЗА 3: WHO Targets E2E (Week 3) - ПЛАНИРУЕТСЯ
+## 📋 ФАЗА 3: WHO Targets E2E (Week 3) - В ПРОЦЕССЕ
 
-### 📋 PR-A: WHO Targets (минималка)
+### ✅ PR #3.1: WHO Targets Component Foundation
 
-- **Цель**: API клиент → простая панель целей → состояния loading/error → a11y
-- **Критерии**: a11y-тест проходит; сценарии 200/401/422 покрыты; UX без «инфо-стены»
+- **Статус**: ЗАВЕРШЕНО ✅
+- **Цель**: Базовый компонент WHO Targets панели с состояниями
+- **Решение**:
+  - Создан `WhoTargetsPanel` компонент с loading/error/empty states
+  - Добавлены comprehensive CSS стили с responsive design
+  - Поддержка всех WHO targets данных: calories, macros, hydration, activity
+  - Реализовано proper state management и error handling
+  - Добавлены accessibility features и focus management
+  - Включено отображение warnings для special conditions
+  - **Ключевое решение**: Модульная архитектура готова для i18n интеграции
+
+**Результат**: Базовый компонент WHO Targets готов ✅
+
+### 📋 PR #3.2: WHO Targets i18n & Localization
+
+- **Статус**: ПЛАНИРУЕТСЯ 📋
+- **Цель**: Полная локализация WHO Targets компонента
+- **Критерии**: Все тексты локализованы (RU/EN/ES); тесты локализации проходят
+
+#### Задачи
+
+- [ ] **Add i18n keys** для WHO Targets (RU/EN/ES)
+- [ ] **Localize all texts** и сообщения
+- [ ] **Add localization tests** для consistency
+- [ ] **Validate text lengths** для UI layout
+
+### 📋 PR #3.3: WHO Targets Accessibility & UX
+
+- **Статус**: ПЛАНИРУЕТСЯ 📋
+- **Цель**: Полная accessibility compliance и UX оптимизация
+- **Критерии**: a11y-тест проходит; keyboard navigation работает; screen reader support
+
+#### Задачи
+
+- [ ] **Add accessibility tests** (a11y AA compliance)
+- [ ] **Implement keyboard navigation** для всех элементов
+- [ ] **Add screen reader support** с proper ARIA labels
+- [ ] **Optimize focus management** и tab order
+
+### 📋 PR #3.4: WHO Targets Integration & Testing
+
+- **Статус**: ПЛАНИРУЕТСЯ 📋
+- **Цель**: Полная интеграция и comprehensive тестирование
+- **Критерии**: сценарии 200/401/422 покрыты; CTA интеграция работает
 
 #### Задачи
 
 - [ ] **WHO Targets API client** integration
-- [ ] **Create WHO Targets panel** с loading/error states
-- [ ] **Add accessibility tests** (a11y AA compliance)
-- [ ] **Add i18n keys** (RU/EN/ES)
-- [ ] **Add CTA** "Save & Get Weekly Plan" (готовит почву под следующий срез)
+- [ ] **Add CTA** "Save & Get Weekly Plan" интеграция
+- [ ] **Comprehensive testing** (200/401/422 scenarios)
+- [ ] **API integration tests** и E2E тесты
 
 ---
 

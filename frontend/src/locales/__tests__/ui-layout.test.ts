@@ -47,8 +47,8 @@ describe('UI Layout Compatibility with Localized Strings', () => {
           // Russian strings should not exceed 4x English length
           expect(ratio, `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`).toBeLessThanOrEqual(4.0);
 
-          // Store test results for potential debugging (only in development)
-          if (process.env.NODE_ENV !== 'production' && process.env.VITEST_VERBOSE_LOCALES === '1') {
+          // Store test results for potential debugging
+          if (process.env.VITEST_VERBOSE_LOCALES === '1') {
             console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
           }
         }
@@ -136,7 +136,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
             longStrings.push({ key: path, value: obj, length: obj.length, language: lang });
           }
         } else if (typeof obj === 'object' && obj !== null) {
-          for (const [key, value] of Object.entries(obj)) {
+          for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
             findLongStrings(value, path ? `${path}.${key}` : key, lang);
           }
         }
@@ -173,13 +173,11 @@ describe('UI Layout Compatibility with Localized Strings', () => {
   });
 
   describe('Localization placeholder invariants', () => {
+    const PLACEHOLDER_PATTERN = /{(\w+)}/g;
+
     it('week.progressAccessibilityLine has identical placeholder sets across locales', () => {
-      const rx = /{(\w+)}/g;
       const keys = (s: string) => {
-        const out = new Set<string>();
-        let m: RegExpExecArray | null;
-        while ((m = rx.exec(s))) out.add(m[1]);
-        return out;
+        return new Set(Array.from(s.matchAll(PLACEHOLDER_PATTERN), m => m[1]));
       };
       const enSet = keys(en.week.progressAccessibilityLine);
       const ruSet = keys(ru.week.progressAccessibilityLine);
