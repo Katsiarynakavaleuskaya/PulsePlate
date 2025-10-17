@@ -2,6 +2,11 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import type { TargetsApiResponse } from '../../api/premium/types';
 
+// Helper function for consistent numeric formatting
+function formatNumericValue(value: unknown): string {
+  return typeof value === 'number' ? value.toLocaleString() : String(value);
+}
+
 interface TargetCardProps {
   data: TargetsApiResponse;
   className?: string;
@@ -19,9 +24,7 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             {t('whoTargets.calories.title', 'Daily Calories')}
           </h3>
           <div className="target-card__value">
-            {typeof data.kcal_daily === 'number'
-              ? data.kcal_daily.toLocaleString()
-              : String(data.kcal_daily)}
+            {formatNumericValue(data.kcal_daily)}
             <span className="target-card__unit">
               {t('whoTargets.calories.unit', 'kcal')}
             </span>
@@ -41,46 +44,21 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
         </div>
         <div className="target-card__content">
           <div className="macro-grid">
-            <div className="macro-item">
-              <span className="macro-item__label">
-                {t('whoTargets.macros.protein', 'Protein')}
-              </span>
-              <span className="macro-item__value">
-                {typeof data.macros.protein_g === 'number'
-                  ? data.macros.protein_g.toLocaleString() + 'g'
-                  : data.macros.protein_g + 'g'}
-              </span>
-            </div>
-            <div className="macro-item">
-              <span className="macro-item__label">
-                {t('whoTargets.macros.carbs', 'Carbs')}
-              </span>
-              <span className="macro-item__value">
-                {typeof data.macros.carbs_g === 'number'
-                  ? data.macros.carbs_g.toLocaleString() + 'g'
-                  : data.macros.carbs_g + 'g'}
-              </span>
-            </div>
-            <div className="macro-item">
-              <span className="macro-item__label">
-                {t('whoTargets.macros.fat', 'Fat')}
-              </span>
-              <span className="macro-item__value">
-                {typeof data.macros.fat_g === 'number'
-                  ? data.macros.fat_g.toLocaleString() + 'g'
-                  : data.macros.fat_g + 'g'}
-              </span>
-            </div>
-            <div className="macro-item">
-              <span className="macro-item__label">
-                {t('whoTargets.macros.fiber', 'Fiber')}
-              </span>
-              <span className="macro-item__value">
-                {typeof data.macros.fiber_g === 'number'
-                  ? data.macros.fiber_g.toLocaleString() + 'g'
-                  : data.macros.fiber_g + 'g'}
-              </span>
-            </div>
+            {[
+              { key: 'protein', field: data.macros.protein_g },
+              { key: 'carbs', field: data.macros.carbs_g },
+              { key: 'fat', field: data.macros.fat_g },
+              { key: 'fiber', field: data.macros.fiber_g },
+            ].map(({ key, field }) => (
+              <div key={key} className="macro-item">
+                <span className="macro-item__label">
+                  {t(`whoTargets.macros.${key}`, key)}
+                </span>
+                <span className="macro-item__value">
+                  {formatNumericValue(field)}g
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -92,9 +70,7 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             {t('whoTargets.hydration.title', 'Hydration')}
           </h3>
           <div className="target-card__value">
-            {typeof data.water_ml === 'number'
-              ? data.water_ml.toLocaleString()
-              : String(data.water_ml)}
+            {formatNumericValue(data.water_ml)}
             <span className="target-card__unit">
               {t('whoTargets.hydration.unit', 'ml')}
             </span>
@@ -117,11 +93,11 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             <ul className="micros-list">
               {Object.entries(data.priority_micros).map(([micro, value]) => (
                 <li key={micro} className="micros-item">
-                  <span className="micros-item__label">{micro}</span>
+                  <span className="micros-item__label">
+                    {t(`whoTargets.micros.${micro}`, micro)}
+                  </span>
                   <span className="micros-item__value">
-                    {typeof value === 'number'
-                      ? value.toLocaleString()
-                      : String(value)}
+                    {formatNumericValue(value)}
                   </span>
                 </li>
               ))}
@@ -139,45 +115,35 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
         </div>
         <div className="target-card__content">
           <div className="activity-grid">
-            <div className="activity-item">
-              <span className="activity-item__label">
-                {t('whoTargets.activity.moderateAerobic', 'Moderate Aerobic')}
-              </span>
-              <span className="activity-item__value">
-                {typeof data.activity_weekly.moderate_aerobic_min === 'number'
-                  ? data.activity_weekly.moderate_aerobic_min.toLocaleString()
-                  : String(data.activity_weekly.moderate_aerobic_min)}
-                <span className="activity-item__unit">
-                  {t('whoTargets.activity.minutes', 'min/week')}
+            {[
+              {
+                key: 'moderateAerobic',
+                field: data.activity_weekly.moderate_aerobic_min,
+                unitKey: 'minutes'
+              },
+              {
+                key: 'strength',
+                field: data.activity_weekly.strength_sessions,
+                unitKey: 'sessions'
+              },
+              {
+                key: 'steps',
+                field: data.activity_weekly.steps_daily,
+                unitKey: 'stepsUnit'
+              },
+            ].map(({ key, field, unitKey }) => (
+              <div key={key} className="activity-item">
+                <span className="activity-item__label">
+                  {t(`whoTargets.activity.${key}`, key)}
                 </span>
-              </span>
-            </div>
-            <div className="activity-item">
-              <span className="activity-item__label">
-                {t('whoTargets.activity.strength', 'Strength Training')}
-              </span>
-              <span className="activity-item__value">
-                {typeof data.activity_weekly.strength_sessions === 'number'
-                  ? data.activity_weekly.strength_sessions.toLocaleString()
-                  : String(data.activity_weekly.strength_sessions)}
-                <span className="activity-item__unit">
-                  {t('whoTargets.activity.sessions', 'sessions/week')}
+                <span className="activity-item__value">
+                  {formatNumericValue(field)}
+                  <span className="activity-item__unit">
+                    {t(`whoTargets.activity.${unitKey}`, unitKey)}
+                  </span>
                 </span>
-              </span>
-            </div>
-            <div className="activity-item">
-              <span className="activity-item__label">
-                {t('whoTargets.activity.steps', 'Daily Steps')}
-              </span>
-              <span className="activity-item__value">
-                {typeof data.activity_weekly.steps_daily === 'number'
-                  ? data.activity_weekly.steps_daily.toLocaleString()
-                  : String(data.activity_weekly.steps_daily)}
-                <span className="activity-item__unit">
-                  {t('whoTargets.activity.stepsUnit', 'steps')}
-                </span>
-              </span>
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -196,7 +162,8 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                 <li key={`${warning.message}-${index}`} className="warning-item">
                   <span className="warning-item__icon" aria-hidden="true">⚠️</span>
                   <span className="warning-item__text">
-                    {warning.message}
+                    {/* Note: warning.message is pre-localized from API */}
+                    {t(warning.message, warning.message)}
                   </span>
                 </li>
               ))}
