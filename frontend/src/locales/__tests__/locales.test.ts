@@ -15,8 +15,8 @@ import {
 // Test constants imported from test-utils
 
 describe('Locale JSON Structure and Content', () => {
-  const locales = { en, ru, es };
-  const languages = Object.keys(locales);
+  const locales = { en, ru, es } as const;
+  const languages = Object.keys(locales) as Array<keyof typeof locales>;
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
@@ -379,6 +379,37 @@ describe('Locale JSON Structure and Content', () => {
 
       it('should have proper subtitle', () => {
         expect(ru.paywall.subtitle).toBe('Персональный рацион, точный баланс, недельная программа.');
+      });
+    });
+
+    describe('VIP Translation Quality', () => {
+      it('should have consistent VIP keys across all locales', () => {
+        const vipKeys = ['title', 'subtitle', 'cta', 'badge', 'badgeAria', 'gatedAria'];
+
+        for (const lang of languages) {
+          const vip = locales[lang].vip;
+          for (const key of vipKeys) {
+            expect(vip[key]).toBeDefined();
+            expect(vip[key]).not.toBe('');
+          }
+        }
+      });
+
+      it('should use appropriate VIP terminology', () => {
+        // English
+        expect(en.vip.title).toBe('Unlock VIP');
+        expect(en.vip.badge).toBe('VIP');
+        expect(en.vip.cta).toBe('Upgrade to VIP');
+
+        // Russian
+        expect(ru.vip.title).toBe('Откройте VIP');
+        expect(ru.vip.badge).toBe('VIP');
+        expect(ru.vip.cta).toBe('Перейти на VIP');
+
+        // Spanish
+        expect(es.vip.title).toBe('Desbloquear VIP');
+        expect(es.vip.badge).toBe('VIP');
+        expect(es.vip.cta).toBe('Actualizar a VIP');
       });
     });
   });

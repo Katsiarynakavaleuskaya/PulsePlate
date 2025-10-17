@@ -19,17 +19,20 @@
 
 ## 🧪 Стратегия тестирования и моков
 
-### Моки по модулям (не по классам)
+In GLOBAL_ROADMAP_2025.md around lines 72 to 114, Phase 2 PR entries #2.2, #2.3 and #2.4 are marked "ЗАВЕРШЕНО ✅" but the status summary at line 325 says "📋 **PR #2.2-2.5 ПЛАНИРУЮТСЯ**", causing a mismatch; pick the authoritative state (completed or planned) and make them consistent by either updating the line-325 summary to reflect that PRs #2.2–2.4 are completed (change wording and emoji to show completion and adjust numbering if needed) or revert the individual PR sections to planned (remove ✔️/ЗАВЕРШЕНО and use planning language), then run a quick pass to ensure numbering, emojis, and RU/EN phrasing are consistent across the document.### Моки по модулям (не по классам)
+
 - **Принцип**: Мокаем модули целиком, а не отдельные классы
 - **Пример**: `vi.mock('../telemetry')` вместо `vi.mock('../telemetry', { SomeClass: ... })`
 - **Преимущества**: Более стабильные тесты, меньше coupling с внутренней структурой
 
 ### Моки по функциям (не по классам)
+
 - **Принцип**: Мокаем функции и хуки, а не классы
 - **Пример**: `vi.mocked(useVipModule).mockReturnValue(true)` вместо мока класса
 - **Преимущества**: Лучшая изоляция, проще поддержка
 
 ### Избегание моков классов
+
 - **Проблема**: Моки классов создают tight coupling и хрупкие тесты
 - **Решение**: Используем функциональный подход с моками модулей/функций
 - **Пример**: Вместо `vi.mock('./SomeClass')` используем `vi.mock('./module')`
@@ -113,18 +116,38 @@
 
 **Результат**: Полная система телеметрии готова ✅
 
-### 📋 PR #2.5: i18n Extensions (≤100 строк) - ПЛАНИРУЕТСЯ
+### 📋 PR #2.5: VIP i18n Keys (≤50 строк) - ПЛАНИРУЕТСЯ
 
-- **Цель**: VIP-related переводы и консистентность с iOS
-- **Критерии**: RU/EN/ES переводы готовы; консистентность с iOS; тесты проходят
+- **Цель**: Добавить VIP-related переводы для новых компонентов
+- **Критерии**: Все VIP компоненты локализованы; тесты проходят
 
 #### Задачи
 
-- [ ] **VIP-related переводы** (RU/EN/ES)
-- [ ] **Обновление существующих локалей**
-- [ ] **Консистентность с iOS** (тексты, иконки, навигация)
-- [ ] **Тесты для локалей**
-- [ ] **Валидация переводов**
+- [ ] **Добавить VIP переводы** в `locales/*.json` (vip.badge, vip.gate, vip.paywall)
+- [ ] **Обновить существующие ключи** для консистентности
+- [ ] **Добавить тесты** для новых ключей
+
+### 📋 PR #2.6: i18n Validation & Quality (≤50 строк) - ПЛАНИРУЕТСЯ
+
+- **Цель**: Улучшить валидацию и качество переводов
+- **Критерии**: Валидация работает; качество переводов проверено
+
+#### Задачи
+
+- [ ] **Улучшить валидацию** в `locales.test.ts`
+- [ ] **Добавить проверки качества** (длина, терминология)
+- [ ] **Обновить cspell словарь** для новых терминов
+
+### 📋 PR #2.7: iOS-Frontend Sync (≤100 строк) - ПЛАНИРУЕТСЯ
+
+- **Цель**: Синхронизация с iOS приложением
+- **Критерии**: Консистентность текстов и навигации; iOS team review
+
+#### Задачи
+
+- [ ] **Синхронизировать тексты** с iOS локалями
+- [ ] **Выровнять навигацию** и naming conventions
+- [ ] **Добавить iOS-specific ключи** если нужно
 
 ---
 
@@ -322,7 +345,10 @@
 - ✅ **ФАЗА 1 ЗАВЕРШЕНА**: CI стабилизирован, все тесты проходят
 - 🔄 **ФАЗА 2 В ПРОЦЕССЕ**: OpenAPI Infrastructure
   - ✅ **PR #2.1 ЗАВЕРШЕН**: Feature Flags Setup (25 тестов, мок по модулям)
-  - 📋 **PR #2.2-2.5 ПЛАНИРУЮТСЯ**: Design Tokens, VIP Components, Telemetry, i18n
+  - ✅ **PR #2.2 ЗАВЕРШЕН**: Design Tokens Foundation (21 тест, CSS custom properties)
+  - ✅ **PR #2.3 ЗАВЕРШЕН**: VIP Components Base (25 тестов, useInert хук)
+  - ✅ **PR #2.4 ЗАВЕРШЕН**: Telemetry Foundation (56 тестов, type-safe события)
+  - 📋 **PR #2.5-2.7 ПЛАНИРУЮТСЯ**: VIP i18n Keys, i18n Validation, iOS-Frontend Sync
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
-**Готов к следующему этапу**: PR #2.2 (Design Tokens Foundation) 🚀
+**Готов к следующему этапу**: PR #2.5 (VIP i18n Keys) 🚀
