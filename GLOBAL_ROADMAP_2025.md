@@ -116,9 +116,9 @@
 
 **Результат**: Полная система телеметрии готова ✅
 
-### ✅ PR #2.5: VIP i18n Keys
+### 🔄 PR #2.5: VIP i18n Keys
 
-- **Статус**: ЗАВЕРШЕНО ✅
+- **Статус**: В ПРОЦЕССЕ 🔄
 - **Цель**: Добавить VIP-related переводы для новых компонентов
 - **Решение**:
   - Добавлены VIP термины в cspell словарь (VIP, vip)
@@ -351,8 +351,8 @@
   - ✅ **PR #2.2 ЗАВЕРШЕН**: Design Tokens Foundation (21 тест, CSS custom properties)
   - ✅ **PR #2.3 ЗАВЕРШЕН**: VIP Components Base (25 тестов, useInert хук)
   - ✅ **PR #2.4 ЗАВЕРШЕН**: Telemetry Foundation (56 тестов, type-safe события)
-  - ✅ **PR #2.5 ЗАВЕРШЕН**: VIP i18n Keys (32 теста, centralized terminology mapping)
+  - 🔄 **PR #2.5 В ПРОЦЕССЕ**: VIP i18n Keys (32 теста, centralized terminology mapping)
   - 📋 **PR #2.6-2.7 ПЛАНИРУЮТСЯ**: i18n Validation & Quality, iOS-Frontend Sync
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
-**Готов к следующему этапу**: PR #2.6 (i18n Validation & Quality) 🚀
+**Текущий этап**: PR #2.5 (VIP i18n Keys) 🔄
