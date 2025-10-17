@@ -251,5 +251,51 @@
   },
   "accessibility": {
     "homeScreen": "Home Screen"
+  },
+  "whoTargets": {
+    "calories": {
+      "title": "Daily Calories",
+      "unit": "kcal",
+      "description": "Based on your BMR, activity level, and goals"
+    },
+    "macros": {
+      "title": "Macronutrients",
+      "protein": "Protein",
+      "carbs": "Carbs",
+      "fat": "Fat",
+      "fiber": "Fiber",
+      "unit": "g"
+    },
+    "hydration": {
+      "title": "Hydration",
+      "unit": "ml",
+      "description": "Daily water intake recommendation"
+    },
+    "micros": {
+      "title": "Priority Micronutrients",
+      "iron_mg": "Iron",
+      "calcium_mg": "Calcium"
+    },
+    "activity": {
+      "title": "Activity Goals",
+      "moderateAerobic": "Moderate Aerobic",
+      "strength": "Strength Training",
+      "steps": "Daily Steps",
+      "minutes": "minutes",
+      "sessions": "sessions",
+      "stepsUnit": "steps"
+    },
+    "warnings": {
+      "title": "Important Notes"
+    },
+    "empty": {
+      "iconLabel": "Nutrition targets chart",
+      "title": "No Targets Available",
+      "message": "Please complete your profile to see personalized nutrition targets."
+    },
+    "error": {
+      "title": "Unable to Calculate Targets",
+      "retry": "Try Again"
+    }
   }
 }
