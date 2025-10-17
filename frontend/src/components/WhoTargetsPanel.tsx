@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import type { TargetsApiResponse } from '../api/premium/types';
+import './WhoTargetsPanel.css';
 import { WhoTargetsSkeleton } from './WhoTargetsPanel/Skeleton';
 import { WhoTargetsErrorState } from './WhoTargetsPanel/ErrorState';
 import { WhoTargetsEmptyState } from './WhoTargetsPanel/EmptyState';
