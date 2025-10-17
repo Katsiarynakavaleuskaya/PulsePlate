@@ -184,15 +184,15 @@ export function validateEventPayload<T extends EventType>(
     return false;
   }
 
-  // Validate featureFlags values are booleans
-  if ('featureFlags' in payload && payload.featureFlags !== null && typeof payload.featureFlags === 'object' && !Array.isArray(payload.featureFlags)) {
-    for (const [key, value] of Object.entries(payload.featureFlags)) {
-      if (typeof value !== 'boolean') {
-        console.error(`Invalid value type for featureFlags['${key}']: expected 'boolean', got '${typeof value}'`);
-        return false;
+      // Validate featureFlags values are booleans
+      if ('featureFlags' in payload && payload.featureFlags) {
+        for (const [key, value] of Object.entries(payload.featureFlags)) {
+          if (typeof value !== 'boolean') {
+            console.error(`Invalid value type for featureFlags['${key}']: expected 'boolean', got '${typeof value}'`);
+            return false;
+          }
+        }
       }
-    }
-  }
 
   // Validate each field according to its schema
   for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {

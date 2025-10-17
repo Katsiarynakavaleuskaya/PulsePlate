@@ -173,9 +173,11 @@ describe('UI Layout Compatibility with Localized Strings', () => {
   });
 
   describe('Localization placeholder invariants', () => {
+    const PLACEHOLDER_PATTERN = /{(\w+)}/g;
+
     it('week.progressAccessibilityLine has identical placeholder sets across locales', () => {
       const keys = (s: string) => {
-        return new Set(Array.from(s.matchAll(/{(\w+)}/g), m => m[1]));
+        return new Set(Array.from(s.matchAll(PLACEHOLDER_PATTERN), m => m[1]));
       };
       const enSet = keys(en.week.progressAccessibilityLine);
       const ruSet = keys(ru.week.progressAccessibilityLine);
