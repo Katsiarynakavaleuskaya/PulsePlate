@@ -48,7 +48,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
           expect(ratio, `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`).toBeLessThanOrEqual(4.0);
 
           // Store test results for potential debugging (only in development)
-          if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_UI_TESTS === 'true') {
+          if (process.env.NODE_ENV !== 'production' && process.env.VITEST_VERBOSE_LOCALES === '1') {
             console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
           }
         }
@@ -130,7 +130,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
     it('should identify potentially problematic long strings', () => {
       const longStrings: Array<{key: string, value: string, length: number, language: string}> = [];
 
-      const findLongStrings = (obj: any, path = '', lang: string) => {
+      const findLongStrings = (obj: unknown, path = '', lang: string) => {
         if (typeof obj === 'string') {
           if (obj.length > 30) { // Flag strings longer than 30 characters
             longStrings.push({ key: path, value: obj, length: obj.length, language: lang });
