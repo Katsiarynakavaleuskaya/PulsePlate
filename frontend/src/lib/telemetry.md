@@ -76,6 +76,7 @@ function VipDashboard() {
 ### Base Event Structure
 
 All events include:
+
 - `timestamp` - Event occurrence time
 - `sessionId` - User session identifier (optional)
 - `featureFlags` - Feature flag state (optional)
@@ -83,6 +84,7 @@ All events include:
 ### VIP-Specific Payloads
 
 #### VipModuleViewedPayload
+
 ```typescript
 {
   source: string;        // Source page/component
@@ -91,6 +93,7 @@ All events include:
 ```
 
 #### VipFeatureClickedPayload
+
 ```typescript
 {
   featureName: string;   // Name of VIP feature
@@ -100,6 +103,7 @@ All events include:
 ```
 
 #### VipPaywallViewedPayload
+
 ```typescript
 {
   source: string;        // Trigger source
@@ -113,6 +117,7 @@ All events include:
 ### VipGate Integration
 
 The `VipGate` component automatically tracks:
+
 - Gate interactions (clicks, hovers)
 - Upgrade button clicks
 - Paywall views and dismissals
@@ -120,12 +125,14 @@ The `VipGate` component automatically tracks:
 ### VipBadge Integration
 
 The `VipBadge` component automatically tracks:
+
 - Badge views on component mount
 - Component and variant information
 
 ## Feature Flag Integration
 
 Telemetry respects the `VITE_ANALYTICS_ENABLED` feature flag:
+
 - When `false` - No events are tracked
 - When `true` (default) - All events are tracked
 

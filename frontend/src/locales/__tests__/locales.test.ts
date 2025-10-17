@@ -14,9 +14,40 @@ import {
 
 // Test constants imported from test-utils
 
+// VIP translation keys that should be consistent across all locales
+const VIP_KEYS = ['title', 'subtitle', 'cta', 'badge', 'badgeAria', 'gatedAria'] as const;
+
+// Expected VIP terminology values for each locale
+const VIP_TERMINOLOGY = {
+  en: {
+    title: 'Unlock VIP',
+    subtitle: 'Advanced analytics, premium features, priority support.',
+    cta: 'Upgrade to VIP',
+    badge: 'VIP',
+    badgeAria: 'VIP status',
+    gatedAria: 'VIP gated content'
+  },
+  ru: {
+    title: 'Откройте VIP',
+    subtitle: 'Расширенная аналитика, премиум-функции, приоритетная поддержка.',
+    cta: 'Перейти на VIP',
+    badge: 'VIP',
+    badgeAria: 'Статус VIP',
+    gatedAria: 'Контент с VIP-ограничением'
+  },
+  es: {
+    title: 'Desbloquear VIP',
+    subtitle: 'Análisis avanzado, funciones premium, soporte prioritario.',
+    cta: 'Actualizar a VIP',
+    badge: 'VIP',
+    badgeAria: 'Estado VIP',
+    gatedAria: 'Contenido con acceso VIP'
+  }
+} as const;
+
 describe('Locale JSON Structure and Content', () => {
-  const locales = { en, ru, es };
-  const languages = Object.keys(locales);
+  const locales = { en, ru, es } as const;
+  const languages = Object.keys(locales) as Array<keyof typeof locales>;
 
   describe('Structural Validation', () => {
     it('should have consistent keys across all locales', () => {
@@ -379,6 +410,154 @@ describe('Locale JSON Structure and Content', () => {
 
       it('should have proper subtitle', () => {
         expect(ru.paywall.subtitle).toBe('Персональный рацион, точный баланс, недельная программа.');
+      });
+    });
+
+    describe('VIP Translation Quality', () => {
+      it('should have consistent VIP keys across all locales', () => {
+        for (const lang of languages) {
+          const locale = locales[lang];
+          expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
+
+          const { vip } = locale;
+          for (const key of VIP_KEYS) {
+            expect(vip[key], `Missing vip.${key} in ${lang} locale`).toBeDefined();
+            expect(vip[key], `Empty value for vip.${key} in ${lang} locale`).not.toBe('');
+          }
+        }
+      });
+
+      it('should use appropriate VIP terminology', () => {
+        for (const lang of languages) {
+          const locale = locales[lang];
+          expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
+
+          const { vip } = locale;
+          const expected = VIP_TERMINOLOGY[lang];
+
+          // Validate all VIP keys
+          for (const key of VIP_KEYS) {
+            expect(vip[key], `Incorrect vip.${key} in ${lang} locale`).toBe(expected[key]);
+          }
+        }
+      });
+
+      it('should have consistent terminology across VIP and paywall sections', () => {
+        for (const lang of languages) {
+          const locale = locales[lang];
+
+          // Check that VIP and paywall use consistent terminology
+          if (locale.vip && locale.paywall) {
+            // Both should use "VIP" or "Premium" consistently
+            const vipTitle = locale.vip.title.toLowerCase();
+            const paywallTitle = locale.paywall.title.toLowerCase();
+
+            // Check if each section uses VIP or Premium
+            const vipUsesVip = vipTitle.includes('vip');
+            const vipUsesPremium = vipTitle.includes('premium');
+            const paywallUsesVip = paywallTitle.includes('vip');
+            const paywallUsesPremium = paywallTitle.includes('premium');
+
+            // Both sections should use the same term (either both VIP or both Premium)
+            const bothUseVip = vipUsesVip && paywallUsesVip && !vipUsesPremium && !paywallUsesPremium;
+            const bothUsePremium = vipUsesPremium && paywallUsesPremium && !vipUsesVip && !paywallUsesVip;
+
+            expect(bothUseVip || bothUsePremium,
+              `Inconsistent terminology in ${lang}: VIP section uses ${vipUsesVip ? 'VIP' : 'Premium'}, paywall uses ${paywallUsesVip ? 'VIP' : 'Premium'}`
+            ).toBe(true);
+          }
+        }
+      });
+    });
+
+    describe('Translation Quality Standards', () => {
+      it('should avoid common translation mistakes', () => {
+        // Language-specific mistake patterns
+        const mistakePatterns = {
+          en: [
+            /\b(?:the|a|an)\s+(?:the|a|an)\b/i, // Double articles
+            /\b(?:is|are|was|were)\s+(?:is|are|was|were)\b/i, // Double verbs
+            /\b(?:and|or)\s+(?:and|or)\b/i, // Double conjunctions
+          ],
+          ru: [
+            /\b(?:и|или)\s+(?:и|или)\b/i, // Double conjunctions
+            /\b(?:это|эта|этот)\s+(?:это|эта|этот)\b/i, // Double demonstratives
+          ],
+          es: [
+            /\b(?:y|o)\s+(?:y|o)\b/i, // Double conjunctions
+            /\b(?:el|la|los|las)\s+(?:el|la|los|las)\b/i, // Double articles
+          ]
+        };
+
+        // Common patterns for all languages
+        const commonPatterns = [
+          /\s{2,}/, // Multiple spaces
+          /[.!?]{2,}/, // Multiple punctuation
+        ];
+
+        for (const lang of languages) {
+          const issues: string[] = [];
+          const langPatterns = mistakePatterns[lang as keyof typeof mistakePatterns] || [];
+          const allPatterns = [...langPatterns, ...commonPatterns];
+
+          const checkForMistakes = (obj: any, path = '') => {
+            if (typeof obj === 'string') {
+              for (const pattern of allPatterns) {
+                if (pattern.test(obj)) {
+                  issues.push(`${path}: Translation mistake detected: "${obj}"`);
+                }
+              }
+            } else if (typeof obj === 'object' && obj !== null) {
+              for (const [key, value] of Object.entries(obj)) {
+                checkForMistakes(value, path ? `${path}.${key}` : key);
+              }
+            }
+          };
+
+          checkForMistakes(locales[lang]);
+          expect(issues, `Translation mistakes found in ${lang}: ${issues.join(', ')}`).toHaveLength(0);
+        }
+      });
+
+      it('should have appropriate text length ratios between languages', () => {
+        // Check that translations aren't excessively longer than English
+        const enLocale = locales.en;
+        const maxLengthRatios = {
+          ru: 2.5, // Russian can be longer due to grammar
+          es: 2.7, // Spanish can be longer due to grammar
+          en: 1.0  // English is baseline
+        };
+
+        for (const lang of languages) {
+          if (lang === 'en') continue;
+
+          const locale = locales[lang];
+          const maxRatio = maxLengthRatios[lang as keyof typeof maxLengthRatios] || 2.0;
+          const issues: string[] = [];
+
+          const compareLengths = (enObj: any, otherObj: any, path = '') => {
+            if (typeof enObj === 'string' && typeof otherObj === 'string') {
+              // Skip comparison if English string is empty to avoid division by zero
+              if (enObj.length === 0) {
+                return;
+              }
+
+              const ratio = otherObj.length / enObj.length;
+              if (ratio > maxRatio) {
+                issues.push(`${path}: ${lang} translation is ${ratio.toFixed(1)}x longer than English (max: ${maxRatio})`);
+              }
+            } else if (typeof enObj === 'object' && typeof otherObj === 'object' && enObj !== null && otherObj !== null) {
+              for (const key of Object.keys(enObj)) {
+                if (key in otherObj) {
+                  compareLengths(enObj[key], otherObj[key], path ? `${path}.${key}` : key);
+                }
+              }
+            }
+          };
+
+          compareLengths(enLocale, locale);
+          expect(issues, `Length ratio issues in ${lang}: ${issues.join(', ')}`).toHaveLength(0);
+        }
       });
     });
   });
