@@ -3730,6 +3730,7 @@ Bodyfatv
 Bodymovin
 BOTTOMPADDING
 boxstyle
+btbd
 Bxxxxxxx
 bytearray
 cadera
@@ -3972,6 +3973,7 @@ meds
 Mercadona
 Merienda
 métodos
+Microequilibrio
 micronutrientes
 micronutrients
 Micronutrients
@@ -3986,6 +3988,7 @@ moderado
 Moderado
 moderete
 modificaciones
+mojibake
 monday
 Monitorea
 monkeypatched
@@ -4218,8 +4221,8 @@ Uvicorn
 validkey
 válido
 venv
-VIP
 vip
+VIP
 Visualización
 visx
 vitamina
