@@ -185,7 +185,7 @@ export function validateEventPayload<T extends EventType>(
   }
 
   // Validate featureFlags values are booleans
-  if ('featureFlags' in payload && payload.featureFlags !== null && typeof payload.featureFlags === 'object') {
+  if ('featureFlags' in payload && payload.featureFlags !== null && typeof payload.featureFlags === 'object' && !Array.isArray(payload.featureFlags)) {
     for (const [key, value] of Object.entries(payload.featureFlags)) {
       if (typeof value !== 'boolean') {
         console.error(`Invalid value type for featureFlags['${key}']: expected 'boolean', got '${typeof value}'`);
