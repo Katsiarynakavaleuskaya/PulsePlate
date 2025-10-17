@@ -210,7 +210,7 @@
     "title": "Недельный прогресс",
     "refresh": "Обновить неделю",
     "chartAccessibility": "График энергии за неделю",
-    "progressAccessibilityLine": "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@"
+    "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
   },
   "health": {
     "permissionMessage": "Разрешите доступ к Health для отображения питания и прогресса.",
