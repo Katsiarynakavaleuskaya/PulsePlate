@@ -407,7 +407,10 @@ describe('Locale JSON Structure and Content', () => {
     describe('VIP Translation Quality', () => {
       it('should have consistent VIP keys across all locales', () => {
         for (const lang of languages) {
-          const { vip } = locales[lang];
+          const locale = locales[lang];
+          expect(locale.vip).toBeDefined();
+
+          const { vip } = locale;
           for (const key of VIP_KEYS) {
             expect(vip[key]).toBeDefined();
             expect(vip[key]).not.toBe('');
@@ -417,7 +420,10 @@ describe('Locale JSON Structure and Content', () => {
 
       it('should use appropriate VIP terminology', () => {
         for (const lang of languages) {
-          const { vip } = locales[lang];
+          const locale = locales[lang];
+          expect(locale.vip).toBeDefined();
+
+          const { vip } = locale;
           const expected = VIP_TERMINOLOGY[lang];
 
           expect(vip.title).toBe(expected.title);
