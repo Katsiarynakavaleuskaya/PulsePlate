@@ -16,6 +16,14 @@ export * from './usePremium';
 
 // Analytics
 export * from './analytics';
+export * from './telemetry';
+export * from './useTelemetry';
+
+// Session Management
+export * from './sessionManager';
+
+// Feature Flag Management
+export * from './featureFlagManager';
 
 // Settings
 export * from './settings';

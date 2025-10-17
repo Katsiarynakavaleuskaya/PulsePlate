@@ -2,6 +2,7 @@ import React, { useState, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useVipModule } from '../lib/useFeatureFlag';
 import { useInert } from '../lib/useInert';
+import { useTelemetry } from '../lib/useTelemetry';
 import Paywall from './Paywall/BeforeAfter';
 
 export interface VipGateProps {
@@ -32,6 +33,7 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
   const { t } = useTranslation();
   const previewRef = useInert(!actualIsVip);
   const describedById = useId();
+  const { track } = useTelemetry();
 
   // If no children provided, render legacy gate UI
   if (!children) {
@@ -53,6 +55,8 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
           className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
           aria-label="Upgrade to VIP access"
           onClick={() => {
+            track.gateInteracted('legacy_gate', 'click');
+            track.upgradeClicked(source, 'legacy_gate');
             setOpen(true);
           }}
         >
@@ -64,9 +68,11 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
             source={source}
             via="vip_cta"
             onClose={() => {
+              track.paywallDismissed(source, 'close_button');
               setOpen(false);
             }}
             onPurchase={() => {
+              track.upgradeClicked(source, 'paywall');
               // hook for VIP purchase flow
             }}
           />
@@ -95,6 +101,8 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
         type="button"
         className="mt-3 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-opacity"
         onClick={() => {
+          track.gateInteracted('preview_gate', 'click');
+          track.upgradeClicked(source, 'preview_gate');
           setOpen(true);
         }}
         aria-haspopup="dialog"
@@ -109,9 +117,11 @@ export const VipGate: React.FC<VipGateProps> = ({ isVip, children, source = "unk
           source={source}
           via="vip_cta"
           onClose={() => {
+            track.paywallDismissed(source, 'close_button');
             setOpen(false);
           }}
           onPurchase={() => {
+            track.upgradeClicked(source, 'paywall');
             // hook for VIP purchase flow
           }}
         />
