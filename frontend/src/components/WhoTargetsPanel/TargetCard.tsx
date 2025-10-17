@@ -192,10 +192,17 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                   {t(`whoTargets.activity.${key}`, key)}
                 </span>
                 <span className="activity-item__value">
-                  {formatNumericValue(field)}
-                  <span className="activity-item__unit">
-                    {t(`whoTargets.activity.${unitKey}`, unitKey)}
-                  </span>
+                  {(() => {
+                    const formatted = formatNumericValue(field);
+                    return formatted === '—' ? '—' : (
+                      <>
+                        {formatted}
+                        <span className="activity-item__unit">
+                          {t(`whoTargets.activity.${unitKey}`, unitKey)}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </span>
               </div>
               );
