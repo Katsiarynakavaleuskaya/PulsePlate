@@ -86,8 +86,9 @@ export interface EventPayloadMap {
   [EventType.VIP_BADGE_VIEWED]: VipBadgeViewedPayload;
 }
 
+
 /**
- * Event Registry Configuration
+ * Event Registry Configuration with type-safe validation
  *
  * This object defines the structure and validation rules for all events.
  * Use this as the single source of truth for event definitions.
@@ -95,43 +96,63 @@ export interface EventPayloadMap {
 export const EVENT_REGISTRY = {
   [EventType.VIP_MODULE_VIEWED]: {
     description: 'User viewed VIP module',
-    requiredFields: ['source', 'vipEnabled'],
-    optionalFields: [],
+    fields: {
+      source: { type: 'string', required: true },
+      vipEnabled: { type: 'boolean', required: true },
+    },
   },
   [EventType.VIP_FEATURE_CLICKED]: {
     description: 'User clicked on VIP feature',
-    requiredFields: ['featureName', 'source', 'isVip'],
-    optionalFields: [],
+    fields: {
+      featureName: { type: 'string', required: true },
+      source: { type: 'string', required: true },
+      isVip: { type: 'boolean', required: true },
+    },
   },
   [EventType.VIP_PAYWALL_VIEWED]: {
     description: 'User viewed VIP paywall',
-    requiredFields: ['source', 'context'],
-    optionalFields: ['isRetry'],
+    fields: {
+      source: { type: 'string', required: true },
+      context: { type: 'string', required: true },
+      isRetry: { type: 'boolean', required: false },
+    },
   },
   [EventType.VIP_PAYWALL_DISMISSED]: {
     description: 'User dismissed VIP paywall',
-    requiredFields: ['source', 'dismissMethod'],
-    optionalFields: ['viewDuration'],
+    fields: {
+      source: { type: 'string', required: true },
+      dismissMethod: { type: 'string', required: true },
+      viewDuration: { type: 'number', required: false },
+    },
   },
   [EventType.VIP_UPGRADE_CLICKED]: {
     description: 'User clicked VIP upgrade button',
-    requiredFields: ['source', 'context'],
-    optionalFields: ['isRetry'],
+    fields: {
+      source: { type: 'string', required: true },
+      context: { type: 'string', required: true },
+      isRetry: { type: 'boolean', required: false },
+    },
   },
   [EventType.VIP_GATE_INTERACTED]: {
     description: 'User interacted with VIP gate',
-    requiredFields: ['featureName', 'interactionType', 'isVip'],
-    optionalFields: [],
+    fields: {
+      featureName: { type: 'string', required: true },
+      interactionType: { type: 'string', required: true },
+      isVip: { type: 'boolean', required: true },
+    },
   },
   [EventType.VIP_BADGE_VIEWED]: {
     description: 'User viewed VIP badge',
-    requiredFields: ['component', 'variant', 'isVip'],
-    optionalFields: [],
+    fields: {
+      component: { type: 'string', required: true },
+      variant: { type: 'string', required: true },
+      isVip: { type: 'boolean', required: true },
+    },
   },
 } as const;
 
 /**
- * Validation function for event payloads
+ * Type-safe runtime validation function for event payloads
  */
 export function validateEventPayload<T extends EventType>(
   eventType: T,
@@ -143,10 +164,33 @@ export function validateEventPayload<T extends EventType>(
     return false;
   }
 
-  // Check required fields
-  for (const field of config.requiredFields) {
-    if (!(field in payload) || payload[field as keyof EventPayloadMap[T]] === undefined) {
-      console.error(`Missing required field '${field}' for event '${eventType}'`);
+  // Basic runtime guard
+  if (payload === null || typeof payload !== 'object') {
+    console.error(`Invalid payload for event '${eventType}': expected object`);
+    return false;
+  }
+
+  // Validate each field according to its schema
+  for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {
+    const value = payload[fieldName as keyof EventPayloadMap[T]];
+
+    // Check if required field is missing
+    if (fieldSchema.required && (value === undefined || value === null)) {
+      console.error(`Missing required field '${fieldName}' for event '${eventType}'`);
+      return false;
+    }
+
+    // Skip type validation for optional fields that are undefined
+    if (!fieldSchema.required && (value === undefined || value === null)) {
+      continue;
+    }
+
+    // Perform type validation
+    const actualType = getValueType(value);
+    if (actualType !== fieldSchema.type) {
+      console.error(
+        `Invalid type for field '${fieldName}' in event '${eventType}': expected '${fieldSchema.type}', got '${actualType}'`
+      );
       return false;
     }
   }
@@ -155,10 +199,19 @@ export function validateEventPayload<T extends EventType>(
 }
 
 /**
+ * Get the runtime type of a value for validation
+ */
+function getValueType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/**
  * Get all available event types
  */
 export function getAllEventTypes(): EventType[] {
-  return Object.values(EventType);
+  return Object.values(EventType) as EventType[];
 }
 
 /**
@@ -166,4 +219,28 @@ export function getAllEventTypes(): EventType[] {
  */
 export function getEventConfig(eventType: EventType) {
   return EVENT_REGISTRY[eventType];
+}
+
+/**
+ * Get required fields for an event type (for backward compatibility)
+ */
+export function getRequiredFields(eventType: EventType): string[] {
+  const config = EVENT_REGISTRY[eventType];
+  if (!config) return [];
+
+  return Object.entries(config.fields)
+    .filter(([, schema]) => schema.required)
+    .map(([fieldName]) => fieldName);
+}
+
+/**
+ * Get optional fields for an event type (for backward compatibility)
+ */
+export function getOptionalFields(eventType: EventType): string[] {
+  const config = EVENT_REGISTRY[eventType];
+  if (!config) return [];
+
+  return Object.entries(config.fields)
+    .filter(([, schema]) => !schema.required)
+    .map(([fieldName]) => fieldName);
 }

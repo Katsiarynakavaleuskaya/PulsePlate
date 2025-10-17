@@ -30,8 +30,8 @@ import {
  */
 export type VipEventType = EventType;
 
-// Re-export EventType for external use
-export { EventType };
+// Re-export EventType and registry helpers for external use
+export { EventType, getAllEventTypes, getEventConfig } from './telemetry/eventRegistry';
 
 // Re-export types for backward compatibility
 export type {
@@ -71,8 +71,7 @@ export function trackVipEvent<T extends EventType>(
 
   // Validate payload using centralized registry
   if (!validateEventPayload(eventType, payload)) {
-    console.error(`Invalid payload for event ${eventType}:`, payload);
-    return;
+    return; // validation already logged details
   }
 
   // Enrich payload with session and feature flag data
@@ -173,7 +172,9 @@ export const vipTelemetry = {
  */
 export function initializeTelemetry(): void {
   initializeFeatureFlags();
-  refreshSession();
+  if (isAnalyticsEnabled()) {
+    refreshSession();
+  }
 }
 
 /**
@@ -191,8 +192,7 @@ export function refreshTelemetrySession(): string | 'disabled' {
     return 'disabled';
   }
 
-  refreshSession();
-  return getSessionId();
+  return refreshSession();
 }
 
 /**
