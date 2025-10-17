@@ -251,5 +251,51 @@
   },
   "accessibility": {
     "homeScreen": "Pantalla Principal"
+  },
+  "whoTargets": {
+    "calories": {
+      "title": "Calorías Diarias",
+      "unit": "kcal",
+      "description": "Basado en tu TMB, nivel de actividad y objetivos"
+    },
+    "macros": {
+      "title": "Macronutrientes",
+      "protein": "Proteína",
+      "carbs": "Carbohidratos",
+      "fat": "Grasas",
+      "fiber": "Fibra",
+      "unit": "g"
+    },
+    "hydration": {
+      "title": "Hidratación",
+      "unit": "ml",
+      "description": "Recomendación de ingesta diaria de agua"
+    },
+    "micros": {
+      "title": "Micronutrientes Prioritarios",
+      "iron_mg": "Hierro",
+      "calcium_mg": "Calcio"
+    },
+    "activity": {
+      "title": "Objetivos de Actividad",
+      "moderateAerobic": "Aeróbico Moderado",
+      "strength": "Entrenamiento de Fuerza",
+      "steps": "Pasos Diarios",
+      "minutes": "minutos",
+      "sessions": "sesiones",
+      "stepsUnit": "pasos"
+    },
+    "warnings": {
+      "title": "Notas Importantes"
+    },
+    "empty": {
+      "iconLabel": "Gráfico de objetivos nutricionales",
+      "title": "Objetivos No Disponibles",
+      "message": "Por favor, completa tu perfil para ver objetivos nutricionales personalizados."
+    },
+    "error": {
+      "title": "No se Pudieron Calcular los Objetivos",
+      "retry": "Intentar de Nuevo"
+    }
   }
 }
