@@ -417,12 +417,16 @@ describe('Locale JSON Structure and Content', () => {
       it('should have consistent VIP keys across all locales', () => {
         for (const lang of languages) {
           const locale = locales[lang];
-          expect(locale.vip).toBeDefined();
+          expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
+
+          if (!locale.vip) {
+            continue; // Skip further checks if vip section is missing
+          }
 
           const { vip } = locale;
           for (const key of VIP_KEYS) {
-            expect(vip[key]).toBeDefined();
-            expect(vip[key]).not.toBe('');
+            expect(vip[key], `Missing vip.${key} in ${lang} locale`).toBeDefined();
+            expect(vip[key], `Empty value for vip.${key} in ${lang} locale`).not.toBe('');
           }
         }
       });
@@ -430,14 +434,18 @@ describe('Locale JSON Structure and Content', () => {
       it('should use appropriate VIP terminology', () => {
         for (const lang of languages) {
           const locale = locales[lang];
-          expect(locale.vip).toBeDefined();
+          expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
+
+          if (!locale.vip) {
+            continue; // Skip further checks if vip section is missing
+          }
 
           const { vip } = locale;
           const expected = VIP_TERMINOLOGY[lang];
 
           // Validate all VIP keys
           for (const key of VIP_KEYS) {
-            expect(vip[key]).toBe(expected[key]);
+            expect(vip[key], `Incorrect vip.${key} in ${lang} locale`).toBe(expected[key]);
           }
         }
       });
