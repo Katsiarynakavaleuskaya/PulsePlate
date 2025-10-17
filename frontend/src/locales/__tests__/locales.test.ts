@@ -419,10 +419,6 @@ describe('Locale JSON Structure and Content', () => {
           const locale = locales[lang];
           expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
 
-          if (!locale.vip) {
-            continue; // Skip further checks if vip section is missing
-          }
-
           const { vip } = locale;
           for (const key of VIP_KEYS) {
             expect(vip[key], `Missing vip.${key} in ${lang} locale`).toBeDefined();
@@ -436,10 +432,6 @@ describe('Locale JSON Structure and Content', () => {
           const locale = locales[lang];
           expect(locale.vip, `Missing vip section in ${lang} locale`).toBeDefined();
 
-          if (!locale.vip) {
-            continue; // Skip further checks if vip section is missing
-          }
-
           const { vip } = locale;
           const expected = VIP_TERMINOLOGY[lang];
 
@@ -447,6 +439,94 @@ describe('Locale JSON Structure and Content', () => {
           for (const key of VIP_KEYS) {
             expect(vip[key], `Incorrect vip.${key} in ${lang} locale`).toBe(expected[key]);
           }
+        }
+      });
+
+      it('should have consistent terminology across VIP and paywall sections', () => {
+        for (const lang of languages) {
+          const locale = locales[lang];
+
+          // Check that VIP and paywall use consistent terminology
+          if (locale.vip && locale.paywall) {
+            // Both should use "VIP" or "Premium" consistently
+            const vipTitle = locale.vip.title.toLowerCase();
+            const paywallTitle = locale.paywall.title.toLowerCase();
+
+            // Should not mix "VIP" and "Premium" terminology
+            const hasVip = vipTitle.includes('vip') || paywallTitle.includes('vip');
+            const hasPremium = vipTitle.includes('premium') || paywallTitle.includes('premium');
+
+            expect(hasVip || hasPremium, `Inconsistent terminology in ${lang}: mixing VIP and Premium`).toBe(true);
+          }
+        }
+      });
+    });
+
+    describe('Translation Quality Standards', () => {
+      it('should avoid common translation mistakes', () => {
+        const commonMistakes = [
+          /\b(?:the|a|an)\s+(?:the|a|an)\b/i, // Double articles
+          /\b(?:is|are|was|were)\s+(?:is|are|was|were)\b/i, // Double verbs
+          /\b(?:and|or)\s+(?:and|or)\b/i, // Double conjunctions
+          /\s{2,}/, // Multiple spaces
+          /[.!?]{2,}/, // Multiple punctuation
+        ];
+
+        for (const lang of languages) {
+          const issues: string[] = [];
+
+          const checkForMistakes = (obj: any, path = '') => {
+            if (typeof obj === 'string') {
+              for (const pattern of commonMistakes) {
+                if (pattern.test(obj)) {
+                  issues.push(`${path}: Translation mistake detected: "${obj}"`);
+                }
+              }
+            } else if (typeof obj === 'object' && obj !== null) {
+              for (const [key, value] of Object.entries(obj)) {
+                checkForMistakes(value, path ? `${path}.${key}` : key);
+              }
+            }
+          };
+
+          checkForMistakes(locales[lang]);
+          expect(issues, `Translation mistakes found in ${lang}: ${issues.join(', ')}`).toHaveLength(0);
+        }
+      });
+
+      it('should have appropriate text length ratios between languages', () => {
+        // Check that translations aren't excessively longer than English
+        const enLocale = locales.en;
+        const maxLengthRatios = {
+          ru: 2.5, // Russian can be longer due to grammar
+          es: 2.7, // Spanish can be longer due to grammar
+          en: 1.0  // English is baseline
+        };
+
+        for (const lang of languages) {
+          if (lang === 'en') continue;
+
+          const locale = locales[lang];
+          const maxRatio = maxLengthRatios[lang as keyof typeof maxLengthRatios] || 2.0;
+          const issues: string[] = [];
+
+          const compareLengths = (enObj: any, otherObj: any, path = '') => {
+            if (typeof enObj === 'string' && typeof otherObj === 'string') {
+              const ratio = otherObj.length / enObj.length;
+              if (ratio > maxRatio) {
+                issues.push(`${path}: ${lang} translation is ${ratio.toFixed(1)}x longer than English (max: ${maxRatio})`);
+              }
+            } else if (typeof enObj === 'object' && typeof otherObj === 'object' && enObj !== null && otherObj !== null) {
+              for (const key of Object.keys(enObj)) {
+                if (key in otherObj) {
+                  compareLengths(enObj[key], otherObj[key], path ? `${path}.${key}` : key);
+                }
+              }
+            }
+          };
+
+          compareLengths(enLocale, locale);
+          expect(issues, `Length ratio issues in ${lang}: ${issues.join(', ')}`).toHaveLength(0);
         }
       });
     });

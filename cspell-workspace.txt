@@ -4224,6 +4224,10 @@ venv
 vip
 VIP
 Visualización
+terminology
+terminología
+translation
+traducción
 visx
 vitamina
 vitd
