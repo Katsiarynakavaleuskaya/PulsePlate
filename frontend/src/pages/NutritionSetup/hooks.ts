@@ -138,7 +138,7 @@ export const resolveSetupLang = (
   return FALLBACK_LANG;
 };
 
-const MICRO_CONFIG: Record<
+export const MICRO_CONFIG: Record<
   string,
   {
     id: string;
