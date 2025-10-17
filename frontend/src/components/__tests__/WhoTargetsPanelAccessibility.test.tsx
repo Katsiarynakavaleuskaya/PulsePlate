@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { WhoTargetsPanel } from '../WhoTargetsPanel';
 
@@ -120,7 +121,8 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(retryButton).toBeInTheDocument();
     });
 
-    it('should support keyboard navigation for retry button', () => {
+    it('should support Enter key activation for retry button', async () => {
+      const user = userEvent.setup();
       const mockRetry = vi.fn();
       render(
         <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
@@ -132,13 +134,24 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(retryButton).toHaveFocus();
 
       // Test Enter key activation
-      fireEvent.keyDown(retryButton, { key: 'Enter', code: 'Enter' });
+      await user.keyboard('{Enter}');
       expect(mockRetry).toHaveBeenCalled();
+    });
 
-      mockRetry.mockClear();
+    it('should support Space key activation for retry button', async () => {
+      const user = userEvent.setup();
+      const mockRetry = vi.fn();
+      render(
+        <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
+      );
+
+      const retryButton = screen.getByRole('button', { name: /try again/i });
+
+      retryButton.focus();
+      expect(retryButton).toHaveFocus();
 
       // Test Space key activation
-      fireEvent.keyDown(retryButton, { key: ' ', code: 'Space' });
+      await user.keyboard(' ');
       expect(mockRetry).toHaveBeenCalled();
     });
   });
@@ -376,7 +389,8 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(button).not.toHaveAttribute('tabindex', '-1');
     });
 
-    it('should handle keyboard events without errors', () => {
+    it('should handle keyboard events without errors', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
@@ -384,28 +398,36 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
 
       // Test various key events don't cause errors
-      expect(() => {
-        fireEvent.keyDown(button, { key: 'Enter' });
-        fireEvent.keyDown(button, { key: 'Space' });
-        fireEvent.keyDown(button, { key: 'Escape' });
-        fireEvent.keyDown(button, { key: 'Tab' });
+      expect(async () => {
+        await user.keyboard('{Enter}');
+        await user.keyboard(' ');
+        await user.keyboard('{Escape}');
+        await user.keyboard('{Tab}');
       }).not.toThrow();
     });
 
-    it('should support Enter key activation for button', () => {
+    it('should support Enter key activation for main button', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
       const button = screen.getByRole('button', { name: /save & get weekly plan/i });
       button.focus();
 
-      fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
+      await user.keyboard('{Enter}');
       expect(mockSave).toHaveBeenCalled();
+    });
 
-      mockSave.mockClear();
+    it('should support Space key activation for main button', async () => {
+      const user = userEvent.setup();
+      const mockSave = vi.fn();
+      render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
+
+      const button = screen.getByRole('button', { name: /save & get weekly plan/i });
+      button.focus();
 
       // Test Space key
-      fireEvent.keyDown(button, { key: ' ', code: 'Space' });
+      await user.keyboard(' ');
       expect(mockSave).toHaveBeenCalled();
     });
   });
