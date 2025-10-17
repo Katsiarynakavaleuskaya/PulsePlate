@@ -60,7 +60,7 @@ interface TargetCardProps {
 }
 
 export function WhoTargetsCards({ data, className }: TargetCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <div className={clsx('who-targets-cards', className)}>
@@ -147,7 +147,10 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
           <div className="target-card__content">
             <ul className="micros-list">
               {Object.entries(data.priority_micros).map(([micro, value]) => {
-                const unit = getMicronutrientUnit(micro, 'en'); // Use 'en' as fallback, could be made dynamic
+                // Normalize locale to supported keys with 'en' as fallback
+                const currentLocale = i18n.language.slice(0, 2);
+                const locale = ['ru', 'en', 'es'].includes(currentLocale) ? currentLocale : 'en';
+                const unit = getMicronutrientUnit(micro, locale);
                 return (
                   <li key={micro} className="micros-item">
                     <span className="micros-item__label">

@@ -7,6 +7,9 @@ import type { TargetsApiResponse } from '../../api/premium/types';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback || key,
+    i18n: {
+      language: 'en',
+    },
   }),
 }));
 
