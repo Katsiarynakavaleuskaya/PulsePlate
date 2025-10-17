@@ -241,8 +241,17 @@
 
 > **Владелец**: iOS Team | **Каденция**: По мере необходимости
 
-- [ ] **Synchronize texts/iconography/micro-animations** с SwiftUI screens
-- [ ] **Align navigation and naming** (RU/EN/ES locales)
+#### ✅ Frontend Ready (PR #2.7 Completed)
+
+- [x] **iOS-compatible localization keys** added to all locales (EN/RU/ES)
+- [x] **Chart, week, health, units sections** prepared for iOS sync
+- [x] **Language, profile, mascot, settings keys** aligned with iOS format
+- [x] **Accessibility labels** ready for iOS integration
+
+#### 📋 Detailed iOS Development Plan
+> **See**: [IOS_DEVELOPMENT_ROADMAP.md](./IOS_DEVELOPMENT_ROADMAP.md) for complete iOS development phases and tasks
+
+**Quick Status**: Frontend ready for iOS synchronization. iOS team can resume development using prepared localization structure.
 
 ### 📊 Telemetry & Product Metrics
 
@@ -346,13 +355,14 @@
 ## 🎉 Текущий статус
 
 - ✅ **ФАЗА 1 ЗАВЕРШЕНА**: CI стабилизирован, все тесты проходят
-- 🔄 **ФАЗА 2 В ПРОЦЕССЕ**: OpenAPI Infrastructure
+- ✅ **ФАЗА 2 ЗАВЕРШЕНА**: OpenAPI Infrastructure & iOS Preparation
   - ✅ **PR #2.1 ЗАВЕРШЕН**: Feature Flags Setup (25 тестов, мок по модулям)
   - ✅ **PR #2.2 ЗАВЕРШЕН**: Design Tokens Foundation (21 тест, CSS custom properties)
   - ✅ **PR #2.3 ЗАВЕРШЕН**: VIP Components Base (25 тестов, useInert хук)
   - ✅ **PR #2.4 ЗАВЕРШЕН**: Telemetry Foundation (56 тестов, type-safe события)
-  - 🔄 **PR #2.5 В ПРОЦЕССЕ**: VIP i18n Keys (32 теста, centralized terminology mapping)
-  - 📋 **PR #2.6-2.7 ПЛАНИРУЮТСЯ**: i18n Validation & Quality, iOS-Frontend Sync
+  - ✅ **PR #2.5 ЗАВЕРШЕН**: VIP i18n Keys (35 тестов, centralized terminology mapping)
+  - ✅ **PR #2.6 ЗАВЕРШЕН**: i18n Validation & Quality (35 тестов, language-specific patterns)
+  - ✅ **PR #2.7 ЗАВЕРШЕН**: iOS-Frontend Sync Preparation (iOS-compatible keys)
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
-**Текущий этап**: PR #2.5 (VIP i18n Keys) 🔄
+**Текущий этап**: Готов к ФАЗЕ 3 (WHO Targets E2E) 🚀

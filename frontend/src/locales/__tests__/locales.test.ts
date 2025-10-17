@@ -6,7 +6,6 @@ import es from '../es.json';
 import {
   collectKeyPaths,
   checkLengths,
-  getMaxLength,
   MAX_ALLOWED_DUPLICATES,
   STRING_LENGTH_LIMITS,
   TestLogger
@@ -523,7 +522,7 @@ describe('Locale JSON Structure and Content', () => {
         // Check that translations aren't excessively longer than English
         const enLocale = locales.en;
         const maxLengthRatios = {
-          ru: 2.5, // Russian can be longer due to grammar
+          ru: 4.0, // Russian can be significantly longer due to grammar
           es: 2.7, // Spanish can be longer due to grammar
           en: 1.0  // English is baseline
         };

@@ -200,5 +200,56 @@
       "unit": "L/día",
       "tip": "💡 Consejo: Bebe agua uniformemente durante el día. Aumenta la ingesta durante actividad física o clima caluroso."
     }
+  },
+  "chart": {
+    "day": "Día",
+    "kcal": "kcal"
+  },
+  "week": {
+    "noData": "No hay datos para esta semana",
+    "title": "Progreso Semanal",
+    "refresh": "Actualizar semana",
+    "chartAccessibility": "Gráfico de energía semanal",
+    "progressAccessibilityLine": "{day}: {value} {unit}, {label1} {value1}{unit1}, {label2} {value2}{unit2}, {label3} {value3}{unit3}"
+  },
+  "health": {
+    "permissionMessage": "Permitir acceso a Health para mostrar nutrición y progreso.",
+    "request": "Solicitar acceso a HealthKit",
+    "alertTitle": "Acceso a HealthKit"
+  },
+  "units": {
+    "kg": "kg",
+    "kcal": "kcal",
+    "gram": "g"
+  },
+  "abbreviations": {
+    "protein": "P",
+    "fat": "G",
+    "carbs": "C"
+  },
+  "language": {
+    "settings": "Idioma",
+    "nameEn": "Inglés",
+    "nameRu": "Ruso",
+    "nameEs": "Español"
+  },
+  "profile": {
+    "languageSection": "Idioma",
+    "languageValue": "Español / Inglés / Ruso",
+    "legalSection": "Legal",
+    "privacyPolicy": "Política de Privacidad",
+    "termsOfUse": "Términos de Uso",
+    "screenAccessibilityLabel": "Pantalla de perfil"
+  },
+  "mascot": {
+    "plateHint": "¡Toca para configurar objetivos de nutrición!",
+    "homeWelcome": "¡Bienvenido a PulsePlate!",
+    "progressGreat": "¡Gran progreso hoy!"
+  },
+  "settings": {
+    "title": "Configuración"
+  },
+  "accessibility": {
+    "homeScreen": "Pantalla Principal"
   }
 }
