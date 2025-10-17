@@ -200,5 +200,56 @@
       "unit": "л/день",
       "tip": "💡 Совет: Пейте воду равномерно в течение дня. Увеличивайте потребление при физической активности или жаркой погоде."
     }
+  },
+  "chart": {
+    "day": "День",
+    "kcal": "ккал"
+  },
+  "week": {
+    "noData": "Данных за неделю нет",
+    "title": "Недельный прогресс",
+    "refresh": "Обновить неделю",
+    "chartAccessibility": "График энергии за неделю",
+    "progressAccessibilityLine": "%@: %d %@, %@ %d%@, %@ %d%@, %@ %d%@"
+  },
+  "health": {
+    "permissionMessage": "Разрешите доступ к Health для отображения питания и прогресса.",
+    "request": "Запросить доступ к HealthKit",
+    "alertTitle": "Доступ к HealthKit"
+  },
+  "units": {
+    "kg": "кг",
+    "kcal": "ккал",
+    "gram": "г"
+  },
+  "abbreviations": {
+    "protein": "Б",
+    "fat": "Ж",
+    "carbs": "У"
+  },
+  "language": {
+    "settings": "Язык",
+    "nameEn": "Английский",
+    "nameRu": "Русский",
+    "nameEs": "Испанский"
+  },
+  "profile": {
+    "languageSection": "Язык",
+    "languageValue": "Русский / Английский / Испанский",
+    "legalSection": "Правовая информация",
+    "privacyPolicy": "Политика конфиденциальности",
+    "termsOfUse": "Условия использования",
+    "screenAccessibilityLabel": "Экран профиля"
+  },
+  "mascot": {
+    "plateHint": "Нажмите, чтобы настроить цели питания!",
+    "homeWelcome": "Добро пожаловать в PulsePlate!",
+    "progressGreat": "Отличный прогресс сегодня!"
+  },
+  "settings": {
+    "title": "Настройки"
+  },
+  "accessibility": {
+    "homeScreen": "Главный экран"
   }
 }
