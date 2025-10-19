@@ -157,8 +157,8 @@ class TestWeeklyPlanningBlocks:
             mock_result.weekly_coverage = {"protein": 90}
             return mock_result
 
-        # Мокаем модуль weekly_plan_new напрямую
-        with patch("core.weekly_plan_new.make_weekly_menu", side_effect=mock_make_weekly_menu):
+        # Мокаем модуль menu_engine напрямую
+        with patch("core.menu_engine.make_weekly_menu", side_effect=mock_make_weekly_menu):
             os.environ["API_KEY"] = "test_key"
             try:
                 response = client.post(
