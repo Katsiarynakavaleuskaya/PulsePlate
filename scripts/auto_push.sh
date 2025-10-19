@@ -119,27 +119,7 @@ if [[ -n $(git status --porcelain) ]]; then
     show_status "Создание коммита" "running"
 
     # Автоматическое сообщение коммита на основе изменений
-    commit_msg="🔄 Auto-commit: "
-
-    # Анализируем типы изменений
-    if git diff --cached --name-only | grep -q "test"; then
-        commit_msg+="tests, "
-    fi
-    if git diff --cached --name-only | grep -q ".py$"; then
-        commit_msg+="code improvements, "
-    fi
-    if git diff --cached --name-only | grep -q "requirements"; then
-        commit_msg+="dependencies, "
-    fi
-    if git diff --cached --name-only | grep -q "README\|\.md$"; then
-        commit_msg+="docs, "
-    fi
-
-    # Убираем последнюю запятую
-    commit_msg=${commit_msg%, }
-
-    # Добавляем информацию о покрытии
-    commit_msg+=" | Coverage: ${coverage_percent}%"
+    commit_msg="chore: auto-commit (coverage ${coverage_percent}%)"
 
     git commit -m "$commit_msg"
     show_status "Коммит создан: $commit_msg" "success"

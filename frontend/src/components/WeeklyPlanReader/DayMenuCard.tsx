@@ -163,7 +163,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   const abbrCarbs = t('abbreviations.carbs', 'C');
   const abbrFat = t('abbreviations.fat', 'F');
 
-  const normalizedDayIndex = typeof dayIndex === 'number' && dayIndex >= 0 ? dayIndex : null;
+  const normalizedDayIndex = dayIndex >= 0 ? dayIndex : null;
   const dayLabel = day
     ? t(`weeklyPlan.days.${day}`, day)
     : normalizedDayIndex !== null
@@ -187,14 +187,22 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
 
   if (!adaptedData || !adaptedData.meals || Object.keys(adaptedData.meals).length === 0) {
     return (
-      <div
-        className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg"
-        data-testid={cardTestId}
-        aria-label={dayMenuLabel}
-      >
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <Utensils className="w-8 h-8 mx-auto mb-2" />
-          <p>{t('weeklyPlan.noMeals', 'No meals planned for this day')}</p>
+      <div className="day-menu-card" data-testid={cardTestId} aria-label={dayLabel}>
+        <div className="mb-4">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
+            {dayLabel}
+          </h3>
+          {day && normalizedDayIndex !== null && (
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {t('weeklyPlan.dayPosition', `Day ${normalizedDayIndex + 1}`)}
+            </span>
+          )}
+        </div>
+        <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="text-center text-gray-500 dark:text-gray-400">
+            <Utensils className="w-8 h-8 mx-auto mb-2" />
+            <p>{t('weeklyPlan.noMeals', 'No meals planned for this day')}</p>
+          </div>
         </div>
       </div>
     );
@@ -202,9 +210,6 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
 
   const meals = adaptedData.meals as { [key: string]: MealItem[] };
   const totalCalories = adaptedData.total_calories || 0;
-  const hasMeals = MEAL_ORDER_WITH_MISC.some(
-    (mealType) => (meals[mealType]?.length ?? 0) > 0
-  );
 
   return (
     <div className="day-menu-card" data-testid={cardTestId} aria-label={dayMenuLabel}>
@@ -335,15 +340,6 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
         })}
       </div>
 
-      {/* No meals message */}
-      {!hasMeals && (
-        <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <div className="text-center text-gray-500 dark:text-gray-400">
-            <Utensils className="w-8 h-8 mx-auto mb-2" />
-            <p>{t('weeklyPlan.noMeals', 'No meals planned for this day')}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

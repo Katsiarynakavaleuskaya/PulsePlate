@@ -95,34 +95,16 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
-  # --- Markdown / docs formatting
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.3.3
-    hooks:
-      - id: prettier
-        name: prettier (docs)
-        files: \.(md|mdx)$
-
-  # --- Javascript/Typescript formatting via prettier
+  # --- Frontend lint (ESLint via npm scripts)
   - repo: local
     hooks:
-      - id: prettier-frontend
-        name: prettier (frontend)
-        entry: bash -c "cd frontend && npm run format"
-        language: system
-        pass_filenames: false
-        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md)$
-        stages: [pre-commit]
-
       - id: eslint-frontend
         name: eslint (frontend)
-        entry: bash -c "cd frontend && npm run lint:staged"
+        entry: bash -c "cd frontend && npm run lint"
         language: system
         pass_filenames: false
         files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
         stages: [pre-commit]
-
-      # mypy already defined globally, but keep local hook entry available if needed
 
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
@@ -148,6 +130,17 @@ repos:
         entry: bash -c "cd frontend && npm audit --audit-level=high"
         language: system
         pass_filenames: false
+        stages: [pre-push]
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.7.3
+    hooks:
+      - id: pip-audit
+        name: pip-audit (requirements)
+        args:
+          - --requirement=requirements.txt
+          - --requirement=requirements-dev.txt
+          - --progress-spinner=off
         stages: [pre-push]
 
 ci:
