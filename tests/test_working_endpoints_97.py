@@ -168,7 +168,9 @@ class TestEdgeCasesAndErrorPaths:
         # Pydantic validation should return 422 for negative weight
         # If validation doesn't work as expected, accept 200 but log the issue
         if response.status_code == 200:
-            print(f"WARNING: Validation test returned 200 instead of 422. Response: {response.json()}")
+            print(
+                f"WARNING: Validation test returned 200 instead of 422. Response: {response.json()}"
+            )
         assert response.status_code in [422, 400, 200]  # Allow 200 if validation doesn't work
 
         # BMI с нулевым ростом (legacy endpoint)

@@ -158,7 +158,7 @@ class TestWeeklyPlanningBlocks:
             return mock_result
 
         # Мокаем модуль weekly_plan_new напрямую
-        with patch("core.weekly_plan_new.make_weekly_menu", return_value=mock_make_weekly_menu()):
+        with patch("core.weekly_plan_new.make_weekly_menu", side_effect=mock_make_weekly_menu):
             os.environ["API_KEY"] = "test_key"
             try:
                 response = client.post(
