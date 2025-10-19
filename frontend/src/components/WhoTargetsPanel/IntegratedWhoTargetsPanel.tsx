@@ -1,12 +1,4 @@
-import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { useWhoTargetsWithWeeklyPlan } from '../../hooks/useWhoTargetsWithWeeklyPlan';
-import type { TargetsRequest } from '../../api/premium/types';
-import { WhoTargetsPanel } from '../WhoTargetsPanel';
-import { WhoTargetsSkeleton } from './Skeleton';
-import { WhoTargetsErrorState } from './ErrorState';
-import { WhoTargetsEmptyState } from './EmptyState';
-
 import type { TargetsRequest } from '../../api/premium/types';
 import type { WeeklyMenuResponse } from '../../api/premium/weekly-plan';
 import { WhoTargetsPanel } from '../WhoTargetsPanel';
@@ -24,19 +16,17 @@ export function IntegratedWhoTargetsPanel({
   onError,
   className,
 }: IntegratedWhoTargetsPanelProps) {
-  const { t } = useTranslation();
 
   const {
     targetsData,
     targetsLoading,
     targetsError,
-    weeklyPlanData,
     weeklyPlanLoading,
     weeklyPlanError,
     saveAndGetWeeklyPlan,
     retry,
   } = useWhoTargetsWithWeeklyPlan({
-    onSuccess: (targets, weeklyPlan) => {
+    onSuccess: (_, weeklyPlan) => {
       onWeeklyPlanGenerated?.(weeklyPlan);
     },
     onError: (error) => {
