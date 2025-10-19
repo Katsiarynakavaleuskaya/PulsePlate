@@ -3,6 +3,47 @@
     "backOnline": "De nuevo en línea",
     "offline": "Estás desconectado"
   },
+  "weeklyPlan": {
+    "title": "Plan de Comidas Semanal",
+    "weekOf": "Semana del",
+    "previousDay": "Día anterior",
+    "nextDay": "Día siguiente",
+    "days": {
+      "monday": "Lunes",
+      "tuesday": "Martes",
+      "wednesday": "Miércoles",
+      "thursday": "Jueves",
+      "friday": "Viernes",
+      "saturday": "Sábado",
+      "sunday": "Domingo"
+    },
+    "protein": "Proteína",
+    "carbs": "Carbohidratos",
+    "fat": "Grasa",
+    "fiber": "Fibra",
+    "totalCalories": "Calorías Totales",
+    "shoppingList": "Lista de Compras",
+    "shoppingListItems": "{{count}} artículos",
+    "meals": {
+      "breakfast": "Desayuno",
+      "lunch": "Almuerzo",
+      "dinner": "Cena",
+      "snacks": "Meriendas"
+    },
+    "noMeals": "No hay comidas planificadas para este día",
+    "error": {
+      "title": "Error al cargar el plan semanal",
+      "message": "Algo salió mal al cargar tu plan de comidas semanal.",
+      "retry": "Intentar de Nuevo",
+      "help": "Si el problema persiste, verifica tu conexión a internet e intenta de nuevo."
+    },
+    "empty": {
+      "title": "No hay plan semanal disponible",
+      "message": "Genera tu plan de comidas semanal personalizado para comenzar tu viaje nutricional.",
+      "generate": "Generar Plan Semanal",
+      "help": "Completa la configuración de tu perfil para generar un plan de comidas personalizado."
+    }
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancelar",

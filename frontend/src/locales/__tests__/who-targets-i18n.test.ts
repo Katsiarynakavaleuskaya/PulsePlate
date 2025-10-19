@@ -140,7 +140,7 @@ describe('WHO Targets i18n', () => {
     it('should have consistent terminology across sections', () => {
       // Check that "calories" terminology is consistent
       expect(en.whoTargets.calories.title).toContain('Calories');
-      expect(ru.whoTargets.calories.title).toContain('калори');
+      expect(ru.whoTargets.calories.title.toLowerCase()).toContain('калории');
       expect(es.whoTargets.calories.title).toContain('Caloría');
     });
 

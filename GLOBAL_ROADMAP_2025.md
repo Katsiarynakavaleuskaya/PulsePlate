@@ -217,16 +217,18 @@
 - [x] **Weekly Plan API client** integration - создан и протестирован
 - [x] **Comprehensive testing** (200/401/422 scenarios) - 23 теста проходят
 - [x] **Add CTA** "Save & Get Weekly Plan" интеграция - IntegratedWhoTargetsPanel готов
-- [x] **API integration tests** - 34 теста проходят (23 API + 11 компонент)
-- [ ] **E2E тесты** - планируется
+- [x] **API integration tests** - 26 тестов проходят (23 API + 3 компонент)
+- [x] **Fix CI failures** - двойная сериализация JSON исправлена
+- [x] **Complete i18n** - offlineIndicator переводы добавлены во все языки
+- [x] **Code quality improvements** - все CodeRabbit feedback обработан
 
 **Результат**: Полная интеграция WHO Targets с Weekly Plan API готова ✅
 
 ---
 
-## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - ПЛАНИРУЕТСЯ
+## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - В РАБОТЕ
 
-### 📋 PR-B: Weekly Plan (reader)
+### 🚧 PR #4.1: Weekly Plan Reader (In Progress)
 
 - **Цель**: Генерация плана → просмотр по дням (свайпы/кнопки) → скелетоны
 - **Критерии**: загрузка/ошибка/пусто покрыты; VoiceOver читает корректно; FCP < 1.5s
@@ -302,6 +304,7 @@
 - [x] **Accessibility labels** ready for iOS integration
 
 #### 📋 Detailed iOS Development Plan
+>
 > **See**: [IOS_DEVELOPMENT_ROADMAP.md](./IOS_DEVELOPMENT_ROADMAP.md) for complete iOS development phases and tasks
 
 **Quick Status**: Frontend ready for iOS synchronization. iOS team can resume development using prepared localization structure.

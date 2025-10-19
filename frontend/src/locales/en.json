@@ -3,6 +3,47 @@
     "backOnline": "Back online",
     "offline": "You are offline"
   },
+  "weeklyPlan": {
+    "title": "Weekly Meal Plan",
+    "weekOf": "Week of",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    },
+    "protein": "Protein",
+    "carbs": "Carbs",
+    "fat": "Fat",
+    "fiber": "Fiber",
+    "totalCalories": "Total Calories",
+    "shoppingList": "Shopping List",
+    "shoppingListItems": "{{count}} items",
+    "meals": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snacks": "Snacks"
+    },
+    "noMeals": "No meals planned for this day",
+    "error": {
+      "title": "Failed to load weekly plan",
+      "message": "Something went wrong while loading your weekly meal plan.",
+      "retry": "Try Again",
+      "help": "If the problem persists, please check your internet connection and try again."
+    },
+    "empty": {
+      "title": "No weekly plan available",
+      "message": "Generate your personalized weekly meal plan to get started with your nutrition journey.",
+      "generate": "Generate Weekly Plan",
+      "help": "Complete your profile setup to generate a personalized meal plan."
+    }
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancel",
