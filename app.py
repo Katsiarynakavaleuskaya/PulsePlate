@@ -1,3 +1,9 @@
+"""FastAPI application for BMI and nutrition calculations.
+
+This module provides a comprehensive API for BMI calculations, nutrition planning,
+and health-related endpoints with support for multiple languages and VIP features.
+"""
+
 import asyncio
 import logging
 import os
@@ -332,14 +338,14 @@ start_time = time.time()
 
 # Add logging middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next) -> Response:
+async def log_requests(request: Request, call_next: Any) -> Response:
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
     logger.info(f"Request: {request.method} {request.url} from {client_host}")
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
-    return response  # type: ignore[no-any-return]
+    return response
 
 
 @app.get("/health/db")
@@ -2097,7 +2103,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except Exception:
+            except Exception:  # nosec B110
                 # Safety validation is optional; ignore errors
                 pass
 

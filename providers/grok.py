@@ -35,7 +35,7 @@ class GrokProvider:
                 timeout=self.timeout,
             )
             content = resp.choices[0].message.content
-            return content.strip() if content else ""
+            return content.strip() if content is not None else ""
         except Exception as e:
             # Пробрасываем понятную ошибку наверх
             raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")
