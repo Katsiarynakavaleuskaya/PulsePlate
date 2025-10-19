@@ -228,18 +228,40 @@
 
 ## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - В РАБОТЕ
 
-### 🚧 PR #4.1: Weekly Plan Reader (In Progress)
+### ✅ PR #4.1: Weekly Plan Reader
 
+- **Статус**: ЗАВЕРШЕНО ✅
 - **Цель**: Генерация плана → просмотр по дням (свайпы/кнопки) → скелетоны
 - **Критерии**: загрузка/ошибка/пусто покрыты; VoiceOver читает корректно; FCP < 1.5s
 
 #### Задачи
 
-- [ ] **Weekly Plan API client** integration
-- [ ] **Create Weekly Plan viewer** с day navigation (swipes/buttons)
-- [ ] **Add loading skeletons** для plan generation
-- [ ] **Add VoiceOver compatibility** и keyboard navigation
-- [ ] **Optimize for FCP < 1.5s** на plan screen
+- [x] **Weekly Plan API client** integration - API integration готов
+- [x] **Create Weekly Plan viewer** с day navigation (swipes/buttons) - WeeklyPlanReader создан
+- [x] **Add loading skeletons** для plan generation - WeeklyPlanSkeleton готов
+- [x] **Add VoiceOver compatibility** и keyboard navigation - полная accessibility поддержка
+- [x] **Add comprehensive testing** - 16 тестов покрывают все состояния
+- [x] **Add i18n support** - переводы на EN/ES/RU добавлены
+- [x] **Create modular components** - Skeleton, Error, Empty, DayMenuCard
+- [x] **Implement keyboard navigation** - onKeyDown handlers для всех кнопок
+- [ ] **Optimize for FCP < 1.5s** на plan screen - pending
+
+**Результат**: Современный WeeklyPlanReader компонент с полным тестированием готов ✅
+
+### 🚧 PR #4.2: Weekly Plan Performance Optimization (In Progress)
+
+- **Цель**: Оптимизация производительности для FCP < 1.5s
+- **Критерии**: First Contentful Paint < 1.5s; Lighthouse score > 90; bundle size optimization
+
+#### Задачи
+
+- [ ] **Analyze current performance** - Lighthouse audit и bundle analysis
+- [ ] **Implement code splitting** - lazy loading для WeeklyPlanReader
+- [ ] **Optimize bundle size** - tree shaking и dead code elimination
+- [ ] **Add performance monitoring** - Core Web Vitals tracking
+- [ ] **Optimize images and assets** - WebP format и compression
+- [ ] **Implement caching strategies** - service worker и API caching
+- [ ] **Add performance tests** - automated performance regression tests
 
 ---
 
