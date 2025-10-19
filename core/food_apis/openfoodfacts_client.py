@@ -167,7 +167,7 @@ class OFFClient:
                 "search_simple": "1",
                 "action": "process",
                 "json": "1",
-                "fields": "code,product_name,nutriments,categories,ingredients_text,brands,labels,countries,packaging,image_url,last_modified_t",
+                # Note: CGI search.pl endpoint ignores fields parameter, so we omit it
             }
 
             response = await self.client.get(url, params=params)

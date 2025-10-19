@@ -9,6 +9,14 @@ import pytest
 from core.food_apis.http_config import HTTPClientConfig
 
 
+@pytest.fixture
+async def http_client():
+    """Fixture that provides an HTTP client and properly closes it."""
+    client = HTTPClientConfig.create_client()
+    yield client
+    await client.aclose()
+
+
 class TestHTTPClientConfig:
     """Test HTTPClientConfig class."""
 
@@ -18,27 +26,36 @@ class TestHTTPClientConfig:
         assert timeout == 10.0
         assert isinstance(timeout, float)
 
-    def test_create_client_with_default_timeout(self):
+    @pytest.mark.asyncio
+    async def test_create_client_with_default_timeout(self, http_client):
         """Test creating client with default timeout."""
-        client = HTTPClientConfig.create_client()
+        client = http_client
         assert client.timeout.connect == 10.0
         assert client.timeout.read == 10.0
         assert client.timeout.write == 10.0
         assert client.timeout.pool == 10.0
 
-    def test_create_client_with_custom_timeout(self):
+    @pytest.mark.asyncio
+    async def test_create_client_with_custom_timeout(self):
         """Test creating client with custom timeout."""
         custom_timeout = 5.0
         client = HTTPClientConfig.create_client(timeout=custom_timeout)
-        assert client.timeout.connect == custom_timeout
-        assert client.timeout.read == custom_timeout
-        assert client.timeout.write == custom_timeout
-        assert client.timeout.pool == custom_timeout
+        try:
+            assert client.timeout.connect == custom_timeout
+            assert client.timeout.read == custom_timeout
+            assert client.timeout.write == custom_timeout
+            assert client.timeout.pool == custom_timeout
+        finally:
+            await client.aclose()
 
-    def test_create_client_with_none_timeout_uses_default(self):
+    @pytest.mark.asyncio
+    async def test_create_client_with_none_timeout_uses_default(self):
         """Test creating client with None timeout uses default."""
         client = HTTPClientConfig.create_client(timeout=None)
-        assert client.timeout.connect == 10.0
-        assert client.timeout.read == 10.0
-        assert client.timeout.write == 10.0
-        assert client.timeout.pool == 10.0
+        try:
+            assert client.timeout.connect == 10.0
+            assert client.timeout.read == 10.0
+            assert client.timeout.write == 10.0
+            assert client.timeout.pool == 10.0
+        finally:
+            await client.aclose()
