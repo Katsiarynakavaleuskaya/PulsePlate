@@ -265,6 +265,78 @@
 
 ---
 
+### 📋 PR #4.3: Safety Warnings Telemetry (Backend)
+
+- **Цель**: Убрать silent fail в `validate_targets_safety`
+- **Задачи**:
+  - [ ] Заменить `except Exception: pass` (app.py:2068-2085) на `logger.warning` с деталями и кодом ответа.
+  - [ ] Добавить unit-тест (`tests/test_targets.py`) проверяющий, что warning логируется и не ломает ответ API.
+
+### 📋 PR #4.4: Secure FTS Query (Backend)
+
+- **Цель**: Избавиться от string-concat SQL в Food Store
+- **Задачи**:
+  - [ ] Переписать `search_foods` (app/services/food_store.py) на параметризованные placeholders с `JOIN` через `?`.
+  - [ ] Покрыть тестами (`tests/test_food_store.py`) алиасы и pagination.
+
+### 📋 PR #4.5: Weekly Plan Contract Coverage (Backend)
+
+- **Цель**: Гарантировать структуру ответа Weekly Plan API
+- **Задачи**:
+  - [ ] Расширить `tests/test_premium_week_api.py`, чтобы проверять `macros/kcal/grams` для каждого блюда и `macros` для дня.
+  - [ ] Зафиксировать JSON фикстуру успешного ответа для snapshot-проверки.
+
+### 📋 PR #4.6: Targets Docstring Hygiene (Backend)
+
+- **Цель**: Закрыть предупреждения pydocstyle
+- **Задачи**:
+  - [ ] Обновить docstring-и в `core/targets.py` (методы `validate_consistency`, `get_summary`, класс `NutrientCoverage`) под `D205/D212`.
+  - [ ] Прогнать `pydocstyle` в CI, убедиться что нет новых нарушений.
+
+### 📋 PR #4.7: Cron Scheduler CLI Polish (Backend)
+
+- **Цель**: Сделать cron скрипт конфигурируемым
+- **Задачи**:
+  - [ ] Добавить в `scripts/schedule_food_db_update.py` `argparse` c `--timeout`, `--log-dir`, `--env`.
+  - [ ] Обновить `CRON_SETUP.md` примером команды и секцией “Testing cron wrapper”.
+
+### 📋 PR #4.8: Weekly Plan API Parity (iOS)
+
+- **Цель**: Подтянуть Weekly Plan данные на iOS
+- **Задачи**:
+  - [ ] Добавить метод `fetchWeeklyPlan` в `NutritionService` (Swift) c маппингом `macros`, `shopping_list`.
+  - [ ] Написать unit-тест с JSON фикстурой, сверяющий структуру.
+
+### 📋 PR #4.9: Diet Flags Bridge (iOS)
+
+- **Цель**: Синхронизировать diet-флаги с backend
+- **Задачи**:
+  - [ ] Создать словарь флагов (`UserProfile.swift`) включая `PESC`, `LOW_COST`, `HIGH_PROTEIN`.
+  - [ ] Добавить snapshot-тест для экрана настроек питания.
+
+### 📋 PR #4.10: Shared Localization Sync (iOS)
+
+- **Цель**: Актуализировать `.strings` из веб-локалей
+- **Задачи**:
+  - [ ] Написать Python-скрипт, генерирующий `.strings` из `frontend/src/locales`.
+  - [ ] Добавить sanity-тест, валидирующий присутствие ключей TARGETS/VIP.
+
+### 📋 PR #4.11: Safety Warning Surface (iOS)
+
+- **Цель**: Показать пользователю safety предупреждения
+- **Задачи**:
+  - [ ] Преобразовать массив `safety` из backend в UI компонент с локализованными текстами.
+  - [ ] Добавить UI-тест (Snapshot) на вывод нескольких предупреждений.
+
+### 📋 PR #4.12: HealthKit Integration Pass (iOS)
+
+- **Цель**: Перевести mock на реальные данные HealthKit
+- **Задачи**:
+  - [ ] В `NutritionService.loadFromHealthKit` построить `NutritionData` из `HKQuantity`, убрать `loadMockData`.
+  - [ ] Добавить unit-тест c фиктивными `HKQuantity`, проверяющий конверсию.
+
+---
+
 ## 📋 ФАЗА 5: Shopping List (Week 5) - ПЛАНИРУЕТСЯ
 
 ### 📋 PR-C: Shopping List (read-only, за флагом)
@@ -444,3 +516,25 @@
 - 📋 **ФАЗЫ 3-6 ПЛАНИРУЮТСЯ**: Вертикальные срезы по неделям
 
 **Текущий этап**: Готов к ФАЗЕ 3 (WHO Targets E2E) 🚀
+
+---
+
+## 🔧 Backend: микро-PR для ближайших спринтов
+
+- [ ] **Логирование safety fallback** (`app.py:2068-2085`): заменить `except Exception: pass` на лог с `logger.warning` + возврат метаданных об ошибке, добавить покрытие в `tests/test_targets.py`.
+- [ ] **Параметризованный FTS-поиск** (`app/services/food_store.py:37-55`): вынести конкатенацию SQL в `sqlite3` placeholders, покрыть тестами (`tests/test_food_store.py`) на поиск по алиасам.
+- [ ] **Контракт Weekly Plan API** (`tests/test_premium_week_api.py`): расширить проверки, чтобы гарантировать наличие `macros`, `kcal`, `grams` у каждого блюда и `macros` в дневном блоке.
+- [ ] **Докстринги core.targets** (`core/targets.py:278-365`): привести summary к формату pydocstyle (одна строка/пустая строка), добить `D205/D212` предупреждения.
+- [ ] **CLI-параметры для cron скрипта** (`scripts/schedule_food_db_update.py`): добавить аргументы `--timeout`/`--log-dir`, использовать `argparse`, обновить `CRON_SETUP.md`.
+
+## 📱 iOS: микро-PR, которые можно делать параллельно
+
+- [ ] **Конфигурируемый API host** (`ios/PulsePlate/Models/NutritionData.swift`): вынести `baseURL` в `AppConfiguration` (ProcessInfo/Info.plist), добавить unit-тест на подстановку.
+- [ ] **Реализация updateSegmentValue** (`NutritionService.updateSegmentValue`) : заменить `print` на PATCH/PUT запрос + optimistic UI, покрыть простым интеграционным тестом.
+- [ ] **Безопасный fallback локализации** (`Models/LocalizationManager.swift`): убрать forced unwrapы при поиске `.lproj`, добавить тест, проверяющий откат к EN, если бандл отсутствует.
+- [ ] **StoreKit телеметрия** (`Models/StoreKitManager.swift`): логировать ошибки/успехи через shared telemetry service, чистить `error` после успешного `purchase`.
+- [ ] **HealthKit синхронизация** (`NutritionService.loadFromHealthKit`) : преобразовать `totals` в `NutritionData` вместо повторного вызова `loadMockData`, добавить unit-тест с фиктивными `HKQuantity`.
+- [ ] **Weekly Plan API parity** (`NutritionService.fetchNutritionData`) : добавить метод, который бьёт в `/api/v1/premium/plan/week`, мапит `macros`, `shopping_list`, покрывает Swift unit-тестом с JSON фикстурой.
+- [ ] **Diet flags bridge** (`Models/UserProfile.swift` + service layer) : подтянуть справочник diet-флагов из backend (`TargetsRequest.diet_flags`), экранировать `PESC`, `LOW_COST`, добавить snapshot-тест для UI настроек.
+- [ ] **Shared localization keys** (`LocalizationManager`) : автогенерация `.strings` из `frontend/src/locales` (скрипт на Python), sanity-тест что ключи TARGETS/VIP совпадают.
+- [ ] **Error surface for safety warnings** : отобразить массив `safety` (возвращаемый backend’ом из `_life_stage_warnings`) в iOS-UI с переводами, покрыть UI-тестом.

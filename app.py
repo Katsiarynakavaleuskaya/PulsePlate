@@ -1138,7 +1138,6 @@ make_daily_menu: Optional[MenuEngineCallable] = None
 make_weekly_menu: Optional[MenuEngineCallable] = None
 repair_week_plan: Optional[MenuEngineCallable] = None
 make_plate: Optional[MenuEngineCallable] = None
-build_nutrition_targets: Optional[MenuEngineCallable] = None
 
 ExportCallable = Callable[..., Any]
 to_csv_day: Optional[ExportCallable] = None

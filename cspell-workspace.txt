@@ -4,6 +4,7 @@
 авокадо
 авто
 Авто
+автогенерация
 автокоммита
 автоматизации
 АВТОМАТИЗАЦИИ
@@ -72,6 +73,7 @@
 алгоритма
 Алиас
 алиаса
+алиасам
 алиасами
 алиасов
 алиасом
@@ -129,6 +131,7 @@
 банан
 Банан
 Бананы
+бандл
 Бариатрический
 бедер
 Бедра
@@ -248,6 +251,7 @@
 валидация
 Валидация
 валидировать
+валидирующий
 валидного
 валидности
 валидность
@@ -657,6 +661,7 @@
 доведения
 доза
 дозы
+Докстринги
 Доктора
 документации
 документация
@@ -1299,6 +1304,7 @@
 логировать
 логируем
 Логируем
+логируется
 ложка
 локалей
 локализацией
@@ -1361,6 +1367,7 @@
 Малоподвижный
 малформированного
 малые
+мапит
 маппинга
 Марафонец
 марка
@@ -3414,6 +3421,8 @@
 фиксированными
 Фиксировать
 Фикстура
+фикстурой
+фикстуру
 филе
 фильтр
 Фильтр
@@ -3914,6 +3923,7 @@ italian
 iterrows
 Jaccard
 Jeor
+journalctl
 jóvenes
 jspdf
 katch
@@ -3953,6 +3963,7 @@ macronutrientes
 macronutrients
 Macronutrients
 magnesio
+mailx
 makedirs
 Mantén
 manteniendo
@@ -4103,6 +4114,7 @@ pulseplate
 pycache
 pydantic
 Pydantic
+pydocstyle
 pyenv
 pylint
 pymysql
@@ -4189,6 +4201,8 @@ swiftlint
 syncmain
 tdee
 TDEE
+terminología
+terminology
 testclient
 testdb
 testid
@@ -4202,7 +4216,9 @@ timedelta
 Tomate
 TOPPADDING
 touchpoints
+traducción
 transferrables
+translation
 truediv
 ttfonts
 typeerror
@@ -4211,6 +4227,7 @@ tzname
 unicode
 unicodedata
 unstub
+unwrapы
 urllib
 Usando
 usda
@@ -4224,10 +4241,6 @@ venv
 vip
 VIP
 Visualización
-terminology
-terminología
-translation
-traducción
 visx
 vitamina
 vitd
