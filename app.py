@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timedelta
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -2209,11 +2210,21 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                 )
             )
 
+        # Calculate week_start as Monday of current week
+        today = datetime.now()
+        days_since_monday = today.weekday()  # Monday is 0, Sunday is 6
+        week_start = today - timedelta(days=days_since_monday)
+        week_start_str = week_start.strftime("%Y-%m-%d")
+
+        # Calculate avg_daily_cost using actual day count
+        total_days = len(daily_menus)
+        avg_daily_cost = round(week_data["total_cost"] / total_days, 2) if total_days > 0 else 0.0
+
         return WeeklyMenuResponse(
             week_summary={
-                "week_start": "2025-01-01",  # Default week start
-                "total_days": len(daily_menus),
-                "avg_daily_cost": round(week_data["total_cost"] / 7, 2),
+                "week_start": week_start_str,
+                "total_days": total_days,
+                "avg_daily_cost": avg_daily_cost,
             },
             daily_menus=daily_menus,
             weekly_coverage=week_data["weekly_coverage"],

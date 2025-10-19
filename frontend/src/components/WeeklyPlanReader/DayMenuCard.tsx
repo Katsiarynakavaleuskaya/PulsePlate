@@ -110,9 +110,21 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
             adaptedMeals[mealType] = [];
           }
           adaptedMeals[mealType].push(adaptedMeal);
+
+          // Log warning for meals without explicit meal_type
+          console.warn(
+            `Meal "${meal.title || meal.name || 'Unknown'}" at index ${index} assigned to "${mealType}" due to missing meal_type. ` +
+            `Consider adding explicit meal_type field to improve categorization.`
+          );
         } else {
           // For meals beyond the initial sequence, put in misc bucket
           miscMeals.push(adaptedMeal);
+
+          // Log warning for meals beyond initial sequence
+          console.warn(
+            `Meal "${meal.title || meal.name || 'Unknown'}" at index ${index} assigned to "misc" due to missing meal_type and being beyond initial sequence. ` +
+            `Consider adding explicit meal_type field to improve categorization.`
+          );
         }
       }
     });
