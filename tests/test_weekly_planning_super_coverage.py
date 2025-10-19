@@ -166,7 +166,7 @@ class TestWeeklyPlanningBlocks:
 
             return mock_make_weekly_menu
 
-        with patch("builtins.getattr", side_effect=mock_getattr):
+        with patch("builtins.getattr", new=mock_getattr):
             os.environ["API_KEY"] = "test_key"
             try:
                 response = client.post(

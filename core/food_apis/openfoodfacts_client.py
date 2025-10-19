@@ -163,7 +163,7 @@ class OFFClient:
             url = f"{self.CGI_BASE_URL}/search.pl"
             params = {
                 "search_terms": query,
-                "page_size": min(page_size, 100),
+                "page_size": str(min(page_size, 100)),
                 "search_simple": "1",
                 "action": "process",
                 "json": "1",
