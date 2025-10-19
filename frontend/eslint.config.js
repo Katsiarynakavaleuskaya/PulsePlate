@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
@@ -73,5 +74,6 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
       '@typescript-eslint/no-unused-vars': 'off' // Allow unused vars in tests
     },
-  }
+  },
+  prettier // Disable ESLint rules that conflict with Prettier
 );

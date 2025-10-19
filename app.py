@@ -349,7 +349,7 @@ async def log_requests(request: Request, call_next: Any) -> Response:
 
 
 @app.get("/health/db")
-async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:  # noqa: B008
     """RU: Мини-проверка подключения к базе данных.
 
     EN: Lightweight database connectivity check.
@@ -386,8 +386,7 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available
-        and Limiter is not None
+        slowapi_available and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -1264,7 +1263,7 @@ class PlateResponse(BaseModel):
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
     layout: List[VisualShape]  # спецификация визуалки
     meals: List[Dict[str, Any]]  # список блюд с калориями/макро
-    day_micros: Dict[str, float] = {}  # агрегированные микронутриенты за день
+    day_micros: Dict[str, float] = Field(default_factory=dict)  # aggregated micros per day
 
 
 # WHO-Based Nutrition Models
@@ -1285,7 +1284,11 @@ class WHOTargetsRequest(BaseModel):
     diet_flags: Optional[set[DietFlag]] = None
     life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
     lang: str = "en"  # Language for localized warnings
-    target_date: Optional[str] = None  # Optional target date for week calculation in ISO format
+    target_date: Optional[str] = Field(
+        None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Optional target date for week calculation in ISO format (YYYY-MM-DD)",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1356,7 +1359,7 @@ class MealItem(BaseModel):
     title: str
     title_translated: str
     grams: Dict[str, float]
-    kcal: int
+    kcal: int = Field(gt=0, description="Kilocalories (must be positive)")
     macros: Dict[str, float]
     micros: Dict[str, float]
 
@@ -1366,12 +1369,12 @@ class DayMenu(BaseModel):
     EN: Single day menu."""
 
     meals: List[MealItem]
-    kcal: int
+    kcal: int = Field(gt=0, description="Daily kilocalories")
     macros: Dict[str, float]
     micros: Dict[str, float]
     coverage: Dict[str, float]
     tips: List[str]
-    total_cost: float
+    total_cost: float = Field(ge=0, description="Total daily cost")
 
 
 class WeeklyMenuResponse(BaseModel):
@@ -1959,7 +1962,8 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
 def _get_week_start(base_date: Optional[datetime] = None) -> str:
     """
-    RU: Получить дату начала недели (понедельник) в детерминированном формате.
+    RU: Получить дату начала недели (понедельник) в
+    детерминированном формате.
     EN: Get week start date (Monday) in deterministic format.
 
     Args:
@@ -2149,6 +2153,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
 
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
+    global NEW_MODULAR_SYSTEM_AVAILABLE, build_week, FoodDB, RecipeDB, build_nutrition_targets
     try:
         # Guard VIP feature flag at runtime to support tests that toggle env without full reload
         if str(os.getenv("VIP_MODULE_ENABLED", "")).strip().lower() not in {
@@ -2297,7 +2302,9 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                 base_date = datetime.fromisoformat(req.target_date)
                 week_start_str = _get_week_start(base_date)
             except (ValueError, TypeError):
-                pass  # Fall through to default
+                logger.warning(
+                    "Invalid target_date format: %s, using current date", req.target_date
+                )
 
         # Final fallback: use current date
         if week_start_str is None:
