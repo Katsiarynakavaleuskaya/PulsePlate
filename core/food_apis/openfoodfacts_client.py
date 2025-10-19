@@ -19,7 +19,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import httpx
 from .http_config import HTTPClientConfig
 
 logger = logging.getLogger(__name__)
@@ -103,6 +102,10 @@ class OFFClient:
     Rate limits: 100 requests/minute for anonymous users, higher for API accounts.
     """
 
+    # Note: Using v0 API on .org domain due to v2 API returning 504 Gateway Timeout errors
+    # on .org domain. The official v2 API on .net domain works but requires migration.
+    # TODO: Consider migrating to https://world.openfoodfacts.net/api/v2/ for better
+    # performance and modern REST endpoints when .org infrastructure is stable.
     BASE_URL = "https://world.openfoodfacts.org/api/v0"
     CGI_BASE_URL = "https://world.openfoodfacts.org/cgi"
 

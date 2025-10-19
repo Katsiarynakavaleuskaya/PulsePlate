@@ -283,7 +283,7 @@
 - [ ] 4.3.1 Реализовать endpoint в `app/routers/premium_week.py`
 - [ ] 4.3.2 Использовать модульную систему `core.weekly_plan_new`
 - [ ] 4.3.3 Добавить обработку ошибок (503 если модуль недоступен)
-- [ ] 4.3.4 Динамический расчет `week_start`, `avg_daily_cost`
+- [ ] 4.3.4 Динамические расчеты `week_start`, `avg_daily_cost`
 - [ ] 4.3.5 Создать `tests/test_premium_week_endpoint.py` (200/401/422/503 сценарии)
 - [ ] 4.3.6 Проверить структуру ответа (macros, kcal, grams)
 

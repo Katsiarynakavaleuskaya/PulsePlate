@@ -18,7 +18,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-import httpx
 from .http_config import HTTPClientConfig
 
 logger = logging.getLogger(__name__)

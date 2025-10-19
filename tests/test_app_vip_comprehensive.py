@@ -89,12 +89,22 @@ class TestVIPWeeklyMenu:
         assert response.status_code in [422, 200, 404]
 
     def test_weekly_plan_403_forbidden(self, client):
-        """Test VIP weekly plan with missing or invalid API key"""
+        """
+        Test VIP weekly plan with missing or invalid API key.
+
+        Rationale: VIP endpoints require valid API key authentication.
+        When no API key is provided, the endpoint should return 403 Forbidden
+        to indicate authentication failure, not 422 validation error.
+        This is the intended behavior for security reasons.
+        """
         data = {"weight": 70.0, "height": 175.0, "age": 30, "gender": "male"}
-        # No auth headers - should get 403
+        # No auth headers - should get 403 due to missing API key
         response = client.post("/api/v1/vip/weekly-plan", json=data)
         assert response.status_code == 403
-        assert "detail" in response.json()
+        response_data = response.json()
+        assert "detail" in response_data
+        # Verify the error message indicates authentication issue
+        assert "api" in response_data["detail"].lower() or "key" in response_data["detail"].lower()
 
     def test_weekly_menu_repair(self, client, auth_headers):
         """Test VIP weekly menu auto-repair functionality"""
