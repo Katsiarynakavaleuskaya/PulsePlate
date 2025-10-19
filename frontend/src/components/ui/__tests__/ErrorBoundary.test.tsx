@@ -28,8 +28,6 @@ describe('ErrorBoundary', () => {
     cleanup();
   });
 
-
-
   it('renders children when no error occurs', () => {
     render(
       <ErrorBoundary>

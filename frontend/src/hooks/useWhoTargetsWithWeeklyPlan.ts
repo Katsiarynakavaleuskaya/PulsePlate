@@ -45,60 +45,75 @@ export function useWhoTargetsWithWeeklyPlan(
   // Store the last request for retry functionality
   const [lastRequest, setLastRequest] = useState<TargetsRequest | null>(null);
 
-  const fetchTargets = useCallback(async (request: TargetsRequest) => {
-    setLastRequest(request);
-    setTargetsLoading(true);
-    setTargetsError(null);
-
-    try {
-      const response = await getTargets(request);
-      setTargetsData(response);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
-      setTargetsError(errorMessage);
-      onError?.(error instanceof Error ? error : new Error(errorMessage));
-    } finally {
-      setTargetsLoading(false);
-    }
-  }, [t, onError]);
-
-  const saveAndGetWeeklyPlan = useCallback(async (request: TargetsRequest) => {
-    setLastRequest(request);
-    setWeeklyPlanLoading(true);
-    setWeeklyPlanError(null);
-
-    try {
-      // Always fetch fresh targets to ensure consistency with the request
+  const fetchTargets = useCallback(
+    async (request: TargetsRequest) => {
+      setLastRequest(request);
       setTargetsLoading(true);
       setTargetsError(null);
 
-      let targets: TargetsApiResponse;
       try {
-        targets = await getTargets(request);
-        setTargetsData(targets);
+        const response = await getTargets(request);
+        setTargetsData(response);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
         setTargetsError(errorMessage);
         onError?.(error instanceof Error ? error : new Error(errorMessage));
-        return; // Exit early without setting weeklyPlanError
       } finally {
         setTargetsLoading(false);
       }
+    },
+    [t, onError]
+  );
 
-      // Then generate weekly plan
-      const weeklyPlan = await getWeeklyPlan(request);
-      setWeeklyPlanData(weeklyPlan);
+  const saveAndGetWeeklyPlan = useCallback(
+    async (request: TargetsRequest) => {
+      setLastRequest(request);
+      setWeeklyPlanLoading(true);
+      setWeeklyPlanError(null);
 
-      // Call success callback with both data
-      onSuccess?.(targets, weeklyPlan);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.weeklyPlanFailed', 'Failed to generate weekly plan');
-      setWeeklyPlanError(errorMessage);
-      onError?.(error instanceof Error ? error : new Error(errorMessage));
-    } finally {
-      setWeeklyPlanLoading(false);
-    }
-  }, [t, onSuccess, onError]);
+      try {
+        // Always fetch fresh targets to ensure consistency with the request
+        setTargetsLoading(true);
+        setTargetsError(null);
+
+        let targets: TargetsApiResponse;
+        try {
+          targets = await getTargets(request);
+          setTargetsData(targets);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
+          setTargetsError(errorMessage);
+          onError?.(error instanceof Error ? error : new Error(errorMessage));
+          return; // Exit early without setting weeklyPlanError
+        } finally {
+          setTargetsLoading(false);
+        }
+
+        // Then generate weekly plan
+        const weeklyPlan = await getWeeklyPlan(request);
+        setWeeklyPlanData(weeklyPlan);
+
+        // Call success callback with both data
+        onSuccess?.(targets, weeklyPlan);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : t('whoTargets.error.weeklyPlanFailed', 'Failed to generate weekly plan');
+        setWeeklyPlanError(errorMessage);
+        onError?.(error instanceof Error ? error : new Error(errorMessage));
+      } finally {
+        setWeeklyPlanLoading(false);
+      }
+    },
+    [t, onSuccess, onError]
+  );
 
   const retry = useCallback(() => {
     if (lastRequest) {

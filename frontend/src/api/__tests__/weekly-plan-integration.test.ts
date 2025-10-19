@@ -82,10 +82,10 @@ describe('Weekly Plan API Integration', () => {
         shopping_list: {
           'chicken breast': 500,
           'brown rice': 1000,
-          'broccoli': 300,
+          broccoli: 300,
           'olive oil': 200,
         },
-        total_cost: 45.50,
+        total_cost: 45.5,
         adherence_score: 87,
       } as unknown as WeeklyMenuResponse;
 
@@ -138,10 +138,10 @@ describe('Weekly Plan API Integration', () => {
           fiber: 80,
         },
         shopping_list: {
-          'salmon': 600,
-          'quinoa': 800,
-          'spinach': 400,
-          'avocado': 300,
+          salmon: 600,
+          quinoa: 800,
+          spinach: 400,
+          avocado: 300,
         },
         total_cost: 65.75,
         adherence_score: 92,
@@ -186,9 +186,9 @@ describe('Weekly Plan API Integration', () => {
           shopping_list: {
             'chicken breast': 500,
             'brown rice': 1000,
-            'broccoli': 300,
+            broccoli: 300,
           },
-          total_cost: 45.50,
+          total_cost: 45.5,
           adherence_score: 87,
         } as unknown as WeeklyMenuResponse;
 
@@ -258,7 +258,9 @@ describe('Weekly Plan API Integration', () => {
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow('Validation error: age must be positive');
+      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow(
+        'Validation error: age must be positive'
+      );
     });
 
     it('should handle missing required fields', async () => {
@@ -275,7 +277,9 @@ describe('Weekly Plan API Integration', () => {
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow('Validation error: missing required fields');
+      await expect(getWeeklyPlan(invalidRequest)).rejects.toThrow(
+        'Validation error: missing required fields'
+      );
     });
   });
 

@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback } from 'react';
+import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 /**
  * Creates a keyboard handler that keeps focus trapped inside the provided container.
@@ -7,7 +7,7 @@ import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 export function useFocusTrap(ref: RefObject<HTMLElement>) {
   return useCallback(
     (event: ReactKeyboardEvent) => {
-      if (event.key !== "Tab") {
+      if (event.key !== 'Tab') {
         return;
       }
 
@@ -16,7 +16,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
         return;
       }
 
-      if (typeof document === "undefined") {
+      if (typeof document === 'undefined') {
         return;
       }
 
@@ -25,37 +25,44 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
       );
 
       const isTrulyFocusable = (el: HTMLElement): boolean => {
-        if (el.getAttribute("aria-hidden") === "true") {
+        if (el.getAttribute('aria-hidden') === 'true') {
           return false;
         }
         if (el.tabIndex === -1) {
           return false;
         }
-        if ((el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).disabled === true) {
+        if (
+          (el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement)
+            .disabled === true
+        ) {
           return false;
         }
-        if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) {
+        if (typeof el.getClientRects === 'function' && el.getClientRects().length === 0) {
           return false;
         }
         const style = getComputedStyle(el);
-        if (style.visibility === "hidden") {
+        if (style.visibility === 'hidden') {
           return false;
         }
-        if (el.offsetParent === null && style.position !== "fixed" && style.position !== "absolute") {
+        if (
+          el.offsetParent === null &&
+          style.position !== 'fixed' &&
+          style.position !== 'absolute'
+        ) {
           return false;
         }
 
         // Handle radio groups: only the checked/selected radio in a group is focusable
         if (
-          (el instanceof HTMLInputElement && el.type === "radio") ||
-          (el.getAttribute("role") === "radio")
+          (el instanceof HTMLInputElement && el.type === 'radio') ||
+          el.getAttribute('role') === 'radio'
         ) {
           // For native radios
           if (el instanceof HTMLInputElement && el.name) {
             // Use getElementsByName for better compatibility and to avoid CSS selector escaping issues
             const radios = Array.from(document.getElementsByName(el.name)).filter(
               (radio): radio is HTMLInputElement =>
-                radio instanceof HTMLInputElement && radio.type === "radio"
+                radio instanceof HTMLInputElement && radio.type === 'radio'
             );
             if (radios.length > 1) {
               // Only checked radio is focusable
@@ -63,8 +70,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
             }
           }
           // For ARIA radio groups
-          if (el.getAttribute("aria-checked") !== null) {
-            return el.getAttribute("aria-checked") === "true";
+          if (el.getAttribute('aria-checked') !== null) {
+            return el.getAttribute('aria-checked') === 'true';
           }
         }
 
@@ -73,7 +80,10 @@ export function useFocusTrap(ref: RefObject<HTMLElement>) {
         if (tabIndex < 0) {
           return false;
         }
-        if ((el as HTMLElement).hasAttribute("aria-disabled") && (el as HTMLElement).getAttribute("aria-disabled") === "true") {
+        if (
+          (el as HTMLElement).hasAttribute('aria-disabled') &&
+          (el as HTMLElement).getAttribute('aria-disabled') === 'true'
+        ) {
           return false;
         }
 

@@ -18,8 +18,8 @@ Object.defineProperty(window, 'location', {
 
 // Глобальный мок fetch для Vitest (jsdom окружение)
 // Global fetch mock for Vitest (jsdom environment)
-const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-  () => Promise.resolve(new Response('{}', { status: 200 }))
+const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() =>
+  Promise.resolve(new Response('{}', { status: 200 }))
 );
 (globalThis as any).fetch = fetchMock;
 
@@ -121,10 +121,15 @@ describe('API Client Auth', () => {
         expect(url).toBe('http://test-api.com/test-endpoint');
         const requestOptions = typeof input === 'string' ? options : input;
         expect(requestOptions.headers.get('X-API-Key')).toBe('test-api-key');
-        return Promise.resolve(createMockResponse({ data: 'test' }, {
-          ok: true,
-          status: 200,
-        }));
+        return Promise.resolve(
+          createMockResponse(
+            { data: 'test' },
+            {
+              ok: true,
+              status: 200,
+            }
+          )
+        );
       });
 
       await api('/test-endpoint');
@@ -134,10 +139,17 @@ describe('API Client Auth', () => {
 
     it('clears storage and uses window.location.replace when no onAuthError callback on 401', async () => {
       const { api } = await import('../client');
-      fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
-        ok: false,
-        status: 401,
-      })));
+      fetchMock.mockImplementationOnce(() =>
+        Promise.resolve(
+          createMockResponse(
+            { error: 'Unauthorized' },
+            {
+              ok: false,
+              status: 401,
+            }
+          )
+        )
+      );
 
       await expect(api('/test-endpoint')).rejects.toThrow('API key invalid or expired (401).');
 
@@ -159,7 +171,8 @@ describe('API Client Auth', () => {
 
       // Mock fetch to behave differently based on URL pattern
       fetchMock.mockImplementation((input: any) => {
-        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : 'unknown');
+        const url =
+          typeof input === 'string' ? input : input instanceof Request ? input.url : 'unknown';
         if (url.includes('/premium/bmr') && !url.includes('mock')) {
           // Primary API call fails
           return Promise.reject(new Error('Network error'));
@@ -181,10 +194,14 @@ describe('API Client Auth', () => {
 
       const { api } = await import('../client');
       const mockResponse = { success: true, data: 'authenticated' };
-      fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse(mockResponse, {
-        ok: true,
-        status: 200,
-      })));
+      fetchMock.mockImplementationOnce(() =>
+        Promise.resolve(
+          createMockResponse(mockResponse, {
+            ok: true,
+            status: 200,
+          })
+        )
+      );
 
       const result = await api('/test-endpoint');
 
@@ -192,5 +209,4 @@ describe('API Client Auth', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
-
 });

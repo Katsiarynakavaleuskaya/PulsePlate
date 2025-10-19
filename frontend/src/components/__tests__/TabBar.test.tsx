@@ -71,8 +71,6 @@ describe('TabBar', () => {
     cleanup();
   });
 
-
-
   describe('without API key', () => {
     it('shows lock icons for protected routes', () => {
       renderTabBar(null);
@@ -125,10 +123,13 @@ describe('TabBar', () => {
       expect(pulseOverlay).toBeInTheDocument();
 
       // Wait for animation to reset after 300ms
-      await waitFor(() => {
-        expect(plateTab).toHaveClass('scale-100');
-        expect(plateTab?.querySelector('.bg-primary\\/20')).not.toBeInTheDocument();
-      }, { timeout: 400 });
+      await waitFor(
+        () => {
+          expect(plateTab).toHaveClass('scale-100');
+          expect(plateTab?.querySelector('.bg-primary\\/20')).not.toBeInTheDocument();
+        },
+        { timeout: 400 }
+      );
     });
 
     it('shows accessible labels for disabled tabs', () => {

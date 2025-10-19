@@ -5,13 +5,7 @@ import { Toggle } from '../Toggle';
 
 describe('Toggle', () => {
   it('has proper accessibility attributes', () => {
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={true}
-        onChange={() => {}}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={true} onChange={() => {}} />);
 
     const toggle = screen.getByRole('switch');
     expect(toggle).toHaveAttribute('aria-checked', 'true');
@@ -20,13 +14,7 @@ describe('Toggle', () => {
 
   it('toggles state when clicked', () => {
     const handleChange = vi.fn();
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={false}
-        onChange={handleChange}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={false} onChange={handleChange} />);
 
     const toggle = screen.getByRole('switch');
     fireEvent.click(toggle);
@@ -36,13 +24,7 @@ describe('Toggle', () => {
 
   it('toggles from checked to unchecked', () => {
     const handleChange = vi.fn();
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={true}
-        onChange={handleChange}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={true} onChange={handleChange} />);
 
     const toggle = screen.getByRole('switch');
     fireEvent.click(toggle);
@@ -52,13 +34,7 @@ describe('Toggle', () => {
 
   it('toggles when Space key is pressed', () => {
     const handleChange = vi.fn();
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={false}
-        onChange={handleChange}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={false} onChange={handleChange} />);
 
     const toggle = screen.getByRole('switch');
     fireEvent.keyDown(toggle, { key: ' ', code: 'Space' });
@@ -68,14 +44,7 @@ describe('Toggle', () => {
 
   it('does not toggle when disabled', () => {
     const handleChange = vi.fn();
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={false}
-        onChange={handleChange}
-        disabled={true}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={false} onChange={handleChange} disabled={true} />);
 
     const toggle = screen.getByRole('switch');
     fireEvent.click(toggle);
@@ -85,14 +54,7 @@ describe('Toggle', () => {
 
   it('does not toggle when disabled via label click', () => {
     const handleChange = vi.fn();
-    render(
-      <Toggle
-        label="Test Toggle"
-        checked={false}
-        onChange={handleChange}
-        disabled={true}
-      />
-    );
+    render(<Toggle label="Test Toggle" checked={false} onChange={handleChange} disabled={true} />);
 
     const label = screen.getByText('Test Toggle');
     fireEvent.click(label);

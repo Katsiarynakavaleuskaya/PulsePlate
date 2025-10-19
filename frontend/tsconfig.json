@@ -29,14 +29,6 @@
     /* Testing */
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": [
-    "src",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.d.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src", "src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

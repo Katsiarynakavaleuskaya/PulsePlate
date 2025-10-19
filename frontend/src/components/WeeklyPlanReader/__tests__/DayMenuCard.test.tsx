@@ -53,7 +53,7 @@ vi.mock('react-i18next', () => ({
         return `${count} items`;
       }
 
-          const template = translations[key] || fallback || key;
+      const template = translations[key] || fallback || key;
 
       if (typeof template === 'string' && options) {
         return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
@@ -74,47 +74,47 @@ describe('DayMenuCard', () => {
         {
           title: 'Oatmeal',
           title_translated: 'Oatmeal',
-          grams: { 'oats': 50, 'milk': 200 } as { [key: string]: number },
+          grams: { oats: 50, milk: 200 } as { [key: string]: number },
           kcal: 300,
           macros: { protein_g: 12, fat_g: 8, carbs_g: 45, fiber_g: 6 },
-          micros: { 'fe': 2.5, 'ca': 150, 'k': 200 },
-          meal_type: 'breakfast'
+          micros: { fe: 2.5, ca: 150, k: 200 },
+          meal_type: 'breakfast',
         },
         {
           title: 'Salad',
           title_translated: 'Salad',
-          grams: { 'lettuce': 100, 'tomato': 50 } as { [key: string]: number },
+          grams: { lettuce: 100, tomato: 50 } as { [key: string]: number },
           kcal: 250,
           macros: { protein_g: 8, fat_g: 5, carbs_g: 30, fiber_g: 4 },
-          micros: { 'fe': 1.5, 'ca': 80, 'k': 150 },
-          meal_type: 'lunch'
+          micros: { fe: 1.5, ca: 80, k: 150 },
+          meal_type: 'lunch',
         },
         {
           title: 'Chicken',
           title_translated: 'Chicken',
-          grams: { 'chicken': 150 } as { [key: string]: number },
+          grams: { chicken: 150 } as { [key: string]: number },
           kcal: 400,
           macros: { protein_g: 35, fat_g: 15, carbs_g: 20, fiber_g: 4 },
-          micros: { 'fe': 3.2, 'ca': 80, 'k': 300 },
-          meal_type: 'dinner'
+          micros: { fe: 3.2, ca: 80, k: 300 },
+          meal_type: 'dinner',
         },
         {
           title: 'Apple',
           title_translated: 'Apple',
-          grams: { 'apple': 120 } as { [key: string]: number },
+          grams: { apple: 120 } as { [key: string]: number },
           kcal: 80,
           macros: { protein_g: 0.5, fat_g: 0.3, carbs_g: 20, fiber_g: 3 },
-          micros: { 'fe': 0.2, 'ca': 10, 'k': 100 },
-          meal_type: 'snacks'
+          micros: { fe: 0.2, ca: 10, k: 100 },
+          meal_type: 'snacks',
         },
         {
           title: 'Protein Shake',
           title_translated: 'Protein Shake',
-          grams: { 'protein_powder': 30, 'water': 250 } as { [key: string]: number },
+          grams: { protein_powder: 30, water: 250 } as { [key: string]: number },
           kcal: 150,
           macros: { protein_g: 25, fat_g: 2, carbs_g: 5, fiber_g: 1 },
-          micros: { 'fe': 1.0, 'ca': 50, 'k': 50 },
-          meal_type: 'misc'
+          micros: { fe: 1.0, ca: 50, k: 50 },
+          meal_type: 'misc',
         },
       ],
       total_nutrients: {
@@ -135,11 +135,19 @@ describe('DayMenuCard', () => {
     expect(screen.getByText('Other Meals')).toBeInTheDocument();
 
     // Check that specific meals appear in their correct categories
-    expect(within(screen.getByTestId('meal-section-breakfast')).getByText('Oatmeal')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('meal-section-breakfast')).getByText('Oatmeal')
+    ).toBeInTheDocument();
     expect(within(screen.getByTestId('meal-section-lunch')).getByText('Salad')).toBeInTheDocument();
-    expect(within(screen.getByTestId('meal-section-dinner')).getByText('Chicken')).toBeInTheDocument();
-    expect(within(screen.getByTestId('meal-section-snacks')).getByText('Apple')).toBeInTheDocument();
-    expect(within(screen.getByTestId('meal-section-misc')).getByText('Protein Shake')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('meal-section-dinner')).getByText('Chicken')
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('meal-section-snacks')).getByText('Apple')
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('meal-section-misc')).getByText('Protein Shake')
+    ).toBeInTheDocument();
   });
 
   it('should use positional fallback for meals without meal_type', () => {
@@ -148,42 +156,42 @@ describe('DayMenuCard', () => {
         {
           title: 'Oatmeal',
           title_translated: 'Oatmeal',
-          grams: { 'oats': 50, 'milk': 200 } as { [key: string]: number },
+          grams: { oats: 50, milk: 200 } as { [key: string]: number },
           kcal: 300,
           macros: { protein_g: 12, fat_g: 8, carbs_g: 45, fiber_g: 6 },
-          micros: { 'fe': 2.5, 'ca': 150, 'k': 200 }
+          micros: { fe: 2.5, ca: 150, k: 200 },
         }, // No meal_type - should go to breakfast
         {
           title: 'Salad',
           title_translated: 'Salad',
-          grams: { 'lettuce': 100, 'tomato': 50 } as { [key: string]: number },
+          grams: { lettuce: 100, tomato: 50 } as { [key: string]: number },
           kcal: 250,
           macros: { protein_g: 8, fat_g: 5, carbs_g: 30, fiber_g: 4 },
-          micros: { 'fe': 1.5, 'ca': 80, 'k': 150 }
-        },   // No meal_type - should go to lunch
+          micros: { fe: 1.5, ca: 80, k: 150 },
+        }, // No meal_type - should go to lunch
         {
           title: 'Chicken',
           title_translated: 'Chicken',
-          grams: { 'chicken': 150 } as { [key: string]: number },
+          grams: { chicken: 150 } as { [key: string]: number },
           kcal: 400,
           macros: { protein_g: 35, fat_g: 15, carbs_g: 20, fiber_g: 4 },
-          micros: { 'fe': 3.2, 'ca': 80, 'k': 300 }
+          micros: { fe: 3.2, ca: 80, k: 300 },
         }, // No meal_type - should go to dinner
         {
           title: 'Apple',
           title_translated: 'Apple',
-          grams: { 'apple': 120 } as { [key: string]: number },
+          grams: { apple: 120 } as { [key: string]: number },
           kcal: 80,
           macros: { protein_g: 0.5, fat_g: 0.3, carbs_g: 20, fiber_g: 3 },
-          micros: { 'fe': 0.2, 'ca': 10, 'k': 100 }
-        },    // No meal_type - should go to snacks
+          micros: { fe: 0.2, ca: 10, k: 100 },
+        }, // No meal_type - should go to snacks
         {
           title: 'Extra Meal',
           title_translated: 'Extra Meal',
-          grams: { 'extra': 100 } as { [key: string]: number },
+          grams: { extra: 100 } as { [key: string]: number },
           kcal: 150,
           macros: { protein_g: 10, fat_g: 5, carbs_g: 15, fiber_g: 2 },
-          micros: { 'fe': 1.0, 'ca': 30, 'k': 80 }
+          micros: { fe: 1.0, ca: 30, k: 80 },
         }, // Beyond initial sequence - should go to misc
       ],
       total_nutrients: {
@@ -219,29 +227,29 @@ describe('DayMenuCard', () => {
         {
           title: 'Valid Meal',
           title_translated: 'Valid Meal',
-          grams: { 'food': 100 } as { [key: string]: number },
+          grams: { food: 100 } as { [key: string]: number },
           kcal: 300,
           macros: { protein_g: 15, fat_g: 10, carbs_g: 30, fiber_g: 5 },
-          micros: { 'fe': 2.0, 'ca': 100, 'k': 200 },
-          meal_type: 'breakfast'
+          micros: { fe: 2.0, ca: 100, k: 200 },
+          meal_type: 'breakfast',
         },
         {
           title: '',
           title_translated: '',
-          grams: { 'food': 100 } as { [key: string]: number },
+          grams: { food: 100 } as { [key: string]: number },
           kcal: 250,
           macros: { protein_g: 10, fat_g: 8, carbs_g: 25, fiber_g: 3 },
-          micros: { 'fe': 1.5, 'ca': 80, 'k': 150 }
+          micros: { fe: 1.5, ca: 80, k: 150 },
         }, // Invalid: empty name
         null, // Invalid: null item
         {
           title: 'Another Valid Meal',
           title_translated: 'Another Valid Meal',
-          grams: { 'food': 150 } as { [key: string]: number },
+          grams: { food: 150 } as { [key: string]: number },
           kcal: 400,
           macros: { protein_g: 20, fat_g: 15, carbs_g: 40, fiber_g: 6 },
-          micros: { 'fe': 3.0, 'ca': 120, 'k': 250 },
-          meal_type: 'lunch'
+          micros: { fe: 3.0, ca: 120, k: 250 },
+          meal_type: 'lunch',
         },
       ] as any, // Type assertion to allow null values for testing
       total_nutrients: {
@@ -265,20 +273,20 @@ describe('DayMenuCard', () => {
         {
           title: 'Oatmeal',
           title_translated: 'Oatmeal',
-          grams: { 'oats': 50, 'milk': 200 } as { [key: string]: number },
+          grams: { oats: 50, milk: 200 } as { [key: string]: number },
           kcal: 300,
           macros: { protein_g: 12, fat_g: 8, carbs_g: 45, fiber_g: 6 },
-          micros: { 'fe': 2.5, 'ca': 150, 'k': 200 },
-          meal_type: 'breakfast'
+          micros: { fe: 2.5, ca: 150, k: 200 },
+          meal_type: 'breakfast',
         },
         {
           title: 'Salad',
           title_translated: 'Salad',
-          grams: { 'lettuce': 100, 'tomato': 50 } as { [key: string]: number },
+          grams: { lettuce: 100, tomato: 50 } as { [key: string]: number },
           kcal: 250,
           macros: { protein_g: 8, fat_g: 5, carbs_g: 30, fiber_g: 4 },
-          micros: { 'fe': 1.5, 'ca': 80, 'k': 150 },
-          meal_type: 'lunch'
+          micros: { fe: 1.5, ca: 80, k: 150 },
+          meal_type: 'lunch',
         },
       ],
       total_nutrients: {

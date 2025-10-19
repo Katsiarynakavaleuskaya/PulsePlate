@@ -16,7 +16,6 @@ export function IntegratedWhoTargetsPanel({
   onError,
   className,
 }: IntegratedWhoTargetsPanelProps) {
-
   const {
     targetsData,
     targetsLoading,
@@ -33,8 +32,6 @@ export function IntegratedWhoTargetsPanel({
       onError?.(error);
     },
   });
-
-
 
   const handleSaveAndContinue = async () => {
     if (!request) {

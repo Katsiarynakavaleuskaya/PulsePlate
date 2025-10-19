@@ -5,16 +5,24 @@ import { PREMIUM_GATE_SOURCES } from '../../config/constants';
 
 // Mock usePremium hook
 vi.mock('../../lib/usePremium', () => ({
-  usePremium: vi.fn()
+  usePremium: vi.fn(),
 }));
 
 // Mock PremiumGate component
 vi.mock('../../components/PremiumGate', () => ({
-  default: ({ children, isPremium, source }: { children: React.ReactNode; isPremium: boolean; source: string }) => (
+  default: ({
+    children,
+    isPremium,
+    source,
+  }: {
+    children: React.ReactNode;
+    isPremium: boolean;
+    source: string;
+  }) => (
     <div data-testid="premium-gate" data-premium={isPremium} data-source={source}>
       {children}
     </div>
-  )
+  ),
 }));
 
 import { usePremium } from '../../lib/usePremium';

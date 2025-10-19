@@ -20,8 +20,20 @@ export type RoutePath = '/' | '/enter-key' | '/setup' | '/profile' | '/plate' | 
 
 export const routes: RouteConfig[] = [
   { path: '/', label: 'Home', requiresAuth: false, component: Home },
-  { path: '/enter-key', label: 'EnterKey', requiresAuth: false, component: EnterKey, hideTabBar: true },
-  { path: '/setup', label: 'Setup', requiresAuth: false, component: NutritionSetup, hideTabBar: true },
+  {
+    path: '/enter-key',
+    label: 'EnterKey',
+    requiresAuth: false,
+    component: EnterKey,
+    hideTabBar: true,
+  },
+  {
+    path: '/setup',
+    label: 'Setup',
+    requiresAuth: false,
+    component: NutritionSetup,
+    hideTabBar: true,
+  },
   { path: '/profile', label: 'Profile', requiresAuth: false, component: Profile },
   { path: '/plate', label: 'Plate', requiresAuth: true, component: Plate },
   { path: '/progress', label: 'Progress', requiresAuth: true, component: Progress },
@@ -30,7 +42,7 @@ export const routes: RouteConfig[] = [
 // Compile-time check: ensure all RoutePath values are present in routes
 // If you add a new route to RoutePath, you must add it to routes array
 // If you add a route to routes array, you must add it to RoutePath union
-type RoutePathsInConfig = typeof routes[number]['path'];
+type RoutePathsInConfig = (typeof routes)[number]['path'];
 // This will cause a TypeScript error if routes don't match RoutePath union exactly
 export type _AssertRoutesExhaustive = [RoutePath] extends [RoutePathsInConfig]
   ? [RoutePathsInConfig] extends [RoutePath]
@@ -39,4 +51,4 @@ export type _AssertRoutesExhaustive = [RoutePath] extends [RoutePathsInConfig]
   : never;
 
 // Routes that should appear in the tab bar (excluding pages with hideTabBar: true)
-export const tabRoutes = routes.filter(route => !route.hideTabBar);
+export const tabRoutes = routes.filter((route) => !route.hideTabBar);

@@ -61,7 +61,9 @@ export function Toggle({ label, checked, onChange, disabled = false }: TogglePro
           event.preventDefault();
           onChange(!checked);
           // Transfer focus to the switch element for accessibility
-          const switchElement = event.currentTarget.parentElement?.querySelector('[role="switch"]') as HTMLElement;
+          const switchElement = event.currentTarget.parentElement?.querySelector(
+            '[role="switch"]'
+          ) as HTMLElement;
           if (switchElement) {
             switchElement.focus();
           }

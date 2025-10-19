@@ -142,5 +142,4 @@ describe('OfflineIndicator', () => {
 
     vi.useRealTimers();
   });
-
 });

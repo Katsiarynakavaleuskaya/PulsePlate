@@ -9,7 +9,7 @@ import {
   collectKeyPaths,
   getMaxLength,
   checkLengths,
-  TestLogger
+  TestLogger,
 } from '../locales';
 
 describe('locales test utilities', () => {
@@ -109,7 +109,7 @@ describe('locales test utilities', () => {
     it('should check nested objects', () => {
       const obj = {
         valid: 'short',
-        invalid: 'a'.repeat(STRING_LENGTH_LIMITS.default + 1)
+        invalid: 'a'.repeat(STRING_LENGTH_LIMITS.default + 1),
       };
       const issues = checkLengths(obj);
       expect(issues).toHaveLength(1);

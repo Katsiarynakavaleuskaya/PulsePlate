@@ -1,30 +1,24 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import TabBar from "./components/TabBar";
-import { Toaster, OfflineIndicator } from "./components/ui";
-import { AuthProvider } from "./auth/AuthContext";
-import { RequireKey } from "./auth/RequireKey";
-import { SettingsProvider } from "./lib/settings";
-import { routes } from "./config/routes";
-import NotFound from "./components/NotFound";
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import TabBar from './components/TabBar';
+import { Toaster, OfflineIndicator } from './components/ui';
+import { AuthProvider } from './auth/AuthContext';
+import { RequireKey } from './auth/RequireKey';
+import { SettingsProvider } from './lib/settings';
+import { routes } from './config/routes';
+import NotFound from './components/NotFound';
 
 function AppContent() {
   const location = useLocation();
 
   // Derive tab bar visibility from route configuration
-  const currentRoute = routes.find(route => route.path === location.pathname);
+  const currentRoute = routes.find((route) => route.path === location.pathname);
   const showTabBar = !currentRoute?.hideTabBar;
 
-  const renderRoute = (route: typeof routes[0]) => {
+  const renderRoute = (route: (typeof routes)[0]) => {
     const Component = route.component;
     if (!Component) {
       console.error(`Missing component for route: ${route.path}`);
-      return (
-        <Route
-          key={route.path}
-          path={route.path}
-          element={<NotFound />}
-        />
-      );
+      return <Route key={route.path} path={route.path} element={<NotFound />} />;
     }
     const element = <Component />;
 
@@ -39,9 +33,7 @@ function AppContent() {
 
   return (
     <div className="min-h-dvh bg-navy text-text pb-14">
-      <Routes>
-        {routes.map(renderRoute)}
-      </Routes>
+      <Routes>{routes.map(renderRoute)}</Routes>
       {showTabBar && <TabBar />}
     </div>
   );

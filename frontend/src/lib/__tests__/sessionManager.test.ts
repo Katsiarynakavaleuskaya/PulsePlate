@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  getSessionId,
-  refreshSession,
-  clearSession,
-  getSessionInfo,
-} from '../sessionManager';
+import { getSessionId, refreshSession, clearSession, getSessionInfo } from '../sessionManager';
 import { isAnalyticsEnabled } from '../../config/features';
 
 // Mock localStorage

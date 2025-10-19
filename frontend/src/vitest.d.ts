@@ -21,7 +21,7 @@ declare global {
 }
 
 // Extend Vitest's expect interface to include jest-axe matchers
-declare module "vitest" {
+declare module 'vitest' {
   interface Assertion<T = any> {
     toHaveNoViolations(): T;
   }

@@ -105,14 +105,17 @@ export function WhoTargetsPanel({
         {onSaveAndContinue && (
           <div className="who-targets-panel__actions">
             <p id={ctaDescId} className="sr-only">
-              {t('whoTargets.cta.description', 'Save your nutrition targets and proceed to generate your personalized weekly meal plan')}
+              {t(
+                'whoTargets.cta.description',
+                'Save your nutrition targets and proceed to generate your personalized weekly meal plan'
+              )}
             </p>
-              <button
-                type="button"
-                className="btn btn--primary btn-touch-large"
-                onClick={onSaveAndContinue}
-                aria-describedby={ctaDescId}
-              >
+            <button
+              type="button"
+              className="btn btn--primary btn-touch-large"
+              onClick={onSaveAndContinue}
+              aria-describedby={ctaDescId}
+            >
               {t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
             </button>
           </div>

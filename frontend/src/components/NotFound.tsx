@@ -18,13 +18,11 @@ export function NotFound() {
         <Home className="w-12 h-12 text-primary" />
       </div>
 
-      <h1 className="text-2xl font-bold text-text mb-3">
-        Page Not Found
-      </h1>
+      <h1 className="text-2xl font-bold text-text mb-3">Page Not Found</h1>
 
       <p className="text-muted mb-8 max-w-md leading-relaxed">
-        Sorry, the page you're looking for doesn't exist or has been moved.
-        Let's get you back on track with your health journey.
+        Sorry, the page you're looking for doesn't exist or has been moved. Let's get you back on
+        track with your health journey.
       </p>
 
       <div className="flex gap-4 flex-col sm:flex-row">

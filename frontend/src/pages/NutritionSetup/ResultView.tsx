@@ -23,7 +23,11 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
   const browserLang = typeof navigator !== 'undefined' ? navigator.language : undefined;
   const currentLang = setupHooks.resolveSetupLang(undefined, i18n.language, browserLang);
 
-  const { bmrData, plateData, loading, error } = setupHooks.useSetupCalc(values, currentLang, retryKey);
+  const { bmrData, plateData, loading, error } = setupHooks.useSetupCalc(
+    values,
+    currentLang,
+    retryKey
+  );
   const {
     data: targetsData,
     loading: targetsLoading,
@@ -32,7 +36,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
 
   const handleRetry = () => {
     setIsRetrying(true);
-    setRetryKey(prev => prev + 1);
+    setRetryKey((prev) => prev + 1);
   };
 
   // Reset retry state when loading completes
@@ -59,8 +63,18 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
     return (
       <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
         <div className="text-red-600 mb-4">
-          <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <svg
+            className="w-12 h-12 mx-auto mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
           </svg>
         </div>
         <h2 className="text-xl font-semibold text-text mb-2">{t('nutrition.error.title')}</h2>
@@ -119,7 +133,9 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
             <div className="text-sm text-muted">{t('nutrition.summary.tdee')}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">{Math.round(plateData.plate.kcal)}</div>
+            <div className="text-2xl font-bold text-primary">
+              {Math.round(plateData.plate.kcal)}
+            </div>
             <div className="text-sm text-muted">{t('nutrition.summary.goal')}</div>
           </div>
           <div className="text-center">
@@ -133,7 +149,9 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-text mb-4 text-center">{t('nutrition.macros.title')}</h2>
+            <h2 className="text-lg font-semibold text-text mb-4 text-center">
+              {t('nutrition.macros.title')}
+            </h2>
             <PlateChart
               carbsPct={plateData.plate.carbs_pct}
               proteinPct={plateData.plate.protein_pct}
@@ -161,9 +179,7 @@ export default function ResultView({ values, onEdit }: ResultViewProps) {
       {targetsData && (
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-text mb-4">{t('nutrition.micros.title')}</h2>
-          <p className="text-muted mb-6 text-sm">
-            {t('nutrition.micros.description')}
-          </p>
+          <p className="text-muted mb-6 text-sm">{t('nutrition.micros.description')}</p>
           <MicrosGrid items={targetsData.micros} />
         </div>
       )}

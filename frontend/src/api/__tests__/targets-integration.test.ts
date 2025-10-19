@@ -230,7 +230,9 @@ describe('WHO Targets API Integration', () => {
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getTargets(invalidRequest)).rejects.toThrow('Validation error: age must be positive');
+      await expect(getTargets(invalidRequest)).rejects.toThrow(
+        'Validation error: age must be positive'
+      );
     });
 
     it('should handle invalid height/weight', async () => {
@@ -249,7 +251,9 @@ describe('WHO Targets API Integration', () => {
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getTargets(invalidRequest)).rejects.toThrow('Validation error: height and weight must be positive');
+      await expect(getTargets(invalidRequest)).rejects.toThrow(
+        'Validation error: height and weight must be positive'
+      );
     });
 
     it('should handle invalid activity level', async () => {
@@ -268,7 +272,9 @@ describe('WHO Targets API Integration', () => {
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getTargets(invalidRequest)).rejects.toThrow('Validation error: invalid activity level');
+      await expect(getTargets(invalidRequest)).rejects.toThrow(
+        'Validation error: invalid activity level'
+      );
     });
 
     it('should handle invalid goal with deficit/surplus', async () => {
@@ -285,11 +291,15 @@ describe('WHO Targets API Integration', () => {
         lang: 'en',
       };
 
-      const validationError = new Error('Validation error: deficit/surplus not allowed for maintain goal');
+      const validationError = new Error(
+        'Validation error: deficit/surplus not allowed for maintain goal'
+      );
       validationError.name = 'ValidationError';
       mockApi.mockRejectedValue(validationError);
 
-      await expect(getTargets(invalidRequest)).rejects.toThrow('Validation error: deficit/surplus not allowed for maintain goal');
+      await expect(getTargets(invalidRequest)).rejects.toThrow(
+        'Validation error: deficit/surplus not allowed for maintain goal'
+      );
     });
   });
 

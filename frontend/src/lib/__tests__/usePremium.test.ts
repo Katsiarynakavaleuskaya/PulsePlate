@@ -33,7 +33,6 @@ describe('usePremium', () => {
     expect(result.current).toBe(false);
   });
 
-
   it('returns true when localStorage has premium value as "true"', () => {
     localStorageMock.getItem.mockReturnValue('true');
 

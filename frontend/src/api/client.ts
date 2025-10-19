@@ -1,9 +1,9 @@
 // RU: API клиент с поддержкой аутентификации. Обрабатывает 401 ошибки, перенаправляя на страницу ввода ключа.
 // EN: API client with authentication support. Handles 401 errors by redirecting to key entry page.
 
-import { logError } from "../lib/analytics";
-import { getStoredApiKey, clearStoredApiKey } from "../auth/storage";
-import type { components } from "./schema";
+import { logError } from '../lib/analytics';
+import { getStoredApiKey, clearStoredApiKey } from '../auth/storage';
+import type { components } from './schema';
 
 /**
  * Dependencies for API client that can be injected for testing
@@ -20,7 +20,7 @@ export interface ApiClientDependencies {
 const defaultDependencies: ApiClientDependencies = {
   getStoredApiKey,
   clearStoredApiKey,
-  apiBase: ((import.meta as any).env?.VITE_API_BASE || "") as string,
+  apiBase: ((import.meta as any).env?.VITE_API_BASE || '') as string,
 };
 
 /**
@@ -80,7 +80,7 @@ const validateApiBase = () => {
   }
 
   if (!getApiBase()) {
-    const envHint = "VITE_API_BASE is not set. Create frontend/.env from .env.example";
+    const envHint = 'VITE_API_BASE is not set. Create frontend/.env from .env.example';
     const error = new Error(envHint);
     logError(error);
     throw error;
@@ -91,33 +91,33 @@ const validateApiBase = () => {
 };
 
 const searchParams = (() => {
-  if (typeof window === "undefined" || typeof window.location?.search !== "string") {
+  if (typeof window === 'undefined' || typeof window.location?.search !== 'string') {
     return new URLSearchParams();
   }
   return new URLSearchParams(window.location.search);
 })();
 
-const forceMock = searchParams.get("mock") === "1";
+const forceMock = searchParams.get('mock') === '1';
 
 function mockUrl(path: string): string | null {
-  if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
-    return "/mock/bmr.json";
+  if (path.includes('/api/v1/premium/bmr') || path.includes('/premium/bmr')) {
+    return '/mock/bmr.json';
   }
-  if (path.includes("/api/v1/premium/plate") || path.includes("/premium/plate")) {
-    return "/mock/plate.json";
+  if (path.includes('/api/v1/premium/plate') || path.includes('/premium/plate')) {
+    return '/mock/plate.json';
   }
-  if (path.includes("/api/v1/premium/targets") || path.includes("/premium/targets")) {
-    return "/mocks/targets.json";
+  if (path.includes('/api/v1/premium/targets') || path.includes('/premium/targets')) {
+    return '/mocks/targets.json';
   }
-  if (path.includes("/plan/week")) {
-    return "/mock/week.json";
+  if (path.includes('/plan/week')) {
+    return '/mock/week.json';
   }
   return null;
 }
 
 // API Key management moved to auth context
 // Re-export for backward compatibility
-export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from "../auth/storage";
+export { getStoredApiKey, setStoredApiKey, clearStoredApiKey } from '../auth/storage';
 
 /**
  * Validates API key by making a lightweight request to the backend
@@ -130,7 +130,7 @@ export async function validateApiKey(): Promise<boolean> {
   try {
     // Use direct fetch to avoid 401 error handling that clears keys and redirects
     const res = await fetch(`${getApiBase()}/health`, {
-      method: "GET",
+      method: 'GET',
       headers: mergeHeaders(),
     });
     return res.ok;
@@ -141,15 +141,14 @@ export async function validateApiKey(): Promise<boolean> {
 
 function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   const defaults: Record<string, string> = {
-    Accept: "application/json",
-    "Accept-Language":
-      (typeof navigator !== "undefined" && navigator.language) || "en",
+    Accept: 'application/json',
+    'Accept-Language': (typeof navigator !== 'undefined' && navigator.language) || 'en',
   };
 
   // Add API key if available
   const apiKey = _getStoredApiKey();
   if (apiKey) {
-    defaults["X-API-Key"] = apiKey;
+    defaults['X-API-Key'] = apiKey;
   }
 
   // NOTE: api() сам сериализует body в JSON для методов ≠ GET.
@@ -161,13 +160,12 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
       return false;
     }
 
-    const incoming = init.headers instanceof Headers
-      ? init.headers
-      : new Headers(init.headers as HeadersInit);
+    const incoming =
+      init.headers instanceof Headers ? init.headers : new Headers(init.headers as HeadersInit);
 
     // Check for Content-Type header case-insensitively
     for (const [key] of incoming) {
-      if (key.toLowerCase() === "content-type") {
+      if (key.toLowerCase() === 'content-type') {
         return true;
       }
     }
@@ -178,12 +176,12 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
   if (!hasContentType) {
     if (forceJson === true) {
       // Explicit flag takes priority
-      defaults["Content-Type"] = "application/json";
-    } else if (forceJson === undefined && init?.body && typeof init.body === "string") {
+      defaults['Content-Type'] = 'application/json';
+    } else if (forceJson === undefined && init?.body && typeof init.body === 'string') {
       // Fall back to safe JSON detection only when flag is undefined
       try {
         JSON.parse(init.body.trim());
-        defaults["Content-Type"] = "application/json";
+        defaults['Content-Type'] = 'application/json';
       } catch {
         // Not valid JSON, don't set Content-Type
       }
@@ -196,9 +194,8 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
     return headers;
   }
 
-  const incoming = init.headers instanceof Headers
-    ? init.headers
-    : new Headers(init.headers as HeadersInit);
+  const incoming =
+    init.headers instanceof Headers ? init.headers : new Headers(init.headers as HeadersInit);
 
   incoming.forEach((value, key) => {
     headers.set(key, value);
@@ -217,7 +214,6 @@ export async function api<T = unknown>(
   options?: ApiOptions,
   forceJson?: boolean
 ): Promise<T> {
-
   const tryNetwork = async (): Promise<T> => {
     // Validate API base before network request
     validateApiBase();
@@ -232,12 +228,10 @@ export async function api<T = unknown>(
     const body = init?.body as any;
     const isPlainObjectOrArray =
       body &&
-      typeof body === "object" &&
-      (
-        Array.isArray(body) ||
+      typeof body === 'object' &&
+      (Array.isArray(body) ||
         body?.constructor === Object ||
-        Object.prototype.toString.call(body) === "[object Object]" // handles cross-realm & Object.create(null)
-      );
+        Object.prototype.toString.call(body) === '[object Object]'); // handles cross-realm & Object.create(null)
 
     const isForbiddenBinaryLike =
       body instanceof FormData ||
@@ -245,7 +239,7 @@ export async function api<T = unknown>(
       body instanceof ArrayBuffer ||
       // ReadableStream or any object exposing arrayBuffer() (e.g., File/Response/Request):
       body instanceof ReadableStream ||
-      typeof body?.arrayBuffer === "function";
+      typeof body?.arrayBuffer === 'function';
 
     if (isPlainObjectOrArray && !isForbiddenBinaryLike) {
       serializedBody = JSON.stringify(body);
@@ -271,8 +265,8 @@ export async function api<T = unknown>(
         } else {
           // Fallback behavior: clear key and redirect
           _clearStoredApiKey();
-          if (typeof window !== "undefined") {
-            window.location.replace("/enter-key");
+          if (typeof window !== 'undefined') {
+            window.location.replace('/enter-key');
           }
         }
         // Log the auth error
@@ -281,7 +275,7 @@ export async function api<T = unknown>(
         throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
       }
 
-      const errorBody = await res.text().catch(() => "<response body unavailable>");
+      const errorBody = await res.text().catch(() => '<response body unavailable>');
       throw new Error(`API ${path} failed: HTTP ${res.status}\nResponse body: ${errorBody}`);
     }
     return res.json() as Promise<T>;
@@ -296,7 +290,7 @@ export async function api<T = unknown>(
     if (!res.ok) {
       throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
     }
-        console.info(`[API] MOCK fallback ON → ${url}`);
+    console.info(`[API] MOCK fallback ON → ${url}`);
     return res.json() as Promise<T>;
   };
 
@@ -310,13 +304,18 @@ export async function api<T = unknown>(
     try {
       return await tryMock();
     } catch (mockError) {
+      // Log both errors for debugging
+      console.warn('Network request failed, mock also failed:', {
+        networkError: networkError instanceof Error ? networkError.message : networkError,
+        mockError: mockError instanceof Error ? mockError.message : mockError,
+      });
       throw networkError instanceof Error ? networkError : mockError;
     }
   }
 }
 
 export const fetchJson = api;
-export { getBmr, getPlate, getTargets } from "./premium";
+export { getBmr, getPlate, getTargets } from './premium';
 export type {
   BmrRequest,
   BmrApiResponse,
@@ -324,10 +323,10 @@ export type {
   PlateApiResponse,
   TargetsRequest,
   TargetsApiResponse,
-} from "./premium";
+} from './premium';
 
 // OpenAPI generated types
-export type WeekPlanResponse = components["schemas"]["WeekPlanResponse"];
+export type WeekPlanResponse = components['schemas']['WeekPlanResponse'];
 
 // Endpoints
 
@@ -336,4 +335,5 @@ export type WeekPlanResponse = components["schemas"]["WeekPlanResponse"];
  * @param options - Optional API options for auth error handling
  * @returns Promise<WeekPlanResponse> - Weekly meal plan data
  */
-export const getWeekPlan = (options?: ApiOptions) => api<WeekPlanResponse>("/plan/week", undefined, options);
+export const getWeekPlan = (options?: ApiOptions) =>
+  api<WeekPlanResponse>('/plan/week', undefined, options);

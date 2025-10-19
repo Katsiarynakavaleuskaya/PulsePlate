@@ -21,12 +21,7 @@ vi.mock('../../config/features', () => ({
   },
 }));
 
-import {
-  useFeatureFlag,
-  useFeatureFlagValue,
-  useVipModule,
-  useAnalytics
-} from '../useFeatureFlag';
+import { useFeatureFlag, useFeatureFlagValue, useVipModule, useAnalytics } from '../useFeatureFlag';
 
 describe('useFeatureFlag', () => {
   afterEach(() => {

@@ -29,9 +29,7 @@
     },
     "/api/v1/foods": {
       "get": {
-        "tags": [
-          "foods"
-        ],
+        "tags": ["foods"],
         "summary": "List Foods",
         "operationId": "list_foods_api_v1_foods_get",
         "parameters": [
@@ -97,9 +95,7 @@
     },
     "/api/v1/foods/search": {
       "get": {
-        "tags": [
-          "foods"
-        ],
+        "tags": ["foods"],
         "summary": "List Foods Search",
         "operationId": "list_foods_search_api_v1_foods_search_get",
         "parameters": [
@@ -165,9 +161,7 @@
     },
     "/api/v1/foods/{food_id}": {
       "get": {
-        "tags": [
-          "foods"
-        ],
+        "tags": ["foods"],
         "summary": "Get Food",
         "operationId": "get_food_api_v1_foods__food_id__get",
         "parameters": [
@@ -207,9 +201,7 @@
     },
     "/api/v1/recipes": {
       "get": {
-        "tags": [
-          "recipes"
-        ],
+        "tags": ["recipes"],
         "summary": "List Recipes",
         "operationId": "list_recipes_api_v1_recipes_get",
         "parameters": [
@@ -275,9 +267,7 @@
     },
     "/api/v1/recipes/search": {
       "get": {
-        "tags": [
-          "recipes"
-        ],
+        "tags": ["recipes"],
         "summary": "List Recipes Search",
         "operationId": "list_recipes_search_api_v1_recipes_search_get",
         "parameters": [
@@ -343,9 +333,7 @@
     },
     "/api/v1/recipes/{recipe_id}": {
       "get": {
-        "tags": [
-          "recipes"
-        ],
+        "tags": ["recipes"],
         "summary": "Get Recipe",
         "operationId": "get_recipe_api_v1_recipes__recipe_id__get",
         "parameters": [
@@ -385,9 +373,7 @@
     },
     "/api/v1/recipes/preview": {
       "post": {
-        "tags": [
-          "recipes"
-        ],
+        "tags": ["recipes"],
         "summary": "Recipe Preview",
         "operationId": "recipe_preview_api_v1_recipes_preview_post",
         "requestBody": {
@@ -426,9 +412,7 @@
     },
     "/api/v1/users": {
       "post": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "summary": "Create User",
         "description": "RU: Создаёт нового пользователя. EN: Create a new user entry.",
         "operationId": "create_user_api_v1_users_post",
@@ -466,9 +450,7 @@
         }
       },
       "get": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "summary": "List Users",
         "description": "RU: Возвращает список пользователей с пагинацией.\n\nEN: Return paginated list of users.",
         "operationId": "list_users_api_v1_users_get",
@@ -527,9 +509,7 @@
     },
     "/api/v1/users/{user_id}": {
       "get": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "summary": "Get User",
         "description": "RU: Получить пользователя по идентификатору.\n\nEN: Retrieve a user by identifier.",
         "operationId": "get_user_api_v1_users__user_id__get",
@@ -568,9 +548,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "summary": "Delete User",
         "description": "RU: Удаляет пользователя. EN: Delete a user by identifier.",
         "operationId": "delete_user_api_v1_users__user_id__delete",
@@ -604,9 +582,7 @@
     },
     "/api/v1/export/sign": {
       "post": {
-        "tags": [
-          "export"
-        ],
+        "tags": ["export"],
         "summary": "Sign Export Link",
         "operationId": "sign_export_link_api_v1_export_sign_post",
         "requestBody": {
@@ -651,9 +627,7 @@
     },
     "/api/v1/plan/week/export.csv": {
       "get": {
-        "tags": [
-          "plan"
-        ],
+        "tags": ["plan"],
         "summary": "Export Week Csv",
         "operationId": "export_week_csv_api_v1_plan_week_export_csv_get",
         "responses": {
@@ -675,9 +649,7 @@
     },
     "/api/v1/plan/week/export.pdf": {
       "get": {
-        "tags": [
-          "plan"
-        ],
+        "tags": ["plan"],
         "summary": "Export Week Pdf",
         "operationId": "export_week_pdf_api_v1_plan_week_export_pdf_get",
         "security": [
@@ -722,9 +694,7 @@
     },
     "/api/v1/shoplist": {
       "get": {
-        "tags": [
-          "shoplist"
-        ],
+        "tags": ["shoplist"],
         "summary": "Get Shoplist",
         "description": "Return the current shoplist in JSON form.",
         "operationId": "get_shoplist_api_v1_shoplist_get",
@@ -750,9 +720,7 @@
     },
     "/api/v1/shoplist/export.csv": {
       "get": {
-        "tags": [
-          "shoplist"
-        ],
+        "tags": ["shoplist"],
         "summary": "Export Shoplist Csv",
         "description": "Export the current shoplist as a CSV attachment.",
         "operationId": "export_shoplist_csv_api_v1_shoplist_export_csv_get",
@@ -775,9 +743,7 @@
     },
     "/api/v1/shoplist/export.pdf": {
       "get": {
-        "tags": [
-          "shoplist"
-        ],
+        "tags": ["shoplist"],
         "summary": "Export Shoplist Pdf",
         "description": "Return a fully rendered PDF attachment for the shoplist.",
         "operationId": "export_shoplist_pdf_api_v1_shoplist_export_pdf_get",
@@ -800,9 +766,7 @@
     },
     "/api/v1/vip/health": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Vip Health",
         "description": "RU: Проверка здоровья VIP модуля\nEN: VIP module health check",
         "operationId": "vip_health_api_v1_vip_health_get",
@@ -828,9 +792,7 @@
     },
     "/api/v1/vip/menu/weekly/plan": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Weekly Menu Plan",
         "description": "RU: Планирование недельного меню с VIP функциями\nEN: Weekly menu planning with VIP features\n\nArgs:\n    request: WeeklyPlanRequest with user profile and goals\n\nReturns:\n    Echo структура с планом меню",
         "operationId": "weekly_menu_plan_api_v1_vip_menu_weekly_plan_post",
@@ -879,9 +841,7 @@
     },
     "/api/v1/vip/weekly-plan": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Generate weekly meal plan",
         "description": "Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
         "operationId": "weekly_menu_plan_alias_api_v1_vip_weekly_plan_post",
@@ -948,9 +908,7 @@
     },
     "/api/v1/vip/menu/weekly/repair": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Weekly Menu Repair",
         "description": "RU: Авто-ремонт недельного меню на основе дефицитов\nEN: Auto-repair weekly menu based on nutrient gaps\n\nArgs:\n    request: Меню + недобор/перебор нутриентов\n\nReturns:\n    Echo структура с отремонтированным меню",
         "operationId": "weekly_menu_repair_api_v1_vip_menu_weekly_repair_post",
@@ -1000,9 +958,7 @@
     },
     "/api/v1/vip/shoplist/weekly": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Weekly Shoplist",
         "description": "RU: Создание списка покупок на неделю с округлением до упаковок\nEN: Create weekly shopping list with package rounding\n\nArgs:\n    request: Недельный план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
         "operationId": "weekly_shoplist_api_v1_vip_shoplist_weekly_post",
@@ -1052,9 +1008,7 @@
     },
     "/api/v1/vip/shoplist/daily": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Daily Shoplist",
         "description": "RU: Создание списка покупок на день с округлением до упаковок\nEN: Create daily shopping list with package rounding\n\nArgs:\n    request: Дневной план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
         "operationId": "daily_shoplist_api_v1_vip_shoplist_daily_post",
@@ -1104,9 +1058,7 @@
     },
     "/api/v1/vip/shoplist/formats": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Available Export Formats",
         "description": "RU: Получить доступные форматы экспорта списков покупок\nEN: Get available export formats for shopping lists\n\nReturns:\n    Список поддерживаемых форматов",
         "operationId": "available_export_formats_api_v1_vip_shoplist_formats_get",
@@ -1135,9 +1087,7 @@
     },
     "/api/v1/vip/regions": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Regions",
         "description": "RU: Получить список доступных регионов\nEN: Get list of available regions\n\nReturns:\n    Список доступных регионов",
         "operationId": "get_regions_api_v1_vip_regions_get",
@@ -1166,9 +1116,7 @@
     },
     "/api/v1/vip/regions/{region}/search": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Search Region Products",
         "description": "RU: Поиск продуктов в региональном каталоге\nEN: Search products in regional catalog\n\nArgs:\n    region: Код региона (es, us)\n    query: Поисковый запрос\n    category: Фильтр по категории (опционально)\n    max_results: Максимальное количество результатов\n\nReturns:\n    Результаты поиска",
         "operationId": "search_region_products_api_v1_vip_regions__region__search_get",
@@ -1244,9 +1192,7 @@
     },
     "/api/v1/vip/regions/{region}/categories": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Region Categories",
         "description": "RU: Получить категории продуктов в регионе\nEN: Get product categories in region\n\nArgs:\n    region: Код региона (es, us)\n\nReturns:\n    Список категорий",
         "operationId": "get_region_categories_api_v1_vip_regions__region__categories_get",
@@ -1293,9 +1239,7 @@
     },
     "/api/v1/vip/regions/{region}/stores": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Region Stores",
         "description": "RU: Получить торговые сети в регионе\nEN: Get store chains in region\n\nArgs:\n    region: Код региона (es, us)\n\nReturns:\n    Список торговых сетей",
         "operationId": "get_region_stores_api_v1_vip_regions__region__stores_get",
@@ -1342,9 +1286,7 @@
     },
     "/api/v1/vip/regions/compare/{product_name}": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Compare Product Prices",
         "description": "RU: Сравнить цены продукта в разных регионах\nEN: Compare product prices across regions\n\nArgs:\n    product_name: Название продукта\n    regions: Список регионов через запятую (по умолчанию: es,us)\n\nReturns:\n    Сравнение цен по регионам",
         "operationId": "compare_product_prices_api_v1_vip_regions_compare__product_name__get",
@@ -1401,9 +1343,7 @@
     },
     "/api/v1/vip/recipes/synthesize": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Synthesize Recipe",
         "description": "RU: Синтезировать рецепт на основе ингредиентов\nEN: Synthesize recipe based on ingredients\n\nArgs:\n    request: Список ингредиентов и предпочтения\n\nReturns:\n    Синтезированный рецепт",
         "operationId": "synthesize_recipe_api_v1_vip_recipes_synthesize_post",
@@ -1453,9 +1393,7 @@
     },
     "/api/v1/vip/recipe/synthesize": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Synthesize Recipe Alias",
         "description": "Alias for singular recipe synthesis endpoint.",
         "operationId": "synthesize_recipe_alias_api_v1_vip_recipe_synthesize_post",
@@ -1505,9 +1443,7 @@
     },
     "/api/v1/vip/recipes/weekly": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Synthesize Weekly Recipes",
         "description": "RU: Синтезировать рецепты для недельного плана\nEN: Synthesize recipes for weekly meal plan\n\nArgs:\n    request: Недельный план питания\n\nReturns:\n    Рецепты для недели",
         "operationId": "synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post",
@@ -1557,9 +1493,7 @@
     },
     "/api/v1/vip/recipes/templates": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Recipe Templates",
         "description": "RU: Получить доступные шаблоны рецептов\nEN: Get available recipe templates\n\nReturns:\n    Список шаблонов рецептов",
         "operationId": "get_recipe_templates_api_v1_vip_recipes_templates_get",
@@ -1585,9 +1519,7 @@
     },
     "/api/v1/vip/auto-repair/weekly": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Auto Repair Weekly Plan",
         "description": "RU: Авто-ремонт недельного плана с UX-петлей\nEN: Auto-repair weekly plan with UX loop\n\nArgs:\n    request: Недельный план, цели и предпочтения\n\nReturns:\n    Результат авто-ремонта с историей итераций",
         "operationId": "auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post",
@@ -1637,9 +1569,7 @@
     },
     "/api/v1/vip/auto-repair/suggestions": {
       "post": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Manual Repair Suggestions",
         "description": "RU: Получить предложения для ручного ремонта\nEN: Get suggestions for manual repair\n\nArgs:\n    request: Недельный план и цели\n\nReturns:\n    Предложения для ручного ремонта",
         "operationId": "get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post",
@@ -1689,9 +1619,7 @@
     },
     "/api/v1/vip/auto-repair/strategies": {
       "get": {
-        "tags": [
-          "vip"
-        ],
+        "tags": ["vip"],
         "summary": "Get Repair Strategies",
         "description": "RU: Получить доступные стратегии ремонта\nEN: Get available repair strategies\n\nArgs:\n    x_api_key: API key for VIP access\n\nReturns:\n    Список доступных стратегий",
         "operationId": "get_repair_strategies_api_v1_vip_auto_repair_strategies_get",
@@ -1741,9 +1669,7 @@
     },
     "/api/v1/premium/plan/week-flexible": {
       "post": {
-        "tags": [
-          "premium"
-        ],
+        "tags": ["premium"],
         "summary": "Generate Week Plan",
         "operationId": "generate_week_plan_api_v1_premium_plan_week_flexible_post",
         "requestBody": {
@@ -2835,9 +2761,7 @@
     },
     "/api/v1/bmi/pro": {
       "post": {
-        "tags": [
-          "bmi"
-        ],
+        "tags": ["bmi"],
         "summary": "Bmi Pro",
         "operationId": "bmi_pro_api_v1_bmi_pro_post",
         "requestBody": {
@@ -2891,10 +2815,7 @@
           },
           "sex": {
             "type": "string",
-            "enum": [
-              "female",
-              "male"
-            ],
+            "enum": ["female", "male"],
             "title": "Sex"
           },
           "age": {
@@ -2935,23 +2856,13 @@
           },
           "lang": {
             "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
+            "enum": ["ru", "en", "es"],
             "title": "Lang",
             "default": "en"
           }
         },
         "type": "object",
-        "required": [
-          "height_cm",
-          "weight_kg",
-          "sex",
-          "age",
-          "waist_cm"
-        ],
+        "required": ["height_cm", "weight_kg", "sex", "age", "waist_cm"],
         "title": "BMIProRequest"
       },
       "BMIProResponse": {
@@ -2988,11 +2899,7 @@
           },
           "risk_level": {
             "type": "string",
-            "enum": [
-              "low",
-              "moderate",
-              "high"
-            ],
+            "enum": ["low", "moderate", "high"],
             "title": "Risk Level"
           },
           "notes": {
@@ -3004,14 +2911,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "bmi",
-          "whtr",
-          "whr",
-          "ffmi",
-          "risk_level",
-          "notes"
-        ],
+        "required": ["bmi", "whtr", "whr", "ffmi", "risk_level", "notes"],
         "title": "BMIProResponse"
       },
       "BMIRequest": {
@@ -3076,11 +2976,7 @@
           },
           "lang": {
             "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
+            "enum": ["ru", "en", "es"],
             "title": "Lang",
             "default": "ru"
           },
@@ -3110,10 +3006,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "weight_kg",
-          "height_m"
-        ],
+        "required": ["weight_kg", "height_m"],
         "title": "BMIRequest"
       },
       "BMIRequestV1": {
@@ -3183,20 +3076,13 @@
           },
           "lang": {
             "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
+            "enum": ["ru", "en", "es"],
             "title": "Lang",
             "default": "en"
           }
         },
         "type": "object",
-        "required": [
-          "weight_kg",
-          "height_cm"
-        ],
+        "required": ["weight_kg", "height_cm"],
         "title": "BMIRequestV1"
       },
       "BMRRequest": {
@@ -3242,23 +3128,13 @@
           },
           "lang": {
             "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
+            "enum": ["ru", "en", "es"],
             "title": "Lang",
             "default": "en"
           }
         },
         "type": "object",
-        "required": [
-          "weight_kg",
-          "height_cm",
-          "age",
-          "sex",
-          "activity"
-        ],
+        "required": ["weight_kg", "height_cm", "age", "sex", "activity"],
         "title": "BMRRequest",
         "description": "Request model for BMR calculation"
       },
@@ -3297,23 +3173,13 @@
           },
           "lang": {
             "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
+            "enum": ["ru", "en", "es"],
             "title": "Lang",
             "default": "en"
           }
         },
         "type": "object",
-        "required": [
-          "weight_kg",
-          "height_cm",
-          "age",
-          "sex",
-          "activity"
-        ],
+        "required": ["weight_kg", "height_cm", "age", "sex", "activity"],
         "title": "BMRRequestLegacy"
       },
       "BMRResponse": {
@@ -3483,9 +3349,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "gender"
-        ],
+        "required": ["gender"],
         "title": "BodyFatRequest"
       },
       "DayMenu": {
@@ -3535,15 +3399,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "meals",
-          "kcal",
-          "macros",
-          "micros",
-          "coverage",
-          "tips",
-          "total_cost"
-        ],
+        "required": ["meals", "kcal", "macros", "micros", "coverage", "tips", "total_cost"],
         "title": "DayMenu",
         "description": "RU: Меню на один день.\nEN: Single day menu."
       },
@@ -3567,9 +3423,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "message"
-        ],
+        "required": ["message"],
         "title": "ErrorResponse",
         "description": "RU: Ответ об ошибке.\nEN: Error response."
       },
@@ -3601,14 +3455,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "kcal",
-          "protein_g",
-          "fat_g",
-          "carbs_g"
-        ],
+        "required": ["id", "name", "kcal", "protein_g", "fat_g", "carbs_g"],
         "title": "FoodHit",
         "description": "RU: Результат поиска (минимум данных для списка).\nEN: Search hit for list views."
       },
@@ -3797,10 +3644,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "food_id",
-          "grams"
-        ],
+        "required": ["food_id", "grams"],
         "title": "Ingredient"
       },
       "InsightRequest": {
@@ -3812,9 +3656,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "text"
-        ],
+        "required": ["text"],
         "title": "InsightRequest"
       },
       "MealItem": {
@@ -3851,1216 +3693,1099 @@
             },
             "type": "object",
             "title": "Micros"
+          },
+          "serving_size": {
+            "type": "string",
+            "title": "Serving Size"
+          },
+          "ingredients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ingredients"
+          },
+          "meal_type": {
+            "type": "string",
+            "title": "Meal Type"
           }
         },
         "type": "object",
-        "required": [
-          "title",
-          "title_translated",
-          "grams",
-          "kcal",
-          "macros",
-          "micros"
-        ],
+        "required": ["title", "title_translated", "grams", "kcal", "macros", "micros"],
         "title": "MealItem",
         "description": "RU: Элемент приема пищи.\nEN: Meal item."
       },
-      "NutrientGapsRequest": {
-        "properties": {
-          "consumed_nutrients": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Consumed Nutrients"
+      "type": "object",
+      "required": ["title", "title_translated", "grams", "kcal", "macros", "micros"],
+      "title": "MealItem",
+      "description": "RU: Элемент приема пищи.\nEN: Meal item."
+    },
+    "NutrientGapsRequest": {
+      "properties": {
+        "consumed_nutrients": {
+          "additionalProperties": {
+            "type": "number"
           },
-          "user_profile": {
-            "$ref": "#/components/schemas/WHOTargetsRequest"
-          }
+          "type": "object",
+          "title": "Consumed Nutrients"
         },
-        "type": "object",
-        "required": [
-          "consumed_nutrients",
-          "user_profile"
-        ],
-        "title": "NutrientGapsRequest",
-        "description": "RU: Запрос на анализ дефицитов нутриентов.\nEN: Request for nutrient gap analysis."
+        "user_profile": {
+          "$ref": "#/components/schemas/WHOTargetsRequest"
+        }
       },
-      "NutrientGapsResponse": {
-        "properties": {
-          "gaps": {
-            "additionalProperties": {
-              "type": "object"
-            },
-            "type": "object",
-            "title": "Gaps"
+      "type": "object",
+      "required": ["consumed_nutrients", "user_profile"],
+      "title": "NutrientGapsRequest",
+      "description": "RU: Запрос на анализ дефицитов нутриентов.\nEN: Request for nutrient gap analysis."
+    },
+    "NutrientGapsResponse": {
+      "properties": {
+        "gaps": {
+          "additionalProperties": {
+            "type": "object"
           },
-          "food_recommendations": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Food Recommendations"
-          },
-          "adherence_score": {
-            "type": "number",
-            "title": "Adherence Score"
-          }
+          "type": "object",
+          "title": "Gaps"
         },
-        "type": "object",
-        "required": [
-          "gaps",
-          "food_recommendations",
-          "adherence_score"
-        ],
-        "title": "NutrientGapsResponse",
-        "description": "RU: Ответ с анализом дефицитов и рекомендациями.\nEN: Response with gap analysis and recommendations."
-      },
-      "PlateRequest": {
-        "properties": {
-          "sex": {
-            "type": "string",
-            "enum": [
-              "female",
-              "male"
-            ],
-            "title": "Sex"
+        "food_recommendations": {
+          "items": {
+            "type": "string"
           },
-          "age": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 10.0,
-            "title": "Age"
-          },
-          "height_cm": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Height Cm"
-          },
-          "weight_kg": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Weight Kg"
-          },
-          "activity": {
-            "type": "string",
-            "enum": [
-              "sedentary",
-              "light",
-              "moderate",
-              "active",
-              "very_active"
-            ],
-            "title": "Activity"
-          },
-          "goal": {
-            "type": "string",
-            "enum": [
-              "loss",
-              "maintain",
-              "gain"
-            ],
-            "title": "Goal"
-          },
-          "deficit_pct": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 25.0,
-                "minimum": 5.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deficit Pct"
-          },
-          "surplus_pct": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 20.0,
-                "minimum": 5.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Surplus Pct"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 60.0,
-                "minimum": 3.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "diet_flags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string",
-                  "enum": [
-                    "VEG",
-                    "GF",
-                    "DAIRY_FREE",
-                    "LOW_COST",
-                    "HIGH_PROTEIN",
-                    "LOW_CARB",
-                    "MEDITERRANEAN",
-                    "VEGAN",
-                    "KETO",
-                    "PALEO"
-                  ]
-                },
-                "type": "array",
-                "uniqueItems": true
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diet Flags"
-          }
+          "type": "array",
+          "title": "Food Recommendations"
         },
-        "type": "object",
-        "required": [
-          "sex",
-          "age",
-          "height_cm",
-          "weight_kg",
-          "activity",
-          "goal"
-        ],
-        "title": "PlateRequest",
-        "description": "RU: Запрос на генерацию «Моей Тарелки».\nEN: Request to generate 'My Plate'."
+        "adherence_score": {
+          "type": "number",
+          "title": "Adherence Score"
+        }
       },
-      "PlateResponse": {
-        "properties": {
-          "kcal": {
-            "type": "integer",
-            "title": "Kcal"
+      "type": "object",
+      "required": ["gaps", "food_recommendations", "adherence_score"],
+      "title": "NutrientGapsResponse",
+      "description": "RU: Ответ с анализом дефицитов и рекомендациями.\nEN: Response with gap analysis and recommendations."
+    },
+    "PlateRequest": {
+      "properties": {
+        "sex": {
+          "type": "string",
+          "enum": ["female", "male"],
+          "title": "Sex"
+        },
+        "age": {
+          "type": "integer",
+          "maximum": 100.0,
+          "minimum": 10.0,
+          "title": "Age"
+        },
+        "height_cm": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "title": "Height Cm"
+        },
+        "weight_kg": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "title": "Weight Kg"
+        },
+        "activity": {
+          "type": "string",
+          "enum": ["sedentary", "light", "moderate", "active", "very_active"],
+          "title": "Activity"
+        },
+        "goal": {
+          "type": "string",
+          "enum": ["loss", "maintain", "gain"],
+          "title": "Goal"
+        },
+        "deficit_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 25.0,
+              "minimum": 5.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deficit Pct"
+        },
+        "surplus_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 20.0,
+              "minimum": 5.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Surplus Pct"
+        },
+        "bodyfat": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 60.0,
+              "minimum": 3.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Bodyfat"
+        },
+        "diet_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string",
+                "enum": [
+                  "VEG",
+                  "GF",
+                  "DAIRY_FREE",
+                  "LOW_COST",
+                  "HIGH_PROTEIN",
+                  "LOW_CARB",
+                  "MEDITERRANEAN",
+                  "VEGAN",
+                  "KETO",
+                  "PALEO"
+                ]
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Diet Flags"
+        }
+      },
+      "type": "object",
+      "required": ["sex", "age", "height_cm", "weight_kg", "activity", "goal"],
+      "title": "PlateRequest",
+      "description": "RU: Запрос на генерацию «Моей Тарелки».\nEN: Request to generate 'My Plate'."
+    },
+    "PlateResponse": {
+      "properties": {
+        "kcal": {
+          "type": "integer",
+          "title": "Kcal"
+        },
+        "macros": {
+          "additionalProperties": {
+            "type": "integer"
           },
-          "macros": {
-            "additionalProperties": {
+          "type": "object",
+          "title": "Macros"
+        },
+        "portions": {
+          "type": "object",
+          "title": "Portions"
+        },
+        "layout": {
+          "items": {
+            "$ref": "#/components/schemas/VisualShape"
+          },
+          "type": "array",
+          "title": "Layout"
+        },
+        "meals": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array",
+          "title": "Meals"
+        },
+        "day_micros": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Day Micros",
+          "default": {}
+        }
+      },
+      "type": "object",
+      "required": ["kcal", "macros", "portions", "layout", "meals"],
+      "title": "PlateResponse"
+    },
+    "Recipe": {
+      "properties": {
+        "recipe_id": {
+          "type": "string",
+          "title": "Recipe Id"
+        },
+        "title": {
+          "type": "string",
+          "title": "Title"
+        },
+        "locale": {
+          "type": "string",
+          "title": "Locale",
+          "default": "en"
+        },
+        "servings": {
+          "type": "integer",
+          "title": "Servings"
+        },
+        "yield_total_g": {
+          "type": "number",
+          "title": "Yield Total G"
+        },
+        "ingredients": {
+          "items": {
+            "$ref": "#/components/schemas/Ingredient"
+          },
+          "type": "array",
+          "minItems": 1,
+          "title": "Ingredients"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Steps"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Tags"
+        },
+        "allergens": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Allergens"
+        },
+        "cost_total": {
+          "type": "number",
+          "title": "Cost Total",
+          "default": 0.0
+        },
+        "cost_per_serv": {
+          "type": "number",
+          "title": "Cost Per Serv",
+          "default": 0.0
+        },
+        "nutrients_per_serv": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Nutrients Per Serv"
+        },
+        "source": {
+          "type": "string",
+          "title": "Source",
+          "default": "internal"
+        },
+        "version_date": {
+          "type": "string",
+          "title": "Version Date"
+        }
+      },
+      "type": "object",
+      "required": [
+        "recipe_id",
+        "title",
+        "servings",
+        "yield_total_g",
+        "ingredients",
+        "version_date"
+      ],
+      "title": "Recipe"
+    },
+    "RecipePreviewRequest": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Title"
+        },
+        "servings": {
+          "type": "integer",
+          "title": "Servings",
+          "default": 1
+        },
+        "ingredients": {
+          "items": {
+            "$ref": "#/components/schemas/Ingredient"
+          },
+          "type": "array",
+          "minItems": 1,
+          "title": "Ingredients"
+        }
+      },
+      "type": "object",
+      "required": ["title", "ingredients"],
+      "title": "RecipePreviewRequest"
+    },
+    "RecipePreviewResponse": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Title"
+        },
+        "servings": {
+          "type": "integer",
+          "title": "Servings"
+        },
+        "total_g": {
+          "type": "number",
+          "title": "Total G"
+        },
+        "per_serving": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Per Serving"
+        }
+      },
+      "type": "object",
+      "required": ["title", "servings", "total_g", "per_serving"],
+      "title": "RecipePreviewResponse"
+    },
+    "RecipeQueryHit": {
+      "properties": {
+        "recipe_id": {
+          "type": "string",
+          "title": "Recipe Id"
+        },
+        "title": {
+          "type": "string",
+          "title": "Title"
+        },
+        "kcal_per_serv": {
+          "type": "number",
+          "title": "Kcal Per Serv"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Tags"
+        }
+      },
+      "type": "object",
+      "required": ["recipe_id", "title", "kcal_per_serv"],
+      "title": "RecipeQueryHit"
+    },
+    "SignRequest": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "title": "Path"
+        },
+        "ttl_seconds": {
+          "anyOf": [
+            {
               "type": "integer"
             },
-            "type": "object",
-            "title": "Macros"
-          },
-          "portions": {
-            "type": "object",
-            "title": "Portions"
-          },
-          "layout": {
-            "items": {
-              "$ref": "#/components/schemas/VisualShape"
-            },
-            "type": "array",
-            "title": "Layout"
-          },
-          "meals": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Meals"
-          },
-          "day_micros": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Day Micros",
-            "default": {}
-          }
-        },
-        "type": "object",
-        "required": [
-          "kcal",
-          "macros",
-          "portions",
-          "layout",
-          "meals"
-        ],
-        "title": "PlateResponse"
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ttl Seconds"
+        }
       },
-      "Recipe": {
-        "properties": {
-          "recipe_id": {
-            "type": "string",
-            "title": "Recipe Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "locale": {
-            "type": "string",
-            "title": "Locale",
-            "default": "en"
-          },
-          "servings": {
-            "type": "integer",
-            "title": "Servings"
-          },
-          "yield_total_g": {
-            "type": "number",
-            "title": "Yield Total G"
-          },
-          "ingredients": {
-            "items": {
-              "$ref": "#/components/schemas/Ingredient"
-            },
-            "type": "array",
-            "minItems": 1,
-            "title": "Ingredients"
-          },
-          "steps": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Steps"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags"
-          },
-          "allergens": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Allergens"
-          },
-          "cost_total": {
-            "type": "number",
-            "title": "Cost Total",
-            "default": 0.0
-          },
-          "cost_per_serv": {
-            "type": "number",
-            "title": "Cost Per Serv",
-            "default": 0.0
-          },
-          "nutrients_per_serv": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Nutrients Per Serv"
-          },
-          "source": {
-            "type": "string",
-            "title": "Source",
-            "default": "internal"
-          },
-          "version_date": {
-            "type": "string",
-            "title": "Version Date"
-          }
+      "type": "object",
+      "required": ["path"],
+      "title": "SignRequest"
+    },
+    "TargetsIn": {
+      "properties": {
+        "kcal": {
+          "type": "integer",
+          "exclusiveMaximum": 6000.0,
+          "exclusiveMinimum": 500.0,
+          "title": "Kcal"
         },
-        "type": "object",
-        "required": [
-          "recipe_id",
-          "title",
-          "servings",
-          "yield_total_g",
-          "ingredients",
-          "version_date"
-        ],
-        "title": "Recipe"
-      },
-      "RecipePreviewRequest": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "title": "Title"
+        "macros": {
+          "additionalProperties": {
+            "type": "number"
           },
-          "servings": {
-            "type": "integer",
-            "title": "Servings",
-            "default": 1
-          },
-          "ingredients": {
-            "items": {
-              "$ref": "#/components/schemas/Ingredient"
-            },
-            "type": "array",
-            "minItems": 1,
-            "title": "Ingredients"
-          }
+          "type": "object",
+          "title": "Macros"
         },
-        "type": "object",
-        "required": [
-          "title",
-          "ingredients"
-        ],
-        "title": "RecipePreviewRequest"
-      },
-      "RecipePreviewResponse": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "title": "Title"
+        "micro": {
+          "additionalProperties": {
+            "type": "number"
           },
-          "servings": {
-            "type": "integer",
-            "title": "Servings"
-          },
-          "total_g": {
-            "type": "number",
-            "title": "Total G"
-          },
-          "per_serving": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Per Serving"
-          }
+          "type": "object",
+          "title": "Micro"
         },
-        "type": "object",
-        "required": [
-          "title",
-          "servings",
-          "total_g",
-          "per_serving"
-        ],
-        "title": "RecipePreviewResponse"
-      },
-      "RecipeQueryHit": {
-        "properties": {
-          "recipe_id": {
-            "type": "string",
-            "title": "Recipe Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "kcal_per_serv": {
-            "type": "number",
-            "title": "Kcal Per Serv"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags"
-          }
+        "water_ml": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Water Ml",
+          "default": 0
         },
-        "type": "object",
-        "required": [
-          "recipe_id",
-          "title",
-          "kcal_per_serv"
-        ],
-        "title": "RecipeQueryHit"
-      },
-      "SignRequest": {
-        "properties": {
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
-          "ttl_seconds": {
-            "anyOf": [
-              {
+        "activity_week": {
+          "anyOf": [
+            {
+              "additionalProperties": {
                 "type": "integer"
               },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ttl Seconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "path"
-        ],
-        "title": "SignRequest"
-      },
-      "TargetsIn": {
-        "properties": {
-          "kcal": {
-            "type": "integer",
-            "exclusiveMaximum": 6000.0,
-            "exclusiveMinimum": 500.0,
-            "title": "Kcal"
-          },
-          "macros": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Macros"
-          },
-          "micro": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Micro"
-          },
-          "water_ml": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Water Ml",
-            "default": 0
-          },
-          "activity_week": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "integer"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity Week"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kcal",
-          "macros",
-          "micro"
-        ],
-        "title": "TargetsIn"
-      },
-      "UserCreate": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "name"
-        ],
-        "title": "UserCreate",
-        "description": "RU: Схема создания пользователя. EN: Payload for creating a user."
-      },
-      "UserRead": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "name",
-          "id"
-        ],
-        "title": "UserRead",
-        "description": "RU: Схема чтения пользователя. EN: Response schema for user endpoints."
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
-      },
-      "VisualShape": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "plate_sector",
-              "bowl",
-              "marker"
-            ],
-            "title": "Kind"
-          },
-          "fraction": {
-            "type": "number",
-            "title": "Fraction"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "tooltip": {
-            "type": "string",
-            "title": "Tooltip"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "fraction",
-          "label",
-          "tooltip"
-        ],
-        "title": "VisualShape",
-        "description": "RU: Примитив для фронтенда (сектор тарелки/чашка/метка).\nEN: Primitive for frontend (plate sector/bowl/dot)."
-      },
-      "WHOTargetsRequest": {
-        "properties": {
-          "sex": {
-            "type": "string",
-            "enum": [
-              "female",
-              "male"
-            ],
-            "title": "Sex"
-          },
-          "age": {
-            "type": "integer",
-            "maximum": 120.0,
-            "minimum": 1.0,
-            "title": "Age"
-          },
-          "height_cm": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Height Cm"
-          },
-          "weight_kg": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Weight Kg"
-          },
-          "activity": {
-            "type": "string",
-            "enum": [
-              "sedentary",
-              "light",
-              "moderate",
-              "active",
-              "very_active"
-            ],
-            "title": "Activity"
-          },
-          "goal": {
-            "type": "string",
-            "enum": [
-              "loss",
-              "maintain",
-              "gain"
-            ],
-            "title": "Goal",
-            "default": "maintain"
-          },
-          "deficit_pct": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 25.0,
-                "minimum": 5.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deficit Pct"
-          },
-          "surplus_pct": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 20.0,
-                "minimum": 5.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Surplus Pct"
-          },
-          "bodyfat": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 60.0,
-                "minimum": 3.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bodyfat"
-          },
-          "diet_flags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string",
-                  "enum": [
-                    "VEG",
-                    "GF",
-                    "DAIRY_FREE",
-                    "LOW_COST",
-                    "HIGH_PROTEIN",
-                    "LOW_CARB",
-                    "MEDITERRANEAN",
-                    "VEGAN",
-                    "KETO",
-                    "PALEO"
-                  ]
-                },
-                "type": "array",
-                "uniqueItems": true
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Diet Flags"
-          },
-          "life_stage": {
-            "type": "string",
-            "enum": [
-              "child",
-              "teen",
-              "adult",
-              "pregnant",
-              "lactating",
-              "elderly"
-            ],
-            "title": "Life Stage",
-            "default": "adult"
-          },
-          "lang": {
-            "type": "string",
-            "title": "Lang",
-            "default": "en"
-          }
-        },
-        "type": "object",
-        "required": [
-          "sex",
-          "age",
-          "height_cm",
-          "weight_kg",
-          "activity"
-        ],
-        "title": "WHOTargetsRequest",
-        "description": "RU: Запрос на расчёт целей по нормам ВОЗ.\nEN: Request for WHO-based nutrition targets."
-      },
-      "WHOTargetsResponse": {
-        "properties": {
-          "kcal_daily": {
-            "type": "integer",
-            "title": "Kcal Daily"
-          },
-          "macros": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Macros"
-          },
-          "water_ml": {
-            "type": "integer",
-            "title": "Water Ml"
-          },
-          "priority_micros": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Priority Micros"
-          },
-          "activity_weekly": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Activity Weekly"
-          },
-          "calculation_date": {
-            "type": "string",
-            "title": "Calculation Date"
-          },
-          "warnings": {
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
               "type": "object"
             },
-            "type": "array",
-            "title": "Warnings",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "kcal_daily",
-          "macros",
-          "water_ml",
-          "priority_micros",
-          "activity_weekly",
-          "calculation_date"
-        ],
-        "title": "WHOTargetsResponse",
-        "description": "RU: Ответ с целевыми значениями по ВОЗ.\nEN: Response with WHO-based targets."
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activity Week"
+        }
       },
-      "WeekPlanRequest": {
-        "properties": {
-          "targets": {
+      "type": "object",
+      "required": ["kcal", "macros", "micro"],
+      "title": "TargetsIn"
+    },
+    "UserCreate": {
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name"
+        }
+      },
+      "type": "object",
+      "required": ["email", "name"],
+      "title": "UserCreate",
+      "description": "RU: Схема создания пользователя. EN: Payload for creating a user."
+    },
+    "UserRead": {
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name"
+        },
+        "id": {
+          "type": "integer",
+          "title": "Id"
+        }
+      },
+      "type": "object",
+      "required": ["email", "name", "id"],
+      "title": "UserRead",
+      "description": "RU: Схема чтения пользователя. EN: Response schema for user endpoints."
+    },
+    "ValidationError": {
+      "properties": {
+        "loc": {
+          "items": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TargetsIn"
+                "type": "string"
               },
               {
-                "type": "null"
+                "type": "integer"
               }
             ]
           },
-          "sex": {
-            "anyOf": [
-              {
+          "type": "array",
+          "title": "Location"
+        },
+        "msg": {
+          "type": "string",
+          "title": "Message"
+        },
+        "type": {
+          "type": "string",
+          "title": "Error Type"
+        }
+      },
+      "type": "object",
+      "required": ["loc", "msg", "type"],
+      "title": "ValidationError"
+    },
+    "VisualShape": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["plate_sector", "bowl", "marker"],
+          "title": "Kind"
+        },
+        "fraction": {
+          "type": "number",
+          "title": "Fraction"
+        },
+        "label": {
+          "type": "string",
+          "title": "Label"
+        },
+        "tooltip": {
+          "type": "string",
+          "title": "Tooltip"
+        }
+      },
+      "type": "object",
+      "required": ["kind", "fraction", "label", "tooltip"],
+      "title": "VisualShape",
+      "description": "RU: Примитив для фронтенда (сектор тарелки/чашка/метка).\nEN: Primitive for frontend (plate sector/bowl/dot)."
+    },
+    "WHOTargetsRequest": {
+      "properties": {
+        "sex": {
+          "type": "string",
+          "enum": ["female", "male"],
+          "title": "Sex"
+        },
+        "age": {
+          "type": "integer",
+          "maximum": 120.0,
+          "minimum": 1.0,
+          "title": "Age"
+        },
+        "height_cm": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "title": "Height Cm"
+        },
+        "weight_kg": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "title": "Weight Kg"
+        },
+        "activity": {
+          "type": "string",
+          "enum": ["sedentary", "light", "moderate", "active", "very_active"],
+          "title": "Activity"
+        },
+        "goal": {
+          "type": "string",
+          "enum": ["loss", "maintain", "gain"],
+          "title": "Goal",
+          "default": "maintain"
+        },
+        "deficit_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 25.0,
+              "minimum": 5.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deficit Pct"
+        },
+        "surplus_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 20.0,
+              "minimum": 5.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Surplus Pct"
+        },
+        "bodyfat": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 60.0,
+              "minimum": 3.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Bodyfat"
+        },
+        "diet_flags": {
+          "anyOf": [
+            {
+              "items": {
                 "type": "string",
                 "enum": [
-                  "female",
-                  "male"
+                  "VEG",
+                  "GF",
+                  "DAIRY_FREE",
+                  "LOW_COST",
+                  "HIGH_PROTEIN",
+                  "LOW_CARB",
+                  "MEDITERRANEAN",
+                  "VEGAN",
+                  "KETO",
+                  "PALEO"
                 ]
               },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex"
+              "type": "array",
+              "uniqueItems": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Diet Flags"
+        },
+        "life_stage": {
+          "type": "string",
+          "enum": ["child", "teen", "adult", "pregnant", "lactating", "elderly"],
+          "title": "Life Stage",
+          "default": "adult"
+        },
+        "lang": {
+          "type": "string",
+          "title": "Lang",
+          "default": "en"
+        }
+      },
+      "type": "object",
+      "required": ["sex", "age", "height_cm", "weight_kg", "activity"],
+      "title": "WHOTargetsRequest",
+      "description": "RU: Запрос на расчёт целей по нормам ВОЗ.\nEN: Request for WHO-based nutrition targets."
+    },
+    "WHOTargetsResponse": {
+      "properties": {
+        "kcal_daily": {
+          "type": "integer",
+          "title": "Kcal Daily"
+        },
+        "macros": {
+          "additionalProperties": {
+            "type": "integer"
           },
-          "age": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMaximum": 90.0,
-                "exclusiveMinimum": 10.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age"
+          "type": "object",
+          "title": "Macros"
+        },
+        "water_ml": {
+          "type": "integer",
+          "title": "Water Ml"
+        },
+        "priority_micros": {
+          "additionalProperties": {
+            "type": "number"
           },
-          "height_cm": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMaximum": 220.0,
-                "exclusiveMinimum": 100.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Cm"
+          "type": "object",
+          "title": "Priority Micros"
+        },
+        "activity_weekly": {
+          "additionalProperties": {
+            "type": "integer"
           },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMaximum": 300.0,
-                "exclusiveMinimum": 30.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg"
-          },
-          "activity": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "sedentary",
-                  "light",
-                  "moderate",
-                  "active",
-                  "very_active"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity",
-            "default": "moderate"
-          },
-          "goal": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "loss",
-                  "maintain",
-                  "gain"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Goal",
-            "default": "maintain"
-          },
-          "diet_flags": {
-            "items": {
+          "type": "object",
+          "title": "Activity Weekly"
+        },
+        "calculation_date": {
+          "type": "string",
+          "title": "Calculation Date"
+        },
+        "warnings": {
+          "items": {
+            "additionalProperties": {
               "type": "string"
             },
-            "type": "array",
-            "title": "Diet Flags"
+            "type": "object"
           },
-          "lang": {
-            "type": "string",
-            "enum": [
-              "ru",
-              "en",
-              "es"
-            ],
-            "title": "Lang",
-            "default": "en"
-          }
-        },
-        "type": "object",
-        "title": "WeekPlanRequest"
+          "type": "array",
+          "title": "Warnings",
+          "default": []
+        }
       },
-      "WeekPlanResponse": {
-        "properties": {
-          "daily_menus": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Daily Menus"
-          },
-          "weekly_coverage": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Weekly Coverage"
-          },
-          "shopping_list": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Shopping List"
-          },
-          "total_cost": {
-            "type": "number",
-            "title": "Total Cost"
-          },
-          "adherence_score": {
-            "type": "number",
-            "title": "Adherence Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "daily_menus",
-          "weekly_coverage",
-          "shopping_list",
-          "total_cost",
-          "adherence_score"
-        ],
-        "title": "WeekPlanResponse"
-      },
-      "WeeklyMenuResponse": {
-        "properties": {
-          "week_summary": {
-            "type": "object",
-            "title": "Week Summary"
-          },
-          "daily_menus": {
-            "items": {
-              "$ref": "#/components/schemas/DayMenu"
-            },
-            "type": "array",
-            "title": "Daily Menus"
-          },
-          "weekly_coverage": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Weekly Coverage"
-          },
-          "shopping_list": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "title": "Shopping List"
-          },
-          "total_cost": {
-            "type": "number",
-            "title": "Total Cost"
-          },
-          "adherence_score": {
-            "type": "number",
-            "title": "Adherence Score"
-          }
-        },
-        "type": "object",
-        "required": [
-          "week_summary",
-          "daily_menus",
-          "weekly_coverage",
-          "shopping_list",
-          "total_cost",
-          "adherence_score"
-        ],
-        "title": "WeeklyMenuResponse",
-        "description": "RU: Ответ с недельным меню.\nEN: Response with weekly menu."
-      },
-      "WeeklyPlanRequest": {
-        "properties": {
-          "sex": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "female",
-                  "male"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sex",
-            "description": "Gender (male/female)"
-          },
-          "age": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 120.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age",
-            "description": "Age in years"
-          },
-          "height_cm": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 300.0,
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Cm",
-            "description": "Height in centimeters"
-          },
-          "weight_kg": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 500.0,
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight Kg",
-            "description": "Weight in kilograms"
-          },
-          "activity": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "sedentary",
-                  "light",
-                  "moderate",
-                  "active",
-                  "very_active"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity",
-            "description": "Activity level"
-          },
-          "goal": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "loss",
-                  "maintain",
-                  "gain"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Goal",
-            "description": "Nutrition goal"
-          },
-          "calories": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 10000.0,
-                "minimum": 100.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Calories",
-            "description": "Daily calories target"
-          },
-          "protein": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 500.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Protein",
-            "description": "Daily protein target (g)"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id",
-            "description": "User identifier"
-          },
-          "preferences": {
-            "type": "object",
-            "title": "Preferences",
-            "description": "User preferences"
-          },
-          "goals": {
-            "type": "object",
-            "title": "Goals",
-            "description": "Nutrition goals"
-          },
-          "constraints": {
-            "type": "object",
-            "title": "Constraints",
-            "description": "Dietary constraints"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "WeeklyPlanRequest",
-        "description": "RU: Запрос на создание недельного плана питания.\nEN: Request for creating a weekly meal plan."
-      },
-      "WeeklyPlanResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "description": "Response status"
-          },
-          "data": {
-            "type": "object",
-            "title": "Data",
-            "description": "Weekly plan data"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "description": "Additional message",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "WeeklyPlanResponse",
-        "description": "RU: Ответ с недельным планом питания.\nEN: Response with weekly meal plan."
-      }
+      "type": "object",
+      "required": [
+        "kcal_daily",
+        "macros",
+        "water_ml",
+        "priority_micros",
+        "activity_weekly",
+        "calculation_date"
+      ],
+      "title": "WHOTargetsResponse",
+      "description": "RU: Ответ с целевыми значениями по ВОЗ.\nEN: Response with WHO-based targets."
     },
-    "securitySchemes": {
-      "APIKeyHeader": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-Key"
-      }
+    "WeekPlanRequest": {
+      "properties": {
+        "targets": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/TargetsIn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sex": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["female", "male"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sex"
+        },
+        "age": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMaximum": 90.0,
+              "exclusiveMinimum": 10.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Age"
+        },
+        "height_cm": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMaximum": 220.0,
+              "exclusiveMinimum": 100.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Height Cm"
+        },
+        "weight_kg": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMaximum": 300.0,
+              "exclusiveMinimum": 30.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Weight Kg"
+        },
+        "activity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["sedentary", "light", "moderate", "active", "very_active"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activity",
+          "default": "moderate"
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["loss", "maintain", "gain"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Goal",
+          "default": "maintain"
+        },
+        "diet_flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Diet Flags"
+        },
+        "lang": {
+          "type": "string",
+          "enum": ["ru", "en", "es"],
+          "title": "Lang",
+          "default": "en"
+        }
+      },
+      "type": "object",
+      "title": "WeekPlanRequest"
+    },
+    "WeekPlanResponse": {
+      "properties": {
+        "daily_menus": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array",
+          "title": "Daily Menus"
+        },
+        "weekly_coverage": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Weekly Coverage"
+        },
+        "shopping_list": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Shopping List"
+        },
+        "total_cost": {
+          "type": "number",
+          "title": "Total Cost"
+        },
+        "adherence_score": {
+          "type": "number",
+          "title": "Adherence Score"
+        }
+      },
+      "type": "object",
+      "required": [
+        "daily_menus",
+        "weekly_coverage",
+        "shopping_list",
+        "total_cost",
+        "adherence_score"
+      ],
+      "title": "WeekPlanResponse"
+    },
+    "WeeklyMenuResponse": {
+      "properties": {
+        "week_summary": {
+          "type": "object",
+          "title": "Week Summary"
+        },
+        "daily_menus": {
+          "items": {
+            "$ref": "#/components/schemas/DayMenu"
+          },
+          "type": "array",
+          "title": "Daily Menus"
+        },
+        "weekly_coverage": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Weekly Coverage"
+        },
+        "shopping_list": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object",
+          "title": "Shopping List"
+        },
+        "total_cost": {
+          "type": "number",
+          "title": "Total Cost"
+        },
+        "adherence_score": {
+          "type": "number",
+          "title": "Adherence Score"
+        }
+      },
+      "type": "object",
+      "required": [
+        "week_summary",
+        "daily_menus",
+        "weekly_coverage",
+        "shopping_list",
+        "total_cost",
+        "adherence_score"
+      ],
+      "title": "WeeklyMenuResponse",
+      "description": "RU: Ответ с недельным меню.\nEN: Response with weekly menu."
+    },
+    "WeeklyPlanRequest": {
+      "properties": {
+        "sex": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["female", "male"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sex",
+          "description": "Gender (male/female)"
+        },
+        "age": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 120.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Age",
+          "description": "Age in years"
+        },
+        "height_cm": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 300.0,
+              "exclusiveMinimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Height Cm",
+          "description": "Height in centimeters"
+        },
+        "weight_kg": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 500.0,
+              "exclusiveMinimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Weight Kg",
+          "description": "Weight in kilograms"
+        },
+        "activity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["sedentary", "light", "moderate", "active", "very_active"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activity",
+          "description": "Activity level"
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["loss", "maintain", "gain"]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Goal",
+          "description": "Nutrition goal"
+        },
+        "calories": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 10000.0,
+              "minimum": 100.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Calories",
+          "description": "Daily calories target"
+        },
+        "protein": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 500.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Protein",
+          "description": "Daily protein target (g)"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Id",
+          "description": "User identifier"
+        },
+        "preferences": {
+          "type": "object",
+          "title": "Preferences",
+          "description": "User preferences"
+        },
+        "goals": {
+          "type": "object",
+          "title": "Goals",
+          "description": "Nutrition goals"
+        },
+        "constraints": {
+          "type": "object",
+          "title": "Constraints",
+          "description": "Dietary constraints"
+        }
+      },
+      "additionalProperties": true,
+      "type": "object",
+      "title": "WeeklyPlanRequest",
+      "description": "RU: Запрос на создание недельного плана питания.\nEN: Request for creating a weekly meal plan."
+    },
+    "WeeklyPlanResponse": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "title": "Status",
+          "description": "Response status"
+        },
+        "data": {
+          "type": "object",
+          "title": "Data",
+          "description": "Weekly plan data"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "Additional message",
+          "default": ""
+        }
+      },
+      "type": "object",
+      "required": ["status"],
+      "title": "WeeklyPlanResponse",
+      "description": "RU: Ответ с недельным планом питания.\nEN: Response with weekly meal plan."
+    }
+  },
+  "securitySchemes": {
+    "APIKeyHeader": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "X-API-Key"
     }
   }
 }

@@ -18,14 +18,11 @@ export function FormField({
   placeholder,
   error,
   required,
-  children
+  children,
 }: FormFieldProps) {
   return (
     <div className="space-y-2">
-      <label
-        htmlFor={name}
-        className="block text-sm font-medium text-gray-900 dark:text-white"
-      >
+      <label htmlFor={name} className="block text-sm font-medium text-gray-900 dark:text-white">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
@@ -79,9 +76,7 @@ export function FormError({ error }: { error?: string }) {
       aria-atomic="true"
       className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
     >
-      <p className="text-sm text-red-800 dark:text-red-200">
-        {error}
-      </p>
+      <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
     </div>
   );
 }

@@ -19,9 +19,7 @@ export function WhoTargetsErrorState({ error, onRetry, className }: ErrorStatePr
         <h3 className="error-state__title">
           {t('whoTargets.error.title', 'Unable to Calculate Targets')}
         </h3>
-        <p className="error-state__message">
-          {error}
-        </p>
+        <p className="error-state__message">{error}</p>
         <button
           type="button"
           className="btn btn--primary btn-touch"

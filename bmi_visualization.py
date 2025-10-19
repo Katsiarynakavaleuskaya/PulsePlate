@@ -6,9 +6,12 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING, cast
 
 from bmi_core import auto_group, bmi_category, group_display_name
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 try:
     import matplotlib
@@ -19,7 +22,7 @@ try:
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    plt = None
+    plt = cast(Any, None)
 
 
 class BMIVisualizer:
@@ -41,7 +44,7 @@ class BMIVisualizer:
         "athlete": [(0, 18.5), (18.5, 27), (27, 32), (32, 45)],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not MATPLOTLIB_AVAILABLE:
             raise ImportError("matplotlib not available for visualization")
 
@@ -84,10 +87,16 @@ class BMIVisualizer:
 
         return image_base64
 
-    def _create_bmi_gauge(self, ax, bmi: float, group: str, lang: str):
+    def _create_bmi_gauge(self, ax: "Axes", bmi: float, group: str, lang: str) -> None:
         """Create BMI gauge chart showing current BMI position."""
         ranges = self.BMI_RANGES.get(group, self.BMI_RANGES["general"])
         colors = ["#3498db", "#27ae60", "#f39c12", "#e74c3c"]
+        names_by_lang = {
+            "en": {0: "Under", 1: "Normal", 2: "Over", 3: "Obese"},
+            "ru": {0: "Недовес", 1: "Норма", 2: "Избыток", 3: "Ожирение"},
+            "es": {0: "Bajo", 1: "Normal", 2: "Sobre", 3: "Obesidad"},
+        }
+        category_names = names_by_lang.get(lang, names_by_lang["en"])
 
         # Create horizontal bar chart
         y_pos = 0
@@ -107,13 +116,6 @@ class BMIVisualizer:
             )
 
             # Add category labels
-            category_names = {
-                0: "Under" if lang == "en" else "Недовес",
-                1: "Normal" if lang == "en" else "Норма",
-                2: "Over" if lang == "en" else "Избыток",
-                3: "Obese" if lang == "en" else "Ожирение",
-            }
-
             mid_point = start + width / 2
             ax.text(
                 mid_point,
@@ -138,7 +140,7 @@ class BMIVisualizer:
         )
 
         # Customize axes
-        ax.set_xlim(15, 40)
+        ax.set_xlim(ranges[0][0], ranges[-1][1])
         ax.set_ylim(-1, 1)
         ax.set_xlabel("BMI Value", fontsize=12)
         ax.set_yticks([])
@@ -146,7 +148,9 @@ class BMIVisualizer:
         ax.legend(loc="upper right")
         ax.set_title(f"Current BMI: {bmi}", fontsize=14, fontweight="bold")
 
-    def _create_guidance_chart(self, ax, bmi: float, age: int, gender: str, group: str, lang: str):
+    def _create_guidance_chart(
+        self, ax: "Axes", bmi: float, age: int, _gender: str, group: str, lang: str
+    ) -> None:
         """Create guidance and recommendations chart."""
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)
@@ -163,7 +167,12 @@ class BMIVisualizer:
 
         # Create weight recommendation chart
         weights = [healthy_min, current_weight, healthy_max]
-        labels = ["Healthy Min", "Current", "Healthy Max"]
+        labels_by_lang = {
+            "en": ["Healthy Min", "Current", "Healthy Max"],
+            "ru": ["Мин. норма", "Текущий", "Макс. норма"],
+            "es": ["Mín. saludable", "Actual", "Máx. saludable"],
+        }
+        labels = labels_by_lang.get(lang, labels_by_lang["en"])
         colors = [
             "lightgreen",
             "blue" if healthy_min <= current_weight <= healthy_max else "orange",
@@ -191,19 +200,27 @@ class BMIVisualizer:
         # Add recommendation text
         if current_weight < healthy_min:
             recommendation = (
-                "Consider healthy weight gain"
-                if lang == "en"
-                else "Рекомендуется здоровый набор веса"
+                {
+                    "en": "Consider healthy weight gain",
+                    "ru": "Рекомендуется здоровый набор веса",
+                    "es": "Considere aumentar peso de forma saludable",
+                }.get(lang, "Consider healthy weight gain")
             )
         elif current_weight > healthy_max:
             recommendation = (
-                "Consider healthy weight loss"
-                if lang == "en"
-                else "Рекомендуется здоровое снижение веса"
+                {
+                    "en": "Consider healthy weight loss",
+                    "ru": "Рекомендуется здоровое снижение веса",
+                    "es": "Considere bajar de peso de forma saludable",
+                }.get(lang, "Consider healthy weight loss")
             )
         else:
             recommendation = (
-                "Maintain current weight" if lang == "en" else "Поддерживайте текущий вес"
+                {
+                    "en": "Maintain current weight",
+                    "ru": "Поддерживайте текущий вес",
+                    "es": "Mantenga su peso actual",
+                }.get(lang, "Maintain current weight")
             )
 
         ax.text(

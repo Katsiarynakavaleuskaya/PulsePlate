@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
-import "@testing-library/jest-dom/vitest";
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import React from "react";
-import { MemoryRouter, useLocation } from "react-router-dom";
-import NotFound from "../NotFound";
+import '@testing-library/jest-dom/vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import NotFound from '../NotFound';
 
-describe("NotFound", () => {
+describe('NotFound', () => {
   let originalHistory: typeof window.history;
   let originalLocation: typeof window.location;
 
@@ -29,22 +29,25 @@ describe("NotFound", () => {
       writable: true,
     });
   });
-  it("renders the 404 page with proper content", () => {
+  it('renders the 404 page with proper content', () => {
     render(
       <MemoryRouter>
         <NotFound />
       </MemoryRouter>
     );
 
-    expect(screen.getByText("Page Not Found")).toBeInTheDocument();
-    expect(screen.getByText(/Sorry, the page you're looking for doesn't exist/)).toBeInTheDocument();
-    expect(screen.getByText(/Let's get you back on track with your health journey/)).toBeInTheDocument();
+    expect(screen.getByText('Page Not Found')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sorry, the page you're looking for doesn't exist/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Let's get you back on track with your health journey/)
+    ).toBeInTheDocument();
   });
 
-
-  it("has working navigation buttons", () => {
+  it('has working navigation buttons', () => {
     // Spy on window.history.back and mock its implementation
-    const mockBack = vi.spyOn(window.history, "back").mockImplementation(() => {
+    const mockBack = vi.spyOn(window.history, 'back').mockImplementation(() => {
       /* noop */
     });
 
@@ -60,25 +63,25 @@ describe("NotFound", () => {
     };
 
     render(
-      <MemoryRouter initialEntries={["/some-page"]}>
+      <MemoryRouter initialEntries={['/some-page']}>
         <LocationWrapper>
           <NotFound />
         </LocationWrapper>
       </MemoryRouter>
     );
 
-    const goBackButton = screen.getByText("Go Back");
-    const goHomeButton = screen.getByText("Go Home");
-    const locationElement = screen.getByTestId("location-pathname");
+    const goBackButton = screen.getByText('Go Back');
+    const goHomeButton = screen.getByText('Go Home');
+    const locationElement = screen.getByTestId('location-pathname');
 
     // Test Go Back button
     fireEvent.click(goBackButton);
     expect(mockBack).toHaveBeenCalled();
 
     // Test Go Home button navigation
-    expect(locationElement).toHaveTextContent("/some-page");
+    expect(locationElement).toHaveTextContent('/some-page');
     fireEvent.click(goHomeButton);
-    expect(locationElement).toHaveTextContent("/");
+    expect(locationElement).toHaveTextContent('/');
 
     // Explicitly restore the spy for clarity and maintainability
     mockBack.mockRestore();

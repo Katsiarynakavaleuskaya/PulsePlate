@@ -1,10 +1,10 @@
-import { NavLink, useLocation, matchPath } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
-import { useTranslation } from "react-i18next";
-import { tabRoutes } from "../config/routes";
-import { useState, useEffect, useRef } from "react";
-import { useVipModule } from "../lib/useFeatureFlag";
-import { getGridColsClass } from "./TabBar.helpers";
+import { NavLink, useLocation, matchPath } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { tabRoutes } from '../config/routes';
+import { useState, useEffect, useRef } from 'react';
+import { useVipModule } from '../lib/useFeatureFlag';
+import { getGridColsClass } from './TabBar.helpers';
 
 export default function TabBar() {
   const { pathname } = useLocation();
@@ -37,9 +37,8 @@ export default function TabBar() {
   };
 
   // Calculate number of visible tabs for dynamic grid
-  const visibleTabs = tabRoutes.filter(route => !route.requiresVip || isVipEnabled);
+  const visibleTabs = tabRoutes.filter((route) => !route.requiresVip || isVipEnabled);
   const visibleTabsCount = Math.min(Math.max(visibleTabs.length, 1), 6); // Clamp to 1-6 range
-
 
   return (
     <nav
@@ -48,7 +47,7 @@ export default function TabBar() {
       className={`fixed bottom-0 inset-x-0 grid ${getGridColsClass(visibleTabsCount)} border-t border-muted/30 bg-navy`}
     >
       {visibleTabs.map(({ path: to, label, requiresAuth }) => {
-        const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
+        const isActive = Boolean(matchPath({ path: to, end: to === '/' }, pathname));
         const isDisabled = requiresAuth && !apiKey;
         const isClicked = clickedDisabled === to;
 
@@ -63,7 +62,7 @@ export default function TabBar() {
               role="tab"
               aria-disabled="true"
               tabIndex={-1}
-              title={t("auth.requiresApiKey")}
+              title={t('auth.requiresApiKey')}
             >
               {/* Lock overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-navy/80 rounded-lg backdrop-blur-sm">
@@ -83,9 +82,7 @@ export default function TabBar() {
               </div>
 
               {/* Label with reduced opacity */}
-              <span className="text-muted/30 font-medium relative z-10">
-                {label}
-              </span>
+              <span className="text-muted/30 font-medium relative z-10">{label}</span>
 
               {/* Pulse effect on click */}
               {isClicked && (
@@ -99,11 +96,11 @@ export default function TabBar() {
           <NavLink
             key={to}
             to={to}
-            end={to === "/"}
+            end={to === '/'}
             role="tab"
             aria-selected={isActive}
             className={`relative py-3 text-center transition-all duration-200 hover:scale-105 ${
-              isActive ? "text-primary font-medium" : "text-muted"
+              isActive ? 'text-primary font-medium' : 'text-muted'
             }`}
           >
             {label}

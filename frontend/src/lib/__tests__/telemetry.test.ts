@@ -153,18 +153,18 @@ describe('Telemetry', () => {
       it('should track VIP feature click', () => {
         vipTelemetry.featureClicked('advanced_analytics', 'dashboard', false);
 
-      expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
-        timestamp: expect.any(Number),
-        sessionId: 'test-session-123',
-        featureFlags: {
-          vipModule: true,
-          analytics: true,
-          devMode: false,
-        },
-        featureName: 'advanced_analytics',
-        source: 'dashboard',
-        isVip: false,
-      });
+        expect(mockLog).toHaveBeenCalledWith('vip_feature_clicked', {
+          timestamp: expect.any(Number),
+          sessionId: 'test-session-123',
+          featureFlags: {
+            vipModule: true,
+            analytics: true,
+            devMode: false,
+          },
+          featureName: 'advanced_analytics',
+          source: 'dashboard',
+          isVip: false,
+        });
       });
     });
 
@@ -317,7 +317,7 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       };
 
       expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, validPayload)).toBe(true);
@@ -329,7 +329,7 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any; // Cast to any to test runtime validation
 
       expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, invalidPayload)).toBe(false);
@@ -341,7 +341,7 @@ describe('Telemetry', () => {
         // Missing vipEnabled
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any; // Cast to any to test runtime validation
 
       expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, incompletePayload)).toBe(false);
@@ -354,10 +354,12 @@ describe('Telemetry', () => {
         // isRetry is optional and undefined
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       };
 
-      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithOptionalUndefined)).toBe(true);
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithOptionalUndefined)).toBe(
+        true
+      );
     });
 
     it('should reject payload with wrong optional field types', () => {
@@ -367,10 +369,12 @@ describe('Telemetry', () => {
         isRetry: 'yes', // Should be boolean
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any; // Cast to any to test runtime validation
 
-      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithWrongOptionalType)).toBe(
+        false
+      );
     });
 
     it('should reject payload with wrong BaseEventPayload field types', () => {
@@ -379,30 +383,36 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: 'invalid', // Should be number
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongTimestamp)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongTimestamp)).toBe(
+        false
+      );
 
       const payloadWithWrongSessionId = {
         source: 'dashboard',
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 123, // Should be string
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongSessionId)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongSessionId)).toBe(
+        false
+      );
 
       const payloadWithWrongFeatureFlags = {
         source: 'dashboard',
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: 'invalid' // Should be object
+        featureFlags: 'invalid', // Should be object
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongFeatureFlags)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithWrongFeatureFlags)).toBe(
+        false
+      );
     });
 
     it('should reject null values for BaseEventPayload fields', () => {
@@ -411,10 +421,12 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: null // Should not be null
+        featureFlags: null, // Should not be null
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithNullFeatureFlags)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithNullFeatureFlags)).toBe(
+        false
+      );
     });
 
     it('should reject null values for optional fields', () => {
@@ -424,10 +436,12 @@ describe('Telemetry', () => {
         isRetry: null, // Should not be null for optional field
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: true }
+        featureFlags: { vip: true },
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithNullOptionalField)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_PAYWALL_VIEWED, payloadWithNullOptionalField)).toBe(
+        false
+      );
     });
 
     it('should reject featureFlags with non-boolean values', () => {
@@ -436,10 +450,12 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: { vip: 'true' } // Should be boolean, not string
+        featureFlags: { vip: 'true' }, // Should be boolean, not string
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithInvalidFeatureFlags)).toBe(false);
+      expect(
+        validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithInvalidFeatureFlags)
+      ).toBe(false);
     });
 
     it('should reject featureFlags when it is an array', () => {
@@ -448,10 +464,12 @@ describe('Telemetry', () => {
         vipEnabled: true,
         timestamp: Date.now(),
         sessionId: 'test-session',
-        featureFlags: ['vip', 'analytics'] // Should be object, not array
+        featureFlags: ['vip', 'analytics'], // Should be object, not array
       } as any;
 
-      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithArrayFeatureFlags)).toBe(false);
+      expect(validateEventPayload(EventType.VIP_MODULE_VIEWED, payloadWithArrayFeatureFlags)).toBe(
+        false
+      );
     });
   });
 });

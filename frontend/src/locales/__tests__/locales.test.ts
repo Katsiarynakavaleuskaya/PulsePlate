@@ -8,7 +8,7 @@ import {
   checkLengths,
   MAX_ALLOWED_DUPLICATES,
   STRING_LENGTH_LIMITS,
-  TestLogger
+  TestLogger,
 } from '../../test-utils/locales';
 
 // Test constants imported from test-utils
@@ -24,7 +24,7 @@ const VIP_TERMINOLOGY = {
     cta: 'Upgrade to VIP',
     badge: 'VIP',
     badgeAria: 'VIP status',
-    gatedAria: 'VIP gated content'
+    gatedAria: 'VIP gated content',
   },
   ru: {
     title: 'Откройте VIP',
@@ -32,7 +32,7 @@ const VIP_TERMINOLOGY = {
     cta: 'Перейти на VIP',
     badge: 'VIP',
     badgeAria: 'Статус VIP',
-    gatedAria: 'Контент с VIP-ограничением'
+    gatedAria: 'Контент с VIP-ограничением',
   },
   es: {
     title: 'Desbloquear VIP',
@@ -40,8 +40,8 @@ const VIP_TERMINOLOGY = {
     cta: 'Actualizar a VIP',
     badge: 'VIP',
     badgeAria: 'Estado VIP',
-    gatedAria: 'Contenido con acceso VIP'
-  }
+    gatedAria: 'Contenido con acceso VIP',
+  },
 } as const;
 
 describe('Locale JSON Structure and Content', () => {
@@ -136,7 +136,9 @@ describe('Locale JSON Structure and Content', () => {
           for (let i = 0; i < obj.length; i++) {
             const code = obj.charCodeAt(i);
             if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
-              issues.push(`${path}: Invalid control character at position ${i} (U+${code.toString(16).toUpperCase()})`);
+              issues.push(
+                `${path}: Invalid control character at position ${i} (U+${code.toString(16).toUpperCase()})`
+              );
             }
           }
         } else if (typeof obj === 'object' && obj !== null) {
@@ -163,11 +165,11 @@ describe('Locale JSON Structure and Content', () => {
         /\btodo\b/i,
         /\bfixme\b/i,
         /\bxxx\b/i,
-        /\btbd\b/i
+        /\btbd\b/i,
       ];
 
       for (const lang of languages) {
-        const issues: Array<{key: string, value: string, pattern: string}> = [];
+        const issues: Array<{ key: string; value: string; pattern: string }> = [];
 
         const checkValue = (value: any, currentPath: string) => {
           if (typeof value === 'string') {
@@ -181,7 +183,7 @@ describe('Locale JSON Structure and Content', () => {
                 issues.push({
                   key: currentPath,
                   value,
-                  pattern: pattern.source
+                  pattern: pattern.source,
                 });
               }
             }
@@ -249,7 +251,7 @@ describe('Locale JSON Structure and Content', () => {
 
         // Find duplicates
         const valueCount: Record<string, number> = {};
-        allValues.forEach(value => {
+        allValues.forEach((value) => {
           valueCount[value] = (valueCount[value] || 0) + 1;
         });
 
@@ -260,13 +262,18 @@ describe('Locale JSON Structure and Content', () => {
         // Allow some common words that are legitimately duplicated
         const allowedDuplicates = ['OK', 'Error', '≈', 'kcal'];
 
-        const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
+        const problematicDuplicates = duplicates.filter((dup) => !allowedDuplicates.includes(dup));
 
         // Log duplicates for visibility even if test passes
         const logger = new TestLogger();
         if (problematicDuplicates.length > 0) {
-          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
-            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+          logger.warn(
+            `[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates
+              .slice(0, 5)
+              .map((d) => `"${d.substring(0, 50)}..."`)
+              .join(', ')
+          );
         }
 
         // Note: We expect some duplicates in locale files (like common UI elements)
@@ -276,7 +283,9 @@ describe('Locale JSON Structure and Content', () => {
         // Verify logging behavior
         if (problematicDuplicates.length > 0) {
           expect(logger.getLogs()).toHaveLength(1);
-          expect(logger.getLogs()[0]).toContain(`[${lang}] Found ${problematicDuplicates.length} duplicate values`);
+          expect(logger.getLogs()[0]).toContain(
+            `[${lang}] Found ${problematicDuplicates.length} duplicate values`
+          );
         } else {
           expect(logger.getLogs()).toHaveLength(0);
         }
@@ -299,11 +308,16 @@ describe('Locale JSON Structure and Content', () => {
         const lang = 'fr';
         const duplicates = ['dup1', 'dup2', 'dup3'];
         const allowedDuplicates: string[] = ['dup1'];
-        const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
+        const problematicDuplicates = duplicates.filter((dup) => !allowedDuplicates.includes(dup));
 
         if (problematicDuplicates.length > 0) {
-          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
-            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+          logger.warn(
+            `[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates
+              .slice(0, 5)
+              .map((d) => `"${d.substring(0, 50)}..."`)
+              .join(', ')
+          );
         }
 
         expect(logger.getLogs()).toHaveLength(1);
@@ -314,11 +328,16 @@ describe('Locale JSON Structure and Content', () => {
         const lang = 'fr';
         const duplicates = ['dup1', 'dup2'];
         const allowedDuplicates: string[] = ['dup1', 'dup2'];
-        const problematicDuplicates = duplicates.filter(dup => !allowedDuplicates.includes(dup));
+        const problematicDuplicates = duplicates.filter((dup) => !allowedDuplicates.includes(dup));
 
         if (problematicDuplicates.length > 0) {
-          logger.warn(`[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
-            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+          logger.warn(
+            `[${lang}] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates
+              .slice(0, 5)
+              .map((d) => `"${d.substring(0, 50)}..."`)
+              .join(', ')
+          );
         }
 
         expect(logger.getLogs()).toHaveLength(0);
@@ -331,8 +350,13 @@ describe('Locale JSON Structure and Content', () => {
 
         // Act: simulate duplicate detection logic
         if (problematicDuplicates.length > MAX_ALLOWED_DUPLICATES) {
-          logger.warn(`[testLang] Found ${problematicDuplicates.length} duplicate values:`,
-            problematicDuplicates.slice(0, 5).map(d => `"${d.substring(0, 50)}..."`).join(', '));
+          logger.warn(
+            `[testLang] Found ${problematicDuplicates.length} duplicate values:`,
+            problematicDuplicates
+              .slice(0, 5)
+              .map((d) => `"${d.substring(0, 50)}..."`)
+              .join(', ')
+          );
         }
 
         // Assert: logger should have recorded a warning
@@ -387,11 +411,15 @@ describe('Locale JSON Structure and Content', () => {
       });
 
       it('should have proper subtitle', () => {
-        expect(es.paywall.subtitle).toBe('Plan nutricional personal, equilibrio preciso, planificación semanal.');
+        expect(es.paywall.subtitle).toBe(
+          'Plan nutricional personal, equilibrio preciso, planificación semanal.'
+        );
       });
 
       it('should use correct legal text', () => {
-        expect(es.paywall.legal).toBe('Suscripción con renovación automática. Cancela en Configuración.');
+        expect(es.paywall.legal).toBe(
+          'Suscripción con renovación automática. Cancela en Configuración.'
+        );
       });
 
       it('should have proper empty state', () => {
@@ -408,7 +436,9 @@ describe('Locale JSON Structure and Content', () => {
       });
 
       it('should have proper subtitle', () => {
-        expect(ru.paywall.subtitle).toBe('Персональный рацион, точный баланс, недельная программа.');
+        expect(ru.paywall.subtitle).toBe(
+          'Персональный рацион, точный баланс, недельная программа.'
+        );
       });
     });
 
@@ -458,10 +488,13 @@ describe('Locale JSON Structure and Content', () => {
             const paywallUsesPremium = paywallTitle.includes('premium');
 
             // Both sections should use the same term (either both VIP or both Premium)
-            const bothUseVip = vipUsesVip && paywallUsesVip && !vipUsesPremium && !paywallUsesPremium;
-            const bothUsePremium = vipUsesPremium && paywallUsesPremium && !vipUsesVip && !paywallUsesVip;
+            const bothUseVip =
+              vipUsesVip && paywallUsesVip && !vipUsesPremium && !paywallUsesPremium;
+            const bothUsePremium =
+              vipUsesPremium && paywallUsesPremium && !vipUsesVip && !paywallUsesVip;
 
-            expect(bothUseVip || bothUsePremium,
+            expect(
+              bothUseVip || bothUsePremium,
               `Inconsistent terminology in ${lang}: VIP section uses ${vipUsesVip ? 'VIP' : 'Premium'}, paywall uses ${paywallUsesVip ? 'VIP' : 'Premium'}`
             ).toBe(true);
           }
@@ -485,7 +518,7 @@ describe('Locale JSON Structure and Content', () => {
           es: [
             /\b(?:y|o)\s+(?:y|o)\b/i, // Double conjunctions
             /\b(?:el|la|los|las)\s+(?:el|la|los|las)\b/i, // Double articles
-          ]
+          ],
         };
 
         // Common patterns for all languages
@@ -514,7 +547,10 @@ describe('Locale JSON Structure and Content', () => {
           };
 
           checkForMistakes(locales[lang]);
-          expect(issues, `Translation mistakes found in ${lang}: ${issues.join(', ')}`).toHaveLength(0);
+          expect(
+            issues,
+            `Translation mistakes found in ${lang}: ${issues.join(', ')}`
+          ).toHaveLength(0);
         }
       });
 
@@ -524,7 +560,7 @@ describe('Locale JSON Structure and Content', () => {
         const maxLengthRatios = {
           ru: 4.0, // Russian can be significantly longer due to grammar
           es: 2.7, // Spanish can be longer due to grammar
-          en: 1.0  // English is baseline
+          en: 1.0, // English is baseline
         };
 
         for (const lang of languages) {
@@ -543,9 +579,16 @@ describe('Locale JSON Structure and Content', () => {
 
               const ratio = otherObj.length / enObj.length;
               if (ratio > maxRatio) {
-                issues.push(`${path}: ${lang} translation is ${ratio.toFixed(1)}x longer than English (max: ${maxRatio})`);
+                issues.push(
+                  `${path}: ${lang} translation is ${ratio.toFixed(1)}x longer than English (max: ${maxRatio})`
+                );
               }
-            } else if (typeof enObj === 'object' && typeof otherObj === 'object' && enObj !== null && otherObj !== null) {
+            } else if (
+              typeof enObj === 'object' &&
+              typeof otherObj === 'object' &&
+              enObj !== null &&
+              otherObj !== null
+            ) {
               for (const key of Object.keys(enObj)) {
                 if (key in otherObj) {
                   compareLengths(enObj[key], otherObj[key], path ? `${path}.${key}` : key);

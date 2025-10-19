@@ -14,13 +14,13 @@ export async function requestSignedLink(
   options: SignedLinkOptions = {}
 ): Promise<SignedLink> {
   const body: Record<string, unknown> = { path };
-  if (typeof options.ttlSeconds === "number") {
+  if (typeof options.ttlSeconds === 'number') {
     body.ttl_seconds = options.ttlSeconds;
   }
 
-  const response = await fetch("/api/v1/export/sign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const response = await fetch('/api/v1/export/sign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
@@ -34,7 +34,10 @@ export async function requestSignedLink(
 
   if (relative) {
     try {
-      absolute = new URL(relative, response?.url ?? window?.location?.origin ?? undefined).toString();
+      absolute = new URL(
+        relative,
+        response?.url ?? window?.location?.origin ?? undefined
+      ).toString();
     } catch {
       absolute = undefined;
     }

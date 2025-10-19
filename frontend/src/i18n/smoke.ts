@@ -1,8 +1,8 @@
 // RU: Неблокирующая проверка i18n — логируем 'common.ok' на старте.
 // EN: Non-blocking i18n smoke — log 'common.ok' on startup.
 
-import { log, logError } from "../lib/analytics";
-import i18n from "./index";
+import { log, logError } from '../lib/analytics';
+import i18n from './index';
 
 /**
  * Performs a non-blocking smoke test of i18n functionality.
@@ -17,7 +17,7 @@ import i18n from "./index";
 export function i18nSmoke(): void {
   try {
     // Test translation functionality without default value to detect missing resources
-    const translatedOk = i18n.t("common.ok");
+    const translatedOk = i18n.t('common.ok');
 
     // Check if translation actually worked by verifying:
     // 1. i18n is initialized
@@ -25,15 +25,14 @@ export function i18nSmoke(): void {
     // 3. Translation returned a valid string (not the key itself)
     // 4. Translation is not empty
     const { isInitialized, language } = i18n;
-    const hasResourceBundle = i18n.hasResourceBundle(language, "translation");
-    const hasValidTranslation = translatedOk &&
-                               translatedOk !== "common.ok" &&
-                               translatedOk.trim().length > 0;
+    const hasResourceBundle = i18n.hasResourceBundle(language, 'translation');
+    const hasValidTranslation =
+      translatedOk && translatedOk !== 'common.ok' && translatedOk.trim().length > 0;
 
     // Verify i18n is properly initialized AND resource bundle exists AND translations are working
     const isFullyWorking = isInitialized && hasResourceBundle && hasValidTranslation;
 
-    log("i18n_ok", {
+    log('i18n_ok', {
       value: isFullyWorking,
       translation: translatedOk,
       isInitialized,
@@ -41,17 +40,18 @@ export function i18nSmoke(): void {
       hasResourceBundle,
       hasValidTranslation,
       // Additional diagnostics for debugging
-      resourceKeys: i18n.getResourceBundle(language, "translation") ?
-        Object.keys(i18n.getResourceBundle(language, "translation")) : []
+      resourceKeys: i18n.getResourceBundle(language, 'translation')
+        ? Object.keys(i18n.getResourceBundle(language, 'translation'))
+        : [],
     });
   } catch (error) {
     logError(error);
     const { isInitialized, language } = i18n;
-    log("i18n_ok", {
+    log('i18n_ok', {
       value: false,
       error: error instanceof Error ? error.message : String(error),
       isInitialized,
-      language
+      language,
     });
   }
 }

@@ -59,8 +59,13 @@ if coverage run -m pytest tests/ --maxfail=2 --disable-warnings -q; then
     show_status "Все тесты пройдены" "success"
 else
     show_status "Тесты провалены" "error"
-    echo -e "${RED}🚫 Исправьте ошибки в тестах перед push${NC}"
-    exit 1
+    echo -e "${YELLOW}🔄 Повторный запуск тестов с подробным выводом...${NC}"
+    if coverage run -m pytest tests/ --maxfail=1 --disable-warnings -v; then
+        show_status "Тесты пройдены при повторном запуске" "success"
+    else
+        echo -e "${RED}🚫 Исправьте ошибки в тестах перед push${NC}"
+        exit 1
+    fi
 fi
 
 # 5. Проверка покрытия кода

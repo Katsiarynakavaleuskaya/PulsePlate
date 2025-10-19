@@ -40,17 +40,17 @@ const ACTIVITY_FIELDS = [
   {
     key: 'moderateAerobic',
     fieldPath: 'moderate_aerobic_min',
-    unitKey: 'minutes'
+    unitKey: 'minutes',
   },
   {
     key: 'strength',
     fieldPath: 'strength_sessions',
-    unitKey: 'sessions'
+    unitKey: 'sessions',
   },
   {
     key: 'steps',
     fieldPath: 'steps_daily',
-    unitKey: 'stepsUnit'
+    unitKey: 'stepsUnit',
   },
 ] as const;
 
@@ -67,14 +67,10 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
       {/* Daily Calories */}
       <div className="target-card target-card--primary">
         <div className="target-card__header">
-          <h3 className="target-card__title">
-            {t('whoTargets.calories.title', 'Daily Calories')}
-          </h3>
+          <h3 className="target-card__title">{t('whoTargets.calories.title', 'Daily Calories')}</h3>
           <div className="target-card__value">
             {formatNumericValue(data.kcal_daily)}
-            <span className="target-card__unit">
-              {t('whoTargets.calories.unit', 'kcal')}
-            </span>
+            <span className="target-card__unit">{t('whoTargets.calories.unit', 'kcal')}</span>
           </div>
         </div>
         <p className="target-card__description">
@@ -85,33 +81,31 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
       {/* Macronutrients */}
       <div className="target-card">
         <div className="target-card__header">
-          <h3 className="target-card__title">
-            {t('whoTargets.macros.title', 'Macronutrients')}
-          </h3>
+          <h3 className="target-card__title">{t('whoTargets.macros.title', 'Macronutrients')}</h3>
         </div>
         <div className="target-card__content">
           <div className="macro-grid">
             {MACRO_FIELDS.map(({ key, fieldPath }) => {
               const field = data.macros[fieldPath];
               return (
-              <div key={key} className="macro-item">
-                <span className="macro-item__label">
-                  {t(`whoTargets.macros.${key}`, key)}
-                </span>
-                <span className="macro-item__value">
-                  {(() => {
-                    const formatted = formatNumericValue(field);
-                    return formatted === '—' ? '—' : (
-                      <>
-                        {formatted}
-                        <span className="macro-item__unit">
-                          {t('whoTargets.macros.unit', 'g')}
-                        </span>
-                      </>
-                    );
-                  })()}
-                </span>
-              </div>
+                <div key={key} className="macro-item">
+                  <span className="macro-item__label">{t(`whoTargets.macros.${key}`, key)}</span>
+                  <span className="macro-item__value">
+                    {(() => {
+                      const formatted = formatNumericValue(field);
+                      return formatted === '—' ? (
+                        '—'
+                      ) : (
+                        <>
+                          {formatted}
+                          <span className="macro-item__unit">
+                            {t('whoTargets.macros.unit', 'g')}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </span>
+                </div>
               );
             })}
           </div>
@@ -121,14 +115,10 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
       {/* Hydration */}
       <div className="target-card">
         <div className="target-card__header">
-          <h3 className="target-card__title">
-            {t('whoTargets.hydration.title', 'Hydration')}
-          </h3>
+          <h3 className="target-card__title">{t('whoTargets.hydration.title', 'Hydration')}</h3>
           <div className="target-card__value">
             {formatNumericValue(data.water_ml)}
-            <span className="target-card__unit">
-              {t('whoTargets.hydration.unit', 'ml')}
-            </span>
+            <span className="target-card__unit">{t('whoTargets.hydration.unit', 'ml')}</span>
           </div>
         </div>
         <p className="target-card__description">
@@ -159,7 +149,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
                     <span className="micros-item__value">
                       {(() => {
                         const formatted = formatNumericValue(value);
-                        return formatted === '—' ? '—' : (
+                        return formatted === '—' ? (
+                          '—'
+                        ) : (
                           <>
                             {formatted}
                             {unit && <span className="micros-item__unit">{unit}</span>}
@@ -178,33 +170,33 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
       {/* Activity Goals */}
       <div className="target-card">
         <div className="target-card__header">
-          <h3 className="target-card__title">
-            {t('whoTargets.activity.title', 'Activity Goals')}
-          </h3>
+          <h3 className="target-card__title">{t('whoTargets.activity.title', 'Activity Goals')}</h3>
         </div>
         <div className="target-card__content">
           <div className="activity-grid">
             {ACTIVITY_FIELDS.map(({ key, fieldPath, unitKey }) => {
               const field = data.activity_weekly[fieldPath];
               return (
-              <div key={key} className="activity-item">
-                <span className="activity-item__label">
-                  {t(`whoTargets.activity.${key}`, key)}
-                </span>
-                <span className="activity-item__value">
-                  {(() => {
-                    const formatted = formatNumericValue(field);
-                    return formatted === '—' ? '—' : (
-                      <>
-                        {formatted}
-                        <span className="activity-item__unit">
-                          {t(`whoTargets.activity.${unitKey}`, unitKey)}
-                        </span>
-                      </>
-                    );
-                  })()}
-                </span>
-              </div>
+                <div key={key} className="activity-item">
+                  <span className="activity-item__label">
+                    {t(`whoTargets.activity.${key}`, key)}
+                  </span>
+                  <span className="activity-item__value">
+                    {(() => {
+                      const formatted = formatNumericValue(field);
+                      return formatted === '—' ? (
+                        '—'
+                      ) : (
+                        <>
+                          {formatted}
+                          <span className="activity-item__unit">
+                            {t(`whoTargets.activity.${unitKey}`, unitKey)}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </span>
+                </div>
               );
             })}
           </div>
@@ -223,7 +215,9 @@ export function WhoTargetsCards({ data, className }: TargetCardProps) {
             <ul className="warning-list">
               {data.warnings.map((warning, index) => (
                 <li key={index} className="warning-item">
-                  <span className="warning-item__icon" aria-hidden="true">⚠️</span>
+                  <span className="warning-item__icon" aria-hidden="true">
+                    ⚠️
+                  </span>
                   <span className="warning-item__text">
                     {/* Note: warning.message is pre-localized from API */}
                     {warning.message}

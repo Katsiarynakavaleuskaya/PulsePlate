@@ -33,12 +33,12 @@ npm test -- src/locales/__tests__/locales.test.ts
 
 ## Test Categories
 
-| Category | Tests | Purpose |
-|----------|-------|---------|
-| Structure | 5 | Validate JSON structure and consistency |
-| Content | 3 | Validate translation content quality |
-| Domain-Specific | 9 | Validate app-specific translation requirements |
-| **Total** | **17** | **Complete validation coverage** |
+| Category        | Tests  | Purpose                                        |
+| --------------- | ------ | ---------------------------------------------- |
+| Structure       | 5      | Validate JSON structure and consistency        |
+| Content         | 3      | Validate translation content quality           |
+| Domain-Specific | 9      | Validate app-specific translation requirements |
+| **Total**       | **17** | **Complete validation coverage**               |
 
 ## Maintenance Notes
 

@@ -108,7 +108,9 @@ describe('WhoTargetsPanel', () => {
 
       expect(screen.getByText('WHO Nutrition Targets')).toBeInTheDocument();
       expect(screen.getByText('No Targets Available')).toBeInTheDocument();
-      expect(screen.getByText('Please complete your profile to see personalized nutrition targets.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Please complete your profile to see personalized nutrition targets.')
+      ).toBeInTheDocument();
     });
   });
 
@@ -118,7 +120,9 @@ describe('WhoTargetsPanel', () => {
 
       // Header
       expect(screen.getByText('WHO Nutrition Targets')).toBeInTheDocument();
-      expect(screen.getByText('Personalized nutrition goals based on WHO guidelines')).toBeInTheDocument();
+      expect(
+        screen.getByText('Personalized nutrition goals based on WHO guidelines')
+      ).toBeInTheDocument();
 
       // Daily Calories
       expect(screen.getByText('Daily Calories')).toBeInTheDocument();
@@ -177,7 +181,9 @@ describe('WhoTargetsPanel', () => {
 
     it('should call onSaveAndContinue when CTA button is clicked', () => {
       const onSaveAndContinue = vi.fn();
-      render(<WhoTargetsPanel {...defaultProps} data={mockData} onSaveAndContinue={onSaveAndContinue} />);
+      render(
+        <WhoTargetsPanel {...defaultProps} data={mockData} onSaveAndContinue={onSaveAndContinue} />
+      );
 
       const ctaButton = screen.getByText('Save & Get Weekly Plan');
       fireEvent.click(ctaButton);
@@ -202,7 +208,7 @@ describe('WhoTargetsPanel', () => {
     it('should format numbers with proper localization', () => {
       // Mock toLocaleString to return stable, predictable formatting
       const originalToLocaleString = Number.prototype.toLocaleString;
-      Number.prototype.toLocaleString = vi.fn(function(this: number) {
+      Number.prototype.toLocaleString = vi.fn(function (this: number) {
         // Simple comma-separated formatting for testing
         return this.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
       });
@@ -250,7 +256,7 @@ describe('WhoTargetsPanel', () => {
       expect(warnings).toHaveLength(2);
 
       // Verify each warning has an icon with aria-hidden
-      warnings.forEach(warning => {
+      warnings.forEach((warning) => {
         const icon = warning.parentElement?.querySelector('.warning-item__icon');
         expect(icon).toHaveAttribute('aria-hidden', 'true');
       });

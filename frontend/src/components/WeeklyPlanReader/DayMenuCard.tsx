@@ -120,7 +120,7 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
           // Log warning for meals without explicit meal_type
           console.warn(
             `Meal "${meal.title || meal.name || 'Unknown'}" at index ${index} assigned to "${mealType}" due to missing meal_type. ` +
-            `Consider adding explicit meal_type field to improve categorization.`
+              `Consider adding explicit meal_type field to improve categorization.`
           );
         } else {
           // For meals beyond the initial sequence, put in misc bucket
@@ -129,7 +129,7 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
           // Log warning for meals beyond initial sequence
           console.warn(
             `Meal "${meal.title || meal.name || 'Unknown'}" at index ${index} assigned to "misc" due to missing meal_type and being beyond initial sequence. ` +
-            `Consider adding explicit meal_type field to improve categorization.`
+              `Consider adding explicit meal_type field to improve categorization.`
           );
         }
       }
@@ -143,11 +143,15 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
     return {
       ...dayData,
       meals: adaptedMeals,
-      total_calories: dayData.kcal ?? dayData.total_nutrients?.calories ?? dayData.total_calories ?? 0,
-      total_protein: dayData.macros?.protein_g ?? dayData.total_nutrients?.protein ?? dayData.total_protein ?? 0,
-      total_carbs: dayData.macros?.carbs_g ?? dayData.total_nutrients?.carbs ?? dayData.total_carbs ?? 0,
+      total_calories:
+        dayData.kcal ?? dayData.total_nutrients?.calories ?? dayData.total_calories ?? 0,
+      total_protein:
+        dayData.macros?.protein_g ?? dayData.total_nutrients?.protein ?? dayData.total_protein ?? 0,
+      total_carbs:
+        dayData.macros?.carbs_g ?? dayData.total_nutrients?.carbs ?? dayData.total_carbs ?? 0,
       total_fat: dayData.macros?.fat_g ?? dayData.total_nutrients?.fat ?? dayData.total_fat ?? 0,
-      total_fiber: dayData.macros?.fiber_g ?? dayData.total_nutrients?.fiber ?? dayData.total_fiber ?? 0,
+      total_fiber:
+        dayData.macros?.fiber_g ?? dayData.total_nutrients?.fiber ?? dayData.total_fiber ?? 0,
     };
   }
 
@@ -243,7 +247,9 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
           <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
             {adaptedData.total_protein && (
               <div className="text-center">
-                <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.protein', 'Protein')}</div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  {t('weeklyPlan.protein', 'Protein')}
+                </div>
                 <div className="font-semibold text-gray-900 dark:text-white">
                   {adaptedData.total_protein.toLocaleString()} {unitGram} {abbrProtein}
                 </div>
@@ -251,7 +257,9 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
             )}
             {adaptedData.total_carbs && (
               <div className="text-center">
-                <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.carbs', 'Carbs')}</div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  {t('weeklyPlan.carbs', 'Carbs')}
+                </div>
                 <div className="font-semibold text-gray-900 dark:text-white">
                   {adaptedData.total_carbs.toLocaleString()} {unitGram} {abbrCarbs}
                 </div>
@@ -275,7 +283,10 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
           const mealItems = meals[mealType];
           if (!mealItems || mealItems.length === 0) return null;
 
-          const mealCalories = mealItems.reduce((sum: number, item: MealItem) => sum + (item.calories || 0), 0);
+          const mealCalories = mealItems.reduce(
+            (sum: number, item: MealItem) => sum + (item.calories || 0),
+            0
+          );
 
           return (
             <div
@@ -287,12 +298,13 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
                   {mealType === 'misc'
                     ? t('weeklyPlan.meals.misc', 'Other Meals')
-                    : t(`weeklyPlan.meals.${mealType}`, mealType)
-                  }
+                    : t(`weeklyPlan.meals.${mealType}`, mealType)}
                 </h3>
                 <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
-                  <span>{mealCalories.toLocaleString()} {unitKcal}</span>
+                  <span>
+                    {mealCalories.toLocaleString()} {unitKcal}
+                  </span>
                 </div>
               </div>
 
@@ -300,9 +312,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
                 {mealItems.map((item: MealItem, index: number) => (
                   <div key={index} className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        {item.name}
-                      </h4>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{item.name}</h4>
                       {item.serving_size && (
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                           {item.serving_size}
@@ -339,7 +349,6 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
           );
         })}
       </div>
-
     </div>
   );
 }

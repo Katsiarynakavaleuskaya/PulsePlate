@@ -1,10 +1,11 @@
-import { Capacitor } from "@capacitor/core";
-import { Share } from "@capacitor/share";
-import { Filesystem, Directory } from "@capacitor/filesystem";
-import type { SignedLink, SignedLinkOptions } from "./sharedLinks";
-import { requestSignedLink } from "./sharedLinks";
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import type { SignedLink, SignedLinkOptions } from './sharedLinks';
+import { requestSignedLink } from './sharedLinks';
 
-const TECH_ERROR_PATTERN = /network|failed|exception|stack|error|undefined|not found|timeout|internal/i;
+const TECH_ERROR_PATTERN =
+  /network|failed|exception|stack|error|undefined|not found|timeout|internal/i;
 
 /**
  * Downloads a file in the browser by creating a temporary anchor element.
@@ -13,25 +14,25 @@ const TECH_ERROR_PATTERN = /network|failed|exception|stack|error|undefined|not f
  * @param filename - The filename for the download
  */
 function downloadInBrowser(url: string, filename: string) {
-  if (typeof document === "undefined") {
+  if (typeof document === 'undefined') {
     return;
   }
 
-  const anchor = document.createElement("a");
+  const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
-  anchor.rel = "noopener";
+  anchor.rel = 'noopener';
 
   const container = document.body ?? document.documentElement ?? null;
-  if (container && typeof container.appendChild === "function") {
+  if (container && typeof container.appendChild === 'function') {
     container.appendChild(anchor);
   }
 
   anchor.click();
 
-  if (typeof anchor.remove === "function") {
+  if (typeof anchor.remove === 'function') {
     anchor.remove();
-  } else if (container && typeof container.removeChild === "function") {
+  } else if (container && typeof container.removeChild === 'function') {
     try {
       container.removeChild(anchor);
     } catch {
@@ -41,13 +42,13 @@ function downloadInBrowser(url: string, filename: string) {
 }
 
 async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
-  if (typeof Blob !== "undefined" && typeof FileReader !== "undefined") {
+  if (typeof Blob !== 'undefined' && typeof FileReader !== 'undefined') {
     const blob = new Blob([buffer]);
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const result = typeof reader.result === "string" ? reader.result : "";
-        const base64 = result.startsWith("data:") ? result.split(",", 2)[1] ?? "" : result;
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const base64 = result.startsWith('data:') ? (result.split(',', 2)[1] ?? '') : result;
         resolve(base64);
       };
       reader.onerror = () => reject(reader.error);
@@ -56,9 +57,9 @@ async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
   }
 
   // Fallback chunked encoding when FileReader isn't available
-  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const bytes = new Uint8Array(buffer);
-  let result = "";
+  let result = '';
 
   for (let i = 0; i < bytes.length; i += 3) {
     const a = bytes[i];
@@ -67,15 +68,19 @@ async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
 
     result += base64Chars[a >> 2];
     result += base64Chars[((a & 3) << 4) | (b >> 4)];
-    result += i + 1 < bytes.length ? base64Chars[((b & 15) << 2) | (c >> 6)] : "=";
-    result += i + 2 < bytes.length ? base64Chars[c & 63] : "=";
+    result += i + 1 < bytes.length ? base64Chars[((b & 15) << 2) | (c >> 6)] : '=';
+    result += i + 2 < bytes.length ? base64Chars[c & 63] : '=';
   }
 
   return result;
 }
 
 function isAbortError(error: unknown): boolean {
-  return typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError";
+  return (
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    error.name === 'AbortError'
+  );
 }
 
 /**
@@ -88,9 +93,9 @@ function isAbortError(error: unknown): boolean {
  * @param filename - The filename for the shared file
  * @param title - The title for the share dialog (default: "PulsePlate export")
  */
-export async function shareFile(url: string, filename: string, title = "PulsePlate export") {
+export async function shareFile(url: string, filename: string, title = 'PulsePlate export') {
   if (!Capacitor.isNativePlatform()) {
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, url });
         return;
@@ -118,8 +123,8 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
       .split(/[\\/]/)
       .filter(Boolean)
       .pop()
-      ?.replace(/\.+/g, ".")
-      .replace(/[<>:"|?*]/g, "_") || "export.dat";
+      ?.replace(/\.+/g, '.')
+      .replace(/[<>:"|?*]/g, '_') || 'export.dat';
   const cachePath = `pulseplate/${Date.now()}-${safeFilename}`;
 
   try {
@@ -130,24 +135,24 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
       recursive: true,
     });
     const uriResult =
-      typeof Filesystem.getUri === "function"
+      typeof Filesystem.getUri === 'function'
         ? await Filesystem.getUri({ directory: Directory.Cache, path: cachePath }).catch(() => null)
         : null;
     const candidateUri = uriResult?.uri ?? writeResult.uri;
-    const resolvedUri = typeof candidateUri === "string" ? candidateUri.trim() : "";
+    const resolvedUri = typeof candidateUri === 'string' ? candidateUri.trim() : '';
 
     if (!resolvedUri) {
-      throw new Error("Share unavailable: unable to resolve file URI");
+      throw new Error('Share unavailable: unable to resolve file URI');
     }
 
     const files = [resolvedUri];
-    await Share.share({ title, files, dialogTitle: "Share" });
+    await Share.share({ title, files, dialogTitle: 'Share' });
   } finally {
     try {
       await Filesystem.deleteFile({ path: cachePath, directory: Directory.Cache });
     } catch (error) {
       // Log cleanup failures for diagnostics, particularly important for mobile storage management
-      console.warn("[shareFile] Failed to cleanup cache file:", error);
+      console.warn('[shareFile] Failed to cleanup cache file:', error);
     }
   }
 }
@@ -164,7 +169,7 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
 export async function shareSignedExport(
   path: string,
   filename: string,
-  title = "PulsePlate export",
+  title = 'PulsePlate export',
   options: SignedLinkOptions = {}
 ): Promise<SignedLink> {
   const link = await requestSignedLink(path, options);
@@ -182,9 +187,9 @@ export async function shareSignedExport(
  */
 export function formatShareErrorMessage(
   error: unknown,
-  fallback = "Не удалось поделиться файлом. Попробуйте ещё раз."
+  fallback = 'Не удалось поделиться файлом. Попробуйте ещё раз.'
 ): string {
-  if (typeof error === "string" && error.trim().length > 0) {
+  if (typeof error === 'string' && error.trim().length > 0) {
     return error;
   }
 
@@ -193,9 +198,9 @@ export function formatShareErrorMessage(
   }
 
   const rawMessage =
-    typeof error === "object" && error && "message" in error
+    typeof error === 'object' && error && 'message' in error
       ? String((error as Record<string, unknown>).message)
-      : "";
+      : '';
   if (!rawMessage) {
     return fallback;
   }

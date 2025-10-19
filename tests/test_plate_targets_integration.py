@@ -30,7 +30,7 @@ def test_plate_targets_integration_workflow():
     plate_resp = client.post(
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )
-    assert plate_resp.status_code == 200
+    assert plate_resp.status_code == 200, f"Plate generation failed: {plate_resp.text}"
     plate_data = plate_resp.json()
 
     # Step 2: Generate targets for the same profile

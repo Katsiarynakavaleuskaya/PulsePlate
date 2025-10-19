@@ -16,14 +16,20 @@ interface WeeklyPlanReaderProps {
 }
 
 const DAYS_OF_WEEK = [
-  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
 ] as const;
 
 export function WeeklyPlanReader({
   request,
   onError,
   className = '',
-  'data-testid': dataTestId = 'weekly-plan-root'
+  'data-testid': dataTestId = 'weekly-plan-root',
 }: WeeklyPlanReaderProps) {
   const { t } = useTranslation();
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
@@ -54,11 +60,11 @@ export function WeeklyPlanReader({
   };
 
   const handlePreviousDay = () => {
-    setCurrentDayIndex(prev => (prev > 0 ? prev - 1 : DAYS_OF_WEEK.length - 1));
+    setCurrentDayIndex((prev) => (prev > 0 ? prev - 1 : DAYS_OF_WEEK.length - 1));
   };
 
   const handleNextDay = () => {
-    setCurrentDayIndex(prev => (prev < DAYS_OF_WEEK.length - 1 ? prev + 1 : 0));
+    setCurrentDayIndex((prev) => (prev < DAYS_OF_WEEK.length - 1 ? prev + 1 : 0));
   };
 
   const handleDaySelect = (dayIndex: number) => {
@@ -221,7 +227,7 @@ export function WeeklyPlanReader({
           </h3>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t('weeklyPlan.shoppingListItems', '{{count}} items', {
-              count: Object.keys(data.shopping_list).length
+              count: Object.keys(data.shopping_list).length,
             })}
           </div>
         </div>

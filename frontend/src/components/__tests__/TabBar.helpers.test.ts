@@ -10,9 +10,9 @@ describe('TabBar.helpers', () => {
       [4, 'grid-cols-4'],
       [5, 'grid-cols-5'],
       [6, 'grid-cols-6'],
-      [0, 'grid-cols-3'],    // default/fallback
-      [10, 'grid-cols-3'],   // default/fallback
-      [-1, 'grid-cols-3'],   // default/fallback
+      [0, 'grid-cols-3'], // default/fallback
+      [10, 'grid-cols-3'], // default/fallback
+      [-1, 'grid-cols-3'], // default/fallback
     ];
 
     testCases.forEach(([input, expected]) => {

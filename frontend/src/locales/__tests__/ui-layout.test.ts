@@ -32,7 +32,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         'health.permissionMessage',
         'mascot.plateHint',
         'mascot.homeWelcome',
-        'mascot.progressGreat'
+        'mascot.progressGreat',
       ];
 
       for (const key of criticalKeys) {
@@ -45,11 +45,16 @@ describe('UI Layout Compatibility with Localized Strings', () => {
           const ratio = enValue.length === 0 ? 0 : ruValue.length / enValue.length;
 
           // Russian strings should not exceed 4x English length
-          expect(ratio, `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`).toBeLessThanOrEqual(4.0);
+          expect(
+            ratio,
+            `Russian string for '${key}' is ${ratio.toFixed(1)}x longer than English`
+          ).toBeLessThanOrEqual(4.0);
 
           // Store test results for potential debugging
           if (process.env.VITEST_VERBOSE_LOCALES === '1') {
-            console.log(`UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`);
+            console.log(
+              `UI Test: ${key} - EN: "${enValue}" (${enValue.length}) | RU: "${ruValue}" (${ruValue.length}) | Ratio: ${ratio.toFixed(1)}x`
+            );
           }
         }
       }
@@ -62,7 +67,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         'common.ok',
         'common.cancel',
         'week.refresh',
-        'health.request'
+        'health.request',
       ];
 
       for (const key of buttonKeys) {
@@ -73,8 +78,14 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
         if (enValue && ruValue) {
           // Button text should be reasonable length for mobile UI
-          expect(ruValue.length, `Russian button text for '${key}' is too long: "${ruValue}"`).toBeLessThanOrEqual(50);
-          expect(enValue.length, `English button text for '${key}' is too long: "${enValue}"`).toBeLessThanOrEqual(50);
+          expect(
+            ruValue.length,
+            `Russian button text for '${key}' is too long: "${ruValue}"`
+          ).toBeLessThanOrEqual(50);
+          expect(
+            enValue.length,
+            `English button text for '${key}' is too long: "${enValue}"`
+          ).toBeLessThanOrEqual(50);
         }
       }
     });
@@ -85,7 +96,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         'vip.gatedAria',
         'profile.screenAccessibilityLabel',
         'accessibility.homeScreen',
-        'week.chartAccessibility'
+        'week.chartAccessibility',
       ];
 
       for (const key of accessibilityKeys) {
@@ -96,8 +107,14 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
         if (enValue && ruValue) {
           // Accessibility labels should be concise but descriptive
-          expect(ruValue.length, `Russian accessibility label for '${key}' is too long: "${ruValue}"`).toBeLessThanOrEqual(100);
-          expect(enValue.length, `English accessibility label for '${key}' is too long: "${enValue}"`).toBeLessThanOrEqual(100);
+          expect(
+            ruValue.length,
+            `Russian accessibility label for '${key}' is too long: "${ruValue}"`
+          ).toBeLessThanOrEqual(100);
+          expect(
+            enValue.length,
+            `English accessibility label for '${key}' is too long: "${enValue}"`
+          ).toBeLessThanOrEqual(100);
         }
       }
     });
@@ -109,17 +126,20 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         { key: 'vip.title', expectedTerms: ['VIP'] },
         { key: 'paywall.title', expectedTerms: ['VIP'] },
         { key: 'units.kcal', expectedTerms: ['kcal', 'ккал'] },
-        { key: 'abbreviations.protein', expectedTerms: ['P', 'Б'] }
+        { key: 'abbreviations.protein', expectedTerms: ['P', 'Б'] },
       ];
 
       for (const check of terminologyChecks) {
         for (const lang of languages) {
           const value = getNestedValue(locales[lang], check.key);
           if (value) {
-            const hasExpectedTerm = check.expectedTerms.some(term =>
+            const hasExpectedTerm = check.expectedTerms.some((term) =>
               value.toLowerCase().includes(term.toLowerCase())
             );
-            expect(hasExpectedTerm, `Terminology check failed for '${check.key}' in ${lang}: "${value}"`).toBe(true);
+            expect(
+              hasExpectedTerm,
+              `Terminology check failed for '${check.key}' in ${lang}: "${value}"`
+            ).toBe(true);
           }
         }
       }
@@ -128,11 +148,13 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
   describe('Layout Stress Testing', () => {
     it('should identify potentially problematic long strings', () => {
-      const longStrings: Array<{key: string, value: string, length: number, language: string}> = [];
+      const longStrings: Array<{ key: string; value: string; length: number; language: string }> =
+        [];
 
       const findLongStrings = (obj: unknown, path = '', lang: string) => {
         if (typeof obj === 'string') {
-          if (obj.length > 30) { // Flag strings longer than 30 characters
+          if (obj.length > 30) {
+            // Flag strings longer than 30 characters
             longStrings.push({ key: path, value: obj, length: obj.length, language: lang });
           }
         } else if (typeof obj === 'object' && obj !== null) {
@@ -148,7 +170,10 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
       // Validate that we have reasonable number of long strings
       // Note: MAX_LONG_STRINGS (150) long strings is acceptable for a comprehensive localization
-      expect(longStrings.length, `Too many long strings detected (${longStrings.length}) - consider shortening translations (max: ${MAX_LONG_STRINGS})`).toBeLessThan(MAX_LONG_STRINGS);
+      expect(
+        longStrings.length,
+        `Too many long strings detected (${longStrings.length}) - consider shortening translations (max: ${MAX_LONG_STRINGS})`
+      ).toBeLessThan(MAX_LONG_STRINGS);
 
       // Log for debugging only in development
       if (longStrings.length > 0 && process.env.VITEST_VERBOSE_LOCALES === '1') {
@@ -156,26 +181,31 @@ describe('UI Layout Compatibility with Localized Strings', () => {
         longStrings
           .sort((a, b) => b.length - a.length)
           .slice(0, TOP_LONG_STRINGS) // Top longest strings for debugging
-          .forEach(item => {
-            console.log(`${item.language.toUpperCase()}: ${item.key} (${item.length} chars) - "${item.value}"`);
+          .forEach((item) => {
+            console.log(
+              `${item.language.toUpperCase()}: ${item.key} (${item.length} chars) - "${item.value}"`
+            );
           });
       }
 
       // Assert that strings in critical UI areas don't exceed reasonable limits
-      const criticalAreas = longStrings.filter(item => {
+      const criticalAreas = longStrings.filter((item) => {
         // Include keys matching critical UI patterns
-        const isCritical = item.key.includes('button') ||
-                           item.key.includes('cta') ||
-                           item.key.includes('title');
+        const isCritical =
+          item.key.includes('button') || item.key.includes('cta') || item.key.includes('title');
         // Exclude specific known non-critical keys
-        const isExcluded = item.key.endsWith('.description') ||
-                           item.key.endsWith('.tip') ||
-                           item.key.endsWith('.help') ||
-                           item.key.endsWith('.changesNote');
+        const isExcluded =
+          item.key.endsWith('.description') ||
+          item.key.endsWith('.tip') ||
+          item.key.endsWith('.help') ||
+          item.key.endsWith('.changesNote');
         return isCritical && !isExcluded;
       });
-      const excessiveStrings = criticalAreas.filter(item => item.length > CRITICAL_MAX_LENGTH);
-      expect(excessiveStrings, `Found ${excessiveStrings.length} excessively long strings in critical UI areas (max: ${CRITICAL_MAX_LENGTH} chars)`).toHaveLength(0);
+      const excessiveStrings = criticalAreas.filter((item) => item.length > CRITICAL_MAX_LENGTH);
+      expect(
+        excessiveStrings,
+        `Found ${excessiveStrings.length} excessively long strings in critical UI areas (max: ${CRITICAL_MAX_LENGTH} chars)`
+      ).toHaveLength(0);
     });
   });
 
@@ -184,7 +214,7 @@ describe('UI Layout Compatibility with Localized Strings', () => {
 
     it('week.progressAccessibilityLine has identical placeholder sets across locales', () => {
       const keys = (s: string) => {
-        return new Set(Array.from(s.matchAll(PLACEHOLDER_PATTERN), m => m[1]));
+        return new Set(Array.from(s.matchAll(PLACEHOLDER_PATTERN), (m) => m[1]));
       };
       const enSet = keys(en.week.progressAccessibilityLine);
       const ruSet = keys(ru.week.progressAccessibilityLine);

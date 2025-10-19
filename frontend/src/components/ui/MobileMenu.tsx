@@ -36,9 +36,7 @@ export function MobileMenu({ isOpen, onClose, children }: MobileMenuProps) {
           >
             <Dialog.Panel className="relative flex w-full max-w-xs flex-col bg-white dark:bg-gray-800 shadow-xl">
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Menu
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
                 <button
                   type="button"
                   className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -50,9 +48,7 @@ export function MobileMenu({ isOpen, onClose, children }: MobileMenuProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-4">
-                {children}
-              </div>
+              <div className="flex-1 overflow-y-auto py-4">{children}</div>
             </Dialog.Panel>
           </Transition.Child>
         </div>

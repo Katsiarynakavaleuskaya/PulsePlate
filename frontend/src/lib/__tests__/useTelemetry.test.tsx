@@ -73,7 +73,11 @@ describe('useTelemetry', () => {
         result.current.track.featureClicked('advanced_analytics', 'dashboard');
       });
 
-      expect(mockVipTelemetry.featureClicked).toHaveBeenCalledWith('advanced_analytics', 'dashboard', true);
+      expect(mockVipTelemetry.featureClicked).toHaveBeenCalledWith(
+        'advanced_analytics',
+        'dashboard',
+        true
+      );
     });
 
     it('should not call telemetry when disabled', async () => {
@@ -100,10 +104,22 @@ describe('useTelemetry', () => {
         result.current.track.badgeViewed('header', 'medium');
       });
 
-      expect(mockVipTelemetry.paywallViewed).toHaveBeenCalledWith('dashboard', 'feature_gate', true);
-      expect(mockVipTelemetry.paywallDismissed).toHaveBeenCalledWith('dashboard', 'close_button', 5000);
+      expect(mockVipTelemetry.paywallViewed).toHaveBeenCalledWith(
+        'dashboard',
+        'feature_gate',
+        true
+      );
+      expect(mockVipTelemetry.paywallDismissed).toHaveBeenCalledWith(
+        'dashboard',
+        'close_button',
+        5000
+      );
       expect(mockVipTelemetry.upgradeClicked).toHaveBeenCalledWith('dashboard', 'paywall', false);
-      expect(mockVipTelemetry.gateInteracted).toHaveBeenCalledWith('advanced_analytics', 'click', false);
+      expect(mockVipTelemetry.gateInteracted).toHaveBeenCalledWith(
+        'advanced_analytics',
+        'click',
+        false
+      );
       expect(mockVipTelemetry.badgeViewed).toHaveBeenCalledWith('header', 'medium', false);
     });
   });

@@ -15,10 +15,7 @@ export const collectKeyPaths = (obj: unknown, prefix = ''): string[] => {
   }
   return Object.entries(obj).flatMap(([key, value]) => {
     const currentPath = prefix ? `${prefix}.${key}` : key;
-    return [
-      currentPath,
-      ...collectKeyPaths(value, currentPath)
-    ];
+    return [currentPath, ...collectKeyPaths(value, currentPath)];
   });
 };
 
@@ -35,7 +32,8 @@ export const checkLengths = (obj: unknown, path = ''): string[] => {
 
   if (typeof obj === 'string') {
     if (obj.length < 1 || obj.length > maxLength) {
-      const displayed = obj.length > MAX_DISPLAY_LENGTH ? obj.substring(0, MAX_DISPLAY_LENGTH) + "..." : obj;
+      const displayed =
+        obj.length > MAX_DISPLAY_LENGTH ? obj.substring(0, MAX_DISPLAY_LENGTH) + '...' : obj;
       issues.push(`${path}: Invalid length ${obj.length} (max: ${maxLength}) for "${displayed}"`);
     }
   } else if (typeof obj === 'object' && obj !== null) {
@@ -54,9 +52,10 @@ export class TestLogger {
   private logs: string[] = [];
 
   warn(message: string, ...args: any[]) {
-    const serializedArgs = args.length > 0
-      ? args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ')
-      : '';
+    const serializedArgs =
+      args.length > 0
+        ? args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')
+        : '';
     const logEntry = serializedArgs ? `${message} ${serializedArgs}` : message;
     this.logs.push(logEntry);
     // Only log to console in development

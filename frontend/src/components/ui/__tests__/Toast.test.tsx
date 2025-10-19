@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { Toaster, showSuccess, showError, showInfo, showWarning, showLoading, dismissToast, dismissAllToasts } from '../Toast';
+import {
+  Toaster,
+  showSuccess,
+  showError,
+  showInfo,
+  showWarning,
+  showLoading,
+  dismissToast,
+  dismissAllToasts,
+} from '../Toast';
 import { Info, AlertCircle } from 'lucide-react';
 
 // Mock react-hot-toast
@@ -57,7 +66,6 @@ describe('Toast functions', () => {
     const toastModule = await import('react-hot-toast');
     mockToast = toastModule.default;
   });
-
 
   it('showSuccess calls toast.success with message', () => {
     const message = 'Success message';

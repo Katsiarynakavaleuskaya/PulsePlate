@@ -17,9 +17,7 @@ export const VipPageHeader: React.FC<VipPageHeaderProps> = ({ title, subtitle, c
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
         <VipBadge size="lg" />
       </div>
-      {subtitle && (
-        <p className="text-gray-600 dark:text-gray-400">{subtitle}</p>
-      )}
+      {subtitle && <p className="text-gray-600 dark:text-gray-400">{subtitle}</p>}
       {children}
     </header>
   );

@@ -10,7 +10,12 @@
 import { log } from './analytics';
 import { isAnalyticsEnabled } from '../config/features';
 import { getSessionId, refreshSession, clearSession } from './sessionManager';
-import { getCurrentFeatureFlags, initializeFeatureFlags, updateFeatureFlags, clearFeatureFlags } from './featureFlagManager';
+import {
+  getCurrentFeatureFlags,
+  initializeFeatureFlags,
+  updateFeatureFlags,
+  clearFeatureFlags,
+} from './featureFlagManager';
 import {
   EventType,
   EventPayloadMap,

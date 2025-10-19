@@ -7,11 +7,7 @@ interface WeeklyPlanErrorProps {
   className?: string;
 }
 
-export function WeeklyPlanError({
-  error,
-  onRetry,
-  className = ''
-}: WeeklyPlanErrorProps) {
+export function WeeklyPlanError({ error, onRetry, className = '' }: WeeklyPlanErrorProps) {
   const { t } = useTranslation();
 
   return (
@@ -23,7 +19,11 @@ export function WeeklyPlanError({
             {t('weeklyPlan.error.title', 'Failed to load weekly plan')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md">
-            {error.message || t('weeklyPlan.error.message', 'Something went wrong while loading your weekly meal plan.')}
+            {error.message ||
+              t(
+                'weeklyPlan.error.message',
+                'Something went wrong while loading your weekly meal plan.'
+              )}
           </p>
         </div>
 
@@ -38,7 +38,12 @@ export function WeeklyPlanError({
         )}
 
         <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-          <p>{t('weeklyPlan.error.help', 'If the problem persists, please check your internet connection and try again.')}</p>
+          <p>
+            {t(
+              'weeklyPlan.error.help',
+              'If the problem persists, please check your internet connection and try again.'
+            )}
+          </p>
         </div>
       </div>
     </div>

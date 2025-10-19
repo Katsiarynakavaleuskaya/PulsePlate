@@ -1,7 +1,7 @@
 // RU: Карточки с информацией о макронутриентах и калориях
 // EN: Cards displaying macronutrient and calorie information
 
-import { useTranslation } from "react-i18next";
+import { useTranslation } from 'react-i18next';
 
 export interface MacroCardsProps {
   kcal: number;
@@ -37,19 +37,49 @@ export default function MacroCards({
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-        <Item label={t('nutrition.macros.caloriesLabel')} value={kcal} unit={t('nutrition.units.kcalPerDay')} />
-        <Item label={t('nutrition.macros.carbsLabel')} value={carbsG} unit={t('nutrition.units.gPerDay')} />
-        <Item label={t('nutrition.macros.proteinLabel')} value={proteinG} unit={t('nutrition.units.gPerDay')} />
-        <Item label={t('nutrition.macros.fatLabel')} value={fatG} unit={t('nutrition.units.gPerDay')} />
-        <Item label={t('nutrition.macros.fiberLabel')} value={fiberG} unit={t('nutrition.units.gPerDay')} />
-        <Item label={t('nutrition.macros.bmrLabel')} value={bmr} unit={t('nutrition.units.kcalPerDay')} />
-        <Item label={t('nutrition.macros.tdeeLabel')} value={tdee} unit={t('nutrition.units.kcalPerDay')} />
+        <Item
+          label={t('nutrition.macros.caloriesLabel')}
+          value={kcal}
+          unit={t('nutrition.units.kcalPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.carbsLabel')}
+          value={carbsG}
+          unit={t('nutrition.units.gPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.proteinLabel')}
+          value={proteinG}
+          unit={t('nutrition.units.gPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.fatLabel')}
+          value={fatG}
+          unit={t('nutrition.units.gPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.fiberLabel')}
+          value={fiberG}
+          unit={t('nutrition.units.gPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.bmrLabel')}
+          value={bmr}
+          unit={t('nutrition.units.kcalPerDay')}
+        />
+        <Item
+          label={t('nutrition.macros.tdeeLabel')}
+          value={tdee}
+          unit={t('nutrition.units.kcalPerDay')}
+        />
       </div>
 
       <div className="mt-4 p-3 bg-navy/5 rounded-lg">
         <p className="text-xs text-muted">
-          <strong>{t('nutrition.macros.bmrLabel')}</strong> - {t('nutrition.macros.bmrDescription')}<br/>
-          <strong>{t('nutrition.macros.tdeeLabel')}</strong> - {t('nutrition.macros.tdeeDescription')}
+          <strong>{t('nutrition.macros.bmrLabel')}</strong> - {t('nutrition.macros.bmrDescription')}
+          <br />
+          <strong>{t('nutrition.macros.tdeeLabel')}</strong> -{' '}
+          {t('nutrition.macros.tdeeDescription')}
         </p>
       </div>
     </div>

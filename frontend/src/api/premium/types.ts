@@ -3,7 +3,7 @@ import type { components } from '../schema';
 
 export type SupportedPremiumLang = 'ru' | 'en' | 'es';
 
-export type PremiumRequestOptions = Pick<ApiOptions, "onAuthError"> & { signal?: AbortSignal };
+export type PremiumRequestOptions = Pick<ApiOptions, 'onAuthError'> & { signal?: AbortSignal };
 
 /**
  * Factory to build typed Premium endpoints (POST).
@@ -14,7 +14,7 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
   return (body: TReq, options?: PremiumRequestOptions) =>
     api<TRes>(
       endpoint,
-      { method: "POST", body: body as any, signal: options?.signal },
+      { method: 'POST', body: body as any, signal: options?.signal },
       options?.onAuthError ? { onAuthError: options.onAuthError } : undefined,
       true // explicitly force JSON Content-Type for Premium POSTs
     );
@@ -84,7 +84,7 @@ export type BmrApiResponse = {
 };
 
 // OpenAPI generated types
-export type PlateRequest = components["schemas"]["PlateRequest"];
+export type PlateRequest = components['schemas']['PlateRequest'];
 
 export type PlateApiResponse = {
   kcal: number;
@@ -96,7 +96,7 @@ export type PlateApiResponse = {
 };
 
 // OpenAPI generated types
-export type TargetsRequest = components["schemas"]["WHOTargetsRequest"];
+export type TargetsRequest = components['schemas']['WHOTargetsRequest'];
 
 export type TargetsApiResponse = {
   kcal_daily: number;

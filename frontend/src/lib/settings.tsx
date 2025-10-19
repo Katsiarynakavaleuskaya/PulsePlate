@@ -20,7 +20,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<Settings>(initialSettings);
 
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   const value: SettingsContextType = {
@@ -28,11 +28,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     updateSetting,
   };
 
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings(): SettingsContextType {

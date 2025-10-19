@@ -87,8 +87,8 @@ All events include:
 
 ```typescript
 {
-  source: string;        // Source page/component
-  vipEnabled: boolean;   // VIP module state
+  source: string; // Source page/component
+  vipEnabled: boolean; // VIP module state
 }
 ```
 
@@ -96,9 +96,9 @@ All events include:
 
 ```typescript
 {
-  featureName: string;   // Name of VIP feature
-  source: string;        // Component/page context
-  isVip: boolean;        // User VIP status
+  featureName: string; // Name of VIP feature
+  source: string; // Component/page context
+  isVip: boolean; // User VIP status
 }
 ```
 

@@ -1,5 +1,5 @@
 // Не делает сетевых запросов, только предупреждает в консоль.
-import { getApiBase } from "./client";
+import { getApiBase } from './client';
 
 /**
  * Logs the configured API base and whether mock mode is enabled.
@@ -8,8 +8,8 @@ import { getApiBase } from "./client";
  */
 export function apiSmoke(): void {
   const mockEnabled =
-    typeof window !== "undefined" && typeof window.location?.search === "string"
-      ? new URLSearchParams(window.location.search).get("mock") === "1"
+    typeof window !== 'undefined' && typeof window.location?.search === 'string'
+      ? new URLSearchParams(window.location.search).get('mock') === '1'
       : false;
-  console.log(`[API] base => ${getApiBase() || "(not set)"} | mock=${mockEnabled}`);
+  console.log(`[API] base => ${getApiBase() || '(not set)'} | mock=${mockEnabled}`);
 }

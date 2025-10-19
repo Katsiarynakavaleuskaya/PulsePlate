@@ -70,9 +70,9 @@ describe('IntegratedWhoTargetsPanel', () => {
     shopping_list: {
       'chicken breast': 500,
       'brown rice': 1000,
-      'broccoli': 300,
+      broccoli: 300,
     },
-    total_cost: 45.50,
+    total_cost: 45.5,
     adherence_score: 87,
   } as any;
 
@@ -353,7 +353,9 @@ describe('IntegratedWhoTargetsPanel', () => {
       render(<IntegratedWhoTargetsPanel request={null} />);
 
       // Should not show CTA button when no request is available
-      expect(screen.queryByRole('button', { name: /save & get weekly plan/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /save & get weekly plan/i })
+      ).not.toBeInTheDocument();
     });
   });
 });

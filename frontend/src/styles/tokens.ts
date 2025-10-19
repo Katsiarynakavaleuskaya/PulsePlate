@@ -104,17 +104,17 @@ export const spacing = {
   // Base units
   0: '0',
   1: '0.25rem', // 4px
-  2: '0.5rem',  // 8px
+  2: '0.5rem', // 8px
   3: '0.75rem', // 12px
-  4: '1rem',    // 16px
+  4: '1rem', // 16px
   5: '1.25rem', // 20px
-  6: '1.5rem',  // 24px
-  8: '2rem',    // 32px
+  6: '1.5rem', // 24px
+  8: '2rem', // 32px
   10: '2.5rem', // 40px
-  12: '3rem',   // 48px
-  16: '4rem',   // 64px
-  20: '5rem',   // 80px
-  24: '6rem',   // 96px
+  12: '3rem', // 48px
+  16: '4rem', // 64px
+  20: '5rem', // 80px
+  24: '6rem', // 96px
 
   // Touch targets (44pt = 44px at 1x, 88px at 2x)
   touch: '2.75rem', // 44px
@@ -122,15 +122,15 @@ export const spacing = {
 
   // Component specific
   button: {
-    sm: '0.5rem 1rem',    // 8px 16px
+    sm: '0.5rem 1rem', // 8px 16px
     md: '0.75rem 1.5rem', // 12px 24px
-    lg: '1rem 2rem',      // 16px 32px
+    lg: '1rem 2rem', // 16px 32px
   },
 
   input: {
     sm: '0.5rem 0.75rem', // 8px 12px
-    md: '0.75rem 1rem',   // 12px 16px
-    lg: '1rem 1.25rem',   // 16px 20px
+    md: '0.75rem 1rem', // 12px 16px
+    lg: '1rem 1.25rem', // 16px 20px
   },
 } as const;
 
@@ -150,15 +150,15 @@ export const typography = {
 
   // Font sizes (rem-based)
   fontSize: {
-    xs: '0.75rem',   // 12px
-    sm: '0.875rem',  // 14px
-    base: '1rem',    // 16px
-    lg: '1.125rem',  // 18px
-    xl: '1.25rem',   // 20px
+    xs: '0.75rem', // 12px
+    sm: '0.875rem', // 14px
+    base: '1rem', // 16px
+    lg: '1.125rem', // 18px
+    xl: '1.25rem', // 20px
     '2xl': '1.5rem', // 24px
     '3xl': '1.875rem', // 30px
     '4xl': '2.25rem', // 36px
-    '5xl': '3rem',   // 48px
+    '5xl': '3rem', // 48px
   },
 
   // Font weights
@@ -206,12 +206,12 @@ export const typography = {
 
 export const borderRadius = {
   none: '0',
-  sm: '0.125rem',   // 2px
-  base: '0.25rem',  // 4px
-  md: '0.375rem',   // 6px
-  lg: '0.5rem',     // 8px
-  xl: '0.75rem',    // 12px
-  '2xl': '1rem',    // 16px
+  sm: '0.125rem', // 2px
+  base: '0.25rem', // 4px
+  md: '0.375rem', // 6px
+  lg: '0.5rem', // 8px
+  xl: '0.75rem', // 12px
+  '2xl': '1rem', // 16px
   full: '9999px',
 } as const;
 

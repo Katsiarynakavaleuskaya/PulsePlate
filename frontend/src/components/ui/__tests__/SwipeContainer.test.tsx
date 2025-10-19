@@ -16,7 +16,6 @@ describe('SwipeContainer', () => {
     cleanup();
   });
 
-
   it('renders children correctly', () => {
     render(
       <SwipeContainer>
@@ -38,12 +37,12 @@ describe('SwipeContainer', () => {
 
     // Simulate touch start
     fireEvent.touchStart(container, {
-      touches: [{ clientX: 100 }]
+      touches: [{ clientX: 100 }],
     });
 
     // Simulate touch move (swipe right by 60px - beyond threshold)
     fireEvent.touchMove(container, {
-      touches: [{ clientX: 160 }]
+      touches: [{ clientX: 160 }],
     });
 
     // Simulate touch end
@@ -64,12 +63,12 @@ describe('SwipeContainer', () => {
 
     // Simulate touch start
     fireEvent.touchStart(container, {
-      touches: [{ clientX: 100 }]
+      touches: [{ clientX: 100 }],
     });
 
     // Simulate touch move (swipe left by 60px - beyond threshold)
     fireEvent.touchMove(container, {
-      touches: [{ clientX: 40 }]
+      touches: [{ clientX: 40 }],
     });
 
     // Simulate touch end
@@ -90,12 +89,12 @@ describe('SwipeContainer', () => {
 
     // Simulate touch start
     fireEvent.touchStart(container, {
-      touches: [{ clientX: 100 }]
+      touches: [{ clientX: 100 }],
     });
 
     // Simulate touch move (swipe right by only 30px - below threshold)
     fireEvent.touchMove(container, {
-      touches: [{ clientX: 130 }]
+      touches: [{ clientX: 130 }],
     });
 
     // Simulate touch end
@@ -116,12 +115,12 @@ describe('SwipeContainer', () => {
 
     // Simulate touch start
     fireEvent.touchStart(container, {
-      touches: [{ clientX: 100 }]
+      touches: [{ clientX: 100 }],
     });
 
     // Simulate touch move (swipe right by 80px - below custom threshold of 100)
     fireEvent.touchMove(container, {
-      touches: [{ clientX: 180 }]
+      touches: [{ clientX: 180 }],
     });
 
     // Simulate touch end

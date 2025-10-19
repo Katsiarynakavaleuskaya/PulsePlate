@@ -24,7 +24,10 @@ export function WhoTargetsEmptyState({ className }: EmptyStateProps) {
           {t('whoTargets.empty.title', 'No Targets Available')}
         </h3>
         <p className="empty-state__message">
-          {t('whoTargets.empty.message', 'Please complete your profile to see personalized nutrition targets.')}
+          {t(
+            'whoTargets.empty.message',
+            'Please complete your profile to see personalized nutrition targets.'
+          )}
         </p>
       </div>
     </div>

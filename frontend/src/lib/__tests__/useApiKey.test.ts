@@ -40,7 +40,7 @@ describe('useApiKey', () => {
       'apiKey',
       'setApiKey',
       'clearApiKey',
-      'isAuthenticated'
+      'isAuthenticated',
     ]);
   });
 
@@ -67,7 +67,7 @@ describe('useApiKey', () => {
       'apiKey',
       'setApiKey',
       'clearApiKey',
-      'isAuthenticated'
+      'isAuthenticated',
     ]);
   });
 
@@ -91,7 +91,7 @@ describe('useApiKey', () => {
       'apiKey',
       'setApiKey',
       'clearApiKey',
-      'isAuthenticated'
+      'isAuthenticated',
     ]);
   });
 });

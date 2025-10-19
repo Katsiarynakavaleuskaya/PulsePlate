@@ -18,20 +18,29 @@ export function WeeklyPlanEmpty({ className = '', onGeneratePlan }: WeeklyPlanEm
             {t('weeklyPlan.empty.title', 'No weekly plan available')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md">
-            {t('weeklyPlan.empty.message', 'Generate your personalized weekly meal plan to get started with your nutrition journey.')}
+            {t(
+              'weeklyPlan.empty.message',
+              'Generate your personalized weekly meal plan to get started with your nutrition journey.'
+            )}
           </p>
         </div>
 
         <button
           onClick={onGeneratePlan}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          disabled={!onGeneratePlan}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
         >
           <Plus className="w-4 h-4" />
           {t('weeklyPlan.empty.generate', 'Generate Weekly Plan')}
         </button>
 
         <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-          <p>{t('weeklyPlan.empty.help', 'Complete your profile setup to generate a personalized meal plan.')}</p>
+          <p>
+            {t(
+              'weeklyPlan.empty.help',
+              'Complete your profile setup to generate a personalized meal plan.'
+            )}
+          </p>
         </div>
       </div>
     </div>

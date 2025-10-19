@@ -14,13 +14,13 @@ export interface VipBadgeProps {
 const sizeClasses = {
   sm: 'px-1.5 py-0.5 text-xs',
   md: 'px-2 py-1 text-xs',
-  lg: 'px-3 py-1.5 text-sm'
+  lg: 'px-3 py-1.5 text-sm',
 };
 
 const variantClasses = {
   default: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
   outline: 'border border-purple-500 text-purple-600 dark:text-purple-400',
-  subtle: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
+  subtle: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200',
 };
 
 /**
@@ -28,7 +28,11 @@ const variantClasses = {
  *
  * Shows a VIP badge when VIP module is enabled
  */
-export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'default', component = 'unknown' }) => {
+export const VipBadge: React.FC<VipBadgeProps> = ({
+  size = 'md',
+  variant = 'default',
+  component = 'unknown',
+}) => {
   const isVipEnabled = useVipModule();
   const { t } = useTranslation();
   const { track } = useTelemetry();

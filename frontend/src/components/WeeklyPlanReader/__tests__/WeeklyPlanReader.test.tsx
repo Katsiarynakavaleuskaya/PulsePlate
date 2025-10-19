@@ -14,10 +14,7 @@ vi.mock('../../../api/client', () => ({
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (
-      key: string,
-      ...rest: Array<string | Record<string, unknown> | undefined>
-    ) => {
+    t: (key: string, ...rest: Array<string | Record<string, unknown> | undefined>) => {
       let fallback: string | undefined;
       let options: Record<string, unknown> | undefined;
 
@@ -65,13 +62,16 @@ vi.mock('react-i18next', () => ({
         'weeklyPlan.dayNumber': 'Day {{number}}',
         'weeklyPlan.day': 'Day',
         'weeklyPlan.empty.title': 'No weekly plan available',
-        'weeklyPlan.empty.message': 'Generate your personalized weekly meal plan to get started with your nutrition journey.',
+        'weeklyPlan.empty.message':
+          'Generate your personalized weekly meal plan to get started with your nutrition journey.',
         'weeklyPlan.empty.generate': 'Generate Weekly Plan',
-        'weeklyPlan.empty.help': 'Complete your profile setup to generate a personalized meal plan.',
+        'weeklyPlan.empty.help':
+          'Complete your profile setup to generate a personalized meal plan.',
         'weeklyPlan.error.title': 'Failed to load weekly plan',
         'weeklyPlan.error.message': 'Something went wrong while loading your weekly meal plan.',
         'weeklyPlan.error.retry': 'Try Again',
-        'weeklyPlan.error.help': 'If the problem persists, please check your internet connection and try again.',
+        'weeklyPlan.error.help':
+          'If the problem persists, please check your internet connection and try again.',
         'units.kcal': 'kcal',
         'units.gram': 'g',
         'abbreviations.protein': 'P',
@@ -123,84 +123,84 @@ const mockWeeklyPlanData: WeeklyMenuResponse = {
         {
           title: 'Oatmeal with berries',
           title_translated: 'Oatmeal with berries',
-          grams: { 'oats': 50, 'berries': 30, 'milk': 200 },
+          grams: { oats: 50, berries: 30, milk: 200 },
           kcal: 300,
           macros: { protein_g: 12, fat_g: 8, carbs_g: 45, fiber_g: 6 },
-          micros: { 'fe': 2.5, 'ca': 150, 'k': 200 }
+          micros: { fe: 2.5, ca: 150, k: 200 },
         },
         {
           title: 'Grilled chicken salad',
           title_translated: 'Grilled chicken salad',
-          grams: { 'chicken': 150, 'lettuce': 100, 'tomato': 50 },
+          grams: { chicken: 150, lettuce: 100, tomato: 50 },
           kcal: 400,
           macros: { protein_g: 35, fat_g: 15, carbs_g: 20, fiber_g: 4 },
-          micros: { 'fe': 3.2, 'ca': 80, 'k': 300 }
+          micros: { fe: 3.2, ca: 80, k: 300 },
         },
         {
           title: 'Salmon with vegetables',
           title_translated: 'Salmon with vegetables',
-          grams: { 'salmon': 120, 'broccoli': 100, 'carrots': 80 },
+          grams: { salmon: 120, broccoli: 100, carrots: 80 },
           kcal: 500,
           macros: { protein_g: 40, fat_g: 20, carbs_g: 25, fiber_g: 8 },
-          micros: { 'fe': 4.1, 'ca': 120, 'k': 400 }
-        }
+          micros: { fe: 4.1, ca: 120, k: 400 },
+        },
       ],
       kcal: 1200,
       macros: { protein_g: 87, fat_g: 43, carbs_g: 90, fiber_g: 18 },
-      micros: { 'fe': 9.8, 'ca': 350, 'k': 900 },
-      coverage: { 'fe': 95, 'ca': 85, 'k': 90 },
+      micros: { fe: 9.8, ca: 350, k: 900 },
+      coverage: { fe: 95, ca: 85, k: 90 },
       tips: ['Add more iron-rich foods', 'Consider calcium supplements'],
-      total_cost: 15.50
+      total_cost: 15.5,
     },
     ...Array.from({ length: 6 }, (_, i) => ({
       meals: [
         {
           title: `Breakfast Day ${i + 2}`,
           title_translated: `Breakfast Day ${i + 2}`,
-          grams: { 'oats': 50, 'milk': 200, 'berries': 30 },
+          grams: { oats: 50, milk: 200, berries: 30 },
           kcal: 300,
           macros: { protein_g: 12, fat_g: 8, carbs_g: 45, fiber_g: 6 },
-          micros: { 'fe': 2.5, 'ca': 150, 'k': 200 }
+          micros: { fe: 2.5, ca: 150, k: 200 },
         },
         {
           title: `Lunch Day ${i + 2}`,
           title_translated: `Lunch Day ${i + 2}`,
-          grams: { 'chicken': 150, 'rice': 100, 'vegetables': 80 },
+          grams: { chicken: 150, rice: 100, vegetables: 80 },
           kcal: 400,
           macros: { protein_g: 35, fat_g: 15, carbs_g: 20, fiber_g: 4 },
-          micros: { 'fe': 3.2, 'ca': 80, 'k': 300 }
+          micros: { fe: 3.2, ca: 80, k: 300 },
         },
         {
           title: `Dinner Day ${i + 2}`,
           title_translated: `Dinner Day ${i + 2}`,
-          grams: { 'fish': 120, 'potato': 100, 'salad': 50 },
+          grams: { fish: 120, potato: 100, salad: 50 },
           kcal: 500,
           macros: { protein_g: 40, fat_g: 20, carbs_g: 25, fiber_g: 8 },
-          micros: { 'fe': 4.1, 'ca': 120, 'k': 400 }
-        }
+          micros: { fe: 4.1, ca: 120, k: 400 },
+        },
       ],
       kcal: 1200,
       macros: { protein_g: 87, fat_g: 43, carbs_g: 90, fiber_g: 18 },
-      micros: { 'fe': 9.8, 'ca': 350, 'k': 900 },
-      coverage: { 'fe': 95, 'ca': 85, 'k': 90 },
+      micros: { fe: 9.8, ca: 350, k: 900 },
+      coverage: { fe: 95, ca: 85, k: 90 },
       tips: ['Add more iron-rich foods', 'Consider calcium supplements'],
-      total_cost: 15.50
-    }))
+      total_cost: 15.5,
+    })),
   ],
   weekly_coverage: {
     protein: 95,
     carbs: 98,
     fat: 92,
-    fiber: 85
+    fiber: 85,
   },
   shopping_list: {
     'chicken breast': 500,
     'salmon fillet': 300,
-    'oats': 200,
-    'berries': 150
+    oats: 200,
+    berries: 150,
   },
-  total_cost: 45.50,
-  adherence_score: 88
+  total_cost: 45.5,
+  adherence_score: 88,
 } as any;
 
 describe('WeeklyPlanReader', () => {
@@ -311,7 +311,7 @@ describe('WeeklyPlanReader', () => {
         weekly_coverage: {},
         shopping_list: {},
         total_cost: 0,
-        adherence_score: 0
+        adherence_score: 0,
       } as any);
 
       render(<WeeklyPlanReader request={mockRequest} />);

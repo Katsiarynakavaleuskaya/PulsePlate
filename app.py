@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -1991,16 +1991,16 @@ def _get_week_start(base_date: Optional[datetime] = None) -> str:
     """
     RU: Получить дату начала недели (понедельник) в
     детерминированном формате.
-    EN: Get week start date (Monday) in deterministic format.
+    EN: Get week start date (Monday) in deterministic UTC format.
 
     Args:
-        base_date: Optional base date to calculate from. If None, uses datetime.now()
+        base_date: Optional base date to calculate from. If None, uses datetime.now(timezone.utc)
 
     Returns:
         Week start date as ISO string in "%Y-%m-%d" format
     """
     if base_date is None:
-        base_date = datetime.now()
+        base_date = datetime.now(timezone.utc)
 
     days_since_monday = base_date.weekday()  # Monday is 0, Sunday is 6
     week_start = base_date - timedelta(days=days_since_monday)
@@ -2180,7 +2180,6 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
 
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
-    global NEW_MODULAR_SYSTEM_AVAILABLE, build_week, FoodDB, RecipeDB, build_nutrition_targets
     try:
         # Guard VIP feature flag at runtime to support tests that toggle env without full reload
         if str(os.getenv("VIP_MODULE_ENABLED", "")).strip().lower() not in {

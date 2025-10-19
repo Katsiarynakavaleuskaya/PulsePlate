@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -21,7 +21,7 @@ export default defineConfig({
         lines: 52,
         functions: 71,
         branches: 76,
-        statements: 52
+        statements: 52,
       },
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
@@ -31,8 +31,8 @@ export default defineConfig({
         '**/*.test.{js,ts,jsx,tsx}',
         '**/*.spec.{js,ts,jsx,tsx}',
         '**/__tests__/**',
-        '**/types/**'
-      ]
-    }
-  }
-})
+        '**/types/**',
+      ],
+    },
+  },
+});

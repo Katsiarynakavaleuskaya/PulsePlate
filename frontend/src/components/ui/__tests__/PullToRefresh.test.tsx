@@ -14,8 +14,6 @@ describe('PullToRefresh', () => {
     cleanup();
   });
 
-
-
   it('renders children correctly', () => {
     render(
       <PullToRefresh onRefresh={mockOnRefresh}>
@@ -42,14 +40,14 @@ describe('PullToRefresh', () => {
     // Simulate touch start
     await act(async () => {
       fireEvent.touchStart(pullToRefreshContainer, {
-        touches: [{ clientY: 100 }]
+        touches: [{ clientY: 100 }],
       });
     });
 
     // Simulate touch move (pull down 100px)
     await act(async () => {
       fireEvent.touchMove(pullToRefreshContainer, {
-        touches: [{ clientY: 200 }]
+        touches: [{ clientY: 200 }],
       });
     });
 
@@ -74,12 +72,12 @@ describe('PullToRefresh', () => {
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
-      touches: [{ clientY: 100 }]
+      touches: [{ clientY: 100 }],
     });
 
     // Simulate touch move (pull down only 20px - below threshold)
     fireEvent.touchMove(pullToRefreshContainer, {
-      touches: [{ clientY: 120 }]
+      touches: [{ clientY: 120 }],
     });
 
     // Simulate touch end
@@ -101,12 +99,12 @@ describe('PullToRefresh', () => {
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
-      touches: [{ clientY: 100 }]
+      touches: [{ clientY: 100 }],
     });
 
     // Simulate touch move
     fireEvent.touchMove(pullToRefreshContainer, {
-      touches: [{ clientY: 200 }]
+      touches: [{ clientY: 200 }],
     });
 
     // Simulate touch end
@@ -128,12 +126,12 @@ describe('PullToRefresh', () => {
 
     // Simulate touch start
     fireEvent.touchStart(pullToRefreshContainer, {
-      touches: [{ clientY: 100 }]
+      touches: [{ clientY: 100 }],
     });
 
     // Simulate touch move (pull down 60px - below custom threshold of 100)
     fireEvent.touchMove(pullToRefreshContainer, {
-      touches: [{ clientY: 160 }]
+      touches: [{ clientY: 160 }],
     });
 
     // Simulate touch end

@@ -31,11 +31,11 @@ describe('WHO Targets i18n', () => {
         'activity',
         'warnings',
         'empty',
-        'error'
+        'error',
       ];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        requiredSections.forEach(section => {
+        requiredSections.forEach((section) => {
           expect(
             (data.whoTargets as any)[section],
             `Missing ${section} section in ${locale}`
@@ -55,14 +55,10 @@ describe('WHO Targets i18n', () => {
             if (typeof value === 'object' && value !== null) {
               checkObject(value, currentPath);
             } else {
-              expect(
-                value,
-                `Empty value at ${currentPath} in ${locale}`
-              ).toBeTruthy();
-              expect(
-                typeof value,
-                `Non-string value at ${currentPath} in ${locale}`
-              ).toBe('string');
+              expect(value, `Empty value at ${currentPath} in ${locale}`).toBeTruthy();
+              expect(typeof value, `Non-string value at ${currentPath} in ${locale}`).toBe(
+                'string'
+              );
             }
           });
         };
@@ -75,7 +71,7 @@ describe('WHO Targets i18n', () => {
       const macroKeys = ['protein', 'carbs', 'fat', 'fiber'];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        macroKeys.forEach(key => {
+        macroKeys.forEach((key) => {
           expect(
             (data.whoTargets.macros as any)[key],
             `Missing macro key ${key} in ${locale}`
@@ -88,7 +84,7 @@ describe('WHO Targets i18n', () => {
       const activityKeys = ['moderateAerobic', 'strength', 'steps'];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        activityKeys.forEach(key => {
+        activityKeys.forEach((key) => {
           expect(
             (data.whoTargets.activity as any)[key],
             `Missing activity key ${key} in ${locale}`
@@ -101,7 +97,7 @@ describe('WHO Targets i18n', () => {
       const unitKeys = ['minutes', 'sessions', 'stepsUnit'];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        unitKeys.forEach(key => {
+        unitKeys.forEach((key) => {
           expect(
             (data.whoTargets.activity as any)[key],
             `Missing activity unit ${key} in ${locale}`
@@ -114,7 +110,7 @@ describe('WHO Targets i18n', () => {
       const microKeys = ['iron_mg', 'calcium_mg'];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        microKeys.forEach(key => {
+        microKeys.forEach((key) => {
           expect(
             (data.whoTargets.micros as any)[key],
             `Missing micronutrient key ${key} in ${locale}`
@@ -162,10 +158,7 @@ describe('WHO Targets i18n', () => {
   describe('Accessibility', () => {
     it('should have proper accessibility labels', () => {
       Object.entries(locales).forEach(([locale, data]) => {
-        expect(
-          data.whoTargets.empty.iconLabel,
-          `Missing icon label in ${locale}`
-        ).toBeDefined();
+        expect(data.whoTargets.empty.iconLabel, `Missing icon label in ${locale}`).toBeDefined();
         expect(
           data.whoTargets.empty.iconLabel.length,
           `Icon label too long in ${locale}`
@@ -175,14 +168,8 @@ describe('WHO Targets i18n', () => {
 
     it('should have clear error messages', () => {
       Object.entries(locales).forEach(([locale, data]) => {
-        expect(
-          data.whoTargets.error.title,
-          `Missing error title in ${locale}`
-        ).toBeDefined();
-        expect(
-          data.whoTargets.error.retry,
-          `Missing retry button text in ${locale}`
-        ).toBeDefined();
+        expect(data.whoTargets.error.title, `Missing error title in ${locale}`).toBeDefined();
+        expect(data.whoTargets.error.retry, `Missing retry button text in ${locale}`).toBeDefined();
       });
     });
   });
@@ -226,26 +213,20 @@ describe('WHO Targets i18n', () => {
         'whoTargets.activity.moderateAerobic',
         'whoTargets.warnings.title',
         'whoTargets.empty.message',
-        'whoTargets.error.retry'
+        'whoTargets.error.retry',
       ];
 
       Object.entries(locales).forEach(([locale, data]) => {
-        requiredKeys.forEach(keyPath => {
+        requiredKeys.forEach((keyPath) => {
           const keys = keyPath.split('.');
           let current = data;
 
           for (const key of keys) {
-            expect(
-              current,
-              `Missing parent object for ${keyPath} in ${locale}`
-            ).toBeDefined();
+            expect(current, `Missing parent object for ${keyPath} in ${locale}`).toBeDefined();
             current = (current as any)[key];
           }
 
-          expect(
-            current,
-            `Missing key ${keyPath} in ${locale}`
-          ).toBeDefined();
+          expect(current, `Missing key ${keyPath} in ${locale}`).toBeDefined();
         });
       });
     });
@@ -261,14 +242,10 @@ describe('WHO Targets i18n', () => {
               checkForEmptyValues(value, currentPath);
             } else {
               // Ensure no empty strings, null, or undefined values
-              expect(
-                value,
-                `Empty or null value at ${currentPath} in ${locale}`
-              ).toBeTruthy();
-              expect(
-                typeof value,
-                `Non-string value at ${currentPath} in ${locale}`
-              ).toBe('string');
+              expect(value, `Empty or null value at ${currentPath} in ${locale}`).toBeTruthy();
+              expect(typeof value, `Non-string value at ${currentPath} in ${locale}`).toBe(
+                'string'
+              );
               expect(
                 (value as string).trim().length,
                 `Whitespace-only value at ${currentPath} in ${locale}`
@@ -289,10 +266,7 @@ describe('WHO Targets i18n', () => {
 
           // Check that keys use camelCase or snake_case consistently
           const isValidKey = /^[a-z][a-zA-Z0-9_]*$/.test(key);
-          expect(
-            isValidKey,
-            `Invalid key format '${key}' at ${currentPath}`
-          ).toBe(true);
+          expect(isValidKey, `Invalid key format '${key}' at ${currentPath}`).toBe(true);
 
           if (typeof value === 'object' && value !== null) {
             validateKeyFormat(value, currentPath);

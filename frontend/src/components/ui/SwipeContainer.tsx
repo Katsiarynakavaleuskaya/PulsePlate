@@ -29,10 +29,13 @@ export function SwipeContainer({
     setIsSwiping(true);
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isSwiping) return;
-    currentXRef.current = e.touches[0].clientX;
-  }, [isSwiping]);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isSwiping) return;
+      currentXRef.current = e.touches[0].clientX;
+    },
+    [isSwiping]
+  );
 
   const handleTouchEnd = useCallback(() => {
     if (!isSwiping) return;

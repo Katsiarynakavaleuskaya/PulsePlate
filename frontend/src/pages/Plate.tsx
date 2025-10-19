@@ -1,6 +1,6 @@
-import PremiumGate from "../components/PremiumGate";
-import { usePremium } from "../lib/usePremium";
-import { PREMIUM_GATE_SOURCES } from "../config/constants";
+import PremiumGate from '../components/PremiumGate';
+import { usePremium } from '../lib/usePremium';
+import { PREMIUM_GATE_SOURCES } from '../config/constants';
 
 export default function Plate() {
   const isPremium = usePremium();

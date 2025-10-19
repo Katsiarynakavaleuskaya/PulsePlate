@@ -12,20 +12,7 @@ export * from './tokens';
 // import './utilities.css' - Utility classes
 
 // Re-export commonly used tokens for convenience
-export {
-  colors,
-  spacing,
-  typography,
-  borderRadius,
-  shadows,
-  breakpoints,
-  zIndex,
-} from './tokens';
+export { colors, spacing, typography, borderRadius, shadows, breakpoints, zIndex } from './tokens';
 
 // Type exports
-export type {
-  ColorScale,
-  SpacingKey,
-  TypographySize,
-  TypographyWeight,
-} from './tokens';
+export type { ColorScale, SpacingKey, TypographySize, TypographyWeight } from './tokens';

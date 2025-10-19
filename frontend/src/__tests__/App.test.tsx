@@ -4,30 +4,30 @@ import App from '../App';
 
 // Mock the components that are used in App
 vi.mock('../components/TabBar', () => ({
-  default: () => <div data-testid="tab-bar">TabBar</div>
+  default: () => <div data-testid="tab-bar">TabBar</div>,
 }));
 
 vi.mock('../components/ui', () => ({
   Toaster: () => <div data-testid="toaster">Toaster</div>,
-  OfflineIndicator: () => <div data-testid="offline-indicator">OfflineIndicator</div>
+  OfflineIndicator: () => <div data-testid="offline-indicator">OfflineIndicator</div>,
 }));
 
 vi.mock('../auth/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="auth-provider">{children}</div>
-  )
+  ),
 }));
 
 vi.mock('../auth/RequireKey', () => ({
   RequireKey: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="require-key">{children}</div>
-  )
+  ),
 }));
 
 vi.mock('../lib/settings', () => ({
   SettingsProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="settings-provider">{children}</div>
-  )
+  ),
 }));
 
 vi.mock('../config/routes', () => ({
@@ -36,21 +36,21 @@ vi.mock('../config/routes', () => ({
       path: '/',
       component: () => <div data-testid="home-page">Home Page</div>,
       hideTabBar: false,
-      requiresAuth: false
+      requiresAuth: false,
     },
     {
       path: '/profile',
       component: () => <div data-testid="profile-page">Profile Page</div>,
       hideTabBar: false,
-      requiresAuth: true
+      requiresAuth: true,
     },
     {
       path: '/setup',
       component: () => <div data-testid="setup-page">Setup Page</div>,
       hideTabBar: true,
-      requiresAuth: false
-    }
-  ]
+      requiresAuth: false,
+    },
+  ],
 }));
 
 describe('App', () => {

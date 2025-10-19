@@ -125,7 +125,9 @@ describe('WhoTargetsPanel Accessibility', () => {
       const user = userEvent.setup();
       const mockRetry = vi.fn();
       render(
-        <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
+        <WhoTargetsPanel
+          {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })}
+        />
       );
 
       const retryButton = screen.getByRole('button', { name: /try again/i });
@@ -142,7 +144,9 @@ describe('WhoTargetsPanel Accessibility', () => {
       const user = userEvent.setup();
       const mockRetry = vi.fn();
       render(
-        <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
+        <WhoTargetsPanel
+          {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })}
+        />
       );
 
       const retryButton = screen.getByRole('button', { name: /try again/i });
@@ -168,15 +172,13 @@ describe('WhoTargetsPanel Accessibility', () => {
       render(<WhoTargetsPanel {...createProps({ data: null })} />);
 
       // Check for empty state message
-      expect(
-        screen.getByText(/please complete your profile/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/please complete your profile/i)).toBeInTheDocument();
 
       // Check for icon with proper ARIA label (if not hidden from screen readers)
       const icons = screen.queryAllByRole('img');
       if (icons.length > 0) {
         // Check that visible icons have proper accessibility attributes
-        icons.forEach(icon => {
+        icons.forEach((icon) => {
           if (!icon.hasAttribute('aria-hidden')) {
             expect(icon).toHaveAttribute('aria-label');
           }
@@ -400,12 +402,14 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
 
       // Test various key events don't cause errors
-      await expect((async () => {
-        await user.keyboard('{Enter}');
-        await user.keyboard(' ');
-        await user.keyboard('{Escape}');
-        await user.keyboard('{Tab}');
-      })()).resolves.not.toThrow();
+      await expect(
+        (async () => {
+          await user.keyboard('{Enter}');
+          await user.keyboard(' ');
+          await user.keyboard('{Escape}');
+          await user.keyboard('{Tab}');
+        })()
+      ).resolves.not.toThrow();
     });
 
     it('should support Enter key activation for main button', async () => {

@@ -86,7 +86,6 @@ export interface EventPayloadMap {
   [EventType.VIP_BADGE_VIEWED]: VipBadgeViewedPayload;
 }
 
-
 /**
  * Event Registry Configuration with type-safe validation
  *
@@ -172,27 +171,40 @@ export function validateEventPayload<T extends EventType>(
 
   // Validate BaseEventPayload fields if present
   if ('timestamp' in payload && typeof payload.timestamp !== 'number') {
-    console.error(`Invalid type for 'timestamp': expected 'number', got '${typeof payload.timestamp}'`);
+    console.error(
+      `Invalid type for 'timestamp': expected 'number', got '${typeof payload.timestamp}'`
+    );
     return false;
   }
   if ('sessionId' in payload && typeof payload.sessionId !== 'string') {
-    console.error(`Invalid type for 'sessionId': expected 'string', got '${typeof payload.sessionId}'`);
+    console.error(
+      `Invalid type for 'sessionId': expected 'string', got '${typeof payload.sessionId}'`
+    );
     return false;
   }
-  if ('featureFlags' in payload && (payload.featureFlags === null || typeof payload.featureFlags !== 'object' || Array.isArray(payload.featureFlags))) {
-    console.error(`Invalid type for 'featureFlags': expected 'object', got '${typeof payload.featureFlags}'`);
+  if (
+    'featureFlags' in payload &&
+    (payload.featureFlags === null ||
+      typeof payload.featureFlags !== 'object' ||
+      Array.isArray(payload.featureFlags))
+  ) {
+    console.error(
+      `Invalid type for 'featureFlags': expected 'object', got '${typeof payload.featureFlags}'`
+    );
     return false;
   }
 
-      // Validate featureFlags values are booleans
-      if ('featureFlags' in payload && payload.featureFlags) {
-        for (const [key, value] of Object.entries(payload.featureFlags)) {
-          if (typeof value !== 'boolean') {
-            console.error(`Invalid value type for featureFlags['${key}']: expected 'boolean', got '${typeof value}'`);
-            return false;
-          }
-        }
+  // Validate featureFlags values are booleans
+  if ('featureFlags' in payload && payload.featureFlags) {
+    for (const [key, value] of Object.entries(payload.featureFlags)) {
+      if (typeof value !== 'boolean') {
+        console.error(
+          `Invalid value type for featureFlags['${key}']: expected 'boolean', got '${typeof value}'`
+        );
+        return false;
       }
+    }
+  }
 
   // Validate each field according to its schema
   for (const [fieldName, fieldSchema] of Object.entries(config.fields)) {
@@ -211,7 +223,9 @@ export function validateEventPayload<T extends EventType>(
 
     // Reject null for optional fields
     if (!fieldSchema.required && value === null) {
-      console.error(`Field '${fieldName}' in event '${eventType}' cannot be null (use undefined for optional fields)`);
+      console.error(
+        `Field '${fieldName}' in event '${eventType}' cannot be null (use undefined for optional fields)`
+      );
       return false;
     }
 

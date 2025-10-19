@@ -76,7 +76,7 @@ describe('FeatureFlagManager', () => {
         analytics: false,
         'invalid-key': true,
         'user@email.com': false,
-        'validFlag': true,
+        validFlag: true,
       };
 
       updateFeatureFlags(newFlags);
@@ -191,8 +191,8 @@ describe('FeatureFlagManager', () => {
         'user@email.com': true,
         'flag with spaces': false,
         '123numeric': true,
-        'UPPERCASE': false,
-        'camelCase': true,
+        UPPERCASE: false,
+        camelCase: true,
       };
 
       updateFeatureFlags(mixedFlags);

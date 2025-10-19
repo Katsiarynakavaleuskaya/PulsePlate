@@ -1,8 +1,8 @@
-import { expect, beforeAll, afterEach, afterAll, vi } from "vitest";
-import * as matchers from "@testing-library/jest-dom/matchers";
-import { toHaveNoViolations } from "jest-axe";
-import { cleanup } from "@testing-library/react";
-import { server } from "../mocks/server";
+import { expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
+import * as matchers from '@testing-library/jest-dom/matchers';
+import { toHaveNoViolations } from 'jest-axe';
+import { cleanup } from '@testing-library/react';
+import { server } from '../mocks/server';
 
 // Mock window.location.replace globally to prevent jsdom errors
 Object.defineProperty(window, 'location', {
@@ -24,7 +24,7 @@ expect.extend(toHaveNoViolations);
 // Start MSW server before all tests
 beforeAll(() => {
   if (server?.listen) {
-    server.listen({ onUnhandledRequest: "bypass" });
+    server.listen({ onUnhandledRequest: 'bypass' });
   }
 });
 

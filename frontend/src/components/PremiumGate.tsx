@@ -1,7 +1,7 @@
-import React, { useId, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { useInert } from "../lib/useInert";
-import Paywall from "./Paywall/BeforeAfter";
+import React, { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useInert } from '../lib/useInert';
+import Paywall from './Paywall/BeforeAfter';
 // import { log, Events } from "../lib/analytics"; // TODO: Add analytics when needed
 
 type Props = {
@@ -20,7 +20,7 @@ type Props = {
  * @param source - Optional source identifier forwarded to the Paywall; defaults to `"unknown"`.
  * @returns The PremiumGate React element containing either the unmodified children (for premium users) or a gated preview with a CTA and paywall dialog.
  */
-export default function PremiumGate({ isPremium, children, source = "unknown" }: Props) {
+export default function PremiumGate({ isPremium, children, source = 'unknown' }: Props) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
   const previewRef = useInert(!isPremium);
@@ -41,7 +41,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
 
       {/* Offscreen description to give AT context while preview remains aria-hidden/inert */}
       <p id={describedById} className="sr-only">
-        {t("paywall.title")} — {t("paywall.subtitle")}
+        {t('paywall.title')} — {t('paywall.subtitle')}
       </p>
 
       <button
@@ -54,7 +54,7 @@ export default function PremiumGate({ isPremium, children, source = "unknown" }:
         aria-describedby={describedById}
         style={{ minHeight: 44 }}
       >
-        {t("paywall.cta")}
+        {t('paywall.cta')}
       </button>
 
       {open && (

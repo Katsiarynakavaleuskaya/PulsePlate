@@ -9,7 +9,7 @@ import {
   isVipModuleEnabled,
   isAnalyticsEnabled,
   isDevMode,
-  FEATURE_FLAG_NAMES
+  FEATURE_FLAG_NAMES,
 } from '../features';
 
 // Create a testable version of the feature flags function

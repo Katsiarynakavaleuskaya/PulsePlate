@@ -50,14 +50,7 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
         })}
       >
         {/* Background circle */}
-        <circle
-          cx="55"
-          cy="55"
-          r={radius}
-          fill="none"
-          stroke="#f3f4f6"
-          strokeWidth="8"
-        />
+        <circle cx="55" cy="55" r={radius} fill="none" stroke="#f3f4f6" strokeWidth="8" />
 
         {/* Carbs segment (blue) */}
         <circle
@@ -103,15 +96,21 @@ export default function PlateChart({ carbsPct, proteinPct, fatPct }: PlateChartP
       <div className="mt-4 space-y-2 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-text">{t('nutrition.macros.carbs')}: {Math.round(carbsPct)}%</span>
+          <span className="text-text">
+            {t('nutrition.macros.carbs')}: {Math.round(carbsPct)}%
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-text">{t('nutrition.macros.protein')}: {Math.round(proteinPct)}%</span>
+          <span className="text-text">
+            {t('nutrition.macros.protein')}: {Math.round(proteinPct)}%
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <span className="text-text">{t('nutrition.macros.fat')}: {Math.round(fatPct)}%</span>
+          <span className="text-text">
+            {t('nutrition.macros.fat')}: {Math.round(fatPct)}%
+          </span>
         </div>
       </div>
     </div>

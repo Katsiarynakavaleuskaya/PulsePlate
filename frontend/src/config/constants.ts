@@ -12,4 +12,4 @@ export const PREMIUM_GATE_SOURCES = {
 } as const;
 
 // Type for premium gate source values
-export type PremiumGateSource = typeof PREMIUM_GATE_SOURCES[keyof typeof PREMIUM_GATE_SOURCES];
+export type PremiumGateSource = (typeof PREMIUM_GATE_SOURCES)[keyof typeof PREMIUM_GATE_SOURCES];

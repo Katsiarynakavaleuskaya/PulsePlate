@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { fetchJson } from "../../api/client";
-import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
-import GlassCard from "../../components/GlassCard";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { fetchJson } from '../../api/client';
+import { shareSignedExport, formatShareErrorMessage } from '../../lib/shareFile';
+import GlassCard from '../../components/GlassCard';
 
 /**
  * Represents a single shopping list item with optional properties
@@ -69,7 +69,7 @@ export default function ShoplistPreview() {
   const [data, setData] = useState<Shoplist | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState<"csv" | "pdf" | null>(null);
+  const [downloading, setDownloading] = useState<'csv' | 'pdf' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const cleanupRef = useRef<Array<{ id: number; cleanup: () => void }>>([]);
 
@@ -78,10 +78,10 @@ export default function ShoplistPreview() {
       setLoading(true);
       setErr(null);
       try {
-        const res = await fetchJson<Shoplist>("/api/v1/shoplist");
+        const res = await fetchJson<Shoplist>('/api/v1/shoplist');
         setData(res);
       } catch (e: unknown) {
-        setErr(e instanceof Error ? e.message : "Fetch error");
+        setErr(e instanceof Error ? e.message : 'Fetch error');
       } finally {
         setLoading(false);
       }
@@ -104,7 +104,7 @@ export default function ShoplistPreview() {
    * @param kind - File type to download ("csv" or "pdf")
    * @throws Error if fetch fails or response is not ok
    */
-  const downloadFile = useCallback(async (kind: "csv" | "pdf") => {
+  const downloadFile = useCallback(async (kind: 'csv' | 'pdf') => {
     const filename = `shoplist.${kind}`;
     const res = await fetch(`/api/v1/shoplist/export.${kind}`);
     if (!res.ok) {
@@ -113,10 +113,10 @@ export default function ShoplistPreview() {
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
+    const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = filename;
-    anchor.style.display = "none";
+    anchor.style.display = 'none';
     document.body.appendChild(anchor);
     anchor.click();
 
@@ -131,29 +131,46 @@ export default function ShoplistPreview() {
 
     cleanupRef.current.push({
       id: revokeTimeout as any,
-      cleanup: () => URL.revokeObjectURL(url)
+      cleanup: () => URL.revokeObjectURL(url),
     });
   }, []);
 
-  const handleDownload = useCallback(async (kind: "csv" | "pdf") => {
-    try {
-      setDownloading(kind);
-      await downloadFile(kind);
-    } catch (error: unknown) {
-      setDownloadError(formatShareErrorMessage(error, `${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}`));
-    } finally {
-      setDownloading(null);
-    }
-  }, [downloadFile, t]);
+  const handleDownload = useCallback(
+    async (kind: 'csv' | 'pdf') => {
+      try {
+        setDownloading(kind);
+        await downloadFile(kind);
+      } catch (error: unknown) {
+        setDownloadError(
+          formatShareErrorMessage(
+            error,
+            `${t('shoplist.downloadError')}: ${error instanceof Error ? error.message : t('shoplist.tryAgain')}`
+          )
+        );
+      } finally {
+        setDownloading(null);
+      }
+    },
+    [downloadFile, t]
+  );
 
-  const handleShare = useCallback(async (kind: "csv" | "pdf") => {
-    try {
-      const filename = kind === "csv" ? "shoplist.csv" : "shoplist.pdf";
-      await shareSignedExport(`/api/v1/shoplist/export.${kind}`, filename, "PulsePlate — Shopping List");
-    } catch (error: unknown) {
-      setDownloadError(formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`));
-    }
-  }, [t]);
+  const handleShare = useCallback(
+    async (kind: 'csv' | 'pdf') => {
+      try {
+        const filename = kind === 'csv' ? 'shoplist.csv' : 'shoplist.pdf';
+        await shareSignedExport(
+          `/api/v1/shoplist/export.${kind}`,
+          filename,
+          'PulsePlate — Shopping List'
+        );
+      } catch (error: unknown) {
+        setDownloadError(
+          formatShareErrorMessage(error, `${t('shoplist.shareError')}. ${t('shoplist.tryAgain')}`)
+        );
+      }
+    },
+    [t]
+  );
 
   if (loading) {
     return <div className="max-w-3xl mx-auto p-6">{t('shoplist.loading')}</div>;
@@ -171,9 +188,10 @@ export default function ShoplistPreview() {
     return <div className="max-w-3xl mx-auto p-6 opacity-70">{t('shoplist.empty')}</div>;
   }
 
-  const groups = data.groups && data.groups.length > 0
-    ? data.groups
-    : [{ aisle: "All items", items: data.items ?? [] }];
+  const groups =
+    data.groups && data.groups.length > 0
+      ? data.groups
+      : [{ aisle: 'All items', items: data.items ?? [] }];
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
@@ -189,34 +207,35 @@ export default function ShoplistPreview() {
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="opacity-80 text-slate-700">
-              {data.store ? `${t('shoplist.store')}: ${data.store}` : ""}
-              {typeof data.total_estimated === "number" && (
+              {data.store ? `${t('shoplist.store')}: ${data.store}` : ''}
+              {typeof data.total_estimated === 'number' && (
                 <>
-                  {data.store ? " • " : ""}{t('shoplist.estimated')} {data.total_estimated}
-                  {data.currency ? ` ${data.currency}` : ""}
+                  {data.store ? ' • ' : ''}
+                  {t('shoplist.estimated')} {data.total_estimated}
+                  {data.currency ? ` ${data.currency}` : ''}
                 </>
               )}
             </span>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => handleDownload("csv")}
-                disabled={downloading === "csv"}
+                onClick={() => handleDownload('csv')}
+                disabled={downloading === 'csv'}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "csv" ? t('shoplist.downloadingCsv') : t('shoplist.downloadCsv')}
+                {downloading === 'csv' ? t('shoplist.downloadingCsv') : t('shoplist.downloadCsv')}
               </button>
               <button
                 type="button"
-                onClick={() => handleDownload("pdf")}
-                disabled={downloading === "pdf"}
+                onClick={() => handleDownload('pdf')}
+                disabled={downloading === 'pdf'}
                 className="border rounded-xl px-3 py-2 text-sm"
               >
-                {downloading === "pdf" ? t('shoplist.downloadingPdf') : t('shoplist.downloadPdf')}
+                {downloading === 'pdf' ? t('shoplist.downloadingPdf') : t('shoplist.downloadPdf')}
               </button>
               <button
                 type="button"
-                onClick={() => handleShare("pdf")}
+                onClick={() => handleShare('pdf')}
                 className="border rounded-xl px-3 py-2 text-sm"
                 aria-label={`${t('shoplist.share')} ${t('shoplist.downloadPdf')}`}
               >
@@ -231,11 +250,7 @@ export default function ShoplistPreview() {
           </div>
         )}
       </GlassCard>
-      <GlassCard
-        role="region"
-        ariaLabelledBy="shopping-content-title"
-        contentClassName="space-y-4"
-      >
+      <GlassCard role="region" ariaLabelledBy="shopping-content-title" contentClassName="space-y-4">
         <h2 id="shopping-content-title" className="text-lg font-semibold">
           {t('shoplist.contentTitle')}
         </h2>
@@ -249,11 +264,12 @@ export default function ShoplistPreview() {
               <ul className="mt-2 grid gap-1">
                 {(group.items ?? []).map((item, ii) => (
                   <li key={item.id ?? `${item.name}-${ii}`} className="text-sm">
-                    • {item.name ?? "—"}
-                    {typeof item.qty === "number" && (
+                    • {item.name ?? '—'}
+                    {typeof item.qty === 'number' && (
                       <span>
-                        {" "}— {item.qty}
-                        {item.unit ? ` ${item.unit}` : ""}
+                        {' '}
+                        — {item.qty}
+                        {item.unit ? ` ${item.unit}` : ''}
                       </span>
                     )}
                     {item.note && <span className="opacity-60"> ({item.note})</span>}

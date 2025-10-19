@@ -1,33 +1,33 @@
 // Tests use the Vitest framework.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock("@capacitor/core", () => ({
+vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: vi.fn(() => false),
   },
 }));
 
-vi.mock("@capacitor/share", () => ({
+vi.mock('@capacitor/share', () => ({
   Share: {
     share: vi.fn(() => Promise.resolve()),
   },
 }));
 
-vi.mock("@capacitor/filesystem", () => ({
+vi.mock('@capacitor/filesystem', () => ({
   Filesystem: {
-    writeFile: vi.fn(() => Promise.resolve({ uri: "file://cache/pulseplate/test" })),
-    getUri: vi.fn(() => Promise.resolve({ uri: "file://cache/pulseplate/test" })),
+    writeFile: vi.fn(() => Promise.resolve({ uri: 'file://cache/pulseplate/test' })),
+    getUri: vi.fn(() => Promise.resolve({ uri: 'file://cache/pulseplate/test' })),
     deleteFile: vi.fn(() => Promise.resolve()),
   },
   Directory: {
-    Cache: "cache",
+    Cache: 'cache',
   },
 }));
 
-import { shareFile } from "./shareFile";
-import { Capacitor } from "@capacitor/core";
-import { Share } from "@capacitor/share";
-import { Filesystem, Directory } from "@capacitor/filesystem";
+import { shareFile } from './shareFile';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 const originalFetch = global.fetch;
 const originalDocument = globalThis.document;
@@ -36,15 +36,15 @@ const isNativePlatformMock = vi.mocked(Capacitor.isNativePlatform, true);
 const writeFileMock = vi.mocked(Filesystem.writeFile, true);
 const shareMock = vi.mocked(Share.share, true);
 
-describe("shareFile", () => {
+describe('shareFile', () => {
   let anchorMock: HTMLAnchorElement;
   let createElementMock: ReturnType<typeof vi.fn>;
   let nowSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     anchorMock = {
-      href: "",
-      download: "",
+      href: '',
+      download: '',
       click: vi.fn(),
       remove: vi.fn(),
     } as unknown as HTMLAnchorElement;
@@ -58,16 +58,16 @@ describe("shareFile", () => {
     } as unknown as Document;
 
     global.fetch = vi.fn();
-    nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_758_958_372_976);
+    nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_758_958_372_976);
 
     isNativePlatformMock.mockReturnValue(false);
-    writeFileMock.mockResolvedValue({ uri: "file://cache/pulseplate/test" });
+    writeFileMock.mockResolvedValue({ uri: 'file://cache/pulseplate/test' });
     // Исправлено: Share.share должен возвращать объект типа ShareResult, а не undefined.
     // Fixed: Share.share should return an object of type ShareResult, not undefined.
     // Share.share должен возвращать объект типа ShareResult.
     // Share.share should return an object of type ShareResult.
     shareMock.mockResolvedValue({
-      activityType: undefined
+      activityType: undefined,
     });
   });
 
@@ -84,12 +84,12 @@ describe("shareFile", () => {
     }
   });
 
-  it("falls back to browser download when not on a native platform", async () => {
-    await shareFile("https://example.com/file.pdf", "report.pdf", "Download Report");
+  it('falls back to browser download when not on a native platform', async () => {
+    await shareFile('https://example.com/file.pdf', 'report.pdf', 'Download Report');
 
-    expect(createElementMock).toHaveBeenCalledWith("a");
-    expect(anchorMock.href).toBe("https://example.com/file.pdf");
-    expect(anchorMock.download).toBe("report.pdf");
+    expect(createElementMock).toHaveBeenCalledWith('a');
+    expect(anchorMock.href).toBe('https://example.com/file.pdf');
+    expect(anchorMock.download).toBe('report.pdf');
     expect(anchorMock.click).toHaveBeenCalledTimes(1);
 
     expect(global.fetch).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("shareFile", () => {
     expect(shareMock).not.toHaveBeenCalled();
   });
 
-  it("uses default title when sharing natively without an explicit title", async () => {
+  it('uses default title when sharing natively without an explicit title', async () => {
     isNativePlatformMock.mockReturnValue(true);
     // Мокаем fetch для возврата успешного ответа с arrayBuffer
     // Mock fetch to return a successful response with arrayBuffer
@@ -109,16 +109,16 @@ describe("shareFile", () => {
       arrayBuffer: vi.fn().mockResolvedValue(buffer),
     });
 
-    await shareFile("https://example.com/file.bin", "export.bin");
+    await shareFile('https://example.com/file.bin', 'export.bin');
 
     expect(shareMock).toHaveBeenCalledWith({
-      title: "PulsePlate export",
-      files: ["file://cache/pulseplate/test"],
-      dialogTitle: "Share",
+      title: 'PulsePlate export',
+      files: ['file://cache/pulseplate/test'],
+      dialogTitle: 'Share',
     });
   });
 
-  it("fetches, stores, and shares the file on native platforms", async () => {
+  it('fetches, stores, and shares the file on native platforms', async () => {
     isNativePlatformMock.mockReturnValue(true);
 
     const arrayBuffer = new ArrayBuffer(5);
@@ -132,11 +132,11 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(arrayBuffer),
     });
 
-    const expectedPath = "pulseplate/1758958372976-export.bin";
+    const expectedPath = 'pulseplate/1758958372976-export.bin';
 
-    await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
+    await shareFile('https://example.com/file.bin', 'export.bin', 'Native Share');
 
-    expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.bin");
+    expect(global.fetch).toHaveBeenCalledWith('https://example.com/file.bin');
     expect(writeFileMock).toHaveBeenCalledWith({
       path: expectedPath,
       data: expect.any(String),
@@ -144,18 +144,18 @@ describe("shareFile", () => {
       recursive: true,
     });
     expect(shareMock).toHaveBeenCalledWith({
-      title: "Native Share",
-      files: ["file://cache/pulseplate/test"],
-      dialogTitle: "Share",
+      title: 'Native Share',
+      files: ['file://cache/pulseplate/test'],
+      dialogTitle: 'Share',
     });
 
     const { data } = writeFileMock.mock.calls[0][0];
     const encodedData = data as string;
-    const expectedBase64 = Buffer.from(uint8).toString("base64");
+    const expectedBase64 = Buffer.from(uint8).toString('base64');
     expect(encodedData).toBe(expectedBase64);
   });
 
-  it("throws an error when the fetch request is unsuccessful", async () => {
+  it('throws an error when the fetch request is unsuccessful', async () => {
     isNativePlatformMock.mockReturnValue(true);
 
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
@@ -164,15 +164,15 @@ describe("shareFile", () => {
       status: 404,
     });
 
-    await expect(shareFile("https://example.com/missing.bin", "missing.bin")).rejects.toThrow(
-      "HTTP 404",
+    await expect(shareFile('https://example.com/missing.bin', 'missing.bin')).rejects.toThrow(
+      'HTTP 404'
     );
 
     expect(writeFileMock).not.toHaveBeenCalled();
     expect(shareMock).not.toHaveBeenCalled();
   });
 
-  it("propagates file system write errors", async () => {
+  it('propagates file system write errors', async () => {
     isNativePlatformMock.mockReturnValue(true);
 
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
@@ -182,13 +182,13 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
     });
 
-    writeFileMock.mockRejectedValue(new Error("disk full"));
+    writeFileMock.mockRejectedValue(new Error('disk full'));
 
-    await expect(shareFile("https://example.com/file", "file.bin")).rejects.toThrow("disk full");
+    await expect(shareFile('https://example.com/file', 'file.bin')).rejects.toThrow('disk full');
     expect(shareMock).not.toHaveBeenCalled();
   });
 
-  it("propagates share API errors", async () => {
+  it('propagates share API errors', async () => {
     isNativePlatformMock.mockReturnValue(true);
 
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
@@ -198,12 +198,12 @@ describe("shareFile", () => {
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
     });
 
-    shareMock.mockRejectedValue(new Error("share failed"));
+    shareMock.mockRejectedValue(new Error('share failed'));
 
-    await expect(shareFile("https://example.com/file", "file.bin")).rejects.toThrow("share failed");
+    await expect(shareFile('https://example.com/file', 'file.bin')).rejects.toThrow('share failed');
   });
 
-  it("encodes buffers of varying lengths to valid base64 strings", async () => {
+  it('encodes buffers of varying lengths to valid base64 strings', async () => {
     isNativePlatformMock.mockReturnValue(true);
 
     const buffers = [
@@ -223,7 +223,7 @@ describe("shareFile", () => {
         arrayBuffer: () => Promise.resolve(buffer),
       });
 
-      await shareFile("https://example.com/file", "file.bin");
+      await shareFile('https://example.com/file', 'file.bin');
     }
 
     expect(writeFileMock).toHaveBeenCalledTimes(buffers.length);
@@ -236,7 +236,7 @@ describe("shareFile", () => {
 
       expect(encodedData.length % 4).toBe(0);
       expect(/^[A-Za-z0-9+/=]+$/.test(encodedData)).toBe(true);
-      const expectedBase64 = Buffer.from(new Uint8Array(buffer)).toString("base64");
+      const expectedBase64 = Buffer.from(new Uint8Array(buffer)).toString('base64');
       expect(encodedData).toBe(expectedBase64);
     });
   });

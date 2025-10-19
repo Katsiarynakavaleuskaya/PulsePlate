@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, expectTypeOf } from "vitest";
-import type { PlateApiResponse, Portion, LayoutItem, Meal } from "../types";
+import { describe, it, expect, expectTypeOf } from 'vitest';
+import type { PlateApiResponse, Portion, LayoutItem, Meal } from '../types';
 
-describe("Premium Types", () => {
-  describe("Portion", () => {
-    it("should accept valid portion data", () => {
+describe('Premium Types', () => {
+  describe('Portion', () => {
+    it('should accept valid portion data', () => {
       const validPortion: Portion = {
         protein_palm: 2.5,
         fat_thumbs: 1.8,
@@ -15,7 +15,7 @@ describe("Premium Types", () => {
       expect(validPortion).toBeDefined();
     });
 
-    it("should enforce required fields on Portion (type-level)", () => {
+    it('should enforce required fields on Portion (type-level)', () => {
       const valid: Portion = {
         protein_palm: 2.5,
         fat_thumbs: 1.8,
@@ -27,36 +27,36 @@ describe("Premium Types", () => {
     });
   });
 
-  describe("LayoutItem", () => {
-    it("should accept valid layout item", () => {
+  describe('LayoutItem', () => {
+    it('should accept valid layout item', () => {
       const validLayoutItem: LayoutItem = {
-        kind: "plate_sector",
+        kind: 'plate_sector',
         fraction: 0.35,
-        label: "Protein",
-        tooltip: "Lean protein sources",
+        label: 'Protein',
+        tooltip: 'Lean protein sources',
       };
       expect(validLayoutItem).toBeDefined();
     });
 
-    it("should only accept valid kinds", () => {
-      const validKinds: Array<LayoutItem["kind"]> = ["plate_sector", "bowl", "marker"];
+    it('should only accept valid kinds', () => {
+      const validKinds: Array<LayoutItem['kind']> = ['plate_sector', 'bowl', 'marker'];
 
-      validKinds.forEach(kind => {
+      validKinds.forEach((kind) => {
         const item: LayoutItem = {
           kind,
           fraction: 0.5,
-          label: "Test",
-          tooltip: "Test tooltip",
+          label: 'Test',
+          tooltip: 'Test tooltip',
         };
         expect(item.kind).toBe(kind);
       });
     });
   });
 
-  describe("Meal", () => {
-    it("should accept valid meal data", () => {
+  describe('Meal', () => {
+    it('should accept valid meal data', () => {
       const validMeal: Meal = {
-        title: "Breakfast",
+        title: 'Breakfast',
         kcal: 450,
         protein_g: 25,
         fat_g: 15,
@@ -65,9 +65,9 @@ describe("Premium Types", () => {
       expect(validMeal).toBeDefined();
     });
 
-    it("should accept meal data with micros", () => {
+    it('should accept meal data with micros', () => {
       const validMealWithMicros: Meal = {
-        title: "Breakfast",
+        title: 'Breakfast',
         kcal: 450,
         protein_g: 25,
         fat_g: 15,
@@ -82,8 +82,8 @@ describe("Premium Types", () => {
     });
   });
 
-  describe("PlateApiResponse", () => {
-    it("should accept valid plate API response", () => {
+  describe('PlateApiResponse', () => {
+    it('should accept valid plate API response', () => {
       const validResponse: PlateApiResponse = {
         kcal: 2000,
         macros: {
@@ -101,47 +101,47 @@ describe("Premium Types", () => {
         },
         layout: [
           {
-            kind: "plate_sector",
+            kind: 'plate_sector',
             fraction: 0.35,
-            label: "Protein",
-            tooltip: "Lean protein",
+            label: 'Protein',
+            tooltip: 'Lean protein',
           },
           {
-            kind: "plate_sector",
-            fraction: 0.40,
-            label: "Carbs",
-            tooltip: "Whole grains",
+            kind: 'plate_sector',
+            fraction: 0.4,
+            label: 'Carbs',
+            tooltip: 'Whole grains',
           },
           {
-            kind: "plate_sector",
-            fraction: 0.20,
-            label: "Vegetables",
-            tooltip: "Non-starchy veg",
+            kind: 'plate_sector',
+            fraction: 0.2,
+            label: 'Vegetables',
+            tooltip: 'Non-starchy veg',
           },
           {
-            kind: "plate_sector",
+            kind: 'plate_sector',
             fraction: 0.05,
-            label: "Fats",
-            tooltip: "Healthy fats",
+            label: 'Fats',
+            tooltip: 'Healthy fats',
           },
         ],
         meals: [
           {
-            title: "Breakfast",
+            title: 'Breakfast',
             kcal: 600,
             protein_g: 30,
             fat_g: 20,
             carbs_g: 75,
           },
           {
-            title: "Lunch",
+            title: 'Lunch',
             kcal: 700,
             protein_g: 40,
             fat_g: 25,
             carbs_g: 80,
           },
           {
-            title: "Dinner",
+            title: 'Dinner',
             kcal: 700,
             protein_g: 40,
             fat_g: 25,
@@ -156,7 +156,7 @@ describe("Premium Types", () => {
       expect(validResponse).toBeDefined();
     });
 
-    it("should enforce PlateApiResponse required fields (type-level)", () => {
+    it('should enforce PlateApiResponse required fields (type-level)', () => {
       const sample: PlateApiResponse = {
         kcal: 2000,
         macros: {

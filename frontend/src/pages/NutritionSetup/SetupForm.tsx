@@ -21,7 +21,13 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
     return result.success ? result.data : undefined;
   })();
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SetupFormValues>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<SetupFormValues>({
     resolver: zodResolver(setupSchema),
     defaultValues: saved ?? {
       sex: 'female',
@@ -41,8 +47,10 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
   const handleDietFlagChange = (flag: DietFlag, checked: boolean) => {
     const currentFlags = watchedDietFlags || [];
     const newFlags = checked
-      ? currentFlags.includes(flag) ? currentFlags : [...currentFlags, flag]
-      : currentFlags.filter(f => f !== flag);
+      ? currentFlags.includes(flag)
+        ? currentFlags
+        : [...currentFlags, flag]
+      : currentFlags.filter((f) => f !== flag);
     setValue('diet_flags', newFlags as DietFlag[]);
   };
 
@@ -63,7 +71,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">{t('nutrition.sex.label')}</label>
+            <label className="block text-sm font-medium text-text">
+              {t('nutrition.sex.label')}
+            </label>
             <select
               {...register('sex')}
               className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
@@ -85,7 +95,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">{t('nutrition.height_cm')}</label>
+            <label className="block text-sm font-medium text-text">
+              {t('nutrition.height_cm')}
+            </label>
             <input
               type="number"
               {...register('height_cm', { valueAsNumber: true })}
@@ -96,7 +108,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">{t('nutrition.weight_kg')}</label>
+            <label className="block text-sm font-medium text-text">
+              {t('nutrition.weight_kg')}
+            </label>
             <input
               type="number"
               {...register('weight_kg', { valueAsNumber: true })}
@@ -109,7 +123,9 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
 
         {/* Activity Level */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text">{t('nutrition.activity.label')}</label>
+          <label className="block text-sm font-medium text-text">
+            {t('nutrition.activity.label')}
+          </label>
           <select
             {...register('activity')}
             className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
@@ -147,7 +163,10 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {validDietFlags.map((flag) => (
-              <label key={flag} className="flex items-center space-x-3 p-3 border border-muted rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+              <label
+                key={flag}
+                className="flex items-center space-x-3 p-3 border border-muted rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+              >
                 <input
                   type="checkbox"
                   checked={watchedDietFlags.includes(flag)}
@@ -168,9 +187,7 @@ export default function SetupForm({ onSubmit }: SetupFormProps) {
           {t('nutritionSetup.calculateButton')}
         </button>
 
-        <p className="text-xs text-muted text-center">
-          {t('nutritionSetup.saveNote')}
-        </p>
+        <p className="text-xs text-muted text-center">{t('nutritionSetup.saveNote')}</p>
       </form>
     </div>
   );

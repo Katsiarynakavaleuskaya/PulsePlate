@@ -28,7 +28,7 @@ function generateSessionId(): string {
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     const array = new Uint8Array(SESSION_ID_LENGTH);
     crypto.getRandomValues(array);
-    result = Array.from(array, byte => chars[byte % chars.length]).join('');
+    result = Array.from(array, (byte) => chars[byte % chars.length]).join('');
   } else {
     // Fallback for environments without crypto.getRandomValues
     for (let i = 0; i < SESSION_ID_LENGTH; i++) {
@@ -85,7 +85,10 @@ function createNewSession(): string {
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
   } catch (error) {
-    console.warn('[Telemetry] Failed to store session data:', error instanceof Error ? error.message : error);
+    console.warn(
+      '[Telemetry] Failed to store session data:',
+      error instanceof Error ? error.message : error
+    );
   }
 
   return sessionId;

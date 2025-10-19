@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { api, setApiClientDependencies } from '../client';
 
-const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-  () => Promise.resolve(new Response('{}', { status: 200 }))
+const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() =>
+  Promise.resolve(new Response('{}', { status: 200 }))
 );
 (globalThis as any).fetch = fetchMock;
 
@@ -36,36 +36,65 @@ describe('API Auth Error Callbacks', () => {
   });
 
   it('invokes onAuthError from 3rd param on 401', async () => {
-    fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
-      ok: false,
-      status: 401,
-    })));
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(
+        createMockResponse(
+          { error: 'Unauthorized' },
+          {
+            ok: false,
+            status: 401,
+          }
+        )
+      )
+    );
 
     const handler = vi.fn();
-    await expect(api('/probe', undefined, { onAuthError: (c, h) => handler(c, h) }))
-      .rejects.toBeTruthy();
+    await expect(
+      api('/probe', undefined, { onAuthError: (c, h) => handler(c, h) })
+    ).rejects.toBeTruthy();
 
-    expect(handler).toHaveBeenCalledWith(401, expect.objectContaining({ clearApiKey: expect.any(Function) }));
+    expect(handler).toHaveBeenCalledWith(
+      401,
+      expect.objectContaining({ clearApiKey: expect.any(Function) })
+    );
   });
 
   it('invokes onAuthError from 3rd param on 403', async () => {
-    fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Forbidden' }, {
-      ok: false,
-      status: 403,
-    })));
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(
+        createMockResponse(
+          { error: 'Forbidden' },
+          {
+            ok: false,
+            status: 403,
+          }
+        )
+      )
+    );
 
     const handler = vi.fn();
-    await expect(api('/probe', undefined, { onAuthError: (c, h) => handler(c, h) }))
-      .rejects.toBeTruthy();
+    await expect(
+      api('/probe', undefined, { onAuthError: (c, h) => handler(c, h) })
+    ).rejects.toBeTruthy();
 
-    expect(handler).toHaveBeenCalledWith(403, expect.objectContaining({ clearApiKey: expect.any(Function) }));
+    expect(handler).toHaveBeenCalledWith(
+      403,
+      expect.objectContaining({ clearApiKey: expect.any(Function) })
+    );
   });
 
   it('falls back to clear+redirect when onAuthError is not provided (401)', async () => {
-    fetchMock.mockImplementationOnce(() => Promise.resolve(createMockResponse({ error: 'Unauthorized' }, {
-      ok: false,
-      status: 401,
-    })));
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(
+        createMockResponse(
+          { error: 'Unauthorized' },
+          {
+            ok: false,
+            status: 401,
+          }
+        )
+      )
+    );
 
     const clearSpy = vi.fn();
     // inject dependencies to simulate stored key behavior
@@ -79,7 +108,7 @@ describe('API Auth Error Callbacks', () => {
     const replaceSpy = vi.fn();
     Object.defineProperty(window, 'location', {
       value: { replace: replaceSpy },
-      writable: true
+      writable: true,
     });
 
     await expect(api('/probe')).rejects.toBeTruthy();

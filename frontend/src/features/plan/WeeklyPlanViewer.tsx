@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import type { components, paths } from "../../api/schema";
-import { fetchJson } from "../../api/client";
-import GlassCard from "../../components/GlassCard";
-import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
-import { requestSignedLink } from "../../lib/sharedLinks";
-import { getClientLocale } from "../../lib/i18n";
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { components, paths } from '../../api/schema';
+import { fetchJson } from '../../api/client';
+import GlassCard from '../../components/GlassCard';
+import { shareSignedExport, formatShareErrorMessage } from '../../lib/shareFile';
+import { requestSignedLink } from '../../lib/sharedLinks';
+import { getClientLocale } from '../../lib/i18n';
 
 const DEFAULT_TTL_SECONDS = 900;
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     }
@@ -20,14 +20,14 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 
   try {
-    const textarea = document.createElement("textarea");
+    const textarea = document.createElement('textarea');
     textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
     document.body.appendChild(textarea);
     textarea.focus();
     textarea.select();
-    const ok = document.execCommand("copy");
+    const ok = document.execCommand('copy');
     document.body.removeChild(textarea);
     return ok;
   } catch {
@@ -41,7 +41,7 @@ async function downloadSignedFile(url: string, filename: string) {
     throw new Error(`HTTP ${res.status}`);
   }
   const blob = await res.blob();
-  const anchor = document.createElement("a");
+  const anchor = document.createElement('a');
   anchor.href = URL.createObjectURL(blob);
   anchor.download = filename;
   document.body.appendChild(anchor);
@@ -51,69 +51,75 @@ async function downloadSignedFile(url: string, filename: string) {
 }
 
 type WeekPlanResponse =
-  paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
-type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
+  paths['/api/v1/premium/plan/week']['post']['responses']['200']['content']['application/json'];
+type WeekPlanRequest = components['schemas']['WeekPlanRequest'];
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
-  sex: "female",
+  sex: 'female',
   age: 30,
   height_cm: 168,
   weight_kg: 62,
-  activity: "moderate",
-  goal: "maintain",
+  activity: 'moderate',
+  goal: 'maintain',
   diet_flags: [],
-  lang: "en",
+  lang: 'en',
 };
 
-function getDayTitle(day: UnknownRecord, idx: number, t: (key: string, options?: any) => string): string {
-  return typeof day.date === "string"
+function getDayTitle(
+  day: UnknownRecord,
+  idx: number,
+  t: (key: string, options?: any) => string
+): string {
+  return typeof day.date === 'string'
     ? day.date
-    : typeof day.day_label === "string"
-    ? day.day_label
-    : t("plan.day_fallback", { number: idx + 1 }); // e.g., "Day {number}"
+    : typeof day.day_label === 'string'
+      ? day.day_label
+      : t('plan.day_fallback', { number: idx + 1 }); // e.g., "Day {number}"
 }
 
 function getDayEnergy(day: UnknownRecord): number | undefined {
-  return typeof day.energy_kcal === "number"
+  return typeof day.energy_kcal === 'number'
     ? day.energy_kcal
-    : typeof day.kcal === "number"
-    ? day.kcal
-    : undefined;
+    : typeof day.kcal === 'number'
+      ? day.kcal
+      : undefined;
 }
 
-function getMealName(meal: UnknownRecord, mi: number, t: (key: string, options?: any) => string): string {
-  return typeof meal.name === "string"
+function getMealName(
+  meal: UnknownRecord,
+  mi: number,
+  t: (key: string, options?: any) => string
+): string {
+  return typeof meal.name === 'string'
     ? meal.name
-    : typeof meal.meal === "string"
-    ? meal.meal
-    : t("plan.meal_fallback", { number: mi + 1 }); // e.g., "Meal {number}"
+    : typeof meal.meal === 'string'
+      ? meal.meal
+      : t('plan.meal_fallback', { number: mi + 1 }); // e.g., "Meal {number}"
 }
 
 function getMealEnergy(meal: UnknownRecord): number | undefined {
-  return typeof meal.energy_kcal === "number"
+  return typeof meal.energy_kcal === 'number'
     ? meal.energy_kcal
-    : typeof meal.kcal === "number"
-    ? meal.kcal
-    : undefined;
+    : typeof meal.kcal === 'number'
+      ? meal.kcal
+      : undefined;
 }
 
 function getMealItems(meal: UnknownRecord): UnknownRecord[] {
-  const rawItems = Array.isArray(meal.items)
-    ? (meal.items as UnknownRecord[])
-    : [];
+  const rawItems = Array.isArray(meal.items) ? (meal.items as UnknownRecord[]) : [];
 
   const fallbackItem =
-    typeof meal.food_item === "string"
+    typeof meal.food_item === 'string'
       ? [
           {
             name: meal.food_item,
             energy_kcal:
-              typeof meal.kcal === "number"
+              typeof meal.kcal === 'number'
                 ? meal.kcal
-                : typeof meal.energy_kcal === "number"
-                ? meal.energy_kcal
-                : undefined,
+                : typeof meal.energy_kcal === 'number'
+                  ? meal.energy_kcal
+                  : undefined,
           },
         ]
       : [];
@@ -121,22 +127,26 @@ function getMealItems(meal: UnknownRecord): UnknownRecord[] {
   return rawItems.length > 0 ? rawItems : fallbackItem;
 }
 
-function getItemName(item: UnknownRecord, ii: number, t: (key: string, options?: any) => string): string {
-  return typeof item.name === "string"
+function getItemName(
+  item: UnknownRecord,
+  ii: number,
+  t: (key: string, options?: any) => string
+): string {
+  return typeof item.name === 'string'
     ? item.name
-    : typeof item.title === "string"
-    ? item.title
-    : typeof item.food_item === "string"
-    ? item.food_item
-    : t("plan.item_fallback", { number: ii + 1 }); // e.g., "Item {number}"
+    : typeof item.title === 'string'
+      ? item.title
+      : typeof item.food_item === 'string'
+        ? item.food_item
+        : t('plan.item_fallback', { number: ii + 1 }); // e.g., "Item {number}"
 }
 
 function getItemEnergy(item: UnknownRecord): number | undefined {
-  return typeof item.energy_kcal === "number"
+  return typeof item.energy_kcal === 'number'
     ? item.energy_kcal
-    : typeof item.kcal === "number"
-    ? item.kcal
-    : undefined;
+    : typeof item.kcal === 'number'
+      ? item.kcal
+      : undefined;
 }
 
 export default function WeeklyPlanViewer() {
@@ -152,20 +162,22 @@ export default function WeeklyPlanViewer() {
       setLoading(true);
       setErr(null);
       try {
-        const locale = getClientLocale() as WeekPlanRequest["lang"];
-        const supportedLangs: WeekPlanRequest["lang"][] = ["en", "ru", "es"];
+        const locale = getClientLocale() as WeekPlanRequest['lang'];
+        const supportedLangs: WeekPlanRequest['lang'][] = ['en', 'ru', 'es'];
         const payload: WeekPlanRequest = {
           ...DEFAULT_REQUEST,
-          lang: supportedLangs.includes(locale) ? locale : "en",
+          lang: supportedLangs.includes(locale) ? locale : 'en',
         };
 
-        const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {
-          method: "POST",
+        const week = await fetchJson<WeekPlanResponse>('/api/v1/premium/plan/week', {
+          method: 'POST',
           body: JSON.stringify(payload),
         });
         setData(week);
       } catch (e: any) {
-        setErr(e?.message || "Fetch error");
+        const errorMessage = e?.message || 'Fetch error';
+        console.error('WeeklyPlanViewer fetch error:', errorMessage, e);
+        setErr(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -184,25 +196,21 @@ export default function WeeklyPlanViewer() {
     );
   }
 
-  const dailyMenus = Array.isArray(data?.daily_menus)
-    ? (data!.daily_menus as UnknownRecord[])
-    : [];
+  const dailyMenus = Array.isArray(data?.daily_menus) ? (data!.daily_menus as UnknownRecord[]) : [];
 
   const openSheetsHelp = () => {
-    window.open("https://sheets.new", "_blank", "noopener,noreferrer");
+    window.open('https://sheets.new', '_blank', 'noopener,noreferrer');
     setHint(t('plan.sheetsHelp'));
   };
 
   const copyLink = async () => {
     try {
-      const link = await requestSignedLink("/api/v1/plan/week/export.csv", { ttlSeconds: DEFAULT_TTL_SECONDS });
+      const link = await requestSignedLink('/api/v1/plan/week/export.csv', {
+        ttlSeconds: DEFAULT_TTL_SECONDS,
+      });
       const ok = await copyToClipboard(link.absolute);
       setLastSignedLink(link.absolute);
-      setHint(
-        ok
-          ? t('plan.linkCopied')
-          : `${t('plan.copyFailed')}: ${link.absolute}`
-      );
+      setHint(ok ? t('plan.linkCopied') : `${t('plan.copyFailed')}: ${link.absolute}`);
     } catch (error: any) {
       setHint(`${t('plan.linkRequestFailed')}: ${error?.message || t('plan.unknownError')}`);
     }
@@ -215,13 +223,17 @@ export default function WeeklyPlanViewer() {
       setLastSignedLink(link.absolute);
       setHint(t('plan.exportReady'));
     } catch (error: any) {
-      setHint(`${t('plan.downloadFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+      setHint(
+        `${t('plan.downloadFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`
+      );
     }
   };
 
   const handleShare = async (path: string, filename: string, title: string) => {
     try {
-      const link = await shareSignedExport(path, filename, title, { ttlSeconds: DEFAULT_TTL_SECONDS });
+      const link = await shareSignedExport(path, filename, title, {
+        ttlSeconds: DEFAULT_TTL_SECONDS,
+      });
       setLastSignedLink(link.absolute);
       setHint(t('plan.shareReady'));
     } catch (error: any) {
@@ -231,12 +243,16 @@ export default function WeeklyPlanViewer() {
 
   const openPrivateCsv = async () => {
     try {
-      const link = await requestSignedLink("/api/v1/plan/week/export.csv", { ttlSeconds: DEFAULT_TTL_SECONDS });
+      const link = await requestSignedLink('/api/v1/plan/week/export.csv', {
+        ttlSeconds: DEFAULT_TTL_SECONDS,
+      });
       setLastSignedLink(link.absolute);
-      window.open(link.absolute, "_blank", "noopener,noreferrer");
+      window.open(link.absolute, '_blank', 'noopener,noreferrer');
       setHint(t('plan.linkOpened'));
     } catch (error: any) {
-      setHint(`${t('plan.linkOpenFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`);
+      setHint(
+        `${t('plan.linkOpenFailed')}: ${error?.message || t('plan.unknownError')}. ${t('plan.tryAgain')}`
+      );
     }
   };
 
@@ -256,14 +272,14 @@ export default function WeeklyPlanViewer() {
             <button
               type="button"
               className="border rounded-xl px-3 py-2 text-sm"
-              onClick={() => handleDownload("/api/v1/plan/week/export.csv", "week_plan.csv")}
+              onClick={() => handleDownload('/api/v1/plan/week/export.csv', 'week_plan.csv')}
             >
               Export Week CSV
             </button>
             <button
               type="button"
               className="border rounded-xl px-3 py-2 text-sm"
-              onClick={() => handleDownload("/api/v1/plan/week/export.pdf", "week_plan.pdf")}
+              onClick={() => handleDownload('/api/v1/plan/week/export.pdf', 'week_plan.pdf')}
             >
               Export Week PDF
             </button>
@@ -273,9 +289,9 @@ export default function WeeklyPlanViewer() {
               aria-label="Share week plan (PDF)"
               onClick={() =>
                 handleShare(
-                  "/api/v1/plan/week/export.pdf",
-                  "week_plan.pdf",
-                  "PulsePlate — Weekly Plan"
+                  '/api/v1/plan/week/export.pdf',
+                  'week_plan.pdf',
+                  'PulsePlate — Weekly Plan'
                 )
               }
             >
@@ -334,9 +350,7 @@ export default function WeeklyPlanViewer() {
               const dayTitle = getDayTitle(day, idx, t);
               const dayEnergy = getDayEnergy(day);
 
-              const meals = Array.isArray(day.meals)
-                ? (day.meals as UnknownRecord[])
-                : [];
+              const meals = Array.isArray(day.meals) ? (day.meals as UnknownRecord[]) : [];
 
               return (
                 <li
@@ -345,8 +359,10 @@ export default function WeeklyPlanViewer() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{dayTitle}</div>
-                    {typeof dayEnergy === "number" && (
-                      <div className="text-sm opacity-70">{Math.round(dayEnergy)} {t('plan.kcalPerDay')}</div>
+                    {typeof dayEnergy === 'number' && (
+                      <div className="text-sm opacity-70">
+                        {Math.round(dayEnergy)} {t('plan.kcalPerDay')}
+                      </div>
                     )}
                   </div>
                   <ul className="space-y-2">
@@ -363,8 +379,10 @@ export default function WeeklyPlanViewer() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-medium">{mealName}</div>
-                            {typeof mealEnergy === "number" && (
-                              <div className="text-sm opacity-70">{Math.round(mealEnergy)} {t('plan.kcal')}</div>
+                            {typeof mealEnergy === 'number' && (
+                              <div className="text-sm opacity-70">
+                                {Math.round(mealEnergy)} {t('plan.kcal')}
+                              </div>
                             )}
                           </div>
                           <ul className="mt-2 grid gap-1">
@@ -373,26 +391,29 @@ export default function WeeklyPlanViewer() {
                                 const itemObj = item as UnknownRecord;
                                 const itemName = getItemName(itemObj, ii, t);
                                 const itemEnergy = getItemEnergy(itemObj);
-                            return (
-                              <li key={`${itemName}-${ii}`} className="text-sm">
-                                • {itemName}
-                                {typeof itemEnergy === "number" && (
-                                  <span className="opacity-70"> — {Math.round(itemEnergy)} {t('plan.kcal')}</span>
-                                )}
-                              </li>
-                            );
-                          })
-                        ) : (
-                          <li className="text-sm opacity-60">{t('plan.noItems')}</li>
-                        )}
-                      </ul>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          );
-        })}
+                                return (
+                                  <li key={`${itemName}-${ii}`} className="text-sm">
+                                    • {itemName}
+                                    {typeof itemEnergy === 'number' && (
+                                      <span className="opacity-70">
+                                        {' '}
+                                        — {Math.round(itemEnergy)} {t('plan.kcal')}
+                                      </span>
+                                    )}
+                                  </li>
+                                );
+                              })
+                            ) : (
+                              <li className="text-sm opacity-60">{t('plan.noItems')}</li>
+                            )}
+                          </ul>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
         )}
       </GlassCard>

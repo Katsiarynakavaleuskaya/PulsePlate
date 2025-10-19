@@ -66,7 +66,9 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
         <WifiOff className="w-4 h-4" aria-hidden="true" />
       )}
       <span className="text-sm font-medium">
-        {isOnline ? t('offlineIndicator.backOnline', 'Back online') : t('offlineIndicator.offline', 'You are offline')}
+        {isOnline
+          ? t('offlineIndicator.backOnline', 'Back online')
+          : t('offlineIndicator.offline', 'You are offline')}
       </span>
     </div>
   );

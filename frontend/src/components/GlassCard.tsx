@@ -1,30 +1,30 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 
-type GlassCardTone = "neutral" | "light" | "dark";
-type GlassCardPadding = "none" | "sm" | "md" | "lg";
+type GlassCardTone = 'neutral' | 'light' | 'dark';
+type GlassCardPadding = 'none' | 'sm' | 'md' | 'lg';
 
-type GlassCardProps = Omit<HTMLAttributes<HTMLDivElement>, "children" | "className"> & {
+type GlassCardProps = Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'> & {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
   padding?: GlassCardPadding;
   tone?: GlassCardTone;
-  role?: HTMLAttributes<HTMLDivElement>["role"];
+  role?: HTMLAttributes<HTMLDivElement>['role'];
   ariaLabel?: string;
   ariaLabelledBy?: string;
 };
 
 const PADDING_CLASS: Record<GlassCardPadding, string> = {
-  none: "",
-  sm: "p-3",
-  md: "p-4",
-  lg: "p-6",
+  none: '',
+  sm: 'p-3',
+  md: 'p-4',
+  lg: 'p-6',
 };
 
 const TONE_CLASS: Record<GlassCardTone, string> = {
-  neutral: "border border-white/15 bg-white/10 text-white",
-  light: "border border-slate-200/80 bg-white/80 text-slate-900",
-  dark: "border border-slate-700/70 bg-slate-900/70 text-white",
+  neutral: 'border border-white/15 bg-white/10 text-white',
+  light: 'border border-slate-200/80 bg-white/80 text-slate-900',
+  dark: 'border border-slate-700/70 bg-slate-900/70 text-white',
 };
 
 /**
@@ -36,8 +36,8 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
     children,
     className,
     contentClassName,
-    padding = "md",
-    tone = "neutral",
+    padding = 'md',
+    tone = 'neutral',
     role,
     ariaLabel,
     ariaLabelledBy,
@@ -46,25 +46,28 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
   ref
 ) {
   const ariaProps =
-    ariaLabelledBy != null && ariaLabelledBy !== ""
-      ? { "aria-labelledby": ariaLabelledBy }
+    ariaLabelledBy != null && ariaLabelledBy !== ''
+      ? { 'aria-labelledby': ariaLabelledBy }
       : ariaLabel
-      ? { "aria-label": ariaLabel }
-      : {};
+        ? { 'aria-label': ariaLabel }
+        : {};
 
   const wrapperClasses = [
-    "rounded-2xl",
-    "backdrop-blur-xl",
-    "shadow-[0_8px_30px_rgba(0,0,0,0.12)]",
-    (TONE_CLASS[tone] !== undefined ? TONE_CLASS[tone] : TONE_CLASS.neutral),
+    'rounded-2xl',
+    'backdrop-blur-xl',
+    'shadow-[0_8px_30px_rgba(0,0,0,0.12)]',
+    TONE_CLASS[tone] !== undefined ? TONE_CLASS[tone] : TONE_CLASS.neutral,
     className,
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
-  const contentClasses = [(PADDING_CLASS[padding] !== undefined ? PADDING_CLASS[padding] : PADDING_CLASS.md), contentClassName]
+  const contentClasses = [
+    PADDING_CLASS[padding] !== undefined ? PADDING_CLASS[padding] : PADDING_CLASS.md,
+    contentClassName,
+  ]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
   return (
     <div

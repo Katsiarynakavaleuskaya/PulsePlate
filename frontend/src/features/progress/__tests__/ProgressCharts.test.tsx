@@ -5,7 +5,9 @@ import ProgressCharts from '../ProgressCharts';
 
 // Mock recharts components
 vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
+  ResponsiveContainer: ({ children }: any) => (
+    <div data-testid="responsive-container">{children}</div>
+  ),
   LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
   Line: () => <div data-testid="line" />,
   XAxis: () => <div data-testid="x-axis" />,

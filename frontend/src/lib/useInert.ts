@@ -19,8 +19,9 @@ export function useInert(shouldBeInert: boolean = true) {
     }
 
     // Feature-detect inert support explicitly
-    const hasInertSupport = 'inert' in HTMLElement.prototype ||
-                           ('inert' in element && typeof (element as any).inert === 'boolean');
+    const hasInertSupport =
+      'inert' in HTMLElement.prototype ||
+      ('inert' in element && typeof (element as any).inert === 'boolean');
 
     if (hasInertSupport) {
       // Use native inert when supported
@@ -31,51 +32,51 @@ export function useInert(shouldBeInert: boolean = true) {
       };
     } else {
       // Fallback: set aria-hidden and remove tabindex from descendants
-      const previousAriaHidden = element.getAttribute("aria-hidden");
-      element.setAttribute("aria-hidden", "true");
+      const previousAriaHidden = element.getAttribute('aria-hidden');
+      element.setAttribute('aria-hidden', 'true');
       const focusables = element.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), details, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"]), audio[controls], video[controls], iframe'
       );
       focusables.forEach((el) => {
-        if (el.hasAttribute("tabindex")) {
-          el.setAttribute("data-pp-prev-tabindex", el.getAttribute("tabindex") || "");
+        if (el.hasAttribute('tabindex')) {
+          el.setAttribute('data-pp-prev-tabindex', el.getAttribute('tabindex') || '');
         } else {
-          el.setAttribute("data-pp-tabindex-added", "true");
+          el.setAttribute('data-pp-tabindex-added', 'true');
         }
-        el.setAttribute("tabindex", "-1");
+        el.setAttribute('tabindex', '-1');
 
         // Disable interactive elements and mark them for restoration
-        if ("disabled" in el && !(el as HTMLButtonElement).disabled) {
+        if ('disabled' in el && !(el as HTMLButtonElement).disabled) {
           (el as HTMLButtonElement).disabled = true;
-          el.setAttribute("data-pp-disabled", "true");
+          el.setAttribute('data-pp-disabled', 'true');
         }
       });
       return () => {
         if (previousAriaHidden === null) {
-          element.removeAttribute("aria-hidden");
+          element.removeAttribute('aria-hidden');
         } else {
-          element.setAttribute("aria-hidden", previousAriaHidden);
+          element.setAttribute('aria-hidden', previousAriaHidden);
         }
         const restore = element.querySelectorAll<HTMLElement>(
           '[data-pp-prev-tabindex], [data-pp-tabindex-added], [data-pp-disabled]'
         );
         restore.forEach((el) => {
-          const prev = el.getAttribute("data-pp-prev-tabindex");
+          const prev = el.getAttribute('data-pp-prev-tabindex');
           if (prev !== null) {
-            if (prev === "") {
-              el.removeAttribute("tabindex");
+            if (prev === '') {
+              el.removeAttribute('tabindex');
             } else {
-              el.setAttribute("tabindex", prev);
+              el.setAttribute('tabindex', prev);
             }
-            el.removeAttribute("data-pp-prev-tabindex");
+            el.removeAttribute('data-pp-prev-tabindex');
           }
-          if (el.getAttribute("data-pp-tabindex-added") === "true") {
-            el.removeAttribute("tabindex");
-            el.removeAttribute("data-pp-tabindex-added");
+          if (el.getAttribute('data-pp-tabindex-added') === 'true') {
+            el.removeAttribute('tabindex');
+            el.removeAttribute('data-pp-tabindex-added');
           }
-          if (el.getAttribute("data-pp-disabled") === "true") {
+          if (el.getAttribute('data-pp-disabled') === 'true') {
             (el as HTMLButtonElement).disabled = false;
-            el.removeAttribute("data-pp-disabled");
+            el.removeAttribute('data-pp-disabled');
           }
         });
       };

@@ -45,7 +45,7 @@ describe('SettingsProvider', () => {
 
     expect(result.current.settings).toEqual({
       theme: 'dark',
-      language: 'en'
+      language: 'en',
     });
   });
 
@@ -69,7 +69,7 @@ describe('SettingsProvider', () => {
 
     const complexValue = {
       colors: ['red', 'blue'],
-      config: { enabled: true }
+      config: { enabled: true },
     };
 
     act(() => {

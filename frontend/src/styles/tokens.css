@@ -94,8 +94,8 @@
   /* Legacy aliases (deprecated) */
   --pp-navy: var(--color-navy-900);
   --pp-primary: var(--color-primary);
-  --pp-gold: #D4AF37;
-  --pp-accent: #20C997;
+  --pp-gold: #d4af37;
+  --pp-accent: #20c997;
   --pp-text: var(--color-text);
   --pp-muted: var(--color-text-muted);
   --pp-radius-xl: 1.25rem;
@@ -251,7 +251,7 @@
 }
 
 /* Attribute-based dark mode (for manual theme switching) */
-html[data-theme="dark"] {
+html[data-theme='dark'] {
   color-scheme: dark;
 
   /* Override semantic colors for dark mode */
@@ -282,7 +282,7 @@ html[data-theme="dark"] {
 }
 
 /* Explicit light mode forcing */
-html[data-theme="light"] {
+html[data-theme='light'] {
   color-scheme: light;
 }
 

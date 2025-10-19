@@ -3807,6 +3807,7 @@ diferir
 difieren
 disableable
 docstrings
+doseq
 dotenv
 dpapathanasiou
 dtype
@@ -4229,6 +4230,8 @@ unicodedata
 unstub
 unwrapы
 urllib
+urlparse
+urlunparse
 Usando
 usda
 utcnow

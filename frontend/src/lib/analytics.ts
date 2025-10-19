@@ -22,17 +22,17 @@ export function log(event: string, payload: Payload = {}): void {
  */
 export function logError(error: AnalyticsError): void {
   if (error instanceof Error) {
-    console.warn("[analytics] error", error.message);
+    console.warn('[analytics] error', error.message);
     return;
   }
-  console.warn("[analytics] unknown error", error);
+  console.warn('[analytics] unknown error', error);
 }
 
 // Часто используемые имена — чтобы не ошибаться в орфографии.
 export const Events = {
-  PAYWALL_VIEW: "paywall_view",
-  PURCHASE_ATTEMPT: "purchase_attempt",
-  PURCHASE_CANCEL: "purchase_cancel",
-  PURCHASE_SUCCESS: "purchase_success",
-  RESTORE_SUCCESS: "restore_success",
+  PAYWALL_VIEW: 'paywall_view',
+  PURCHASE_ATTEMPT: 'purchase_attempt',
+  PURCHASE_CANCEL: 'purchase_cancel',
+  PURCHASE_SUCCESS: 'purchase_success',
+  RESTORE_SUCCESS: 'restore_success',
 } as const;

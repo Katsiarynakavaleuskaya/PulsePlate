@@ -6,7 +6,6 @@ import EnterKey from '../EnterKey';
 import { AuthProvider } from '../../../lib/auth';
 import toast from 'react-hot-toast';
 
-
 // Mock i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -35,11 +34,7 @@ const renderWithProviders = (component: React.ReactElement) => {
   localStorage.removeItem('pulseplate_api_key');
   sessionStorage.removeItem('pulseplate_api_key');
 
-  return render(
-    <AuthProvider>
-      {component}
-    </AuthProvider>
-  );
+  return render(<AuthProvider>{component}</AuthProvider>);
 };
 
 beforeEach(() => {

@@ -62,4 +62,4 @@ export const FEATURE_FLAG_NAMES = {
   DEV_MODE: 'devMode',
 } as const;
 
-export type FeatureFlagName = typeof FEATURE_FLAG_NAMES[keyof typeof FEATURE_FLAG_NAMES];
+export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[keyof typeof FEATURE_FLAG_NAMES];

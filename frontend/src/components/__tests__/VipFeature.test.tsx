@@ -9,7 +9,7 @@ import {
   VipGate,
   VipPageHeader,
   VipFeatureCard,
-  VipSection
+  VipSection,
 } from '../VipFeature';
 
 // Mock useVipModule hook
@@ -155,7 +155,7 @@ describe('VipFeature', () => {
       const previewWrapper = screen.getByTestId('vip-content').parentElement;
       expect(
         previewWrapper?.hasAttribute('inert') ||
-        previewWrapper?.getAttribute('aria-hidden') === 'true'
+          previewWrapper?.getAttribute('aria-hidden') === 'true'
       ).toBe(true);
 
       // Check for offscreen description (mocked translation keys)
@@ -209,7 +209,6 @@ describe('VipFeature', () => {
     });
 
     it('should track telemetry events on gate interaction', () => {
-
       render(
         <VipGate isVip={false} source="dashboard">
           <div>Preview</div>
@@ -224,7 +223,6 @@ describe('VipFeature', () => {
     });
 
     it('should track paywall dismissal', () => {
-
       render(
         <VipGate isVip={false} source="dashboard">
           <div>Preview</div>
@@ -241,7 +239,6 @@ describe('VipFeature', () => {
     });
 
     it('should track legacy gate telemetry events', () => {
-
       render(<VipGate source="dashboard" />);
 
       // Click the CTA button
@@ -319,12 +316,7 @@ describe('VipFeature', () => {
     it('should render subtitle when provided', () => {
       mockUseVipModule.mockReturnValue(true);
 
-      render(
-        <VipPageHeader
-          title="VIP Dashboard"
-          subtitle="Manage your VIP features"
-        />
-      );
+      render(<VipPageHeader title="VIP Dashboard" subtitle="Manage your VIP features" />);
 
       expect(screen.getByText('VIP Dashboard')).toBeInTheDocument();
       expect(screen.getByText('Manage your VIP features')).toBeInTheDocument();
@@ -360,10 +352,7 @@ describe('VipFeature', () => {
 
     it('should render children inside VipFeatureCard', () => {
       render(
-        <VipFeatureCard
-          title="Child Test"
-          description="Testing children"
-        >
+        <VipFeatureCard title="Child Test" description="Testing children">
           <div data-testid="vip-feature-child">Child Content</div>
         </VipFeatureCard>
       );

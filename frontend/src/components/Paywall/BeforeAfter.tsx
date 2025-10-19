@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useTranslation } from "react-i18next";
-import { Events, log } from "../../lib/analytics";
-import { useFocusTrap } from "../../lib/useFocusTrap";
+import { useCallback, useEffect, useRef } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Events, log } from '../../lib/analytics';
+import { useFocusTrap } from '../../lib/useFocusTrap';
 
 type Props = {
   onClose: () => void;
@@ -23,7 +23,12 @@ type Props = {
  * @param via - Optional identifier for analytics `via` (defaults to `"paywall"`).
  * @returns The React element for the paywall dialog.
  */
-export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
+export default function BeforeAfter({
+  onClose,
+  onPurchase,
+  source = 'unknown',
+  via = 'paywall',
+}: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -31,13 +36,13 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
         try {
           log(Events.PURCHASE_CANCEL, { source, via });
         } catch {
-            // Ignore analytics errors
+          // Ignore analytics errors
         }
         onClose();
         return;
@@ -62,7 +67,7 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
   useEffect(() => {
     // Prevent background scrolling when modal is open
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
 
     // Set focus on primary button
     primaryButtonRef.current?.focus();
@@ -85,30 +90,30 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
     >
       <div ref={dialogRef} className="w-full max-w-md rounded-xl bg-white text-black p-5">
         <h2 id="paywall-title" className="text-2xl mb-1">
-          {t("paywall.title")}
+          {t('paywall.title')}
         </h2>
-        <p className="text-sm text-gray-600 mb-4">{t("paywall.subtitle")}</p>
+        <p className="text-sm text-gray-600 mb-4">{t('paywall.subtitle')}</p>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="border rounded-lg p-3">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.before.label")}</div>
+            <div className="text-xs uppercase text-gray-500">{t('paywall.before.label')}</div>
             <ul className="text-sm list-disc list-inside">
               {[
-                "paywall.items.before.random_plate",
-                "paywall.items.before.macros_only",
-                "paywall.items.before.manual_shopping",
+                'paywall.items.before.random_plate',
+                'paywall.items.before.macros_only',
+                'paywall.items.before.manual_shopping',
               ].map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
             </ul>
           </div>
           <div className="border rounded-lg p-3 border-[var(--pp-gold)]">
-            <div className="text-xs uppercase text-gray-500">{t("paywall.after.label")}</div>
+            <div className="text-xs uppercase text-gray-500">{t('paywall.after.label')}</div>
             <ul className="text-sm list-disc list-inside">
               {[
-                "paywall.items.after.personal_plate",
-                "paywall.items.after.micro_balance",
-                "paywall.items.after.auto_shopping_list",
+                'paywall.items.after.personal_plate',
+                'paywall.items.after.micro_balance',
+                'paywall.items.after.auto_shopping_list',
               ].map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
@@ -127,12 +132,12 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
             } catch {
-            // Ignore analytics errors
-        }
+              // Ignore analytics errors
+            }
             onPurchase?.();
           }}
         >
-          {t("paywall.cta")}
+          {t('paywall.cta')}
         </button>
 
         <button
@@ -144,15 +149,15 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             try {
               log(Events.PURCHASE_CANCEL, { source, via });
             } catch {
-            // Ignore analytics errors
-        }
+              // Ignore analytics errors
+            }
             onClose();
           }}
         >
-          {t("common.cancel")}
+          {t('common.cancel')}
         </button>
 
-        <p className="mt-3 text-xs text-gray-500">{t("paywall.legal")}</p>
+        <p className="mt-3 text-xs text-gray-500">{t('paywall.legal')}</p>
       </div>
     </div>
   );

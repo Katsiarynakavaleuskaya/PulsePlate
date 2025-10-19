@@ -50,7 +50,10 @@ export function WeeklyPlanSkeleton({ className = '' }: WeeklyPlanSkeletonProps) 
       <div className="space-y-4">
         {/* Meal sections */}
         {Array.from({ length: 3 }).map((_, mealIndex) => (
-          <div key={mealIndex} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div
+            key={mealIndex}
+            className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
+          >
             <div className="flex items-center justify-between mb-3">
               <Skeleton className="h-5 w-20" />
               <Skeleton className="h-4 w-16" />

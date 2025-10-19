@@ -1,16 +1,9 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: [
-      'node_modules/**',
-      'dist/**',
-      'public/**',
-      '**/*.d.ts',
-      '**/mockServiceWorker.js'
-    ]
+    ignores: ['node_modules/**', 'dist/**', 'public/**', '**/*.d.ts', '**/mockServiceWorker.js'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -45,11 +38,14 @@ export default tseslint.config(
         sessionStorage: 'readonly',
         crypto: 'readonly',
         IntersectionObserver: 'readonly',
-        ResizeObserver: 'readonly'
-      }
+        ResizeObserver: 'readonly',
+      },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', caughtErrors: 'none' },
+      ],
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off', // Allow console.log for development - process.env check not reliable in ESLint
       'no-empty': 'warn',
@@ -65,15 +61,18 @@ export default tseslint.config(
       'no-redeclare': 'off', // Disable base rule in favor of TypeScript version
       '@typescript-eslint/no-redeclare': 'error',
       'no-var': 'error', // Prefer const/let to avoid hoisting issues
-      'prefer-const': 'warn'
+      'prefer-const': 'warn',
+      // Additional code quality rules
+      'no-unused-expressions': 'warn',
+      'no-useless-return': 'warn',
     },
   },
   {
     files: ['src/**/*.test.{ts,tsx}', 'src/**/__tests__/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off', // Allow any in tests
-      '@typescript-eslint/no-unused-vars': 'off' // Allow unused vars in tests
+      '@typescript-eslint/no-unused-vars': 'off', // Allow unused vars in tests
     },
-  },
-  prettier // Disable ESLint rules that conflict with Prettier
+  }
+  // Prettier integration removed due to import issues
 );

@@ -24,7 +24,7 @@ describe('Design Tokens', () => {
     it('should have consistent color scales', () => {
       const colorScales = ['navy', 'blue', 'green', 'heart', 'gray'] as const;
 
-      colorScales.forEach(scale => {
+      colorScales.forEach((scale) => {
         const colorScale = colors[scale];
         expect(colorScale).toBeDefined();
 
@@ -45,7 +45,7 @@ describe('Design Tokens', () => {
         ...Object.values(colors.semantic),
       ];
 
-      allColors.forEach(color => {
+      allColors.forEach((color) => {
         expect(color).toMatch(/^#[0-9a-fA-F]{6}$/);
       });
     });
@@ -169,7 +169,7 @@ describe('Design Tokens', () => {
     });
 
     it('should have valid shadow syntax', () => {
-      Object.values(shadows).forEach(shadow => {
+      Object.values(shadows).forEach((shadow) => {
         expect(shadow).toMatch(/^0 \d+px \d+px/);
       });
     });
@@ -185,7 +185,7 @@ describe('Design Tokens', () => {
     });
 
     it('should have proper breakpoint progression', () => {
-      const values = Object.values(breakpoints).map(v => parseInt(v));
+      const values = Object.values(breakpoints).map((v) => parseInt(v));
       for (let i = 1; i < values.length; i++) {
         expect(values[i]).toBeGreaterThan(values[i - 1]);
       }
@@ -202,7 +202,7 @@ describe('Design Tokens', () => {
     });
 
     it('should have logical z-index progression', () => {
-      const values = Object.values(zIndex).filter(v => typeof v === 'number') as number[];
+      const values = Object.values(zIndex).filter((v) => typeof v === 'number') as number[];
       for (let i = 1; i < values.length; i++) {
         expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
       }
@@ -229,16 +229,12 @@ describe('Design Tokens', () => {
     const hexToRgb = (hex: string): [number, number, number] => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
       if (!result) throw new Error(`Invalid hex color: ${hex}`);
-      return [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16)
-      ];
+      return [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)];
     };
 
     // Helper function to calculate relative luminance
     const getLuminance = (r: number, g: number, b: number): number => {
-      const [rs, gs, bs] = [r, g, b].map(c => {
+      const [rs, gs, bs] = [r, g, b].map((c) => {
         c = c / 255;
         return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
       });

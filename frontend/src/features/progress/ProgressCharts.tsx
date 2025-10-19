@@ -10,7 +10,7 @@ import {
   Pie,
   Cell,
   BarChart,
-  Bar
+  Bar,
 } from 'recharts';
 import { Download, TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -96,7 +96,9 @@ export default function ProgressCharts() {
       {/* Header with Export Button */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: 'var(--pp-text)' }}>Progress Tracking</h2>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--pp-text)' }}>
+            Progress Tracking
+          </h2>
           <p style={{ color: 'var(--pp-muted)' }}>Monitor your health journey</p>
         </div>
         <button
@@ -104,7 +106,7 @@ export default function ProgressCharts() {
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:opacity-90"
           style={{
             backgroundColor: 'var(--pp-primary)',
-            color: 'var(--pp-text)'
+            color: 'var(--pp-text)',
           }}
         >
           <Download className="w-4 h-4" />
@@ -117,11 +119,13 @@ export default function ProgressCharts() {
         className="rounded-lg p-6 shadow-sm"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          border: '1px solid rgba(255, 255, 255, 0.1)'
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold" style={{ color: 'var(--pp-text)' }}>Weight & BMI Progress</h3>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--pp-text)' }}>
+            Weight & BMI Progress
+          </h3>
           <div className="flex items-center gap-2">
             {isWeightLoss ? (
               <TrendingDown className="w-5 h-5" style={{ color: 'var(--pp-accent)' }} />
@@ -180,10 +184,12 @@ export default function ProgressCharts() {
         className="rounded-lg p-6 shadow-sm"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          border: '1px solid rgba(255, 255, 255, 0.1)'
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>Calorie Balance</h3>
+        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>
+          Calorie Balance
+        </h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={calorieData}>
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
@@ -214,10 +220,12 @@ export default function ProgressCharts() {
           className="rounded-lg p-6 shadow-sm"
           style={{
             backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            border: '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
-          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>Macronutrient Distribution</h3>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>
+            Macronutrient Distribution
+          </h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
@@ -248,23 +256,26 @@ export default function ProgressCharts() {
           className="rounded-lg p-6 shadow-sm"
           style={{
             backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            border: '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
-          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>Nutrient Breakdown</h3>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pp-text)' }}>
+            Nutrient Breakdown
+          </h3>
           <div className="space-y-3">
             {macroData.map((nutrient, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded"
-                    style={{ backgroundColor: nutrient.color }}
-                  />
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: nutrient.color }} />
                   <span style={{ color: 'var(--pp-text)' }}>{nutrient.name}</span>
                 </div>
                 <div className="text-right">
-                  <div style={{ color: 'var(--pp-text)' }} className="font-medium">{nutrient.value}g</div>
-                  <div style={{ color: 'var(--pp-muted)' }} className="text-sm">{nutrient.percentage}%</div>
+                  <div style={{ color: 'var(--pp-text)' }} className="font-medium">
+                    {nutrient.value}g
+                  </div>
+                  <div style={{ color: 'var(--pp-muted)' }} className="text-sm">
+                    {nutrient.percentage}%
+                  </div>
                 </div>
               </div>
             ))}

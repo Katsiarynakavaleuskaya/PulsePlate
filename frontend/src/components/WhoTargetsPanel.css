@@ -4,7 +4,9 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .who-targets-panel__header {
@@ -57,8 +59,12 @@
 }
 
 @keyframes skeleton-loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .skeleton--text {
@@ -354,17 +360,17 @@
 }
 
 /* Dark Theme */
-[data-theme="dark"] .target-card--primary {
+[data-theme='dark'] .target-card--primary {
   background: linear-gradient(135deg, var(--color-primary-900), var(--color-primary-800));
   border-color: var(--color-primary-700);
 }
 
-[data-theme="dark"] .target-card--warning {
+[data-theme='dark'] .target-card--warning {
   background: linear-gradient(135deg, var(--color-warning-900), var(--color-warning-800));
   border-color: var(--color-warning-700);
 }
 
-[data-theme="dark"] .target-card--primary .target-card__value {
+[data-theme='dark'] .target-card--primary .target-card__value {
   color: var(--color-primary-300);
 }
 

@@ -4,7 +4,7 @@ import Progress from '../Progress';
 
 // Mock ProgressCharts component
 vi.mock('../../features/progress/ProgressCharts', () => ({
-  default: () => <div data-testid="progress-charts">ProgressCharts</div>
+  default: () => <div data-testid="progress-charts">ProgressCharts</div>,
 }));
 
 afterEach(() => {
@@ -25,7 +25,7 @@ describe('Progress', () => {
     const main = screen.getByRole('main');
     expect(main).toHaveStyle({
       backgroundColor: 'var(--pp-navy)',
-      minHeight: '100vh'
+      minHeight: '100vh',
     });
   });
 });

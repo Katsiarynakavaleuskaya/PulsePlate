@@ -6,7 +6,6 @@ import '@testing-library/jest-dom/vitest';
 import { Toggle } from '../ui/Toggle';
 import { FormField, FormError } from '../ui/FormField';
 
-
 describe('Accessibility Tests', () => {
   afterEach(() => {
     cleanup();
@@ -56,11 +55,7 @@ describe('Accessibility Tests', () => {
 
     it('should not have accessibility violations when checked', async () => {
       const { container } = render(
-        <Toggle
-          label="Test Toggle"
-          checked={true}
-          onChange={() => {}}
-        />
+        <Toggle label="Test Toggle" checked={true} onChange={() => {}} />
       );
       const results = await axe(container);
       expect(results).toHaveNoViolations();
@@ -68,11 +63,7 @@ describe('Accessibility Tests', () => {
 
     it('should not have accessibility violations when unchecked', async () => {
       const { container } = render(
-        <Toggle
-          label="Test Toggle"
-          checked={false}
-          onChange={() => {}}
-        />
+        <Toggle label="Test Toggle" checked={false} onChange={() => {}} />
       );
       const results = await axe(container);
       expect(results).toHaveNoViolations();
@@ -81,11 +72,7 @@ describe('Accessibility Tests', () => {
     it('should properly associate label with switch using aria-labelledby', async () => {
       const { container } = render(
         <div>
-          <Toggle
-            label="Accessibility Test Toggle"
-            checked={true}
-            onChange={() => {}}
-          />
+          <Toggle label="Accessibility Test Toggle" checked={true} onChange={() => {}} />
         </div>
       );
       const switchElement = screen.getByRole('switch');
@@ -106,12 +93,7 @@ describe('Accessibility Tests', () => {
     it('should not have accessibility violations when disabled', async () => {
       const { container } = render(
         <div>
-          <Toggle
-            label="Disabled Toggle"
-            checked={false}
-            onChange={() => {}}
-            disabled={true}
-          />
+          <Toggle label="Disabled Toggle" checked={false} onChange={() => {}} disabled={true} />
         </div>
       );
 
@@ -144,11 +126,7 @@ describe('Accessibility Tests', () => {
 
       const { container } = render(
         <div>
-          <Toggle
-            label="Keyboard Test Toggle"
-            checked={false}
-            onChange={handleChange}
-          />
+          <Toggle label="Keyboard Test Toggle" checked={false} onChange={handleChange} />
         </div>
       );
 
@@ -169,11 +147,7 @@ describe('Accessibility Tests', () => {
     it('should have proper focus management and visible focus styles', async () => {
       const { container } = render(
         <div>
-          <Toggle
-            label="Focus Test Toggle"
-            checked={false}
-            onChange={() => {}}
-          />
+          <Toggle label="Focus Test Toggle" checked={false} onChange={() => {}} />
         </div>
       );
 
@@ -184,21 +158,20 @@ describe('Accessibility Tests', () => {
       expect(switchElement).toHaveFocus();
 
       // Verify focus styles are applied (focus:ring-2 focus:ring-blue-600)
-      expect(switchElement).toHaveClass('focus:ring-2', 'focus:ring-blue-600', 'focus:ring-offset-2');
+      expect(switchElement).toHaveClass(
+        'focus:ring-2',
+        'focus:ring-blue-600',
+        'focus:ring-offset-2'
+      );
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
-
     it('should have proper ARIA attributes and state management', async () => {
       const { container, rerender } = render(
         <div>
-          <Toggle
-            label="ARIA Test Toggle"
-            checked={false}
-            onChange={() => {}}
-          />
+          <Toggle label="ARIA Test Toggle" checked={false} onChange={() => {}} />
         </div>
       );
 
@@ -211,11 +184,7 @@ describe('Accessibility Tests', () => {
       // Test checked state
       rerender(
         <div>
-          <Toggle
-            label="ARIA Test Toggle"
-            checked={true}
-            onChange={() => {}}
-          />
+          <Toggle label="ARIA Test Toggle" checked={true} onChange={() => {}} />
         </div>
       );
       expect(switchElement).toHaveAttribute('aria-checked', 'true');
@@ -231,18 +200,14 @@ describe('Accessibility Tests', () => {
       // Covered by browser-based axe run in Playwright suite (frontend/tests/accessibility.spec.ts).
       const { container } = render(
         <div>
-          <Toggle
-            label="Contrast Test Toggle"
-            checked={true}
-            onChange={() => {}}
-          />
+          <Toggle label="Contrast Test Toggle" checked={true} onChange={() => {}} />
         </div>
       );
 
       const results = await axe(container, {
         rules: {
-          'color-contrast': { enabled: true }
-        }
+          'color-contrast': { enabled: true },
+        },
       });
       expect(results).toHaveNoViolations();
     });
@@ -252,11 +217,7 @@ describe('Accessibility Tests', () => {
     it('should not have accessibility violations with basic input', async () => {
       const { container } = render(
         <div>
-          <FormField
-            label="Test Field"
-            name="test"
-            placeholder="Enter text"
-          />
+          <FormField label="Test Field" name="test" placeholder="Enter text" />
         </div>
       );
 
@@ -272,11 +233,7 @@ describe('Accessibility Tests', () => {
     it('should properly handle required fields and ARIA attributes', async () => {
       const { container } = render(
         <div>
-          <FormField
-            label="Required Field"
-            name="required"
-            required={true}
-          />
+          <FormField label="Required Field" name="required" required={true} />
         </div>
       );
 
@@ -295,11 +252,7 @@ describe('Accessibility Tests', () => {
 
       const { container } = render(
         <div>
-          <FormField
-            label="Error Field"
-            name="error"
-            error={error}
-          />
+          <FormField label="Error Field" name="error" error={error} />
         </div>
       );
 
@@ -320,10 +273,7 @@ describe('Accessibility Tests', () => {
 
       const { container } = render(
         <div>
-          <FormField
-            label="Focus Test Field"
-            name="focus"
-          />
+          <FormField label="Focus Test Field" name="focus" />
         </div>
       );
 
