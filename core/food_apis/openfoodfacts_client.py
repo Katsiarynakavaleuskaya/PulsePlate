@@ -102,14 +102,14 @@ class OFFClient:
     Rate limits: 100 requests/minute for anonymous users, higher for API accounts.
     """
 
-    BASE_URL = "https://world.openfoodfacts.org/api/v2"
+    BASE_URL = "https://world.openfoodfacts.org/api/v0"
 
     def __init__(self):
         """
         Initialize Open Food Facts client.
         """
-        # Underlying async HTTP client
-        self.client = httpx.AsyncClient()
+        # Underlying async HTTP client with timeout
+        self.client = httpx.AsyncClient(timeout=10.0)
 
         # Common nutrient mappings (Open Food Facts nutrient names to our standard names)
         self.nutrient_mapping = {
@@ -154,15 +154,14 @@ class OFFClient:
             List of OFFFoodItem objects
         """
         try:
-            url = f"{self.BASE_URL}/search"
+            # Use the old API format for v0
+            url = "https://world.openfoodfacts.org/cgi/search.pl"
             params = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
-                "json": "true",
-                "fields": (
-                    "code,product_name,nutriments,categories,ingredients_text,"
-                    "brands,labels,countries,packaging,image_url,last_modified_t"
-                ),
+                "search_simple": "1",
+                "action": "process",
+                "json": "1",
             }
 
             response = await self.client.get(url, params=params)

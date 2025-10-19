@@ -257,7 +257,6 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
 
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status():
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
@@ -363,7 +362,8 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available and Limiter is not None
+        slowapi_available
+        and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -2799,6 +2799,4 @@ if get_bodyfat_router is not None:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Include Premium Week router
-if premium_week_router is not None:
-    app.include_router(premium_week_router)
+# Premium Week router already included above with dependencies

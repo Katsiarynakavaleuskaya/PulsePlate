@@ -239,7 +239,7 @@
 **Размер**: ~100 строк изменений
 **Ветка**: `feature/pr-4-1-test-optimization`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.1.1 Удалить дублирующиеся тесты покрытия (336 файлов → `tests_backup_coverage/`)
 - [ ] 4.1.2 Переместить hypothesis тесты в backup
@@ -259,7 +259,7 @@
 **Размер**: ~150 строк
 **Ветка**: `feature/pr-4-2-api-schema`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.2.1 Создать/обновить `MealItem` в `app/schemas/` (title, title_translated, grams, kcal, macros, micros)
 - [ ] 4.2.2 Создать/обновить `DayMenu` в `app/schemas/` (day_index, meals[], kcal, macros, tips, total_cost)
@@ -278,7 +278,7 @@
 **Размер**: ~200 строк
 **Ветка**: `feature/pr-4-3-backend-endpoint`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.3.1 Реализовать endpoint в `app/routers/premium_week.py`
 - [ ] 4.3.2 Использовать модульную систему `core.weekly_plan_new`
@@ -298,7 +298,7 @@
 **Размер**: ~150 строк
 **Ветка**: `feature/pr-4-4-api-client`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.4.1 Создать `frontend/src/api/premium/weekly-plan.ts`
 - [ ] 4.4.2 Добавить типы из OpenAPI
@@ -318,7 +318,7 @@
 **Размер**: ~200 строк
 **Ветка**: `feature/pr-4-5-day-menu-card`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.5.1 Создать `frontend/src/components/WeeklyPlanReader/DayMenuCard.tsx`
 - [ ] 4.5.2 Отображение meals по категориям (breakfast, lunch, dinner, snacks, misc)
@@ -341,7 +341,7 @@
 **Размер**: ~250 строк
 **Ветка**: `feature/pr-4-6-weekly-plan-reader`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.6.1 Создать `frontend/src/components/WeeklyPlanReader/WeeklyPlanReader.tsx`
 - [ ] 4.6.2 Реализовать навигацию по дням (кнопки prev/next)
@@ -363,7 +363,7 @@
 **Размер**: ~100 строк
 **Ветка**: `feature/pr-4-7-integration`
 
-#### Задачи:
+#### Задачи
 
 - [ ] 4.7.1 Интегрировать в `frontend/src/features/plan/WeeklyPlanViewer.tsx`
 - [ ] 4.7.2 Добавить E2E тест (полный флоу: открыть → загрузить → навигировать)
@@ -444,6 +444,7 @@
 - [x] **Accessibility labels** ready for iOS integration
 
 #### 📋 Detailed iOS Development Plan
+>
 > **See**: [IOS_DEVELOPMENT_ROADMAP.md](./IOS_DEVELOPMENT_ROADMAP.md) for complete iOS development phases and tasks
 
 **Quick Status**: Frontend ready for iOS synchronization. iOS team can resume development using prepared localization structure.

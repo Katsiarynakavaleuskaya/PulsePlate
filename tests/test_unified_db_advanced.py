@@ -91,8 +91,13 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         mock_usda_client.search_foods.side_effect = mock_search_foods
 
+        # Mock Open Food Facts client
+        mock_off_client = AsyncMock()
+        mock_off_client.search_products.return_value = []
+
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
+        db.off_client = mock_off_client
 
         # Mock asyncio.sleep to speed up test
         with patch("asyncio.sleep", new_callable=AsyncMock):
@@ -121,6 +126,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
                 mock_usda_client = AsyncMock()
                 mock_usda_client.search_foods.return_value = []
                 db.usda_client = mock_usda_client
+
+                # Mock Open Food Facts client
+                mock_off_client = AsyncMock()
+                mock_off_client.search_products.return_value = []
+                db.off_client = mock_off_client
 
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     foods_db = await db.get_common_foods_database()

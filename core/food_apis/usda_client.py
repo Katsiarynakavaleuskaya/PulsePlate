@@ -113,7 +113,7 @@ class USDAClient:
             api_key: Optional API key. If None, will use demo key with limitations.
         """
         self.api_key = api_key or "DEMO_KEY"  # USDA provides demo access
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=10.0)
 
         # Common nutrient mappings (USDA nutrient IDs to our standard names)
         self.nutrient_mapping = {
