@@ -240,13 +240,14 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Dependency wrapper that resolves get_api_key dynamically at runtime so tests can patch it
-def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
+def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
     import sys as _sys
 
     _pkg = _sys.modules.get("app")
     _guard = getattr(_pkg, "get_api_key", get_api_key)
     try:
-        return _guard(api_key)
+        result = _guard(api_key)
+        return str(result)  # Ensure we return a string
     except Exception as exc:
         # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
         if isinstance(exc, HTTPException):
@@ -258,8 +259,7 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
 
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-async def admin_status():
+async def admin_status() -> Dict[str, str]:
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
     Uses dynamic resolution for get_update_scheduler so tests can patch it easily.
@@ -316,14 +316,14 @@ start_time = time.time()
 
 # Add logging middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests(request: Request, call_next) -> Response:
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
     logger.info(f"Request: {request.method} {request.url} from {client_host}")
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
-    return response
+    return response  # type: ignore[return-value]
 
 
 @app.get("/health/db")
@@ -1263,6 +1263,7 @@ class WHOTargetsRequest(BaseModel):
     diet_flags: Optional[set[DietFlag]] = None
     life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
     lang: str = "en"  # Language for localized warnings
+    target_date: Optional[str] = None  # Optional target date for week calculation in ISO format
 
     @model_validator(mode="before")
     @classmethod
@@ -1361,7 +1362,9 @@ class WeeklyMenuResponse(BaseModel):
     weekly_coverage: Dict[str, float]  # Average nutrient coverage
     shopping_list: Dict[str, float]  # Weekly shopping needs
     total_cost: float
-    adherence_score: float
+    adherence_score: float = Field(
+        ge=0, le=100, description="Adherence score as percentage (0-100)"
+    )
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
@@ -1932,6 +1935,25 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 # WHO-Based Nutrition Endpoints
 
 
+def _get_week_start(base_date: Optional[datetime] = None) -> str:
+    """
+    RU: Получить дату начала недели (понедельник) в детерминированном формате.
+    EN: Get week start date (Monday) in deterministic format.
+
+    Args:
+        base_date: Optional base date to calculate from. If None, uses datetime.now()
+
+    Returns:
+        Week start date as ISO string in "%Y-%m-%d" format
+    """
+    if base_date is None:
+        base_date = datetime.now()
+
+    days_since_monday = base_date.weekday()  # Monday is 0, Sunday is 6
+    week_start = base_date - timedelta(days=days_since_monday)
+    return week_start.strftime("%Y-%m-%d")
+
+
 @app.post(
     "/api/v1/premium/targets",
     dependencies=[Depends(_get_api_key_dynamic)],
@@ -2145,9 +2167,19 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         from core.food_db_new import FoodDB
         from core.recipe_db_new import RecipeDB
 
-        # Load databases
-        fooddb = FoodDB("data/food_db_new.csv")
-        recipedb = RecipeDB("data/recipes_new.csv", fooddb)
+        # Load databases with file existence checks
+        food_db_path = "data/food_db_new.csv"
+        recipe_db_path = "data/recipes_new.csv"
+
+        if not os.path.exists(food_db_path):
+            raise HTTPException(status_code=503, detail=f"Food database not found: {food_db_path}")
+        if not os.path.exists(recipe_db_path):
+            raise HTTPException(
+                status_code=503, detail=f"Recipe database not found: {recipe_db_path}"
+            )
+
+        fooddb = FoodDB(food_db_path)
+        recipedb = RecipeDB(recipe_db_path, fooddb)
 
         # Build targets dict for new system
         if build_nutrition_targets is None:
@@ -2174,10 +2206,20 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         }
 
         # Generate week using new modular system
+        # Ensure lang is a valid Language type
+        lang = req.lang or "en"
+        if lang not in ["ru", "en", "es"]:
+            lang = "en"
+
+        # Type cast to satisfy type checker
+        from typing import cast, Literal
+
+        lang = cast(Literal["ru", "en", "es"], lang)
+
         week_data = build_week(
             targets=targets_dict,
             diet_flags=list(profile.diet_flags or []),
-            lang=req.lang or "en",
+            lang=lang,
             fooddb=fooddb,
             recipedb=recipedb,
         )
@@ -2205,16 +2247,36 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                     macros=day_data["macros"],
                     micros=day_data["micros"],
                     coverage=day_data["coverage"],
-                    tips=day_data["tips"],
-                    total_cost=day_data["total_cost"],
+                    tips=day_data.get("tips", []),
+                    total_cost=day_data.get("total_cost", 0.0),
                 )
             )
 
-        # Calculate week_start as Monday of current week
-        today = datetime.now()
-        days_since_monday = today.weekday()  # Monday is 0, Sunday is 6
-        week_start = today - timedelta(days=days_since_monday)
-        week_start_str = week_start.strftime("%Y-%m-%d")
+        # Calculate week_start deterministically
+        week_start_str = None
+
+        # First, check if daily_menus have date information
+        if daily_menus and len(daily_menus) > 0:
+            # Look for date in the first day's data structure
+            first_day = daily_menus[0]
+            if hasattr(first_day, "date") and first_day.date:
+                try:
+                    base_date = datetime.fromisoformat(first_day.date)
+                    week_start_str = _get_week_start(base_date)
+                except (ValueError, TypeError):
+                    pass  # Fall through to next option
+
+        # If no date found in daily_menus, check request target_date
+        if week_start_str is None and req.target_date:
+            try:
+                base_date = datetime.fromisoformat(req.target_date)
+                week_start_str = _get_week_start(base_date)
+            except (ValueError, TypeError):
+                pass  # Fall through to default
+
+        # Final fallback: use current date
+        if week_start_str is None:
+            week_start_str = _get_week_start()
 
         # Calculate avg_daily_cost using actual day count
         total_days = len(daily_menus)
@@ -2895,6 +2957,4 @@ if get_bodyfat_router is not None:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Include Premium Week router
-if premium_week_router is not None:
-    app.include_router(premium_week_router)
+# Premium Week router already included above with dependencies
