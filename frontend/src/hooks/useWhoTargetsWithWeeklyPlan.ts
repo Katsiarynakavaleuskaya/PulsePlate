@@ -97,7 +97,7 @@ export function useWhoTargetsWithWeeklyPlan(
     } finally {
       setWeeklyPlanLoading(false);
     }
-  }, [targetsData, t, onSuccess, onError]);
+  }, [t, onSuccess, onError]);
 
   const retry = useCallback(() => {
     if (lastRequest) {
