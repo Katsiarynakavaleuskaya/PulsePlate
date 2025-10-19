@@ -83,6 +83,7 @@ class TestAppNewImports:
 
         with patch("os.path.exists", return_value=False):
             import app
+
             client = TestClient(app.app)
 
             payload = {
@@ -111,6 +112,7 @@ class TestAppNewImports:
         os.environ["VIP_MODULE_ENABLED"] = "true"
 
         import app
+
         client = TestClient(app.app)
 
         # Test with invalid payload
