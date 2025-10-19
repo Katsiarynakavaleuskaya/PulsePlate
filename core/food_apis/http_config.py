@@ -18,28 +18,19 @@ class HTTPClientConfig:
     # Default timeout for all API requests
     DEFAULT_TIMEOUT = 10.0
 
-    # Retry configuration
-    MAX_RETRIES = 3
-    RETRY_DELAY = 1.0
-
     @classmethod
-    def create_client(
-        cls, timeout: Optional[float] = None, max_retries: Optional[int] = None
-    ) -> httpx.AsyncClient:
+    def create_client(cls, timeout: Optional[float] = None) -> httpx.AsyncClient:
         """
         Create a configured httpx.AsyncClient.
 
         Args:
             timeout: Request timeout in seconds (default: DEFAULT_TIMEOUT)
-            max_retries: Maximum number of retries (default: MAX_RETRIES)
 
         Returns:
             Configured httpx.AsyncClient instance
         """
         return httpx.AsyncClient(
             timeout=timeout or cls.DEFAULT_TIMEOUT,
-            # Note: httpx doesn't have built-in retry, but we can add it later
-            # if needed with httpx-retry or similar library
         )
 
     @classmethod
