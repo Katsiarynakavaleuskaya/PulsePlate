@@ -108,12 +108,7 @@ describe("ResultView", () => {
   });
 
   it("renders loading state", () => {
-    const baseMock = {
-      bmrData: { bmr: 1400, tdee: 1800, method: "Mifflin-St Jeor" },
-      plateData: mockPlateData,
-      loading: false,
-      error: null,
-    };
+      // Mock data for loading state test
     mockUseSetupCalc.mockReturnValue({
       bmrData: null,
       plateData: null,

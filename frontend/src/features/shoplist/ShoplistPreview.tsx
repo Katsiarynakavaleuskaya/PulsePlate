@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchJson } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
-import { getClientLocale } from "../../lib/i18n";
 
 /**
  * Represents a single shopping list item with optional properties
@@ -131,7 +130,7 @@ export default function ShoplistPreview() {
     }, 1000);
 
     cleanupRef.current.push({
-      id: revokeTimeout,
+      id: revokeTimeout as any,
       cleanup: () => URL.revokeObjectURL(url)
     });
   }, []);

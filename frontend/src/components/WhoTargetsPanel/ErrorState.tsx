@@ -24,7 +24,7 @@ export function WhoTargetsErrorState({ error, onRetry, className }: ErrorStatePr
         </p>
         <button
           type="button"
-          className="btn btn--primary"
+          className="btn btn--primary btn-touch"
           onClick={onRetry || (() => window.location.reload())}
         >
           {t('whoTargets.error.retry', 'Try Again')}

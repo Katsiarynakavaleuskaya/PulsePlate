@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { WhoTargetsPanel } from '../WhoTargetsPanel';
 
@@ -88,11 +89,13 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(results).toHaveNoViolations();
     });
 
-    it('should have proper loading indicators for screen readers', () => {
+    it('should announce loading state to screen readers via ARIA attributes', () => {
       render(<WhoTargetsPanel {...createProps({ loading: true })} />);
 
-      // Check for loading state indicators
       const loadingElement = screen.getByTestId('who-targets-panel');
+      // Check for ARIA busy state and live region
+      expect(loadingElement).toHaveAttribute('aria-busy', 'true');
+      expect(loadingElement).toHaveAttribute('aria-live', 'polite');
       expect(loadingElement).toHaveClass('who-targets-panel--loading');
     });
   });
@@ -118,7 +121,8 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(retryButton).toBeInTheDocument();
     });
 
-    it('should support keyboard navigation for retry button', () => {
+    it('should support Enter key activation for retry button', async () => {
+      const user = userEvent.setup();
       const mockRetry = vi.fn();
       render(
         <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
@@ -126,11 +130,28 @@ describe('WhoTargetsPanel Accessibility', () => {
 
       const retryButton = screen.getByRole('button', { name: /try again/i });
 
-      // Test keyboard interaction
       retryButton.focus();
       expect(retryButton).toHaveFocus();
 
-      fireEvent.click(retryButton);
+      // Test Enter key activation
+      await user.keyboard('{Enter}');
+      expect(mockRetry).toHaveBeenCalled();
+    });
+
+    it('should support Space key activation for retry button', async () => {
+      const user = userEvent.setup();
+      const mockRetry = vi.fn();
+      render(
+        <WhoTargetsPanel {...createProps({ error: 'Failed to load targets', onRetry: mockRetry })} />
+      );
+
+      const retryButton = screen.getByRole('button', { name: /try again/i });
+
+      retryButton.focus();
+      expect(retryButton).toHaveFocus();
+
+      // Test Space key activation
+      await user.keyboard(' ');
       expect(mockRetry).toHaveBeenCalled();
     });
   });
@@ -287,11 +308,18 @@ describe('WhoTargetsPanel Accessibility', () => {
     it('should announce loading state changes to screen readers', () => {
       const { rerender } = render(<WhoTargetsPanel {...createProps({ loading: true })} />);
 
-      // Check for loading announcement
-      expect(screen.getByTestId('who-targets-panel')).toHaveClass('who-targets-panel--loading');
+      // Check for ARIA loading state
+      let panel = screen.getByTestId('who-targets-panel');
+      expect(panel).toHaveAttribute('aria-busy', 'true');
+      expect(panel).toHaveAttribute('aria-live', 'polite');
 
       // Switch to loaded state
       rerender(<WhoTargetsPanel {...createProps({ data: mockData })} />);
+
+      // Re-query after state change
+      panel = screen.getByTestId('who-targets-panel');
+      expect(panel).not.toHaveAttribute('aria-busy', 'true');
+      expect(panel).not.toHaveAttribute('aria-live', 'polite');
 
       // Check that content is properly announced
       expect(screen.getByText(/calories/i)).toBeInTheDocument();
@@ -328,7 +356,8 @@ describe('WhoTargetsPanel Accessibility', () => {
   });
 
   describe('Keyboard Navigation', () => {
-    it('should support standard keyboard navigation patterns', () => {
+    it('should support standard keyboard navigation patterns', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
@@ -338,8 +367,14 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
       expect(button).toHaveFocus();
 
-      // Test button activation (click works for both mouse and keyboard)
-      fireEvent.click(button);
+      // Test Enter key activation (browser automatically triggers click)
+      await user.keyboard('{Enter}');
+      expect(mockSave).toHaveBeenCalled();
+
+      mockSave.mockClear();
+
+      // Test Space key activation (browser automatically triggers click)
+      await user.keyboard(' ');
       expect(mockSave).toHaveBeenCalled();
     });
 
@@ -356,7 +391,8 @@ describe('WhoTargetsPanel Accessibility', () => {
       expect(button).not.toHaveAttribute('tabindex', '-1');
     });
 
-    it('should handle keyboard events without errors', () => {
+    it('should handle keyboard events without errors', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
@@ -364,32 +400,38 @@ describe('WhoTargetsPanel Accessibility', () => {
       button.focus();
 
       // Test various key events don't cause errors
-      expect(() => {
-        fireEvent.keyDown(button, { key: 'Enter' });
-        fireEvent.keyDown(button, { key: 'Space' });
-        fireEvent.keyDown(button, { key: 'Escape' });
-        fireEvent.keyDown(button, { key: 'Tab' });
-      }).not.toThrow();
+      await expect((async () => {
+        await user.keyboard('{Enter}');
+        await user.keyboard(' ');
+        await user.keyboard('{Escape}');
+        await user.keyboard('{Tab}');
+      })()).resolves.not.toThrow();
     });
 
-    it('should support Enter key activation for button', () => {
+    it('should support Enter key activation for main button', async () => {
+      const user = userEvent.setup();
       const mockSave = vi.fn();
       render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
       const button = screen.getByRole('button', { name: /save & get weekly plan/i });
       button.focus();
 
-      // Test that Enter key triggers button activation
-      // Note: In React, we need to simulate the click event that would be triggered by Enter
-      fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
+      // Test Enter key activation (browser automatically triggers click)
+      await user.keyboard('{Enter}');
+      expect(mockSave).toHaveBeenCalled();
+    });
 
-      // The button should be focusable and accessible via keyboard
-      expect(button).toHaveFocus();
-      expect(button).not.toHaveAttribute('tabindex', '-1');
+    it('should support Space key activation for main button', async () => {
+      const user = userEvent.setup();
+      const mockSave = vi.fn();
+      render(<WhoTargetsPanel {...createProps({ data: mockData, onSaveAndContinue: mockSave })} />);
 
-      // Note: The actual button activation via Enter would require the component
-      // to handle onKeyDown events, which is not implemented in the current component
-      // This test verifies keyboard accessibility compliance
+      const button = screen.getByRole('button', { name: /save & get weekly plan/i });
+      button.focus();
+
+      // Test Space key (browser automatically triggers click)
+      await user.keyboard(' ');
+      expect(mockSave).toHaveBeenCalled();
     });
   });
 });
