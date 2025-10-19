@@ -23,8 +23,10 @@
     "fiber": "Клетчатка",
     "totalCalories": "Общие Калории",
     "shoppingList": "Список Покупок",
-    "shoppingListItems": "{{count}} товар",
-    "shoppingListItems_plural": "{{count}} товаров",
+    "shoppingListItems_one": "{{count}} товар",
+    "shoppingListItems_few": "{{count}} товара",
+    "shoppingListItems_many": "{{count}} товаров",
+    "shoppingListItems_other": "{{count}} товаров",
     "meals": {
       "breakfast": "Завтрак",
       "lunch": "Обед",

@@ -323,18 +323,19 @@ async def log_requests(request: Request, call_next) -> Response:
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
-    return response  # type: ignore[return-value]
+    return response
 
 
 @app.get("/health/db")
-def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
 
     EN: Lightweight database connectivity check.
     """
 
     try:
-        session.execute(text("SELECT 1"))
+        import asyncio
+        await asyncio.to_thread(lambda: session.execute(text("SELECT 1")))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
         logger.error("Database health check failed: %s", exc)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
@@ -2255,19 +2256,8 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         # Calculate week_start deterministically
         week_start_str = None
 
-        # First, check if daily_menus have date information
-        if daily_menus and len(daily_menus) > 0:
-            # Look for date in the first day's data structure
-            first_day = daily_menus[0]
-            if hasattr(first_day, "date") and first_day.date:
-                try:
-                    base_date = datetime.fromisoformat(first_day.date)
-                    week_start_str = _get_week_start(base_date)
-                except (ValueError, TypeError):
-                    pass  # Fall through to next option
-
-        # If no date found in daily_menus, check request target_date
-        if week_start_str is None and req.target_date:
+        # Check request target_date first
+        if req.target_date:
             try:
                 base_date = datetime.fromisoformat(req.target_date)
                 week_start_str = _get_week_start(base_date)
@@ -2277,7 +2267,6 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         # Final fallback: use current date
         if week_start_str is None:
             week_start_str = _get_week_start()
-
         # Calculate avg_daily_cost using actual day count
         total_days = len(daily_menus)
         avg_daily_cost = round(week_data["total_cost"] / total_days, 2) if total_days > 0 else 0.0
