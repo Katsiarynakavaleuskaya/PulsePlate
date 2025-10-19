@@ -86,7 +86,15 @@ class TestVIPWeeklyMenu:
         invalid_data = {"weight": "invalid"}
         response = client.post("/api/v1/vip/weekly-plan", json=invalid_data, headers=auth_headers)
         # Accept both validation errors and graceful fallbacks
-        assert response.status_code in [422, 200, 404, 403]
+        assert response.status_code in [422, 200, 404]
+
+    def test_weekly_plan_403_forbidden(self, client):
+        """Test VIP weekly plan with missing or invalid API key"""
+        data = {"weight": 70.0, "height": 175.0, "age": 30, "gender": "male"}
+        # No auth headers - should get 403
+        response = client.post("/api/v1/vip/weekly-plan", json=data)
+        assert response.status_code == 403
+        assert "detail" in response.json()
 
     def test_weekly_menu_repair(self, client, auth_headers):
         """Test VIP weekly menu auto-repair functionality"""
@@ -284,7 +292,7 @@ class TestVIPErrorHandling:
         invalid_data = {"invalid": "data_structure"}
         response = client.post("/api/v1/vip/weekly-plan", json=invalid_data, headers=auth_headers)
         # API might return 200 with fallback or error codes
-        assert response.status_code in [200, 422, 500, 404, 403]
+        assert response.status_code in [200, 422, 500, 404]
 
     def test_invalid_json_payload(self, client, auth_headers):
         """Test VIP endpoint with malformed JSON"""

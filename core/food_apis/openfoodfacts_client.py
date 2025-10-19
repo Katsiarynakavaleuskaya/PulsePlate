@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import httpx
+from .http_config import HTTPClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -103,13 +104,14 @@ class OFFClient:
     """
 
     BASE_URL = "https://world.openfoodfacts.org/api/v0"
+    CGI_BASE_URL = "https://world.openfoodfacts.org/cgi"
 
     def __init__(self):
         """
         Initialize Open Food Facts client.
         """
-        # Underlying async HTTP client with timeout
-        self.client = httpx.AsyncClient(timeout=10.0)
+        # Underlying async HTTP client with centralized configuration
+        self.client = HTTPClientConfig.create_client()
 
         # Common nutrient mappings (Open Food Facts nutrient names to our standard names)
         self.nutrient_mapping = {
@@ -154,14 +156,15 @@ class OFFClient:
             List of OFFFoodItem objects
         """
         try:
-            # Use the old API format for v0
-            url = "https://world.openfoodfacts.org/cgi/search.pl"
+            # Use the CGI search endpoint for better compatibility
+            url = f"{self.CGI_BASE_URL}/search.pl"
             params = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
                 "search_simple": "1",
                 "action": "process",
                 "json": "1",
+                "fields": "code,product_name,nutriments,categories,ingredients_text,brands,labels,countries,packaging,image_url,last_modified_t",
             }
 
             response = await self.client.get(url, params=params)

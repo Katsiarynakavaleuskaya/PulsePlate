@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
+from .http_config import HTTPClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class USDAClient:
             api_key: Optional API key. If None, will use demo key with limitations.
         """
         self.api_key = api_key or "DEMO_KEY"  # USDA provides demo access
-        self.client = httpx.AsyncClient(timeout=10.0)
+        self.client = HTTPClientConfig.create_client()
 
         # Common nutrient mappings (USDA nutrient IDs to our standard names)
         self.nutrient_mapping = {
