@@ -24,11 +24,13 @@
     "totalCalories": "Total Calories",
     "shoppingList": "Shopping List",
     "shoppingListItems": "{{count}} items",
+    "shoppingListItems_plural": "{{count}} items",
     "meals": {
       "breakfast": "Breakfast",
       "lunch": "Lunch",
       "dinner": "Dinner",
-      "snacks": "Snacks"
+      "snacks": "Snacks",
+      "misc": "Other Meals"
     },
     "noMeals": "No meals planned for this day",
     "error": {

@@ -1782,6 +1782,33 @@ export interface components {
             language: string | null;
         };
         /**
+         * DayMenu
+         * @description RU: Меню на один день.
+         *     EN: Single day menu.
+         */
+        DayMenu: {
+            /** Meals */
+            meals: components["schemas"]["MealItem"][];
+            /** Kcal */
+            kcal: number;
+            /** Macros */
+            macros: {
+                [key: string]: number;
+            };
+            /** Micros */
+            micros: {
+                [key: string]: number;
+            };
+            /** Coverage */
+            coverage: {
+                [key: string]: number;
+            };
+            /** Tips */
+            tips: string[];
+            /** Total Cost */
+            total_cost: number;
+        };
+        /**
          * ErrorResponse
          * @description RU: Ответ об ошибке.
          *     EN: Error response.
@@ -1935,6 +1962,31 @@ export interface components {
         InsightRequest: {
             /** Text */
             text: string;
+        };
+        /**
+         * MealItem
+         * @description RU: Элемент приема пищи.
+         *     EN: Meal item.
+         */
+        MealItem: {
+            /** Title */
+            title: string;
+            /** Title Translated */
+            title_translated: string;
+            /** Grams */
+            grams: {
+                [key: string]: number;
+            };
+            /** Kcal */
+            kcal: number;
+            /** Macros */
+            macros: {
+                [key: string]: number;
+            };
+            /** Micros */
+            micros: {
+                [key: string]: number;
+            };
         };
         /**
          * NutrientGapsRequest
@@ -2322,7 +2374,7 @@ export interface components {
             /** Week Summary */
             week_summary: Record<string, never>;
             /** Daily Menus */
-            daily_menus: Record<string, never>[];
+            daily_menus: components["schemas"]["DayMenu"][];
             /** Weekly Coverage */
             weekly_coverage: {
                 [key: string]: number;

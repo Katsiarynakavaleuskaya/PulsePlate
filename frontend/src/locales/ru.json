@@ -23,12 +23,14 @@
     "fiber": "Клетчатка",
     "totalCalories": "Общие Калории",
     "shoppingList": "Список Покупок",
-    "shoppingListItems": "{{count}} товаров",
+    "shoppingListItems": "{{count}} товар",
+    "shoppingListItems_plural": "{{count}} товаров",
     "meals": {
       "breakfast": "Завтрак",
       "lunch": "Обед",
       "dinner": "Ужин",
-      "snacks": "Перекусы"
+      "snacks": "Перекусы",
+      "misc": "Другие Приемы Пищи"
     },
     "noMeals": "На этот день не запланировано приемов пищи",
     "error": {
@@ -299,7 +301,7 @@
   },
   "whoTargets": {
     "calories": {
-      "title": "Калории в день",
+      "title": "Дневные калории",
       "unit": "ккал",
       "description": "На основе вашего БМР, уровня активности и целей"
     },

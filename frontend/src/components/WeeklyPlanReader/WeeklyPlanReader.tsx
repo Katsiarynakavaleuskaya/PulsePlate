@@ -13,6 +13,7 @@ interface WeeklyPlanReaderProps {
   request?: TargetsRequest;
   onError?: (error: Error) => void;
   className?: string;
+  'data-testid'?: string;
 }
 
 const DAYS_OF_WEEK = [
@@ -22,7 +23,8 @@ const DAYS_OF_WEEK = [
 export function WeeklyPlanReader({
   request,
   onError,
-  className = ''
+  className = '',
+  'data-testid': dataTestId = 'weekly-plan-root'
 }: WeeklyPlanReaderProps) {
   const { t } = useTranslation();
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
@@ -85,11 +87,13 @@ export function WeeklyPlanReader({
     return <WeeklyPlanEmpty className={className} />;
   }
 
-  const currentDay = DAYS_OF_WEEK[currentDayIndex];
-  const currentDayData = data.daily_menus[currentDayIndex];
+  // Ensure currentDayIndex is within bounds
+  const safeDayIndex = Math.max(0, Math.min(currentDayIndex, data.daily_menus.length - 1));
+  const currentDay = DAYS_OF_WEEK[safeDayIndex];
+  const currentDayData = data.daily_menus[safeDayIndex];
 
   return (
-    <div className={`weekly-plan-reader ${className}`}>
+    <div className={`weekly-plan-reader ${className}`} data-testid={dataTestId}>
       {/* Header with week summary */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -98,7 +102,10 @@ export function WeeklyPlanReader({
           </h1>
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Calendar className="w-4 h-4" />
-            <span>{t('weeklyPlan.weekOf', 'Week of')} {new Date().toLocaleDateString()}</span>
+            <span>
+              {t('weeklyPlan.weekOf', 'Week of')}{' '}
+              {new Date().toLocaleDateString()}
+            </span>
           </div>
         </div>
 
@@ -158,7 +165,10 @@ export function WeeklyPlanReader({
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
+          <h2
+            className="text-xl font-semibold text-gray-900 dark:text-white capitalize"
+            aria-label={t(`weeklyPlan.days.${currentDay}`, currentDay)}
+          >
             {t(`weeklyPlan.days.${currentDay}`, currentDay)}
           </h2>
 
@@ -188,6 +198,8 @@ export function WeeklyPlanReader({
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
+              aria-label={t(`weeklyPlan.days.${day}`, day)}
+              aria-current={index === currentDayIndex ? 'true' : undefined}
             >
               {t(`weeklyPlan.days.${day}`, day)}
             </button>

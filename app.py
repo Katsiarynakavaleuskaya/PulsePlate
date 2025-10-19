@@ -363,7 +363,8 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available and Limiter is not None
+        slowapi_available
+        and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -1324,13 +1325,38 @@ class NutrientGapsResponse(BaseModel):
     adherence_score: float  # Overall adequacy score
 
 
+class MealItem(BaseModel):
+    """RU: Элемент приема пищи.
+    EN: Meal item."""
+
+    title: str
+    title_translated: str
+    grams: Dict[str, float]
+    kcal: int
+    macros: Dict[str, float]
+    micros: Dict[str, float]
+
+
+class DayMenu(BaseModel):
+    """RU: Меню на один день.
+    EN: Single day menu."""
+
+    meals: List[MealItem]
+    kcal: int
+    macros: Dict[str, float]
+    micros: Dict[str, float]
+    coverage: Dict[str, float]
+    tips: List[str]
+    total_cost: float
+
+
 class WeeklyMenuResponse(BaseModel):
     """RU: Ответ с недельным меню.
     EN: Response with weekly menu.
     """
 
     week_summary: Dict[str, Any]
-    daily_menus: List[Dict[str, Any]]
+    daily_menus: List[DayMenu]
     weekly_coverage: Dict[str, float]  # Average nutrient coverage
     shopping_list: Dict[str, float]  # Weekly shopping needs
     total_cost: float
@@ -2113,28 +2139,87 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
             life_stage=req.life_stage,
         )
 
-        # Generate weekly menu via core.menu_engine
-        week_menu = _make_weekly_menu(profile)
+        # Generate weekly menu via new modular system
+        from core.weekly_plan_new import build_week
+        from core.food_db_new import FoodDB
+        from core.recipe_db_new import RecipeDB
+
+        # Load databases
+        fooddb = FoodDB("data/food_db_new.csv")
+        recipedb = RecipeDB("data/recipes_new.csv", fooddb)
+
+        # Build targets dict for new system
+        if build_nutrition_targets is None:
+            raise HTTPException(
+                status_code=503, detail="Nutrition targets calculation feature not available"
+            )
+        targets = build_nutrition_targets(profile)
+        targets_dict = {
+            "kcal": targets.kcal_daily,
+            "macros": {
+                "protein_g": targets.macros.protein_g,
+                "fat_g": targets.macros.fat_g,
+                "carbs_g": targets.macros.carbs_g,
+                "fiber_g": targets.macros.fiber_g,
+            },
+            "micro": targets.micros.get_priority_nutrients(),
+            "water_ml": targets.water_ml_daily,
+            "activity_week": {
+                "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
+                "vigorous_aerobic_min": targets.activity.vigorous_aerobic_min,
+                "strength_sessions": targets.activity.strength_sessions,
+                "steps_daily": targets.activity.steps_daily,
+            },
+        }
+
+        # Generate week using new modular system
+        week_data = build_week(
+            targets=targets_dict,
+            diet_flags=list(profile.diet_flags or []),
+            lang=req.lang or "en",
+            fooddb=fooddb,
+            recipedb=recipedb,
+        )
+
+        # Convert daily_menus to proper format
+        daily_menus = []
+        for day_data in week_data["daily_menus"]:
+            meals = []
+            for meal_data in day_data["meals"]:
+                meals.append(
+                    MealItem(
+                        title=meal_data["title"],
+                        title_translated=meal_data["title_translated"],
+                        grams=meal_data["grams"],
+                        kcal=meal_data["kcal"],
+                        macros=meal_data["macros"],
+                        micros=meal_data["micros"],
+                    )
+                )
+
+            daily_menus.append(
+                DayMenu(
+                    meals=meals,
+                    kcal=day_data["kcal"],
+                    macros=day_data["macros"],
+                    micros=day_data["micros"],
+                    coverage=day_data["coverage"],
+                    tips=day_data["tips"],
+                    total_cost=day_data["total_cost"],
+                )
+            )
 
         return WeeklyMenuResponse(
             week_summary={
-                "week_start": week_menu.week_start,
-                "total_days": len(week_menu.daily_menus),
-                "avg_daily_cost": round(week_menu.total_cost / 7, 2),
+                "week_start": "2025-01-01",  # Default week start
+                "total_days": len(daily_menus),
+                "avg_daily_cost": round(week_data["total_cost"] / 7, 2),
             },
-            daily_menus=[
-                {
-                    "date": menu.date,
-                    "meals": menu.meals,
-                    "total_kcal": sum(meal.get("kcal", 0) for meal in menu.meals),
-                    "daily_cost": menu.estimated_cost,
-                }
-                for menu in week_menu.daily_menus
-            ],
-            weekly_coverage=week_menu.weekly_coverage,
-            shopping_list=week_menu.shopping_list,
-            total_cost=week_menu.total_cost,
-            adherence_score=week_menu.adherence_score,
+            daily_menus=daily_menus,
+            weekly_coverage=week_data["weekly_coverage"],
+            shopping_list=week_data["shopping_list"],
+            total_cost=week_data["total_cost"],
+            adherence_score=week_data["adherence_score"],
         )
 
     except HTTPException:

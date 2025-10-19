@@ -2,7 +2,14 @@ import { Clock, Utensils } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface MealItem {
-  name: string;
+  title: string;
+  title_translated: string;
+  grams: { [key: string]: number };
+  kcal: number;
+  macros: { [key: string]: number };
+  micros: { [key: string]: number };
+  // Legacy fields for backward compatibility
+  name?: string;
   calories?: number;
   protein?: number;
   carbs?: number;
@@ -10,15 +17,28 @@ interface MealItem {
   fiber?: number;
   serving_size?: string;
   ingredients?: string[];
+  meal_type?: string;
 }
 
 interface DayMenuData {
-  meals?: {
-    breakfast?: MealItem[];
-    lunch?: MealItem[];
-    dinner?: MealItem[];
-    snacks?: MealItem[];
+  date?: string;
+  meals?: MealItem[]; // Real API structure: array of meals
+  kcal?: number;
+  macros?: { [key: string]: number };
+  micros?: { [key: string]: number };
+  coverage?: { [key: string]: number };
+  tips?: string[];
+  total_cost?: number;
+  // Legacy fields for backward compatibility with mock data
+  total_nutrients?: {
+    calories?: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    fiber?: number;
   };
+  recommendations?: string[];
+  estimated_cost?: number;
   total_calories?: number;
   total_protein?: number;
   total_carbs?: number;
@@ -33,11 +53,96 @@ interface DayMenuCardProps {
 }
 
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snacks'] as const;
+const MEAL_ORDER_WITH_MISC = ['breakfast', 'lunch', 'dinner', 'snacks', 'misc'] as const;
 
-export function DayMenuCard({ dayData }: DayMenuCardProps) {
+// Helper function to validate meal item
+function isValidMealItem(meal: any): meal is MealItem {
+  return meal && typeof meal === 'object' && (
+    (typeof meal.title === 'string' && meal.title.trim().length > 0) ||
+    (typeof meal.name === 'string' && meal.name.trim().length > 0)
+  );
+}
+
+// Helper function to adapt API data to component expectations
+function adaptDayMenuData(dayData: DayMenuData | undefined) {
+  if (!dayData) return null;
+
+  // If meals is an array (real API structure), convert to object structure
+  if (Array.isArray(dayData.meals)) {
+    const mealsArray = dayData.meals;
+    const adaptedMeals: { [key: string]: MealItem[] } = {};
+    const miscMeals: MealItem[] = []; // Fallback bucket for meals without valid meal_type
+
+    // Group meals by explicit meal_type field or positional inference
+    mealsArray.forEach((meal, index) => {
+      // Validate meal item first
+      if (!isValidMealItem(meal)) {
+        console.warn(`Invalid meal item at index ${index}:`, meal);
+        return; // Skip invalid entries
+      }
+
+      // Convert new structure to legacy structure for compatibility
+      const adaptedMeal: MealItem = {
+        ...meal,
+        name: meal.title || meal.name || 'Unknown Meal',
+        calories: meal.kcal || meal.calories,
+        protein: meal.macros?.protein_g || meal.protein,
+        carbs: meal.macros?.carbs_g || meal.carbs,
+        fat: meal.macros?.fat_g || meal.fat,
+        fiber: meal.macros?.fiber_g || meal.fiber,
+        serving_size: meal.serving_size || '1 serving',
+        ingredients: meal.ingredients || Object.keys(meal.grams || {}),
+      };
+
+      // Check if meal has explicit meal_type and it's valid
+      if (meal.meal_type && MEAL_ORDER.includes(meal.meal_type as any)) {
+        const mealType = meal.meal_type;
+        if (!adaptedMeals[mealType]) {
+          adaptedMeals[mealType] = [];
+        }
+        adaptedMeals[mealType].push(adaptedMeal);
+      } else {
+        // Fallback: attempt positional inference for first few meals only
+        // This is safer than modulo as it only applies to the initial sequence
+        if (index < MEAL_ORDER.length) {
+          const mealType = MEAL_ORDER[index];
+          if (!adaptedMeals[mealType]) {
+            adaptedMeals[mealType] = [];
+          }
+          adaptedMeals[mealType].push(adaptedMeal);
+        } else {
+          // For meals beyond the initial sequence, put in misc bucket
+          miscMeals.push(adaptedMeal);
+        }
+      }
+    });
+
+    // Add misc meals to a dedicated bucket if any exist
+    if (miscMeals.length > 0) {
+      adaptedMeals['misc'] = miscMeals;
+    }
+
+    return {
+      ...dayData,
+      meals: adaptedMeals,
+      total_calories: dayData.kcal || dayData.total_nutrients?.calories || dayData.total_calories || 0,
+      total_protein: dayData.macros?.protein_g || dayData.total_nutrients?.protein || dayData.total_protein || 0,
+      total_carbs: dayData.macros?.carbs_g || dayData.total_nutrients?.carbs || dayData.total_carbs || 0,
+      total_fat: dayData.macros?.fat_g || dayData.total_nutrients?.fat || dayData.total_fat || 0,
+      total_fiber: dayData.macros?.fiber_g || dayData.total_nutrients?.fiber || dayData.total_fiber || 0,
+    };
+  }
+
+  // If meals is already an object (mock data), use as-is
+  return dayData;
+}
+
+export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   const { t } = useTranslation();
 
-  if (!dayData || !dayData.meals) {
+  const adaptedData = adaptDayMenuData(dayData);
+
+  if (!adaptedData || !adaptedData.meals || Object.keys(adaptedData.meals).length === 0) {
     return (
       <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
         <div className="text-center text-gray-500 dark:text-gray-400">
@@ -48,8 +153,11 @@ export function DayMenuCard({ dayData }: DayMenuCardProps) {
     );
   }
 
-  const meals = dayData.meals;
-  const totalCalories = dayData.total_calories || 0;
+  const meals = adaptedData.meals as { [key: string]: MealItem[] };
+  const totalCalories = adaptedData.total_calories || 0;
+  const hasMeals = MEAL_ORDER_WITH_MISC.some(
+    (mealType) => (meals[mealType]?.length ?? 0) > 0
+  );
 
   return (
     <div className="day-menu-card">
@@ -68,29 +176,29 @@ export function DayMenuCard({ dayData }: DayMenuCardProps) {
         </div>
 
         {/* Macronutrient breakdown */}
-        {(dayData.total_protein || dayData.total_carbs || dayData.total_fat) && (
+        {(adaptedData.total_protein || adaptedData.total_carbs || adaptedData.total_fat) && (
           <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
-            {dayData.total_protein && (
+            {adaptedData.total_protein && (
               <div className="text-center">
-                <div className="text-gray-600 dark:text-gray-400">Protein</div>
+                <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.protein', 'Protein')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {dayData.total_protein}g
+                  {adaptedData.total_protein}g
                 </div>
               </div>
             )}
-            {dayData.total_carbs && (
+            {adaptedData.total_carbs && (
               <div className="text-center">
-                <div className="text-gray-600 dark:text-gray-400">Carbs</div>
+                <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.carbs', 'Carbs')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {dayData.total_carbs}g
+                  {adaptedData.total_carbs}g
                 </div>
               </div>
             )}
-            {dayData.total_fat && (
+            {adaptedData.total_fat && (
               <div className="text-center">
-                <div className="text-gray-600 dark:text-gray-400">Fat</div>
+                <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.fat', 'Fat')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {dayData.total_fat}g
+                  {adaptedData.total_fat}g
                 </div>
               </div>
             )}
@@ -100,17 +208,20 @@ export function DayMenuCard({ dayData }: DayMenuCardProps) {
 
       {/* Meals */}
       <div className="space-y-4">
-        {MEAL_ORDER.map((mealType) => {
+        {MEAL_ORDER_WITH_MISC.map((mealType) => {
           const mealItems = meals[mealType];
           if (!mealItems || mealItems.length === 0) return null;
 
-          const mealCalories = mealItems.reduce((sum, item) => sum + (item.calories || 0), 0);
+          const mealCalories = mealItems.reduce((sum: number, item: MealItem) => sum + (item.calories || 0), 0);
 
           return (
             <div key={mealType} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
-                  {t(`weeklyPlan.meals.${mealType}`, mealType)}
+                  {mealType === 'misc'
+                    ? t('weeklyPlan.meals.misc', 'Other Meals')
+                    : t(`weeklyPlan.meals.${mealType}`, mealType)
+                  }
                 </h3>
                 <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
@@ -119,7 +230,7 @@ export function DayMenuCard({ dayData }: DayMenuCardProps) {
               </div>
 
               <div className="space-y-3">
-                {mealItems.map((item, index) => (
+                {mealItems.map((item: MealItem, index: number) => (
                   <div key={index} className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 dark:text-white">
@@ -161,7 +272,7 @@ export function DayMenuCard({ dayData }: DayMenuCardProps) {
       </div>
 
       {/* No meals message */}
-      {Object.keys(meals).length === 0 && (
+      {!hasMeals && (
         <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div className="text-center text-gray-500 dark:text-gray-400">
             <Utensils className="w-8 h-8 mx-auto mb-2" />

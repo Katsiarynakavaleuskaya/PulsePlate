@@ -43,9 +43,9 @@ def test_api_endpoint_multilingual():
         )
 
         # Check that the response is successful
-        assert response.status_code == 200, (
-            f"Failed for language {lang}\nResponse body: {response.json()}"
-        )
+        assert (
+            response.status_code == 200
+        ), f"Failed for language {lang}\nResponse body: {response.json()}"
 
         # Parse the response
         result = response.json()
@@ -60,19 +60,15 @@ def test_api_endpoint_multilingual():
         # Check that each day has the expected structure
         for day in result["daily_menus"]:
             assert "meals" in day
-            assert "total_kcal" in day
-            assert "daily_cost" in day
-            assert "date" in day
+            assert "kcal" in day
+            assert "total_cost" in day
+            assert "macros" in day
 
             # Check that meals have the expected structure
             for meal in day["meals"]:
-                assert "carbs_g" in meal
-                assert "fat_g" in meal
-                assert "ingredients" in meal
-                assert "detailed_nutrients" in meal
-
-        # Check that week summary exists
-        assert "week_summary" in result
+                assert "macros" in meal
+                assert "kcal" in meal
+                assert "grams" in meal
 
         print(f"✓ Language {lang} test passed")
 

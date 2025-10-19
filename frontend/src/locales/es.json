@@ -23,12 +23,14 @@
     "fiber": "Fibra",
     "totalCalories": "Calorías Totales",
     "shoppingList": "Lista de Compras",
-    "shoppingListItems": "{{count}} artículos",
+    "shoppingListItems": "{{count}} artículo",
+    "shoppingListItems_plural": "{{count}} artículos",
     "meals": {
       "breakfast": "Desayuno",
       "lunch": "Almuerzo",
       "dinner": "Cena",
-      "snacks": "Meriendas"
+      "snacks": "Meriendas",
+      "misc": "Otras Comidas"
     },
     "noMeals": "No hay comidas planificadas para este día",
     "error": {

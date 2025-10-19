@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 
 interface WeeklyPlanEmptyProps {
   className?: string;
+  onGeneratePlan?: () => void;
 }
 
-export function WeeklyPlanEmpty({ className = '' }: WeeklyPlanEmptyProps) {
+export function WeeklyPlanEmpty({ className = '', onGeneratePlan }: WeeklyPlanEmptyProps) {
   const { t } = useTranslation();
 
   return (
@@ -22,6 +23,7 @@ export function WeeklyPlanEmpty({ className = '' }: WeeklyPlanEmptyProps) {
         </div>
 
         <button
+          onClick={onGeneratePlan}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           <Plus className="w-4 h-4" />

@@ -102,8 +102,8 @@ class TestPremiumWeekAPI:
 
     def _check_day_structure(self, day):
         assert "meals" in day
-        assert "total_kcal" in day
-        assert "daily_cost" in day
+        assert "kcal" in day
+        assert "total_cost" in day
         for meal in day["meals"]:
             assert "title" in meal
 

@@ -6,7 +6,12 @@ interface WeeklyPlanSkeletonProps {
 
 export function WeeklyPlanSkeleton({ className = '' }: WeeklyPlanSkeletonProps) {
   return (
-    <div className={`weekly-plan-skeleton ${className}`} data-testid="weekly-plan-skeleton">
+    <div
+      className={`weekly-plan-skeleton ${className}`}
+      data-testid="weekly-plan-skeleton"
+      role="status"
+      aria-label="Loading weekly plan"
+    >
       {/* Header skeleton */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -53,7 +58,7 @@ export function WeeklyPlanSkeleton({ className = '' }: WeeklyPlanSkeletonProps) 
 
             {/* Meal items */}
             <div className="space-y-2">
-              {Array.from({ length: 2 + Math.floor(Math.random() * 3) }).map((_, itemIndex) => (
+              {Array.from({ length: 4 }).map((_, itemIndex) => (
                 <div key={itemIndex} className="flex items-center justify-between">
                   <div className="flex-1">
                     <Skeleton className="h-4 w-3/4 mb-1" />

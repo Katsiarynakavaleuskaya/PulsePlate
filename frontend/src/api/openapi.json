@@ -430,7 +430,7 @@
           "users"
         ],
         "summary": "Create User",
-        "description": "RU: \u0421\u043e\u0437\u0434\u0430\u0451\u0442 \u043d\u043e\u0432\u043e\u0433\u043e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f. EN: Create a new user entry.",
+        "description": "RU: Создаёт нового пользователя. EN: Create a new user entry.",
         "operationId": "create_user_api_v1_users_post",
         "requestBody": {
           "required": true,
@@ -470,7 +470,7 @@
           "users"
         ],
         "summary": "List Users",
-        "description": "RU: \u0412\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u0441\u043f\u0438\u0441\u043e\u043a \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439 \u0441 \u043f\u0430\u0433\u0438\u043d\u0430\u0446\u0438\u0435\u0439.\n\nEN: Return paginated list of users.",
+        "description": "RU: Возвращает список пользователей с пагинацией.\n\nEN: Return paginated list of users.",
         "operationId": "list_users_api_v1_users_get",
         "parameters": [
           {
@@ -531,7 +531,7 @@
           "users"
         ],
         "summary": "Get User",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f \u043f\u043e \u0438\u0434\u0435\u043d\u0442\u0438\u0444\u0438\u043a\u0430\u0442\u043e\u0440\u0443.\n\nEN: Retrieve a user by identifier.",
+        "description": "RU: Получить пользователя по идентификатору.\n\nEN: Retrieve a user by identifier.",
         "operationId": "get_user_api_v1_users__user_id__get",
         "parameters": [
           {
@@ -572,7 +572,7 @@
           "users"
         ],
         "summary": "Delete User",
-        "description": "RU: \u0423\u0434\u0430\u043b\u044f\u0435\u0442 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f. EN: Delete a user by identifier.",
+        "description": "RU: Удаляет пользователя. EN: Delete a user by identifier.",
         "operationId": "delete_user_api_v1_users__user_id__delete",
         "parameters": [
           {
@@ -804,7 +804,7 @@
           "vip"
         ],
         "summary": "Vip Health",
-        "description": "RU: \u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0437\u0434\u043e\u0440\u043e\u0432\u044c\u044f VIP \u043c\u043e\u0434\u0443\u043b\u044f\nEN: VIP module health check",
+        "description": "RU: Проверка здоровья VIP модуля\nEN: VIP module health check",
         "operationId": "vip_health_api_v1_vip_health_get",
         "responses": {
           "200": {
@@ -832,7 +832,7 @@
           "vip"
         ],
         "summary": "Weekly Menu Plan",
-        "description": "RU: \u041f\u043b\u0430\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043c\u0435\u043d\u044e \u0441 VIP \u0444\u0443\u043d\u043a\u0446\u0438\u044f\u043c\u0438\nEN: Weekly menu planning with VIP features\n\nArgs:\n    request: WeeklyPlanRequest with user profile and goals\n\nReturns:\n    Echo \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0430 \u0441 \u043f\u043b\u0430\u043d\u043e\u043c \u043c\u0435\u043d\u044e",
+        "description": "RU: Планирование недельного меню с VIP функциями\nEN: Weekly menu planning with VIP features\n\nArgs:\n    request: WeeklyPlanRequest with user profile and goals\n\nReturns:\n    Echo структура с планом меню",
         "operationId": "weekly_menu_plan_api_v1_vip_menu_weekly_plan_post",
         "requestBody": {
           "content": {
@@ -870,6 +870,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -883,6 +886,9 @@
         "description": "Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
         "operationId": "weekly_menu_plan_alias_api_v1_vip_weekly_plan_post",
         "security": [
+          {
+            "APIKeyHeader": []
+          },
           {
             "APIKeyHeader": []
           }
@@ -946,7 +952,7 @@
           "vip"
         ],
         "summary": "Weekly Menu Repair",
-        "description": "RU: \u0410\u0432\u0442\u043e-\u0440\u0435\u043c\u043e\u043d\u0442 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043c\u0435\u043d\u044e \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0434\u0435\u0444\u0438\u0446\u0438\u0442\u043e\u0432\nEN: Auto-repair weekly menu based on nutrient gaps\n\nArgs:\n    request: \u041c\u0435\u043d\u044e + \u043d\u0435\u0434\u043e\u0431\u043e\u0440/\u043f\u0435\u0440\u0435\u0431\u043e\u0440 \u043d\u0443\u0442\u0440\u0438\u0435\u043d\u0442\u043e\u0432\n\nReturns:\n    Echo \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0430 \u0441 \u043e\u0442\u0440\u0435\u043c\u043e\u043d\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u043c \u043c\u0435\u043d\u044e",
+        "description": "RU: Авто-ремонт недельного меню на основе дефицитов\nEN: Auto-repair weekly menu based on nutrient gaps\n\nArgs:\n    request: Меню + недобор/перебор нутриентов\n\nReturns:\n    Echo структура с отремонтированным меню",
         "operationId": "weekly_menu_repair_api_v1_vip_menu_weekly_repair_post",
         "requestBody": {
           "content": {
@@ -985,6 +991,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -995,7 +1004,7 @@
           "vip"
         ],
         "summary": "Weekly Shoplist",
-        "description": "RU: \u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0441\u043f\u0438\u0441\u043a\u0430 \u043f\u043e\u043a\u0443\u043f\u043e\u043a \u043d\u0430 \u043d\u0435\u0434\u0435\u043b\u044e \u0441 \u043e\u043a\u0440\u0443\u0433\u043b\u0435\u043d\u0438\u0435\u043c \u0434\u043e \u0443\u043f\u0430\u043a\u043e\u0432\u043e\u043a\nEN: Create weekly shopping list with package rounding\n\nArgs:\n    request: \u041d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u043f\u0438\u0442\u0430\u043d\u0438\u044f\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u043f\u043e\u043a\u0443\u043f\u043e\u043a \u0441 \u043e\u043a\u0440\u0443\u0433\u043b\u0435\u043d\u0438\u0435\u043c \u0434\u043e \u0443\u043f\u0430\u043a\u043e\u0432\u043e\u043a",
+        "description": "RU: Создание списка покупок на неделю с округлением до упаковок\nEN: Create weekly shopping list with package rounding\n\nArgs:\n    request: Недельный план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
         "operationId": "weekly_shoplist_api_v1_vip_shoplist_weekly_post",
         "requestBody": {
           "content": {
@@ -1034,6 +1043,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1044,7 +1056,7 @@
           "vip"
         ],
         "summary": "Daily Shoplist",
-        "description": "RU: \u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0441\u043f\u0438\u0441\u043a\u0430 \u043f\u043e\u043a\u0443\u043f\u043e\u043a \u043d\u0430 \u0434\u0435\u043d\u044c \u0441 \u043e\u043a\u0440\u0443\u0433\u043b\u0435\u043d\u0438\u0435\u043c \u0434\u043e \u0443\u043f\u0430\u043a\u043e\u0432\u043e\u043a\nEN: Create daily shopping list with package rounding\n\nArgs:\n    request: \u0414\u043d\u0435\u0432\u043d\u043e\u0439 \u043f\u043b\u0430\u043d \u043f\u0438\u0442\u0430\u043d\u0438\u044f\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u043f\u043e\u043a\u0443\u043f\u043e\u043a \u0441 \u043e\u043a\u0440\u0443\u0433\u043b\u0435\u043d\u0438\u0435\u043c \u0434\u043e \u0443\u043f\u0430\u043a\u043e\u0432\u043e\u043a",
+        "description": "RU: Создание списка покупок на день с округлением до упаковок\nEN: Create daily shopping list with package rounding\n\nArgs:\n    request: Дневной план питания\n\nReturns:\n    Список покупок с округлением до упаковок",
         "operationId": "daily_shoplist_api_v1_vip_shoplist_daily_post",
         "requestBody": {
           "content": {
@@ -1083,6 +1095,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1093,7 +1108,7 @@
           "vip"
         ],
         "summary": "Available Export Formats",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0444\u043e\u0440\u043c\u0430\u0442\u044b \u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0430 \u0441\u043f\u0438\u0441\u043a\u043e\u0432 \u043f\u043e\u043a\u0443\u043f\u043e\u043a\nEN: Get available export formats for shopping lists\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u043c\u044b\u0445 \u0444\u043e\u0440\u043c\u0430\u0442\u043e\u0432",
+        "description": "RU: Получить доступные форматы экспорта списков покупок\nEN: Get available export formats for shopping lists\n\nReturns:\n    Список поддерживаемых форматов",
         "operationId": "available_export_formats_api_v1_vip_shoplist_formats_get",
         "responses": {
           "200": {
@@ -1111,6 +1126,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1121,7 +1139,7 @@
           "vip"
         ],
         "summary": "Get Regions",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0441\u043f\u0438\u0441\u043e\u043a \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0440\u0435\u0433\u0438\u043e\u043d\u043e\u0432\nEN: Get list of available regions\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0440\u0435\u0433\u0438\u043e\u043d\u043e\u0432",
+        "description": "RU: Получить список доступных регионов\nEN: Get list of available regions\n\nReturns:\n    Список доступных регионов",
         "operationId": "get_regions_api_v1_vip_regions_get",
         "responses": {
           "200": {
@@ -1139,6 +1157,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1149,7 +1170,7 @@
           "vip"
         ],
         "summary": "Search Region Products",
-        "description": "RU: \u041f\u043e\u0438\u0441\u043a \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u043e\u0432 \u0432 \u0440\u0435\u0433\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u043e\u043c \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0435\nEN: Search products in regional catalog\n\nArgs:\n    region: \u041a\u043e\u0434 \u0440\u0435\u0433\u0438\u043e\u043d\u0430 (es, us)\n    query: \u041f\u043e\u0438\u0441\u043a\u043e\u0432\u044b\u0439 \u0437\u0430\u043f\u0440\u043e\u0441\n    category: \u0424\u0438\u043b\u044c\u0442\u0440 \u043f\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u0438 (\u043e\u043f\u0446\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u043e)\n    max_results: \u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u043e\u0435 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u043e\u0432\n\nReturns:\n    \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u044b \u043f\u043e\u0438\u0441\u043a\u0430",
+        "description": "RU: Поиск продуктов в региональном каталоге\nEN: Search products in regional catalog\n\nArgs:\n    region: Код региона (es, us)\n    query: Поисковый запрос\n    category: Фильтр по категории (опционально)\n    max_results: Максимальное количество результатов\n\nReturns:\n    Результаты поиска",
         "operationId": "search_region_products_api_v1_vip_regions__region__search_get",
         "security": [
           {
@@ -1227,7 +1248,7 @@
           "vip"
         ],
         "summary": "Get Region Categories",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u0438 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u043e\u0432 \u0432 \u0440\u0435\u0433\u0438\u043e\u043d\u0435\nEN: Get product categories in region\n\nArgs:\n    region: \u041a\u043e\u0434 \u0440\u0435\u0433\u0438\u043e\u043d\u0430 (es, us)\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u0439",
+        "description": "RU: Получить категории продуктов в регионе\nEN: Get product categories in region\n\nArgs:\n    region: Код региона (es, us)\n\nReturns:\n    Список категорий",
         "operationId": "get_region_categories_api_v1_vip_regions__region__categories_get",
         "security": [
           {
@@ -1276,7 +1297,7 @@
           "vip"
         ],
         "summary": "Get Region Stores",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0442\u043e\u0440\u0433\u043e\u0432\u044b\u0435 \u0441\u0435\u0442\u0438 \u0432 \u0440\u0435\u0433\u0438\u043e\u043d\u0435\nEN: Get store chains in region\n\nArgs:\n    region: \u041a\u043e\u0434 \u0440\u0435\u0433\u0438\u043e\u043d\u0430 (es, us)\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u0442\u043e\u0440\u0433\u043e\u0432\u044b\u0445 \u0441\u0435\u0442\u0435\u0439",
+        "description": "RU: Получить торговые сети в регионе\nEN: Get store chains in region\n\nArgs:\n    region: Код региона (es, us)\n\nReturns:\n    Список торговых сетей",
         "operationId": "get_region_stores_api_v1_vip_regions__region__stores_get",
         "security": [
           {
@@ -1325,7 +1346,7 @@
           "vip"
         ],
         "summary": "Compare Product Prices",
-        "description": "RU: \u0421\u0440\u0430\u0432\u043d\u0438\u0442\u044c \u0446\u0435\u043d\u044b \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0430 \u0432 \u0440\u0430\u0437\u043d\u044b\u0445 \u0440\u0435\u0433\u0438\u043e\u043d\u0430\u0445\nEN: Compare product prices across regions\n\nArgs:\n    product_name: \u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0430\n    regions: \u0421\u043f\u0438\u0441\u043e\u043a \u0440\u0435\u0433\u0438\u043e\u043d\u043e\u0432 \u0447\u0435\u0440\u0435\u0437 \u0437\u0430\u043f\u044f\u0442\u0443\u044e (\u043f\u043e \u0443\u043c\u043e\u043b\u0447\u0430\u043d\u0438\u044e: es,us)\n\nReturns:\n    \u0421\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435 \u0446\u0435\u043d \u043f\u043e \u0440\u0435\u0433\u0438\u043e\u043d\u0430\u043c",
+        "description": "RU: Сравнить цены продукта в разных регионах\nEN: Compare product prices across regions\n\nArgs:\n    product_name: Название продукта\n    regions: Список регионов через запятую (по умолчанию: es,us)\n\nReturns:\n    Сравнение цен по регионам",
         "operationId": "compare_product_prices_api_v1_vip_regions_compare__product_name__get",
         "security": [
           {
@@ -1384,7 +1405,7 @@
           "vip"
         ],
         "summary": "Synthesize Recipe",
-        "description": "RU: \u0421\u0438\u043d\u0442\u0435\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0440\u0435\u0446\u0435\u043f\u0442 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0438\u043d\u0433\u0440\u0435\u0434\u0438\u0435\u043d\u0442\u043e\u0432\nEN: Synthesize recipe based on ingredients\n\nArgs:\n    request: \u0421\u043f\u0438\u0441\u043e\u043a \u0438\u043d\u0433\u0440\u0435\u0434\u0438\u0435\u043d\u0442\u043e\u0432 \u0438 \u043f\u0440\u0435\u0434\u043f\u043e\u0447\u0442\u0435\u043d\u0438\u044f\n\nReturns:\n    \u0421\u0438\u043d\u0442\u0435\u0437\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0439 \u0440\u0435\u0446\u0435\u043f\u0442",
+        "description": "RU: Синтезировать рецепт на основе ингредиентов\nEN: Synthesize recipe based on ingredients\n\nArgs:\n    request: Список ингредиентов и предпочтения\n\nReturns:\n    Синтезированный рецепт",
         "operationId": "synthesize_recipe_api_v1_vip_recipes_synthesize_post",
         "requestBody": {
           "content": {
@@ -1421,6 +1442,9 @@
           }
         },
         "security": [
+          {
+            "APIKeyHeader": []
+          },
           {
             "APIKeyHeader": []
           }
@@ -1472,6 +1496,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1482,7 +1509,7 @@
           "vip"
         ],
         "summary": "Synthesize Weekly Recipes",
-        "description": "RU: \u0421\u0438\u043d\u0442\u0435\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0440\u0435\u0446\u0435\u043f\u0442\u044b \u0434\u043b\u044f \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043f\u043b\u0430\u043d\u0430\nEN: Synthesize recipes for weekly meal plan\n\nArgs:\n    request: \u041d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u043f\u0438\u0442\u0430\u043d\u0438\u044f\n\nReturns:\n    \u0420\u0435\u0446\u0435\u043f\u0442\u044b \u0434\u043b\u044f \u043d\u0435\u0434\u0435\u043b\u0438",
+        "description": "RU: Синтезировать рецепты для недельного плана\nEN: Synthesize recipes for weekly meal plan\n\nArgs:\n    request: Недельный план питания\n\nReturns:\n    Рецепты для недели",
         "operationId": "synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post",
         "requestBody": {
           "content": {
@@ -1521,6 +1548,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1531,7 +1561,7 @@
           "vip"
         ],
         "summary": "Get Recipe Templates",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0448\u0430\u0431\u043b\u043e\u043d\u044b \u0440\u0435\u0446\u0435\u043f\u0442\u043e\u0432\nEN: Get available recipe templates\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u0448\u0430\u0431\u043b\u043e\u043d\u043e\u0432 \u0440\u0435\u0446\u0435\u043f\u0442\u043e\u0432",
+        "description": "RU: Получить доступные шаблоны рецептов\nEN: Get available recipe templates\n\nReturns:\n    Список шаблонов рецептов",
         "operationId": "get_recipe_templates_api_v1_vip_recipes_templates_get",
         "responses": {
           "200": {
@@ -1559,7 +1589,7 @@
           "vip"
         ],
         "summary": "Auto Repair Weekly Plan",
-        "description": "RU: \u0410\u0432\u0442\u043e-\u0440\u0435\u043c\u043e\u043d\u0442 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043f\u043b\u0430\u043d\u0430 \u0441 UX-\u043f\u0435\u0442\u043b\u0435\u0439\nEN: Auto-repair weekly plan with UX loop\n\nArgs:\n    request: \u041d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d, \u0446\u0435\u043b\u0438 \u0438 \u043f\u0440\u0435\u0434\u043f\u043e\u0447\u0442\u0435\u043d\u0438\u044f\n\nReturns:\n    \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0430\u0432\u0442\u043e-\u0440\u0435\u043c\u043e\u043d\u0442\u0430 \u0441 \u0438\u0441\u0442\u043e\u0440\u0438\u0435\u0439 \u0438\u0442\u0435\u0440\u0430\u0446\u0438\u0439",
+        "description": "RU: Авто-ремонт недельного плана с UX-петлей\nEN: Auto-repair weekly plan with UX loop\n\nArgs:\n    request: Недельный план, цели и предпочтения\n\nReturns:\n    Результат авто-ремонта с историей итераций",
         "operationId": "auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post",
         "requestBody": {
           "content": {
@@ -1598,6 +1628,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1608,7 +1641,7 @@
           "vip"
         ],
         "summary": "Get Manual Repair Suggestions",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u044f \u0434\u043b\u044f \u0440\u0443\u0447\u043d\u043e\u0433\u043e \u0440\u0435\u043c\u043e\u043d\u0442\u0430\nEN: Get suggestions for manual repair\n\nArgs:\n    request: \u041d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u0438 \u0446\u0435\u043b\u0438\n\nReturns:\n    \u041f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u044f \u0434\u043b\u044f \u0440\u0443\u0447\u043d\u043e\u0433\u043e \u0440\u0435\u043c\u043e\u043d\u0442\u0430",
+        "description": "RU: Получить предложения для ручного ремонта\nEN: Get suggestions for manual repair\n\nArgs:\n    request: Недельный план и цели\n\nReturns:\n    Предложения для ручного ремонта",
         "operationId": "get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post",
         "requestBody": {
           "content": {
@@ -1647,6 +1680,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "APIKeyHeader": []
           }
         ]
       }
@@ -1657,9 +1693,12 @@
           "vip"
         ],
         "summary": "Get Repair Strategies",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u0438 \u0440\u0435\u043c\u043e\u043d\u0442\u0430\nEN: Get available repair strategies\n\nArgs:\n    x_api_key: API key for VIP access\n\nReturns:\n    \u0421\u043f\u0438\u0441\u043e\u043a \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u0439",
+        "description": "RU: Получить доступные стратегии ремонта\nEN: Get available repair strategies\n\nArgs:\n    x_api_key: API key for VIP access\n\nReturns:\n    Список доступных стратегий",
         "operationId": "get_repair_strategies_api_v1_vip_auto_repair_strategies_get",
         "security": [
+          {
+            "APIKeyHeader": []
+          },
           {
             "APIKeyHeader": []
           }
@@ -1744,7 +1783,7 @@
     "/health/db": {
       "get": {
         "summary": "Database Health",
-        "description": "RU: \u041c\u0438\u043d\u0438-\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u043a \u0431\u0430\u0437\u0435 \u0434\u0430\u043d\u043d\u044b\u0445.\n\nEN: Lightweight database connectivity check.",
+        "description": "RU: Мини-проверка подключения к базе данных.\n\nEN: Lightweight database connectivity check.",
         "operationId": "database_health_health_db_get",
         "responses": {
           "200": {
@@ -2091,7 +2130,7 @@
     "/api/v1/premium/plate": {
       "post": {
         "summary": "Api Premium Plate",
-        "description": "RU: \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u0442 \u00ab\u041c\u043e\u044e \u0422\u0430\u0440\u0435\u043b\u043a\u0443\u00bb \u043f\u043e\u0434 \u0446\u0435\u043b\u044c/\u0434\u0435\u0444\u0438\u0446\u0438\u0442/\u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c.\nEN: Generates 'My Plate' for goal/deficit/activity.\n\nEnhanced Plate API with visual sectors and hand/cup portions:\n- Visual plate layout with 4 sectors + 2 bowls\n- Precise deficit/surplus percentage control\n- Hand/cup portion method for real-world application\n- Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)\n- Macro-balanced meal suggestions",
+        "description": "RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.\nEN: Generates 'My Plate' for goal/deficit/activity.\n\nEnhanced Plate API with visual sectors and hand/cup portions:\n- Visual plate layout with 4 sectors + 2 bowls\n- Precise deficit/surplus percentage control\n- Hand/cup portion method for real-world application\n- Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)\n- Macro-balanced meal suggestions",
         "operationId": "api_premium_plate_api_v1_premium_plate_post",
         "requestBody": {
           "content": {
@@ -2135,7 +2174,7 @@
     "/api/v1/premium/bmr": {
       "post": {
         "summary": "Api Premium Bmr",
-        "description": "RU: \u0420\u0430\u0441\u0441\u0447\u0438\u0442\u044b\u0432\u0430\u0435\u0442 BMR \u0438 TDEE \u0441 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043d\u0438\u0435\u043c \u043d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u0438\u0445 \u0444\u043e\u0440\u043c\u0443\u043b.\nEN: Calculates BMR and TDEE using multiple formulas.\n\nSupports:\n- Mifflin-St Jeor equation (primary)\n- Harris-Benedict equation (secondary)\n- Katch-McArdle equation (if body fat provided)\n- Multiple activity levels\n- Localized responses",
+        "description": "RU: Рассчитывает BMR и TDEE с использованием нескольких формул.\nEN: Calculates BMR and TDEE using multiple formulas.\n\nSupports:\n- Mifflin-St Jeor equation (primary)\n- Harris-Benedict equation (secondary)\n- Katch-McArdle equation (if body fat provided)\n- Multiple activity levels\n- Localized responses",
         "operationId": "api_premium_bmr_api_v1_premium_bmr_post",
         "requestBody": {
           "content": {
@@ -2257,7 +2296,7 @@
     "/api/v1/premium/targets": {
       "post": {
         "summary": "Api Who Targets",
-        "description": "RU: \u0420\u0430\u0441\u0441\u0447\u0438\u0442\u044b\u0432\u0430\u0435\u0442 \u0438\u043d\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043b\u044c\u043d\u044b\u0435 \u0446\u0435\u043b\u0438 \u043f\u043e \u043d\u043e\u0440\u043c\u0430\u043c \u0412\u041e\u0417.\nEN: Calculates individual nutrition targets based on WHO guidelines.\n\nEvidence-based targets for:\n- Daily calorie needs (BMR/TDEE + goal adjustments)\n- Macronutrient distribution (WHO/IOM acceptable ranges)\n- Priority micronutrients (WHO/EFSA RDA values)\n- Hydration requirements (body weight + activity)\n- Physical activity goals (WHO recommendations)\n\nAll targets are personalized based on age, sex, activity level,\nand special conditions (pregnancy, lactation).",
+        "description": "RU: Рассчитывает индивидуальные цели по нормам ВОЗ.\nEN: Calculates individual nutrition targets based on WHO guidelines.\n\nEvidence-based targets for:\n- Daily calorie needs (BMR/TDEE + goal adjustments)\n- Macronutrient distribution (WHO/IOM acceptable ranges)\n- Priority micronutrients (WHO/EFSA RDA values)\n- Hydration requirements (body weight + activity)\n- Physical activity goals (WHO recommendations)\n\nAll targets are personalized based on age, sex, activity level,\nand special conditions (pregnancy, lactation).",
         "operationId": "api_who_targets_api_v1_premium_targets_post",
         "requestBody": {
           "content": {
@@ -2301,7 +2340,7 @@
     "/api/v1/premium/plan/week": {
       "post": {
         "summary": "Api Weekly Menu",
-        "description": "RU: \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u0442 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u043f\u0438\u0442\u0430\u043d\u0438\u044f (\u0447\u0435\u0440\u0435\u0437 core.menu_engine.make_weekly_menu).\nEN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.\n\nReturns keys: week_summary, daily_menus, weekly_coverage, shopping_list.",
+        "description": "RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).\nEN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.\n\nReturns keys: week_summary, daily_menus, weekly_coverage, shopping_list.",
         "operationId": "api_weekly_menu_api_v1_premium_plan_week_post",
         "requestBody": {
           "content": {
@@ -2345,7 +2384,7 @@
     "/api/v1/premium/gaps": {
       "post": {
         "summary": "Api Nutrient Gaps",
-        "description": "RU: \u0410\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u0434\u0435\u0444\u0438\u0446\u0438\u0442\u044b \u043d\u0443\u0442\u0440\u0438\u0435\u043d\u0442\u043e\u0432 \u0438 \u0434\u0430\u0451\u0442 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0430\u0446\u0438\u0438.\nEN: Analyzes nutrient deficiencies and provides food recommendations.\n\nSmart gap analysis:\n- Compares actual intake vs WHO targets\n- Identifies priority deficiencies (iron, calcium, folate, etc.)\n- Suggests specific foods to close gaps\n- Adapts recommendations for dietary restrictions\n- No supplement recommendations (food-first approach)\n\nPerfect for food diary analysis and meal optimization.",
+        "description": "RU: Анализирует дефициты нутриентов и даёт рекомендации.\nEN: Analyzes nutrient deficiencies and provides food recommendations.\n\nSmart gap analysis:\n- Compares actual intake vs WHO targets\n- Identifies priority deficiencies (iron, calcium, folate, etc.)\n- Suggests specific foods to close gaps\n- Adapts recommendations for dietary restrictions\n- No supplement recommendations (food-first approach)\n\nPerfect for food diary analysis and meal optimization.",
         "operationId": "api_nutrient_gaps_api_v1_premium_gaps_post",
         "requestBody": {
           "content": {
@@ -2405,7 +2444,7 @@
     "/api/v1/admin/db-status": {
       "get": {
         "summary": "Get Database Status",
-        "description": "RU: \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441 \u0432\u0441\u0435\u0445 \u0431\u0430\u0437 \u0434\u0430\u043d\u043d\u044b\u0445 \u0438 \u043f\u043b\u0430\u043d\u0438\u0440\u043e\u0432\u0449\u0438\u043a\u0430 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0439.\nEN: Get status of all databases and update scheduler.\n\nReturns information about:\n- Database versions and last update times\n- Update scheduler status\n- Retry counts and error states\n- Data integrity checksums",
+        "description": "RU: Получить статус всех баз данных и планировщика обновлений.\nEN: Get status of all databases and update scheduler.\n\nReturns information about:\n- Database versions and last update times\n- Update scheduler status\n- Retry counts and error states\n- Data integrity checksums",
         "operationId": "get_database_status_api_v1_admin_db_status_get",
         "responses": {
           "200": {
@@ -2427,7 +2466,7 @@
     "/api/v1/admin/force-update": {
       "post": {
         "summary": "Force Database Update",
-        "description": "RU: \u041f\u0440\u0438\u043d\u0443\u0434\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 \u0431\u0430\u0437 \u0434\u0430\u043d\u043d\u044b\u0445.\nEN: Force immediate database update.\n\nArgs:\n    source: Optional specific source to update (\"usda\", \"openfoodfacts\")\n            If None, updates all sources\n\nReturns:\n    Update results with statistics on records changed",
+        "description": "RU: Принудительно запустить обновление баз данных.\nEN: Force immediate database update.\n\nArgs:\n    source: Optional specific source to update (\"usda\", \"openfoodfacts\")\n            If None, updates all sources\n\nReturns:\n    Update results with statistics on records changed",
         "operationId": "force_database_update_api_v1_admin_force_update_post",
         "security": [
           {
@@ -2477,7 +2516,7 @@
     "/api/v1/admin/check-updates": {
       "get": {
         "summary": "Check For Updates",
-        "description": "RU: \u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043d\u0430\u043b\u0438\u0447\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0439 \u0431\u0435\u0437 \u0438\u0445 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438.\nEN: Check for available updates without installing them.\n\nReturns:\n    Dictionary showing which sources have updates available",
+        "description": "RU: Проверить наличие доступных обновлений без их установки.\nEN: Check for available updates without installing them.\n\nReturns:\n    Dictionary showing which sources have updates available",
         "operationId": "check_for_updates_api_v1_admin_check_updates_get",
         "responses": {
           "200": {
@@ -2499,7 +2538,7 @@
     "/api/v1/admin/rollback": {
       "post": {
         "summary": "Rollback Database",
-        "description": "RU: \u041e\u0442\u043a\u0430\u0442\u0438\u0442\u044c \u0431\u0430\u0437\u0443 \u0434\u0430\u043d\u043d\u044b\u0445 \u043a \u043f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0435\u0439 \u0432\u0435\u0440\u0441\u0438\u0438.\nEN: Rollback database to a previous version.\n\nArgs:\n    source: Data source name (\"usda\", \"openfoodfacts\")\n    target_version: Version to rollback to\n\nReturns:\n    Success status and rollback details",
+        "description": "RU: Откатить базу данных к предыдущей версии.\nEN: Rollback database to a previous version.\n\nArgs:\n    source: Data source name (\"usda\", \"openfoodfacts\")\n    target_version: Version to rollback to\n\nReturns:\n    Success status and rollback details",
         "operationId": "rollback_database_api_v1_admin_rollback_post",
         "security": [
           {
@@ -2551,7 +2590,7 @@
     "/api/v1/premium/exports/day/{plan_id}.csv": {
       "get": {
         "summary": "Export Daily Plan Csv",
-        "description": "RU: \u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0434\u043d\u0435\u0432\u043d\u043e\u0439 \u043f\u043b\u0430\u043d \u0432 CSV.\nEN: Export daily meal plan to CSV.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    CSV file download",
+        "description": "RU: Экспортировать дневной план в CSV.\nEN: Export daily meal plan to CSV.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    CSV file download",
         "operationId": "export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get",
         "security": [
           {
@@ -2632,7 +2671,7 @@
     "/api/v1/premium/exports/week/{plan_id}.csv": {
       "get": {
         "summary": "Export Weekly Plan Csv",
-        "description": "RU: \u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u0432 CSV.\nEN: Export weekly meal plan to CSV.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    CSV file download",
+        "description": "RU: Экспортировать недельный план в CSV.\nEN: Export weekly meal plan to CSV.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    CSV file download",
         "operationId": "export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get",
         "security": [
           {
@@ -2675,7 +2714,7 @@
     "/api/v1/premium/exports/day/{plan_id}.pdf": {
       "get": {
         "summary": "Export Daily Plan Pdf",
-        "description": "RU: \u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0434\u043d\u0435\u0432\u043d\u043e\u0439 \u043f\u043b\u0430\u043d \u0432 PDF.\nEN: Export daily meal plan to PDF.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    PDF file download",
+        "description": "RU: Экспортировать дневной план в PDF.\nEN: Export daily meal plan to PDF.\n\nArgs:\n    plan_id: ID of the daily plan to export\n\nReturns:\n    PDF file download",
         "operationId": "export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get",
         "security": [
           {
@@ -2718,7 +2757,7 @@
     "/api/v1/premium/exports/week/{plan_id}.pdf": {
       "get": {
         "summary": "Export Weekly Plan Pdf",
-        "description": "RU: \u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u0432 PDF.\nEN: Export weekly meal plan to PDF.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    PDF file download",
+        "description": "RU: Экспортировать недельный план в PDF.\nEN: Export weekly meal plan to PDF.\n\nArgs:\n    plan_id: ID of the weekly plan to export\n\nReturns:\n    PDF file download",
         "operationId": "export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get",
         "security": [
           {
@@ -3449,6 +3488,65 @@
         ],
         "title": "BodyFatRequest"
       },
+      "DayMenu": {
+        "properties": {
+          "meals": {
+            "items": {
+              "$ref": "#/components/schemas/MealItem"
+            },
+            "type": "array",
+            "title": "Meals"
+          },
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Macros"
+          },
+          "micros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Micros"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Coverage"
+          },
+          "tips": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tips"
+          },
+          "total_cost": {
+            "type": "number",
+            "title": "Total Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meals",
+          "kcal",
+          "macros",
+          "micros",
+          "coverage",
+          "tips",
+          "total_cost"
+        ],
+        "title": "DayMenu",
+        "description": "RU: Меню на один день.\nEN: Single day menu."
+      },
       "ErrorResponse": {
         "properties": {
           "status": {
@@ -3473,7 +3571,7 @@
           "message"
         ],
         "title": "ErrorResponse",
-        "description": "RU: \u041e\u0442\u0432\u0435\u0442 \u043e\u0431 \u043e\u0448\u0438\u0431\u043a\u0435.\nEN: Error response."
+        "description": "RU: Ответ об ошибке.\nEN: Error response."
       },
       "FoodHit": {
         "properties": {
@@ -3512,7 +3610,7 @@
           "carbs_g"
         ],
         "title": "FoodHit",
-        "description": "RU: \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043f\u043e\u0438\u0441\u043a\u0430 (\u043c\u0438\u043d\u0438\u043c\u0443\u043c \u0434\u0430\u043d\u043d\u044b\u0445 \u0434\u043b\u044f \u0441\u043f\u0438\u0441\u043a\u0430).\nEN: Search hit for list views."
+        "description": "RU: Результат поиска (минимум данных для списка).\nEN: Search hit for list views."
       },
       "FoodItem": {
         "properties": {
@@ -3672,7 +3770,7 @@
           "version_date"
         ],
         "title": "FoodItem",
-        "description": "RU: \u041f\u043e\u043b\u043d\u0430\u044f \u043c\u043e\u0434\u0435\u043b\u044c \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0430 \u0441 \u043f\u0440\u043e\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u0435\u043c\u043e\u0441\u0442\u044c\u044e.\nEN: Complete food model with provenance tracking."
+        "description": "RU: Полная модель продукта с прослеживаемостью.\nEN: Complete food model with provenance tracking."
       },
       "HTTPValidationError": {
         "properties": {
@@ -3719,6 +3817,54 @@
         ],
         "title": "InsightRequest"
       },
+      "MealItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "title_translated": {
+            "type": "string",
+            "title": "Title Translated"
+          },
+          "grams": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Grams"
+          },
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "macros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Macros"
+          },
+          "micros": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Micros"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "title_translated",
+          "grams",
+          "kcal",
+          "macros",
+          "micros"
+        ],
+        "title": "MealItem",
+        "description": "RU: Элемент приема пищи.\nEN: Meal item."
+      },
       "NutrientGapsRequest": {
         "properties": {
           "consumed_nutrients": {
@@ -3738,7 +3884,7 @@
           "user_profile"
         ],
         "title": "NutrientGapsRequest",
-        "description": "RU: \u0417\u0430\u043f\u0440\u043e\u0441 \u043d\u0430 \u0430\u043d\u0430\u043b\u0438\u0437 \u0434\u0435\u0444\u0438\u0446\u0438\u0442\u043e\u0432 \u043d\u0443\u0442\u0440\u0438\u0435\u043d\u0442\u043e\u0432.\nEN: Request for nutrient gap analysis."
+        "description": "RU: Запрос на анализ дефицитов нутриентов.\nEN: Request for nutrient gap analysis."
       },
       "NutrientGapsResponse": {
         "properties": {
@@ -3768,7 +3914,7 @@
           "adherence_score"
         ],
         "title": "NutrientGapsResponse",
-        "description": "RU: \u041e\u0442\u0432\u0435\u0442 \u0441 \u0430\u043d\u0430\u043b\u0438\u0437\u043e\u043c \u0434\u0435\u0444\u0438\u0446\u0438\u0442\u043e\u0432 \u0438 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0430\u0446\u0438\u044f\u043c\u0438.\nEN: Response with gap analysis and recommendations."
+        "description": "RU: Ответ с анализом дефицитов и рекомендациями.\nEN: Response with gap analysis and recommendations."
       },
       "PlateRequest": {
         "properties": {
@@ -3893,7 +4039,7 @@
           "goal"
         ],
         "title": "PlateRequest",
-        "description": "RU: \u0417\u0430\u043f\u0440\u043e\u0441 \u043d\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u044e \u00ab\u041c\u043e\u0435\u0439 \u0422\u0430\u0440\u0435\u043b\u043a\u0438\u00bb.\nEN: Request to generate 'My Plate'."
+        "description": "RU: Запрос на генерацию «Моей Тарелки».\nEN: Request to generate 'My Plate'."
       },
       "PlateResponse": {
         "properties": {
@@ -4216,7 +4362,7 @@
           "name"
         ],
         "title": "UserCreate",
-        "description": "RU: \u0421\u0445\u0435\u043c\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f. EN: Payload for creating a user."
+        "description": "RU: Схема создания пользователя. EN: Payload for creating a user."
       },
       "UserRead": {
         "properties": {
@@ -4241,7 +4387,7 @@
           "id"
         ],
         "title": "UserRead",
-        "description": "RU: \u0421\u0445\u0435\u043c\u0430 \u0447\u0442\u0435\u043d\u0438\u044f \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f. EN: Response schema for user endpoints."
+        "description": "RU: Схема чтения пользователя. EN: Response schema for user endpoints."
       },
       "ValidationError": {
         "properties": {
@@ -4308,7 +4454,7 @@
           "tooltip"
         ],
         "title": "VisualShape",
-        "description": "RU: \u041f\u0440\u0438\u043c\u0438\u0442\u0438\u0432 \u0434\u043b\u044f \u0444\u0440\u043e\u043d\u0442\u0435\u043d\u0434\u0430 (\u0441\u0435\u043a\u0442\u043e\u0440 \u0442\u0430\u0440\u0435\u043b\u043a\u0438/\u0447\u0430\u0448\u043a\u0430/\u043c\u0435\u0442\u043a\u0430).\nEN: Primitive for frontend (plate sector/bowl/dot)."
+        "description": "RU: Примитив для фронтенда (сектор тарелки/чашка/метка).\nEN: Primitive for frontend (plate sector/bowl/dot)."
       },
       "WHOTargetsRequest": {
         "properties": {
@@ -4451,7 +4597,7 @@
           "activity"
         ],
         "title": "WHOTargetsRequest",
-        "description": "RU: \u0417\u0430\u043f\u0440\u043e\u0441 \u043d\u0430 \u0440\u0430\u0441\u0447\u0451\u0442 \u0446\u0435\u043b\u0435\u0439 \u043f\u043e \u043d\u043e\u0440\u043c\u0430\u043c \u0412\u041e\u0417.\nEN: Request for WHO-based nutrition targets."
+        "description": "RU: Запрос на расчёт целей по нормам ВОЗ.\nEN: Request for WHO-based nutrition targets."
       },
       "WHOTargetsResponse": {
         "properties": {
@@ -4510,7 +4656,7 @@
           "calculation_date"
         ],
         "title": "WHOTargetsResponse",
-        "description": "RU: \u041e\u0442\u0432\u0435\u0442 \u0441 \u0446\u0435\u043b\u0435\u0432\u044b\u043c\u0438 \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044f\u043c\u0438 \u043f\u043e \u0412\u041e\u0417.\nEN: Response with WHO-based targets."
+        "description": "RU: Ответ с целевыми значениями по ВОЗ.\nEN: Response with WHO-based targets."
       },
       "WeekPlanRequest": {
         "properties": {
@@ -4685,7 +4831,7 @@
           },
           "daily_menus": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DayMenu"
             },
             "type": "array",
             "title": "Daily Menus"
@@ -4723,7 +4869,7 @@
           "adherence_score"
         ],
         "title": "WeeklyMenuResponse",
-        "description": "RU: \u041e\u0442\u0432\u0435\u0442 \u0441 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u043c \u043c\u0435\u043d\u044e.\nEN: Response with weekly menu."
+        "description": "RU: Ответ с недельным меню.\nEN: Response with weekly menu."
       },
       "WeeklyPlanRequest": {
         "properties": {
@@ -4880,7 +5026,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "WeeklyPlanRequest",
-        "description": "RU: \u0417\u0430\u043f\u0440\u043e\u0441 \u043d\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u043f\u043b\u0430\u043d\u0430 \u043f\u0438\u0442\u0430\u043d\u0438\u044f.\nEN: Request for creating a weekly meal plan."
+        "description": "RU: Запрос на создание недельного плана питания.\nEN: Request for creating a weekly meal plan."
       },
       "WeeklyPlanResponse": {
         "properties": {
@@ -4906,7 +5052,7 @@
           "status"
         ],
         "title": "WeeklyPlanResponse",
-        "description": "RU: \u041e\u0442\u0432\u0435\u0442 \u0441 \u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u043c \u043f\u043b\u0430\u043d\u043e\u043c \u043f\u0438\u0442\u0430\u043d\u0438\u044f.\nEN: Response with weekly meal plan."
+        "description": "RU: Ответ с недельным планом питания.\nEN: Response with weekly meal plan."
       }
     },
     "securitySchemes": {
