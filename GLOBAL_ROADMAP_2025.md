@@ -444,7 +444,7 @@
 - [x] **Accessibility labels** ready for iOS integration
 
 #### 📋 Detailed iOS Development Plan
->
+
 > **See**: [IOS_DEVELOPMENT_ROADMAP.md](./IOS_DEVELOPMENT_ROADMAP.md) for complete iOS development phases and tasks
 
 **Quick Status**: Frontend ready for iOS synchronization. iOS team can resume development using prepared localization structure.

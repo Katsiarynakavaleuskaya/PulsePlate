@@ -105,7 +105,7 @@ class USDAClient:
         Sequence[Union[str, int, float, bool, None]],
     ]
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize USDA client.
 
@@ -142,7 +142,7 @@ class USDAClient:
             # B-vitamins
             1165: "thiamin_mg",  # Thiamin (B1)
             1166: "riboflavin_mg",  # Riboflavin (B2)
-            1167: "niacin_mg",  # Folate, total
+            1167: "niacin_mg",  # Niacin (B3)
             1179: "b6_mg",  # Vitamin B-6
         }
 

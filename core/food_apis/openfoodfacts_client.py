@@ -109,7 +109,7 @@ class OFFClient:
     BASE_URL = "https://world.openfoodfacts.org/api/v0"
     CGI_BASE_URL = "https://world.openfoodfacts.org/cgi"
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize Open Food Facts client.
         """
