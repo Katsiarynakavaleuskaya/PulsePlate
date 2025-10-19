@@ -309,14 +309,15 @@ describe('WhoTargetsPanel Accessibility', () => {
       const { rerender } = render(<WhoTargetsPanel {...createProps({ loading: true })} />);
 
       // Check for ARIA loading state
-      const panel = screen.getByTestId('who-targets-panel');
+      let panel = screen.getByTestId('who-targets-panel');
       expect(panel).toHaveAttribute('aria-busy', 'true');
       expect(panel).toHaveAttribute('aria-live', 'polite');
 
       // Switch to loaded state
       rerender(<WhoTargetsPanel {...createProps({ data: mockData })} />);
 
-      // Verify aria-busy is removed
+      // Re-query after state change
+      panel = screen.getByTestId('who-targets-panel');
       expect(panel).not.toHaveAttribute('aria-busy', 'true');
       expect(panel).not.toHaveAttribute('aria-live', 'polite');
 

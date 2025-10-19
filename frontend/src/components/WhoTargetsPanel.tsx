@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useId } from 'react';
 import { clsx } from 'clsx';
 import type { TargetsApiResponse } from '../api/premium/types';
 import './WhoTargetsPanel.css';
@@ -11,7 +12,7 @@ interface WhoTargetsPanelProps {
   data: TargetsApiResponse | null;
   loading: boolean;
   error: string | null;
-  onSaveAndContinue: () => void;
+  onSaveAndContinue?: () => void;
   onRetry?: () => void;
   className?: string;
 }
@@ -25,6 +26,7 @@ export function WhoTargetsPanel({
   className,
 }: WhoTargetsPanelProps) {
   const { t } = useTranslation();
+  const ctaDescId = useId();
 
   if (loading) {
     return (
@@ -102,14 +104,14 @@ export function WhoTargetsPanel({
         {/* CTA Button - only show if onSaveAndContinue is provided */}
         {onSaveAndContinue && (
           <div className="who-targets-panel__actions">
-            <p id="who-targets-cta-description" className="sr-only">
+            <p id={ctaDescId} className="sr-only">
               {t('whoTargets.cta.description', 'Save your nutrition targets and proceed to generate your personalized weekly meal plan')}
             </p>
               <button
                 type="button"
                 className="btn btn--primary btn-touch-large"
                 onClick={onSaveAndContinue}
-                aria-describedby="who-targets-cta-description"
+                aria-describedby={ctaDescId}
               >
               {t('whoTargets.cta.saveAndContinue', 'Save & Get Weekly Plan')}
             </button>
