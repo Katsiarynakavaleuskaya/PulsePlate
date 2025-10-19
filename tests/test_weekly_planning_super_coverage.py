@@ -145,28 +145,20 @@ class TestWeeklyPlanningBlocks:
     def test_weekly_planning_with_getattr_mock(self, client):
         """Альтернативный подход к мокингу через getattr"""
 
-        # Патчинг getattr для нахождения make_weekly_menu
-        original_getattr = getattr
+        # Создаем мокнутую функцию make_weekly_menu
+        def mock_make_weekly_menu(_profile: object) -> MagicMock:
+            mock_result = MagicMock()
+            mock_result.week_start = "2025-01-01"
+            mock_result.total_cost = 140.0
+            mock_result.daily_menus = [
+                MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
+            ]
+            mock_result.shopping_list = {"test": "item"}
+            mock_result.weekly_coverage = {"protein": 90}
+            return mock_result
 
-        def mock_getattr(obj: object, name: str, *args) -> object:
-            if name != "make_weekly_menu":
-                return original_getattr(obj, name, *args)
-
-            # Возвращаем мокнутую функцию
-            def mock_make_weekly_menu(_profile: object) -> MagicMock:
-                mock_result = MagicMock()
-                mock_result.week_start = "2025-01-01"
-                mock_result.total_cost = 140.0
-                mock_result.daily_menus = [
-                    MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
-                ]
-                mock_result.shopping_list = {"test": "item"}
-                mock_result.weekly_coverage = {"protein": 90}
-                return mock_result
-
-            return mock_make_weekly_menu
-
-        with patch("builtins.getattr", new=mock_getattr):
+        # Мокаем модуль weekly_plan_new напрямую
+        with patch("core.weekly_plan_new.make_weekly_menu", return_value=mock_make_weekly_menu()):
             os.environ["API_KEY"] = "test_key"
             try:
                 response = client.post(
