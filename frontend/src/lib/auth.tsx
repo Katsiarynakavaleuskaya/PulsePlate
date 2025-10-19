@@ -25,7 +25,7 @@ export interface AuthContextType {
   setShowAuthPrompt: (show: boolean) => void;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;

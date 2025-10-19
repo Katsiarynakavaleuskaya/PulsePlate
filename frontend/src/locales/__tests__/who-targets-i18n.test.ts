@@ -190,29 +190,29 @@ describe('WHO Targets i18n', () => {
   describe('Edge Cases & Fallback Handling', () => {
     it('should handle missing translation keys gracefully', () => {
       // Test that accessing non-existent keys doesn't crash
-      const testMissingKey = (_locale: string, data: any) => {
+      const testMissingKey = (data: any) => {
         expect(() => {
           const missingKey = (data.whoTargets as any)['nonExistentSection'];
           expect(missingKey).toBeUndefined();
         }).not.toThrow();
       };
 
-      Object.entries(locales).forEach(([locale, data]) => {
-        testMissingKey(locale, data);
+      Object.entries(locales).forEach(([, data]) => {
+        testMissingKey(data);
       });
     });
 
     it('should have consistent fallback structure for nested keys', () => {
       // Test that nested object access is safe
-      const testNestedAccess = (_locale: string, data: any) => {
+      const testNestedAccess = (data: any) => {
         expect(() => {
           const nestedKey = (data.whoTargets.macros as any)['nonExistentMacro'];
           expect(nestedKey).toBeUndefined();
         }).not.toThrow();
       };
 
-      Object.entries(locales).forEach(([locale, data]) => {
-        testNestedAccess(locale, data);
+      Object.entries(locales).forEach(([, data]) => {
+        testNestedAccess(data);
       });
     });
 
