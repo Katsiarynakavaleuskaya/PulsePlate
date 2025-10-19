@@ -1,5 +1,4 @@
-import { createPremiumEndpoint } from './types';
-import type { PlateRequest, PlateApiResponse } from './types';
+import { createPremiumEndpoint, type PlateRequest, type PlateApiResponse } from './types';
 
 export const getPlate = createPremiumEndpoint<PlateRequest, PlateApiResponse>('/api/v1/premium/plate');
 

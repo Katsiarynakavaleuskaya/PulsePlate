@@ -48,8 +48,8 @@ export default tseslint.config(
       }
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off', // Allow console.log for development - process.env check not reliable in ESLint
       'no-empty': 'warn',
       'no-constant-condition': 'warn',
@@ -57,14 +57,14 @@ export default tseslint.config(
       'no-func-assign': 'warn',
       'no-prototype-builtins': 'warn',
       '@typescript-eslint/no-this-alias': 'warn',
-      // Duplication prevention rules
-      'no-duplicate-imports': 'error',
+      // Duplication prevention rules (allow separate value/type imports)
+      'no-duplicate-imports': 'off',
       'no-duplicate-case': 'error',
       'no-dupe-keys': 'error',
       'no-redeclare': 'off', // Disable base rule in favor of TypeScript version
       '@typescript-eslint/no-redeclare': 'error',
       'no-var': 'error', // Prefer const/let to avoid hoisting issues
-      'prefer-const': 'error'
+      'prefer-const': 'warn'
     },
   },
   {

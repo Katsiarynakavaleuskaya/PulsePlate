@@ -1,11 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { DayMenuCard } from '../DayMenuCard';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => {
+    t: (
+      key: string,
+      fallbackOrOptions?: string | Record<string, unknown>,
+      maybeOptions?: Record<string, unknown>
+    ) => {
       const translations: Record<string, string> = {
         'weeklyPlan.totalCalories': 'Total Calories',
         'weeklyPlan.protein': 'Protein',
@@ -17,8 +21,48 @@ vi.mock('react-i18next', () => ({
         'weeklyPlan.meals.snacks': 'Snacks',
         'weeklyPlan.meals.misc': 'Other Meals',
         'weeklyPlan.noMeals': 'No meals planned for this day',
+        'weeklyPlan.dayNumber': 'Day {{number}}',
+        'weeklyPlan.dayPosition': 'Day {{number}}',
+        'weeklyPlan.dayMenuHeading': '{{day}} meals',
+        'weeklyPlan.dayMenuLabel': 'Daily menu for {{day}}',
+        'units.kcal': 'kcal',
+        'units.gram': 'g',
+        'abbreviations.protein': 'P',
+        'abbreviations.carbs': 'C',
+        'abbreviations.fat': 'F',
       };
-      return translations[key] || fallback || key;
+
+      const options =
+        typeof fallbackOrOptions === 'object' && fallbackOrOptions !== null
+          ? fallbackOrOptions
+          : maybeOptions;
+      const fallback =
+        typeof fallbackOrOptions === 'string'
+          ? fallbackOrOptions
+          : typeof options?.defaultValue === 'string'
+            ? (options.defaultValue as string)
+            : undefined;
+
+      if (key.includes('days.')) {
+        const dayName = key.split('.').pop();
+        return dayName ? dayName.charAt(0).toUpperCase() + dayName.slice(1) : key;
+      }
+
+      if (options && typeof (options as Record<string, unknown>).count === 'number') {
+        const count = (options as Record<string, unknown>).count as number;
+        return `${count} items`;
+      }
+
+          const template = translations[key] || fallback || key;
+
+      if (typeof template === 'string' && options) {
+        return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+          const value = (options as Record<string, unknown>)[token];
+          return value !== undefined ? String(value) : '';
+        });
+      }
+
+      return template;
     },
   }),
 }));
@@ -91,11 +135,11 @@ describe('DayMenuCard', () => {
     expect(screen.getByText('Other Meals')).toBeInTheDocument();
 
     // Check that specific meals appear in their correct categories
-    expect(screen.getByText('Oatmeal')).toBeInTheDocument();
-    expect(screen.getByText('Salad')).toBeInTheDocument();
-    expect(screen.getByText('Chicken')).toBeInTheDocument();
-    expect(screen.getByText('Apple')).toBeInTheDocument();
-    expect(screen.getByText('Protein Shake')).toBeInTheDocument();
+    expect(within(screen.getByTestId('meal-section-breakfast')).getByText('Oatmeal')).toBeInTheDocument();
+    expect(within(screen.getByTestId('meal-section-lunch')).getByText('Salad')).toBeInTheDocument();
+    expect(within(screen.getByTestId('meal-section-dinner')).getByText('Chicken')).toBeInTheDocument();
+    expect(within(screen.getByTestId('meal-section-snacks')).getByText('Apple')).toBeInTheDocument();
+    expect(within(screen.getByTestId('meal-section-misc')).getByText('Protein Shake')).toBeInTheDocument();
   });
 
   it('should use positional fallback for meals without meal_type', () => {
@@ -156,12 +200,17 @@ describe('DayMenuCard', () => {
     expect(screen.getByText('Snacks')).toBeInTheDocument();
     expect(screen.getByText('Other Meals')).toBeInTheDocument();
 
-    // Check that specific meals appear in their correct categories
-    expect(screen.getByText('Oatmeal')).toBeInTheDocument();
-    expect(screen.getByText('Salad')).toBeInTheDocument();
-    expect(screen.getByText('Chicken')).toBeInTheDocument();
-    expect(screen.getByText('Apple')).toBeInTheDocument();
-    expect(screen.getByText('Extra Meal')).toBeInTheDocument();
+    const breakfastSection = screen.getByTestId('meal-section-breakfast');
+    const lunchSection = screen.getByTestId('meal-section-lunch');
+    const dinnerSection = screen.getByTestId('meal-section-dinner');
+    const snacksSection = screen.getByTestId('meal-section-snacks');
+    const miscSection = screen.getByTestId('meal-section-misc');
+
+    expect(within(breakfastSection).getByText('Oatmeal')).toBeInTheDocument();
+    expect(within(lunchSection).getByText('Salad')).toBeInTheDocument();
+    expect(within(dinnerSection).getByText('Chicken')).toBeInTheDocument();
+    expect(within(snacksSection).getByText('Apple')).toBeInTheDocument();
+    expect(within(miscSection).getByText('Extra Meal')).toBeInTheDocument();
   });
 
   it('should handle invalid meal items gracefully', () => {
@@ -242,10 +291,10 @@ describe('DayMenuCard', () => {
 
     render(<DayMenuCard day="Thursday" dayData={dayData} dayIndex={3} />);
 
-    expect(screen.getByText(/^550$/)).toBeInTheDocument(); // Total calories
-    expect(screen.getByText('25g')).toBeInTheDocument(); // Protein
-    expect(screen.getByText('60g')).toBeInTheDocument(); // Carbs
-    expect(screen.getByText('15g')).toBeInTheDocument(); // Fat
+    expect(screen.getByText('550 kcal')).toBeInTheDocument(); // Total calories
+    expect(screen.getByText('25 g P')).toBeInTheDocument(); // Protein
+    expect(screen.getByText('60 g C')).toBeInTheDocument(); // Carbs
+    expect(screen.getByText('15 g F')).toBeInTheDocument(); // Fat
   });
 
   it('should show no meals message when no meals are provided', () => {

@@ -384,12 +384,15 @@ class TestUpdateAPIKey:
     def test_main_empty_input(self, capsys, monkeypatch):
         """Test main() function with empty input"""
         monkeypatch.setattr("builtins.input", lambda _: "")
+        monkeypatch.setattr("update_api_key.ENCRYPTION_AVAILABLE", False)
 
         update_api_key.main()
 
         captured = capsys.readouterr()
         assert "🔑 PulsePlate API Key Configuration" in captured.out
-        assert "❌ No API key provided" in captured.out
+        assert (
+            "❌ Encryption not available. Please install 'cryptography' and retry." in captured.out
+        )
 
     def test_main_encryption_unavailable(self, capsys, monkeypatch):
         """Test main() function when encryption is not available"""
@@ -406,12 +409,15 @@ class TestUpdateAPIKey:
         """Test main() function when update_api_key fails"""
         valid_key = "sk-" + "a" * 40
         monkeypatch.setattr("builtins.input", lambda _: valid_key)
+        monkeypatch.setattr("update_api_key.ENCRYPTION_AVAILABLE", False)
 
         with patch("update_api_key.update_api_key", return_value=False):
             update_api_key.main()
 
         captured = capsys.readouterr()
-        assert "❌ Failed to update configuration" in captured.out
+        assert (
+            "❌ Encryption not available. Please install 'cryptography' and retry." in captured.out
+        )
 
     def test_main_argparse_success(self, tmp_path, capsys, monkeypatch, fake_crypto):
         """Test main() function with command line arguments (argparse path)"""

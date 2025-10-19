@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { getWeeklyPlan } from '../../api/premium/weekly-plan';
-import type { WeeklyMenuResponse } from '../../api/premium/weekly-plan';
+import { getWeeklyPlan, type WeeklyMenuResponse } from '../../api/premium/weekly-plan';
 import type { TargetsRequest } from '../../api/premium/types';
 import { WeeklyPlanSkeleton } from './WeeklyPlanSkeleton.tsx';
 import { WeeklyPlanError } from './WeeklyPlanError.tsx';
@@ -91,6 +90,10 @@ export function WeeklyPlanReader({
   const safeDayIndex = Math.max(0, Math.min(currentDayIndex, data.daily_menus.length - 1));
   const currentDay = DAYS_OF_WEEK[safeDayIndex];
   const currentDayData = data.daily_menus[safeDayIndex];
+  const weekStartDate = data.week_summary?.week_start
+    ? new Date(data.week_summary.week_start)
+    : null;
+  const formattedWeekStart = weekStartDate ? weekStartDate.toLocaleDateString() : '';
 
   return (
     <div className={`weekly-plan-reader ${className}`} data-testid={dataTestId}>
@@ -103,8 +106,8 @@ export function WeeklyPlanReader({
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Calendar className="w-4 h-4" />
             <span>
-              {t('weeklyPlan.weekOf', 'Week of')}{' '}
-              {new Date().toLocaleDateString()}
+              {t('weeklyPlan.weekOf', 'Week of')}
+              {formattedWeekStart ? ` ${formattedWeekStart}` : ''}
             </span>
           </div>
         </div>
@@ -194,12 +197,12 @@ export function WeeklyPlanReader({
               key={day}
               onClick={() => handleDaySelect(index)}
               className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                index === currentDayIndex
+                index === safeDayIndex
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
               aria-label={t(`weeklyPlan.days.${day}`, day)}
-              aria-current={index === currentDayIndex ? 'true' : undefined}
+              aria-current={index === safeDayIndex ? 'true' : undefined}
             >
               {t(`weeklyPlan.days.${day}`, day)}
             </button>
@@ -208,11 +211,7 @@ export function WeeklyPlanReader({
       </div>
 
       {/* Current day menu */}
-      <DayMenuCard
-        day={currentDay}
-        dayData={currentDayData}
-        dayIndex={currentDayIndex}
-      />
+      <DayMenuCard day={currentDay} dayData={currentDayData} dayIndex={safeDayIndex} />
 
       {/* Shopping list summary */}
       {data.shopping_list && Object.keys(data.shopping_list).length > 0 && (

@@ -231,9 +231,9 @@ class TestPlateTargetsMicrosHypothesis:
             for micro in common_micros
             if any(micro in key.lower() for key in day_micros.keys())
         ]
-        assert found_micros, (
-            f"Should have at least some common micronutrients, found: {list(day_micros.keys())}"
-        )
+        assert (
+            found_micros
+        ), f"Should have at least some common micronutrients, found: {list(day_micros.keys())}"
 
     @given(
         sex=st.sampled_from(["male", "female"]),
@@ -436,12 +436,12 @@ class TestPlateTargetsMicrosHypothesis:
             target_micros = targets_data["priority_micros"]
 
             # Should have substantial micros data
-            assert len(plate_micros) >= 5, (
-                f"Plate should have at least 5 micronutrients, got {len(plate_micros)}"
-            )
-            assert len(target_micros) >= 5, (
-                f"Targets should have at least 5 micronutrients, got {len(target_micros)}"
-            )
+            assert (
+                len(plate_micros) >= 5
+            ), f"Plate should have at least 5 micronutrients, got {len(plate_micros)}"
+            assert (
+                len(target_micros) >= 5
+            ), f"Targets should have at least 5 micronutrients, got {len(target_micros)}"
 
             # Check for key micronutrients
             key_micros = [
@@ -464,9 +464,9 @@ class TestPlateTargetsMicrosHypothesis:
                     found_in_targets += 1
 
             # Should find most key micronutrients
-            assert found_in_plate >= 4, (
-                f"Should find at least 4 key micronutrients in plate, found {found_in_plate}"
-            )
-            assert found_in_targets >= 4, (
-                f"Should find at least 4 key micronutrients in targets, found {found_in_targets}"
-            )
+            assert (
+                found_in_plate >= 4
+            ), f"Should find at least 4 key micronutrients in plate, found {found_in_plate}"
+            assert (
+                found_in_targets >= 4
+            ), f"Should find at least 4 key micronutrients in targets, found {found_in_targets}"

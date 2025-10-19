@@ -56,11 +56,16 @@ const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snacks'] as const;
 const MEAL_ORDER_WITH_MISC = ['breakfast', 'lunch', 'dinner', 'snacks', 'misc'] as const;
 
 // Helper function to validate meal item
-function isValidMealItem(meal: any): meal is MealItem {
-  return meal && typeof meal === 'object' && (
-    (typeof meal.title === 'string' && meal.title.trim().length > 0) ||
-    (typeof meal.name === 'string' && meal.name.trim().length > 0)
-  );
+function isValidMealItem(meal: unknown): meal is MealItem {
+  if (!meal || typeof meal !== 'object') {
+    return false;
+  }
+
+  const typedMeal = meal as { title?: string; name?: string };
+  const title = typeof typedMeal.title === 'string' ? typedMeal.title.trim() : '';
+  const name = typeof typedMeal.name === 'string' ? typedMeal.name.trim() : '';
+
+  return title.length > 0 || name.length > 0;
 }
 
 // Helper function to adapt API data to component expectations
@@ -90,7 +95,8 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
         carbs: meal.macros?.carbs_g || meal.carbs,
         fat: meal.macros?.fat_g || meal.fat,
         fiber: meal.macros?.fiber_g || meal.fiber,
-        serving_size: meal.serving_size || '1 serving',
+        // Preserve serving size only when provided by API; avoid hardcoded defaults
+        serving_size: meal.serving_size,
         ingredients: meal.ingredients || Object.keys(meal.grams || {}),
       };
 
@@ -151,18 +157,31 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
 
 export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   const { t } = useTranslation();
+  const unitKcal = t('units.kcal', 'kcal');
+  const unitGram = t('units.gram', 'g');
+  const abbrProtein = t('abbreviations.protein', 'P');
+  const abbrCarbs = t('abbreviations.carbs', 'C');
+  const abbrFat = t('abbreviations.fat', 'F');
 
   const normalizedDayIndex = typeof dayIndex === 'number' && dayIndex >= 0 ? dayIndex : null;
   const dayLabel = day
     ? t(`weeklyPlan.days.${day}`, day)
     : normalizedDayIndex !== null
-      ? t('weeklyPlan.dayNumber', `Day ${normalizedDayIndex + 1}`)
+      ? t('weeklyPlan.dayNumber', 'Day {{number}}', { number: normalizedDayIndex + 1 })
       : t('weeklyPlan.day', 'Day');
   const cardTestId = day
     ? `day-menu-card-${day}`
     : normalizedDayIndex !== null
       ? `day-menu-card-index-${normalizedDayIndex}`
       : 'day-menu-card';
+  const dayMenuLabel = t('weeklyPlan.dayMenuLabel', {
+    defaultValue: `Daily menu for ${dayLabel}`,
+    day: dayLabel,
+  });
+  const dayHeadingText = t('weeklyPlan.dayMenuHeading', {
+    defaultValue: `${dayLabel} meals`,
+    day: dayLabel,
+  });
 
   const adaptedData = adaptDayMenuData(dayData);
 
@@ -171,7 +190,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
       <div
         className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg"
         data-testid={cardTestId}
-        aria-label={dayLabel}
+        aria-label={dayMenuLabel}
       >
         <div className="text-center text-gray-500 dark:text-gray-400">
           <Utensils className="w-8 h-8 mx-auto mb-2" />
@@ -188,14 +207,14 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   );
 
   return (
-    <div className="day-menu-card" data-testid={cardTestId} aria-label={dayLabel}>
+    <div className="day-menu-card" data-testid={cardTestId} aria-label={dayMenuLabel}>
       <div className="mb-4">
         <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
-          {dayLabel}
+          {dayHeadingText}
         </h3>
         {normalizedDayIndex !== null && (
           <span className="text-sm text-gray-600 dark:text-gray-400">
-            {t('weeklyPlan.dayPosition', `Day ${normalizedDayIndex + 1}`)}
+            {t('weeklyPlan.dayPosition', 'Day {{number}}', { number: normalizedDayIndex + 1 })}
           </span>
         )}
       </div>
@@ -210,7 +229,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
             </span>
           </div>
           <span className="text-xl font-bold text-blue-900 dark:text-blue-100">
-            {totalCalories.toLocaleString()}
+            {totalCalories.toLocaleString()} {unitKcal}
           </span>
         </div>
 
@@ -221,7 +240,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
               <div className="text-center">
                 <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.protein', 'Protein')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {adaptedData.total_protein}g
+                  {adaptedData.total_protein.toLocaleString()} {unitGram} {abbrProtein}
                 </div>
               </div>
             )}
@@ -229,7 +248,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
               <div className="text-center">
                 <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.carbs', 'Carbs')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {adaptedData.total_carbs}g
+                  {adaptedData.total_carbs.toLocaleString()} {unitGram} {abbrCarbs}
                 </div>
               </div>
             )}
@@ -237,7 +256,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
               <div className="text-center">
                 <div className="text-gray-600 dark:text-gray-400">{t('weeklyPlan.fat', 'Fat')}</div>
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {adaptedData.total_fat}g
+                  {adaptedData.total_fat.toLocaleString()} {unitGram} {abbrFat}
                 </div>
               </div>
             )}
@@ -254,7 +273,11 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
           const mealCalories = mealItems.reduce((sum: number, item: MealItem) => sum + (item.calories || 0), 0);
 
           return (
-            <div key={mealType} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div
+              key={mealType}
+              className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
+              data-testid={`meal-section-${mealType}`}
+            >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
                   {mealType === 'misc'
@@ -264,7 +287,7 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
                 </h3>
                 <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
-                  <span>{mealCalories} cal</span>
+                  <span>{mealCalories.toLocaleString()} {unitKcal}</span>
                 </div>
               </div>
 
@@ -289,16 +312,18 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
                     <div className="text-right text-sm">
                       {item.calories && (
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {item.calories} cal
+                          {item.calories.toLocaleString()} {unitKcal}
                         </div>
                       )}
                       {(item.protein || item.carbs || item.fat) && (
                         <div className="text-gray-600 dark:text-gray-400">
-                          {item.protein && `${item.protein}p`}
-                          {item.protein && (item.carbs || item.fat) && ' • '}
-                          {item.carbs && `${item.carbs}c`}
-                          {item.carbs && item.fat && ' • '}
-                          {item.fat && `${item.fat}f`}
+                          {[
+                            item.protein ? `${item.protein}${unitGram} ${abbrProtein}` : null,
+                            item.carbs ? `${item.carbs}${unitGram} ${abbrCarbs}` : null,
+                            item.fat ? `${item.fat}${unitGram} ${abbrFat}` : null,
+                          ]
+                            .filter((part): part is string => Boolean(part))
+                            .join(' • ')}
                         </div>
                       )}
                     </div>

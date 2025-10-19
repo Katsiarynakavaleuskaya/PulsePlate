@@ -134,7 +134,7 @@ export async function validateApiKey(): Promise<boolean> {
       headers: mergeHeaders(),
     });
     return res.ok;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

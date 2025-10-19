@@ -1,5 +1,4 @@
-import { createPremiumEndpoint } from './types';
-import type { TargetsRequest } from './types';
+import { createPremiumEndpoint, type TargetsRequest } from './types';
 import type { components } from '../schema';
 
 // Use the WeeklyMenuResponse from OpenAPI schema

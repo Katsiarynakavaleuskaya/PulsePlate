@@ -39,11 +39,14 @@ repos:
         args:
           - --pretty
           - --show-error-codes
-          - --implicit-optional
-          - --ignore-missing-imports
+          - --disallow-incomplete-defs
+          - --warn-unused-ignores
+          - --strict-equality
           - --install-types
           - --non-interactive
-        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+        files: ^(?!frontend/).+\.py$
+        exclude: |
+          ^node_modules/|^cache/|^dist/|^build/|^\.venv/|^venv/|^data/|^tests/__pycache__/
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -55,7 +58,7 @@ repos:
         types: [python]
         # Changed-files only (fast path). Full scan added below on pre-push/CI.
         exclude: |
-          ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+          ^frontend/|^tests/__fixtures__/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
         args:
           - -q
           - -s
@@ -92,6 +95,35 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
+  # --- Markdown / docs formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.3.3
+    hooks:
+      - id: prettier
+        name: prettier (docs)
+        files: \.(md|mdx)$
+
+  # --- Javascript/Typescript formatting via prettier
+  - repo: local
+    hooks:
+      - id: prettier-frontend
+        name: prettier (frontend)
+        entry: bash -c "cd frontend && npm run format"
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md)$
+        stages: [pre-commit]
+
+      - id: eslint-frontend
+        name: eslint (frontend)
+        entry: bash -c "cd frontend && npm run lint:staged"
+        language: system
+        pass_filenames: false
+        files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
+        stages: [pre-commit]
+
+      # mypy already defined globally, but keep local hook entry available if needed
+
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
@@ -107,6 +139,13 @@ repos:
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)
         entry: bash -c "make bandit-full"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: npm-audit-pre-push
+        name: npm audit (frontend)
+        entry: bash -c "cd frontend && npm audit --audit-level=high"
         language: system
         pass_filenames: false
         stages: [pre-push]

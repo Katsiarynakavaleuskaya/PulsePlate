@@ -1,44 +1,119 @@
-# CRON Setup for Food Database Updates
+# Food Database Auto-Update (CRON) Guide
 
-## RU: Настройка CRON для обновления базы данных продуктов
-## EN: CRON Setup for Food Database Updates
+## TL;DR
+- Скрипт обновления: `scripts/schedule_food_db_update.py`
+- Логи:  
+  - cron redirect → `logs/cron.log`  
+  - сам скрипт → `logs/food_db_update.log`
+- Запускайте job от того же пользователя/виртуального окружения, где развёрнут проект.
 
-To automatically update the food database weekly, add the following entry to your crontab:
+---
+
+## 1. Подготовка окружения
+
+1. Убедитесь, что каталог `<project_root>` содержит актуальный виртуальныйEnv `.venv`:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. Проверьте, что переменные окружения, используемые проектом (см. `.env.example`), заданы в том же окружении.  
+   Cron наследует лишь ограниченный набор переменных, поэтому дальше мы явно зададим нужные.
+
+3. Создайте директорию для логов, если её нет:
+   ```bash
+   mkdir -p <project_root>/logs
+   ```
+
+---
+
+## 2. Рекомендованный cron-wrapper
+
+Поместите в crontab НЕ прямой вызов `python`, а обёртку, которая активирует виртуальное окружение и задаёт переменные:
 
 ```bash
-# Run every Sunday at 2:00 AM
-0 2 * * 0 /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/cron.log 2>&1
+0 2 * * 0 /bin/bash -lc 'cd /path/to/PulsePlate && \
+  source .venv/bin/activate && \
+  export ENVIRONMENT=production && \
+  export PYTHONPATH=/path/to/PulsePlate && \
+  /usr/bin/env python scripts/schedule_food_db_update.py \
+  >> logs/cron.log 2>&1'
 ```
 
-### How to set up CRON:
+**Что делает обёртка:**
+- `cd` в корень проекта, чтобы относительные пути в скриптах работали.
+- `source .venv/bin/activate` — активирует зависимости проекта.
+- `export` — добавьте сюда все переменные, которые нужны `build_food_db.py` и зависимым модулям (ключи API, DSN, и т.п.).
+- Перенаправление в `logs/cron.log` сохраняет stdout/stderr самого cron-вызова, тогда как основной скрипт пишет подробный лог в `logs/food_db_update.log`.
 
-1. Open your crontab:
+### Альтернативные расписания
+- Ежедневно в 03:30:  
+  `30 3 * * * /bin/bash -lc '…'`
+- Раз в час:  
+  `0 * * * * /bin/bash -lc '…'`
+
+> Используйте `systemd timer` или `launchd`, если управляете сервисами через systemd/macOS. Скрипт остаётся тем же, меняется только планировщик.
+
+---
+
+## 3. Проверка перед добавлением в cron
+
+1. **Ручной прогон:**
+   ```bash
+   cd /path/to/PulsePlate
+   source .venv/bin/activate
+   python scripts/schedule_food_db_update.py
+   ```
+   Убедитесь, что скрипт завершается кодом `0`.
+
+2. **Проверка логов:**
+   - `tail -f logs/food_db_update.log` — подробный ход выполнения.
+   - `tail -f logs/cron.log` — ошибки оболочки/cron.
+
+3. **Права доступа:** пользователь cron должен иметь права на `logs/`, `scripts/` и `cache/` (если обновляется база).
+
+---
+
+## 4. Внесение в crontab
+
+1. Откройте редактор cron:
    ```bash
    crontab -e
    ```
+2. Вставьте подготовленную строку.
+3. Сохраните файл и выйдите. Убедитесь, что cron принял запись (редактор не выдал ошибок).
 
-2. Add the CRON entry above, adjusting the paths to match your installation
-
-3. Save and exit
-
-### CRON Entry Format:
+### Напоминание о формате
 ```
-* * * * * command
+┌───────────── минута (0-59)
+│ ┌─────────── час (0-23)
+│ │ ┌───────── день месяца (1-31)
+│ │ │ ┌─────── месяц (1-12)
+│ │ │ │ ┌───── день недели (0-7, где 0 и 7 — воскресенье)
 │ │ │ │ │
-│ │ │ │ └── Day of week (0-7, where 0 and 7 are Sunday)
-│ │ │ └──── Month (1-12)
-│ │ └────── Day of month (1-31)
-│ └──────── Hour (0-23)
-└────────── Minute (0-59)
+* * * * * команда
 ```
 
-### Example for daily updates at 3:30 AM:
-```bash
-30 3 * * * /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/cron.log 2>&1
-```
+---
 
-### Notes:
-- Make sure the script paths are absolute
-- Ensure the user running the CRON job has the necessary permissions
-- Logs will be written to `/path/to/PulsePlate/logs/food_db_update.log`
-- The CRON log will capture any CRON-related issues
+## 5. Сопровождение
+
+- **Logrotate:** настройте ротацию `logs/*.log`, чтобы файлы не разрастались.
+- **Мониторинг:** добавьте уведомление (mailx/Slack/systemd `OnFailure=`) на случай кода выхода ≠ 0.
+- **Отладка:** если job не стартует, смотрите `/var/log/syslog` (или `journalctl -u cron`) и `logs/cron.log`.
+- **Timezone:** cron многим дистрибутивам использует локальное время машины. Убедитесь, что оно совпадает с желаемым расписанием.
+
+---
+
+## 6. Полезные команды
+
+| Команда | Назначение |
+| --- | --- |
+| `crontab -l` | Список заданий текущего пользователя |
+| `crontab -u <user> -l` | Список заданий другого пользователя (нужны права) |
+| `tail -n 200 logs/food_db_update.log` | Последние сообщения скрипта |
+| `python scripts/schedule_food_db_update.py --help` | Проверьте, не добавлены ли опции (если расширите скрипт) |
+
+---
+
+Следуя этим шагам, вы получите воспроизводимое и контролируемое расписание автоматического обновления базы продуктов, согласованное с тем, как проект работает из-под локального окружения.

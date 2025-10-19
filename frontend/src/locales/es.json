@@ -8,6 +8,11 @@
     "weekOf": "Semana del",
     "previousDay": "Día anterior",
     "nextDay": "Día siguiente",
+    "day": "Día",
+    "dayNumber": "Día {{number}}",
+    "dayPosition": "Día {{number}}",
+    "dayMenuHeading": "Comidas de {{day}}",
+    "dayMenuLabel": "Menú diario para {{day}}",
     "days": {
       "monday": "Lunes",
       "tuesday": "Martes",
@@ -24,6 +29,10 @@
     "totalCalories": "Calorías Totales",
     "shoppingList": "Lista de Compras",
     "shoppingListItems": "{{count}} artículo",
+    "shoppingListItems_one": "{{count}} artículo",
+    "shoppingListItems_few": "{{count}} artículos",
+    "shoppingListItems_many": "{{count}} artículos",
+    "shoppingListItems_other": "{{count}} artículos",
     "shoppingListItems_plural": "{{count}} artículos",
     "meals": {
       "breakfast": "Desayuno",

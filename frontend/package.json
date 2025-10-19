@@ -11,7 +11,11 @@
     "preview": "vite preview",
     "test": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
-    "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts"
+    "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts",
+    "lint": "eslint --max-warnings=0",
+    "lint:staged": "eslint --max-warnings=0",
+    "format": "prettier --check .",
+    "format:write": "prettier --write ."
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",
@@ -62,8 +66,10 @@
     "msw": "^2.11.3",
     "openapi-typescript": "^7.9.1",
     "postcss": "^8.4.38",
+    "prettier": "^3.6.2",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.46.1",
     "vite": "^5.3.1",
     "vitest": "^3.2.4"
   },
@@ -71,5 +77,6 @@
     "workerDirectory": [
       "public"
     ]
-  }
+  },
+  "type": "module"
 }

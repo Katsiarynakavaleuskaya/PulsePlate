@@ -1,5 +1,4 @@
-import { forwardRef } from "react";
-import type { HTMLAttributes, ReactNode } from "react";
+import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 type GlassCardTone = "neutral" | "light" | "dark";
 type GlassCardPadding = "none" | "sm" | "md" | "lg";

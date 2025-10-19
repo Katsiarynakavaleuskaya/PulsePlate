@@ -14,12 +14,40 @@ vi.mock('../../../api/client', () => ({
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number } | string) => {
-      if (typeof options === 'object' && options.count !== undefined) {
-        return `${options.count} items`; // Simplified mock for interpolation
+    t: (
+      key: string,
+      ...rest: Array<string | Record<string, unknown> | undefined>
+    ) => {
+      let fallback: string | undefined;
+      let options: Record<string, unknown> | undefined;
+
+      if (rest.length === 1) {
+        const [arg] = rest;
+        if (typeof arg === 'string') {
+          fallback = arg;
+        } else if (typeof arg === 'object' && arg !== null) {
+          options = arg;
+          if (typeof arg.defaultValue === 'string') {
+            fallback = arg.defaultValue;
+          }
+        }
+      } else if (rest.length >= 2) {
+        const [maybeFallback, maybeOptions] = rest;
+        if (typeof maybeFallback === 'string') {
+          fallback = maybeFallback;
+        }
+        if (typeof maybeOptions === 'object' && maybeOptions !== null) {
+          options = maybeOptions;
+          if (!fallback && typeof maybeOptions.defaultValue === 'string') {
+            fallback = maybeOptions.defaultValue;
+          }
+        }
       }
 
-      // Handle specific translation keys
+      if (options && typeof options.count === 'number') {
+        return `${options.count} items`;
+      }
+
       const translations: Record<string, string> = {
         'weeklyPlan.title': 'Weekly Meal Plan',
         'weeklyPlan.weekOf': 'Week of',
@@ -30,7 +58,12 @@ vi.mock('react-i18next', () => ({
         'weeklyPlan.fat': 'Fat',
         'weeklyPlan.fiber': 'Fiber',
         'weeklyPlan.shoppingList': 'Shopping List',
-        'weeklyPlan.shoppingListItems': 'items',
+        'weeklyPlan.shoppingListItems': '{{count}} item',
+        'weeklyPlan.dayMenuHeading': '{{day}} meals',
+        'weeklyPlan.dayMenuLabel': 'Daily menu for {{day}}',
+        'weeklyPlan.dayPosition': 'Day {{number}}',
+        'weeklyPlan.dayNumber': 'Day {{number}}',
+        'weeklyPlan.day': 'Day',
         'weeklyPlan.empty.title': 'No weekly plan available',
         'weeklyPlan.empty.message': 'Generate your personalized weekly meal plan to get started with your nutrition journey.',
         'weeklyPlan.empty.generate': 'Generate Weekly Plan',
@@ -39,16 +72,28 @@ vi.mock('react-i18next', () => ({
         'weeklyPlan.error.message': 'Something went wrong while loading your weekly meal plan.',
         'weeklyPlan.error.retry': 'Try Again',
         'weeklyPlan.error.help': 'If the problem persists, please check your internet connection and try again.',
+        'units.kcal': 'kcal',
+        'units.gram': 'g',
+        'abbreviations.protein': 'P',
+        'abbreviations.carbs': 'C',
+        'abbreviations.fat': 'F',
       };
 
-      // For day names, return capitalized version
       if (key.includes('days.')) {
         const dayName = key.split('.').pop();
         return dayName ? dayName.charAt(0).toUpperCase() + dayName.slice(1) : key;
       }
 
-      // Return translation if found, otherwise return the key
-      return translations[key] || key;
+      let template = translations[key] || fallback || key;
+
+      if (typeof template === 'string' && options) {
+        template = template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+          const value = options?.[token];
+          return value !== undefined ? String(value) : '';
+        });
+      }
+
+      return template;
     },
     i18n: { language: 'en' },
   }),
@@ -69,7 +114,9 @@ const mockRequest: TargetsRequest = {
 };
 
 const mockWeeklyPlanData: WeeklyMenuResponse = {
-  week_summary: {},
+  week_summary: {
+    week_start: '2025-01-06T00:00:00.000Z',
+  },
   daily_menus: [
     {
       meals: [
@@ -290,7 +337,7 @@ describe('WeeklyPlanReader', () => {
       });
 
       expect(screen.getByText(/Week of/)).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
     });
 
     it('should display week coverage summary', async () => {
@@ -311,23 +358,23 @@ describe('WeeklyPlanReader', () => {
       render(<WeeklyPlanReader request={mockRequest} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
       });
 
       // Click next day
       await user.click(screen.getByLabelText('Next day'));
-      expect(screen.getByRole('heading', { name: 'Tuesday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tuesday meals' })).toBeInTheDocument();
 
       // Click previous day
       await user.click(screen.getByLabelText('Previous day'));
-      expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
     });
 
     it('should navigate to specific day when day button is clicked', async () => {
       render(<WeeklyPlanReader request={mockRequest} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
       });
 
       // Click on Friday button
@@ -343,7 +390,7 @@ describe('WeeklyPlanReader', () => {
       });
 
       expect(screen.getByText('Oatmeal with berries')).toBeInTheDocument();
-      expect(screen.getAllByText('300 cal')).toHaveLength(2);
+      expect(screen.getAllByText('300 kcal')).toHaveLength(2);
     });
 
     it('should display shopping list summary', async () => {
@@ -361,10 +408,10 @@ describe('WeeklyPlanReader', () => {
       render(<WeeklyPlanReader request={mockRequest} />);
 
       await waitFor(() => {
-        expect(screen.getByText('1,200')).toBeInTheDocument();
+        expect(screen.getByText('1,200 kcal')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('1,200')).toBeInTheDocument();
+      expect(screen.getByText('1,200 kcal')).toBeInTheDocument();
     });
   });
 
@@ -386,7 +433,7 @@ describe('WeeklyPlanReader', () => {
       render(<WeeklyPlanReader request={mockRequest} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
       });
 
       const nextButton = screen.getByLabelText('Next day');
@@ -395,7 +442,7 @@ describe('WeeklyPlanReader', () => {
 
       // Test Enter key activation
       fireEvent.keyDown(nextButton, { key: 'Enter' });
-      expect(screen.getByRole('heading', { name: 'Tuesday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tuesday meals' })).toBeInTheDocument();
     });
 
     it('should wrap keyboard navigation from Sunday to Monday and back', async () => {
@@ -403,7 +450,7 @@ describe('WeeklyPlanReader', () => {
 
       // Start at Monday (index 0)
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Monday' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Monday meals' })).toBeInTheDocument();
       });
 
       const prevButton = screen.getByLabelText('Previous day');
@@ -413,18 +460,18 @@ describe('WeeklyPlanReader', () => {
       for (let i = 0; i < 6; i++) {
         fireEvent.keyDown(prevButton, { key: 'Enter' });
       }
-      expect(screen.getByRole('heading', { name: 'Tuesday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tuesday meals' })).toBeInTheDocument();
 
       // Press "Next day" to wrap to Wednesday
       const nextButton = screen.getByLabelText('Next day');
       nextButton.focus();
       fireEvent.keyDown(nextButton, { key: 'Enter' });
-      expect(screen.getByRole('heading', { name: 'Wednesday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Wednesday meals' })).toBeInTheDocument();
 
       // Press "Previous day" to wrap back to Sunday
       prevButton.focus();
       fireEvent.keyDown(prevButton, { key: 'Enter' });
-      expect(screen.getByRole('heading', { name: 'Tuesday' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tuesday meals' })).toBeInTheDocument();
     });
   });
 

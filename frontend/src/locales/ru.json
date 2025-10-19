@@ -8,6 +8,11 @@
     "weekOf": "Неделя с",
     "previousDay": "Предыдущий день",
     "nextDay": "Следующий день",
+    "day": "День",
+    "dayNumber": "День {{number}}",
+    "dayPosition": "День {{number}}",
+    "dayMenuHeading": "Приёмы пищи на {{day}}",
+    "dayMenuLabel": "Дневное меню для {{day}}",
     "days": {
       "monday": "Понедельник",
       "tuesday": "Вторник",
@@ -23,6 +28,8 @@
     "fiber": "Клетчатка",
     "totalCalories": "Общие Калории",
     "shoppingList": "Список Покупок",
+    "shoppingListItems": "{{count}} товаров",
+    "shoppingListItems_plural": "{{count}} товаров",
     "shoppingListItems_one": "{{count}} товар",
     "shoppingListItems_few": "{{count}} товара",
     "shoppingListItems_many": "{{count}} товаров",
@@ -38,7 +45,7 @@
     "error": {
       "title": "Ошибка загрузки недельного плана",
       "message": "Произошла ошибка при загрузке вашего недельного плана питания.",
-      "retry": "Попробовать Снова",
+      "retry": "Попробовать снова",
       "help": "Если проблема сохраняется, проверьте подключение к интернету и попробуйте снова."
     },
     "empty": {

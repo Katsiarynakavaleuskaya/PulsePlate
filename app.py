@@ -364,8 +364,7 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available
-        and Limiter is not None
+        slowapi_available and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -1191,6 +1190,7 @@ Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
 DietFlag = Literal[
     "VEG",
+    "PESC",
     "GF",
     "DAIRY_FREE",
     "LOW_COST",
