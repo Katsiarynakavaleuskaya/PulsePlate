@@ -224,20 +224,162 @@
 
 ---
 
-## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - ПЛАНИРУЕТСЯ
+## 📋 ФАЗА 4: Weekly Plan Reader (Week 4) - В РАБОТЕ
 
-### 📋 PR-B: Weekly Plan (reader)
+### Стратегия: Маленькие PR (Thin Slices)
 
-- **Цель**: Генерация плана → просмотр по дням (свайпы/кнопки) → скелетоны
-- **Критерии**: загрузка/ошибка/пусто покрыты; VoiceOver читает корректно; FCP < 1.5s
+Каждый PR — вертикальный срез ≤600 строк: Backend API → Frontend Component → Tests → i18n → a11y
 
-#### Задачи
+---
 
-- [ ] **Weekly Plan API client** integration
-- [ ] **Create Weekly Plan viewer** с day navigation (swipes/buttons)
-- [ ] **Add loading skeletons** для plan generation
-- [ ] **Add VoiceOver compatibility** и keyboard navigation
-- [ ] **Optimize for FCP < 1.5s** на plan screen
+### 🔄 PR #4.1: Оптимизация тестов и CI (Фундамент)
+
+**Статус**: В РАБОТЕ 🔄
+**Цель**: Ускорить тесты, исправить дублирующиеся роутеры/декораторы
+**Размер**: ~100 строк изменений
+**Ветка**: `feature/pr-4-1-test-optimization`
+
+#### Задачи:
+
+- [ ] 4.1.1 Удалить дублирующиеся тесты покрытия (336 файлов → `tests_backup_coverage/`)
+- [ ] 4.1.2 Переместить hypothesis тесты в backup
+- [ ] 4.1.3 Исправить дублирующийся декоратор в `app.py:259-260`
+- [ ] 4.1.4 Удалить дублирующееся включение `premium_week_router` в `app.py:2802-2804`
+- [ ] 4.1.5 Исправить падающие тесты (добавить 403 в ожидаемые коды)
+- [ ] 4.1.6 Проверить: тесты 4576→2100, время <15s, покрытие ≥97%
+
+**Критерии приёмки**: Зеленый CI, тесты быстрые, нет дублирующихся роутеров
+
+---
+
+### 📋 PR #4.2: Weekly Plan API Schema (Backend)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Добавить/обновить Pydantic схемы для Weekly Plan API
+**Размер**: ~150 строк
+**Ветка**: `feature/pr-4-2-api-schema`
+
+#### Задачи:
+
+- [ ] 4.2.1 Создать/обновить `MealItem` в `app/schemas/` (title, title_translated, grams, kcal, macros, micros)
+- [ ] 4.2.2 Создать/обновить `DayMenu` в `app/schemas/` (day_index, meals[], kcal, macros, tips, total_cost)
+- [ ] 4.2.3 Создать/обновить `WeeklyMenuResponse` в `app/schemas/` (daily_menus[], week_summary, adherence_score, week_start)
+- [ ] 4.2.4 Регенерировать `frontend/src/api/openapi.json`
+- [ ] 4.2.5 Создать `tests/test_weekly_plan_schemas.py` (валидация, сериализация/десериализация)
+
+**Критерии приёмки**: Схемы валидируются, OpenAPI обновлен, тесты проходят
+
+---
+
+### 📋 PR #4.3: Weekly Plan Backend Endpoint (Backend)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Реализовать `/api/v1/premium/plan/week` endpoint
+**Размер**: ~200 строк
+**Ветка**: `feature/pr-4-3-backend-endpoint`
+
+#### Задачи:
+
+- [ ] 4.3.1 Реализовать endpoint в `app/routers/premium_week.py`
+- [ ] 4.3.2 Использовать модульную систему `core.weekly_plan_new`
+- [ ] 4.3.3 Добавить обработку ошибок (503 если модуль недоступен)
+- [ ] 4.3.4 Динамический расчет `week_start`, `avg_daily_cost`
+- [ ] 4.3.5 Создать `tests/test_premium_week_endpoint.py` (200/401/422/503 сценарии)
+- [ ] 4.3.6 Проверить структуру ответа (macros, kcal, grams)
+
+**Критерии приёмки**: Endpoint работает, возвращает корректную структуру, покрытие ≥97%
+
+---
+
+### 📋 PR #4.4: Weekly Plan API Client (Frontend)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Создать TypeScript клиент для Weekly Plan API
+**Размер**: ~150 строк
+**Ветка**: `feature/pr-4-4-api-client`
+
+#### Задачи:
+
+- [ ] 4.4.1 Создать `frontend/src/api/premium/weekly-plan.ts`
+- [ ] 4.4.2 Добавить типы из OpenAPI
+- [ ] 4.4.3 Реализовать `fetchWeeklyPlan(params): Promise<WeeklyMenuResponse>`
+- [ ] 4.4.4 Добавить mock данные для тестов
+- [ ] 4.4.5 Создать `frontend/src/api/__tests__/weekly-plan-integration.test.ts`
+- [ ] 4.4.6 Проверить сериализацию/десериализацию
+
+**Критерии приёмки**: Клиент работает, типы корректны, тесты проходят
+
+---
+
+### 📋 PR #4.5: DayMenuCard Component (Frontend)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Создать компонент для отображения меню одного дня
+**Размер**: ~200 строк
+**Ветка**: `feature/pr-4-5-day-menu-card`
+
+#### Задачи:
+
+- [ ] 4.5.1 Создать `frontend/src/components/WeeklyPlanReader/DayMenuCard.tsx`
+- [ ] 4.5.2 Отображение meals по категориям (breakfast, lunch, dinner, snacks, misc)
+- [ ] 4.5.3 Добавить локализацию через i18n
+- [ ] 4.5.4 Добавить ARIA labels для accessibility
+- [ ] 4.5.5 Добавить переводы в `frontend/src/locales/en.json` (dayMenuCard.*, meal categories)
+- [ ] 4.5.6 Добавить переводы в `frontend/src/locales/ru.json` (dayMenuCard.*, meal categories)
+- [ ] 4.5.7 Добавить переводы в `frontend/src/locales/es.json` (dayMenuCard.*, meal categories)
+- [ ] 4.5.8 Создать `frontend/src/components/WeeklyPlanReader/__tests__/DayMenuCard.test.tsx`
+- [ ] 4.5.9 Проверить рендеринг, локализацию, accessibility
+
+**Критерии приёмки**: Компонент рендерится, i18n работает, a11y тесты проходят
+
+---
+
+### 📋 PR #4.6: WeeklyPlanReader Component (Frontend)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Создать основной компонент для просмотра недельного плана
+**Размер**: ~250 строк
+**Ветка**: `feature/pr-4-6-weekly-plan-reader`
+
+#### Задачи:
+
+- [ ] 4.6.1 Создать `frontend/src/components/WeeklyPlanReader/WeeklyPlanReader.tsx`
+- [ ] 4.6.2 Реализовать навигацию по дням (кнопки prev/next)
+- [ ] 4.6.3 Интегрировать `DayMenuCard`
+- [ ] 4.6.4 Добавить Loading/Error/Empty states
+- [ ] 4.6.5 Реализовать keyboard navigation
+- [ ] 4.6.6 Создать `frontend/src/components/WeeklyPlanReader/WeeklyPlanSkeleton.tsx`
+- [ ] 4.6.7 Создать `frontend/src/components/WeeklyPlanReader/__tests__/WeeklyPlanReader.test.tsx`
+- [ ] 4.6.8 Тесты: навигация, keyboard, accessibility
+
+**Критерии приёмки**: Компонент работает, навигация корректна, a11y тесты проходят
+
+---
+
+### 📋 PR #4.7: Integration & Polish (Final)
+
+**Статус**: ПЛАНИРУЕТСЯ 📋
+**Цель**: Интегрировать WeeklyPlanReader в основное приложение
+**Размер**: ~100 строк
+**Ветка**: `feature/pr-4-7-integration`
+
+#### Задачи:
+
+- [ ] 4.7.1 Интегрировать в `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+- [ ] 4.7.2 Добавить E2E тест (полный флоу: открыть → загрузить → навигировать)
+- [ ] 4.7.3 Обновить roadmap (отметить PR #4.x как завершенные)
+
+**Критерии приёмки**: Полная интеграция работает, все тесты зеленые
+
+---
+
+### Ключевые принципы Фазы 4
+
+1. **Каждый PR ≤600 строк** - легко ревьюить, быстро мерджить
+2. **Вертикальные срезы** - каждый PR работает от начала до конца
+3. **Зеленый CI всегда** - не мерджить без зеленого CI
+4. **Откат при проблемах** - не накапливать технический долг
+5. **Diff coverage ≥90%** - покрывать только измененные файлы
 
 ---
 
