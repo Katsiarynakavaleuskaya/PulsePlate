@@ -1,4 +1,8 @@
 {
+  "offlineIndicator": {
+    "backOnline": "Back online",
+    "offline": "You are offline"
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancel",
@@ -296,6 +300,10 @@
     "error": {
       "title": "Unable to Calculate Targets",
       "retry": "Try Again"
+    },
+    "cta": {
+      "saveAndContinue": "Save & Get Weekly Plan",
+      "description": "Save your nutrition targets and proceed to generate your personalized weekly meal plan"
     }
   }
 }

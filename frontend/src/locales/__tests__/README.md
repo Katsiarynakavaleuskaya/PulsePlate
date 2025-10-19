@@ -3,23 +3,30 @@
 This directory contains unit tests for the application's internationalization (i18n) locale files.
 
 ## Purpose
+
 The tests ensure:
+
 - Consistency of translation keys across all supported languages (English, Russian, Spanish).
 - Absence of placeholder strings or problematic patterns in production translations.
 - Correctness of domain-specific terminology.
 - UI layout compatibility (e.g., translated strings do not overflow).
 
 ## Test Structure
+
 - `locales.test.ts`: Contains the main test suite for locale validation.
 
 ## Test Cases
+
 The suite currently contains 17 individual test cases, covering:
+
 - Structural validation (e.g., key consistency): 5 tests
 - Content validation (e.g., placeholder checks, string length, duplicate checks): 3 tests
 - Domain-Specific Validation (e.g., paywall structure, specific terminology): 9 tests
 
 ## Running Tests
+
 To run these tests, navigate to the `frontend` directory and execute:
+
 ```bash
 npm test -- src/locales/__tests__/locales.test.ts
 ```
@@ -36,6 +43,7 @@ npm test -- src/locales/__tests__/locales.test.ts
 ## Maintenance Notes
 
 When updating locale files:
+
 1. Run the full test suite to ensure no regressions
 2. Update test counts in this document if new tests are added
 3. Verify UI layout constraints are still met
@@ -49,47 +57,57 @@ When updating locale files:
 ## What Is Tested
 
 ### 1. JSON Structure and Syntax (3 tests)
+
 - Validates that all locale files parse correctly without errors
 - Ensures files are valid JSON objects
 - Covers: `en.json`, `es.json`, `ru.json`
 
 ### 2. Key Completeness (4 tests)
+
 - Verifies all English keys exist in Spanish and Russian translations
 - Ensures no extra keys exist that aren't in the English baseline
 - Prevents missing translations or orphaned keys
 - Uses recursive key extraction to validate deeply nested structures
 
 ### 3. Translation Value Validation (3 tests)
+
 - Checks that no translation strings are empty or whitespace-only
 - Validates all leaf values contain meaningful content
 - Recursively scans all nested translation objects
 
 ### 4. Structural Consistency (2 tests)
+
 - Ensures type consistency across locales (string vs object vs array)
 - Validates matching nesting structure between languages
 - Prevents structural mismatches that could cause runtime errors
 
 ### 5. Top-Level Sections (3 tests)
+
 - Validates presence of required sections: `common`, `shoplist`, `paywall`
 - Ensures no unexpected top-level sections exist
 - Maintains organizational consistency
 
 ### 6. Common Section (2 tests)
+
 - Validates `ok` and `cancel` keys exist in all locales
 - Ensures these critical UI strings are translated
 
 ### 7. Shopping List Section (2 tests)
+
 - Validates `loading`, `error`, and `empty` keys
 - Ensures shopping list UI strings are complete
 
 ### 8. Paywall Section (7 tests)
+
 - Comprehensive validation of the complex paywall translation structure
 - Validates top-level keys, nested sections (`before`, `after`, `items`)
 - Ensures all paywall UI elements have translations
 - Critical for premium feature user experience
 
 ### 9. Spanish Translation Quality - Branch Changes (6 tests)
+
 Validates the specific improvements made in this branch:
+
 - ✅ "Lista vacía." instead of "Vacío."
 - ✅ Improved subtitle: "Plan nutricional personal, equilibrio preciso, planificación semanal."
 - ✅ "Configuración" instead of "Ajustes"
@@ -98,7 +116,9 @@ Validates the specific improvements made in this branch:
 - ✅ "Equilibrio nutricional" instead of "Microequilibrio"
 
 ### 10. Russian Translation Quality - Branch Changes (5 tests)
+
 Validates the specific improvements made in this branch:
+
 - ✅ Improved subtitle with better terminology
 - ✅ "рацион" (diet/ration) instead of "тарелка" (plate)
 - ✅ "макронутриенты" instead of "макро"
@@ -106,25 +126,30 @@ Validates the specific improvements made in this branch:
 - ✅ "Автосписок покупок" (one word) instead of "Авто список покупок"
 
 ### 11. Character Encoding and Special Characters (3 tests)
+
 - Validates proper Spanish character handling (á, é, í, ó, ú, ñ)
 - Validates proper Russian Cyrillic character handling (Unicode range U+0400-U+04FF)
 - Detects mojibake and encoding corruption
 
 ### 12. Translation Length Validation (2 tests)
+
 - Ensures translations aren't unreasonably short (< 2 chars) or long (> 200 chars)
 - Catches potential data issues or truncation
 
 ### 13. Consistency Between Duplicate Keys (4 tests)
+
 - Validates that `paywall.before.*` matches `paywall.items.before.*`
 - Validates that `paywall.after.*` matches `paywall.items.after.*`
 - Ensures UI consistency when same text appears in multiple contexts
 
 ### 14. Punctuation and Formatting (3 tests)
+
 - Validates proper sentence punctuation (dots, ellipsis)
 - Ensures consistent formatting across locales
 - Checks ellipsis (…) usage in loading messages
 
 ### 15. No Placeholder or Debug Text (2 tests)
+
 - Scans for common placeholder patterns (TODO, FIXME, XXX, Lorem ipsum)
 - Ensures no test or debug strings made it to production
 - Validates professional, production-ready content
@@ -181,11 +206,13 @@ To add tests for a new locale (e.g., `fr.json`):
 This test suite specifically validates the translation improvements made in the `fix/spanish-translations` branch:
 
 ### Spanish (es.json)
+
 - More professional and clear terminology
 - Better context for nutrition-focused app
 - Improved consistency with app domain
 
 ### Russian (ru.json)
+
 - More accurate translations
 - Better terminology for nutrition concepts
 - Improved readability and professionalism
@@ -193,6 +220,7 @@ This test suite specifically validates the translation improvements made in the 
 ## Continuous Integration
 
 These tests run automatically on:
+
 - ✅ Every commit
 - ✅ Pull request validation
 - ✅ Pre-merge checks

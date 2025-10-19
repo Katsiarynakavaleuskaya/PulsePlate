@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Wifi, WifiOff } from 'lucide-react';
 
 interface OfflineIndicatorProps {
@@ -6,13 +7,14 @@ interface OfflineIndicatorProps {
 }
 
 export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
+  const { t } = useTranslation();
   const isBrowser = typeof window !== 'undefined' && typeof navigator !== 'undefined';
   const initialOnline = isBrowser ? navigator.onLine : true;
   const [isOnline, setIsOnline] = useState(initialOnline);
   const [showIndicator, setShowIndicator] = useState(!initialOnline);
 
   useEffect(() => {
-    let hideTimeout: ReturnType<typeof setTimeout> | undefined;
+    let hideTimeout: number | undefined;
 
     const clearHideTimeout = () => {
       if (hideTimeout) {
@@ -64,7 +66,7 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
         <WifiOff className="w-4 h-4" aria-hidden="true" />
       )}
       <span className="text-sm font-medium">
-        {isOnline ? 'Back online' : 'You are offline'}
+        {isOnline ? t('offlineIndicator.backOnline', 'Back online') : t('offlineIndicator.offline', 'You are offline')}
       </span>
     </div>
   );

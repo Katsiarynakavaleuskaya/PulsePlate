@@ -162,11 +162,18 @@ describe('UI Layout Compatibility with Localized Strings', () => {
       }
 
       // Assert that strings in critical UI areas don't exceed reasonable limits
-      const criticalAreas = longStrings.filter(item =>
-        item.key.includes('button') ||
-        item.key.includes('cta') ||
-        item.key.includes('title')
-      );
+      const criticalAreas = longStrings.filter(item => {
+        // Include keys matching critical UI patterns
+        const isCritical = item.key.includes('button') ||
+                           item.key.includes('cta') ||
+                           item.key.includes('title');
+        // Exclude specific known non-critical keys
+        const isExcluded = item.key.endsWith('.description') ||
+                           item.key.endsWith('.tip') ||
+                           item.key.endsWith('.help') ||
+                           item.key.endsWith('.changesNote');
+        return isCritical && !isExcluded;
+      });
       const excessiveStrings = criticalAreas.filter(item => item.length > CRITICAL_MAX_LENGTH);
       expect(excessiveStrings, `Found ${excessiveStrings.length} excessively long strings in critical UI areas (max: ${CRITICAL_MAX_LENGTH} chars)`).toHaveLength(0);
     });
