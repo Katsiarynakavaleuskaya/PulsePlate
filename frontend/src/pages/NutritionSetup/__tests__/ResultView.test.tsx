@@ -74,7 +74,7 @@ describe("ResultView", () => {
   const renderResult = () =>
     render(
       <MemoryRouter>
-        <ResultView values={mockValues as any} onEdit={mockOnEdit} />
+        <ResultView values={mockValues} onEdit={mockOnEdit} />
       </MemoryRouter>
     );
 
