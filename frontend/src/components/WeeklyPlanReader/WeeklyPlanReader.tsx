@@ -4,9 +4,9 @@ import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { getWeeklyPlan } from '../../api/premium/weekly-plan';
 import type { WeeklyMenuResponse } from '../../api/premium/weekly-plan';
 import type { TargetsRequest } from '../../api/premium/types';
-import { WeeklyPlanSkeleton } from './WeeklyPlanSkeleton';
-import { WeeklyPlanError } from './WeeklyPlanError';
-import { WeeklyPlanEmpty } from './WeeklyPlanEmpty';
+import { WeeklyPlanSkeleton } from './WeeklyPlanSkeleton.tsx';
+import { WeeklyPlanError } from './WeeklyPlanError.tsx';
+import { WeeklyPlanEmpty } from './WeeklyPlanEmpty.tsx';
 import { DayMenuCard } from './DayMenuCard';
 
 interface WeeklyPlanReaderProps {

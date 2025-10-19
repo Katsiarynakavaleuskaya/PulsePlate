@@ -155,6 +155,13 @@ describe('DayMenuCard', () => {
     expect(screen.getByText('Dinner')).toBeInTheDocument();
     expect(screen.getByText('Snacks')).toBeInTheDocument();
     expect(screen.getByText('Other Meals')).toBeInTheDocument();
+
+    // Check that specific meals appear in their correct categories
+    expect(screen.getByText('Oatmeal')).toBeInTheDocument();
+    expect(screen.getByText('Salad')).toBeInTheDocument();
+    expect(screen.getByText('Chicken')).toBeInTheDocument();
+    expect(screen.getByText('Apple')).toBeInTheDocument();
+    expect(screen.getByText('Extra Meal')).toBeInTheDocument();
   });
 
   it('should handle invalid meal items gracefully', () => {
@@ -198,8 +205,9 @@ describe('DayMenuCard', () => {
     // Should only show valid meals
     expect(screen.getByText('Valid Meal')).toBeInTheDocument();
     expect(screen.getByText('Another Valid Meal')).toBeInTheDocument();
-    // Invalid meals should not appear
-    expect(screen.queryByText('Invalid Meal')).not.toBeInTheDocument();
+    // Verify only 2 valid meals are rendered (invalid ones filtered out)
+    const mealElements = screen.getAllByRole('heading', { level: 4 });
+    expect(mealElements).toHaveLength(2);
   });
 
   it('should display total calories correctly', () => {
@@ -234,7 +242,7 @@ describe('DayMenuCard', () => {
 
     render(<DayMenuCard day="Thursday" dayData={dayData} dayIndex={3} />);
 
-    expect(screen.getByText('550')).toBeInTheDocument(); // Total calories
+    expect(screen.getByText(/^550$/)).toBeInTheDocument(); // Total calories
     expect(screen.getByText('25g')).toBeInTheDocument(); // Protein
     expect(screen.getByText('60g')).toBeInTheDocument(); // Carbs
     expect(screen.getByText('15g')).toBeInTheDocument(); // Fat

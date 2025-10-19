@@ -152,11 +152,27 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
 export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   const { t } = useTranslation();
 
+  const normalizedDayIndex = typeof dayIndex === 'number' && dayIndex >= 0 ? dayIndex : null;
+  const dayLabel = day
+    ? t(`weeklyPlan.days.${day}`, day)
+    : normalizedDayIndex !== null
+      ? t('weeklyPlan.dayNumber', `Day ${normalizedDayIndex + 1}`)
+      : t('weeklyPlan.day', 'Day');
+  const cardTestId = day
+    ? `day-menu-card-${day}`
+    : normalizedDayIndex !== null
+      ? `day-menu-card-index-${normalizedDayIndex}`
+      : 'day-menu-card';
+
   const adaptedData = adaptDayMenuData(dayData);
 
   if (!adaptedData || !adaptedData.meals || Object.keys(adaptedData.meals).length === 0) {
     return (
-      <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+      <div
+        className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg"
+        data-testid={cardTestId}
+        aria-label={dayLabel}
+      >
         <div className="text-center text-gray-500 dark:text-gray-400">
           <Utensils className="w-8 h-8 mx-auto mb-2" />
           <p>{t('weeklyPlan.noMeals', 'No meals planned for this day')}</p>
@@ -172,7 +188,18 @@ export function DayMenuCard({ day, dayData, dayIndex }: DayMenuCardProps) {
   );
 
   return (
-    <div className="day-menu-card">
+    <div className="day-menu-card" data-testid={cardTestId} aria-label={dayLabel}>
+      <div className="mb-4">
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
+          {dayLabel}
+        </h3>
+        {normalizedDayIndex !== null && (
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {t('weeklyPlan.dayPosition', `Day ${normalizedDayIndex + 1}`)}
+          </span>
+        )}
+      </div>
+
       {/* Day summary */}
       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
         <div className="flex items-center justify-between">

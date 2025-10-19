@@ -323,7 +323,7 @@ async def log_requests(request: Request, call_next) -> Response:
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
-    return response
+    return response  # type: ignore[no-any-return]
 
 
 @app.get("/health/db")
@@ -334,7 +334,6 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
     """
 
     try:
-        import asyncio
         await asyncio.to_thread(lambda: session.execute(text("SELECT 1")))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
         logger.error("Database health check failed: %s", exc)
