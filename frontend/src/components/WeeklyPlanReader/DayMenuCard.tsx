@@ -90,11 +90,11 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
       const adaptedMeal: MealItem = {
         ...meal,
         name: meal.title || meal.name || 'Unknown Meal',
-        calories: meal.kcal || meal.calories,
-        protein: meal.macros?.protein_g || meal.protein,
-        carbs: meal.macros?.carbs_g || meal.carbs,
-        fat: meal.macros?.fat_g || meal.fat,
-        fiber: meal.macros?.fiber_g || meal.fiber,
+        calories: meal.kcal ?? meal.calories,
+        protein: meal.macros?.protein_g ?? meal.protein,
+        carbs: meal.macros?.carbs_g ?? meal.carbs,
+        fat: meal.macros?.fat_g ?? meal.fat,
+        fiber: meal.macros?.fiber_g ?? meal.fiber,
         // Preserve serving size only when provided by API; avoid hardcoded defaults
         serving_size: meal.serving_size,
         ingredients: meal.ingredients || Object.keys(meal.grams || {}),
@@ -143,11 +143,11 @@ function adaptDayMenuData(dayData: DayMenuData | undefined) {
     return {
       ...dayData,
       meals: adaptedMeals,
-      total_calories: dayData.kcal || dayData.total_nutrients?.calories || dayData.total_calories || 0,
-      total_protein: dayData.macros?.protein_g || dayData.total_nutrients?.protein || dayData.total_protein || 0,
-      total_carbs: dayData.macros?.carbs_g || dayData.total_nutrients?.carbs || dayData.total_carbs || 0,
-      total_fat: dayData.macros?.fat_g || dayData.total_nutrients?.fat || dayData.total_fat || 0,
-      total_fiber: dayData.macros?.fiber_g || dayData.total_nutrients?.fiber || dayData.total_fiber || 0,
+      total_calories: dayData.kcal ?? dayData.total_nutrients?.calories ?? dayData.total_calories ?? 0,
+      total_protein: dayData.macros?.protein_g ?? dayData.total_nutrients?.protein ?? dayData.total_protein ?? 0,
+      total_carbs: dayData.macros?.carbs_g ?? dayData.total_nutrients?.carbs ?? dayData.total_carbs ?? 0,
+      total_fat: dayData.macros?.fat_g ?? dayData.total_nutrients?.fat ?? dayData.total_fat ?? 0,
+      total_fiber: dayData.macros?.fiber_g ?? dayData.total_nutrients?.fiber ?? dayData.total_fiber ?? 0,
     };
   }
 

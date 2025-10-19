@@ -40,6 +40,20 @@ from core.i18n import Language, t
 from core.utils import get_activity_factor, resolve_attr
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
+# Import new modular system components with error handling
+try:
+    from core.weekly_plan_new import build_week
+    from core.food_db_new import FoodDB
+    from core.recipe_db_new import RecipeDB
+
+    NEW_MODULAR_SYSTEM_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"New modular system not available: {e}")
+    NEW_MODULAR_SYSTEM_AVAILABLE = False
+    build_week = None  # type: ignore
+    FoodDB = None  # type: ignore
+    RecipeDB = None  # type: ignore
+
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
 else:
@@ -364,7 +378,8 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available and Limiter is not None
+        slowapi_available
+        and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -2163,9 +2178,11 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         )
 
         # Generate weekly menu via new modular system
-        from core.weekly_plan_new import build_week
-        from core.food_db_new import FoodDB
-        from core.recipe_db_new import RecipeDB
+        if not NEW_MODULAR_SYSTEM_AVAILABLE:
+            raise HTTPException(
+                status_code=503,
+                detail="New modular system not available. Please check system configuration.",
+            )
 
         # Load databases with file existence checks
         food_db_path = "data/food_db_new.csv"
@@ -2176,6 +2193,12 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         if not os.path.exists(recipe_db_path):
             raise HTTPException(
                 status_code=503, detail=f"Recipe database not found: {recipe_db_path}"
+            )
+
+        if FoodDB is None or RecipeDB is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Database classes not available. Please check system configuration.",
             )
 
         fooddb = FoodDB(food_db_path)
@@ -2215,6 +2238,12 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         from typing import cast, Literal
 
         lang = cast(Literal["ru", "en", "es"], lang)
+
+        if build_week is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Weekly plan generation feature not available. Please check system configuration.",
+            )
 
         week_data = build_week(
             targets=targets_dict,

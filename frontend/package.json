@@ -12,7 +12,7 @@
     "test": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
     "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts",
-    "lint": "eslint --max-warnings=0",
+    "lint": "eslint --max-warnings=0 src/",
     "lint:staged": "eslint --max-warnings=0",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
