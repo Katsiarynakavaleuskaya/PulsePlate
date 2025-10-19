@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getWeeklyPlan } from '../premium/weekly-plan';
-import type { TargetsRequest, WeeklyMenuResponse } from '../premium/weekly-plan';
+import type { WeeklyMenuResponse } from '../premium/weekly-plan';
+import type { TargetsRequest } from '../premium/types';
 
 // Mock the API client
 vi.mock('../client', () => ({
@@ -33,7 +34,7 @@ describe('Weekly Plan API Integration', () => {
         lang: 'en',
       };
 
-      const mockResponse: WeeklyMenuResponse = {
+      const mockResponse = {
         week_summary: {
           total_calories: 14000,
           total_protein: 1050,
@@ -83,7 +84,7 @@ describe('Weekly Plan API Integration', () => {
         },
         total_cost: 45.50,
         adherence_score: 87,
-      };
+      } as unknown as WeeklyMenuResponse;
 
       mockApi.mockResolvedValue(mockResponse);
 
@@ -119,7 +120,7 @@ describe('Weekly Plan API Integration', () => {
         lang: 'ru',
       };
 
-      const mockResponse: WeeklyMenuResponse = {
+      const mockResponse = {
         week_summary: {
           total_calories: 16800,
           total_protein: 1400,
@@ -141,7 +142,7 @@ describe('Weekly Plan API Integration', () => {
         },
         total_cost: 65.75,
         adherence_score: 92,
-      };
+      } as unknown as WeeklyMenuResponse;
 
       mockApi.mockResolvedValue(mockResponse);
 
@@ -165,7 +166,7 @@ describe('Weekly Plan API Integration', () => {
           lang: 'en',
         };
 
-        const mockResponse: WeeklyMenuResponse = {
+        const mockResponse = {
           week_summary: {
             total_calories: 14000,
             total_protein: 1050,
@@ -186,7 +187,7 @@ describe('Weekly Plan API Integration', () => {
           },
           total_cost: 45.50,
           adherence_score: 87,
-        };
+        } as unknown as WeeklyMenuResponse;
 
         mockApi.mockResolvedValue(mockResponse);
 
@@ -328,14 +329,14 @@ describe('Weekly Plan API Integration', () => {
         lang: 'en',
       };
 
-      const mockResponse: WeeklyMenuResponse = {
+      const mockResponse = {
         week_summary: {},
         daily_menus: [],
         weekly_coverage: {},
         shopping_list: {},
         total_cost: 0,
         adherence_score: 0,
-      };
+      } as unknown as WeeklyMenuResponse;
 
       mockApi.mockResolvedValue(mockResponse);
 

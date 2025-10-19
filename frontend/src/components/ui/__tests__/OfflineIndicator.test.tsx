@@ -85,7 +85,7 @@ describe('OfflineIndicator', () => {
   });
 
   it('cleans up event listeners on unmount', () => {
-    const addSpy = vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'addEventListener');
     const removeSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = render(<OfflineIndicator />);

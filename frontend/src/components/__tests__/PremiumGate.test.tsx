@@ -1,5 +1,4 @@
 /* @vitest-environment jsdom */
-import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import PremiumGate from "../PremiumGate";
 // Initialize i18n so t() resolves labels
