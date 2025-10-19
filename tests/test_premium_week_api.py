@@ -104,8 +104,12 @@ class TestPremiumWeekAPI:
         assert "meals" in day
         assert "kcal" in day
         assert "total_cost" in day
+        assert "macros" in day
         for meal in day["meals"]:
             assert "title" in meal
+            assert "macros" in meal
+            assert "kcal" in meal
+            assert "grams" in meal
 
     def _check_shopping_list_structure(self, shopping_list):
         assert isinstance(shopping_list, dict)

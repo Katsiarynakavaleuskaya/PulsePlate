@@ -103,6 +103,14 @@ repos:
         files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
         stages: [pre-commit]
 
+      - id: tsc-frontend
+        name: tsc (frontend typecheck)
+        entry: bash -c "cd frontend && npm run typecheck"
+        language: system
+        pass_filenames: false
+        files: ^frontend/src/.*\.(ts|tsx)$
+        stages: [pre-commit]
+
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
