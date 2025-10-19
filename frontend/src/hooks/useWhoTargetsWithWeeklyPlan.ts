@@ -79,7 +79,8 @@ export function useWhoTargetsWithWeeklyPlan(
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : t('whoTargets.error.fetchFailed', 'Failed to fetch targets');
         setTargetsError(errorMessage);
-        throw error;
+        onError?.(error instanceof Error ? error : new Error(errorMessage));
+        return; // Exit early without setting weeklyPlanError
       } finally {
         setTargetsLoading(false);
       }

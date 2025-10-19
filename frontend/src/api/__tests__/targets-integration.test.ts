@@ -251,13 +251,13 @@ describe('WHO Targets API Integration', () => {
 
     it('should handle invalid activity level', async () => {
       const invalidRequest = {
-        sex: 'female',
+        sex: 'female' as const,
         age: 25,
         height_cm: 165,
         weight_kg: 60,
         activity: 'invalid_activity' as any,
-        goal: 'maintain',
-        life_stage: 'adult',
+        goal: 'maintain' as const,
+        life_stage: 'adult' as const,
         lang: 'en',
       };
 
@@ -270,15 +270,15 @@ describe('WHO Targets API Integration', () => {
 
     it('should handle invalid goal with deficit/surplus', async () => {
       const invalidRequest = {
-        sex: 'female',
+        sex: 'female' as const,
         age: 25,
         height_cm: 165,
         weight_kg: 60,
-        activity: 'moderate',
+        activity: 'moderate' as const,
         goal: 'maintain' as const,
         deficit_pct: 20, // Invalid: deficit should not be set for maintain goal
         surplus_pct: 10, // Invalid: surplus should not be set for maintain goal
-        life_stage: 'adult',
+        life_stage: 'adult' as const,
         lang: 'en',
       };
 

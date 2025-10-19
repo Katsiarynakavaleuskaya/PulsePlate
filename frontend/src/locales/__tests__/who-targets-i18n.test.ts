@@ -145,7 +145,7 @@ describe('WHO Targets i18n', () => {
     });
 
     it('should have appropriate text lengths for UI', () => {
-      Object.entries(locales).forEach(([locale, data]) => {
+      Object.entries(locales).forEach(([, data]) => {
         // Check that titles are not too long
         expect(data.whoTargets.calories.title.length).toBeLessThan(30);
         expect(data.whoTargets.macros.title.length).toBeLessThan(30);
@@ -190,7 +190,7 @@ describe('WHO Targets i18n', () => {
   describe('Edge Cases & Fallback Handling', () => {
     it('should handle missing translation keys gracefully', () => {
       // Test that accessing non-existent keys doesn't crash
-      const testMissingKey = (locale: string, data: any) => {
+      const testMissingKey = (_locale: string, data: any) => {
         expect(() => {
           const missingKey = (data.whoTargets as any)['nonExistentSection'];
           expect(missingKey).toBeUndefined();
@@ -204,7 +204,7 @@ describe('WHO Targets i18n', () => {
 
     it('should have consistent fallback structure for nested keys', () => {
       // Test that nested object access is safe
-      const testNestedAccess = (locale: string, data: any) => {
+      const testNestedAccess = (_locale: string, data: any) => {
         expect(() => {
           const nestedKey = (data.whoTargets.macros as any)['nonExistentMacro'];
           expect(nestedKey).toBeUndefined();
@@ -300,7 +300,7 @@ describe('WHO Targets i18n', () => {
         });
       };
 
-      Object.entries(locales).forEach(([locale, data]) => {
+      Object.entries(locales).forEach(([, data]) => {
         validateKeyFormat(data.whoTargets);
       });
     });

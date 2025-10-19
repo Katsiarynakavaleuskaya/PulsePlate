@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Wifi, WifiOff } from 'lucide-react';
 
 interface OfflineIndicatorProps {
@@ -26,7 +26,7 @@ export function OfflineIndicator({ className = '' }: OfflineIndicatorProps) {
       setShowIndicator(true);
       // Hide indicator after 3 seconds
       clearHideTimeout();
-      hideTimeout = window.setTimeout(() => setShowIndicator(false), 3000);
+      hideTimeout = window.setTimeout(() => setShowIndicator(false), 3000) as any;
     };
 
     const handleOffline = () => {

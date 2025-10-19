@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IntegratedWhoTargetsPanel } from '../WhoTargetsPanel/IntegratedWhoTargetsPanel';
 import type { TargetsRequest } from '../../api/premium/types';
@@ -74,7 +74,7 @@ describe('IntegratedWhoTargetsPanel', () => {
     },
     total_cost: 45.50,
     adherence_score: 87,
-  };
+  } as any;
 
   const mockHook = vi.mocked(useWhoTargetsWithWeeklyPlan);
 
@@ -335,7 +335,6 @@ describe('IntegratedWhoTargetsPanel', () => {
 
   describe('Error handling', () => {
     it('should handle missing request gracefully', async () => {
-      const user = userEvent.setup();
       const mockSaveAndGetWeeklyPlan = vi.fn();
 
       mockHook.mockReturnValue({

@@ -18,7 +18,7 @@ describe('useApiKey', () => {
     const mockClearApiKey = vi.fn();
     const mockIsAuthenticated = true;
 
-    (useAuth as vi.Mock).mockReturnValue({
+    (useAuth as any).mockReturnValue({
       apiKey: mockApiKey,
       setApiKey: mockSetApiKey,
       clearApiKey: mockClearApiKey,
@@ -34,7 +34,7 @@ describe('useApiKey', () => {
   });
 
   it('returns undefined values when useAuth returns undefined', () => {
-    (useAuth as vi.Mock).mockReturnValue({
+    (useAuth as any).mockReturnValue({
       apiKey: undefined,
       setApiKey: undefined,
       clearApiKey: undefined,
@@ -50,7 +50,7 @@ describe('useApiKey', () => {
   });
 
   it('calls useAuth hook', () => {
-    (useAuth as vi.Mock).mockReturnValue({
+    (useAuth as any).mockReturnValue({
       apiKey: 'test',
       setApiKey: vi.fn(),
       clearApiKey: vi.fn(),
