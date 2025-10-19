@@ -45,6 +45,7 @@ try:
     from core.weekly_plan_new import build_week
     from core.food_db_new import FoodDB
     from core.recipe_db_new import RecipeDB
+    from core.recommendations import build_nutrition_targets
 
     NEW_MODULAR_SYSTEM_AVAILABLE = True
 except ImportError as e:
@@ -53,6 +54,7 @@ except ImportError as e:
     build_week = None  # type: ignore
     FoodDB = None  # type: ignore
     RecipeDB = None  # type: ignore
+    build_nutrition_targets = None  # type: ignore
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
