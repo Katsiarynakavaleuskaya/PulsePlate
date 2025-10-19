@@ -34,9 +34,17 @@ describe('useApiKey', () => {
     expect(result.current.setApiKey).toBe(mockSetApiKey);
     expect(result.current.clearApiKey).toBe(mockClearApiKey);
     expect(result.current.isAuthenticated).toBe(mockIsAuthenticated);
+
+    // Validate that only expected properties are returned
+    expect(Object.keys(result.current)).toEqual([
+      'apiKey',
+      'setApiKey',
+      'clearApiKey',
+      'isAuthenticated'
+    ]);
   });
 
-  it('returns undefined values when useAuth returns undefined', () => {
+  it('returns null apiKey and defined functions when not authenticated', () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
       setApiKey: vi.fn(),
@@ -53,6 +61,14 @@ describe('useApiKey', () => {
     expect(result.current.setApiKey).toBeDefined();
     expect(result.current.clearApiKey).toBeDefined();
     expect(result.current.isAuthenticated).toBe(false);
+
+    // Validate that only expected properties are returned
+    expect(Object.keys(result.current)).toEqual([
+      'apiKey',
+      'setApiKey',
+      'clearApiKey',
+      'isAuthenticated'
+    ]);
   });
 
   it('calls useAuth hook', () => {
@@ -66,8 +82,16 @@ describe('useApiKey', () => {
       setShowAuthPrompt: vi.fn(),
     });
 
-    renderHook(() => useApiKey());
+    const { result } = renderHook(() => useApiKey());
 
     expect(useAuth).toHaveBeenCalledTimes(1);
+
+    // Validate that only expected properties are returned
+    expect(Object.keys(result.current)).toEqual([
+      'apiKey',
+      'setApiKey',
+      'clearApiKey',
+      'isAuthenticated'
+    ]);
   });
 });

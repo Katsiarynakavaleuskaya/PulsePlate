@@ -1,4 +1,8 @@
 {
+  "offlineIndicator": {
+    "backOnline": "De nuevo en línea",
+    "offline": "Estás desconectado"
+  },
   "common": {
     "ok": "OK",
     "cancel": "Cancelar",
