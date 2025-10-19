@@ -456,7 +456,7 @@ describe('WeeklyPlanReader', () => {
       const prevButton = screen.getByLabelText('Previous day');
       prevButton.focus();
 
-      // Navigate to Sunday by pressing "Previous day" 6 times (Monday -> Sunday)
+      // Navigate backward through the week by pressing "Previous day" 6 times (Monday -> Tuesday)
       for (let i = 0; i < 6; i++) {
         fireEvent.keyDown(prevButton, { key: 'Enter' });
       }

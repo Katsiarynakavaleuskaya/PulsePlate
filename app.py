@@ -341,7 +341,33 @@ start_time = time.time()
 async def log_requests(request: Request, call_next: Any) -> Response:
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
-    logger.info(f"Request: {request.method} {request.url} from {client_host}")
+
+    # Sanitize URL to remove sensitive query parameters
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    parsed_url = urlparse(str(request.url))
+    query_params = parse_qs(parsed_url.query)
+
+    # Remove or redact sensitive parameters
+    sensitive_params = ["x-api-key", "api-key", "token", "password", "secret"]
+    for param in sensitive_params:
+        if param in query_params:
+            query_params[param] = ["[REDACTED]"]
+
+    # Reconstruct sanitized URL
+    sanitized_query = urlencode(query_params, doseq=True)
+    sanitized_url = urlunparse(
+        (
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            parsed_url.params,
+            sanitized_query,
+            parsed_url.fragment,
+        )
+    )
+
+    logger.info(f"Request: {request.method} {sanitized_url} from {client_host}")
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
@@ -386,7 +412,8 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available():
     return (
-        slowapi_available and Limiter is not None
+        slowapi_available
+        and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
