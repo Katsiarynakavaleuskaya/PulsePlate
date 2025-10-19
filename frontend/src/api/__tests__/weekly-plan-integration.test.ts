@@ -15,10 +15,13 @@ describe('Weekly Plan API Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Set up environment for CI
+    vi.stubEnv('VITE_API_BASE', 'http://test-api.com');
   });
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe('Successful API calls (200)', () => {
