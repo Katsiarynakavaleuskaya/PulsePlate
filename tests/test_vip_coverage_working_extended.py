@@ -324,10 +324,13 @@ class TestVIPCoverageWorkingExtended:
             json={"menu": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "error"
-        assert "Error during auto-repair" in data["message"]
+        assert_vip_response(
+            response,
+            expected_data_fields={
+                "status": "error",
+                "message": "contains:Error during auto-repair",
+            },
+        )
         # Note: This endpoint returns error when MicronutrientTargets validation fails
 
     def test_vip_auto_repair_weekly_error_coverage(self):
@@ -384,10 +387,9 @@ class TestVIPCoverageWorkingExtended:
             json={"menu": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "suggestions" in data
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "suggestions": "exists"}
+        )
         # Note: This endpoint always returns success in echo mode
 
     def test_vip_recipes_synthesize_success_coverage(self):
@@ -402,10 +404,9 @@ class TestVIPCoverageWorkingExtended:
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "recipe" in data  # Returns recipe in echo mode
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "recipe": "exists"}
+        )
 
     def test_vip_recipes_synthesize_error_coverage(self):
         """Test VIP recipes synthesize error coverage."""
@@ -419,11 +420,9 @@ class TestVIPCoverageWorkingExtended:
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "recipe" in data
-        # Note: This endpoint always returns success in echo mode
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "recipe": "exists"}
+        )
 
     def test_vip_recipe_synthesize_success_coverage(self):
         """Test VIP recipe synthesize success coverage."""
@@ -437,10 +436,9 @@ class TestVIPCoverageWorkingExtended:
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "recipe" in data  # Returns recipe in echo mode
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "recipe": "exists"}
+        )
 
     def test_vip_recipe_synthesize_error_coverage(self):
         """Test VIP recipe synthesize error coverage."""
@@ -454,11 +452,9 @@ class TestVIPCoverageWorkingExtended:
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "recipe" in data
-        # Note: This endpoint always returns success in echo mode
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "recipe": "exists"}
+        )
 
     def test_vip_menu_weekly_repair_success_coverage(self):
         """Test VIP menu weekly repair success coverage."""
@@ -493,8 +489,6 @@ class TestVIPCoverageWorkingExtended:
             json={"menu": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "repairs" in data
-        # Note: This endpoint always returns success in echo mode
+        assert_vip_response(
+            response, expected_data_fields={"status": "success", "repairs": "exists"}
+        )
