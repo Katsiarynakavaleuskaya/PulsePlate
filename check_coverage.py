@@ -30,6 +30,7 @@ def run_coverage_check():
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent,
+            timeout=1800,
         )
 
         print("📊 Результат проверки покрытия:")
@@ -73,6 +74,7 @@ def run_detailed_coverage():
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent,
+            timeout=1800,
         )
 
         print("📊 Детальный отчет создан:")

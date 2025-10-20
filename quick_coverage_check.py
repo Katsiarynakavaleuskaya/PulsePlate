@@ -25,6 +25,7 @@ def main():
             ],
             capture_output=True,
             text=True,
+            timeout=300,
         )
 
         print("📊 Результат:")
