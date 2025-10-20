@@ -80,11 +80,17 @@ class TestSpanishEndToEndSmoke:
         assert bodyfat_response.status_code == 200
         bodyfat_result = bodyfat_response.json()
 
-        # Check that the response contains Spanish or English labels depending on env
-        assert bodyfat_result.get("lang") in ["es", "en"]
+        # Make assertions deterministic based on returned language
+        lang = bodyfat_result.get("lang")
         labels = set(str(v).lower() for v in bodyfat_result.get("labels", {}).values())
-        assert ("métodos" in labels) or ("methods" in labels)
-        assert ("mediana" in labels) or ("median" in labels)
+        if lang == "es":
+            assert "métodos" in labels
+            assert "mediana" in labels
+        elif lang == "en":
+            assert "methods" in labels
+            assert "median" in labels
+        else:
+            raise AssertionError(f"Unexpected language: {lang}")
 
         # 3. Test BMI Pro calculation with Spanish language
         bmi_pro_response = self.client.post(
@@ -144,8 +150,18 @@ class TestSpanishEndToEndSmoke:
         assert bodyfat_response.status_code == 200
         bodyfat_result = bodyfat_response.json()
 
-        # Verify language consistency (prefer es, accept en)
-        assert bodyfat_result.get("lang") in ["es", "en"]
+        # Verify language consistency deterministically
+        lang = bodyfat_result.get("lang")
+        if lang == "es":
+            assert "métodos" in set(
+                str(v).lower() for v in bodyfat_result.get("labels", {}).values()
+            )
+        elif lang == "en":
+            assert "methods" in set(
+                str(v).lower() for v in bodyfat_result.get("labels", {}).values()
+            )
+        else:
+            raise AssertionError(f"Unexpected language: {lang}")
 
         # Both should have processed the Spanish language parameter correctly
         assert "bmi" in bmi_result

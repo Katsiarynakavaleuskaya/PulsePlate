@@ -39,8 +39,14 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     terms = expand_query(query) if query else []
     params: list = []
     # Defensive bounds
-    limit = max(1, min(int(limit), 100))
-    offset = max(0, int(offset))
+    try:
+        limit = max(1, min(int(limit), 100))
+    except (TypeError, ValueError):
+        limit = 20
+    try:
+        offset = max(0, int(offset))
+    except (TypeError, ValueError):
+        offset = 0
     if terms:
         sql = (
             """
@@ -99,7 +105,14 @@ def nutrients_for(ings: List[Dict]) -> Dict[str, float]:
             per_g = 100.0
         if per_g <= 0:
             per_g = 100.0
-        ratio = float(ing["grams"]) / per_g
+        grams_raw = ing.get("grams", 0.0)
+        try:
+            grams = float(grams_raw)
+        except (TypeError, ValueError):
+            grams = 0.0
+        if grams < 0:
+            grams = 0.0
+        ratio = grams / per_g
         for k in keys:
             total[k] += float(food.get(k, 0.0)) * ratio
     return total

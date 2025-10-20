@@ -70,15 +70,16 @@ class DatabaseUpdateScheduler:
             # In some test/client contexts there may be no running loop (sync thread)
             try:
                 loop = asyncio.get_running_loop()
-                self._stop_task = loop.create_task(self.stop())
-                # Surface task exceptions to logs
-                self._stop_task.add_done_callback(
-                    lambda t: (
-                        logger.error("Async stop failed: %s", t.exception())
-                        if t.exception()
-                        else None
+                if self._stop_task is None or self._stop_task.done():
+                    self._stop_task = loop.create_task(self.stop())
+                    # Surface task exceptions to logs
+                    self._stop_task.add_done_callback(
+                        lambda t: (
+                            logger.error("Async stop failed: %s", exc)
+                            if (exc := t.exception())
+                            else None
+                        )
                     )
-                )
             except RuntimeError:
                 # No running event loop; skip async stop (tests handle teardown separately)
                 logger.warning("No running event loop; skipping async stop in signal handler")
@@ -130,6 +131,20 @@ class DatabaseUpdateScheduler:
         await self.update_manager.close()
 
         logger.info("Database update scheduler stopped")
+
+    async def wait_for_shutdown(self) -> None:
+        """Wait for a previously initiated async shutdown to complete.
+
+        RU: Дождаться завершения ранее запущенной остановки через сигнал/таск.
+        EN: If shutdown was triggered via signal handler (creating `_stop_task`),
+        await that task to ensure cleanup finishes before process exit.
+        """
+        task = self._stop_task
+        if task and not task.done():
+            try:
+                await task
+            except Exception as exc:  # pragma: no cover (best-effort logging)
+                logger.error("Shutdown task failed: %s", exc)
 
     async def _update_loop(self):
         """Main update loop running in background."""
@@ -303,6 +318,11 @@ async def start_background_updates(update_interval_hours: int = 24):
     global _scheduler_instance
     if _scheduler_instance is None:
         _scheduler_instance = DatabaseUpdateScheduler(update_interval_hours=update_interval_hours)
+    elif _scheduler_instance.update_interval.total_seconds() / 3600 != update_interval_hours:
+        logger.warning(
+            f"Ignoring new update interval ({update_interval_hours}h). "
+            f"Scheduler already running with {_scheduler_instance.update_interval.total_seconds() / 3600}h interval."
+        )
     scheduler = _scheduler_instance
     if not scheduler.is_running:
         await scheduler.start()
@@ -316,6 +336,8 @@ async def stop_background_updates():
     """
     if _scheduler_instance and _scheduler_instance.is_running:
         await _scheduler_instance.stop()
+        # If a signal handler initiated shutdown, ensure we wait for it too
+        await _scheduler_instance.wait_for_shutdown()
         logger.info("Background database updates stopped")
 
 

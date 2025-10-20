@@ -92,16 +92,16 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-# --- Vulnerabilities: safety (requirements scan)
-- repo: local
-  hooks:
-    - id: safety-scan
-      name: safety (pip vulns, scan)
-      entry: safety scan --full-report
-      language: system
-      pass_filenames: false
-      stages: [pre-push]
-      files: ^(?!frontend/).+requirements.*\.txt$
+  # --- Vulnerabilities: safety (requirements scan)
+  - repo: local
+    hooks:
+      - id: safety-scan
+        name: safety (pip vulns, scan)
+        entry: safety scan --full-report
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^(?!frontend/).+requirements.*\.txt$
 
       # bandit-full — полный security scan со smart excludes
       - id: bandit-full-pre-push

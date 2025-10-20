@@ -43,7 +43,8 @@ class TestWorkingEndpointCoverage:
             "/api/v1/bmi",
             json={"weight_kg": 70.0, "height_cm": 170.0, "group": "general"},
         )
-        assert response.status_code in [200, 403]  # Зависит от настроек
+        # BMI v1 should be public; assert deterministic OK
+        assert response.status_code == 200
 
     def test_bodyfat_endpoint_working(self, client):
         """Тест bodyfat endpoint с правильными данными"""
@@ -106,19 +107,28 @@ class TestWorkingEndpointCoverage:
 
     def test_weekly_plan_endpoint(self, client):
         """Тест weekly plan endpoint"""
-        response = client.post(
-            "/api/v1/premium/plan/week",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-        )
-        # Может требовать ключ или быть открытым в зависимости от настроек
-        assert response.status_code in [200, 403]
+        # Provide API key to make result deterministic (auth required path)
+        old_api_key = os.environ.get("API_KEY")
+        os.environ["API_KEY"] = "test_key_123"
+        try:
+            response = client.post(
+                "/api/v1/premium/plan/week",
+                headers={"X-API-Key": "test_key_123"},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175.0,
+                    "weight_kg": 70.0,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                },
+            )
+            assert response.status_code == 200
+        finally:
+            if old_api_key is None:
+                os.environ.pop("API_KEY", None)
+            else:
+                os.environ["API_KEY"] = old_api_key
 
     def test_misc_endpoints(self, client):
         """Тест различных вспомогательных endpoints"""

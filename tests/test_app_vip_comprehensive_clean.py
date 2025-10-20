@@ -110,11 +110,20 @@ class TestVIPWeeklyMenu:
         elif response.status_code == 403:
             # VIP module enabled - authentication required
             response_data = response.json()
-            assert "detail" in response_data
-            # Verify the error message indicates authentication issue
-            assert (
-                "api" in response_data["detail"].lower() or "key" in response_data["detail"].lower()
-            )
+            detail = str(response_data.get("detail", "")).lower()
+            assert detail, "detail message required for 403"
+            # Verify the error message indicates authentication issue (tightened)
+            expected_snippets = [
+                "missing api key",
+                "invalid api key",
+                "authentication required",
+                "invalid credentials",
+                "api key required",
+                "unauthorized",
+            ]
+            assert any(
+                snippet in detail for snippet in expected_snippets
+            ), f"Unexpected 403 detail: {detail}"
         else:
             # Unexpected status code
             pytest.fail(f"Unexpected status code: {response.status_code}, expected 403 or 404")

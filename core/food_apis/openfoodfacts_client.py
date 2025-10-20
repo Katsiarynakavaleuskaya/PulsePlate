@@ -175,7 +175,7 @@ class OFFClient:
                 "search_simple": "1",
                 "action": "process",
                 "json": "1",
-                # Note: CGI In core/food_apis/openfoodfacts_client.py around lines 112 to 117, the __init__ docstring must document the HTTP client's lifecycle because HTTPClientConfig.create_client() requires explicit cleanup; update the __init__ docstring to add a brief lifecycle note that callers must call close() when finished (or prefer using the client as an async context manager), and implement async __aenter__ and __aexit__ methods on the class that return self and call await self.close() respectively so callers can use "async with" and avoid resource leaks.search.pl endpoint ignores fields parameter, so we omit it
+                # Note: CGI search.pl endpoint ignores fields parameter, so we omit it
             }
 
             response = await self.client.get(url, params=params)
@@ -238,12 +238,33 @@ class OFFClient:
         # Explicitly return None when product is not found
         return None
 
+    async def check_v2_org_health(self) -> bool:
+        """
+        RU: Проверяет доступность v2 API на домене .org (исторически давал 504).
+        EN: Probe the v2 API on the .org domain (historically returned 504) to
+        know when it's healthy again for migration planning.
+
+        Returns True when a minimal request succeeds (HTTP 200), False otherwise.
+        """
+        url = "https://world.openfoodfacts.org/api/v2/product/737628064502"
+        try:
+            resp = await self.client.get(url, params={"fields": "code"})
+            maybe = resp.raise_for_status()
+            if inspect.isawaitable(maybe):
+                await maybe
+            logger.info("OFF v2 .org healthcheck OK")
+            return True
+        except Exception as e:
+            logger.debug(f"OFF v2 .org healthcheck failed: {e}")
+            return False
+
     async def close(self) -> None:
         """Close underlying HTTP client."""
         try:
             await self.client.aclose()
-        except Exception:
-            pass
+        except Exception as e:
+            # Log with traceback for better diagnostics
+            logger.exception("Error closing HTTP client: %s", e)
 
     async def __aenter__(self) -> "OFFClient":
         return self

@@ -6,7 +6,7 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, TypedDict, cast
 
 import anyio
 from core.food_apis.http_config import HTTPClientConfig
@@ -146,7 +146,15 @@ async def main() -> None:
     print("-" * 35)
 
     activities = ["sedentary", "light", "moderate", "active", "very_active"]
-    base_params = {
+
+    class BMRParams(TypedDict):
+        weight_kg: float
+        height_cm: float
+        age: int
+        sex: str
+        lang: str
+
+    base_params: BMRParams = {
         "weight_kg": 70,
         "height_cm": 175,
         "age": 30,

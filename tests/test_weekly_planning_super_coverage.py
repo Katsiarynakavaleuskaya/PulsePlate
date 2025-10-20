@@ -71,19 +71,14 @@ class TestWeeklyPlanningBlocks:
 
             return mock_menu
 
-        # Патчинг через sys.modules для имитации импорта
-        with patch("sys.modules") as mock_sys_modules:
-            # Создать мок модуля приложения
-            mock_app_module = MagicMock()
-
-            # Добавить мокнутую функцию make_weekly_menu
-            mock_app_module.make_weekly_menu = lambda profile: create_weekly_menu_mock()
-
-            # Настроить sys.modules чтобы возвращать наш мок
-            mock_sys_modules.__getitem__.return_value = mock_app_module
-
-            # Настроить API ключ
+        # Точечный патч функции core.menu_engine.make_weekly_menu вместо глобального sys.modules
+        with patch(
+            "core.menu_engine.make_weekly_menu",
+            side_effect=lambda profile: create_weekly_menu_mock(),
+        ):
+            # Настроить API ключ и VIP флаг
             os.environ["API_KEY"] = "test_key"
+            os.environ["VIP_MODULE_ENABLED"] = "true"
             try:
                 # Вызвать weekly planning endpoint
                 response = client.post(
@@ -139,6 +134,8 @@ class TestWeeklyPlanningBlocks:
             finally:
                 if "API_KEY" in os.environ:
                     del os.environ["API_KEY"]
+                if "VIP_MODULE_ENABLED" in os.environ:
+                    del os.environ["VIP_MODULE_ENABLED"]
 
     def test_weekly_planning_with_getattr_mock(self, client):
         """Альтернативный подход к мокингу через getattr"""
@@ -149,7 +146,7 @@ class TestWeeklyPlanningBlocks:
             mock_result.week_start = "2025-01-01"
             mock_result.total_cost = 140.0
             mock_result.daily_menus = [
-                MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
+                MagicMock(date=f"2025-01-{i:02d}", meals={}, cost=20.0) for i in range(1, 8)
             ]
             mock_result.shopping_list = {"test": "item"}
             mock_result.weekly_coverage = {"protein": 90}
@@ -246,12 +243,19 @@ class TestWeeklyPlanningBlocks:
     def test_weekly_planning_import_scenarios(self, client):
         """Тест import scenarios в weekly planning (lines 1356-1365)"""
 
-        # Тест блока где происходит import sys и поиск модуля
-        with patch("sys.modules") as mock_sys_modules:
-            # Симулировать отсутствие модуля
-            mock_sys_modules.__getitem__.side_effect = KeyError("Module not found")
+        # Тестируем только целевой импорт core.menu_engine, не затрагивая другие импорты
+        import importlib as _importlib
 
+        original_import_module = _importlib.import_module
+
+        def _side_effect(name, package=None):
+            if name == "core.menu_engine":
+                raise ImportError("core.menu_engine unavailable for test")
+            return original_import_module(name, package)
+
+        with patch("importlib.import_module", side_effect=_side_effect):
             os.environ["API_KEY"] = "test_key"
+            os.environ["VIP_MODULE_ENABLED"] = "true"
             try:
                 response = client.post(
                     "/api/v1/premium/plan/week",
@@ -266,11 +270,14 @@ class TestWeeklyPlanningBlocks:
                     },
                 )
 
-                # Expect error status when module import is mocked to fail
-                assert (
-                    response.status_code >= 400
-                ), f"Expected error status, got {response.status_code}"
+                # Ожидаем конкретный статус 503 при сбое импорта модуля
+                assert response.status_code == 503
+                data = response.json()
+                assert "detail" in data
+                assert "not available" in data["detail"].lower()
 
             finally:
                 if "API_KEY" in os.environ:
                     del os.environ["API_KEY"]
+                if "VIP_MODULE_ENABLED" in os.environ:
+                    del os.environ["VIP_MODULE_ENABLED"]
