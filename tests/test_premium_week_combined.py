@@ -4,11 +4,9 @@ Includes smoke tests, debug tests, and basic API tests.
 """
 
 import os
-from typing import cast
 from unittest.mock import patch
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app as app_mod
@@ -18,6 +16,7 @@ import app as app_mod
 def premium_client(monkeypatch: pytest.MonkeyPatch):
     """Fixture for premium week tests with proper environment setup."""
     monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
     # Create test client
     app_instance = app_mod.app
