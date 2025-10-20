@@ -3,6 +3,8 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
+from collections.abc import Iterable
+import importlib
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -2088,10 +2090,25 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         }:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
-        # Use globals() instead of sys.modules to access module-level make_weekly_menu
-        # This works correctly when app.py is loaded dynamically by app/__init__.py
-        _make_weekly_menu = globals().get("make_weekly_menu")
-        if _make_weekly_menu is None:
+        import sys as _sys
+
+        module_name = "core.menu_engine"
+        modules_registry = getattr(_sys, "modules")
+        if not isinstance(modules_registry, dict):
+            raise HTTPException(status_code=503, detail="Weekly menu registry unavailable")
+
+        try:
+            menu_module = modules_registry[module_name]
+        except KeyError:
+            try:
+                menu_module = importlib.import_module(module_name)
+            except Exception as import_exc:
+                raise HTTPException(
+                    status_code=503, detail="Weekly menu module not available"
+                ) from import_exc
+
+        _make_weekly_menu = getattr(menu_module, "make_weekly_menu", None)
+        if _make_weekly_menu is None or not callable(_make_weekly_menu):
             raise HTTPException(
                 status_code=503, detail="Weekly menu generation feature not available"
             )
@@ -2116,25 +2133,106 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         # Generate weekly menu via core.menu_engine
         week_menu = _make_weekly_menu(profile)
 
+        def _safe_attr(obj: Any, attr: str, default: Any = None) -> Any:
+            if isinstance(obj, dict):
+                return obj.get(attr, default)
+            value = getattr(obj, attr, default)
+            return value
+
+        def _to_float(value: Any, default: float = 0.0) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _normalise_meals(raw_meals: Any) -> List[Dict[str, Any]]:
+            if isinstance(raw_meals, dict):
+                iterable: Iterable[Any] = raw_meals.values()
+            elif isinstance(raw_meals, Iterable) and not isinstance(raw_meals, (str, bytes)):
+                iterable = raw_meals
+            else:
+                iterable = []
+
+            meals_out: List[Dict[str, Any]] = []
+            for meal in iterable:
+                if isinstance(meal, dict):
+                    meal_dict = dict(meal)
+                else:
+                    meal_dict = {}
+                    for key in (
+                        "title",
+                        "name",
+                        "kcal",
+                        "calories",
+                        "protein_g",
+                        "fat_g",
+                        "carbs_g",
+                        "ingredients",
+                        "detailed_nutrients",
+                    ):
+                        if hasattr(meal, key):
+                            value = getattr(meal, key)
+                            if key == "name" and "title" not in meal_dict:
+                                meal_dict["title"] = value
+                            else:
+                                meal_dict[key] = value
+                meals_out.append(meal_dict)
+            return meals_out
+
+        normalised_daily_menus: List[Dict[str, Any]] = []
+        raw_daily_menus = _safe_attr(week_menu, "daily_menus", []) or []
+        for menu in raw_daily_menus:
+            meals = _normalise_meals(_safe_attr(menu, "meals", []))
+            total_kcal = 0.0
+            for meal in meals:
+                kcal = meal.get("kcal", meal.get("calories", 0))
+                total_kcal += _to_float(kcal, 0.0)
+
+            daily_cost = _safe_attr(menu, "estimated_cost")
+            if daily_cost is None:
+                daily_cost = _safe_attr(menu, "cost")
+            if daily_cost is None:
+                daily_cost = _safe_attr(menu, "daily_cost")
+
+            normalised_daily_menus.append(
+                {
+                    "date": _safe_attr(menu, "date", "unknown"),
+                    "meals": meals,
+                    "total_kcal": round(total_kcal, 2),
+                    "daily_cost": _to_float(daily_cost, 0.0),
+                }
+            )
+
+        total_days = len(normalised_daily_menus)
+
+        total_cost = _safe_attr(week_menu, "total_cost")
+        if total_cost is None and normalised_daily_menus:
+            total_cost = sum(menu["daily_cost"] for menu in normalised_daily_menus)
+        total_cost_value = _to_float(total_cost, 0.0)
+
+        avg_daily_cost = _to_float(total_cost_value / total_days, 0.0) if total_days else 0.0
+
+        weekly_coverage = _safe_attr(week_menu, "weekly_coverage", {})
+        if not isinstance(weekly_coverage, dict) and hasattr(weekly_coverage, "__dict__"):
+            weekly_coverage = dict(weekly_coverage.__dict__)
+
+        shopping_list = _safe_attr(week_menu, "shopping_list", {})
+        if not isinstance(shopping_list, dict) and hasattr(shopping_list, "__dict__"):
+            shopping_list = dict(shopping_list.__dict__)
+
+        adherence_score = _safe_attr(week_menu, "adherence_score", 0.0)
+
         return WeeklyMenuResponse(
             week_summary={
-                "week_start": week_menu.week_start,
-                "total_days": len(week_menu.daily_menus),
-                "avg_daily_cost": round(week_menu.total_cost / 7, 2),
+                "week_start": _safe_attr(week_menu, "week_start", "unknown"),
+                "total_days": total_days,
+                "avg_daily_cost": round(avg_daily_cost, 2),
             },
-            daily_menus=[
-                {
-                    "date": menu.date,
-                    "meals": menu.meals,
-                    "total_kcal": sum(meal.get("kcal", 0) for meal in menu.meals),
-                    "daily_cost": menu.estimated_cost,
-                }
-                for menu in week_menu.daily_menus
-            ],
-            weekly_coverage=week_menu.weekly_coverage,
-            shopping_list=week_menu.shopping_list,
-            total_cost=week_menu.total_cost,
-            adherence_score=week_menu.adherence_score,
+            daily_menus=normalised_daily_menus,
+            weekly_coverage=weekly_coverage or {},
+            shopping_list=shopping_list or {},
+            total_cost=round(total_cost_value, 2),
+            adherence_score=_to_float(adherence_score, 0.0),
         )
 
     except HTTPException:

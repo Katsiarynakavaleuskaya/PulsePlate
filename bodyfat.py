@@ -4,7 +4,7 @@ import math
 from typing import Any, Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------- Formulas ----------
@@ -114,6 +114,14 @@ class BodyFatRequest(BaseModel):
         None, gt=0, description="Hip circumference in cm, must be positive"
     )
     language: Optional[str] = "en"  # "en" | "ru"
+
+    @model_validator(mode="after")
+    def _validate_gender(self) -> "BodyFatRequest":
+        gender_normalized = (self.gender or "").strip().lower()
+        if gender_normalized not in {"male", "female"}:
+            raise ValueError("gender must be 'male' or 'female'")
+        self.gender = gender_normalized
+        return self
 
 
 def get_router() -> APIRouter:

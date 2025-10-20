@@ -166,12 +166,16 @@ class TestEdgeCasesAndErrorPaths:
             },
         )
         # Pydantic validation should return 422 for negative weight
-        # If validation doesn't work as expected, accept 200 but log the issue
+        # In test environment, validation might not be enforced
         if response.status_code == 200:
             print(
                 f"WARNING: Validation test returned 200 instead of 422. Response: {response.json()}"
             )
-        assert response.status_code in [422, 400, 200]  # Allow 200 if validation doesn't work
+        assert response.status_code in [
+            422,
+            400,
+            200,
+        ]  # Allow 200 if validation doesn't work in test env
 
         # BMI с нулевым ростом (legacy endpoint)
         response = client.post(
@@ -214,8 +218,8 @@ class TestEdgeCasesAndErrorPaths:
                 "activity": "moderate",
             },
         )
-        # Should return 403 for missing API key, but allow 200 if API key is not required in test env
-        # If auth doesn't work as expected, accept 200 but log the issue
+        # Should return 403 for missing API key
+        # In test environment, API key might not be required
         if response.status_code == 200:
             print(f"WARNING: Auth test returned 200 instead of 403. Response: {response.json()}")
         assert response.status_code in [403, 200]  # Allow 200 if auth doesn't work in test env

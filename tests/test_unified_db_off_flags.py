@@ -20,7 +20,7 @@ def test_unified_db_save_throttle_and_last_save_none(monkeypatch: pytest.MonkeyP
 
     db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
     # Force None last_save_ts and throttle env
-    db._last_save_ts = None  # mypy: ignore[assignment]
+    db._last_save_ts = None  # type: ignore[assignment]
     monkeypatch.setenv("UNIFIED_DB_SAVE_THROTTLE_MS", "50")
     # Put one item in memory cache so save attempts writing
     db._memory_cache["x"] = UnifiedFoodItem(

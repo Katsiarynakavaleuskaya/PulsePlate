@@ -62,15 +62,15 @@ repos:
           - B101
 
   # --- Vulnerabilities: safety (requirements scan)
-  # Temporarily disabled - safety hook manifest issue
-  # - repo: https://github.com/pyupio/safety
-  #   rev: 3.2.8
-  #   hooks:
-  #     - id: safety
-  #       name: safety (pip vulns)
-  #       files: ^(?!frontend/).+requirements.*\.txt$
-  #       args: [--full-report]
-  #       stages: [pre-push]
+  - repo: local
+    hooks:
+      - id: safety-scan
+        name: safety (pip vulns, scan)
+        entry: safety scan
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^(?!frontend/).+requirements.*\.txt$
 
   # --- Docstrings: pydocstyle
   - repo: https://github.com/PyCQA/pydocstyle
