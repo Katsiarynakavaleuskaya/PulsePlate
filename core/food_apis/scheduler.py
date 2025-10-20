@@ -66,7 +66,13 @@ class DatabaseUpdateScheduler:
 
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(self.stop())
+            # In some test/client contexts there may be no running loop (sync thread)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.stop())
+            except RuntimeError:
+                # No running event loop; skip async stop (tests handle teardown separately)
+                logger.warning("No running event loop; skipping async stop in signal handler")
 
         # Handle common shutdown signals
         try:
