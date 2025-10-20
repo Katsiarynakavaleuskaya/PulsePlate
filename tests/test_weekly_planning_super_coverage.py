@@ -158,7 +158,7 @@ class TestWeeklyPlanningBlocks:
             return mock_result
 
         # Мокаем модуль menu_engine напрямую
-        with patch("core.menu_engine.make_weekly_menu", side_effect=mock_make_weekly_menu):
+        with patch("core.menu_engine.make_weekly_menu", return_value=mock_make_weekly_menu(None)):
             os.environ["API_KEY"] = "test_key"
             try:
                 response = client.post(
@@ -176,8 +176,15 @@ class TestWeeklyPlanningBlocks:
                 )
 
                 print(f"Alternative mock response: {response.status_code}")
-                # Код выполнился - это главное!
-                assert response.status_code in [200, 503, 422, 400]
+                
+                if response.status_code == 200:
+                    # Verify the mock was used
+                    data = response.json()
+                    assert "week_summary" in data
+                    assert data["week_summary"]["week_start"] == "2025-01-01"
+                else:
+                    # Код выполнился - это главное!
+                    assert response.status_code in [503, 422, 400]
 
             finally:
                 if "API_KEY" in os.environ:
