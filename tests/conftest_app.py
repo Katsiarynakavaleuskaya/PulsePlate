@@ -28,7 +28,10 @@ def app_test_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, No
     app_instance = cast(FastAPI, app_mod.app)
     client = TestClient(app_instance)
 
-    yield client
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 @pytest.fixture
@@ -47,4 +50,7 @@ def app_with_api_key(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, N
     app_instance = cast(FastAPI, app_mod.app)
     client = TestClient(app_instance)
 
-    yield client
+    try:
+        yield client
+    finally:
+        client.close()
