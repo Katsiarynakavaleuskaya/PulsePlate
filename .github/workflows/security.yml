@@ -67,6 +67,9 @@ jobs:
 
       - name: Run Safety (dependency audit)
         run: |
+          # Set Safety to use offline mode to avoid authentication issues in CI
+          export SAFETY_OFFLINE_MODE=true
+
           # First run: Generate full report (always succeeds for artifact)
           safety scan --full-report -r requirements.txt > safety-report.txt 2>&1 || true
           if [ -f requirements-dev.txt ]; then
