@@ -58,7 +58,7 @@ repos:
           ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
         args:
           - -q
-In .pre-commit-config.yaml around lines 98 to 104, the safety hook uses the deprecated/incorrect flag `--full-report`; update the hook entry to use the correct flag `--detailed-output` (change the entry value on line 100 from `safety scan --full-report` to `safety scan --detailed-output`) so the safety 3.6.2 CLI produces the expected output.          - -ll
+          - -ll
           - -ii
 
   # --- Docstrings: pydocstyle
