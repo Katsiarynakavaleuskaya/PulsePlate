@@ -10,31 +10,29 @@ These are "easy coverage" tests that cover basic monitoring endpoints.
 
 from fastapi.testclient import TestClient
 
-import app as app_mod
-from fastapi import FastAPI
-from typing import cast
-
-# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
-app_instance = cast(FastAPI, app_mod.app)
-client = TestClient(app_instance)
+import pytest
 
 
 class TestHealthAndMonitoringEndpoints:
     """Test health and monitoring endpoints for easy coverage boost"""
 
-    def test_health_ok(self):
+    @pytest.fixture
+    def client(self, test_client):
+        return test_client
+
+    def test_health_ok(self, client):
         """Test /health endpoint returns status ok"""
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_v1_health_ok(self):
+    def test_v1_health_ok(self, client):
         """Test /api/v1/health endpoint returns status ok"""
         response = client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_metrics_endpoint(self):
+    def test_metrics_endpoint(self, client):
         """Test /metrics endpoint - returns Prometheus metrics or error"""
         response = client.get("/metrics")
         assert response.status_code == 200
@@ -45,7 +43,7 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self):
+    def test_root_page_renders(self, client):
         """Test root / endpoint renders HTML BMI calculator"""
         response = client.get("/")
         assert response.status_code == 200
@@ -54,12 +52,12 @@ class TestHealthAndMonitoringEndpoints:
         assert "BMI Calculator" in content
         assert "form" in content.lower()
 
-    def test_favicon_endpoint(self):
+    def test_favicon_endpoint(self, client):
         """Test /favicon.ico returns 204 No Content"""
         response = client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_privacy_endpoint(self):
+    def test_privacy_endpoint(self, client):
         """Test /privacy endpoint returns privacy policy"""
         response = client.get("/privacy")
         assert response.status_code == 200
@@ -73,7 +71,11 @@ class TestHealthAndMonitoringEndpoints:
 class TestDebugEndpoint:
     """Test debug endpoints for development"""
 
-    def test_debug_env_endpoint(self):
+    @pytest.fixture
+    def client(self, test_client):
+        return test_client
+
+    def test_debug_env_endpoint(self, client):
         """Test /debug_env returns environment info"""
         response = client.get("/debug_env")
         assert response.status_code == 200

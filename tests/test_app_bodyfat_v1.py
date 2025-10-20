@@ -13,19 +13,17 @@ Tests cover:
 
 from fastapi.testclient import TestClient
 
-import app as app_mod
-from fastapi import FastAPI
-from typing import cast
-
-# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
-app_instance = cast(FastAPI, app_mod.app)
-client = TestClient(app_instance)
+import pytest
 
 
 class TestBodyfatv1API:
     """Test Bodyfat v1 API endpoint with comprehensive coverage"""
 
-    def test_bodyfat_v1_happy_female(self):
+    @pytest.fixture
+    def client(self, test_client):
+        return test_client
+
+    def test_bodyfat_v1_happy_female(self, client):
         """Test bodyfat v1 API for female with hip measurements"""
         payload = {
             "gender": "female",
@@ -43,7 +41,7 @@ class TestBodyfatv1API:
         assert "median" in data
         assert isinstance(data["median"], (int, float, type(None)))
 
-    def test_bodyfat_v1_happy_male(self):
+    def test_bodyfat_v1_happy_male(self, client):
         """Test bodyfat v1 API for male (no hip measurement needed)"""
         payload = {
             "gender": "male",
@@ -60,13 +58,13 @@ class TestBodyfatv1API:
         assert "median" in data
         assert isinstance(data["median"], (int, float, type(None)))
 
-    def test_bodyfat_v1_validation_missing_gender(self):
+    def test_bodyfat_v1_validation_missing_gender(self, client):
         """Test bodyfat v1 API validation - missing required gender field"""
         payload = {"age": 30, "waist_cm": 70.0, "neck_cm": 34.0, "height_m": 1.65}
         response = client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 422  # Validation error for missing required field
 
-    def test_bodyfat_v1_422_invalid_ranges(self):
+    def test_bodyfat_v1_422_invalid_ranges(self, client):
         """Test bodyfat v1 API validation - invalid value ranges"""
         bad_payloads = [
             {
@@ -98,7 +96,7 @@ class TestBodyfatv1API:
             # API returns 422 for invalid data due to validation
             assert response.status_code == 422
 
-    def test_bodyfat_v1_invalid_gender_fallback(self):
+    def test_bodyfat_v1_invalid_gender_fallback(self, client):
         """Test bodyfat v1 API with invalid gender - should have fallback behavior"""
         payload = {"gender": "invalid", "age": 30, "waist_cm": 70, "neck_cm": 34, "height_m": 1.65}
         response = client.post("/api/v1/bodyfat", json=payload)
@@ -109,7 +107,7 @@ class TestBodyfatv1API:
             422,
         ]  # Accept either valid response or validation error
 
-    def test_bodyfat_v1_edge_case_measurements(self):
+    def test_bodyfat_v1_edge_case_measurements(self, client):
         """Test bodyfat v1 API with edge case but valid measurements"""
         payload = {
             "gender": "female",
@@ -125,7 +123,7 @@ class TestBodyfatv1API:
         data = response.json()
         assert "methods" in data
 
-    def test_bodyfat_v1_older_adult(self):
+    def test_bodyfat_v1_older_adult(self, client):
         """Test bodyfat v1 API for older adult (age-specific considerations)"""
         payload = {
             "gender": "male",
