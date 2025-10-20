@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 
 import app as app_mod
 from fastapi import FastAPI
-from starlette.types import ASGIApp
+from typing import cast
 
 # Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
-app_instance: FastAPI = app_mod.app  # type: ignore[assignment]
+app_instance = cast(FastAPI, app_mod.app)
 client = TestClient(app_instance)
 
 
