@@ -10,33 +10,27 @@ These are "easy coverage" tests that cover basic monitoring endpoints.
 
 from fastapi.testclient import TestClient
 
-import app as app_mod
-from fastapi import FastAPI
-from typing import cast
-
-# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
-app_instance = cast(FastAPI, app_mod.app)
-client = TestClient(app_instance)
+import pytest
 
 
 class TestHealthAndMonitoringEndpoints:
     """Test health and monitoring endpoints for easy coverage boost"""
 
-    def test_health_ok(self):
+    def test_health_ok(self, test_client):
         """Test /health endpoint returns status ok"""
-        response = client.get("/health")
+        response = test_client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_v1_health_ok(self):
+    def test_v1_health_ok(self, test_client):
         """Test /api/v1/health endpoint returns status ok"""
-        response = client.get("/api/v1/health")
+        response = test_client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_metrics_endpoint(self):
+    def test_metrics_endpoint(self, test_client):
         """Test /metrics endpoint - returns Prometheus metrics or error"""
-        response = client.get("/metrics")
+        response = test_client.get("/metrics")
         assert response.status_code == 200
         # Either Prometheus metrics or error message about unavailable client
         content = response.text
@@ -45,23 +39,23 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self):
+    def test_root_page_renders(self, test_client):
         """Test root / endpoint renders HTML BMI calculator"""
-        response = client.get("/")
+        response = test_client.get("/")
         assert response.status_code == 200
         content = response.text
         assert "<title" in content
         assert "BMI Calculator" in content
         assert "form" in content.lower()
 
-    def test_favicon_endpoint(self):
+    def test_favicon_endpoint(self, test_client):
         """Test /favicon.ico returns 204 No Content"""
-        response = client.get("/favicon.ico")
+        response = test_client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_privacy_endpoint(self):
+    def test_privacy_endpoint(self, test_client):
         """Test /privacy endpoint returns privacy policy"""
-        response = client.get("/privacy")
+        response = test_client.get("/privacy")
         assert response.status_code == 200
         data = response.json()
         assert "privacy_policy" in data
@@ -73,9 +67,9 @@ class TestHealthAndMonitoringEndpoints:
 class TestDebugEndpoint:
     """Test debug endpoints for development"""
 
-    def test_debug_env_endpoint(self):
+    def test_debug_env_endpoint(self, test_client):
         """Test /debug_env returns environment info"""
-        response = client.get("/debug_env")
+        response = test_client.get("/debug_env")
         assert response.status_code == 200
         data = response.json()
         # Should contain some environment information
