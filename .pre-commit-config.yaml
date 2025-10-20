@@ -97,7 +97,7 @@ In .pre-commit-config.yaml around lines 98 to 104, the safety hook uses the depr
     hooks:
       - id: safety-scan
         name: safety (pip vulns, scan)
-        entry: safety scan --full-report
+        entry: safety scan --detailed-output
         language: system
         pass_filenames: false
         stages: [pre-push]
