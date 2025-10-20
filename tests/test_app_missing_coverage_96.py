@@ -22,12 +22,9 @@ class TestAppMissingCoverage96:
     """Tests to cover missing lines in main.py for 96%+ coverage."""
 
     def setup_method(self):
-        """Setup test environment"""
+        """Setup test environment and client"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
         self.client = TestClient(app)
 
     def test_bmi_validation_unrealistically_low_bmi(self):

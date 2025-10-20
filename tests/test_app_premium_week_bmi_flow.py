@@ -10,7 +10,7 @@ from app.routers import premium_week
 
 
 @pytest.fixture
-def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app) -> None:
+def set_strict_api_key(monkeypatch: pytest.MonkeyPatch, app_module, app):
     """Включаем строгий режим API-ключей (RU/EN)."""
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     monkeypatch.setenv("API_KEY", "test_key")
