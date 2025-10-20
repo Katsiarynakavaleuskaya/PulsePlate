@@ -66,9 +66,17 @@ jobs:
           echo "✅ No HIGH severity issues found in Bandit report"
 
       - name: Run Safety (dependency audit)
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
-          # Set Safety to use offline mode to avoid authentication issues in CI
-          export SAFETY_OFFLINE_MODE=true
+          # Authenticate Safety CLI if API key is available
+          if [ -n "$SAFETY_API_KEY" ]; then
+            echo "🔑 Authenticating Safety CLI with API key..."
+            safety auth --api-key "$SAFETY_API_KEY"
+          else
+            echo "⚠️ No Safety API key provided, using offline mode..."
+            export SAFETY_OFFLINE_MODE=true
+          fi
 
           # First run: Generate full report (always succeeds for artifact)
           safety scan --detailed-output > safety-report.txt 2>&1 || true
