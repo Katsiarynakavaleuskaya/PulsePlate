@@ -4,7 +4,6 @@ Includes tests from coverage_96, coverage_97, additional_coverage, and coverage_
 """
 
 import os
-from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
