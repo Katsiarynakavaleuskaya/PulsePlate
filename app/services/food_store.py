@@ -46,6 +46,9 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE """
             + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))  # nosec B608
+            # Justification: parameters are bound via placeholders (MATCH ?),
+            # no user input is interpolated into SQL strings. SQLite FTS MATCH
+            # receives terms as parameters, preventing injection.
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]

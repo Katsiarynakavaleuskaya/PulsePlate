@@ -129,14 +129,8 @@ class TestWeeklyPlanningBlocks:
                         assert "meals" in menu
                         assert "cost" in menu
 
-                elif response.status_code == 503:
-                    # Функция недоступна - все равно покрывает критические блоки!
-                    data = response.json()
-                    assert "detail" in data
-                    assert "not available" in data["detail"].lower()
-
-                # Любой из этих статусов означает что код был выполнен
-                assert response.status_code in [200, 503, 422, 400]
+                # Успешный путь должен вернуть 200
+                assert response.status_code == 200
 
             finally:
                 if "API_KEY" in os.environ:
@@ -227,14 +221,11 @@ class TestWeeklyPlanningBlocks:
 
             print(f"Error scenario response: {response.status_code}")
 
-            if response.status_code == 503:
-                # Это покрывает блок 1362-1365 где выбрасывается HTTPException
-                data = response.json()
-                assert "detail" in data
-                assert "Weekly menu generation feature not available" in data["detail"]
-
-            # Любой статус означает что код выполнился
-            assert response.status_code in [200, 503, 422, 400]
+            # Явно проверяем 503 недоступность с ожидаемым payload
+            assert response.status_code == 503
+            data = response.json()
+            assert "detail" in data
+            assert "Weekly menu generation feature not available" in data["detail"]
 
         finally:
             if "API_KEY" in os.environ:
@@ -263,8 +254,10 @@ class TestWeeklyPlanningBlocks:
                     },
                 )
 
-                # Ожидаем ошибочный статус (>=400); успешный 200 означает провал теста
-                assert response.status_code >= 400
+                # Expect error status when module import is mocked to fail
+                assert (
+                    response.status_code >= 400
+                ), f"Expected error status, got {response.status_code}"
 
             finally:
                 if "API_KEY" in os.environ:

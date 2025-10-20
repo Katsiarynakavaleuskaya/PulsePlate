@@ -6,12 +6,13 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
-import requests  # type: ignore
+import anyio
+from core.food_apis.http_config import HTTPClientConfig
 
 
-def call_premium_bmr_api(
+async def call_premium_bmr_api(
     weight_kg: float,
     height_cm: float,
     age: int,
@@ -55,10 +56,10 @@ def call_premium_bmr_api(
 
     headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
-
-    return response.json()  # type: ignore[no-any-return]
+    async with HTTPClientConfig.create_client_context(timeout=30.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        return cast(Dict[str, Any], resp.json())
 
 
 def main():
@@ -72,13 +73,15 @@ def main():
     print("-" * 40)
 
     try:
-        result = call_premium_bmr_api(
-            weight_kg=75,
-            height_cm=180,
-            age=30,
-            sex="male",
-            activity="active",
-            lang="en",
+        result = anyio.run(
+            lambda: call_premium_bmr_api(
+                weight_kg=75,
+                height_cm=180,
+                age=30,
+                sex="male",
+                activity="active",
+                lang="en",
+            )
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
@@ -98,14 +101,16 @@ def main():
     print("-" * 55)
 
     try:
-        result = call_premium_bmr_api(
-            weight_kg=60,
-            height_cm=165,
-            age=25,
-            sex="female",
-            activity="very_active",
-            bodyfat=18,  # Athletic female body fat
-            lang="en",
+        result = anyio.run(
+            lambda: call_premium_bmr_api(
+                weight_kg=60,
+                height_cm=165,
+                age=25,
+                sex="female",
+                activity="very_active",
+                bodyfat=18,  # Athletic female body fat
+                lang="en",
+            )
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
@@ -123,13 +128,15 @@ def main():
     print("-" * 30)
 
     try:
-        result = call_premium_bmr_api(
-            weight_kg=70,
-            height_cm=175,
-            age=35,
-            sex="male",
-            activity="moderate",
-            lang="ru",
+        result = anyio.run(
+            lambda: call_premium_bmr_api(
+                weight_kg=70,
+                height_cm=175,
+                age=35,
+                sex="male",
+                activity="moderate",
+                lang="ru",
+            )
         )
 
         print(f"Описание активности: {result['activity_description']}")
@@ -158,7 +165,7 @@ def main():
 
     for activity in activities:
         try:
-            result = call_premium_bmr_api(activity=activity, **base_params)
+            result = anyio.run(lambda a=activity: call_premium_bmr_api(activity=a, **base_params))
             tdee = result["tdee"]["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
         except Exception as e:

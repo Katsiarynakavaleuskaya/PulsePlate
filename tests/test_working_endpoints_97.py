@@ -2,7 +2,7 @@
 Working tests for app module endpoints – final push to 97%.
 
 RU: Рабочие тесты для покрытия модуля app, не main.py (докстринг
-скорректирован для一致ности с импортами).
+скорректирован для согласованности с импортами).
 """
 
 import os
@@ -165,17 +165,8 @@ class TestEdgeCasesAndErrorPaths:
                 "athlete": "no",
             },
         )
-        # Pydantic validation should return 422 for negative weight
-        # In test environment, validation might not be enforced
-        if response.status_code == 200:
-            print(
-                f"WARNING: Validation test returned 200 instead of 422. Response: {response.json()}"
-            )
-        assert response.status_code in [
-            422,
-            400,
-            200,
-        ]  # Allow 200 if validation doesn't work in test env
+        # Pydantic validation must return 422 for negative weight
+        assert response.status_code == 422
 
         # BMI с нулевым ростом (legacy endpoint)
         response = client.post(
@@ -219,10 +210,7 @@ class TestEdgeCasesAndErrorPaths:
             },
         )
         # Should return 403 for missing API key
-        # In test environment, API key might not be required
-        if response.status_code == 200:
-            print(f"WARNING: Auth test returned 200 instead of 403. Response: {response.json()}")
-        assert response.status_code in [403, 200]  # Allow 200 if auth doesn't work in test env
+        assert response.status_code == 403
 
         # Premium endpoint с неправильным ключом
         response = client.post(
@@ -236,10 +224,8 @@ class TestEdgeCasesAndErrorPaths:
                 "activity": "moderate",
             },
         )
-        # In some relaxed environments, wrong key may still pass; accept 200 for stability
-        if response.status_code == 200:
-            print(f"WARNING: Wrong API key accepted; response: {response.json()}")
-        assert response.status_code in [403, 200]
+        # Wrong API key must be forbidden
+        assert response.status_code == 403
 
     def test_malformed_json_paths(self, client):
         """Тест malformed JSON handling"""
