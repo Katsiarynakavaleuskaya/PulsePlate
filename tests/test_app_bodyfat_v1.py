@@ -14,8 +14,11 @@ Tests cover:
 from fastapi.testclient import TestClient
 
 import app as app_mod
+from fastapi import FastAPI
 
-client = TestClient(app_mod.app)  # type: ignore[arg-type]
+# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
+app_instance: FastAPI = app_mod.app  # type: ignore[assignment]
+client = TestClient(app_instance)
 
 
 class TestBodyfatv1API:
