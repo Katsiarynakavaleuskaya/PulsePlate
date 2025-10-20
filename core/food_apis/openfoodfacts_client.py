@@ -112,6 +112,14 @@ class OFFClient:
     def __init__(self) -> None:
         """
         Initialize Open Food Facts client.
+
+        Lifecycle:
+            The underlying async HTTP client must be explicitly closed by
+            the caller (use `await client.close()`), or use OFFClient as an
+            async context manager to ensure automatic cleanup:
+
+                async with OFFClient() as off:
+                    items = await off.search_products("apple")
         """
         # Underlying async HTTP client with centralized configuration
         self.client = HTTPClientConfig.create_client()
@@ -167,7 +175,7 @@ class OFFClient:
                 "search_simple": "1",
                 "action": "process",
                 "json": "1",
-                # Note: CGI search.pl endpoint ignores fields parameter, so we omit it
+                # Note: CGI In core/food_apis/openfoodfacts_client.py around lines 112 to 117, the __init__ docstring must document the HTTP client's lifecycle because HTTPClientConfig.create_client() requires explicit cleanup; update the __init__ docstring to add a brief lifecycle note that callers must call close() when finished (or prefer using the client as an async context manager), and implement async __aenter__ and __aexit__ methods on the class that return self and call await self.close() respectively so callers can use "async with" and avoid resource leaks.search.pl endpoint ignores fields parameter, so we omit it
             }
 
             response = await self.client.get(url, params=params)
@@ -229,6 +237,19 @@ class OFFClient:
 
         # Explicitly return None when product is not found
         return None
+
+    async def close(self) -> None:
+        """Close underlying HTTP client."""
+        try:
+            await self.client.aclose()
+        except Exception:
+            pass
+
+    async def __aenter__(self) -> "OFFClient":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.close()
 
     def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
         """
@@ -320,7 +341,3 @@ class OFFClient:
                 valid_results.append(result)
 
         return valid_results
-
-    async def close(self):
-        """Close the HTTP client."""
-        await self.client.aclose()

@@ -38,6 +38,9 @@ def _connect() -> sqlite3.Connection:
 def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     terms = expand_query(query) if query else []
     params: list = []
+    # Defensive bounds
+    limit = max(1, min(int(limit), 100))
+    offset = max(0, int(offset))
     if terms:
         sql = (
             """
@@ -89,7 +92,14 @@ def nutrients_for(ings: List[Dict]) -> Dict[str, float]:
         food = get_food(ing["food_id"])
         if not food:
             continue
-        ratio = float(ing["grams"]) / float(food.get("per_g", 100.0))
+        per_g_raw = food.get("per_g", 100.0)
+        try:
+            per_g = float(per_g_raw)
+        except (TypeError, ValueError):
+            per_g = 100.0
+        if per_g <= 0:
+            per_g = 100.0
+        ratio = float(ing["grams"]) / per_g
         for k in keys:
             total[k] += float(food.get(k, 0.0)) * ratio
     return total

@@ -62,7 +62,7 @@ async def call_premium_bmr_api(
         return cast(Dict[str, Any], resp.json())
 
 
-def main():
+async def main() -> None:
     """
     Example usage scenarios.
     """
@@ -73,15 +73,13 @@ def main():
     print("-" * 40)
 
     try:
-        result = anyio.run(
-            lambda: call_premium_bmr_api(
-                weight_kg=75,
-                height_cm=180,
-                age=30,
-                sex="male",
-                activity="active",
-                lang="en",
-            )
+        result = await call_premium_bmr_api(
+            weight_kg=75,
+            height_cm=180,
+            age=30,
+            sex="male",
+            activity="active",
+            lang="en",
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
@@ -101,16 +99,14 @@ def main():
     print("-" * 55)
 
     try:
-        result = anyio.run(
-            lambda: call_premium_bmr_api(
-                weight_kg=60,
-                height_cm=165,
-                age=25,
-                sex="female",
-                activity="very_active",
-                bodyfat=18,  # Athletic female body fat
-                lang="en",
-            )
+        result = await call_premium_bmr_api(
+            weight_kg=60,
+            height_cm=165,
+            age=25,
+            sex="female",
+            activity="very_active",
+            bodyfat=18,  # Athletic female body fat
+            lang="en",
         )
 
         print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
@@ -128,15 +124,13 @@ def main():
     print("-" * 30)
 
     try:
-        result = anyio.run(
-            lambda: call_premium_bmr_api(
-                weight_kg=70,
-                height_cm=175,
-                age=35,
-                sex="male",
-                activity="moderate",
-                lang="ru",
-            )
+        result = await call_premium_bmr_api(
+            weight_kg=70,
+            height_cm=175,
+            age=35,
+            sex="male",
+            activity="moderate",
+            lang="ru",
         )
 
         print(f"Описание активности: {result['activity_description']}")
@@ -165,7 +159,7 @@ def main():
 
     for activity in activities:
         try:
-            result = anyio.run(lambda a=activity: call_premium_bmr_api(activity=a, **base_params))
+            result = await call_premium_bmr_api(activity=activity, **base_params)
             tdee = result["tdee"]["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
         except Exception as e:
@@ -179,4 +173,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    anyio.run(main)

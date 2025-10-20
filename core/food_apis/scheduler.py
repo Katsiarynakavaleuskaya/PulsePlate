@@ -52,8 +52,9 @@ class DatabaseUpdateScheduler:
         self.last_update_check: Optional[datetime] = None
         self.retry_counts: Dict[str, int] = {}
 
-        # Background task
+        # Background tasks
         self._update_task: Optional[asyncio.Task] = None
+        self._stop_task: Optional[asyncio.Task] = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
@@ -69,7 +70,15 @@ class DatabaseUpdateScheduler:
             # In some test/client contexts there may be no running loop (sync thread)
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self.stop())
+                self._stop_task = loop.create_task(self.stop())
+                # Surface task exceptions to logs
+                self._stop_task.add_done_callback(
+                    lambda t: (
+                        logger.error("Async stop failed: %s", t.exception())
+                        if t.exception()
+                        else None
+                    )
+                )
             except RuntimeError:
                 # No running event loop; skip async stop (tests handle teardown separately)
                 logger.warning("No running event loop; skipping async stop in signal handler")
@@ -290,7 +299,11 @@ async def start_background_updates(update_interval_hours: int = 24):
     RU: Запускает фоновые обновления баз данных.
     EN: Start background database updates.
     """
-    scheduler = await get_update_scheduler()
+    # Recreate with requested interval if not yet created
+    global _scheduler_instance
+    if _scheduler_instance is None:
+        _scheduler_instance = DatabaseUpdateScheduler(update_interval_hours=update_interval_hours)
+    scheduler = _scheduler_instance
     if not scheduler.is_running:
         await scheduler.start()
         logger.info(f"Background database updates started (every {update_interval_hours}h)")

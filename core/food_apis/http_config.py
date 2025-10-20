@@ -51,7 +51,7 @@ class HTTPClientConfig:
             Configured httpx.AsyncClient instance
         """
         init_kwargs: Dict[str, Any] = {
-            "timeout": timeout or cls.DEFAULT_TIMEOUT,
+            "timeout": timeout if timeout is not None else cls.DEFAULT_TIMEOUT,
             **client_kwargs,
         }
         if limits is not None:

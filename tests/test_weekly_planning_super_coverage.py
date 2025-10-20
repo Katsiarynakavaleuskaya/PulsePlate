@@ -7,6 +7,7 @@
 """
 
 import os
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,7 +46,7 @@ class TestWeeklyPlanningBlocks:
             # Создать 7 дней меню
             for i in range(7):
                 day_menu = MagicMock()
-                day_menu.date = f"2025-01-0{i + 1}" if i < 9 else f"2025-01-{i + 1}"
+                day_menu.date = f"2025-01-{i + 1:02d}"
                 day_menu.meals = {
                     "breakfast": f"breakfast_{i + 1}",
                     "lunch": f"lunch_{i + 1}",
@@ -120,6 +121,9 @@ class TestWeeklyPlanningBlocks:
                     assert "total_days" in week_summary
                     assert "avg_daily_cost" in week_summary
 
+                    # Проверить формат week_start (ISO YYYY-MM-DD)
+                    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(week_summary["week_start"]))
+
                     # Проверить daily_menus структуру
                     daily_menus = data["daily_menus"]
                     assert len(daily_menus) == 7  # 7 дней
@@ -173,26 +177,34 @@ class TestWeeklyPlanningBlocks:
                 print(f"Alternative mock response: {response.status_code}")
 
                 if response.status_code == 200:
-                    # Verify the mock was used
+                    # Strictly verify expected schema and values from the mock
                     data = response.json()
-                    print(f"Response data: {data}")  # Debug output
-                    # Check if week_summary exists and has week_start
-                    if "week_summary" in data and "week_start" in data["week_summary"]:
-                        # API might return different format, check what we actually get
-                        actual_week_start = data["week_summary"]["week_start"]
-                        print(f"Actual week_start: {actual_week_start}")
-                        # Accept both formats for now
-                        assert actual_week_start in ["2025-01-01", "week_1"]
-                    else:
-                        # If structure is different, just verify the mock was called
-                        assert (
-                            "week_start" in str(data)
-                            or "2025-01-01" in str(data)
-                            or "week_1" in str(data)
-                        )
+                    assert set(
+                        ["week_summary", "daily_menus", "weekly_coverage", "shopping_list"]
+                    ).issubset(data.keys())
+
+                    week_summary = data["week_summary"]
+                    assert week_summary["week_start"] == "2025-01-01"
+                    assert week_summary["total_days"] == 7
+                    # avg_daily_cost is calculated in app; accept float close to 20.0
+                    assert isinstance(week_summary["avg_daily_cost"], (int, float))
+
+                    daily_menus = data["daily_menus"]
+                    assert isinstance(daily_menus, list) and len(daily_menus) == 7
+                    for idx, dm in enumerate(daily_menus, start=1):
+                        assert dm["date"] == f"2025-01-{idx:02d}"
+                        assert "meals" in dm
+                        # cost normalized to float in app; each from mock is 20.0
+                        assert dm["cost"] == 20.0
+
+                    shopping_list = data["shopping_list"]
+                    assert shopping_list.get("test") == "item"
+
+                    weekly_coverage = data["weekly_coverage"]
+                    assert weekly_coverage.get("protein") == 90
                 else:
-                    # Код выполнился - это главное!
-                    assert response.status_code in [503, 422, 400, 403]
+                    # Allow only explicit non-200 error statuses
+                    assert response.status_code in [503, 422, 400]
 
             finally:
                 if "API_KEY" in os.environ:

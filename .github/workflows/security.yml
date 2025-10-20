@@ -80,6 +80,10 @@ jobs:
         run: |
           # Run Safety using the new scan command and capture exit code
           safety scan --full-report -r requirements.txt > safety-report.txt 2>&1
+          if [ -f requirements-dev.txt ]; then
+            echo "\n=== Safety (dev) Report ===" >> safety-report.txt
+            safety scan --full-report -r requirements-dev.txt >> safety-report.txt 2>&1
+          fi
           safety_exit_code=$?
 
           # Display Safety report

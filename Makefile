@@ -60,20 +60,24 @@ test-fast: ## Run only last failed tests
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
-	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest -q && coverage report -m && coverage xml
-	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
+    @echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
+    # Note: using 'rm -f .coverage*' instead of 'coverage erase' to remove multiple
+    # parallel .coverage files created by CI shards/environments
+    . .venv/bin/activate && rm -f .coverage* && coverage run -m pytest -q && coverage report -m && coverage xml
+    @echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
 cov-check: ## Check coverage >= 97%
-	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage report --fail-under=97
-	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
+    @echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
+    # Note: explicit cleanup of all .coverage* files for consistent CI state
+    . .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage report --fail-under=97
+    @echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
-	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
-	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage html && open htmlcov/index.html
+    @echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
+    # Note: remove all coverage artifacts to avoid stale merges across runs
+    . .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage html && open htmlcov/index.html
 
 ## Lint (flake8)
 lint: ## Lint with flake8
