@@ -13,19 +13,13 @@ Tests cover:
 
 from fastapi.testclient import TestClient
 
-import app as app_mod
-from fastapi import FastAPI
-from typing import cast
-
-# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
-app_instance = cast(FastAPI, app_mod.app)
-client = TestClient(app_instance)
+import pytest
 
 
 class TestBodyfatv1API:
     """Test Bodyfat v1 API endpoint with comprehensive coverage"""
 
-    def test_bodyfat_v1_happy_female(self):
+    def test_bodyfat_v1_happy_female(self, test_client):
         """Test bodyfat v1 API for female with hip measurements"""
         payload = {
             "gender": "female",
@@ -36,14 +30,14 @@ class TestBodyfatv1API:
             "height_m": 1.65,
             "weight_kg": 60.0,
         }
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "methods" in data
         assert "median" in data
         assert isinstance(data["median"], (int, float, type(None)))
 
-    def test_bodyfat_v1_happy_male(self):
+    def test_bodyfat_v1_happy_male(self, test_client):
         """Test bodyfat v1 API for male (no hip measurement needed)"""
         payload = {
             "gender": "male",
@@ -53,20 +47,20 @@ class TestBodyfatv1API:
             "height_m": 1.75,
             "weight_kg": 75.0,
         }
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "methods" in data
         assert "median" in data
         assert isinstance(data["median"], (int, float, type(None)))
 
-    def test_bodyfat_v1_validation_missing_gender(self):
+    def test_bodyfat_v1_validation_missing_gender(self, test_client):
         """Test bodyfat v1 API validation - missing required gender field"""
         payload = {"age": 30, "waist_cm": 70.0, "neck_cm": 34.0, "height_m": 1.65}
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 422  # Validation error for missing required field
 
-    def test_bodyfat_v1_422_invalid_ranges(self):
+    def test_bodyfat_v1_422_invalid_ranges(self, test_client):
         """Test bodyfat v1 API validation - invalid value ranges"""
         bad_payloads = [
             {
@@ -94,14 +88,14 @@ class TestBodyfatv1API:
         ]
 
         for payload in bad_payloads:
-            response = client.post("/api/v1/bodyfat", json=payload)
+            response = test_client.post("/api/v1/bodyfat", json=payload)
             # API returns 422 for invalid data due to validation
             assert response.status_code == 422
 
-    def test_bodyfat_v1_invalid_gender_fallback(self):
+    def test_bodyfat_v1_invalid_gender_fallback(self, test_client):
         """Test bodyfat v1 API with invalid gender - should have fallback behavior"""
         payload = {"gender": "invalid", "age": 30, "waist_cm": 70, "neck_cm": 34, "height_m": 1.65}
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         # Based on main.py logic, this should work with fallback
         # The actual response depends on the bodyfat router implementation
         assert response.status_code in [
@@ -109,7 +103,7 @@ class TestBodyfatv1API:
             422,
         ]  # Accept either valid response or validation error
 
-    def test_bodyfat_v1_edge_case_measurements(self):
+    def test_bodyfat_v1_edge_case_measurements(self, test_client):
         """Test bodyfat v1 API with edge case but valid measurements"""
         payload = {
             "gender": "female",
@@ -120,12 +114,12 @@ class TestBodyfatv1API:
             "height_m": 1.50,  # Short but valid
             "weight_kg": 50.0,  # For YMCA method
         }
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "methods" in data
 
-    def test_bodyfat_v1_older_adult(self):
+    def test_bodyfat_v1_older_adult(self, test_client):
         """Test bodyfat v1 API for older adult (age-specific considerations)"""
         payload = {
             "gender": "male",
@@ -135,7 +129,7 @@ class TestBodyfatv1API:
             "height_m": 1.70,
             "weight_kg": 80.0,  # For YMCA method
         }
-        response = client.post("/api/v1/bodyfat", json=payload)
+        response = test_client.post("/api/v1/bodyfat", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "methods" in data
