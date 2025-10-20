@@ -270,7 +270,8 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                             else "API key required"
                         )
                         _log_api_key_event(
-                            f"VIP endpoint accessed without API key in {'production' if is_production else 'development'} mode.",
+                            f"VIP endpoint accessed without API key in "
+                            f"{'production' if is_production else 'development'} mode.",
                             is_production,
                             app_env,
                         )
@@ -280,7 +281,8 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     else:
                         # Anonymous access is explicitly allowed (non-production only)
                         _log_api_key_event(
-                            "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                            "VIP endpoint accessed with anonymous API key. "
+                            "ALLOW_ANONYMOUS_API_KEYS: true",
                             is_production,
                             app_env,
                         )
@@ -441,7 +443,10 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
     }
 
     if func_name not in adapters:
-        error_msg = f"No adapter found for function '{func_name}'. Available adapters: {list(adapters.keys())}"
+        error_msg = (
+            f"No adapter found for function '{func_name}'. "
+            f"Available adapters: {list(adapters.keys())}"
+        )
         logging.error(error_msg)
         return {"status": "error", "message": error_msg}
 
@@ -566,7 +571,10 @@ def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header
     "/weekly-plan",
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="Generate weekly meal plan",
-    description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
+    description=(
+        "Create a personalized weekly meal plan based on user profile data "
+        "including age, height, weight, activity level, and nutrition goals."
+    ),
     dependencies=[Depends(_require_api_key_dev_legacy)],
 )
 async def weekly_menu_plan_alias(
@@ -1256,7 +1264,9 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "status": "success",
             "repair_result": result_data,
-            "message": f"Auto-repair completed with status: {result_data.get('status', 'repaired')}",
+            "message": (
+                f"Auto-repair completed with status: " f"{result_data.get('status', 'repaired')}"
+            ),
             "echo": request,
         }
     except Exception as exc:

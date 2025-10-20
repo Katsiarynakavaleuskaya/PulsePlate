@@ -209,7 +209,8 @@ class WeeklyPlanRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_required_fields(self):
-        """Validate that either all core fields are present OR at least one alternative field is provided."""
+        """Validate that either all core fields are present OR at least one
+        alternative field is provided."""
         # Core required fields
         core_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]
         # Alternative fields
@@ -224,7 +225,8 @@ class WeeklyPlanRequest(BaseModel):
         if not core_present and not alt_present:
             raise ValueError(
                 "Either all core fields (sex, age, height_cm, weight_kg, activity, goal) "
-                "must be provided, or at least one alternative field (calories or protein) must be provided."
+                "must be provided, or at least one alternative field (calories or protein) "
+                "must be provided."
             )
 
         return self

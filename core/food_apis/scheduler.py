@@ -319,9 +319,10 @@ async def start_background_updates(update_interval_hours: int = 24):
     if _scheduler_instance is None:
         _scheduler_instance = DatabaseUpdateScheduler(update_interval_hours=update_interval_hours)
     elif _scheduler_instance.update_interval.total_seconds() / 3600 != update_interval_hours:
+        current_interval = _scheduler_instance.update_interval.total_seconds() / 3600
         logger.warning(
             f"Ignoring new update interval ({update_interval_hours}h). "
-            f"Scheduler already running with {_scheduler_instance.update_interval.total_seconds() / 3600}h interval."
+            f"Scheduler already running with {current_interval}h interval."
         )
     scheduler = _scheduler_instance
     if not scheduler.is_running:

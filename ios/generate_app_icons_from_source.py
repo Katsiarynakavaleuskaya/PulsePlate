@@ -93,6 +93,12 @@ def main():
 
     # Проверяем наличие PIL
     try:
+        import importlib.util
+
+        if importlib.util.find_spec("PIL") is None:
+            print("❌ Требуется библиотека Pillow:")
+            print("pip install Pillow")
+            sys.exit(1)
         from PIL import Image
     except ImportError:
         print("❌ Требуется библиотека Pillow:")

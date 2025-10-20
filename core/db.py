@@ -213,7 +213,8 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
     if AsyncSessionLocal is None:
         if create_async_engine is None:
             raise ImportError(
-                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+                "SQLAlchemy async extras are not available. "
+                "Install with 'pip install sqlalchemy[asyncio]'"
             )
         raise RuntimeError(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."

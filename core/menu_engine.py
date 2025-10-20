@@ -16,9 +16,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-_logger = logging.getLogger(__name__)
-
-
 from .food_apis.unified_db import get_unified_food_db
 from .plate import make_plate
 from .recommendations import (
@@ -27,6 +24,8 @@ from .recommendations import (
     score_nutrient_coverage,
 )
 from .targets import MicronutrientTargets, NutritionTargets, UserProfile
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass

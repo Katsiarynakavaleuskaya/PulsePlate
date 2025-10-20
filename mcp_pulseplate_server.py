@@ -28,7 +28,9 @@ class PulsePlateMCPServer:
         """Load project context for better ChatGPT responses"""
         return {
             "project_name": "PulsePlate",
-            "description": "Health and nutrition tracking app with FastAPI backend and iOS SwiftUI frontend",
+            "description": (
+                "Health and nutrition tracking app with FastAPI backend " "and iOS SwiftUI frontend"
+            ),
             "tech_stack": {
                 "backend": "FastAPI, Python, SQLite",
                 "frontend": "SwiftUI, iOS, HealthKit, StoreKit",
@@ -152,7 +154,10 @@ Please provide a helpful response considering the PulsePlate project context.
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an AI assistant helping with the PulsePlate health and nutrition tracking app development.",
+                        "content": (
+                            "You are an AI assistant helping with the PulsePlate "
+                            "health and nutrition tracking app development."
+                        ),
                     },
                     {"role": "user", "content": prompt},
                 ],

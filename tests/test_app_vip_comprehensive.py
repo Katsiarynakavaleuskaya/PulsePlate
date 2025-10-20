@@ -88,6 +88,26 @@ class TestVIPWeeklyMenu:
         # Accept both validation errors and graceful fallbacks
         assert response.status_code in [422, 200, 404]
 
+    def test_weekly_plan_403_forbidden(self, client):
+        """Test VIP weekly plan with missing or invalid API key - dedicated 403 test"""
+        data = {"weight": 70.0, "height": 175.0, "age": 30, "gender": "male"}
+        response = client.post("/api/v1/vip/weekly-plan", json=data)
+
+        if response.status_code == 404:
+            # VIP module disabled
+            pass
+        elif response.status_code == 403:
+            # VIP module enabled but no API key
+            response_data = response.json()
+            assert "detail" in response_data
+            detail = response_data["detail"].lower()
+            assert any(
+                keyword in detail
+                for keyword in ["api key", "authentication", "credentials", "forbidden"]
+            )
+        else:
+            pytest.fail(f"Unexpected status code: {response.status_code}, expected 403 or 404")
+
     def test_weekly_menu_repair(self, client, auth_headers):
         """Test VIP weekly menu auto-repair functionality"""
         data = {

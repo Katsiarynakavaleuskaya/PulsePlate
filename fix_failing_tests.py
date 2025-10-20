@@ -128,7 +128,10 @@ def fix_test_file(file_path: str) -> bool:
 def main() -> None:
     """Main function with CLI argument parsing"""
     parser = argparse.ArgumentParser(
-        description="Fix failing tests by mapping non-existent FastAPI method checks to actual FastAPI methods"
+        description=(
+            "Fix failing tests by mapping non-existent FastAPI method checks "
+            "to actual FastAPI methods"
+        )
     )
     _ = parser.add_argument(
         "--file-path",

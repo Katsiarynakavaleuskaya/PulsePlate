@@ -46,6 +46,11 @@ def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> 
 def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
     try:
+        import importlib.util
+
+        if importlib.util.find_spec("PIL") is None:
+            print("❌ Требуется библиотека Pillow: pip install Pillow")
+            return False
         from PIL import Image
     except ImportError:
         print("❌ Требуется библиотека Pillow: pip install Pillow")

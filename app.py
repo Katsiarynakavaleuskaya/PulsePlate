@@ -2919,4 +2919,4 @@ if get_bodyfat_router is not None:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Premium Week router already included above at line 306 with dependencies
+# Premium Week router already included above at line 308 with protected_dependency

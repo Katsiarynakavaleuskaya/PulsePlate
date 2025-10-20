@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flake8: noqa: W503,W504
+# ruff: noqa: E501
 """
 RU: Hypothesis тесты для расширенной базы данных рецептов.
 EN: Hypothesis tests for expanded recipes database.
