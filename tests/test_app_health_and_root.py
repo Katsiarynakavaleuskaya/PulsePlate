@@ -10,9 +10,13 @@ These are "easy coverage" tests that cover basic monitoring endpoints.
 
 from fastapi.testclient import TestClient
 
-import app as app_mod  # type: ignore
+import app as app_mod
+from fastapi import FastAPI
+from typing import cast
 
-client = TestClient(app_mod.app)
+# Properly type the app instance - cast to FastAPI since we know it's a FastAPI app
+app_instance = cast(FastAPI, app_mod.app)
+client = TestClient(app_instance)
 
 
 class TestHealthAndMonitoringEndpoints:
