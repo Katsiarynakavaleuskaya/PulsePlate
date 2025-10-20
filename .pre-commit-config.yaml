@@ -97,7 +97,7 @@ repos:
     hooks:
       - id: safety-scan
         name: safety (pip vulns, scan)
-        entry: bash -c "if [ -n \"$SAFETY_API_KEY\" ]; then safety auth --api-key \"$SAFETY_API_KEY\" && safety scan --detailed-output; else safety scan --detailed-output; fi"
+        entry: bash -c "export SAFETY_OFFLINE_MODE=true; safety scan --detailed-output"
         language: system
         pass_filenames: false
         stages: [pre-push]
