@@ -231,8 +231,7 @@ class WeeklyPlanRequest(BaseModel):
 
         return self
 
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = {"extra": "allow"}  # Allow additional fields for flexibility
 
 
 class WeeklyPlanResponse(BaseModel):

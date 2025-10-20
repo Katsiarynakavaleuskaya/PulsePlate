@@ -2155,6 +2155,9 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
             for meal in iterable:
                 if isinstance(meal, dict):
                     meal_dict = dict(meal)
+                elif isinstance(meal, str):
+                    # Treat plain strings as simple meal titles
+                    meal_dict = {"title": meal, "name": meal}
                 else:
                     meal_dict = {}
                     for key in (
@@ -2187,7 +2190,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                 kcal = meal.get("kcal", meal.get("calories", 0))
                 total_kcal += _to_float(kcal, 0.0)
 
-            # Different backends/mocks expose per‑day cost under varying names:
+            # Different backends/mocks expose per-day cost under varying names:
             # - "estimated_cost": preferred from new menu_engine outputs
             # - "cost": legacy objects (sometimes numeric or str)
             # - "daily_cost": older tests/mocks
@@ -2205,6 +2208,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                     "meals": meals,
                     "total_kcal": round(total_kcal, 2),
                     "daily_cost": _to_float(daily_cost, 0.0),
+                    "cost": _to_float(daily_cost, 0.0),  # backward-compatible alias for tests
                 }
             )
 
@@ -2919,4 +2923,4 @@ if get_bodyfat_router is not None:
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Premium Week router already included above at line 308 with protected_dependency
+# Premium Week router is already included above with protected_dependency

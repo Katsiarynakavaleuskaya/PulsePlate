@@ -71,13 +71,13 @@ jobs:
           export SAFETY_OFFLINE_MODE=true
 
           # First run: Generate full report (always succeeds for artifact)
-          safety scan --full-report -r requirements.txt > safety-report.txt 2>&1 || true
+          safety scan --detailed-output > safety-report.txt 2>&1 || true
           if [ -f requirements-dev.txt ]; then
             {
               echo ""
               echo "=== Safety (dev) Report ==="
             } >> safety-report.txt
-            safety scan --full-report -r requirements-dev.txt >> safety-report.txt 2>&1 || true
+            safety scan --detailed-output >> safety-report.txt 2>&1 || true
           fi
 
           # Display Safety report
@@ -87,11 +87,9 @@ jobs:
           fi
 
           # Second run: Fail only on high/critical vulnerabilities
+          # Note: Safety 3.6.2 uses policy file for severity filtering, not CLI flags
           safety_exit_code=0
-          safety scan -r requirements.txt --severity high || safety_exit_code=$?
-          if [ -f requirements-dev.txt ]; then
-            safety scan -r requirements-dev.txt --severity high || safety_exit_code=$?
-          fi
+          safety scan || safety_exit_code=$?
 
           # Analyze Safety exit code
           case "$safety_exit_code" in

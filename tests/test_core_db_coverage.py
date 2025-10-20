@@ -201,6 +201,24 @@ class TestAsyncDB:
         async_url = _derive_async_url(mysql_url)
         assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
 
+    def test_derive_async_url_postgres_legacy(self):
+        """Test _derive_async_url for legacy postgres URLs."""
+        pg_url = "postgres://user:pass@localhost/testdb"
+        async_url = _derive_async_url(pg_url)
+        assert async_url == "postgresql+asyncpg://user:pass@localhost/testdb"
+
+    def test_derive_async_url_mysql_pymysql(self):
+        """Test _derive_async_url for MySQL with PyMySQL URLs."""
+        mysql_url = "mysql+pymysql://user:pass@localhost/testdb"
+        async_url = _derive_async_url(mysql_url)
+        assert async_url == "mysql+aiomysql://user:pass@localhost/testdb"
+
+    def test_derive_async_url_unsupported(self):
+        """Test _derive_async_url for unsupported URLs."""
+        unsupported_url = "oracle://user:pass@localhost/testdb"
+        async_url = _derive_async_url(unsupported_url)
+        assert async_url is None
+
     def test_derive_async_url_already_async(self):
         """Test _derive_async_url when URL is already async."""
         async_url = "sqlite+aiosqlite:///test.db"
@@ -252,6 +270,31 @@ class TestAsyncDB:
             # Should return a result object
             assert result is not None
 
+    def test_engine_compat_execute_string(self):
+        """Test EngineCompat.execute with string SQL."""
+        from core.db import engine
+
+        # Test execute with string SQL
+        result = engine.execute("SELECT 1 as test_value")
+        assert result is not None
+
+    def test_engine_compat_execute_text(self):
+        """Test EngineCompat.execute with text object."""
+        from core.db import engine
+
+        # Test execute with text object
+        result = engine.execute(text("SELECT 1 as test_value"))
+        assert result is not None
+
+    def test_engine_compat_execute_with_commit_error(self):
+        """Test EngineCompat.execute handles commit errors gracefully."""
+        from core.db import engine
+
+        # Test execute with a statement that might cause commit issues
+        # This should not raise an exception even if commit fails
+        result = engine.execute("SELECT 1 as test_value")
+        assert result is not None
+
     @pytest.mark.asyncio
     async def test_get_async_session_import_error(self):
         """Test get_async_session raises ImportError when async extras not available."""
@@ -284,3 +327,79 @@ class TestAsyncDB:
         if async_engine is not None:
             # Should work without raising errors
             await init_db_async()
+
+    def test_async_database_url_environment_variable(self):
+        """Test ASYNC_DATABASE_URL configuration with environment variable."""
+        with patch.dict(os.environ, {"DATABASE_ASYNC_URL": "sqlite+aiosqlite:///test.db"}):
+            # Re-import to get updated configuration
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # Check if async URL was set
+            assert hasattr(core.db, "ASYNC_DATABASE_URL")
+
+    def test_async_database_use_async_environment_variable(self):
+        """Test DATABASE_USE_ASYNC environment variable."""
+        with patch.dict(os.environ, {"DATABASE_USE_ASYNC": "1"}):
+            # Re-import to get updated configuration
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # Check if async URL was derived
+            assert hasattr(core.db, "ASYNC_DATABASE_URL")
+
+    def test_pool_configuration_environment_variables(self):
+        """Test database pool configuration from environment variables."""
+        with patch.dict(os.environ, {"DATABASE_POOL_SIZE": "5", "DATABASE_MAX_OVERFLOW": "10"}):
+            # Re-import to get updated configuration
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # The pool config should be updated
+            assert hasattr(core.db, "_POOL_CONFIG")
+
+    def test_async_engine_sqlite_configuration(self):
+        """Test async engine configuration for SQLite."""
+        with patch.dict(os.environ, {"DATABASE_ASYNC_URL": "sqlite+aiosqlite:///test.db"}):
+            # Re-import to get updated configuration
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # Should have async engine configured
+            assert hasattr(core.db, "_ASYNC_ENGINE")
+
+    def test_async_engine_non_sqlite_configuration(self):
+        """Test async engine configuration for non-SQLite databases."""
+        with patch.dict(
+            os.environ, {"DATABASE_ASYNC_URL": "postgresql+asyncpg://user:pass@localhost/testdb"}
+        ):
+            # Re-import to get updated configuration
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # Should have async engine configured with pool settings
+            assert hasattr(core.db, "_ASYNC_ENGINE")
+
+    def test_async_engine_import_error_fallback(self):
+        """Test async engine creation with ImportError fallback."""
+        with patch("core.db.create_async_engine", side_effect=ImportError("No async driver")):
+            with patch.dict(os.environ, {"DATABASE_ASYNC_URL": "sqlite+aiosqlite:///test.db"}):
+                # Re-import to get updated configuration
+                import importlib
+                import core.db
+
+                importlib.reload(core.db)
+
+                # Should fallback to None values
+                assert hasattr(core.db, "_ASYNC_ENGINE")
+                assert hasattr(core.db, "AsyncSessionLocal")

@@ -23,6 +23,93 @@ class TestOFFClient:
         """Clean up test environment."""
         pass
 
+    def test_off_food_item_vegetarian_tag(self):
+        """Test OFFFoodItem vegetarian tag generation."""
+        # Create a sample OFFFoodItem with vegetarian labels
+        item = OFFFoodItem(
+            code="123456789",
+            product_name="Vegetarian Pasta",
+            categories=["vegetarian", "pasta"],
+            nutrients_per_100g={"energy-kcal_100g": 350},
+            ingredients_text="pasta, tomato sauce",
+            brands="Test Brand",
+            labels=["vegetarian"],
+            countries=["US"],
+            packaging=["box"],
+            image_url="https://example.com/image.jpg",
+            last_modified_t=1234567890,
+        )
+
+        # Check that VEG tag is generated
+        tags = item._generate_tags()
+        assert "VEG" in tags
+
+    @pytest.mark.asyncio
+    async def test_check_v2_org_health_success(self):
+        """Test check_v2_org_health method with successful response."""
+        with patch.object(self.client.client, "get") as mock_get:
+            # Mock successful response
+            mock_response = AsyncMock()
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = await self.client.check_v2_org_health()
+            assert result is True
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_check_v2_org_health_failure(self):
+        """Test check_v2_org_health method with failed response."""
+        with patch.object(self.client.client, "get") as mock_get:
+            # Mock failed response
+            mock_get.side_effect = Exception("Network error")
+
+            result = await self.client.check_v2_org_health()
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_get_multiple_products_error_handling(self):
+        """Test get_multiple_products error handling for line 360."""
+        with patch.object(self.client, "get_product_details") as mock_get_details:
+            # Mock one successful and one failed request
+            mock_get_details.side_effect = [
+                OFFFoodItem(
+                    code="123456789",
+                    product_name="Test Product",
+                    categories=["test"],
+                    nutrients_per_100g={"energy-kcal_100g": 100},
+                    ingredients_text="test ingredients",
+                    brands="Test Brand",
+                    labels=[],
+                    countries=["US"],
+                    packaging=["box"],
+                    image_url="https://example.com/image.jpg",
+                    last_modified_t=1234567890,
+                ),
+                Exception("Network error"),  # This should trigger line 360
+            ]
+
+            # Test with multiple product codes
+            result = await self.client.get_multiple_products(["123456789", "987654321"])
+
+            # Should return only the successful result
+            assert len(result) == 1
+            assert result[0].code == "123456789"
+
+    @pytest.mark.asyncio
+    async def test_close_with_exception(self):
+        """Test close method with exception handling."""
+        with patch.object(self.client.client, "aclose", side_effect=Exception("Close error")):
+            # Should not raise exception, just log it
+            await self.client.close()
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        """Test async context manager functionality."""
+        async with OFFClient() as client:
+            assert isinstance(client, OFFClient)
+            # Context manager should work without errors
+
     def test_off_food_item_creation(self):
         """Test OFFFoodItem creation and tag generation."""
         # Create a sample OFFFoodItem

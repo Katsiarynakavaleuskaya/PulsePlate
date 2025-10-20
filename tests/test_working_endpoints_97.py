@@ -2,7 +2,7 @@
 Working tests for app module endpoints – final push to 97%.
 
 RU: Рабочие тесты для покрытия модуля app, не main.py (докстринг
-скорректирован для согласованности с импортами).
+скорректирован для согласованности c импортами).
 """
 
 import os
@@ -18,7 +18,7 @@ class TestWorkingEndpointCoverage:
     """Рабочие тесты для эндпоинтов с правильными данными"""
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         from app import app
 
         return TestClient(cast(ASGIApp, app))
@@ -158,7 +158,7 @@ class TestEdgeCasesAndErrorPaths:
     """Тест edge cases и error paths"""
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         from app import app
 
         return TestClient(cast(ASGIApp, app))
@@ -210,34 +210,47 @@ class TestEdgeCasesAndErrorPaths:
 
     def test_auth_error_paths(self, client):
         """Тест authentication error paths"""
-        # Premium endpoint без ключа
-        response = client.post(
-            "/api/v1/premium/bmr",
-            json={
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-            },
-        )
-        # Should return 403 for missing API key
-        assert response.status_code == 403
+        # Set a valid API key to test authentication
+        import os
 
-        # Premium endpoint с неправильным ключом
-        response = client.post(
-            "/api/v1/premium/bmr",
-            headers={"X-API-Key": "wrong_key"},
-            json={
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-            },
-        )
-        # Wrong API key must be forbidden
-        assert response.status_code == 403
+        original_api_key = os.environ.get("API_KEY")
+        os.environ["API_KEY"] = "test_key"
+
+        try:
+            # Premium endpoint без ключа
+            response = client.post(
+                "/api/v1/premium/bmr",
+                json={
+                    "weight_kg": 70.0,
+                    "height_cm": 175.0,
+                    "age": 30,
+                    "sex": "male",
+                    "activity": "moderate",
+                },
+            )
+            # Should return 403 for missing API key
+            assert response.status_code == 403
+
+            # Premium endpoint с неправильным ключом
+            response = client.post(
+                "/api/v1/premium/bmr",
+                headers={"X-API-Key": "wrong_key"},
+                json={
+                    "weight_kg": 70.0,
+                    "height_cm": 175.0,
+                    "age": 30,
+                    "sex": "male",
+                    "activity": "moderate",
+                },
+            )
+            # Wrong API key should be forbidden
+            assert response.status_code == 403
+        finally:
+            # Restore original API key
+            if original_api_key is not None:
+                os.environ["API_KEY"] = original_api_key
+            elif "API_KEY" in os.environ:
+                del os.environ["API_KEY"]
 
     def test_malformed_json_paths(self, client):
         """Тест malformed JSON handling"""
@@ -250,22 +263,29 @@ class TestEdgeCasesAndErrorPaths:
         response = client.post("/bmi", json={})
         assert response.status_code == 422
 
-    def test_insight_endpoints_feature_on(self, client, monkeypatch: "pytest.MonkeyPatch"):
+    def test_insight_endpoints_feature_on(self, client, monkeypatch: pytest.MonkeyPatch):
         """Insight endpoints enabled: expect 200."""
-        monkeypatch.setenv("FEATURE_INSIGHTS", "true")
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("LLM_PROVIDER", "stub")  # Ensure LLM is available
         response = client.post("/insight", json={"text": "I feel tired"})
         assert response.status_code == 200
 
-        response = client.post("/api/v1/insight", json={"text": "I feel tired"})
+        # /api/v1/insight requires API key
+        response = client.post(
+            "/api/v1/insight", json={"text": "I feel tired"}, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 200
 
-    def test_insight_endpoints_feature_off(self, client, monkeypatch: "pytest.MonkeyPatch"):
+    def test_insight_endpoints_feature_off(self, client, monkeypatch: pytest.MonkeyPatch):
         """Insight endpoints disabled: expect 503."""
-        monkeypatch.setenv("FEATURE_INSIGHTS", "false")
+        monkeypatch.setenv("FEATURE_INSIGHT", "false")
         response = client.post("/insight", json={"text": "I feel tired"})
         assert response.status_code == 503
 
-        response = client.post("/api/v1/insight", json={"text": "I feel tired"})
+        # /api/v1/insight requires API key, but feature is disabled so should return 503
+        response = client.post(
+            "/api/v1/insight", json={"text": "I feel tired"}, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code == 503
 
 
@@ -273,7 +293,7 @@ class TestSpecialGroups:
     """Тестирование special groups для BMI"""
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         from app import app
 
         return TestClient(cast(ASGIApp, app))
@@ -328,7 +348,7 @@ class TestComprehensiveParameterCombinations:
     """Тест различных комбинаций параметров"""
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         from app import app
 
         return TestClient(cast(ASGIApp, app))

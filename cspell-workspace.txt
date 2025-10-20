@@ -3937,6 +3937,7 @@ jspdf
 katch
 Katch
 katsiarynakavaleuskaya
+keepalive
 keyerror
 keyval
 kwargs
@@ -4174,6 +4175,7 @@ Sarcopenia
 savefig
 sched
 Sched
+schedmod
 Sedentario
 semanal
 serv

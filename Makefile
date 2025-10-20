@@ -258,4 +258,7 @@ docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean clean-coverage clean-backups clean-tests check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full
+## Default aggregate target
+all: check-all
+
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean clean-coverage clean-backups clean-tests check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full

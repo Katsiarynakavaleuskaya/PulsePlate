@@ -76,7 +76,7 @@ class DatabaseUpdateScheduler:
                     self._stop_task.add_done_callback(
                         lambda t: (
                             logger.error("Async stop failed: %s", exc)
-                            if (exc := t.exception())
+                            if not t.cancelled() and (exc := t.exception())
                             else None
                         )
                     )

@@ -150,3 +150,72 @@ class TestRebindingModuleSpec:
         # In normal case, spec should not be None
         if app_spec is not None:
             assert app_spec.name == "app"
+
+    def test_app_module_fallback_when_spec_is_none(self):
+        """Test fallback behavior when spec creation fails."""
+        import importlib.util
+        from unittest.mock import patch
+
+        # Mock spec_from_file_location to return None (simulating failure)
+        with patch.object(importlib.util, "spec_from_file_location", return_value=None):
+            # Re-import app module to trigger fallback path
+            import importlib
+            import app
+
+            importlib.reload(app)
+
+            # In fallback case, these should be None
+            assert app.app is None
+            assert app.get_api_key is None
+            assert app.get_update_scheduler is None
+            assert app.HTTPException is None
+            assert app.admin_status is None
+            assert app.add_visualization_if_requested is None
+            assert app.to_pdf_day is None
+            assert app.export_pdf_generic is None
+            assert app.make_weekly_menu is None
+            assert app._mod is None
+
+    def test_app_module_fallback_when_spec_loader_is_none(self):
+        """Test fallback behavior when spec.loader is None."""
+        import importlib.util
+        from unittest.mock import patch
+
+        # Create a mock spec with None loader
+        mock_spec = type("MockSpec", (), {"loader": None, "name": "app_module"})()
+
+        # Mock spec_from_file_location to return spec with None loader
+        with patch.object(importlib.util, "spec_from_file_location", return_value=mock_spec):
+            # Re-import app module to trigger fallback path
+            import importlib
+            import app
+
+            importlib.reload(app)
+
+            # In fallback case, these should be None
+            assert app.app is None
+            assert app.get_api_key is None
+            assert app.get_update_scheduler is None
+            assert app.HTTPException is None
+            assert app.admin_status is None
+            assert app.add_visualization_if_requested is None
+            assert app.to_pdf_day is None
+            assert app.export_pdf_generic is None
+            assert app.make_weekly_menu is None
+            assert app._mod is None
+
+    def test_app_module_spec_fallback_when_spec_is_none(self):
+        """Test __spec__ fallback when _spec is None."""
+        import importlib.util
+        from unittest.mock import patch
+
+        # Mock spec_from_loader to return None
+        with patch.object(importlib.util, "spec_from_loader", return_value=None):
+            # Re-import app module to trigger fallback path
+            import importlib
+            import app
+
+            importlib.reload(app)
+
+            # In fallback case, __spec__ should be None
+            assert app.__spec__ is None

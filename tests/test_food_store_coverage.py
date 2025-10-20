@@ -28,6 +28,38 @@ class TestFoodStoreCoverage:
         result = expand_query(None)
         assert result == []
 
+    def test_search_foods_invalid_limit(self):
+        """Тест search_foods с невалидным limit (строка 44-45)"""
+        # Test with invalid limit that should trigger exception handling
+        result = search_foods("test", limit="invalid")
+        assert isinstance(result, list)
+
+    def test_search_foods_invalid_offset(self):
+        """Тест search_foods с невалидным offset (строка 48-49)"""
+        # Test with invalid offset that should trigger exception handling
+        result = search_foods("test", offset="invalid")
+        assert isinstance(result, list)
+
+    def test_nutrients_for_invalid_per_g(self):
+        """Тест nutrients_for с невалидным per_g (строка 104-105)"""
+        # Mock get_food to return food with invalid per_g
+        with patch("app.services.food_store.get_food") as mock_get_food:
+            mock_get_food.return_value = {"per_g": "invalid", "kcal": 100, "protein_g": 10}
+            ingredients = [{"food_id": 1, "grams": 100}]
+
+            result = nutrients_for(ingredients)
+            assert isinstance(result, dict)
+
+    def test_nutrients_for_invalid_grams(self):
+        """Тест nutrients_for с невалидным grams (строка 111-112)"""
+        # Mock get_food to return valid food
+        with patch("app.services.food_store.get_food") as mock_get_food:
+            mock_get_food.return_value = {"per_g": 100, "kcal": 100, "protein_g": 10}
+            ingredients = [{"food_id": 1, "grams": "invalid"}]
+
+            result = nutrients_for(ingredients)
+            assert isinstance(result, dict)
+
     def test_expand_query_whitespace(self):
         """Тест expand_query с пробелами"""
         result = expand_query("   ")
@@ -345,3 +377,21 @@ class TestFoodStoreCoverage:
         assert result["Mg_mg"] == 0.0
         # А присутствующие нутриенты должны быть учтены
         assert result["Fe_mg"] == 1.0
+
+    def test_nutrients_for_negative_per_g(self):
+        """Тест nutrients_for с отрицательным per_g (строка 107)"""
+        with patch("app.services.food_store.get_food") as mock_get_food:
+            mock_get_food.return_value = {"per_g": -50, "kcal": 100, "protein_g": 10}
+            ingredients = [{"food_id": 1, "grams": 100}]
+
+            result = nutrients_for(ingredients)
+            assert isinstance(result, dict)
+
+    def test_nutrients_for_negative_grams(self):
+        """Тест nutrients_for с отрицательным grams (строка 114)"""
+        with patch("app.services.food_store.get_food") as mock_get_food:
+            mock_get_food.return_value = {"per_g": 100, "kcal": 100, "protein_g": 10}
+            ingredients = [{"food_id": 1, "grams": -50}]
+
+            result = nutrients_for(ingredients)
+            assert isinstance(result, dict)

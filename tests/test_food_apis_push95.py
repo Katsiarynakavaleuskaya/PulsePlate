@@ -232,9 +232,16 @@ def test_scheduler_remaining_edges():
     class _Sched2:
         def __init__(self):
             self.is_running = True
+            from datetime import timedelta
+
+            self.update_interval = timedelta(hours=24)  # Default interval
 
         async def stop(self):
             self.is_running = False
+
+        async def wait_for_shutdown(self):
+            # Mock implementation for test
+            pass
 
     sched_mod._scheduler_instance = _Sched2()  # type: ignore[attr-defined]
     loop.run_until_complete(stop_background_updates())
