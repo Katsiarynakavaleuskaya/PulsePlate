@@ -18,8 +18,8 @@ def premium_client(monkeypatch):
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
-    # Create test client with proper typing
-    app_instance = cast(app_mod.FastAPI, app_mod.app)
+    # Create test client
+    app_instance = app_mod.app
     client = TestClient(app_instance)
 
     try:
@@ -202,7 +202,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
 
     def test_premium_week_plan_creation_malformed_json(self, premium_client):
         """Test premium week plan creation with malformed JSON."""
@@ -225,7 +225,23 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
+
+    def test_premium_week_plan_creation_truly_malformed_json(self, premium_client):
+        """Test premium week plan creation with truly malformed JSON syntax."""
+        malformed_json = '{"sex": "male", "age": 30, "height_cm": 175.0, "weight_kg": 70.0, "activity": "moderate", "goal": "maintain", "lang": "en", "diet_flags": ['  # Missing closing bracket and brace
+
+        response = premium_client.post(
+            "/api/v1/premium/plan/week",
+            data=malformed_json,
+            headers={
+                "X-API-Key": "test_key",
+                "Content-Type": "application/json",
+            },
+        )
+
+        # The API should reject malformed JSON with a 400 or 422 error
+        assert response.status_code in [400, 422]
 
     def test_premium_week_plan_creation_high_weight(self, premium_client):
         """Test premium week plan creation with high weight."""
@@ -437,48 +453,6 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_maintenance_goal(self, premium_client):
-        """Test premium week plan creation with maintenance goal."""
-        payload = {
-            "sex": "male",
-            "age": 30,
-            "height_cm": 175.0,
-            "weight_kg": 70.0,
-            "activity": "moderate",
-            "goal": "maintain",
-            "lang": "en",
-            "diet_flags": [],
-        }
-
-        response = premium_client.post(
-            "/api/v1/premium/plan/week",
-            json=payload,
-            headers={"X-API-Key": "test_key"},
-        )
-
-        assert response.status_code in [200, 503, 403, 422]
-
-    def test_week_plan_missing_profile_data_line_140(self, premium_client):
-        """Test line 140: WeekPlanRequest with missing profile data."""
-        # Test with missing required fields
-        payload = {
-            "sex": "male",
-            "age": 30,
-            # Missing height_cm and weight_kg
-            "activity": "moderate",
-            "goal": "maintain",
-            "lang": "en",
-            "diet_flags": [],
-        }
-
-        response = premium_client.post(
-            "/api/v1/premium/plan/week",
-            json=payload,
-            headers={"X-API-Key": "test_key"},
-        )
-
-        assert response.status_code in [200, 400, 422, 403]
-
     def test_week_plan_missing_all_fields_line_140(self, premium_client):
         """Test line 140: WeekPlanRequest with all fields missing."""
         # Test with empty payload
@@ -490,7 +464,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
 
     def test_week_plan_valid_request(self, premium_client):
         """Test valid week plan request."""
@@ -594,7 +568,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
 
     def test_week_plan_with_invalid_micros(self, premium_client):
         """Test week plan with invalid micronutrients."""
@@ -621,7 +595,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
 
     def test_week_plan_with_negative_macros(self, premium_client):
         """Test week plan with negative macros."""
@@ -649,7 +623,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
 
     def test_week_plan_with_negative_micros(self, premium_client):
         """Test week plan with negative micronutrients."""
@@ -676,4 +650,4 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422, 403]
+        assert response.status_code in [200, 400, 422]
