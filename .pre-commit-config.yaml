@@ -61,16 +61,16 @@ repos:
           - -s
           - B101
 
-  # --- Vulnerabilities: safety (requirements scan)
-  - repo: local
-    hooks:
-      - id: safety-scan
-        name: safety (pip vulns, scan)
-        entry: safety scan
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
-        files: ^(?!frontend/).+requirements.*\.txt$
+        # --- Vulnerabilities: safety (requirements scan)
+        - repo: local
+          hooks:
+            - id: safety-scan
+              name: safety (pip vulns, scan)
+              entry: safety scan --full-report
+              language: system
+              pass_filenames: false
+              stages: [pre-push]
+              files: ^(?!frontend/).+requirements.*\.txt$
 
   # --- Docstrings: pydocstyle
   - repo: https://github.com/PyCQA/pydocstyle
@@ -110,6 +110,14 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+
+      # clean-backups — очистка backup файлов перед коммитом
+      - id: clean-backups
+        name: clean backup files
+        entry: bash -c "make clean-backups"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"

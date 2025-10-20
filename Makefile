@@ -61,19 +61,19 @@ test-fast: ## Run only last failed tests
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
+	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest -q && coverage report -m && coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
 cov-check: ## Check coverage >= 97%
 	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	. .venv/bin/activate && coverage run -m pytest && coverage report --fail-under=97
+	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage report --fail-under=97
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
+	. .venv/bin/activate && rm -f .coverage* && coverage run -m pytest && coverage html && open htmlcov/index.html
 
 ## Lint (flake8)
 lint: ## Lint with flake8
@@ -178,9 +178,29 @@ clean: ## Clean temporary files
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
-	rm -rf .coverage htmlcov/ .pytest_cache/
-	rm -f bandit-report.json pip-audit.json
+	rm -rf .coverage* htmlcov/ .pytest_cache/
+	rm -f bandit-report.json pip-audit.json safety-report.txt
+	rm -f *.bak* */*.bak* */*/*.bak*
+	rm -f test_results.xml tests.db
 	@echo "$(GREEN)✅ Очистка завершена$(NC)"
+
+## Clean coverage files only
+clean-coverage: ## Clean only coverage files
+	@echo "$(YELLOW)📊 Очистка файлов coverage...$(NC)"
+	rm -f .coverage*
+	@echo "$(GREEN)✅ Coverage файлы очищены$(NC)"
+
+## Clean backup files only
+clean-backups: ## Clean only backup files
+	@echo "$(YELLOW)💾 Очистка backup файлов...$(NC)"
+	rm -f *.bak* */*.bak* */*/*.bak*
+	@echo "$(GREEN)✅ Backup файлы очищены$(NC)"
+
+## Clean test files only
+clean-tests: ## Clean only test result files
+	@echo "$(YELLOW)🧪 Очистка тестовых файлов...$(NC)"
+	rm -f test_results.xml tests.db safety-report.txt
+	@echo "$(GREEN)✅ Тестовые файлы очищены$(NC)"
 
 ## Full quality check
 check-all: fmt-check lint cov-check security ## Full quality check
@@ -237,88 +257,4 @@ docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
 	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
-
-
-## Run local dev server on :8001
-dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-## Run tests (quiet)
-test: ## Run pytest
-	. .venv/bin/activate && pytest -q
-
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
-
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
-
-## Lint (flake8)
-lint: ## Lint with flake8
-	flake8 .
-
-## Auto-fix (format + imports)
-fmt: ## Format with black and isort
-
-## Smoke test (auto: 8000 then 8001)
-smoke-auto: ## Try health+bmi on 8000 then 8001
-	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
-	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
-	else \
-		echo "No server found on 8000/8001"; exit 1; \
-	fi
-
-## Smoke test on :8000
-smoke-8000: ## Smoke against http://127.0.0.1:8000
-	bash ./scripts/smoke.sh http://127.0.0.1:8000
-
-## Smoke test on :8001
-smoke-8001: ## Smoke against http://127.0.0.1:8001
-	bash ./scripts/smoke.sh http://127.0.0.1:8001
-
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
-bandit:
-	@echo "[bandit] scanning changed files via pre-commit"
-	pre-commit run bandit || true
-
-bandit-full:
-	@echo "[bandit] full repo scan with safe excludes"
-	bandit -q -r . \
-	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache,tests \
-	  -s B101 || true
-
-lint:
-	ruff check .
-	black --check .
-	mypy app scripts
-
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full
+.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean clean-coverage clean-backups clean-tests check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full

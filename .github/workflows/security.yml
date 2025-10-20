@@ -36,7 +36,7 @@ jobs:
       - name: Install security tooling
         run: |
           python -m pip install --upgrade pip
-          pip install bandit==1.7.9 safety==2.3.5
+          pip install bandit==1.7.9 safety==3.6.2
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
@@ -78,8 +78,8 @@ jobs:
 
       - name: Run Safety (dependency audit)
         run: |
-          # Run Safety and capture exit code
-          safety check --full-report -r requirements.txt > safety-report.txt 2>&1
+          # Run Safety using the new scan command and capture exit code
+          safety scan --full-report -r requirements.txt > safety-report.txt 2>&1
           safety_exit_code=$?
 
           # Display Safety report
@@ -91,7 +91,7 @@ jobs:
           # Analyze Safety exit code (more reliable than grep parsing)
           case "$safety_exit_code" in
             0)
-              echo "✅ Safety check passed - no vulnerabilities found"
+              echo "✅ Safety scan passed - no vulnerabilities found"
               ;;
             1)
               echo "❌ Safety found vulnerabilities that must be addressed"
