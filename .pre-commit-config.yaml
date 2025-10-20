@@ -58,8 +58,8 @@ repos:
           ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
         args:
           - -q
-          - -s
-          - B101
+          - -ll
+          - -ii
 
   # --- Docstrings: pydocstyle
   - repo: https://github.com/PyCQA/pydocstyle

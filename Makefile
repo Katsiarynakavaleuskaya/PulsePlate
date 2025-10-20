@@ -89,9 +89,6 @@ fmt: ## Format with black and isort
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
 	black .
 	isort .
-	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
 
 ## Format check only

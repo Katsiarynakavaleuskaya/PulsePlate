@@ -1,0 +1,12 @@
+# Safety policy for PulsePlate project
+# This file defines which security vulnerabilities to ignore
+# Only ignore vulnerabilities that are false positives or have acceptable risk
+
+# Safety policy version (must be 3.0)
+version: "3.0"
+
+# Ignore list for known false positives or acceptable risks
+# Format: "CVE-ID: reason for ignoring and review date"
+ignore:
+  # Add specific CVE IDs here if needed after running safety check
+  # Example: "CVE-2023-1234: False positive in test environment, review by 2025-02-01"

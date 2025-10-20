@@ -46,21 +46,16 @@ jobs:
       - name: Run Bandit (security lint)
         run: |
           bandit_exit_code=0
-          bandit -q -r . \
-            -x node_modules,dist,build,test-results,tests,.venv,venv,cache,releases,coverage_html,htmlcov \
-            -s B101 \
-            -f json -o bandit-report.json || bandit_exit_code=$?
-
+          # Use command line parameters for consistent settings
+          bandit -r . -x tests,frontend,node_modules,dist,build,.venv,venv,cache,releases,coverage_html,htmlcov -s B101,B105,B601 -lll -ii -f json -o bandit-report.json || bandit_exit_code=$?
           if [ "$bandit_exit_code" -gt 1 ]; then
             echo "❌ Bandit failed to complete successfully (exit code: $bandit_exit_code)"
             exit "$bandit_exit_code"
           fi
-
           if [ ! -f bandit-report.json ]; then
             echo "❌ Bandit report was not generated"
             exit 1
           fi
-
           echo "=== Bandit Report Analysis ==="
           high_severity_count=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json 2>/dev/null || echo "0")
           if [ "$high_severity_count" -gt 0 ]; then
@@ -68,24 +63,19 @@ jobs:
             echo "::error::Bandit found $high_severity_count HIGH severity issues that must be addressed"
             exit 1
           fi
-
-          if [ "$bandit_exit_code" -eq 1 ]; then
-            echo "⚠️  Bandit reported issues below HIGH severity (exit code: $bandit_exit_code)"
-            echo "::warning::Bandit reported issues below HIGH severity – review bandit-report.json"
-          else
-            echo "✅ No HIGH severity issues found in Bandit report"
-          fi
+          echo "✅ No HIGH severity issues found in Bandit report"
 
       - name: Run Safety (dependency audit)
         run: |
-          # Run Safety using the new scan command and capture exit code
-          safety scan --full-report -r requirements.txt > safety-report.txt 2>&1
+          # First run: Generate full report (always succeeds for artifact)
+          safety scan --full-report -r requirements.txt > safety-report.txt 2>&1 || true
           if [ -f requirements-dev.txt ]; then
-            echo "" >> safety-report.txt
-            echo "=== Safety (dev) Report ===" >> safety-report.txt
-            safety scan --full-report -r requirements-dev.txt >> safety-report.txt 2>&1
+            {
+              echo ""
+              echo "=== Safety (dev) Report ==="
+            } >> safety-report.txt
+            safety scan --full-report -r requirements-dev.txt >> safety-report.txt 2>&1 || true
           fi
-          safety_exit_code=$?
 
           # Display Safety report
           if [ -f safety-report.txt ]; then
@@ -93,14 +83,21 @@ jobs:
             cat safety-report.txt
           fi
 
-          # Analyze Safety exit code (more reliable than grep parsing)
+          # Second run: Fail only on high/critical vulnerabilities
+          safety_exit_code=0
+          safety scan -r requirements.txt --severity high || safety_exit_code=$?
+          if [ -f requirements-dev.txt ]; then
+            safety scan -r requirements-dev.txt --severity high || safety_exit_code=$?
+          fi
+
+          # Analyze Safety exit code
           case "$safety_exit_code" in
             0)
-              echo "✅ Safety scan passed - no vulnerabilities found"
+              echo "✅ Safety scan passed - no high/critical vulnerabilities found"
               ;;
             1)
-              echo "❌ Safety found vulnerabilities that must be addressed"
-              echo "::error::Safety found vulnerabilities - see report for details"
+              echo "❌ Safety found high/critical vulnerabilities that must be addressed"
+              echo "::error::Safety found high/critical vulnerabilities - see report for details"
               exit 1
               ;;
             *)

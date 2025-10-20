@@ -1,0 +1,50 @@
+Safety 3.6.2 scanning /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean
+2025-10-20 13:50:02 UTC
+
+Account: Katsiaryna_Kavaleuskaya, lexakm532@gmail.com 
+ Git branch: feature/pr-4-1-test-optimization
+ Environment: Stage.development
+ Scan policy: None, using Safety CLI default policies
+
+Python detected. Found 2 Python requirements files, 2 Python pyproject.toml files and 1 
+Python environment
+
+✅ requirements.txt: No issues found.
+
+✅ releases/v0.1.0/BMI-App_2025_clean-0.1.0/requirements.txt: No issues found.
+
+✅ pyproject.toml: No issues found.
+
+✅ releases/v0.1.0/BMI-App_2025_clean-0.1.0/pyproject.toml: No issues found.
+
+✅ .venv/pyvenv.cfg: No issues found.
+
+Tested 104 dependencies for security issues using default Safety CLI policies
+0 security issues found, 0 fixes suggested.
+0 fixes suggested, resolving 0 vulnerabilities.
+
+Safety 3.6.2 scanning /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean
+2025-10-20 13:50:40 UTC
+
+Account: Katsiaryna_Kavaleuskaya, lexakm532@gmail.com 
+ Git branch: feature/pr-4-1-test-optimization
+ Environment: Stage.development
+ Scan policy: None, using Safety CLI default policies
+
+Python detected. Found 2 Python requirements files, 2 Python pyproject.toml files and 1 
+Python environment
+
+✅ requirements.txt: No issues found.
+
+✅ releases/v0.1.0/BMI-App_2025_clean-0.1.0/requirements.txt: No issues found.
+
+✅ pyproject.toml: No issues found.
+
+✅ releases/v0.1.0/BMI-App_2025_clean-0.1.0/pyproject.toml: No issues found.
+
+✅ .venv/pyvenv.cfg: No issues found.
+
+Tested 104 dependencies for security issues using default Safety CLI policies
+0 security issues found, 0 fixes suggested.
+0 fixes suggested, resolving 0 vulnerabilities.
+

@@ -12,6 +12,13 @@ class TestRecipeSynthCoverage97:
         """Set up test fixtures."""
         self.synthesizer = RecipeSynthesizer()
 
+    def _process_instructions(self, template: RecipeTemplate):
+        """Call the private processor if available, otherwise skip the test."""
+        process_instructions = getattr(self.synthesizer, "_process_instructions", None)
+        if process_instructions is None:
+            pytest.skip("_process_instructions not implemented on RecipeSynthesizer")
+        return process_instructions(template)
+
     def test_recipe_step_creation_coverage_line_348(self):
         """Test RecipeStep creation coverage for line 348."""
         # Test that RecipeStep can be created
@@ -59,13 +66,9 @@ class TestRecipeSynthCoverage97:
         )
 
         # Test that empty instruction template is handled
-        try:
-            result = self.synthesizer._process_instructions(template)
-            # Should return empty list or handle gracefully
-            assert isinstance(result, list)
-        except Exception:
-            # It's okay if it raises an exception
-            pass
+        result = self._process_instructions(template)
+        # Should return empty list or handle gracefully
+        assert isinstance(result, list)
 
     def test_recipe_synthesizer_instruction_processing_coverage_line_519(self):
         """Test RecipeSynthesizer instruction processing coverage for line 519."""
@@ -84,13 +87,9 @@ class TestRecipeSynthCoverage97:
         )
 
         # Test that None instruction template is handled
-        try:
-            result = self.synthesizer._process_instructions(template)
-            # Should return empty list or handle gracefully
-            assert isinstance(result, list)
-        except Exception:
-            # It's okay if it raises an exception
-            pass
+        result = self._process_instructions(template)
+        # Should return empty list or handle gracefully
+        assert isinstance(result, list)
 
     def test_recipe_synthesizer_instruction_processing_coverage_line_518(self):
         """Test RecipeSynthesizer instruction processing coverage for line 518."""
@@ -109,13 +108,9 @@ class TestRecipeSynthCoverage97:
         )
 
         # Test that malformed instruction template is handled
-        try:
-            result = self.synthesizer._process_instructions(template)
-            # Should handle gracefully
-            assert isinstance(result, list)
-        except Exception:
-            # It's okay if it raises an exception
-            pass
+        result = self._process_instructions(template)
+        # Should handle gracefully
+        assert isinstance(result, list)
 
     def test_recipe_synthesizer_instruction_processing_coverage_line_347(self):
         """Test RecipeSynthesizer instruction processing coverage for line 347."""
@@ -134,10 +129,6 @@ class TestRecipeSynthCoverage97:
         )
 
         # Test that single step is handled
-        try:
-            result = self.synthesizer._process_instructions(template)
-            # Should return list with one step
-            assert isinstance(result, list)
-        except Exception:
-            # It's okay if it raises an exception
-            pass
+        result = self._process_instructions(template)
+        # Should return list with one step
+        assert isinstance(result, list)

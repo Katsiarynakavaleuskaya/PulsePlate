@@ -110,9 +110,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
-            # Function may fail due to missing dependencies
-            pass
+        except Exception as exc:
+            pytest.skip(f"generate_weekly_plan unavailable: {exc}")
 
     def test_weekly_plan_with_diet_flags(self):
         """Test weekly plan with dietary restrictions."""
@@ -134,8 +133,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
-            pass
+        except Exception as exc:
+            pytest.skip(f"generate_weekly_plan unavailable with diet flags: {exc}")
 
     def test_daily_plan_functions(self):
         """Test daily plan helper functions."""
@@ -167,8 +166,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan helper functions not available")
-        except Exception:
-            pass
+        except Exception as exc:
+            pytest.skip(f"weekly_plan helper functions unavailable: {exc}")
 
 
 class TestUtilsModule:

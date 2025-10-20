@@ -2187,6 +2187,12 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                 kcal = meal.get("kcal", meal.get("calories", 0))
                 total_kcal += _to_float(kcal, 0.0)
 
+            # Different backends/mocks expose per‑day cost under varying names:
+            # - "estimated_cost": preferred from new menu_engine outputs
+            # - "cost": legacy objects (sometimes numeric or str)
+            # - "daily_cost": older tests/mocks
+            # We fall back in this order to keep endpoints stable across
+            # historical data structures and test doubles.
             daily_cost = _safe_attr(menu, "estimated_cost")
             if daily_cost is None:
                 daily_cost = _safe_attr(menu, "cost")

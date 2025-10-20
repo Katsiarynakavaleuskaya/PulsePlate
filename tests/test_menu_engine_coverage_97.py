@@ -2,188 +2,106 @@
 
 from unittest.mock import patch
 
-from core.menu_engine import _get_default_food_db, _get_default_recipe_db, make_weekly_menu
+import pytest
+
+from core.menu_engine import (
+    FoodItem,
+    WeekMenu,
+    _get_default_food_db,
+    _get_default_recipe_db,
+    make_weekly_menu,
+)
+from core.targets import UserProfile
 
 
 class TestMenuEngineCoverage97:
     """Test class for menu_engine.py coverage boost."""
 
+    @staticmethod
+    def _profile(**overrides) -> UserProfile:
+        """Build a baseline user profile for menu generation scenarios."""
+        base = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175,
+            "weight_kg": 70,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+        base.update(overrides)
+        return UserProfile(**base)
+
     def test_get_default_food_db_coverage_line_183(self):
-        """Test _get_default_food_db coverage for line 183."""
-        # Test that _get_default_food_db exists and is callable
-        assert hasattr(_get_default_food_db, "__call__")
-        # This should not raise an exception
+        """_get_default_food_db returns a mapping of FoodItem instances."""
         try:
             result = _get_default_food_db()
-            # Result should be None or a valid food database
-            assert result is None or hasattr(result, "__getitem__")
-        except Exception:
-            # It's okay if it raises an exception in test environment
-            pass
+        except Exception as exc:  # pragma: no cover - defensive for CI
+            pytest.skip(f"_get_default_food_db unavailable: {exc}")
+        assert isinstance(result, dict)
+        assert all(isinstance(item, FoodItem) for item in result.values())
 
     def test_get_default_recipe_db_coverage_line_184(self):
-        """Test _get_default_recipe_db coverage for line 184."""
-        # Test that _get_default_recipe_db exists and is callable
-        assert hasattr(_get_default_recipe_db, "__call__")
-        # This should not raise an exception
-        try:
-            result = _get_default_recipe_db()
-            # Result should be None or a valid recipe database
-            assert result is None or hasattr(result, "__getitem__")
-        except Exception:
-            # It's okay if it raises an exception in test environment
-            pass
+        """_get_default_recipe_db returns a mapping of recipe definitions."""
+        result = _get_default_recipe_db()
+        assert isinstance(result, dict)
+        assert all(hasattr(recipe, "ingredients") for recipe in result.values())
 
     def test_make_weekly_menu_with_none_databases_coverage_lines_183_184(self):
-        """Test make_weekly_menu with None databases to cover lines 183-184."""
-        # Mock the function to avoid actual database calls
+        """make_weekly_menu falls back to defaults when databases are None."""
+        profile = self._profile()
         with (
-            patch("core.menu_engine._get_default_food_db") as mock_food_db,
-            patch("core.menu_engine._get_default_recipe_db") as mock_recipe_db,
+            patch("core.menu_engine._get_default_food_db", return_value={}),
+            patch("core.menu_engine._get_default_recipe_db", return_value={}),
         ):
-            mock_food_db.return_value = None
-            mock_recipe_db.return_value = None
-
-            # Test that the function handles None databases gracefully
-            try:
-                result = make_weekly_menu(
-                    weight_kg=70,
-                    height_cm=175,
-                    age=30,
-                    sex="male",
-                    activity="moderate",
-                    food_db=None,
-                    recipe_db=None,
-                )
-                # Should return a list of daily menus
-                assert isinstance(result, list)
-            except Exception:
-                # It's okay if it raises an exception due to missing dependencies
-                pass
+            menu = make_weekly_menu(profile, food_db=None, recipe_db=None)
+        assert isinstance(menu, WeekMenu)
+        assert len(menu.daily_menus) == 7
 
     def test_make_weekly_menu_error_handling_coverage_lines_250_253(self):
-        """Test make_weekly_menu error handling coverage for lines 250-253."""
-        # Test with invalid parameters to trigger error handling
-        try:
-            make_weekly_menu(
-                weight_kg=-1,  # Invalid weight
-                height_cm=175,
-                age=30,
-                sex="male",
-                activity="moderate",
-            )
-        except Exception:
-            # Expected to raise an exception with invalid parameters
-            pass
+        """Negative weight is rejected during profile validation."""
+        with pytest.raises(ValueError):
+            self._profile(weight_kg=-1)
 
     def test_make_weekly_menu_error_handling_coverage_lines_255_256(self):
-        """Test make_weekly_menu error handling coverage for lines 255-256."""
-        # Test with invalid parameters to trigger error handling
-        try:
-            make_weekly_menu(
-                weight_kg=70,
-                height_cm=-1,  # Invalid height
-                age=30,
-                sex="male",
-                activity="moderate",
-            )
-        except Exception:
-            # Expected to raise an exception with invalid parameters
-            pass
+        """Negative height is rejected during profile validation."""
+        with pytest.raises(ValueError):
+            self._profile(height_cm=-1)
 
     def test_make_weekly_menu_error_handling_coverage_lines_383_393(self):
-        """Test make_weekly_menu error handling coverage for lines 383-393."""
-        # Test with invalid activity level
-        try:
-            make_weekly_menu(
-                weight_kg=70, height_cm=175, age=30, sex="male", activity="invalid_activity"
-            )
-        except Exception:
-            # Expected to raise an exception with invalid activity
-            pass
+        """Invalid activity level surfaces as a ValueError."""
+        profile = self._profile(activity="invalid_activity")
+        with pytest.raises(ValueError):
+            make_weekly_menu(profile, food_db={}, recipe_db={})
 
     def test_make_weekly_menu_error_handling_coverage_lines_472_471(self):
-        """Test make_weekly_menu error handling coverage for lines 472-471."""
-        # Test with invalid sex
-        try:
-            make_weekly_menu(
-                weight_kg=70, height_cm=175, age=30, sex="invalid_sex", activity="moderate"
-            )
-        except Exception:
-            # Expected to raise an exception with invalid sex
-            pass
+        """Unexpected sex value still produces a WeekMenu fallback."""
+        profile = self._profile(sex="invalid_sex")
+        menu = make_weekly_menu(profile, food_db={}, recipe_db={})
+        assert isinstance(menu, WeekMenu)
 
     def test_make_weekly_menu_error_handling_coverage_lines_525_524(self):
-        """Test make_weekly_menu error handling coverage for lines 525-524."""
-        # Test with invalid age
-        try:
-            make_weekly_menu(
-                weight_kg=70,
-                height_cm=175,
-                age=-1,
-                sex="male",
-                activity="moderate",  # Invalid age
-            )
-        except Exception:
-            # Expected to raise an exception with invalid age
-            pass
+        """Negative age fails profile validation."""
+        with pytest.raises(ValueError):
+            self._profile(age=-1)
 
     def test_make_weekly_menu_error_handling_coverage_lines_627_633(self):
-        """Test make_weekly_menu error handling coverage for lines 627-633."""
-        # Test with extreme values
-        try:
-            make_weekly_menu(
-                weight_kg=1000,  # Extreme weight
-                height_cm=175,
-                age=30,
-                sex="male",
-                activity="moderate",
-            )
-        except Exception:
-            # Expected to raise an exception with extreme values
-            pass
+        """Extremely high weight still returns a menu."""
+        profile = self._profile(weight_kg=1000)
+        menu = make_weekly_menu(profile, food_db={}, recipe_db={})
+        assert isinstance(menu, WeekMenu)
 
     def test_make_weekly_menu_error_handling_coverage_lines_702_701(self):
-        """Test make_weekly_menu error handling coverage for lines 702-701."""
-        # Test with extreme height
-        try:
-            make_weekly_menu(
-                weight_kg=70,
-                height_cm=300,  # Extreme height
-                age=30,
-                sex="male",
-                activity="moderate",
-            )
-        except Exception:
-            # Expected to raise an exception with extreme values
-            pass
+        """Extremely tall height still returns a menu."""
+        profile = self._profile(height_cm=300)
+        menu = make_weekly_menu(profile, food_db={}, recipe_db={})
+        assert isinstance(menu, WeekMenu)
 
     def test_make_weekly_menu_error_handling_coverage_lines_706_710(self):
-        """Test make_weekly_menu error handling coverage for lines 706-710."""
-        # Test with extreme age
-        try:
-            make_weekly_menu(
-                weight_kg=70,
-                height_cm=175,
-                age=200,
-                sex="male",
-                activity="moderate",  # Extreme age
-            )
-        except Exception:
-            # Expected to raise an exception with extreme values
-            pass
+        """Age beyond validation ceiling raises ValueError."""
+        with pytest.raises(ValueError):
+            self._profile(age=200)
 
     def test_make_weekly_menu_error_handling_coverage_line_739(self):
-        """Test make_weekly_menu error handling coverage for line 739."""
-        # Test with missing required parameters
-        try:
-            make_weekly_menu(
-                weight_kg=70,
-                height_cm=175,
-                age=30,
-                sex="male",
-                # Missing activity parameter
-            )
-        except Exception:
-            # Expected to raise an exception with missing parameters
-            pass
+        """Calling without the required profile argument raises TypeError."""
+        with pytest.raises(TypeError):
+            make_weekly_menu()  # type: ignore[arg-type]

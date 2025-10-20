@@ -6,6 +6,7 @@ RU: Рабочие тесты для покрытия модуля app, не mai
 """
 
 import os
+from unittest.mock import patch
 from typing import cast
 
 import pytest
@@ -143,9 +144,10 @@ class TestWorkingEndpointCoverage:
         response = client.get("/privacy")
         assert response.status_code == 200
 
-        # Metrics (может не работать без prometheus)
-        response = client.get("/metrics")
-        assert response.status_code in [200, 404, 500]
+        # Metrics: mock prometheus generator to avoid 500 masking real errors
+        with patch("prometheus_client.generate_latest", return_value=b"metrics"):
+            response = client.get("/metrics")
+            assert response.status_code == 200
 
         # Root page
         response = client.get("/")
@@ -248,13 +250,23 @@ class TestEdgeCasesAndErrorPaths:
         response = client.post("/bmi", json={})
         assert response.status_code == 422
 
-    def test_insight_endpoints_disabled(self, client):
-        """Тест insight endpoints когда отключены"""
+    def test_insight_endpoints_feature_on(self, client, monkeypatch: "pytest.MonkeyPatch"):
+        """Insight endpoints enabled: expect 200."""
+        monkeypatch.setenv("FEATURE_INSIGHTS", "true")
         response = client.post("/insight", json={"text": "I feel tired"})
-        assert response.status_code in [200, 403, 503]  # Зависит от настроек
+        assert response.status_code == 200
 
         response = client.post("/api/v1/insight", json={"text": "I feel tired"})
-        assert response.status_code in [200, 403, 503]  # Зависит от настроек
+        assert response.status_code == 200
+
+    def test_insight_endpoints_feature_off(self, client, monkeypatch: "pytest.MonkeyPatch"):
+        """Insight endpoints disabled: expect 503."""
+        monkeypatch.setenv("FEATURE_INSIGHTS", "false")
+        response = client.post("/insight", json={"text": "I feel tired"})
+        assert response.status_code == 503
+
+        response = client.post("/api/v1/insight", json={"text": "I feel tired"})
+        assert response.status_code == 503
 
 
 class TestSpecialGroups:

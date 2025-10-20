@@ -32,6 +32,12 @@ class TestWeeklyPlanningBlocks:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
+    def teardown_method(self):
+        """Teardown test environment and cleanup feature flags."""
+        os.environ.pop("API_KEY", None)
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
+        os.environ.pop("VIP_MODULE_ENABLED", None)
+
     def test_weekly_planning_mock_success(self, client):
         """Тест успешного выполнения weekly planning с мокнутой функцией"""
 
@@ -74,7 +80,7 @@ class TestWeeklyPlanningBlocks:
         # Точечный патч функции core.menu_engine.make_weekly_menu вместо глобального sys.modules
         with patch(
             "core.menu_engine.make_weekly_menu",
-            side_effect=lambda profile: create_weekly_menu_mock(),
+            side_effect=lambda _profile: create_weekly_menu_mock(),
         ):
             # Настроить API ключ и VIP флаг
             os.environ["API_KEY"] = "test_key"
@@ -99,10 +105,10 @@ class TestWeeklyPlanningBlocks:
                     },
                 )
 
-                print(f"Weekly planning response: {response.status_code}")
+                # no noisy prints in CI
                 if response.status_code == 200:
                     data = response.json()
-                    print(f"Response keys: {list(data.keys())}")
+                    # no noisy prints in CI
 
                     # Проверить структуру ответа согласно коду main.py lines 1381-1501
                     assert "week_summary" in data
@@ -153,7 +159,7 @@ class TestWeeklyPlanningBlocks:
             return mock_result
 
         # Мокаем модуль menu_engine напрямую
-        with patch("core.menu_engine.make_weekly_menu", return_value=mock_make_weekly_menu(None)):
+        with patch("core.menu_engine.make_weekly_menu", side_effect=mock_make_weekly_menu):
             os.environ["API_KEY"] = "test_key"
             os.environ["VIP_MODULE_ENABLED"] = "true"
             try:
@@ -171,7 +177,7 @@ class TestWeeklyPlanningBlocks:
                     },
                 )
 
-                print(f"Alternative mock response: {response.status_code}")
+                # no noisy prints in CI
 
                 if response.status_code == 200:
                     # Strictly verify expected schema and values from the mock
@@ -228,7 +234,7 @@ class TestWeeklyPlanningBlocks:
                 },
             )
 
-            print(f"Error scenario response: {response.status_code}")
+            # no noisy prints in CI
 
             # Явно проверяем 503 недоступность с ожидаемым payload
             assert response.status_code == 503
