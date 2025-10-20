@@ -5,17 +5,17 @@
 pytest==8.4.2
 pytest-cov==7.0.0
 pytest-asyncio==1.2.0
-coverage==7.10.7
+coverage==7.11.0
 
 # Code quality
 black==25.9.0
-flake8==7.3.0
+# flake8==7.3.0  # Replaced by ruff; keep commented to avoid duplication
 mypy==1.18.2
-ruff==0.14.0
+ruff==0.14.1
 
 # Security
 bandit==1.8.6
-# safety==3.6.1b0  # Disabled due to typer compatibility
+safety==3.6.2
 
 # Dev tools
 pre-commit==4.3.0
