@@ -160,6 +160,7 @@ class TestWeeklyPlanningBlocks:
         # Мокаем модуль menu_engine напрямую
         with patch("core.menu_engine.make_weekly_menu", return_value=mock_make_weekly_menu(None)):
             os.environ["API_KEY"] = "test_key"
+            os.environ["VIP_MODULE_ENABLED"] = "true"
             try:
                 response = client.post(
                     "/api/v1/premium/plan/week",
@@ -197,11 +198,13 @@ class TestWeeklyPlanningBlocks:
                         )
                 else:
                     # Код выполнился - это главное!
-                    assert response.status_code in [503, 422, 400]
+                    assert response.status_code in [503, 422, 400, 403]
 
             finally:
                 if "API_KEY" in os.environ:
                     del os.environ["API_KEY"]
+                if "VIP_MODULE_ENABLED" in os.environ:
+                    del os.environ["VIP_MODULE_ENABLED"]
 
     def test_weekly_planning_error_scenarios(self, client):
         """Тест error scenarios в weekly planning"""

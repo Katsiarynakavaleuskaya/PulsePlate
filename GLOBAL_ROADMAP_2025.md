@@ -146,7 +146,7 @@
 - **Цель**: Синхронизация с iOS приложением
 - **Критерии**: Консистентность текстов и навигации; iOS team review
 
-#### Задачи
+#### iOS Sync Задачи
 
 - [ ] **Синхронизировать тексты** с iOS локалями
 - [ ] **Выровнять навигацию** и naming conventions
@@ -177,7 +177,7 @@
 - **Цель**: Полная локализация WHO Targets компонента
 - **Критерии**: Все тексты локализованы (RU/EN/ES); тесты локализации проходят
 
-#### Задачи
+#### WHO Targets i18n Задачи
 
 - [x] **Add i18n keys** для WHO Targets (RU/EN/ES)
 - [x] **Localize all texts** и сообщения
@@ -192,7 +192,7 @@
 - **Цель**: Полная accessibility compliance и UX оптимизация
 - **Критерии**: a11y-тест проходит; keyboard navigation работает; screen reader support
 
-#### Задачи
+#### WHO Targets Accessibility Задачи
 
 - [x] **Add accessibility tests** (a11y AA compliance) - 25/25 тестов проходят
 - [x] **Implement keyboard navigation** для всех элементов - userEvent integration
@@ -211,7 +211,7 @@
 - **Цель**: Полная интеграция и comprehensive тестирование
 - **Критерии**: сценарии 200/401/422 покрыты; CTA интеграция работает
 
-#### Задачи
+#### WHO Targets Integration Задачи
 
 - [x] **WHO Targets API client** integration - модульная система API готова
 - [x] **Weekly Plan API client** integration - создан и протестирован
@@ -239,7 +239,7 @@
 **Размер**: ~100 строк изменений
 **Ветка**: `feature/pr-4-1-test-optimization`
 
-#### Задачи
+#### Test Optimization Задачи
 
 - [ ] 4.1.1 Удалить дублирующиеся тесты покрытия (336 файлов → `tests_backup_coverage/`)
 - [ ] 4.1.2 Переместить hypothesis тесты в backup
@@ -259,7 +259,7 @@
 **Размер**: ~150 строк
 **Ветка**: `feature/pr-4-2-api-schema`
 
-#### Задачи
+#### Weekly Plan Schema Задачи
 
 - [ ] 4.2.1 Создать/обновить `MealItem` в `app/schemas/` (title, title_translated, grams, kcal, macros, micros)
 - [ ] 4.2.2 Создать/обновить `DayMenu` в `app/schemas/` (day_index, meals[], kcal, macros, tips, total_cost)
@@ -278,7 +278,7 @@
 **Размер**: ~200 строк
 **Ветка**: `feature/pr-4-3-backend-endpoint`
 
-#### Задачи
+#### Weekly Plan Backend Задачи
 
 - [ ] 4.3.1 Реализовать endpoint в `app/routers/premium_week.py`
 - [ ] 4.3.2 Использовать модульную систему `core.weekly_plan_new`
@@ -298,7 +298,7 @@
 **Размер**: ~150 строк
 **Ветка**: `feature/pr-4-4-api-client`
 
-#### Задачи
+#### Weekly Plan API Client Задачи
 
 - [ ] 4.4.1 Создать `frontend/src/api/premium/weekly-plan.ts`
 - [ ] 4.4.2 Добавить типы из OpenAPI
@@ -318,7 +318,7 @@
 **Размер**: ~200 строк
 **Ветка**: `feature/pr-4-5-day-menu-card`
 
-#### Задачи
+#### DayMenuCard Component Задачи
 
 - [ ] 4.5.1 Создать `frontend/src/components/WeeklyPlanReader/DayMenuCard.tsx`
 - [ ] 4.5.2 Отображение meals по категориям (breakfast, lunch, dinner, snacks, misc)
@@ -341,7 +341,7 @@
 **Размер**: ~250 строк
 **Ветка**: `feature/pr-4-6-weekly-plan-reader`
 
-#### Задачи
+#### WeeklyPlanReader Component Задачи
 
 - [ ] 4.6.1 Создать `frontend/src/components/WeeklyPlanReader/WeeklyPlanReader.tsx`
 - [ ] 4.6.2 Реализовать навигацию по дням (кнопки prev/next)
@@ -363,7 +363,7 @@
 **Размер**: ~100 строк
 **Ветка**: `feature/pr-4-7-integration`
 
-#### Задачи
+#### Integration & Polish Задачи
 
 - [ ] 4.7.1 Интегрировать в `frontend/src/features/plan/WeeklyPlanViewer.tsx`
 - [ ] 4.7.2 Добавить E2E тест (полный флоу: открыть → загрузить → навигировать)
@@ -390,7 +390,7 @@
 - **Цель**: Генерация из плана; группировка по отделам; чекбоксы; offline (localStorage)
 - **Критерии**: offline работает; диф-покрытие ≥90%; CTA к paywall предусмотрен
 
-#### Задачи
+#### Shopping List Задачи
 
 - [ ] **Shopping List API client** (behind VIP flag)
 - [ ] **Generate shopping list** из weekly plan

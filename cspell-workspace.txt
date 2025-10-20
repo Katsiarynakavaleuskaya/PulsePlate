@@ -4023,6 +4023,8 @@ nochange
 nokey
 noopener
 noqa
+normalise
+normalised
 nosec
 NOTSET
 Novato

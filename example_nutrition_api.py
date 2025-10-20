@@ -8,7 +8,7 @@ for calculating BMR and TDEE using multiple formulas.
 
 from typing import Any, Dict, Optional
 
-import requests
+import requests  # type: ignore
 
 
 def call_premium_bmr_api(
@@ -58,7 +58,7 @@ def call_premium_bmr_api(
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     response.raise_for_status()
 
-    return response.json()
+    return response.json()  # type: ignore[no-any-return]
 
 
 def main():

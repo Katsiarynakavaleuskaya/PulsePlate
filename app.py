@@ -2093,9 +2093,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         import sys as _sys
 
         module_name = "core.menu_engine"
-        modules_registry = getattr(_sys, "modules")
-        if not isinstance(modules_registry, dict):
-            raise HTTPException(status_code=503, detail="Weekly menu registry unavailable")
+        modules_registry = _sys.modules
 
         try:
             menu_module = modules_registry[module_name]
@@ -2174,6 +2172,7 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
                             value = getattr(meal, key)
                             if key == "name" and "title" not in meal_dict:
                                 meal_dict["title"] = value
+                                meal_dict[key] = value  # Preserve original "name" key
                             else:
                                 meal_dict[key] = value
                 meals_out.append(meal_dict)
@@ -2215,10 +2214,27 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         weekly_coverage = _safe_attr(week_menu, "weekly_coverage", {})
         if not isinstance(weekly_coverage, dict) and hasattr(weekly_coverage, "__dict__"):
             weekly_coverage = dict(weekly_coverage.__dict__)
+        # Coerce weekly_coverage to floats
+        weekly_coverage = {str(k): _to_float(v, 0.0) for k, v in (weekly_coverage or {}).items()}
 
         shopping_list = _safe_attr(week_menu, "shopping_list", {})
         if not isinstance(shopping_list, dict) and hasattr(shopping_list, "__dict__"):
             shopping_list = dict(shopping_list.__dict__)
+
+        # Extract numeric quantities from strings like "2L", "12 pieces", "1kg"
+        def _to_qty(val: Any) -> float:
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                import re
+
+                m = re.search(r"[-+]?\d*\.?\d+", val)
+                if m:
+                    with suppress(Exception):
+                        return float(m.group(0))
+            return 0.0
+
+        shopping_list = {str(k): _to_qty(v) for k, v in (shopping_list or {}).items()}
 
         adherence_score = _safe_attr(week_menu, "adherence_score", 0.0)
 
