@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests.conftest_app import assert_vip_response
+
 
 class TestVIPCoverageWorkingExtended:
     """Working extended test class to achieve 97% coverage for VIP router."""
@@ -22,12 +24,14 @@ class TestVIPCoverageWorkingExtended:
         # Mock get_available_regions to return success
         with patch("app.routers.vip.get_available_regions", return_value=["ES", "US"]):
             response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
-            assert response.status_code in [200, 403]  # Success or API key issue
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "success"
-                assert data["regions"] == ["ES", "US"]
-                assert data["total_regions"] == 2
+            assert_vip_response(
+                response,
+                expected_data_fields={
+                    "status": "success",
+                    "regions": ["ES", "US"],
+                    "total_regions": 2,
+                },
+            )
 
     def test_vip_regions_error_coverage(self, test_client):
         """Test VIP regions error coverage."""
@@ -36,11 +40,10 @@ class TestVIPCoverageWorkingExtended:
         # Mock get_available_regions to raise exception
         with patch("app.routers.vip.get_available_regions", side_effect=Exception("Region error")):
             response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
-            assert response.status_code in [200, 403]  # Success or API key issue
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "error"
-                assert "Region error" in data["message"]
+            assert_vip_response(
+                response,
+                expected_data_fields={"status": "error", "message": "contains:Region error"},
+            )
 
     def test_vip_region_search_success_coverage(self):
         """Test VIP region search success coverage."""
