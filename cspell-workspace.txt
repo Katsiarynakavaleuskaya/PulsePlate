@@ -3690,6 +3690,7 @@ arroz
 Arroz
 ascii
 asdict
+asgi
 ASGI
 asian
 astimezone
@@ -4189,6 +4190,8 @@ swiftlint
 syncmain
 tdee
 TDEE
+terminología
+terminology
 testclient
 testdb
 testid
@@ -4202,7 +4205,9 @@ timedelta
 Tomate
 TOPPADDING
 touchpoints
+traducción
 transferrables
+translation
 truediv
 ttfonts
 typeerror
@@ -4223,11 +4228,8 @@ válido
 venv
 vip
 VIP
+virtualenv
 Visualización
-terminology
-terminología
-translation
-traducción
 visx
 vitamina
 vitd
