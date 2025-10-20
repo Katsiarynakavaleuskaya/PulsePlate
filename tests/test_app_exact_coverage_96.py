@@ -29,12 +29,9 @@ class TestAppExactCoverage96:
     """Tests to cover exact missing lines in main.py."""
 
     def setup_method(self):
-        """Setup test environment"""
+        """Setup test environment and client"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
-        """Set up test client."""
         self.client = TestClient(app)
 
     def test_bmi_validation_unrealistically_high_bmi_exact(self):

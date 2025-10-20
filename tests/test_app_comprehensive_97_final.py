@@ -19,7 +19,7 @@ def _get_app():
     return main.app
 
 
-client = TestClient(_get_app())  # type: ignore[arg-type]
+client = TestClient(_get_app())
 
 
 class TestAppComprehensive97:

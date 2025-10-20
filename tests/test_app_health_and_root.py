@@ -10,9 +10,9 @@ These are "easy coverage" tests that cover basic monitoring endpoints.
 
 from fastapi.testclient import TestClient
 
-import app as app_mod  # type: ignore
+import app as app_mod
 
-client = TestClient(app_mod.app)
+client = TestClient(app_mod.app)  # type: ignore[arg-type]
 
 
 class TestHealthAndMonitoringEndpoints:
