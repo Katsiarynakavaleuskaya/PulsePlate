@@ -104,6 +104,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Clean Python cache
+        run: |
+          # Clean __pycache__ and .pyc files to prevent cache issues
+          find . -path ./.git -prune -o -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          find . -path ./.git -prune -o -type f -name '*.pyc' -delete 2>/dev/null || true
+          echo "✅ Python cache cleaned"
+
       - name: Validate data
         run: |
           make validate-data
