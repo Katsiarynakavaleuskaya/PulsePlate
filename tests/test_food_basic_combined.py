@@ -45,24 +45,24 @@ class TestFoodDatabaseBasic:
         assert len(food_db) > 0
 
         # Optionally sample one item without depending on a specific name
-        oatmeal = next(iter(food_db.values()))
+        sample_item = next(iter(food_db.values()))
 
         # Check that all required fields are present
-        assert hasattr(oatmeal, "name")
-        assert hasattr(oatmeal, "protein_g")
-        assert hasattr(oatmeal, "fat_g")
-        assert hasattr(oatmeal, "carbs_g")
-        assert hasattr(oatmeal, "fiber_g")
-        assert hasattr(oatmeal, "Fe_mg")
-        assert hasattr(oatmeal, "Ca_mg")
-        assert hasattr(oatmeal, "VitD_IU")
-        assert hasattr(oatmeal, "B12_ug")
-        assert hasattr(oatmeal, "Folate_ug")
-        assert hasattr(oatmeal, "Iodine_ug")
-        assert hasattr(oatmeal, "K_mg")
-        assert hasattr(oatmeal, "Mg_mg")
-        assert hasattr(oatmeal, "price_per_unit")
-        assert hasattr(oatmeal, "flags")
+        assert hasattr(sample_item, "name")
+        assert hasattr(sample_item, "protein_g")
+        assert hasattr(sample_item, "fat_g")
+        assert hasattr(sample_item, "carbs_g")
+        assert hasattr(sample_item, "fiber_g")
+        assert hasattr(sample_item, "Fe_mg")
+        assert hasattr(sample_item, "Ca_mg")
+        assert hasattr(sample_item, "VitD_IU")
+        assert hasattr(sample_item, "B12_ug")
+        assert hasattr(sample_item, "Folate_ug")
+        assert hasattr(sample_item, "Iodine_ug")
+        assert hasattr(sample_item, "K_mg")
+        assert hasattr(sample_item, "Mg_mg")
+        assert hasattr(sample_item, "price_per_unit")
+        assert hasattr(sample_item, "flags")
 
     def test_pick_booster_for(self):
         """Test booster food selection."""
@@ -70,13 +70,25 @@ class TestFoodDatabaseBasic:
         food_db = parse_food_db()
 
         # Test picking a booster for iron
-        booster = pick_booster_for("iron_mg", set(), food_db)
+        booster_name = pick_booster_for("iron_mg", set(), food_db)
         # Should return a food that's high in iron
-        assert booster is not None
+        assert booster_name is not None
+
+        # Verify the booster actually contains iron
+        booster = food_db[booster_name]
+        assert hasattr(booster, "Fe_mg")
+        assert booster.Fe_mg > 0
 
         # Test with vegetarian flag
-        veg_booster = pick_booster_for("iron_mg", {"VEG"}, food_db)
-        assert veg_booster is not None
+        veg_booster_name = pick_booster_for("iron_mg", {"VEG"}, food_db)
+        assert veg_booster_name is not None
+
+        # Verify the vegetarian booster respects dietary constraints
+        veg_booster = food_db[veg_booster_name]
+        assert hasattr(veg_booster, "flags")
+        assert "VEG" in veg_booster.flags
+        assert hasattr(veg_booster, "Fe_mg")
+        assert veg_booster.Fe_mg > 0
 
     def test_aggregate_shopping(self):
         """Test shopping list aggregation."""
