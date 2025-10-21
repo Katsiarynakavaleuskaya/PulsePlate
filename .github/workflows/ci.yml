@@ -83,7 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        # Optimize: Use single Python version for PRs, full matrix for main
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12", "3.13"]') }}
 
     steps:
       - name: Checkout
@@ -94,6 +95,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           install-test-deps: "true"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Validate data
         run: |
@@ -109,7 +118,8 @@ jobs:
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
         run: |
-          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -x --maxfail=5
+          # Use pytest-xdist for parallel execution (configured in pytest.ini with -n auto)
+          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy
 
       - name: Upload coverage artifact (3.12 only)
         if: ${{ always() && matrix.python-version == env.COVERAGE_PY }}
