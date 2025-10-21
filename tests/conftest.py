@@ -44,10 +44,8 @@ def app_module() -> ModuleType:
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load app.py", allow_module_level=True)
 
-    # At this point we know spec is not None due to the check above
-    assert spec is not None
+    # At this point we know spec and spec.loader are not None due to the check above
     app_module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(app_module)
     return app_module
 
