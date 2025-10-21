@@ -90,9 +90,9 @@ class TestDebugEndpoint:
             "insight_enabled",
         ]
         found_keys = [key for key in expected_keys if key in data]
-        assert (
-            found_keys
-        ), f"Expected at least one of {expected_keys} in debug data, got: {list(data.keys())}"
+        assert found_keys, (
+            f"Expected at least one of {expected_keys} in debug data, got: {list(data.keys())}"
+        )
 
 
 class TestAppPackageShimEdges:
@@ -112,6 +112,7 @@ class TestAppPackageShimEdges:
         mod = getattr(apppkg, "_mod", None)
         if mod is not None:
             import types
+
             # Set a sentinel on the backing module and ensure passthrough via apppkg
             mod._shim_sentinel = "ok"  # cleanup not required across process
             assert apppkg._shim_sentinel == "ok"
