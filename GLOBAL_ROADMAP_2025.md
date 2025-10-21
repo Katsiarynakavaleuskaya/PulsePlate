@@ -4,7 +4,7 @@
 
 **Цель квартала:**
 
-1. **Стабильный зелёный CI/CD** (lint → typecheck → test → build → deploy; артефакты покрытия)
+1. **Стабильный зелёный CI/CD** (lint → typecheck → test → build; артефакты покрытия)
 2. **Вертикальные релизы**: WHO Targets → Weekly Plan → Shopping List → Auto-Repair (все через OpenAPI и фичефлаги)
 3. **HIG-чистый UX**: a11y AA, 44pt, фокус-ловушки, i18n RU/EN/ES
 4. **Готовность к монетизации**: CTA-потоки к paywall из ключевых экранов
@@ -387,31 +387,6 @@
 
 - [ ] **≥60% пользователей** доходят от Targets до Weekly Plan
 - [ ] **≥20% открывают Shoplist** при включённом флаге
-
-## 🚀 ФАЗА 4: Production Deployment (Week 4)
-
-### ✅ CD Pipeline Setup
-
-- [x] **Deploy workflow** (`.github/workflows/deploy.yml`)
-- [x] **Staging environment** (`deploy/staging.yml`)
-- [x] **Production environment** (`deploy/production.yml`)
-- [x] **Deploy script** (`scripts/deploy.sh`)
-
-### 🔄 Deployment Strategy
-
-- [ ] **Blue-Green deployment** для zero-downtime
-- [ ] **Health checks** и rollback автоматика
-- [ ] **Monitoring** и alerting (Prometheus + Grafana)
-- [ ] **SSL certificates** (Let's Encrypt)
-- [ ] **Domain setup** (pulseplate.com, api.pulseplate.com)
-
-### 📊 Production Readiness
-
-- [ ] **Load testing** (≥1000 concurrent users)
-- [ ] **Database migration** strategy
-- [ ] **Backup** и disaster recovery
-- [ ] **Security audit** (OWASP Top 10)
-- [ ] **Performance monitoring** (APM)
 
 ### 💰 Monetization
 
