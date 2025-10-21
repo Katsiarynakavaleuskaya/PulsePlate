@@ -29,18 +29,18 @@ class TestAppCoverage:
     def test_groups_endpoint_coverage(self, client):
         """Test groups endpoint for coverage."""
         response = client.get("/groups")
-        # Groups endpoint may not exist, test for 404 or 200
-        assert response.status_code in [200, 404]
+        # Groups endpoint should return 404 as it's not implemented
+        assert response.status_code == 404
 
-    def test_insight_endpoint_coverage(self, client):
+    def test_insight_endpoint_coverage(self, client, test_environment):
         """Test insight endpoint for coverage."""
         response = client.post(
             "/api/v1/insight",
             json={"text": "test insight"},
             headers={"X-API-Key": "test_key"},
         )
-        # May return 200, 403, or 503 depending on feature flags
-        assert response.status_code in [200, 403, 503]
+        # With test_environment fixture, should return 200 or 503 (if LLM unavailable)
+        assert response.status_code in [200, 503]
 
     def test_debug_env_endpoint_coverage(self, client):
         """Test debug_env endpoint for coverage."""
@@ -138,8 +138,16 @@ class TestAppUnitTests:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict)
-        # Should contain environment variables - check for multiple possible keys
-        env_keys = ["FEATURE_INSIGHT", "LLM_PROVIDER", "APP_ENV", "DEBUG", "VIP_MODULE_ENABLED"]
-        assert any(
-            key in data for key in env_keys
-        ), f"Expected at least one of {env_keys} in response data: {list(data.keys())}"
+        # Should contain required environment variables (based on actual debug endpoint response)
+        required_keys = ["FEATURE_INSIGHT", "LLM_PROVIDER", "insight_enabled"]
+        missing_keys = [key for key in required_keys if key not in data]
+        assert (
+            len(missing_keys) == 0
+        ), f"Missing required environment keys: {missing_keys}. Available keys: {list(data.keys())}"
+
+        # Check for optional but expected keys
+        optional_keys = ["GROK_MODEL", "GROK_ENDPOINT"]
+        found_optional = [key for key in optional_keys if key in data]
+        assert (
+            len(found_optional) > 0
+        ), f"Expected at least one optional key from {optional_keys} in response data: {list(data.keys())}"

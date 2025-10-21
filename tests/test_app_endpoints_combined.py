@@ -74,8 +74,22 @@ class TestDebugEndpoint:
         response = client.get("/debug_env")
         assert response.status_code == 200
         data = response.json()
-        # Should contain some environment information
+        # Should contain meaningful debug information
         assert isinstance(data, dict)
+        assert len(data) > 0, "Debug endpoint should return non-empty data"
+
+        # Check for expected environment keys (based on actual debug endpoint response)
+        expected_keys = [
+            "FEATURE_INSIGHT",
+            "LLM_PROVIDER",
+            "GROK_MODEL",
+            "GROK_ENDPOINT",
+            "insight_enabled",
+        ]
+        found_keys = [key for key in expected_keys if key in data]
+        assert (
+            len(found_keys) > 0
+        ), f"Expected at least one of {expected_keys} in debug data, got: {list(data.keys())}"
 
 
 class TestAppPackageShimEdges:
