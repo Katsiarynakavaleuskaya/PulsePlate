@@ -1,0 +1,77 @@
+# CodeRabbit configuration for PulsePlate
+# https://docs.coderabbit.ai/guides/customization
+
+# Review settings
+review:
+  # Enable automatic reviews on pull requests
+  auto_review: true
+  
+  # Review all files, not just changed ones
+  review_all_files: false
+  
+  # Maximum number of comments per review
+  max_comments: 50
+  
+  # Review profile: CHILL, STRICT, or CUSTOM
+  profile: CHILL
+  
+  # Plan: FREE, PRO, or ENTERPRISE
+  plan: PRO
+
+# Language-specific settings
+languages:
+  python:
+    # Use Black formatter
+    formatter: black
+    # Line length for Black
+    line_length: 100
+    # Require type hints
+    require_type_hints: true
+    # Use Pydantic v2 APIs
+    prefer_pydantic_v2: true
+
+# File patterns to include/exclude
+files:
+  include:
+    - "**/*.py"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.md"
+    - "**/*.yml"
+    - "**/*.yaml"
+    - "**/*.json"
+  exclude:
+    - "**/node_modules/**"
+    - "**/__pycache__/**"
+    - "**/*.pyc"
+    - "**/venv/**"
+    - "**/.venv/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/coverage/**"
+    - "**/htmlcov/**"
+    - "**/.pytest_cache/**"
+    - "**/cache/**"
+    - "**/releases/**"
+
+# Custom instructions
+instructions:
+  - "Focus on health/nutrition domain best practices"
+  - "Maintain 97% test coverage requirement"
+  - "Follow Apple HIG guidelines for iOS components"
+  - "Use FastAPI best practices for backend"
+  - "Prioritize user experience and accessibility"
+  - "Ensure all tests pass before suggesting changes"
+  - "Prefer explicit over implicit code"
+  - "Add type hints for all functions"
+  - "Use descriptive variable and function names"
+  - "Follow PEP 8 style guidelines"
+
+# Ignore certain patterns
+ignore:
+  - "**/*.min.js"
+  - "**/*.min.css"
+  - "**/vendor/**"
+  - "**/third_party/**"
