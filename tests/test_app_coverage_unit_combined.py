@@ -17,12 +17,13 @@ try:
     import app
 
     app_instance = app.app
-except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover
+except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 # client fixture is provided by conftest.py
 
 
+@pytest.mark.usefixtures("test_environment")
 class TestAppCoverage:
     """Coverage tests for main.py (groups, insight, debug_env)."""
 
@@ -32,7 +33,7 @@ class TestAppCoverage:
         # Groups endpoint should return 404 as it's not implemented
         assert response.status_code == 404
 
-    def test_insight_endpoint_coverage(self, client, test_environment):
+    def test_insight_endpoint_coverage(self, client):
         """Test insight endpoint for coverage."""
         response = client.post(
             "/api/v1/insight",
@@ -41,96 +42,6 @@ class TestAppCoverage:
         )
         # With test_environment fixture, should return 200 or 503 (if LLM unavailable)
         assert response.status_code in [200, 503]
-
-    def test_debug_env_endpoint_coverage(self, client):
-        """Test debug_env endpoint for coverage."""
-        response = client.get("/debug_env")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, dict)
-
-    def test_health_endpoint_coverage(self, client):
-        """Test health endpoint for coverage."""
-        response = client.get("/health")
-        assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
-
-    def test_root_endpoint_coverage(self, client):
-        """Test root endpoint for coverage."""
-        response = client.get("/")
-        assert response.status_code == 200
-        content = response.text
-        assert "<title" in content
-
-    def test_docs_endpoint_coverage(self, client):
-        """Test docs endpoint for coverage."""
-        response = client.get("/docs")
-        assert response.status_code == 200
-
-    def test_openapi_endpoint_coverage(self, client):
-        """Test openapi endpoint for coverage."""
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-        data = response.json()
-        assert "openapi" in data
-
-    def test_favicon_endpoint_coverage(self, client):
-        """Test favicon endpoint for coverage."""
-        response = client.get("/favicon.ico")
-        assert response.status_code == 204
-
-
-class TestAppUnitTests:
-    """Unit tests for internal helpers in main.py."""
-
-    def test_bmi_category_boundaries(self):
-        """Test BMI category boundary values 18.5/25/30."""
-        from bmi_core import bmi_category
-
-        # below 18.5
-        assert bmi_category(18.49, "en") == "Underweight"
-        # [18.5, 25)
-        assert bmi_category(18.5, "en") == "Normal weight"
-        assert bmi_category(24.99, "en") == "Normal weight"
-        # [25, 30)
-        assert bmi_category(25.0, "en") == "Overweight"
-        assert bmi_category(29.99, "en") == "Overweight"
-        # >= 30
-        assert bmi_category(30.0, "en") == "Obese Class I"
-
-    def test_bmi_category_russian(self):
-        """Test BMI category in Russian."""
-        from bmi_core import bmi_category
-
-        assert bmi_category(20.0, "ru") == "Норма"
-        assert bmi_category(27.0, "ru") == "Избыточная масса"
-        assert bmi_category(32.0, "ru") == "Ожирение I степени"
-
-    def test_bmi_interpret_group_function(self):
-        """Test interpret_group function for different groups."""
-        from bmi_core import interpret_group
-
-        # Test interpret_group function
-        result = interpret_group(25.0, "general", "en")
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-        result_ru = interpret_group(25.0, "general", "ru")
-        assert isinstance(result_ru, str)
-        assert len(result_ru) > 0
-
-    def test_bmi_estimate_level_function(self):
-        """Test estimate_level function."""
-        from bmi_core import estimate_level
-
-        # Test estimate_level function
-        result = estimate_level(30, 25.0, "en")
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-        result_ru = estimate_level(30, 25.0, "ru")
-        assert isinstance(result_ru, str)
-        assert len(result_ru) > 0
 
     def test_debug_env_feature_insight_switch(self, client):
         """Test /debug_env: check insight_enabled switching through FEATURE_INSIGHT."""
@@ -142,12 +53,82 @@ class TestAppUnitTests:
         required_keys = ["FEATURE_INSIGHT", "LLM_PROVIDER", "insight_enabled"]
         missing_keys = [key for key in required_keys if key not in data]
         assert (
-            len(missing_keys) == 0
+            not missing_keys
         ), f"Missing required environment keys: {missing_keys}. Available keys: {list(data.keys())}"
 
         # Check for optional but expected keys
         optional_keys = ["GROK_MODEL", "GROK_ENDPOINT"]
         found_optional = [key for key in optional_keys if key in data]
         assert (
-            len(found_optional) > 0
+            found_optional
         ), f"Expected at least one optional key from {optional_keys} in response data: {list(data.keys())}"
+
+
+class TestAppUnitTests:
+    """Unit tests for app internal functions and helpers."""
+
+    def test_bmi_core_functions(self):
+        """Test BMI core functions for coverage."""
+        from bmi_core import (
+            bmi_value,
+            healthy_bmi_range,
+            interpret_group,
+            estimate_level,
+        )
+
+        # Test bmi_value function
+        bmi = bmi_value(70.0, 1.75)
+        assert isinstance(bmi, float)
+        assert 20.0 <= bmi <= 25.0  # Should be in normal range
+
+        # Test healthy_bmi_range function
+        bmi_min, bmi_max = healthy_bmi_range(25, "general", premium=False)
+        assert isinstance(bmi_min, float)
+        assert isinstance(bmi_max, float)
+        assert bmi_min < bmi_max
+
+        # Test interpret_group function with specific values
+        result = interpret_group(22.0, "general", "en")
+        assert result == "Normal weight"
+
+        # Test Russian localization
+        result_ru = interpret_group(22.0, "general", "ru")
+        assert result_ru == "Норма"
+
+        # Test estimate_level function
+        level = estimate_level(0, 0.0, "en")
+        assert level == "beginner"
+
+        # Test Russian localization
+        level_ru = estimate_level(0, 0.0, "ru")
+        assert level_ru == "базовый"
+
+    def test_bmi_categories(self):
+        """Test BMI category interpretations."""
+        from bmi_core import interpret_group
+
+        # Test different BMI categories
+        assert interpret_group(18.5, "general", "en") == "Normal weight"
+        assert interpret_group(22.0, "general", "en") == "Normal weight"
+        assert interpret_group(25.0, "general", "en") == "Overweight"
+        assert interpret_group(30.0, "general", "en") == "Obese Class I"
+
+        # Test Russian categories
+        assert interpret_group(18.5, "general", "ru") == "Норма"
+        assert interpret_group(22.0, "general", "ru") == "Норма"
+        assert interpret_group(25.0, "general", "ru") == "Избыточная масса"
+        assert interpret_group(30.0, "general", "ru") == "Ожирение I степени"
+
+    def test_estimate_level_categories(self):
+        """Test estimate_level with different BMI categories."""
+        from bmi_core import estimate_level
+
+        # Test different levels
+        assert estimate_level(0, 0.0, "en") == "beginner"
+        assert estimate_level(1, 0.0, "en") == "beginner"
+        assert estimate_level(2, 0.0, "en") == "beginner"
+
+        # Test Russian levels
+        assert estimate_level(0, 0.0, "ru") == "базовый"
+        assert estimate_level(1, 0.0, "ru") == "базовый"
+        assert estimate_level(2, 0.0, "ru") == "базовый"

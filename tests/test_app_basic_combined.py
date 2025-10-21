@@ -29,7 +29,8 @@ class TestAppImport:
 class TestAppVIPIntegration:
     """Test VIP module integration."""
 
-    def test_app_vip_integration_success(self, test_environment):
+    @pytest.mark.usefixtures("test_environment")
+    def test_app_vip_integration_success(self):
         """Verify that VIP routes register successfully when the module is enabled."""
         # Since VIP module is currently working, test that it's properly integrated
         fastapi_app = app.app
@@ -39,7 +40,8 @@ class TestAppVIPIntegration:
             getattr(route, "path", None) or getattr(route, "path_format", "")
             for route in fastapi_app.routes
         }
-        assert "/health" in paths or "/api/v1/health" in paths
+        # Check for specific health endpoint path based on API design
+        assert "/health" in paths
 
         # VIP routes should be present since VIP module is enabled
         vip_paths = {p for p in paths if "/vip/" in p}
