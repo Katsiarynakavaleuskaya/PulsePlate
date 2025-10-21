@@ -1,0 +1,11 @@
+name: 'Clean Python Cache'
+description: 'Clean Python cache files (__pycache__ and .pyc)'
+runs:
+  using: 'composite'
+  steps:
+    - name: Clean Python cache
+      shell: bash
+      run: |
+        find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
+        find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+        echo "✅ Python cache cleaned"

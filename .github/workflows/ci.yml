@@ -110,10 +110,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Clean Python cache
-        run: |
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
-          echo "✅ Python cache cleaned"
+        uses: ./.github/actions/clean-python-cache
 
       - name: Run tests with coverage
         env:
@@ -129,15 +126,13 @@ jobs:
 
       - name: Clean Python cache (post-test)
         if: always()
-        run: |
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+        uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (3.12 only)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-xml-${{ matrix.python-version }}
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -146,7 +141,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: junit-${{ matrix.python-version }}
+          name: junit-${{ env.COVERAGE_PY }}
           path: tests/results.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -187,10 +182,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Clean Python cache
-        run: |
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
-          echo "✅ Python cache cleaned"
+        uses: ./.github/actions/clean-python-cache
 
       - name: Run tests with coverage
         env:
@@ -206,15 +198,13 @@ jobs:
 
       - name: Clean Python cache (post-test)
         if: always()
-        run: |
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+        uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (3.12 only)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-xml-${{ matrix.python-version }}
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -223,7 +213,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: junit-${{ matrix.python-version }}
+          name: junit-${{ env.COVERAGE_PY }}
           path: tests/results.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -285,15 +275,13 @@ jobs:
 
       - name: Clean Python cache (post-test)
         if: always()
-        run: |
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+        uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (all Python versions)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-xml-${{ matrix.python-version }}
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -302,7 +290,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: junit-${{ matrix.python-version }}
+          name: junit-${{ env.COVERAGE_PY }}
           path: tests/results.xml
           if-no-files-found: ignore
           retention-days: 7

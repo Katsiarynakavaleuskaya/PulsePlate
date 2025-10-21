@@ -18,6 +18,16 @@ from core.food_apis.scheduler import (
 from core.food_apis.update_manager import UpdateResult
 
 
+@pytest.fixture(autouse=True)
+def event_loop():
+    """Provide a fresh event loop for each test to prevent 'Event loop is closed' errors."""
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
 class TestSchedulerAdditionalCoverage:
     """Additional tests to improve coverage for DatabaseUpdateScheduler."""
 
@@ -270,28 +280,35 @@ class TestSchedulerAdditionalCoverage:
     @pytest.mark.asyncio
     async def test_global_scheduler_functions(self):
         """Test global scheduler functions."""
-        # Test get_update_scheduler
-        scheduler1 = await get_update_scheduler()
-        scheduler2 = await get_update_scheduler()
+        try:
+            # Test get_update_scheduler
+            scheduler1 = await get_update_scheduler()
+            scheduler2 = await get_update_scheduler()
 
-        # Should return the same instance
-        assert scheduler1 is scheduler2
+            # Should return the same instance
+            assert scheduler1 is scheduler2
 
-        # Test start_background_updates
-        with patch("core.food_apis.scheduler.logger") as mock_logger:
-            try:
-                await start_background_updates(1)  # 1 hour interval
-                # Should log that updates started
+            # Test start_background_updates
+            with patch("core.food_apis.scheduler.logger") as mock_logger:
+                try:
+                    await start_background_updates(1)  # 1 hour interval
+                    # Should log that updates started
+                    mock_logger.info.assert_called()
+                except AttributeError as e:
+                    # Skip test if scheduler doesn't have start method
+                    pytest.skip(f"Scheduler start method not available: {e}")
+
+            # Test stop_background_updates
+            with patch("core.food_apis.scheduler.logger") as mock_logger:
+                await stop_background_updates()
+                # Should log that updates stopped
                 mock_logger.info.assert_called()
-            except AttributeError as e:
-                # Skip test if scheduler doesn't have start method
-                pytest.skip(f"Scheduler start method not available: {e}")
-
-        # Test stop_background_updates
-        with patch("core.food_apis.scheduler.logger") as mock_logger:
-            await stop_background_updates()
-            # Should log that updates stopped
-            mock_logger.info.assert_called()
+        finally:
+            # Ensure cleanup of any background tasks
+            try:
+                await stop_background_updates()
+            except Exception:
+                pass  # Ignore cleanup errors
 
 
 if __name__ == "__main__":
