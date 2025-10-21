@@ -58,13 +58,16 @@ class TestAppVIPComprehensive97:
             # Try to access a non-existent attribute
             _ = vip_router.non_existent_attribute
             # If we get here, the test should fail
-            assert False, "Expected AttributeError was not raised"
+            raise AssertionError("Expected AttributeError was not raised")
         except AttributeError:
             # This is expected behavior
             pass
         except Exception as e:
             # Other exceptions are also acceptable for this test
-            assert isinstance(e, Exception)
+            # Log the unexpected exception for debugging
+            import logging
+
+            logging.getLogger(__name__).warning(f"Unexpected exception in VIP router test: {e}")
 
     def test_premium_plate_fallback_mode(self, test_client):
         """Test premium plate endpoint in fallback mode when backends are unavailable."""

@@ -34,7 +34,11 @@ async def cleanup_scheduler():
     yield
     try:
         await stop_background_updates()
-    except Exception as e:
+        # Reset the global instance to enable fresh initialization in next test
+        import core.food_apis.scheduler as sched_mod
+
+        sched_mod._scheduler_instance = None
+    except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
         # Log the error instead of silently passing
         import logging
 
@@ -307,23 +311,25 @@ class TestSchedulerAdditionalCoverage:
                 await start_background_updates(1)  # 1 hour interval
                 # Should log that updates started
                 mock_logger.info.assert_called_once()
-                # Verify the log message contains expected content
+                # Verify the log message matches expected format
                 call_args = mock_logger.info.call_args[0][0]
-                assert "start" in call_args.lower() or "background" in call_args.lower()
-            except AttributeError as e:
-                # Skip test if scheduler doesn't have start method
-                pytest.skip(f"Scheduler start method not available: {e}")
+                assert "background database updates started" in call_args.lower()
+            except AttributeError:
+                pytest.fail("Scheduler start method should be available")
 
     @pytest.mark.asyncio
     async def test_stop_background_updates_logging(self):
         """Test stop_background_updates logging behavior."""
+        # Start the scheduler first to ensure it can be stopped
+        await start_background_updates(1)
+
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
             # Should log that updates stopped
             mock_logger.info.assert_called_once()
-            # Verify the log message contains expected content
+            # Verify the log message matches expected format
             call_args = mock_logger.info.call_args[0][0]
-            assert "stop" in call_args.lower() or "background" in call_args.lower()
+            assert "background database updates stopped" in call_args.lower()
 
 
 if __name__ == "__main__":

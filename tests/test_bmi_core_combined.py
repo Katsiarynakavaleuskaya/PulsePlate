@@ -166,7 +166,7 @@ class TestBMIAPIValidation:
 class TestBMICoreCoverage:
     """Test BMI core coverage and fallback scenarios."""
 
-    def _call_interpret_group_safe(self, group: str, lang: str):
+    def _call_interpret_group_safe(self, group: str, lang: str) -> str | None:
         """Safely call interpret_group with correct signature."""
         fn = getattr(pytest.importorskip("bmi_core"), "interpret_group", None)
         if not callable(fn):
@@ -174,8 +174,9 @@ class TestBMICoreCoverage:
 
         # Use correct signature: interpret_group(bmi, group, lang, age=None)
         try:
-            return fn(bmi=24.9, group=group, lang=lang)  # type: ignore[misc]
-        except Exception as e:
+            result = fn(bmi=24.9, group=group, lang=lang)
+            return str(result) if result is not None else None
+        except (TypeError, ValueError) as e:
             pytest.skip(f"interpret_group call failed: {e}")
 
     def test_group_display_fallbacks_and_edges(self):
