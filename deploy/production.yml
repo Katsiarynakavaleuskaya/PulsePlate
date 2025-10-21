@@ -1,0 +1,122 @@
+# Production environment configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulseplate-production-config
+data:
+  APP_ENV: "production"
+  DEBUG: "false"
+  VIP_MODULE_ENABLED: "true"
+  FEATURE_PREMIUM_NUTRITION: "true"
+  LOG_LEVEL: "WARNING"
+  # Production secrets should be in Secret objects, not ConfigMap
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pulseplate-production-secrets
+type: Opaque
+data:
+  # Base64 encoded secrets
+  API_KEY: cHJvZF9hcGlfa2V5X2hlcmU=  # prod_api_key_here
+  DATABASE_URL: cG9zdGdyZXNxbDovL3VzZXI6cGFzc0BkYjovcHVsc2VwbGF0ZQ==  # postgresql://user:pass@db:/pulseplate
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulseplate-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pulseplate-production
+  template:
+    metadata:
+      labels:
+        app: pulseplate-production
+    spec:
+      containers:
+      - name: pulseplate
+        image: ghcr.io/katsiarynakavaleuskaya/pulseplate:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: pulseplate-production-config
+        - secretRef:
+            name: pulseplate-production-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulseplate-production-service
+spec:
+  selector:
+    app: pulseplate-production
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pulseplate-production-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - pulseplate.com
+    - api.pulseplate.com
+    secretName: pulseplate-tls
+  rules:
+  - host: pulseplate.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: pulseplate-production-service
+            port:
+              number: 80
+  - host: api.pulseplate.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: pulseplate-production-service
+            port:
+              number: 80
