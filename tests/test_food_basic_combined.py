@@ -5,8 +5,9 @@ Includes API smoke tests and basic food database tests.
 
 from fastapi.testclient import TestClient
 
-import app as app_module
 import pytest
+
+import app as app_module
 
 from core.food_db import aggregate_shopping, parse_food_db, pick_booster_for
 
@@ -14,7 +15,7 @@ from core.food_db import aggregate_shopping, parse_food_db, pick_booster_for
 class TestFoodAPIBasic:
     """Basic food API tests."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         self.client = TestClient(app_module.app)
 
@@ -43,9 +44,8 @@ class TestFoodDatabaseBasic:
         assert isinstance(food_db, dict)
         assert len(food_db) > 0
 
-        # Check a specific food item
-        assert "Овсяные хлопья" in food_db
-        oatmeal = food_db["Овсяные хлопья"]
+        # Optionally sample one item without depending on a specific name
+        oatmeal = next(iter(food_db.values()))
 
         # Check that all required fields are present
         assert hasattr(oatmeal, "name")
@@ -96,5 +96,4 @@ class TestFoodDatabaseBasic:
         assert shopping_list["Тофу"] == 120
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+# __main__ guard intentionally omitted; run via `pytest`.

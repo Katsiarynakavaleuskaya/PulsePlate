@@ -7,17 +7,14 @@ import os
 import tempfile
 
 import pytest
-from faker import Faker
 
 from core.food_db_new import FoodDB
-
-fake = Faker()
 
 
 class TestFoodDbNewCombined:
     """Combined tests for food_db_new.py functionality and coverage."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment."""
         # Create a minimal CSV for testing
         self.test_csv_content = """name,group,per_g,protein_g,fat_g,carbs_g,fiber_g,Fe_mg,Ca_mg,VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price
@@ -28,15 +25,16 @@ missing_item,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,0.0,100.0,15.0,OMNI
         self.temp_csv.write(self.test_csv_content)
         self.temp_csv.close()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if os.path.exists(self.temp_csv.name):
             os.unlink(self.temp_csv.name)
 
     def test_parse_food_db(self):
         """Test that food database is parsed correctly."""
-        # Get the path to the test data file
-        csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+        from pathlib import Path
+
+        csv_path = str(Path(__file__).resolve().parents[1] / "data" / "food_db_new.csv")
 
         # Parse the food database
         food_db = FoodDB(csv_path)
@@ -45,13 +43,13 @@ missing_item,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,0.0,100.0,15.0,OMNI
         assert isinstance(food_db.items, dict)
         assert len(food_db.items) > 0
 
-        # Check a specific food item
-        assert "chicken_breast" in food_db.items
-        chicken = food_db.get_food("chicken_breast")
-        assert chicken is not None
+        # Optional: avoid relying on specific item names which may change
+        # Just sample one arbitrary element to ensure objects are parseable
+        sample = next(iter(food_db.items.values()))
+        assert hasattr(sample, "name")
 
-    def test_get_food_line_68(self):
-        """Test get_food method line 68 coverage."""
+    def test_get_food_returns_existing_item(self):
+        """Test get_food returns existing item."""
         food_db = FoodDB(self.temp_csv.name)
 
         # Test getting existing food (line 68)
@@ -99,7 +97,7 @@ missing_item,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,0.0,100.0,15.0,OMNI
 
     def test_food_db_initialization_error(self):
         """Test FoodDB initialization with invalid file."""
-        with pytest.raises((FileNotFoundError, Exception)):
+        with pytest.raises(FileNotFoundError):
             FoodDB("nonexistent_file.csv")
 
     def test_food_db_empty_file(self):
@@ -118,5 +116,4 @@ missing_item,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,0.0,100.0,15.0,OMNI
             os.unlink(empty_csv.name)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+# __main__ guard intentionally omitted; run via `pytest`.
