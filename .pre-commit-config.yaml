@@ -50,7 +50,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
-        files: ^(app\.py|app/|scripts|tests|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+        files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit

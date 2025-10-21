@@ -105,6 +105,5 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     monkeypatch.setenv("METRICS_ENABLED", "true")
-    # API_KEY is not set by default to enable lenient mode
     yield
     # Cleanup is automatic with monkeypatch
