@@ -242,9 +242,11 @@ class TestAppMissingLinesCoverage:
             headers={"X-API-Key": "test_key"},
         )
         # May be 200, 500, or 503 depending on database availability
-        assert response.status_code in [200, 500, 503], (
-            f"Unexpected status code: {response.status_code}\nResponse: {response.json()}"
-        )
+        assert response.status_code in [
+            200,
+            500,
+            503,
+        ], f"Unexpected status code: {response.status_code}\nResponse: {response.json()}"
 
     @pytest.mark.xfail(reason="Admin endpoints need special setup")
     def test_force_database_update_endpoint(self, client):

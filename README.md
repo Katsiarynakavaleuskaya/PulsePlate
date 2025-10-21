@@ -8,6 +8,28 @@
 
 ## 🚀 Quick Start
 
+### ⚠️ Important: Pre-commit Setup
+
+**Always run pre-commit checks before pushing:**
+
+```bash
+# Option 1: Use the existing pre-commit hook (recommended)
+git commit  # Automatically runs pre-commit hooks
+
+# Option 2: Manual pre-commit
+pre-commit run --all-files
+
+# Option 3: Clean cache manually if needed
+./scripts/clean-cache.sh
+```
+
+**Pre-commit hooks include:**
+- ✅ **Black** formatting (line length 100)
+- ✅ **Ruff** linting and import sorting
+- ✅ **MyPy** type checking
+- ✅ **Bandit** security scanning
+- ✅ **Automatic cache cleanup** (removes `__pycache__` and `.pyc` files)
+
 ### Python Version
 
 - Закреплена версия Python: 3.13.5 (`.python-version`, `.tool-versions`).
@@ -442,6 +464,8 @@ make lint
   - CI/CD with GitHub Actions and automated security scans
   - Simple web UI at root path for easy BMI calculation
   - Structured logging and request monitoring
+  - **Pre-commit hooks** for code quality (Black, Ruff, MyPy, Bandit)
+  - **Automatic cache cleanup** in CI and pre-commit hooks
   - API key authentication and optional rate limiting
 
 ## License

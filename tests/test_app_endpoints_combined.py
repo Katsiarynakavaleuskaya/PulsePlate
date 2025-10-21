@@ -119,24 +119,6 @@ class TestAppPackageShimEdges:
         loc = spec.submodule_search_locations or []
         assert isinstance(loc, (list, tuple))
 
-    def test_internal_passthrough_behavior(self) -> None:
-        """Test internal passthrough behavior - isolated test for implementation details."""
-        # This test verifies internal passthrough behavior and is isolated from public API tests
-        # Note: This tests implementation details and should be removed in favor of behavior testing
-        mod = getattr(apppkg, "_mod", None)
-        if mod is not None:
-            # Set a sentinel on the backing module and ensure passthrough via apppkg
-            had_prev = hasattr(mod, "_shim_sentinel")
-            prev = getattr(mod, "_shim_sentinel", None)
-            mod._shim_sentinel = "ok"
-            try:
-                assert apppkg._shim_sentinel == "ok"
-            finally:
-                if had_prev:
-                    mod._shim_sentinel = prev  # restore
-                else:
-                    delattr(mod, "_shim_sentinel")
-
     def test_app_package_all_and_sysmodules_binding(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test __all__ exports and sys.modules binding behavior."""
         # Ensure __all__ exposes app

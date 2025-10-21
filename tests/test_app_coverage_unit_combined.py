@@ -7,12 +7,11 @@ EN: Combined tests for app coverage and unit tests: main.py coverage, groups, in
 """
 
 import pytest
+from fastapi.testclient import TestClient
 
 try:
-    # Simple import of the app module
-    import app
-
-    # app import validated above; no binding needed
+    # Validate app module can be imported
+    import app  # noqa: F401
 except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
@@ -23,13 +22,13 @@ except ImportError as exc:  # pragma: no cover
 class TestAppCoverage:
     """Coverage tests for main.py (groups, insight, debug_env)."""
 
-    def test_groups_endpoint_coverage(self, client):
+    def test_groups_endpoint_coverage(self, client: TestClient) -> None:
         """Test groups endpoint for coverage."""
         response = client.get("/groups")
         # Groups endpoint should return 404 as it's not implemented
         assert response.status_code == 404
 
-    def test_insight_endpoint_coverage(self, client):
+    def test_insight_endpoint_coverage(self, client: TestClient) -> None:
         """Test insight endpoint for coverage."""
         response = client.post(
             "/api/v1/insight",
@@ -39,7 +38,7 @@ class TestAppCoverage:
         # With test_environment fixture, should return 200 or 503 (if LLM unavailable)
         assert response.status_code in [200, 503]
 
-    def test_debug_env_feature_insight_switch(self, client):
+    def test_debug_env_feature_insight_switch(self, client: TestClient) -> None:
         """Test /debug_env: check insight_enabled switching through FEATURE_INSIGHT."""
         response = client.get("/debug_env")
         assert response.status_code == 200
@@ -63,7 +62,7 @@ class TestAppCoverage:
 class TestAppUnitTests:
     """Unit tests for app internal functions and helpers."""
 
-    def test_bmi_core_functions(self):
+    def test_bmi_core_functions(self) -> None:
         """Test BMI core functions for coverage."""
         from bmi_core import (
             bmi_value,
@@ -99,7 +98,7 @@ class TestAppUnitTests:
         level_ru = estimate_level(0, 0.0, "ru")
         assert level_ru == "базовый"
 
-    def test_bmi_categories(self):
+    def test_bmi_categories(self) -> None:
         """Test BMI category interpretations."""
         from bmi_core import interpret_group
 
@@ -115,16 +114,22 @@ class TestAppUnitTests:
         assert interpret_group(25.0, "general", "ru") == "Избыточная масса"
         assert interpret_group(30.0, "general", "ru") == "Ожирение I степени"
 
-    def test_estimate_level_categories(self):
-        """Test estimate_level with different BMI categories."""
+    def test_estimate_level_categories(self) -> None:
+        """Test estimate_level with different fitness experience levels."""
         from bmi_core import estimate_level
 
-        # Test different levels
+        # Test beginner level (no experience, no frequency)
         assert estimate_level(0, 0.0, "en") == "beginner"
-        assert estimate_level(1, 0.0, "en") == "beginner"
-        assert estimate_level(2, 0.0, "en") == "beginner"
-
-        # Test Russian levels
         assert estimate_level(0, 0.0, "ru") == "базовый"
-        assert estimate_level(1, 0.0, "ru") == "базовый"
-        assert estimate_level(2, 0.0, "ru") == "базовый"
+
+        # Test novice level (some experience, low frequency)
+        assert estimate_level(1, 0.5, "en") == "novice"
+        assert estimate_level(1, 0.5, "ru") == "начальный"
+
+        # Test intermediate level (moderate experience and frequency)
+        assert estimate_level(2, 2.0, "en") == "intermediate"
+        assert estimate_level(2, 2.0, "ru") == "средний"
+
+        # Test advanced level (high experience and frequency)
+        assert estimate_level(3, 5.0, "en") == "advanced"
+        assert estimate_level(3, 5.0, "ru") == "продвинутый"

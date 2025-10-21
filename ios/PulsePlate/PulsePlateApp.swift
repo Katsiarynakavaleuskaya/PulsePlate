@@ -8,5 +8,3 @@ struct PulsePlateApp: App {
         }
     }
 }
-
-

@@ -217,9 +217,9 @@ class TestPremiumTargetsComprehensive:
             f"Moderate aerobic activity should be 150 min/week, "
             f"got {activity['moderate_aerobic_min']}"
         )
-        assert activity["strength_sessions"] == 2, (
-            f"Strength sessions should be 2/week, got {activity['strength_sessions']}"
-        )
+        assert (
+            activity["strength_sessions"] == 2
+        ), f"Strength sessions should be 2/week, got {activity['strength_sessions']}"
 
     def test_premium_targets_kcal_safety_bounds(self):
         """Test that kcal targets are within safety bounds (≥1200)."""
@@ -240,9 +240,9 @@ class TestPremiumTargetsComprehensive:
         assert response.status_code == 200
 
         result = response.json()
-        assert result["kcal_daily"] >= 1200, (
-            f"Calorie target {result['kcal_daily']} below minimum safe level of 1200 kcal"
-        )
+        assert (
+            result["kcal_daily"] >= 1200
+        ), f"Calorie target {result['kcal_daily']} below minimum safe level of 1200 kcal"
 
     def test_premium_targets_tdee_vs_bmr(self):
         """Test that TDEE ≥ BMR."""
@@ -264,9 +264,9 @@ class TestPremiumTargetsComprehensive:
         # The endpoint returns kcal_daily which should be TDEE
         # We can't directly compare to BMR without internal calculations,
         # but we can check it's reasonable
-        assert result["kcal_daily"] > 1500, (
-            f"TDEE {result['kcal_daily']} seems too low for a 70kg male"
-        )
+        assert (
+            result["kcal_daily"] > 1500
+        ), f"TDEE {result['kcal_daily']} seems too low for a 70kg male"
 
 
 if __name__ == "__main__":
