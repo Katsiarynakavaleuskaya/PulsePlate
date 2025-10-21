@@ -40,7 +40,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
-        files: ^(app|scripts|tests|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+        files: ^(app/|scripts|tests|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -60,7 +60,7 @@ repos:
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
-    rev: v2.7.3
+    rev: v2.9.0
     hooks:
       - id: pip-audit
         name: pip-audit (pip vulns)
@@ -90,7 +90,7 @@ repos:
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
-      # ruff — строгий на pre-push (не пропускаем автофикс молча)
+      # ruff — strict on pre-push (no silent auto-fix bypass)
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
         entry: ruff check .
@@ -98,7 +98,7 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # bandit-full — полный security scan со smart excludes
+      # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)
         entry: bash -c "make bandit-full"

@@ -90,9 +90,7 @@ class TestDebugEndpoint:
             "insight_enabled",
         ]
         found_keys = [key for key in expected_keys if key in data]
-        assert found_keys, (
-            f"Expected at least one of {expected_keys} in debug data, got: {list(data.keys())}"
-        )
+        assert found_keys, f"Expected one of {expected_keys} in debug data"
 
 
 class TestAppPackageShimEdges:

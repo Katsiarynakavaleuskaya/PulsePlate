@@ -10,7 +10,7 @@ These tests cover critical uncovered lines in main.py and exception handler cove
 import pytest
 from unittest.mock import patch
 import httpx
-from typing import Any
+from fastapi.testclient import TestClient
 
 import app
 
@@ -18,17 +18,17 @@ import app
 class TestAppCriticalLines97:
     """Test the most critical uncovered lines in main.py"""
 
-    def test_invalid_json_malformed_request(self, client: Any) -> None:
+    def test_invalid_json_malformed_request(self, client: TestClient) -> None:
         """Test malformed JSON - error handling lines"""
         # Send invalid JSON to public BMI endpoint (without API key)
         response = client.post(
             "/api/v1/bmi",
-            data="{'invalid': json}",  # Invalid JSON
+            content="{'invalid': json}",  # Invalid JSON
             headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
         assert response.status_code in [422, 400]
 
-    def test_error_handling_edge_paths(self, client: Any) -> None:
+    def test_error_handling_edge_paths(self, client: TestClient) -> None:
         """Test various error handling paths"""
         # Test with empty request body on real endpoint
         response = client.post("/api/v1/bmi", headers={"Content-Type": "application/json"})
@@ -40,33 +40,35 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 200  # BMI is public, valid payload returns 200
 
-    def test_premium_endpoints_error_paths(self, client: Any) -> None:
+    def test_premium_endpoints_error_paths(self, client: TestClient) -> None:
         """Test error paths in premium endpoints"""
         # Test with invalid parameters on existing endpoint
         response = client.post("/premium_targets", json={"sex": "invalid", "age": -1})
         assert response.status_code in [422, 400, 403, 404]
 
-    def test_health_endpoint_coverage(self, client: Any) -> None:
+    def test_health_endpoint_coverage(self, client: TestClient) -> None:
         """Test health endpoint for coverage"""
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_cors_and_middleware_paths(self, client: Any) -> None:
+    def test_cors_and_middleware_paths(self, client: TestClient) -> None:
         """Test CORS and middleware paths"""
         # Options request for CORS
         response = client.options("/health")
         assert response.status_code in [200, 405]
         if response.status_code == 200:
-            assert "access-control-allow-origin" in {k.lower(): v for k, v in response.headers.items()}
+            assert "access-control-allow-origin" in {
+                k.lower(): v for k, v in response.headers.items()
+            }
 
-    def test_exception_handling_paths(self, client: Any) -> None:
+    def test_exception_handling_paths(self, client: TestClient) -> None:
         """Test exception handling paths"""
         # Test with very large JSON payload to reliably test size limits
         large_data = {"data": "x" * 100000}  # Increased from 10k to 100k for more reliable testing
         response = client.post("/api/v1/bmi", json=large_data)
         assert response.status_code in [422, 400, 413]
 
-    def test_various_endpoints_coverage(self, client: Any) -> None:
+    def test_various_endpoints_coverage(self, client: TestClient) -> None:
         """Test various endpoints for coverage"""
         # Test main endpoints
         endpoints = ["/", "/health", "/docs"]
@@ -95,7 +97,9 @@ class TestAppExceptionHandlersCoverage:
             ("/api/v1/bodyfat", {"wrong_key": "value"}, 422),
         ],
     )
-    def test_validation_error_handlers(self, client: Any, endpoint: str, payload: dict, expected_status: int) -> None:
+    def test_validation_error_handlers(
+        self, client: TestClient, endpoint: str, payload: dict, expected_status: int
+    ) -> None:
         """Test validation error handlers coverage"""
         # Build headers dict per test case based on endpoint parameter (include API key for authenticated endpoints)
         headers = {}
@@ -105,7 +109,7 @@ class TestAppExceptionHandlersCoverage:
         response = client.post(endpoint, json=payload, headers=headers)
         assert response.status_code == expected_status
 
-    def test_http_exception_handlers(self, client: Any) -> None:
+    def test_http_exception_handlers(self, client: TestClient) -> None:
         """Test HTTP exception handlers coverage"""
         # Test with non-existent endpoint (404)
         response = client.get("/nonexistent")
@@ -115,21 +119,27 @@ class TestAppExceptionHandlersCoverage:
         response = client.delete("/health")
         assert response.status_code == 405
 
-    def test_runtime_error_handler(self, client: Any) -> None:
+    def test_runtime_error_handler(self, client: TestClient) -> None:
         """Test runtime error handler coverage: BMI endpoint is now public, test on another."""
+        from typing import NoReturn
+
         # BMI endpoint no longer uses get_api_key, use insight endpoint
-        def _fail_api_key(_: str = "") -> str:
+        def _fail_api_key(_: str = "") -> NoReturn:
             raise RuntimeError("boom")
-        with patch.dict(app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False):
-            response = client.post(
-                "/api/v1/insight",
-                json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
-            )
+
+        if app.app is not None:
+            with patch.dict(
+                app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False
+            ):
+                response = client.post(
+                    "/api/v1/insight",
+                    json={"text": "test"},
+                    headers={"X-API-Key": "test_key"},
+                )
             # Runtime error can result in either 500 (internal error) or 503 (service unavailable)
             assert response.status_code in [500, 503]
 
-    def test_connection_error_handler(self, client: Any) -> None:
+    def test_connection_error_handler(self, client: TestClient) -> None:
         """Test connection error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
         with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("Connection failed")):
@@ -141,7 +151,7 @@ class TestAppExceptionHandlersCoverage:
             # Should handle connection error gracefully
             assert response.status_code in [500, 503, 502]
 
-    def test_timeout_error_handler(self, client: Any) -> None:
+    def test_timeout_error_handler(self, client: TestClient) -> None:
         """Test timeout error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
         with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Request timeout")):
