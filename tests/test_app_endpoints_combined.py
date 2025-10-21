@@ -8,6 +8,7 @@ EN: Combined tests for app endpoints: health, monitoring, root and package shim 
 These are "easy coverage" tests that cover basic monitoring endpoints and app package behavior.
 """
 
+import os
 import sys
 from fastapi.testclient import TestClient
 
@@ -30,11 +31,13 @@ class TestHealthAndMonitoringEndpoints:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
+    @pytest.mark.skipif(
+        os.getenv("METRICS_ENABLED", "true").lower() != "true",
+        reason="Metrics disabled in this build",
+    )
     def test_metrics_endpoint(self, client: TestClient) -> None:
         """Test /metrics endpoint - returns Prometheus metrics or error"""
         response = client.get("/metrics")
-        if response.status_code == 404:
-            pytest.skip("/metrics disabled in this build")
         assert response.status_code == 200
         # Either Prometheus metrics or error message about unavailable client
         content = response.text
@@ -89,8 +92,8 @@ class TestDebugEndpoint:
             "GROK_ENDPOINT",
             "insight_enabled",
         ]
-        found_keys = [key for key in expected_keys if key in data]
-        assert found_keys, f"Expected one of {expected_keys} in debug data"
+        missing_keys = set(expected_keys) - set(data.keys())
+        assert not missing_keys, f"Missing required debug keys: {list(missing_keys)}"
 
 
 class TestAppPackageShimEdges:
@@ -106,7 +109,19 @@ class TestAppPackageShimEdges:
         assert hasattr(apppkg, "app")
         assert apppkg.app is not None
 
-        # Optional: cover internal passthrough only when available
+    def test_app_package_spec_proxy_attrs_exist(self) -> None:
+        """Test that spec proxy attributes are accessible without raising."""
+        spec = apppkg.__spec__
+        assert spec is not None
+        # origin/loader/submodule_search_locations should be accessible without raising
+        _ = spec.origin
+        _ = spec.loader
+        loc = spec.submodule_search_locations or []
+        assert isinstance(loc, (list, tuple))
+
+    def test_internal_passthrough_behavior(self) -> None:
+        """Test internal passthrough behavior - isolated test for implementation details."""
+        # This test verifies internal passthrough behavior and is isolated from public API tests
         mod = getattr(apppkg, "_mod", None)
         if mod is not None:
             # Set a sentinel on the backing module and ensure passthrough via apppkg
@@ -120,16 +135,6 @@ class TestAppPackageShimEdges:
                     mod._shim_sentinel = prev  # restore
                 else:
                     delattr(mod, "_shim_sentinel")
-
-    def test_app_package_spec_proxy_attrs_exist(self) -> None:
-        """Test that spec proxy attributes are accessible without raising."""
-        spec = apppkg.__spec__
-        assert spec is not None
-        # origin/loader/submodule_search_locations should be accessible without raising
-        _ = spec.origin
-        _ = spec.loader
-        loc = spec.submodule_search_locations or []
-        assert isinstance(loc, (list, tuple))
 
     def test_app_package_all_and_sysmodules_binding(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test __all__ exports and sys.modules binding behavior."""

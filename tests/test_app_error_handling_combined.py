@@ -11,6 +11,7 @@ import pytest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
+from typing import NoReturn
 
 import app
 
@@ -121,7 +122,6 @@ class TestAppExceptionHandlersCoverage:
 
     def test_runtime_error_handler(self, client: TestClient) -> None:
         """Test runtime error handler coverage: BMI endpoint is now public, test on another."""
-        from typing import NoReturn
 
         # BMI endpoint no longer uses get_api_key, use insight endpoint
         def _fail_api_key(_: str = "") -> NoReturn:
@@ -160,5 +160,5 @@ class TestAppExceptionHandlersCoverage:
                 json={"text": "test"},
                 headers={"X-API-Key": "test_key"},
             )
-            # Should handle timeout error gracefully
-            assert response.status_code in [504, 503, 500]
+            # Should handle timeout error gracefully - expect 503 Service Unavailable
+            assert response.status_code == 503

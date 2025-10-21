@@ -44,7 +44,10 @@ def app_module() -> ModuleType:
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load app.py", allow_module_level=True)
 
+    # At this point we know spec is not None due to the check above
+    assert spec is not None
     app_module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(app_module)
     return app_module
 
@@ -89,3 +92,13 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     return client
+
+
+@pytest.fixture
+def test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set up deterministic test environment variables."""
+    # Set consistent environment for deterministic testing
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("METRICS_ENABLED", "true")
