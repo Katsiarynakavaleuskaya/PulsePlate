@@ -19,17 +19,6 @@ import app
 class TestAppCriticalLines97:
     """Test the most critical uncovered lines in main.py"""
 
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        from fastapi import FastAPI
-
-        # Ensure app.app is a FastAPI (ASGIApp) instance and not None
-        app_instance = getattr(app, "app", None)
-        if not isinstance(app_instance, FastAPI):
-            raise TypeError("app.app must be a FastAPI instance")
-        return TestClient(app_instance)
-
     def test_invalid_json_malformed_request(self, client):
         """Test malformed JSON - error handling lines"""
         # Send invalid JSON to public BMI endpoint (without API key)

@@ -58,12 +58,12 @@ class TestAppPackageSpec:
         assert spec is not None
         assert spec.name == "app"
 
-    def test_app_package_spec_proxy_rebinds_sys_modules(self):
+    def test_app_package_spec_proxy_rebinds_sys_modules(self, monkeypatch):
         """Test that accessing spec triggers proxy and rebinds sys.modules."""
         import app as apppkg
 
         # Replace sys.modules['app'] with a placeholder to simulate external mutation
-        sys.modules["app"] = object()  # type: ignore[assignment]
+        monkeypatch.setitem(sys.modules, "app", object())
         # Accessing name should trigger proxy and rebind sys.modules['app'] back to module
         spec = apppkg.__spec__
         assert spec is not None, "apppkg.__spec__ should not be None"
