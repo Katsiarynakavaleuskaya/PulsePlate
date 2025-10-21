@@ -112,7 +112,7 @@ class TestAppExceptionHandlersCoverage:
     )
     def test_validation_error_handlers(self, client, endpoint, payload, expected_status):
         """Test validation error handlers coverage"""
-        # Build headers dict per request - only include API key for authenticated endpoints
+        # Build headers dict per test case based on endpoint parameter (include API key for authenticated endpoints)
         headers = {}
         if "bodyfat" in endpoint:  # Bodyfat endpoint requires authentication
             headers["X-API-Key"] = "test_key"
@@ -144,15 +144,8 @@ class TestAppExceptionHandlersCoverage:
 
     def test_connection_error_handler(self, client):
         """Test connection error handler coverage"""
-        # Mock external service call to raise ConnectionError
-        with patch("requests.get", side_effect=ConnectionError("Connection failed")):
-            # Test an endpoint that might make external calls
-            response = client.get("/health")
-            # Health endpoint should still work as it doesn't make external calls
-            assert response.status_code == 200
-
-        # Test with insight endpoint that might make external LLM calls
-        with patch("app.get_api_key", side_effect=ConnectionError("Connection failed")):
+        # Test with insight endpoint that makes external LLM calls
+        with patch("httpx.AsyncClient.post", side_effect=ConnectionError("Connection failed")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
@@ -163,15 +156,8 @@ class TestAppExceptionHandlersCoverage:
 
     def test_timeout_error_handler(self, client):
         """Test timeout error handler coverage"""
-        # Mock external service call to raise TimeoutError
-        with patch("requests.get", side_effect=TimeoutError("Request timeout")):
-            # Test an endpoint that might make external calls
-            response = client.get("/health")
-            # Health endpoint should still work as it doesn't make external calls
-            assert response.status_code == 200
-
-        # Test with insight endpoint that might make external LLM calls
-        with patch("app.get_api_key", side_effect=TimeoutError("Request timeout")):
+        # Test with insight endpoint that makes external LLM calls
+        with patch("httpx.AsyncClient.post", side_effect=TimeoutError("Request timeout")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
