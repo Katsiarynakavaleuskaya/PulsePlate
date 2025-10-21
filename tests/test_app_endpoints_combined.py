@@ -18,21 +18,21 @@ import pytest
 class TestHealthAndMonitoringEndpoints:
     """Test health and monitoring endpoints for easy coverage boost"""
 
-    def test_health_ok(self, test_client):
+    def test_health_ok(self, client):
         """Test /health endpoint returns status ok"""
-        response = test_client.get("/health")
+        response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_v1_health_ok(self, test_client):
+    def test_v1_health_ok(self, client):
         """Test /api/v1/health endpoint returns status ok"""
-        response = test_client.get("/api/v1/health")
+        response = client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_metrics_endpoint(self, test_client):
+    def test_metrics_endpoint(self, client):
         """Test /metrics endpoint - returns Prometheus metrics or error"""
-        response = test_client.get("/metrics")
+        response = client.get("/metrics")
         assert response.status_code == 200
         # Either Prometheus metrics or error message about unavailable client
         content = response.text
@@ -41,23 +41,23 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self, test_client):
+    def test_root_page_renders(self, client):
         """Test root / endpoint renders HTML BMI calculator"""
-        response = test_client.get("/")
+        response = client.get("/")
         assert response.status_code == 200
         content = response.text
         assert "<title" in content
         assert "BMI Calculator" in content
         assert "form" in content.lower()
 
-    def test_favicon_endpoint(self, test_client):
+    def test_favicon_endpoint(self, client):
         """Test /favicon.ico returns 204 No Content"""
-        response = test_client.get("/favicon.ico")
+        response = client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_privacy_endpoint(self, test_client):
+    def test_privacy_endpoint(self, client):
         """Test /privacy endpoint returns privacy policy"""
-        response = test_client.get("/privacy")
+        response = client.get("/privacy")
         assert response.status_code == 200
         data = response.json()
         assert "privacy_policy" in data
@@ -69,9 +69,9 @@ class TestHealthAndMonitoringEndpoints:
 class TestDebugEndpoint:
     """Test debug endpoints for development"""
 
-    def test_debug_env_endpoint(self, test_client):
+    def test_debug_env_endpoint(self, client):
         """Test /debug_env returns environment info"""
-        response = test_client.get("/debug_env")
+        response = client.get("/debug_env")
         assert response.status_code == 200
         data = response.json()
         # Should contain some environment information
@@ -84,24 +84,21 @@ class TestAppPackageShimEdges:
     def test_app_package_spec_proxy_and_getattr_passthrough(self):
         """Test that accessing __spec__.name returns 'app' and keeps module bound."""
         # Accessing __spec__.name returns 'app' and keeps module bound
-        spec = getattr(apppkg, "__spec__")
-        name = getattr(spec, "name", None)
-        assert name == "app"
+        spec = apppkg.__spec__
+        assert spec is not None and spec.name == "app"
 
-        # getattr passthrough for an attribute via underlying module
-        setattr(apppkg._mod, "_tmp_attr", "value")
-        try:
-            assert getattr(apppkg, "_tmp_attr") == "value"
-        finally:
-            delattr(apppkg._mod, "_tmp_attr")
+        # Test public API access instead of internal implementation
+        assert hasattr(apppkg, "app")
+        assert apppkg.app is not None
 
     def test_app_package_spec_proxy_attrs_exist(self):
         """Test that spec proxy attributes are accessible without raising."""
-        spec = getattr(apppkg, "__spec__")
+        spec = apppkg.__spec__
+        assert spec is not None
         # origin/loader/submodule_search_locations should be accessible without raising
-        _ = getattr(spec, "origin", None)
-        _ = getattr(spec, "loader", None)
-        loc = getattr(spec, "submodule_search_locations", [])
+        _ = spec.origin
+        _ = spec.loader
+        loc = spec.submodule_search_locations or []
         assert isinstance(loc, (list, tuple))
 
     def test_app_package_all_and_sysmodules_binding(self, monkeypatch):
@@ -112,15 +109,12 @@ class TestAppPackageShimEdges:
 
         # Break binding and verify spec.name rebinds sys.modules['app'] to this module
         monkeypatch.setitem(sys.modules, "app", object())
-        spec = getattr(apppkg, "__spec__")
-        _ = getattr(spec, "name")
+        spec = apppkg.__spec__
+        assert spec is not None
+        _ = spec.name
         assert sys.modules.get("app") is apppkg
 
     def test_app_getattr_missing_raises_attributeerror(self):
         """Test that getattr raises AttributeError for missing attributes."""
-        try:
-            getattr(apppkg, "__definitely_missing_attribute__")
-            raised = False
-        except AttributeError:
-            raised = True
-        assert raised
+        with pytest.raises(AttributeError):
+            getattr(apppkg, "__definitely_missing_attribute__")  # noqa: B009

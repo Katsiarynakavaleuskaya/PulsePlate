@@ -27,7 +27,7 @@ class TestAppCriticalLines97:
         # Ensure app.app is a FastAPI (ASGIApp) instance and not None
         app_instance = getattr(app, "app", None)
         if not isinstance(app_instance, FastAPI):
-            raise RuntimeError("app.app is not a FastAPI instance or is None")
+            raise TypeError("app.app must be a FastAPI instance")
         return TestClient(app_instance)
 
     def test_invalid_json_malformed_request(self, client):
@@ -87,11 +87,6 @@ class TestAppCriticalLines97:
 
 class TestAppExceptionHandlersCoverage:
     """Tests for app.py exception handlers coverage"""
-
-    @pytest.fixture
-    def client(self, test_environment):
-        """Fixture for creating TestClient"""
-        return TestClient(cast(ASGIApp, app.app))
 
     @pytest.mark.parametrize(
         "endpoint,payload,expected_status",

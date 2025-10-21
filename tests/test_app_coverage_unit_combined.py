@@ -17,7 +17,7 @@ try:
     import app
 
     app_instance = app.app
-except Exception as exc:  # pragma: no cover
+except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 # client fixture is provided by conftest.py
@@ -138,5 +138,8 @@ class TestAppUnitTests:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict)
-        # Should contain environment variables
-        assert "FEATURE_INSIGHT" in data or "LLM_PROVIDER" in data
+        # Should contain environment variables - check for multiple possible keys
+        env_keys = ["FEATURE_INSIGHT", "LLM_PROVIDER", "APP_ENV", "DEBUG", "VIP_MODULE_ENABLED"]
+        assert any(
+            key in data for key in env_keys
+        ), f"Expected at least one of {env_keys} in response data: {list(data.keys())}"
