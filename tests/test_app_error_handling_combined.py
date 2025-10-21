@@ -24,7 +24,7 @@ class TestAppCriticalLines97:
         # Send invalid JSON to public BMI endpoint (without API key)
         response = client.post(
             "/api/v1/bmi",
-            content="{'invalid': json}",  # Invalid JSON
+            content="{'invalid': json}",  # Intentionally malformed JSON: single quotes and unquoted identifier
             headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
         assert response.status_code in [422, 400]

@@ -56,9 +56,9 @@ class TestHealthAndMonitoringEndpoints:
         assert "form" in content.lower()
 
     def test_favicon_endpoint(self, client: TestClient) -> None:
-        """Test /favicon.ico returns 204 No Content"""
+        """Test /favicon.ico returns 204 No Content or 404 if not found"""
         response = client.get("/favicon.ico")
-        assert response.status_code in [204, 200, 404]
+        assert response.status_code in [204, 404]  # 200 removed as it's not typical for favicon
 
     def test_privacy_endpoint(self, client: TestClient) -> None:
         """Test /privacy endpoint returns privacy policy"""
@@ -122,6 +122,7 @@ class TestAppPackageShimEdges:
     def test_internal_passthrough_behavior(self) -> None:
         """Test internal passthrough behavior - isolated test for implementation details."""
         # This test verifies internal passthrough behavior and is isolated from public API tests
+        # Note: This tests implementation details and should be removed in favor of behavior testing
         mod = getattr(apppkg, "_mod", None)
         if mod is not None:
             # Set a sentinel on the backing module and ensure passthrough via apppkg
