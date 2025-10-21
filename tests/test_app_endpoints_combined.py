@@ -113,10 +113,10 @@ class TestAppPackageShimEdges:
         if mod is not None:
             import types
             # Set a sentinel on the backing module and ensure passthrough via apppkg
-            setattr(mod, "_shim_sentinel", "ok")  # cleanup not required across process
-            assert getattr(apppkg, "_shim_sentinel") == "ok"
+            mod._shim_sentinel = "ok"  # cleanup not required across process
+            assert apppkg._shim_sentinel == "ok"
 
-    def test_app_package_spec_proxy_attrs_exist(self):
+    def test_app_package_spec_proxy_attrs_exist(self) -> None:
         """Test that spec proxy attributes are accessible without raising."""
         spec = apppkg.__spec__
         assert spec is not None

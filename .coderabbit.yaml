@@ -5,43 +5,32 @@
 language: en-US
 profile: chill
 
-# Custom instructions
-instructions: |
-  Focus on health/nutrition domain best practices.
-  Maintain 97% test coverage requirement.
-  Follow Apple HIG guidelines for iOS components.
-  Use FastAPI best practices for backend.
-  Prioritize user experience and accessibility.
-  Ensure all tests pass before suggesting changes.
-  Prefer explicit over implicit code.
-  Add type hints for all functions.
-  Use descriptive variable and function names.
-  Follow PEP 8 style guidelines.
-  Format all Python code with Black using max line length 100.
-  Use Pydantic v2 APIs (model_dump(), model_validate()) instead of deprecated v1 methods.
+# Path-based instructions
+reviews:
+  path_instructions:
+    - path: "**/*.py"
+      instructions: |
+        Focus on health/nutrition domain best practices.
+        Maintain 97% test coverage requirement.
+        Use FastAPI best practices for backend.
+        Prefer explicit over implicit code.
+        Add type hints for all functions.
+        Use descriptive variable and function names.
+        Follow PEP 8 style guidelines.
+        Format all Python code with Black using max line length 100.
+        Use Pydantic v2 APIs (model_dump(), model_validate()) instead of deprecated v1 methods.
+    - path: "**/*.ts"
+      instructions: |
+        Follow Apple HIG guidelines for iOS components.
+        Prioritize user experience and accessibility.
+        Ensure all tests pass before suggesting changes.
+    - path: "tests/**"
+      instructions: |
+        Ensure tests use descriptive names and follow pytest best practices.
+        Maintain 97% test coverage requirement.
 
-# File patterns
-include:
-  - "**/*.py"
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.js"
-  - "**/*.jsx"
-  - "**/*.md"
-  - "**/*.yml"
-  - "**/*.yaml"
-  - "**/*.json"
-
-exclude:
-  - "**/node_modules/**"
-  - "**/__pycache__/**"
-  - "**/*.pyc"
-  - "**/venv/**"
-  - "**/.venv/**"
-  - "**/dist/**"
-  - "**/build/**"
-  - "**/coverage/**"
-  - "**/htmlcov/**"
-  - "**/.pytest_cache/**"
-  - "**/cache/**"
-  - "**/releases/**"
+# Code guidelines
+code_guidelines:
+  enabled: true
+  usage: "auto"
+  file_patterns: [".cursorrules", "README.md", "CONTRIBUTING.md"]
