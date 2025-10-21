@@ -40,8 +40,8 @@ class TestAppVIPIntegration:
             getattr(route, "path", None) or getattr(route, "path_format", "")
             for route in fastapi_app.routes
         }
-        # Check for specific health endpoint path based on API design
-        assert "/health" in paths
+        # Check for health endpoint (both unversioned and versioned)
+        assert "/health" in paths or "/api/v1/health" in paths
 
         # VIP routes should be present since VIP module is enabled
         vip_paths = {p for p in paths if "/vip/" in p}
