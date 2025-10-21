@@ -250,11 +250,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Clean Python cache
-        run: |
-          # Clean __pycache__ and .pyc files to prevent cache issues
-          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
-          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
-          echo "✅ Python cache cleaned"
+        uses: ./.github/actions/clean-python-cache
 
       - name: Validate data
         run: |
@@ -281,7 +277,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -290,7 +286,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: junit-${{ env.COVERAGE_PY }}
+          name: junit-${{ matrix.python-version }}
           path: tests/results.xml
           if-no-files-found: ignore
           retention-days: 7
@@ -369,10 +365,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
+      - name: Download coverage artifacts (all Python versions)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: coverage-xml-3.11
+          path: ./coverage-artifacts
+        continue-on-error: true
+
       - name: Download coverage artifact (Python 3.12)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-${{ env.COVERAGE_PY }}
+          name: coverage-xml-3.12
+          path: ./coverage-artifacts
+        continue-on-error: true
+
+      - name: Download coverage artifact (Python 3.13)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: coverage-xml-3.13
           path: ./coverage-artifacts
         continue-on-error: true
 

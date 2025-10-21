@@ -5,6 +5,7 @@ Additional tests to improve coverage for core/food_apis/scheduler.py to reach 97
 import asyncio
 import os
 from datetime import datetime, timezone
+from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,14 +19,24 @@ from core.food_apis.scheduler import (
 from core.food_apis.update_manager import UpdateResult
 
 
-@pytest.fixture(autouse=True)
-def event_loop():
+@pytest.fixture(scope="function")
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Provide a fresh event loop for each test to prevent 'Event loop is closed' errors."""
-    import asyncio
-
     loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_scheduler():
+    """Ensure scheduler is stopped after each test."""
+    yield
+    try:
+        await stop_background_updates()
+    except Exception as e:
+        # Log the error instead of silently passing
+        print(f"Warning: Failed to cleanup scheduler: {e}")
 
 
 class TestSchedulerAdditionalCoverage:
@@ -50,7 +61,7 @@ class TestSchedulerAdditionalCoverage:
             # If we get here, the test passes
 
     @pytest.mark.asyncio
-    async def test_update_loop_cancelled_error(self):
+    async def test_update_loop_cancelled_error(self, event_loop):
         """Test _update_loop handling of CancelledError."""
         scheduler = DatabaseUpdateScheduler()
         scheduler.is_running = True
@@ -72,7 +83,7 @@ class TestSchedulerAdditionalCoverage:
                 await scheduler._update_loop()
 
     @pytest.mark.asyncio
-    async def test_update_loop_general_exception(self):
+    async def test_update_loop_general_exception(self, event_loop):
         """Test _update_loop handling of general exceptions."""
         scheduler = DatabaseUpdateScheduler()
         scheduler.is_running = True
@@ -104,7 +115,7 @@ class TestSchedulerAdditionalCoverage:
                     pass
 
     @pytest.mark.asyncio
-    async def test_run_update_check_exception(self):
+    async def test_run_update_check_exception(self, event_loop):
         """Test _run_update_check handling of exceptions."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -115,7 +126,7 @@ class TestSchedulerAdditionalCoverage:
         await scheduler._run_update_check()
 
     @pytest.mark.asyncio
-    async def test_run_source_update_exception(self):
+    async def test_run_source_update_exception(self, event_loop):
         """Test _run_source_update handling of exceptions."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -183,7 +194,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler._on_update_complete(failure_result)
 
     @pytest.mark.asyncio
-    async def test_force_update_specific_source(self):
+    async def test_force_update_specific_source(self, event_loop):
         """Test force_update with specific source."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -208,7 +219,7 @@ class TestSchedulerAdditionalCoverage:
         assert results["test_source"].success is True
 
     @pytest.mark.asyncio
-    async def test_force_update_all_sources(self):
+    async def test_force_update_all_sources(self, event_loop):
         """Test force_update with all sources."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -278,37 +289,39 @@ class TestSchedulerAdditionalCoverage:
         assert status["scheduler"]["retry_counts"]["test_source"] == 2
 
     @pytest.mark.asyncio
-    async def test_global_scheduler_functions(self):
-        """Test global scheduler functions."""
-        try:
-            # Test get_update_scheduler
-            scheduler1 = await get_update_scheduler()
-            scheduler2 = await get_update_scheduler()
+    async def test_get_update_scheduler_singleton(self, event_loop):
+        """Test that get_update_scheduler returns the same instance."""
+        scheduler1 = await get_update_scheduler()
+        scheduler2 = await get_update_scheduler()
 
-            # Should return the same instance
-            assert scheduler1 is scheduler2
+        # Should return the same instance
+        assert scheduler1 is scheduler2
 
-            # Test start_background_updates
-            with patch("core.food_apis.scheduler.logger") as mock_logger:
-                try:
-                    await start_background_updates(1)  # 1 hour interval
-                    # Should log that updates started
-                    mock_logger.info.assert_called()
-                except AttributeError as e:
-                    # Skip test if scheduler doesn't have start method
-                    pytest.skip(f"Scheduler start method not available: {e}")
-
-            # Test stop_background_updates
-            with patch("core.food_apis.scheduler.logger") as mock_logger:
-                await stop_background_updates()
-                # Should log that updates stopped
-                mock_logger.info.assert_called()
-        finally:
-            # Ensure cleanup of any background tasks
+    @pytest.mark.asyncio
+    async def test_start_background_updates_logging(self, event_loop):
+        """Test start_background_updates logging behavior."""
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
             try:
-                await stop_background_updates()
-            except Exception:
-                pass  # Ignore cleanup errors
+                await start_background_updates(1)  # 1 hour interval
+                # Should log that updates started
+                mock_logger.info.assert_called_once()
+                # Verify the log message contains expected content
+                call_args = mock_logger.info.call_args[0][0]
+                assert "start" in call_args.lower() or "background" in call_args.lower()
+            except AttributeError as e:
+                # Skip test if scheduler doesn't have start method
+                pytest.skip(f"Scheduler start method not available: {e}")
+
+    @pytest.mark.asyncio
+    async def test_stop_background_updates_logging(self, event_loop):
+        """Test stop_background_updates logging behavior."""
+        with patch("core.food_apis.scheduler.logger") as mock_logger:
+            await stop_background_updates()
+            # Should log that updates stopped
+            mock_logger.info.assert_called_once()
+            # Verify the log message contains expected content
+            call_args = mock_logger.info.call_args[0][0]
+            assert "stop" in call_args.lower() or "background" in call_args.lower()
 
 
 if __name__ == "__main__":
