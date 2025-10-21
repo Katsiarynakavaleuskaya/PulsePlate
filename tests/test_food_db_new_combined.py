@@ -5,6 +5,7 @@ Includes basic tests and coverage tests for food database functionality.
 
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -22,7 +23,7 @@ class TestFoodDbNewCombined:
             "VitD_IU,B12_ug,Folate_ug,Iodine_ug,K_mg,Mg_mg,flags,price\n"
             "test_food,test,1.0,10.0,5.0,15.0,3.0,2.0,50.0,0.0,0.0,100.0,"
             "0.0,200.0,30.0,VEG,5.00\n"
-            "missing_item,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,"
+            "omni_food,test,1.0,5.0,2.0,10.0,1.0,1.0,25.0,0.0,0.0,50.0,"
             "0.0,100.0,15.0,OMNI,3.00"
         )
 
@@ -37,8 +38,6 @@ class TestFoodDbNewCombined:
 
     def test_parse_food_db(self) -> None:
         """Test that food database is parsed correctly."""
-        from pathlib import Path
-
         csv_path = str(Path(__file__).resolve().parents[1] / "data" / "food_db_new.csv")
 
         # Parse the food database
@@ -98,7 +97,7 @@ class TestFoodDbNewCombined:
 
         # Test that our test items are in the database
         assert "test_food" in food_db.items
-        assert "missing_item" in food_db.items
+        assert "omni_food" in food_db.items
 
     def test_food_db_initialization_error(self) -> None:
         """Test FoodDB initialization with invalid file."""
