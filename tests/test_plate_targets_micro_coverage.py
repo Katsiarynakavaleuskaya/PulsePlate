@@ -105,9 +105,8 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # Test fallback behavior for unimplemented day_micros
-            assert "day_micros" not in plate_data or plate_data["day_micros"] is None
-            return
+            # day_micros not implemented yet - skip this test
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check that plate micronutrients meet minimum thresholds
         target_micros = targets_data["priority_micros"]
@@ -152,9 +151,8 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # Test fallback behavior for unimplemented day_micros
-            assert "day_micros" not in plate_data or plate_data["day_micros"] is None
-            return
+            # day_micros not implemented yet - skip this test
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check iron coverage
         target_iron = targets_data["priority_micros"].get("iron_mg", 0)
