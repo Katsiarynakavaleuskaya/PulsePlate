@@ -4,7 +4,7 @@
 
 **Цель квартала:**
 
-1. **Стабильный зелёный CI/CD** (lint → typecheck → test → build → deploy; артефакты покрытия)
+1. **Стабильный зелёный CI/CD** (lint → typecheck → test → build; артефакты покрытия)
 2. **Вертикальные релизы**: WHO Targets → Weekly Plan → Shopping List → Auto-Repair (все через OpenAPI и фичефлаги)
 3. **HIG-чистый UX**: a11y AA, 44pt, фокус-ловушки, i18n RU/EN/ES
 4. **Готовность к монетизации**: CTA-потоки к paywall из ключевых экранов
@@ -135,7 +135,7 @@
 - **Цель**: Улучшить валидацию и качество переводов
 - **Критерии**: Валидация работает; качество переводов проверено
 
-#### Задачи
+#### Задачи i18n Validation
 
 - [ ] **Улучшить валидацию** в `locales.test.ts`
 - [ ] **Добавить проверки качества** (длина, терминология)
@@ -146,7 +146,7 @@
 - **Цель**: Синхронизация с iOS приложением
 - **Критерии**: Консистентность текстов и навигации; iOS team review
 
-#### Задачи
+#### Задачи iOS Sync
 
 - [ ] **Синхронизировать тексты** с iOS локалями
 - [ ] **Выровнять навигацию** и naming conventions
@@ -177,7 +177,7 @@
 - **Цель**: Полная локализация WHO Targets компонента
 - **Критерии**: Все тексты локализованы (RU/EN/ES); тесты локализации проходят
 
-#### Задачи
+#### Задачи WHO Targets i18n
 
 - [x] **Add i18n keys** для WHO Targets (RU/EN/ES)
 - [x] **Localize all texts** и сообщения
@@ -192,7 +192,7 @@
 - **Цель**: Полная accessibility compliance и UX оптимизация
 - **Критерии**: a11y-тест проходит; keyboard navigation работает; screen reader support
 
-#### Задачи
+#### Задачи WHO Targets a11y
 
 - [x] **Add accessibility tests** (a11y AA compliance) - 25/25 тестов проходят
 - [x] **Implement keyboard navigation** для всех элементов - userEvent integration
@@ -211,7 +211,7 @@
 - **Цель**: Полная интеграция и comprehensive тестирование
 - **Критерии**: сценарии 200/401/422 покрыты; CTA интеграция работает
 
-#### Задачи
+#### Задачи WHO Targets Integration
 
 - [x] **WHO Targets API client** integration - модульная система API готова
 - [x] **Weekly Plan API client** integration - создан и протестирован
@@ -231,7 +231,7 @@
 - **Цель**: Генерация плана → просмотр по дням (свайпы/кнопки) → скелетоны
 - **Критерии**: загрузка/ошибка/пусто покрыты; VoiceOver читает корректно; FCP < 1.5s
 
-#### Задачи
+#### Задачи Weekly Plan Reader
 
 - [ ] **Weekly Plan API client** integration
 - [ ] **Create Weekly Plan viewer** с day navigation (swipes/buttons)
@@ -248,7 +248,7 @@
 - **Цель**: Генерация из плана; группировка по отделам; чекбоксы; offline (localStorage)
 - **Критерии**: offline работает; диф-покрытие ≥90%; CTA к paywall предусмотрен
 
-#### Задачи
+#### Задачи Shopping List
 
 - [ ] **Shopping List API client** (behind VIP flag)
 - [ ] **Generate shopping list** из weekly plan
@@ -266,7 +266,7 @@
 - **Цель**: Анализ дефицитов → кнопка Auto-repair → дифф до/после → откат
 - **Критерии**: включается/выключается флагом без ребилда; UX прост; тесты стабильны
 
-#### Задачи
+#### Задачи Auto-Repair
 
 - [ ] **Auto-Repair API client** (behind VIP flag)
 - [ ] **Analyze nutrient deficiencies** из current plan
@@ -326,7 +326,7 @@
 - **Цель**: 97% покрытие (656/676 строк)
 - **Осталось**: 283 строки до цели
 
-### Задачи
+### Задачи Backend Coverage
 
 - [ ] **Fix validation issues** в тестах (добавить pregnant/athlete поля)
 - [ ] **Cover large blocks**: HTML UI (395-609), Premium endpoints (1077-1150)
@@ -341,7 +341,7 @@
 - **От**: 105 записей (статические CSV)
 - **К**: миллионы записей (USDA FDC API + OpenFoodFacts API)
 
-### Задачи
+### Задачи DLT Integration
 
 - [ ] **Setup DLT**: pip install dlt[postgres,parquet]
 - [ ] **Get USDA API credentials** и configure
@@ -387,31 +387,6 @@
 
 - [ ] **≥60% пользователей** доходят от Targets до Weekly Plan
 - [ ] **≥20% открывают Shoplist** при включённом флаге
-
-## 🚀 ФАЗА 4: Production Deployment (Week 4)
-
-### ✅ CD Pipeline Setup
-
-- [x] **Deploy workflow** (`.github/workflows/deploy.yml`)
-- [x] **Staging environment** (`deploy/staging.yml`)
-- [x] **Production environment** (`deploy/production.yml`)
-- [x] **Deploy script** (`scripts/deploy.sh`)
-
-### 🔄 Deployment Strategy
-
-- [ ] **Blue-Green deployment** для zero-downtime
-- [ ] **Health checks** и rollback автоматика
-- [ ] **Monitoring** и alerting (Prometheus + Grafana)
-- [ ] **SSL certificates** (Let's Encrypt)
-- [ ] **Domain setup** (pulseplate.com, api.pulseplate.com)
-
-### 📊 Production Readiness
-
-- [ ] **Load testing** (≥1000 concurrent users)
-- [ ] **Database migration** strategy
-- [ ] **Backup** и disaster recovery
-- [ ] **Security audit** (OWASP Top 10)
-- [ ] **Performance monitoring** (APM)
 
 ### 💰 Monetization
 

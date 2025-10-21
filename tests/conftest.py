@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any, Generator, cast
 
 import pytest
 from fastapi import FastAPI
@@ -44,6 +44,7 @@ def app_module() -> ModuleType:
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load app.py", allow_module_level=True)
 
+    # At this point we know spec and spec.loader are not None due to the check above
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
     return app_module
@@ -92,14 +93,17 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
 
 
 @pytest.fixture
-def test_environment(monkeypatch: pytest.MonkeyPatch):
-    """Set up test environment variables for deterministic testing."""
-    # Set up environment variables for consistent test behavior
+def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Set up deterministic test environment variables."""
+    # Set consistent environment for deterministic testing
+    monkeypatch.setenv("TESTING", "true")
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("DEBUG", "true")
-    # API_KEY is not set by default to enable lenient mode
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("METRICS_ENABLED", "true")
     yield
     # Cleanup is automatic with monkeypatch

@@ -9,6 +9,16 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
 
+  # --- Python cache cleanup
+  - repo: local
+    hooks:
+      - id: clean-python-cache
+        name: clean-python-cache
+        entry: bash -c "find . -path ./.git -prune -o -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true; find . -path ./.git -prune -o -type f -name '*.pyc' -delete 2>/dev/null || true"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
   # --- Code style: Black
   - repo: https://github.com/psf/black
     rev: 24.8.0
@@ -26,9 +36,6 @@ repos:
         name: ruff (lint, local)
         files: ^(?!frontend/).+\.py$
         args: [--fix]
-      - id: ruff-format
-        name: ruff (format, local)
-        files: ^(?!frontend/).+\.py$
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -43,7 +50,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
-        files: ^(app|scripts|mcp_.*|setup_.*|update_.*|verify_.*)\b.*\.py$
+        files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -61,25 +68,23 @@ repos:
           - -s
           - B101
 
-  # --- Vulnerabilities: safety (requirements scan)
-  # Temporarily disabled - safety hook manifest issue
-  # - repo: https://github.com/pyupio/safety
-  #   rev: 3.2.8
-  #   hooks:
-  #     - id: safety
-  #       name: safety (pip vulns)
-  #       files: ^(?!frontend/).+requirements.*\.txt$
-  #       args: [--full-report]
-  #       stages: [pre-push]
+  # --- Vulnerabilities: pip-audit (replacement for safety)
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.9.0
+    hooks:
+      - id: pip-audit
+        name: pip-audit (pip vulns)
+        stages: [pre-push]
+        args: [--requirement, requirements.txt, --strict]
 
-  # --- Docstrings: pydocstyle
+  # --- Docstrings: pydocstyle (re-enabled on pre-push)
   - repo: https://github.com/PyCQA/pydocstyle
     rev: 6.3.0
     hooks:
       - id: pydocstyle
         name: pydocstyle (docstrings)
         files: ^(?!frontend/).+\.py$
-        # Customize conventions/ignore codes in pyproject.toml if needed
+        stages: [pre-push]
         args: [--convention=google]
 
   # --- Commit message lint (commitizen)
@@ -95,7 +100,7 @@ repos:
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
-      # ruff — строгий на pre-push (не пропускаем автофикс молча)
+      # ruff — strict on pre-push (no silent auto-fix bypass)
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
         entry: ruff check .
@@ -103,7 +108,7 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # bandit-full — полный security scan со smart excludes
+      # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)
         entry: bash -c "make bandit-full"
