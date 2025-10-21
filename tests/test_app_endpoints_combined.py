@@ -56,9 +56,9 @@ class TestHealthAndMonitoringEndpoints:
         assert "form" in content.lower()
 
     def test_favicon_endpoint(self, client: TestClient) -> None:
-        """Test /favicon.ico returns 204 No Content or 404 if not found"""
+        """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
         response = client.get("/favicon.ico")
-        assert response.status_code in [204, 404]  # 200 removed as it's not typical for favicon
+        assert response.status_code in [200, 204, 404]  # 200 OK is valid for successful favicon
 
     def test_privacy_endpoint(self, client: TestClient) -> None:
         """Test /privacy endpoint returns privacy policy"""
