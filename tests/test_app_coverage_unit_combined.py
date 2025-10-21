@@ -7,16 +7,12 @@ EN: Combined tests for app coverage and unit tests: main.py coverage, groups, in
 """
 
 import pytest
-from fastapi.testclient import TestClient
 
 try:
-    import os
-    import sys
-
     # Simple import of the app module
     import app
 
-    app_instance = app.app
+    # app import validated above; no binding needed
 except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 

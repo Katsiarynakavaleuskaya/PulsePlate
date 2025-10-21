@@ -9,7 +9,6 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 """
 
 import sys
-from fastapi.testclient import TestClient
 
 import app as apppkg
 import pytest

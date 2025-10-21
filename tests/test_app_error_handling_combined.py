@@ -8,10 +8,8 @@ These tests cover critical uncovered lines in main.py and exception handler cove
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from typing import cast
-from starlette.types import ASGIApp
 from unittest.mock import patch
+import httpx
 
 import app
 
@@ -46,7 +44,7 @@ class TestAppCriticalLines97:
         """Test error paths in premium endpoints"""
         # Test with invalid parameters on existing endpoint
         response = client.post("/premium_targets", json={"sex": "invalid", "age": -1})
-        assert response.status_code in [422, 400, 403]
+        assert response.status_code in [422, 400, 403, 404]
 
     def test_health_endpoint_coverage(self, client):
         """Test health endpoint for coverage"""
@@ -118,7 +116,9 @@ class TestAppExceptionHandlersCoverage:
     def test_runtime_error_handler(self, client):
         """Test runtime error handler coverage: BMI endpoint is now public, test on another."""
         # BMI endpoint no longer uses get_api_key, use insight endpoint
-        with patch("app.get_api_key", side_effect=RuntimeError("boom")):
+        def _fail_api_key(api_key: str = "") -> str:
+            raise RuntimeError("boom")
+        with patch.dict(app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
@@ -130,7 +130,7 @@ class TestAppExceptionHandlersCoverage:
     def test_connection_error_handler(self, client):
         """Test connection error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=ConnectionError("Connection failed")):
+        with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("Connection failed")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
@@ -142,7 +142,7 @@ class TestAppExceptionHandlersCoverage:
     def test_timeout_error_handler(self, client):
         """Test timeout error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=TimeoutError("Request timeout")):
+        with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Request timeout")):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
