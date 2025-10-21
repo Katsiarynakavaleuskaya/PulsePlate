@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any, Generator, cast
 
 import pytest
 from fastapi import FastAPI
@@ -93,7 +93,7 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
 
 
 @pytest.fixture
-def test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Set up deterministic test environment variables."""
     # Set consistent environment for deterministic testing
     monkeypatch.setenv("TESTING", "true")
