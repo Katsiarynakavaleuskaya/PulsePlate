@@ -87,6 +87,70 @@ jobs:
       matrix:
         python-version: ['3.12']
 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Setup Python environment
+        uses: ./.github/actions/python-setup
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Clean Python cache
+        run: |
+          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
+          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+          echo "✅ Python cache cleaned"
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+        run: |
+          # Use pytest-xdist for parallel execution with proper coverage collection
+          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+
+      - name: Clean Python cache (post-test)
+        if: always()
+        run: |
+          find . -not -path './.git/*' -type d -name '__pycache__' -delete 2>/dev/null || true
+          find . -not -path './.git/*' -type f -name '*.pyc' -delete 2>/dev/null || true
+
+      - name: Upload coverage artifact (3.12 only)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-xml-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-${{ matrix.python-version }}
+          path: tests/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Fast testing for feature branches (single Python version)
   test-feature:
     if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/'))
@@ -260,7 +324,7 @@ jobs:
       - name: Download coverage artifact (Python 3.12)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-3.12
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: ./coverage-artifacts
         continue-on-error: true
 
@@ -290,7 +354,7 @@ jobs:
       - name: Download coverage artifact (Python 3.12)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-3.12
+          name: coverage-xml-${{ env.COVERAGE_PY }}
           path: ./coverage-artifacts
         continue-on-error: true
 

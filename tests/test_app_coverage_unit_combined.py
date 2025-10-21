@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 try:
     # Validate app module can be imported
-    import app  # noqa: F401
+    import app  # noqa
 except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
