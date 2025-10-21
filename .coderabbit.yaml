@@ -1,9 +1,12 @@
 # CodeRabbit configuration for PulsePlate
-# https://docs.coderabbit.ai/guides/customization
+# Simple configuration for Cursor IDE extension
 
+# Basic settings
 language: en-US
+profile: chill
 
-tone_instructions: |
+# Custom instructions
+instructions: |
   Focus on health/nutrition domain best practices.
   Maintain 97% test coverage requirement.
   Follow Apple HIG guidelines for iOS components.
@@ -14,49 +17,31 @@ tone_instructions: |
   Add type hints for all functions.
   Use descriptive variable and function names.
   Follow PEP 8 style guidelines.
+  Format all Python code with Black using max line length 100.
+  Use Pydantic v2 APIs (model_dump(), model_validate()) instead of deprecated v1 methods.
 
-reviews:
-  auto_review:
-    enabled: true
-  profile: chill
-  path_filters:
-    - "**/*.py"
-    - "**/*.ts"
-    - "**/*.tsx"
-    - "**/*.js"
-    - "**/*.jsx"
-    - "**/*.md"
-    - "**/*.yml"
-    - "**/*.yaml"
-    - "**/*.json"
-    - "!**/node_modules/**"
-    - "!**/__pycache__/**"
-    - "!**/*.pyc"
-    - "!**/venv/**"
-    - "!**/.venv/**"
-    - "!**/dist/**"
-    - "!**/build/**"
-    - "!**/coverage/**"
-    - "!**/htmlcov/**"
-    - "!**/.pytest_cache/**"
-    - "!**/cache/**"
-    - "!**/releases/**"
-  path_instructions:
-    - path: "**/*.py"
-      instructions: |
-        Format all Python code with Black using max line length 100.
-        Require type hints for all functions in Python code.
-        Use Pydantic v2 APIs (model_dump(), model_validate()) instead of deprecated v1 methods.
-        Follow PEP 8 style guidelines.
-        Maintain 97% test coverage requirement.
-    - path: "**/*.{ts,tsx,js,jsx}"
-      instructions: |
-        Follow TypeScript/JavaScript best practices.
-        Use proper type annotations.
-        Follow React best practices for components.
-        Maintain accessibility standards.
-    - path: "**/*.md"
-      instructions: |
-        Use clear, concise documentation.
-        Include code examples where appropriate.
-        Follow markdown best practices.
+# File patterns
+include:
+  - "**/*.py"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.md"
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.json"
+
+exclude:
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/venv/**"
+  - "**/.venv/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"
+  - "**/htmlcov/**"
+  - "**/.pytest_cache/**"
+  - "**/cache/**"
+  - "**/releases/**"
