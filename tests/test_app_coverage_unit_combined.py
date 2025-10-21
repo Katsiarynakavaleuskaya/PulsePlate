@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 try:
     # Validate app module can be imported
-    import app  # noqa: F401
+    import app
 except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
@@ -115,17 +115,21 @@ class TestAppUnitTests:
         assert interpret_group(30.0, "general", "ru") == "Ожирение I степени"
 
     def test_estimate_level_categories(self) -> None:
-        """Test estimate_level with different BMI categories."""
+        """Test estimate_level with different fitness experience levels."""
         from bmi_core import estimate_level
 
-        # Test beginner level (BMI < 18.5)
-        assert estimate_level(0, 17.0, "en") == "beginner"
-        assert estimate_level(0, 17.0, "ru") == "базовый"
+        # Test beginner level (no experience, no frequency)
+        assert estimate_level(0, 0.0, "en") == "beginner"
+        assert estimate_level(0, 0.0, "ru") == "базовый"
 
-        # Test intermediate level (BMI 18.5-24.9)
-        assert estimate_level(0, 22.0, "en") == "intermediate"
-        assert estimate_level(0, 22.0, "ru") == "средний"
+        # Test novice level (some experience, low frequency)
+        assert estimate_level(1, 0.5, "en") == "novice"
+        assert estimate_level(1, 0.5, "ru") == "начальный"
 
-        # Test advanced level (BMI >= 25.0)
-        assert estimate_level(0, 28.0, "en") == "advanced"
-        assert estimate_level(0, 28.0, "ru") == "продвинутый"
+        # Test intermediate level (moderate experience and frequency)
+        assert estimate_level(2, 2.0, "en") == "intermediate"
+        assert estimate_level(2, 2.0, "ru") == "средний"
+
+        # Test advanced level (high experience and frequency)
+        assert estimate_level(3, 5.0, "en") == "advanced"
+        assert estimate_level(3, 5.0, "ru") == "продвинутый"
