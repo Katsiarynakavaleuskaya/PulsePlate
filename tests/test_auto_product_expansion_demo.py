@@ -28,7 +28,7 @@ class TestAutoProductExpansionDemo:
             or finder._similar_names(product, food_name)
         )
 
-    def test_auto_expansion_demo(self):
+    def test_auto_expansion_demo(self) -> None:
         """Demo test showing automatic product expansion workflow."""
         # Создаем временную копию базы данных для тестирования
         original_db_path = Path("data/food_db.csv")
@@ -50,7 +50,7 @@ class TestAutoProductExpansionDemo:
             recipes = parse_recipe_db("data/recipes_extended.csv")
 
             # Получаем все ингредиенты
-            all_ingredients = []
+            all_ingredients: list[str] = []
             for recipe in recipes.values():
                 all_ingredients.extend(recipe.ingredients.keys())
 
@@ -118,13 +118,13 @@ class TestAutoProductExpansionDemo:
             if temp_db_path.exists():
                 temp_db_path.unlink()
 
-    def test_missing_products_detection_accuracy(self):
+    def test_missing_products_detection_accuracy(self) -> None:
         """Test accuracy of missing products detection."""
         finder = ProductFinder()
         recipes = parse_recipe_db("data/recipes_extended.csv")
 
         # Получаем все ингредиенты
-        all_ingredients = []
+        all_ingredients: list[str] = []
         for recipe in recipes.values():
             all_ingredients.extend(recipe.ingredients.keys())
 
@@ -153,7 +153,7 @@ class TestAutoProductExpansionDemo:
                 not found_in_db
             ), f"Product {missing_product} should be missing but found in database"
 
-    def test_product_search_workflow(self):
+    def test_product_search_workflow(self) -> None:
         """Test complete product search workflow."""
         finder = ProductFinder()
 

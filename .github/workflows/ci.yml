@@ -125,8 +125,14 @@ jobs:
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
         run: |
-          # Use pytest-xdist for parallel execution (configured in pytest.ini with -n auto)
-          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy
+          # Use pytest-xdist for parallel execution with proper coverage collection
+          python -m pytest tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test
+
+      - name: Clean Python cache (post-test)
+        if: always()
+        run: |
+          find . -path ./.git -prune -o -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          find . -path ./.git -prune -o -type f -name '*.pyc' -delete 2>/dev/null || true
 
       - name: Upload coverage artifact (3.12 only)
         if: ${{ always() && matrix.python-version == env.COVERAGE_PY }}

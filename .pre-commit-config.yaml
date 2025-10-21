@@ -50,7 +50,6 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
-          - --exclude=app/routers/__init__.py
         files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 
   # --- Security: bandit

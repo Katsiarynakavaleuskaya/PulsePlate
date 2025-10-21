@@ -208,11 +208,14 @@ def stage_obesity(
         stage = "low_risk"
         recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
 
-    bmi_category = (
-        "obese"
-        if bmi >= 30
-        else "overweight" if bmi >= 25 else "normal" if bmi >= 18.5 else "underweight"
-    )
+    if bmi >= 30:
+        bmi_category = "obese"
+    elif bmi >= 25:
+        bmi_category = "overweight"
+    elif bmi >= 18.5:
+        bmi_category = "normal"
+    else:
+        bmi_category = "underweight"
 
     return {
         "stage": stage,
