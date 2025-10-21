@@ -9,6 +9,7 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 """
 
 import sys
+from typing import Any
 
 import app as apppkg
 import pytest
@@ -17,19 +18,19 @@ import pytest
 class TestHealthAndMonitoringEndpoints:
     """Test health and monitoring endpoints for easy coverage boost"""
 
-    def test_health_ok(self, client):
+    def test_health_ok(self, client: Any) -> None:
         """Test /health endpoint returns status ok"""
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_v1_health_ok(self, client):
+    def test_v1_health_ok(self, client: Any) -> None:
         """Test /api/v1/health endpoint returns status ok"""
         response = client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_metrics_endpoint(self, client):
+    def test_metrics_endpoint(self, client: Any) -> None:
         """Test /metrics endpoint - returns Prometheus metrics or error"""
         response = client.get("/metrics")
         if response.status_code == 404:
@@ -42,7 +43,7 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self, client):
+    def test_root_page_renders(self, client: Any) -> None:
         """Test root / endpoint renders HTML BMI calculator"""
         response = client.get("/")
         assert response.status_code == 200
@@ -51,12 +52,12 @@ class TestHealthAndMonitoringEndpoints:
         assert "BMI Calculator" in content
         assert "form" in content.lower()
 
-    def test_favicon_endpoint(self, client):
+    def test_favicon_endpoint(self, client: Any) -> None:
         """Test /favicon.ico returns 204 No Content"""
         response = client.get("/favicon.ico")
         assert response.status_code in [204, 200, 404]
 
-    def test_privacy_endpoint(self, client):
+    def test_privacy_endpoint(self, client: Any) -> None:
         """Test /privacy endpoint returns privacy policy"""
         response = client.get("/privacy")
         assert response.status_code == 200
@@ -71,7 +72,7 @@ class TestHealthAndMonitoringEndpoints:
 class TestDebugEndpoint:
     """Test debug endpoints for development"""
 
-    def test_debug_env_endpoint(self, client):
+    def test_debug_env_endpoint(self, client: Any) -> None:
         """Test /debug_env returns environment info"""
         response = client.get("/debug_env")
         assert response.status_code == 200
@@ -97,7 +98,7 @@ class TestDebugEndpoint:
 class TestAppPackageShimEdges:
     """Test app package shim (__init__.py): passthrough attr and spec proxy name."""
 
-    def test_app_package_spec_proxy_and_getattr_passthrough(self):
+    def test_app_package_spec_proxy_and_getattr_passthrough(self) -> None:
         """Test that accessing __spec__.name returns 'app' and keeps module bound."""
         # Accessing __spec__.name returns 'app' and keeps module bound
         spec = apppkg.__spec__
@@ -138,7 +139,7 @@ class TestAppPackageShimEdges:
         _ = spec.name
         assert sys.modules.get("app") is apppkg
 
-    def test_app_getattr_missing_raises_attributeerror(self):
+    def test_app_getattr_missing_raises_attributeerror(self) -> None:
         """Test that getattr raises AttributeError for missing attributes."""
         with pytest.raises(AttributeError):
             getattr(apppkg, "__definitely_missing_attribute__")  # noqa: B009
