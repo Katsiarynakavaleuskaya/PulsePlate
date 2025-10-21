@@ -22,9 +22,11 @@ class TestAppCriticalLines97:
     def test_invalid_json_malformed_request(self, client: TestClient) -> None:
         """Test malformed JSON - error handling lines"""
         # Send invalid JSON to public BMI endpoint (without API key)
+        # This string will fail json.loads because JSON requires double quotes and proper identifiers
+        malformed_json = "{'invalid': json}"
         response = client.post(
             "/api/v1/bmi",
-            content="{'invalid': json}",  # Intentionally malformed JSON: single quotes and unquoted identifier
+            content=malformed_json,
             headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
         assert response.status_code in [422, 400]
@@ -102,7 +104,8 @@ class TestAppExceptionHandlersCoverage:
         self, client: TestClient, endpoint: str, payload: dict, expected_status: int
     ) -> None:
         """Test validation error handlers coverage"""
-        # Build headers dict per test case based on endpoint parameter (include API key for authenticated endpoints)
+        # Build headers dict per test case based on endpoint parameter
+        # (include API key for authenticated endpoints)
         headers = {}
         if "bodyfat" in endpoint:  # Bodyfat endpoint requires authentication
             headers["X-API-Key"] = "test_key"
@@ -127,19 +130,23 @@ class TestAppExceptionHandlersCoverage:
         def _fail_api_key(_: str = "") -> NoReturn:
             raise RuntimeError("boom")
 
-        if app.app is not None:
-            with patch.dict(
-                app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False
-            ):
-                response = client.post(
-                    "/api/v1/insight",
-                    json={"text": "test"},
-                    headers={"X-API-Key": "test_key"},
-                )
-            # Runtime error can result in either 500 (internal error) or 503 (service unavailable)
-            assert response.status_code in [500, 503]
+        if app.app is None:
+            pytest.skip("app.app is None - cannot run integration test")
 
-    @pytest.mark.skip(reason="httpx mock needs async-aware mocking - will fix in CI optimization PR")
+        with patch.dict(
+            app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False
+        ):
+            response = client.post(
+                "/api/v1/insight",
+                json={"text": "test"},
+                headers={"X-API-Key": "test_key"},
+            )
+        # Runtime error can result in either 500 (internal error) or 503 (service unavailable)
+        assert response.status_code in [500, 503]
+
+    @pytest.mark.skip(
+        reason="httpx mock needs async-aware mocking - will fix in CI optimization PR"
+    )
     def test_connection_error_handler(self, client: TestClient) -> None:
         """Test connection error handler coverage"""
         # Test with insight endpoint that makes external LLM calls
