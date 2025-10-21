@@ -29,10 +29,10 @@ class TestAppImport:
 class TestAppVIPIntegration:
     """Test VIP module integration."""
 
-    def test_app_vip_integration_success(self):
+    def test_app_vip_integration_success(self, test_environment):
         """Verify that VIP routes register successfully when the module is enabled."""
         # Since VIP module is currently working, test that it's properly integrated
-        fastapi_app = getattr(app, "app")
+        fastapi_app = app.app
 
         # The app should be created and standard routes present
         paths = {
@@ -54,8 +54,9 @@ class TestAppPackageSpec:
         import app as apppkg
 
         # Accessing __spec__.name should not crash and should be 'app'
-        name = getattr(apppkg, "__spec__").name  # type: ignore[attr-defined]
-        assert name == "app"
+        spec = apppkg.__spec__
+        assert spec is not None
+        assert spec.name == "app"
 
     def test_app_package_spec_proxy_rebinds_sys_modules(self):
         """Test that accessing spec triggers proxy and rebinds sys.modules."""
@@ -64,8 +65,10 @@ class TestAppPackageSpec:
         # Replace sys.modules['app'] with a placeholder to simulate external mutation
         sys.modules["app"] = object()  # type: ignore[assignment]
         # Accessing name should trigger proxy and rebind sys.modules['app'] back to module
-        name = getattr(apppkg, "__spec__").name  # type: ignore[attr-defined]
-        assert name == "app" and sys.modules["app"] is apppkg
+        spec = apppkg.__spec__
+        assert spec is not None, "apppkg.__spec__ should not be None"
+        assert spec.name == "app", f"Expected spec.name to be 'app', got {spec.name}"
+        assert sys.modules["app"] is apppkg, "sys.modules['app'] should be bound to apppkg"
 
     def test_app_getattr_passes_through_and_raises_attribute_error(self):
         """Test that __getattr__ delegates and raises AttributeError for missing symbols."""
@@ -73,4 +76,4 @@ class TestAppPackageSpec:
 
         # __getattr__ should delegate to underlying module and raise on missing
         with pytest.raises(AttributeError):
-            getattr(apppkg, "__definitely_missing_symbol__")
+            getattr(apppkg, "__definitely_missing_symbol__")  # noqa: B009
