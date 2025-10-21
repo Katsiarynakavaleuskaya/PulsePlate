@@ -87,6 +87,19 @@ jobs:
       matrix:
         python-version: ['3.12']
 
+  # Fast testing for feature branches (single Python version)
+  test-feature:
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12']
+
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
@@ -234,6 +247,36 @@ jobs:
   coverage-pr:
     if: github.event_name == 'pull_request'
     needs: test-pr
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Download coverage artifact (Python 3.12)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          name: coverage-xml-3.12
+          path: ./coverage-artifacts
+        continue-on-error: true
+
+      - name: Upload to Codecov
+        if: ${{ hashFiles('./coverage-artifacts/coverage.xml') != '' }}
+        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
+        with:
+          files: ./coverage-artifacts/coverage.xml
+          fail_ci_if_error: false
+          use_oidc: true
+        continue-on-error: true
+
+  # Coverage reporting for feature branches
+  coverage-feature:
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/'))
+    needs: test-feature
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

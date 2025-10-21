@@ -9,8 +9,9 @@ EN: Demo test for automatic product database expansion.
 
 import shutil
 from pathlib import Path
+from typing import Dict
 from core.product_finder import ProductFinder
-from core.recipe_db import parse_recipe_db
+from core.recipe_db import parse_recipe_db, Recipe
 
 
 class TestAutoProductExpansionDemo:
