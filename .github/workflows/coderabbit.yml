@@ -1,0 +1,27 @@
+name: CodeRabbit Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  coderabbit:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: CodeRabbit Review
+        uses: coderabbitai/coderabbit-action@v1.0.0
+        with:
+          # Optional: Add custom configuration
+          config: .coderabbit.yml
+          # Optional: Add custom instructions
+          instructions: |
+            Focus on health/nutrition domain best practices.
+            Maintain 97% test coverage requirement.
+            Follow Apple HIG guidelines for iOS components.
+            Use FastAPI best practices for backend.
+            Prioritize user experience and accessibility.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -26,7 +26,7 @@ class TestAppCriticalLines97:
             data="{'invalid': json}",  # Invalid JSON
             headers={"Content-Type": "application/json"},  # No X-API-Key - BMI is public
         )
-        assert response.status_code in [422, 400, 500]
+        assert response.status_code in [422, 400]
 
     def test_error_handling_edge_paths(self, client):
         """Test various error handling paths"""
@@ -56,13 +56,15 @@ class TestAppCriticalLines97:
         # Options request for CORS
         response = client.options("/health")
         assert response.status_code in [200, 405]
+        if response.status_code == 200:
+            assert "access-control-allow-origin" in {k.lower(): v for k, v in response.headers.items()}
 
     def test_exception_handling_paths(self, client):
         """Test exception handling paths"""
         # Test with very large JSON payload to reliably test size limits
         large_data = {"data": "x" * 100000}  # Increased from 10k to 100k for more reliable testing
         response = client.post("/api/v1/bmi", json=large_data)
-        assert response.status_code in [422, 400, 413, 500]
+        assert response.status_code in [422, 400, 413]
 
     def test_various_endpoints_coverage(self, client):
         """Test various endpoints for coverage"""
@@ -116,7 +118,7 @@ class TestAppExceptionHandlersCoverage:
     def test_runtime_error_handler(self, client):
         """Test runtime error handler coverage: BMI endpoint is now public, test on another."""
         # BMI endpoint no longer uses get_api_key, use insight endpoint
-        def _fail_api_key(api_key: str = "") -> str:
+        def _fail_api_key(_: str = "") -> str:
             raise RuntimeError("boom")
         with patch.dict(app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False):
             response = client.post(
