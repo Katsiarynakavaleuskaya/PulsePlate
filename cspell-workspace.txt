@@ -30,6 +30,7 @@
 авторизации
 авторизацию
 Автосписок
+автоустановка
 Автофикстура
 Автоформатирование
 агрегации
@@ -4443,6 +4444,7 @@ unstub
 urllib
 Usando
 usda
+usefixtures
 utcnow
 Utilice
 uvicorn

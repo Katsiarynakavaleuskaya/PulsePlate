@@ -9,8 +9,6 @@ EN: Demo test for automatic product database expansion.
 
 import shutil
 from pathlib import Path
-from typing import Any
-
 from core.product_finder import ProductFinder
 from core.recipe_db import parse_recipe_db
 
@@ -18,7 +16,7 @@ from core.recipe_db import parse_recipe_db
 class TestAutoProductExpansionDemo:
     """Demo test for automatic product expansion."""
 
-    def _is_product_in_db(self, product: str, food_name: str, finder: Any) -> bool:
+    def _is_product_in_db(self, product: str, food_name: str, finder: ProductFinder) -> bool:
         """Check if product matches a food name in the database."""
         product_lower = product.lower()
         food_lower = food_name.lower()

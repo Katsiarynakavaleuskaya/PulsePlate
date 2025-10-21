@@ -10,10 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    # Simple import of the app module
-    import app
-
-    # app import validated above; no binding needed
+    # Validate app module can be imported
+    import app  # noqa: F401
 except ImportError as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
@@ -120,12 +118,14 @@ class TestAppUnitTests:
         """Test estimate_level with different BMI categories."""
         from bmi_core import estimate_level
 
-        # Test different levels
-        assert estimate_level(0, 0.0, "en") == "beginner"
-        assert estimate_level(1, 0.0, "en") == "beginner"
-        assert estimate_level(2, 0.0, "en") == "beginner"
+        # Test beginner level (BMI < 18.5)
+        assert estimate_level(0, 17.0, "en") == "beginner"
+        assert estimate_level(0, 17.0, "ru") == "базовый"
 
-        # Test Russian levels
-        assert estimate_level(0, 0.0, "ru") == "базовый"
-        assert estimate_level(1, 0.0, "ru") == "базовый"
-        assert estimate_level(2, 0.0, "ru") == "базовый"
+        # Test intermediate level (BMI 18.5-24.9)
+        assert estimate_level(0, 22.0, "en") == "intermediate"
+        assert estimate_level(0, 22.0, "ru") == "средний"
+
+        # Test advanced level (BMI >= 25.0)
+        assert estimate_level(0, 28.0, "en") == "advanced"
+        assert estimate_level(0, 28.0, "ru") == "продвинутый"
