@@ -71,8 +71,8 @@ class TestAppCriticalLines97:
 
     def test_exception_handling_paths(self, client):
         """Test exception handling paths"""
-        # Test with very large JSON
-        large_data = {"data": "x" * 10000}
+        # Test with very large JSON payload to reliably test size limits
+        large_data = {"data": "x" * 100000}  # Increased from 10k to 100k for more reliable testing
         response = client.post("/api/v1/bmi", json=large_data)
         assert response.status_code in [422, 400, 413, 500]
 
@@ -112,7 +112,12 @@ class TestAppExceptionHandlersCoverage:
     )
     def test_validation_error_handlers(self, client, endpoint, payload, expected_status):
         """Test validation error handlers coverage"""
-        response = client.post(endpoint, json=payload, headers={"X-API-Key": "test_key"})
+        # Build headers dict per request - only include API key for authenticated endpoints
+        headers = {}
+        if "bodyfat" in endpoint:  # Bodyfat endpoint requires authentication
+            headers["X-API-Key"] = "test_key"
+
+        response = client.post(endpoint, json=payload, headers=headers)
         assert response.status_code == expected_status
 
     def test_http_exception_handlers(self, client):
@@ -139,12 +144,38 @@ class TestAppExceptionHandlersCoverage:
 
     def test_connection_error_handler(self, client):
         """Test connection error handler coverage"""
-        # Test connection error handler
-        response = client.get("/health")
-        assert response.status_code in [200, 500]
+        # Mock external service call to raise ConnectionError
+        with patch("requests.get", side_effect=ConnectionError("Connection failed")):
+            # Test an endpoint that might make external calls
+            response = client.get("/health")
+            # Health endpoint should still work as it doesn't make external calls
+            assert response.status_code == 200
+
+        # Test with insight endpoint that might make external LLM calls
+        with patch("app.get_api_key", side_effect=ConnectionError("Connection failed")):
+            response = client.post(
+                "/api/v1/insight",
+                json={"text": "test"},
+                headers={"X-API-Key": "test_key"},
+            )
+            # Should handle connection error gracefully
+            assert response.status_code in [500, 503, 502]
 
     def test_timeout_error_handler(self, client):
         """Test timeout error handler coverage"""
-        # Test timeout error handler
-        response = client.get("/health")
-        assert response.status_code in [200, 500]
+        # Mock external service call to raise TimeoutError
+        with patch("requests.get", side_effect=TimeoutError("Request timeout")):
+            # Test an endpoint that might make external calls
+            response = client.get("/health")
+            # Health endpoint should still work as it doesn't make external calls
+            assert response.status_code == 200
+
+        # Test with insight endpoint that might make external LLM calls
+        with patch("app.get_api_key", side_effect=TimeoutError("Request timeout")):
+            response = client.post(
+                "/api/v1/insight",
+                json={"text": "test"},
+                headers={"X-API-Key": "test_key"},
+            )
+            # Should handle timeout error gracefully
+            assert response.status_code in [504, 503, 500]
