@@ -16,6 +16,7 @@ from unittest.mock import patch
 import app
 
 
+@pytest.mark.usefixtures("test_environment")
 class TestAppCriticalLines97:
     """Test the most critical uncovered lines in main.py"""
 
@@ -123,8 +124,8 @@ class TestAppExceptionHandlersCoverage:
                 json={"text": "test"},
                 headers={"X-API-Key": "test_key"},
             )
-            # May be 500 (runtime error) or 503 (feature disabled)
-            assert response.status_code in [500, 503]
+            # With test_environment fixture, feature is enabled, so should return 500 for runtime error
+            assert response.status_code == 500
 
     def test_connection_error_handler(self, client):
         """Test connection error handler coverage"""
