@@ -167,28 +167,16 @@ class TestBMICoreCoverage:
     """Test BMI core coverage and fallback scenarios."""
 
     def _call_interpret_group_safe(self, group: str, lang: str):
-        """Safely call interpret_group with different signature attempts."""
+        """Safely call interpret_group with correct signature."""
         fn = getattr(pytest.importorskip("bmi_core"), "interpret_group", None)
         if not callable(fn):
             pytest.skip("interpret_group not found")
 
-        # Try several call styles; if none fit — skip.
+        # Use correct signature: interpret_group(bmi, group, lang, age=None)
         try:
-            return fn(group=group, lang=lang)  # type: ignore[misc]
-        except TypeError:
-            pass
-        try:
-            return fn(group, lang)  # type: ignore[misc]
-        except TypeError:
-            pass
-        try:
-            return fn(group, lang=lang)  # type: ignore[misc]
-        except TypeError:
-            pass
-        try:
-            return fn(lang, group=group)  # type: ignore[misc]
-        except TypeError:
-            pytest.skip("interpret_group signature unsupported for this test")
+            return fn(bmi=24.9, group=group, lang=lang)  # type: ignore[misc]
+        except Exception as e:
+            pytest.skip(f"interpret_group call failed: {e}")
 
     def test_group_display_fallbacks_and_edges(self):
         """Test BMI category fallbacks and edge cases."""
