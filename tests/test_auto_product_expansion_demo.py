@@ -42,8 +42,8 @@ class TestAutoProductExpansionDemo:
         # Загружаем рецепты
         recipes = parse_recipe_db("data/recipes_extended.csv")
 
-        # Получаем все ингредиенты
-        unique_ingredients = list(self._collect_all_ingredients(recipes))
+        # Получаем все ингредиенты (сортированные для детерминистичности)
+        unique_ingredients = sorted(self._collect_all_ingredients(recipes))
 
         print(f"📚 Всего уникальных ингредиентов: {len(unique_ingredients)}")
 
@@ -106,8 +106,8 @@ class TestAutoProductExpansionDemo:
         finder = ProductFinder()
         recipes = parse_recipe_db("data/recipes_extended.csv")
 
-        # Получаем все ингредиенты
-        unique_ingredients = list(self._collect_all_ingredients(recipes))
+        # Получаем все ингредиенты (сортированные для детерминистичности)
+        unique_ingredients = sorted(self._collect_all_ingredients(recipes))
 
         # Находим недостающие продукты
         missing_products = finder.find_missing_products(unique_ingredients)

@@ -36,7 +36,9 @@ async def cleanup_scheduler():
         await stop_background_updates()
     except Exception as e:
         # Log the error instead of silently passing
-        print(f"Warning: Failed to cleanup scheduler: {e}")
+        import logging
+
+        logging.getLogger(__name__).warning(f"Failed to cleanup scheduler: {e}")
 
 
 class TestSchedulerAdditionalCoverage:
@@ -61,7 +63,7 @@ class TestSchedulerAdditionalCoverage:
             # If we get here, the test passes
 
     @pytest.mark.asyncio
-    async def test_update_loop_cancelled_error(self, event_loop):
+    async def test_update_loop_cancelled_error(self):
         """Test _update_loop handling of CancelledError."""
         scheduler = DatabaseUpdateScheduler()
         scheduler.is_running = True
@@ -83,7 +85,7 @@ class TestSchedulerAdditionalCoverage:
                 await scheduler._update_loop()
 
     @pytest.mark.asyncio
-    async def test_update_loop_general_exception(self, event_loop):
+    async def test_update_loop_general_exception(self):
         """Test _update_loop handling of general exceptions."""
         scheduler = DatabaseUpdateScheduler()
         scheduler.is_running = True
@@ -115,7 +117,7 @@ class TestSchedulerAdditionalCoverage:
                     pass
 
     @pytest.mark.asyncio
-    async def test_run_update_check_exception(self, event_loop):
+    async def test_run_update_check_exception(self):
         """Test _run_update_check handling of exceptions."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -126,7 +128,7 @@ class TestSchedulerAdditionalCoverage:
         await scheduler._run_update_check()
 
     @pytest.mark.asyncio
-    async def test_run_source_update_exception(self, event_loop):
+    async def test_run_source_update_exception(self):
         """Test _run_source_update handling of exceptions."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -194,7 +196,7 @@ class TestSchedulerAdditionalCoverage:
         scheduler._on_update_complete(failure_result)
 
     @pytest.mark.asyncio
-    async def test_force_update_specific_source(self, event_loop):
+    async def test_force_update_specific_source(self):
         """Test force_update with specific source."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -219,7 +221,7 @@ class TestSchedulerAdditionalCoverage:
         assert results["test_source"].success is True
 
     @pytest.mark.asyncio
-    async def test_force_update_all_sources(self, event_loop):
+    async def test_force_update_all_sources(self):
         """Test force_update with all sources."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -289,7 +291,7 @@ class TestSchedulerAdditionalCoverage:
         assert status["scheduler"]["retry_counts"]["test_source"] == 2
 
     @pytest.mark.asyncio
-    async def test_get_update_scheduler_singleton(self, event_loop):
+    async def test_get_update_scheduler_singleton(self):
         """Test that get_update_scheduler returns the same instance."""
         scheduler1 = await get_update_scheduler()
         scheduler2 = await get_update_scheduler()
@@ -298,7 +300,7 @@ class TestSchedulerAdditionalCoverage:
         assert scheduler1 is scheduler2
 
     @pytest.mark.asyncio
-    async def test_start_background_updates_logging(self, event_loop):
+    async def test_start_background_updates_logging(self):
         """Test start_background_updates logging behavior."""
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             try:
@@ -313,7 +315,7 @@ class TestSchedulerAdditionalCoverage:
                 pytest.skip(f"Scheduler start method not available: {e}")
 
     @pytest.mark.asyncio
-    async def test_stop_background_updates_logging(self, event_loop):
+    async def test_stop_background_updates_logging(self):
         """Test stop_background_updates logging behavior."""
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()

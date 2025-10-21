@@ -71,6 +71,7 @@ class TestPlateTargetsMicroCoverage:
             assert plate_micros, "Plate should have micronutrients"
         else:
             # day_micros not implemented yet - test fallback behavior
+            plate_micros = plate_data.get("day_micros")
             assert (
                 plate_micros is None or plate_micros == {}
             ), "Expected None or empty dict for unimplemented day_micros"
