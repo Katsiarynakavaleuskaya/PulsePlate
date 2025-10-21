@@ -89,3 +89,17 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
     return client
+
+
+@pytest.fixture
+def test_environment(monkeypatch: pytest.MonkeyPatch):
+    """Set up test environment variables for deterministic testing."""
+    # Set up environment variables for consistent test behavior
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("DEBUG", "true")
+    # API_KEY is not set by default to enable lenient mode
+    yield
+    # Cleanup is automatic with monkeypatch
