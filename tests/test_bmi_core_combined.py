@@ -24,22 +24,22 @@ class TestBMICoreValidation:
 
     def test_interpret_group_general_en_no_extra_dot(self):
         """Test interpret_group for 'general' group without extra dot."""
-        # Для group='general' строка не должна заканчиваться лишней точкой
+        # For group='general' the string should not end with an extra dot
         txt = interpret_group(22.0, "general", "en")
         assert txt == "Normal weight"
 
     def test_estimate_level_beginner_ru(self):
         """Test estimate_level for beginner level in Russian."""
-        # Добиваем RU-ветку 'beginner'
+        # Cover RU branch for 'beginner'
         assert estimate_level(0, 0.0, "ru") == "базовый"
 
     def test_build_premium_plan_gain_ru_tips(self):
         """Test build_premium_plan for weight gain with Russian tips."""
-        # Добиваем RU-ветку 'gain' + наличие подсказок
+        # Cover RU branch for 'gain' + presence of tips
         height = 1.60
         bmin, bmax = healthy_bmi_range(25, "general", premium=False)
         wmin = round(bmin * height * height, 1)
-        weight = wmin - 2.0  # ниже «здорового» -> gain
+        weight = wmin - 2.0  # below 'healthy' range -> gain
         bmi = bmi_value(weight, height)
         plan = build_premium_plan(25, weight, height, bmi, "ru", "general", False)
         assert plan["action"] == "gain"
@@ -82,6 +82,86 @@ class TestBMIAPIValidation:
         assert data["category"] == "Normal weight"
         assert isinstance(data.get("interpretation", ""), str)
 
+    def test_bmi_negative_weight_validation_error(self):
+        """Test BMI API with negative weight returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": -70, "height_cm": 170},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_negative_height_validation_error(self):
+        """Test BMI API with negative height returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70, "height_cm": -170},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_zero_weight_validation_error(self):
+        """Test BMI API with zero weight returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 0, "height_cm": 170},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_zero_height_validation_error(self):
+        """Test BMI API with zero height returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70, "height_cm": 0},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_extremely_large_values_returns_result(self):
+        """Test BMI API with extremely large values returns computed result."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 10000, "height_cm": 1000},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data["bmi"], (int, float))
+        assert data["bmi"] > 0
+        assert isinstance(data["category"], str)
+
+    def test_bmi_missing_weight_validation_error(self):
+        """Test BMI API with missing weight returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"height_cm": 170},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_missing_height_validation_error(self):
+        """Test BMI API with missing height returns validation error."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 422
+
+    def test_bmi_invalid_gender_returns_result(self):
+        """Test BMI API with invalid gender still returns computed result."""
+        r = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70, "height_cm": 170, "gender": "INVALID"},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data["bmi"], (int, float))
+        assert data["bmi"] > 0
+        assert isinstance(data["category"], str)
+
 
 class TestBMICoreCoverage:
     """Test BMI core coverage and fallback scenarios."""
@@ -91,9 +171,8 @@ class TestBMICoreCoverage:
         fn = getattr(pytest.importorskip("bmi_core"), "interpret_group", None)
         if not callable(fn):
             pytest.skip("interpret_group not found")
-            return None
 
-        # Попробуем несколько стилей вызова; если ни один не подходит — скипаем.
+        # Try several call styles; if none fit — skip.
         try:
             return fn(group=group, lang=lang)  # type: ignore[misc]
         except TypeError:
@@ -110,16 +189,15 @@ class TestBMICoreCoverage:
             return fn(lang, group=group)  # type: ignore[misc]
         except TypeError:
             pytest.skip("interpret_group signature unsupported for this test")
-            return None
 
     def test_group_display_fallbacks_and_edges(self):
         """Test BMI category fallbacks and edge cases."""
         bmi_core = pytest.importorskip("bmi_core")
 
-        # язык вне ('ru','en') -> fallback на 'ru'
-        assert bmi_core.bmi_category(24.9, "de")
+        # language outside ('ru','en') -> fallback to default (en)
+        assert bmi_core.bmi_category(24.9, "de") == bmi_core.bmi_category(24.9, "en")
 
-        # безопасный вызов interpret_group (или skip, если сигнатура экзотическая)
+        # safe call to interpret_group (or skip if signature is unusual)
         res = self._call_interpret_group_safe("unknown_group", "en")
         if res is not None:
             assert isinstance(res, str) and res
