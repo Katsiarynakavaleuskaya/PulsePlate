@@ -19,7 +19,14 @@ This guide shows how to set up Ollama for local development and testing of the P
 brew install ollama
 
 # Linux
-curl -fsSL https://ollama.ai/install.sh | sh
+# Download the install script
+curl -fsSL -o ollama-install.sh https://ollama.ai/install.sh
+# (Optional) Verify the script's checksum - see https://ollama.ai/install.sh for checksum info
+# sha256sum ollama-install.sh
+# Review the script before running:
+less ollama-install.sh
+# Run the script
+sh ollama-install.sh
 
 # Windows
 # Download from https://ollama.ai/download
@@ -57,11 +64,11 @@ The PulsePlate application uses these environment variables to connect to Ollama
 
 ```bash
 # For staging
-OLLAMA_HOST=http://host.docker.internal:11434
+OLLAMA_ENDPOINT=http://host.docker.internal:11434
 ENVIRONMENT=staging
 
 # For production
-OLLAMA_HOST=http://host.docker.internal:11434
+OLLAMA_ENDPOINT=http://host.docker.internal:11434
 ENVIRONMENT=production
 ```
 
@@ -73,7 +80,7 @@ When running PulsePlate in Docker, use `host.docker.internal:11434` to connect t
 docker run -d \
   --name pulseplate-staging \
   -p 8000:8000 \
-  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  -e OLLAMA_ENDPOINT=http://host.docker.internal:11434 \
   -e ENVIRONMENT=staging \
   ghcr.io/katsiarynakavaleuskaya/pulseplate:latest
 ```
