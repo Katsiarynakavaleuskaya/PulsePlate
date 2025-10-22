@@ -10,6 +10,12 @@ GHCR_USER=${GHCR_USER:?"GHCR_USER not set"}
 IMG_REF="${1:-latest}"         # тег/диджест образа
 COMPOSE="docker compose -f /srv/pulseplate-staging/docker-compose.staging.yaml"
 
+# Warn if using latest tag (should be specific commit SHA in production)
+if [ "$IMG_REF" = "latest" ]; then
+  echo "⚠️  WARNING: Using 'latest' tag. For production deployments, use specific commit SHA tags."
+  echo "   CD workflow should pass the exact image tag (e.g., git SHA) to ensure consistency."
+fi
+
 echo "[1/4] Login GHCR"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
@@ -40,8 +46,8 @@ if [ $wait_count -eq $max_wait ]; then
   exit 1
 fi
 
-# Get the actual container name dynamically
-APP_CONTAINER=$($COMPOSE ps -q app)
+# Get the actual container name dynamically (trim whitespace)
+APP_CONTAINER=$($COMPOSE ps -q app | tr -d '\n\r ')
 if [ -z "$APP_CONTAINER" ]; then
   echo "❌ Failed to find app container"
   exit 1
@@ -85,7 +91,15 @@ if [ $wait_count -eq $max_wait ]; then
 fi
 
 # Run migrations in the live app container
-docker exec "$APP_CONTAINER" alembic upgrade head
+echo "Running database migrations in container: $APP_CONTAINER"
+if docker exec "$APP_CONTAINER" alembic upgrade head; then
+  echo "✅ Database migrations completed successfully in container: $APP_CONTAINER"
+else
+  migration_exit_code=$?
+  echo "❌ Database migrations failed in container: $APP_CONTAINER (exit code: $migration_exit_code)" >&2
+  echo "Check container logs with: docker logs $APP_CONTAINER" >&2
+  exit $migration_exit_code
+fi
 
 echo "[post] Smoke check with retry"
 max_attempts=30
