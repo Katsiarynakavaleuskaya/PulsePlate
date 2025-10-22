@@ -248,51 +248,6 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 .PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001
 
-
-## Run local dev server on :8001
-dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-## Run tests (quiet)
-test: ## Run pytest
-	. .venv/bin/activate && pytest -q
-
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
-
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
-
-## Lint (flake8)
-lint: ## Lint with flake8
-	flake8 .
-
-## Auto-fix (format + imports)
-fmt: ## Format with black and isort
-
-## Smoke test (auto: 8000 then 8001)
-smoke-auto: ## Try health+bmi on 8000 then 8001
-	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
-	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
-	else \
-		echo "No server found on 8000/8001"; exit 1; \
-	fi
-
-## Smoke test on :8000
-smoke-8000: ## Smoke against http://127.0.0.1:8000
-	bash ./scripts/smoke.sh http://127.0.0.1:8000
-
-## Smoke test on :8001
-smoke-8001: ## Smoke against http://127.0.0.1:8001
-	bash ./scripts/smoke.sh http://127.0.0.1:8001
-
-
 bandit:
 	@echo "[bandit] scanning changed files via pre-commit"
 	pre-commit run bandit || true

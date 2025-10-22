@@ -17,8 +17,8 @@ services:
       - ENVIRONMENT=production
     volumes:
       - ./data:/app/data:ro
-      - ./cache:/app/cache:rw
-      - ./logs:/app/logs:rw
+      - cache-volume:/app/cache:rw
+      - logs-volume:/app/logs:rw
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -89,6 +89,10 @@ volumes:
   redis-data:
     driver: local
   postgres-data:
+    driver: local
+  cache-volume:
+    driver: local
+  logs-volume:
     driver: local
 
 networks:

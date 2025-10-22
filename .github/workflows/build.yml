@@ -64,7 +64,7 @@ jobs:
 
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@8c4a4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b # v0.20.5
+        uses: anchore/sbom-action@v0.14.3
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           format: spdx-json
