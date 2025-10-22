@@ -10,7 +10,7 @@ import sys
 try:
     from PIL import Image
 except ImportError:
-    Image = None
+    Image = None  # type: ignore
 
 
 def create_icons_from_source(source_path: str) -> bool:

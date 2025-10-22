@@ -7,7 +7,7 @@
 import os
 import sys
 
-from PIL import Image
+# from PIL import Image  # Imported locally in main()
 
 
 def create_icons_from_source(source_path):
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     source_path = sys.argv[1]
 
     try:
-        from PIL import Image
+        from PIL import Image  # noqa: F401
     except ImportError:
         print("❌ Установите Pillow: pip install Pillow")
         sys.exit(1)
