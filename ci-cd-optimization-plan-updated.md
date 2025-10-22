@@ -20,12 +20,14 @@
 ### Files Fixed
 
 #### ✅ 1. `.pre-commit-config.yaml` (line 53)
+
 ```yaml
 # FIXED: mypy pattern now includes app.py
 files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 ```
 
 #### ✅ 2. `tests/test_app_error_handling_combined.py` (line 142)
+
 ```python
 # FIXED: Added pytest.mark.skip for httpx mock
 @pytest.mark.skip(reason="httpx mock needs async-aware mocking - will fix in CI optimization PR")
@@ -33,6 +35,7 @@ def test_connection_error_handler(self, client: TestClient) -> None:
 ```
 
 #### ✅ 3. `tests/conftest.py` (line 108)
+
 ```python
 # FIXED: Removed misleading comment
 yield
@@ -40,6 +43,7 @@ yield
 ```
 
 #### ✅ 4. Additional Critical Fixes (formatting & test robustness)
+
 - ✅ Fixed line 27: Split long line and improved comment accuracy
 - ✅ Fixed line 105: Broke long comment into multiple lines
 - ✅ Fixed lines 130-140: Added explicit pytest.skip when app.app is None
@@ -107,7 +111,7 @@ addopts =
 - Reduce matrix to single Python version on PR
 - Add `-n auto` to pytest command
 
-#### Files NOT to touch in PR #215:
+#### Files NOT to touch in PR #215
 
 - ❌ No Dockerfile
 - ❌ No docker-compose.yaml
@@ -154,7 +158,7 @@ Fix all deferred CodeRabbit issues
 
 - Consolidate fixture strategy (lines 95-110)
 
-#### Files NOT to touch in PR #216:
+#### Files NOT to touch in PR #216
 
 - ❌ No CI files
 - ❌ No Docker files
@@ -194,7 +198,7 @@ git checkout -b feature/nightly-workflow
 
 - Add `@pytest.mark.slow` to ~10 slowest tests
 
-#### Files NOT to touch in PR #217:
+#### Files NOT to touch in PR #217
 
 - ❌ No Docker files
 - ❌ No CD files
@@ -237,7 +241,7 @@ git checkout -b feature/docker-optimization
 - Add cosign signing
 - Add SBOM
 
-#### Files NOT to touch in PR #218:
+#### Files NOT to touch in PR #218
 
 - ❌ No deployment scripts (deploy.sh)
 - ❌ No CD workflows (cd.yml)
@@ -278,7 +282,7 @@ git checkout -b feature/cd-staging
 - ONLY staging job
 - Auto-deploy on main push
 
-#### Files NOT to touch in PR #219:
+#### Files NOT to touch in PR #219
 
 - ❌ No production deployment yet
 - ❌ No approval gates
@@ -376,6 +380,7 @@ Future enhancement, not MVP
 **Action**: Create branch and implement pytest-xdist + caching
 
 **Next Steps**:
+
 1. Switch to main and pull latest
 2. Create `feature/ci-performance-phase1` branch
 3. Add pytest-xdist to requirements-dev.txt
@@ -386,42 +391,42 @@ Future enhancement, not MVP
 
 ## Files Summary by PR
 
-### ✅ PR #214 (COMPLETED):
+### ✅ PR #214 (COMPLETED)
 
 - ✅ `.pre-commit-config.yaml`
 - ✅ `tests/test_app_error_handling_combined.py`
 - ✅ `tests/conftest.py`
 
-### 🟢 PR #215 (IN PROGRESS):
+### 🟢 PR #215 (IN PROGRESS)
 
 - `requirements-dev.txt`
 - `pytest.ini`
 - `.github/workflows/ci.yml`
 
-### 🟡 PR #216:
+### 🟡 PR #216
 
 - `tests/test_app_error_handling_combined.py`
 - `tests/test_app_endpoints_combined.py`
 - `tests/conftest.py`
 
-### 🔵 PR #217:
+### 🔵 PR #217
 
 - `.github/workflows/nightly.yml` (NEW)
 - `pytest.ini`
 - ~10 test files (add markers)
 
-### 🟣 PR #218:
+### 🟣 PR #218
 
 - `Dockerfile`
 - `docker-compose.yaml` (NEW)
 - `.github/workflows/build.yml`
 
-### 🟠 PR #219:
+### 🟠 PR #219
 
 - `scripts/deploy.sh` (NEW)
 - `.github/workflows/cd.yml` (NEW)
 
-### 🔴 PR #220:
+### 🔴 PR #220
 
 - `.github/workflows/cd.yml` (extend)
 

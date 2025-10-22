@@ -192,8 +192,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check calcium coverage
         target_calcium = targets_data["priority_micros"].get("calcium_mg", 0)
@@ -233,8 +232,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check magnesium coverage
         target_magnesium = targets_data["priority_micros"].get("magnesium_mg", 0)
@@ -274,8 +272,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check potassium coverage
         target_potassium = targets_data["priority_micros"].get("potassium_mg", 0)
@@ -315,8 +312,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check vitamin D coverage
         target_vitd = targets_data["priority_micros"].get("vitamin_d_iu", 0)
@@ -356,8 +352,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check B12 coverage
         target_b12 = targets_data["priority_micros"].get("b12_ug", 0)
@@ -397,8 +392,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check folate coverage
         target_folate = targets_data["priority_micros"].get("folate_ug", 0)
@@ -438,8 +432,7 @@ class TestPlateTargetsMicroCoverage:
 
         # Check if day_micros is implemented
         if "day_micros" not in plate_data or plate_data["day_micros"] is None:
-            # day_micros not implemented yet
-            return
+            pytest.skip("day_micros not implemented in plate endpoint yet")
 
         # Check iodine coverage
         target_iodine = targets_data["priority_micros"].get("iodine_ug", 0)

@@ -62,12 +62,6 @@ class TestAppVIPComprehensive97:
         except AttributeError:
             # This is expected behavior
             pass
-        except Exception as e:
-            # Other exceptions are also acceptable for this test
-            # Log the unexpected exception for debugging
-            import logging
-
-            logging.getLogger(__name__).warning(f"Unexpected exception in VIP router test: {e}")
 
     def test_premium_plate_fallback_mode(self, test_client):
         """Test premium plate endpoint in fallback mode when backends are unavailable."""

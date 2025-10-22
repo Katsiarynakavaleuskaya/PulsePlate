@@ -309,11 +309,13 @@ class TestSchedulerAdditionalCoverage:
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             try:
                 await start_background_updates(1)  # 1 hour interval
-                # Should log that updates started
-                mock_logger.info.assert_called_once()
-                # Verify the log message matches expected format
-                call_args = mock_logger.info.call_args[0][0]
-                assert "background database updates started" in call_args.lower()
+                # Should log multiple messages during startup
+                assert mock_logger.info.call_count == 3
+                # Verify the log messages contain expected content
+                calls = [call[0][0] for call in mock_logger.info.call_args_list]
+                assert any("starting database update scheduler" in call.lower() for call in calls)
+                assert any("update scheduler started" in call.lower() for call in calls)
+                assert any("background database updates started" in call.lower() for call in calls)
             except AttributeError:
                 pytest.fail("Scheduler start method should be available")
 
@@ -325,11 +327,13 @@ class TestSchedulerAdditionalCoverage:
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
-            # Should log that updates stopped
-            mock_logger.info.assert_called_once()
-            # Verify the log message matches expected format
-            call_args = mock_logger.info.call_args[0][0]
-            assert "background database updates stopped" in call_args.lower()
+            # Should log multiple messages during shutdown
+            assert mock_logger.info.call_count == 3
+            # Verify the log messages contain expected content
+            calls = [call[0][0] for call in mock_logger.info.call_args_list]
+            assert any("stopping database update scheduler" in call.lower() for call in calls)
+            assert any("database update scheduler stopped" in call.lower() for call in calls)
+            assert any("background database updates stopped" in call.lower() for call in calls)
 
 
 if __name__ == "__main__":
