@@ -19,13 +19,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up QEMU (multi-arch emulation)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@49b3bc8e6b6737cd9f29c6a9b6f6e3e0f52f1bd0 # v3.2.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@2b51285b1a9ec5ab8b4d0b2b0613b9fe2f6bd9f0 # v3.7.1
@@ -64,9 +66,9 @@ jobs:
 
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@v0.14.3
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.14.3
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          image: ${{ fromJSON(steps.meta.outputs.tags)[0] }}
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -94,7 +96,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@d43c1f16ce892c29b0a8c1e35ea7c4b131f3cf66 # v0.30.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          image-ref: ${{ fromJSON(needs.build.outputs.tags)[0] }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 

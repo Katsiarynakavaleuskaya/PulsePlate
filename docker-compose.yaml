@@ -80,7 +80,7 @@ services:
       - POSTGRES_USER=pulseplate
       # WARNING: You must supply a secure password via environment variables or Docker secrets.
       # The service will fail to start if POSTGRES_PASSWORD is not set. Never commit secrets.
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
     ports:
       - "5432:5432"
     volumes:

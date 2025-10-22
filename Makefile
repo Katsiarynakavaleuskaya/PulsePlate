@@ -6,30 +6,30 @@ ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
 # Docker targets
-.PHONY: docker-build docker-build-dev docker-run docker-stop docker-clean
-docker-build:
+.PHONY: docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell
+docker-build: ## Build production Docker image
 	docker build -t pulseplate:latest --target production .
 
-docker-build-dev:
+docker-build-dev: ## Build development Docker image
 	docker build -t pulseplate:dev --target development .
 
-docker-run:
+docker-run: ## Start services with docker-compose
 	docker-compose up -d
 
-docker-run-dev:
+docker-run-dev: ## Start development services with docker-compose
 	docker-compose --profile dev up -d
 
-docker-stop:
+docker-stop: ## Stop docker-compose services
 	docker-compose down
 
-docker-clean:
+docker-clean: ## Stop services and remove volumes
 	docker-compose down -v
 	docker system prune -f
 
-docker-logs:
+docker-logs: ## Follow docker-compose service logs
 	docker-compose logs -f
 
-docker-shell:
+docker-shell: ## Open bash shell in pulseplate container
 	docker-compose exec pulseplate /bin/bash
 
 health-check:
@@ -114,9 +114,6 @@ lint: ## Lint with flake8
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
-	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
 	black .
 	isort .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
