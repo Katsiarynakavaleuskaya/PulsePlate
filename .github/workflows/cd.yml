@@ -4,9 +4,6 @@ on:
     workflows: ["Docker Build and Push"]
     types: [completed]
     branches: [ main ]
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: read
@@ -50,6 +47,7 @@ jobs:
 
   production:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: production
     concurrency:
@@ -58,11 +56,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if this is a tag build
+        id: check-tag
+        run: |
+          # Check if the workflow_run was triggered by a tag push
+          if [[ "${{ github.event.workflow_run.head_branch }}" == refs/tags/* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+            echo "tag_name=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Resolve image tag
         id: meta
         run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to production over SSH
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
@@ -78,4 +88,5 @@ jobs:
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'
 
       - name: Verify production health
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
         run: curl -v --fail https://${{ secrets.PRODUCTION_DOMAIN }}/health
