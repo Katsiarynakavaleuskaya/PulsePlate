@@ -14,7 +14,6 @@ import sys
 import os
 
 # Import the module under test
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.ensure_database_versions import ensure_versions_file, main, DEFAULT_META
 
 

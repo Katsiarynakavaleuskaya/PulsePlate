@@ -58,7 +58,20 @@ def main() -> int:
     Returns:
         0 on success.
     """
-    repo_root = Path(__file__).resolve().parents[1]
+    # Find repository root by looking for repository markers
+    current_path = Path(__file__).resolve().parent
+    repo_root = None
+
+    # Walk up the directory tree looking for repository markers
+    for parent in current_path.parents:
+        if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
+            repo_root = parent
+            break
+
+    # Fallback to original approach if no markers found
+    if repo_root is None:
+        repo_root = Path(__file__).resolve().parents[1]
+
     ensure_versions_file(repo_root / "cache" / "food_db" / "database_versions.json")
     return 0
 

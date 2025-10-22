@@ -217,7 +217,7 @@ class TestFinalCoveragePush:
             else:
                 response = client.post(endpoint, json={}, headers=headers)
 
-            # Should not be 404 or 500
+            # Should not be 404 or 500 - VIP endpoints may return 200 (success) or 422 (validation error)
             assert response.status_code in [200, 422]
 
     def test_error_middleware_paths(self):
