@@ -75,8 +75,11 @@ coverage.xml
 .env.test.local
 .env.production.local
 
-# Cache directories
-cache/
+# Cache directories (but keep essential food_db files)
+cache/*
+!cache/food_db/
+!cache/food_db/database_versions.json
+!cache/food_db/unified_food_cache.json
 .cache/
 .mypy_cache/
 .ruff_cache/

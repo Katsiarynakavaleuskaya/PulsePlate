@@ -3961,6 +3961,7 @@ Bodymovin
 BOTTOMPADDING
 boxstyle
 btbd
+BUILDPLATFORM
 Bxxxxxxx
 bytearray
 cadera
@@ -4117,6 +4118,7 @@ hábitos
 harris
 hasattr
 hashlib
+healthcheck
 healthz
 hexdigest
 hierro
@@ -4267,6 +4269,7 @@ openfood
 openfoodfacts
 oración
 osascript
+oserror
 pagesizes
 passдулей
 pathlib
@@ -4422,6 +4425,7 @@ swiftformat
 swiftlint
 syncmain
 sysmodules
+TARGETPLATFORM
 tdee
 TDEE
 terminología

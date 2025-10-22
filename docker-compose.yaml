@@ -17,8 +17,8 @@ services:
       - ENVIRONMENT=production
     volumes:
       - ./data:/app/data:ro
-      - ./cache:/app/cache:rw
-      - ./logs:/app/logs:rw
+      - cache-volume:/app/cache:rw
+      - logs-volume:/app/logs:rw
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -72,7 +72,7 @@ services:
     environment:
       - POSTGRES_DB=pulseplate
       - POSTGRES_USER=pulseplate
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pulseplate_password}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
     ports:
       - "5432:5432"
     volumes:
@@ -87,6 +87,10 @@ volumes:
   redis-data:
     driver: local
   postgres-data:
+    driver: local
+  cache-volume:
+    driver: local
+  logs-volume:
     driver: local
 
 networks:
