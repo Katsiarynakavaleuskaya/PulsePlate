@@ -166,6 +166,7 @@ sudo fail2ban-client status sshd
 ```
 
 **⚠️ Security Notes:**
+
 - Always test SSH config with `sudo sshd -t` before restarting
 - Keep an active SSH session open when making SSH changes
 - Use a non-root user with sudo privileges

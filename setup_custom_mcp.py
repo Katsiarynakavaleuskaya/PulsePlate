@@ -4,7 +4,6 @@ Custom MCP setup for PulsePlate with ChatGPT integration
 """
 
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -38,10 +37,9 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
         (cursor_dir / "settings.json", "Cursor settings"),
     ]
 
-    existing_files = []
-    for file_path, description in files_to_check:
-        if file_path.exists():
-            existing_files.append((file_path, description))
+    existing_files = [
+        (file_path, description) for file_path, description in files_to_check if file_path.exists()
+    ]
 
     if existing_files and not args.force:
         print("⚠️  The following files already exist:")
@@ -56,7 +54,7 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
         )
         if response not in ["y", "yes"]:
             print("❌ Setup cancelled. Use --force to overwrite without prompting.")
-            return False
+            sys.exit(1)
 
         # Create backups
         for file_path, description in existing_files:
@@ -134,7 +132,7 @@ MCP_ENABLED=true
     print("3. 🔄 Restart Cursor")
     print("4. ✅ Test MCP integration with Cmd+Shift+P → 'MCP: List Tools'")
 
-    return True
+    return
 
 
 def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_message: str) -> None:
@@ -154,6 +152,11 @@ def _write_json_config(cursor_dir: Path, filename: str, data: dict, success_mess
 
 
 if __name__ == "__main__":
-    success = setup_custom_mcp()
-    if not success:
+    try:
+        setup_custom_mcp()
+    except KeyboardInterrupt:
+        print("\n❌ Setup cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Setup failed: {e}")
         sys.exit(1)

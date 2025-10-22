@@ -93,7 +93,7 @@ def main():
 
     # Проверяем наличие PIL
     try:
-        from PIL import Image
+        import PIL  # noqa: F401
     except ImportError:
         print("❌ Требуется библиотека Pillow:")
         print("pip install Pillow")
