@@ -1,7 +1,10 @@
+## Default target - run all checks
+all: lint test cov-check
+
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: ensure-database-versions
+.PHONY: all ensure-database-versions
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
@@ -10,7 +13,6 @@ ensure-database-versions:
 # - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
 # - Clean old images regularly: make docker-clean-images
 # - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
-.PHONY: docker-build docker-build-dev docker-run docker-stop docker-clean docker-clean-images
 docker-build:
 	docker build -t pulseplate:latest --target production .
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
@@ -253,4 +255,4 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell
