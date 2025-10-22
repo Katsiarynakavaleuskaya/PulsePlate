@@ -5,6 +5,33 @@ validate-data: ensure-database-versions
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
+# Docker targets
+.PHONY: docker-build docker-build-dev docker-run docker-stop docker-clean
+docker-build:
+	docker build -t pulseplate:latest --target production .
+
+docker-build-dev:
+	docker build -t pulseplate:dev --target development .
+
+docker-run:
+	docker-compose up -d
+
+docker-run-dev:
+	docker-compose --profile dev up -d
+
+docker-stop:
+	docker-compose down
+
+docker-clean:
+	docker-compose down -v
+	docker system prune -f
+
+docker-logs:
+	docker-compose logs -f
+
+docker-shell:
+	docker-compose exec pulseplate /bin/bash
+
 health-check:
 	python3 -m pytest -q tests/test_app_health_and_root.py
 

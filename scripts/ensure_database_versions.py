@@ -36,14 +36,14 @@ def ensure_versions_file(path: Path) -> None:
 
     Raises:
         OSError: If unable to create parent directories or write the file.
-        PermissionError: If insufficient permissions to create directories or write file.
+                 PermissionError is a subclass of OSError.
     """
     if path.exists():
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(DEFAULT_META, ensure_ascii=False, indent=2), encoding="utf-8")
-    except (OSError, PermissionError) as e:
+    except OSError as e:
         print(f"ERROR: Failed to create {path}: {e}", file=sys.stderr)
         raise
 
