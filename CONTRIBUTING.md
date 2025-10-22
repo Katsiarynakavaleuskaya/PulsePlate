@@ -20,8 +20,15 @@ This repo uses a simple branch model designed to keep `main` always green.
 - Run locally before pushing:
 
 ```bash
+# Standard tests
 pytest -q --maxfail=1 --disable-warnings \
   --cov=. --cov-report=term-missing --cov-fail-under=97
+
+# Docker tests (if Docker files changed)
+make docker-build
+docker run -d --rm --name test -p 8000:8000 pulseplate:latest
+sleep 2  # Allow container to start
+curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify health check
 ```
 
 ## Auto‑delete merged branches

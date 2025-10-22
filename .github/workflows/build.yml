@@ -1,0 +1,209 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build and test Docker image
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      first_tag: ${{ steps.validate-tags.outputs.first_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Validate metadata tags
+        id: validate-tags
+        if: github.event_name != 'pull_request'
+        run: |
+          tags_output='${{ steps.meta.outputs.tags }}'
+          echo "Tags output: $tags_output"
+
+          # Parse newline-separated tags
+          if [ -z "$tags_output" ]; then
+            echo "Error: No tags found"
+            exit 1
+          fi
+
+          # Get first tag (first line)
+          first_tag=$(echo "$tags_output" | head -n1)
+          if [ -z "$first_tag" ]; then
+            echo "Error: No valid tags found"
+            exit 1
+          fi
+
+          echo "First tag: $first_tag"
+          echo "first_tag=$first_tag" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
+        with:
+          image: ${{ steps.validate-tags.outputs.first_tag }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 30
+
+  # Security scan
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+        with:
+          image-ref: ${{ needs.build.outputs.first_tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@9df40db90f0cb2ff95d6367623d156bef43a7e11 # v3.25.4
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Test Docker image
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+      - name: Build test image
+        run: |
+          docker build -t pulseplate:test --target production .
+
+      - name: Test Docker image
+        run: |
+          # Set up cleanup trap to ensure container is always removed
+          trap "docker stop pulseplate-test 2>/dev/null || true; docker rm pulseplate-test 2>/dev/null || true" EXIT
+
+          # Start container
+          docker run -d --name pulseplate-test -p 8000:8000 pulseplate:test
+
+          # Wait for container to start
+          echo "Waiting for container to start..."
+          sleep 5
+
+          # Check if container is running
+          if ! docker ps | grep -q pulseplate-test; then
+            echo "Container failed to start"
+            docker logs pulseplate-test
+            exit 1
+          fi
+
+          # Wait for application to be ready with retry
+          max_attempts=30
+          attempt=0
+          echo "Waiting for application to be ready..."
+          until curl -f http://localhost:8000/health > /dev/null 2>&1 || [ $attempt -eq $max_attempts ]; do
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - waiting for health endpoint..."
+            sleep 2
+          done
+
+          if [ $attempt -eq $max_attempts ]; then
+            echo "Application health check failed after ${max_attempts} attempts"
+            echo "Container logs:"
+            docker logs pulseplate-test
+            exit 1
+          fi
+
+          echo "Application is ready, testing health endpoint..."
+          # Test health endpoint (canonical)
+          curl -f http://localhost:8000/health || exit 1
+
+          echo "✅ Docker image test completed successfully"
+
+  # Deploy to staging (if on main branch)
+  # TODO: Enable when staging deployment is ready
+  # deploy-staging:
+  #   runs-on: ubuntu-latest
+  #   needs: [build, security-scan, test]
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   environment: staging
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #
+  #   steps:
+  #     - name: Deploy to staging
+  #       run: |
+  #         echo "Deploying to staging environment..."
+  #         # Add actual deployment commands here
+  #         # This could be:
+  #         # - kubectl apply -f k8s/staging/
+  #         # - docker-compose -f docker-compose.staging.yml up -d
+  #         # - helm upgrade --install pulseplate-staging ./helm-chart

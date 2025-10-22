@@ -7,6 +7,11 @@ __pycache__/
 *.pyo
 *.pyd
 
+# 🐳 Docker Best Practices Reminder:
+# - Always test builds locally: make docker-build
+# - Clean old images: make docker-clean-images
+# - See DOCKER_BEST_PRACTICES.md for full guidelines
+
 # C extensions
 *.so
 

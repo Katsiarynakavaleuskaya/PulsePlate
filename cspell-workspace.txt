@@ -673,6 +673,7 @@
 Добавлен
 добавление
 Добавление
+добавлением
 добавления
 добавлены
 Добавлены
@@ -2298,6 +2299,7 @@
 подряд
 подсказок
 подстроку
+подтверждающий
 подход
 подходит
 подходящие
@@ -2345,6 +2347,7 @@
 Полезные
 полей
 ползёт
+Политика
 Полная
 полного
 Полное
@@ -3457,6 +3460,7 @@
 тунец
 тыквенные
 тяжёлые
+убедитесь
 убедиться
 Убедиться
 убеждаемся
@@ -3961,6 +3965,7 @@ Bodymovin
 BOTTOMPADDING
 boxstyle
 btbd
+BUILDPLATFORM
 Bxxxxxxx
 bytearray
 cadera
@@ -4117,6 +4122,7 @@ hábitos
 harris
 hasattr
 hashlib
+healthcheck
 healthz
 hexdigest
 hierro
@@ -4267,6 +4273,7 @@ openfood
 openfoodfacts
 oración
 osascript
+oserror
 pagesizes
 passдулей
 pathlib
@@ -4334,6 +4341,7 @@ puberal
 puede
 pueden
 pulseplate
+pyarrow
 pycache
 pydantic
 Pydantic
@@ -4422,6 +4430,7 @@ swiftformat
 swiftlint
 syncmain
 sysmodules
+TARGETPLATFORM
 tdee
 TDEE
 terminología

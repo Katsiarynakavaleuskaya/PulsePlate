@@ -8,6 +8,27 @@
 
 ## 🚀 Quick Start
 
+### 🐳 Docker Best Practices
+
+**Docker Image Management:**
+```bash
+# Build with versioning (recommended)
+make docker-build  # Creates both :latest and :<commit-hash> tags
+
+# Clean old images regularly
+make docker-clean-images  # Keeps latest 3 versions
+
+# Test locally before CI
+make docker-build && docker run -p 8000:8000 pulseplate:latest
+curl http://localhost:8000/health  # Verify it works
+```
+
+**Docker Quality Checklist:**
+- ✅ Always test Docker builds locally before pushing
+- ✅ Use versioned tags for production deployments
+- ✅ Clean up old images regularly to save disk space
+- ✅ Verify health checks work: `curl http://localhost:8000/health`
+
 ### ⚠️ Important: Pre-commit Setup
 
 **Always run pre-commit checks before pushing:**

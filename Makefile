@@ -1,9 +1,49 @@
+## Default target - run all checks
+all: lint test cov-check
+
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: ensure-database-versions
+.PHONY: all ensure-database-versions
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
+
+# Docker targets
+# 🐳 Docker Best Practices:
+# - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
+# - Clean old images regularly: make docker-clean-images
+# - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
+docker-build: ## Build production Docker image
+	docker build -t pulseplate:latest --target production .
+	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
+
+docker-build-dev: ## Build development Docker image
+	docker build -t pulseplate:dev --target development .
+
+docker-run: ## Run Docker containers in background
+	docker-compose up -d
+
+docker-run-dev: ## Run development Docker containers
+	docker-compose --profile dev up -d
+
+docker-stop: ## Stop and remove Docker containers
+	docker-compose down
+
+docker-clean: ## Clean Docker containers and system
+	docker-compose down -v
+	docker system prune -f
+
+docker-clean-images: ## Remove old Docker images (keep latest 3)
+	@echo "Cleaning old PulsePlate images (keeping latest 3)..."
+	@docker images --filter "reference=pulseplate" --format "{{.ID}} {{.CreatedAt}}" | \
+		sort -k2 -r | tail -n +4 | awk '{print $$1}' | \
+		xargs -r docker rmi || echo "No old images to remove"
+
+docker-logs: ## Show Docker container logs
+	docker-compose logs -f
+
+docker-shell: ## Open shell in Docker container
+	docker-compose exec pulseplate /bin/bash
 
 health-check:
 	python3 -m pytest -q tests/test_app_health_and_root.py
@@ -87,9 +127,6 @@ lint: ## Lint with flake8
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort
 	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
-	black .
-	isort .
-	@echo "$(GREEN)✅ Код отформатирован$(NC)"	@echo "$(YELLOW)🎨 Форматирование кода...$(NC)"
 	black .
 	isort .
 	@echo "$(GREEN)✅ Код отформатирован$(NC)"
@@ -218,111 +255,4 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
-
-
-## Run local dev server on :8001
-dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-## Run tests (quiet)
-test: ## Run pytest
-	. .venv/bin/activate && pytest -q
-
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
-
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
-
-## Lint (flake8)
-lint: ## Lint with flake8
-	flake8 .
-
-## Auto-fix (format + imports)
-fmt: ## Format with black and isort
-
-## Smoke test (auto: 8000 then 8001)
-smoke-auto: ## Try health+bmi on 8000 then 8001
-	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
-	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
-		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
-	else \
-		echo "No server found on 8000/8001"; exit 1; \
-	fi
-
-## Smoke test on :8000
-smoke-8000: ## Smoke against http://127.0.0.1:8000
-	bash ./scripts/smoke.sh http://127.0.0.1:8000
-
-## Smoke test on :8001
-smoke-8001: ## Smoke against http://127.0.0.1:8001
-	bash ./scripts/smoke.sh http://127.0.0.1:8001
-
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
-bandit:
-	@echo "[bandit] scanning changed files via pre-commit"
-	pre-commit run bandit || true
-
-bandit-full:
-	@echo "[bandit] full repo scan with safe excludes"
-	bandit -q -r . \
-	  -x frontend,node_modules,dist,build,test-results,.venv,venv,cache,tests \
-	  -s B101 || true
-
-lint:
-	ruff check .
-	black --check .
-	mypy app scripts
-
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell

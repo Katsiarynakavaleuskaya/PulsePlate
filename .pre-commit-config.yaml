@@ -116,6 +116,15 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      # docker-build-test — test Docker build before push
+      - id: docker-build-test
+        name: docker build test
+        entry: bash -c "make docker-build && echo '✅ Docker build successful'"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^(Dockerfile|\.dockerignore|docker-compose\.yaml|requirements\.txt|app/|core/|scripts/)
+
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"
   autofix_prs: true

@@ -1,0 +1,98 @@
+# Using Compose Specification (no version required)
+
+services:
+  # Main application service
+  pulseplate:
+    build:
+      context: .
+      target: production
+      args:
+        BUILDPLATFORM: linux/amd64
+        TARGETPLATFORM: linux/amd64
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - API_KEY=${API_KEY}
+      - ENVIRONMENT=production
+    volumes:
+      - ./data:/app/data:ro
+      - cache-volume:/app/cache:rw
+      - logs-volume:/app/logs:rw
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - pulseplate-network
+
+  # Development service
+  pulseplate-dev:
+    build:
+      context: .
+      target: development
+      args:
+        BUILDPLATFORM: linux/amd64
+        TARGETPLATFORM: linux/amd64
+    ports:
+      - "8001:8000"
+    environment:
+      - PYTHONPATH=/app
+      - API_KEY=${API_KEY}
+      - ENVIRONMENT=development
+    volumes:
+      - .:/app:rw
+      - /app/__pycache__
+      - /app/.pytest_cache
+    restart: unless-stopped
+    profiles:
+      - dev
+    networks:
+      - pulseplate-network
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    profiles:
+      - cache
+    networks:
+      - pulseplate-network
+
+  # PostgreSQL for production data (optional)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=pulseplate
+      - POSTGRES_USER=pulseplate
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - database
+    networks:
+      - pulseplate-network
+
+volumes:
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+  cache-volume:
+    driver: local
+  logs-volume:
+    driver: local
+
+networks:
+  pulseplate-network:
+    driver: bridge
