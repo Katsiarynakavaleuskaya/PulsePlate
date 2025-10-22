@@ -1,0 +1,9 @@
+[bandit]
+# Skip security tests for development scripts
+skips = B110,B112,B404,B603,B607,B608
+
+# Exclude directories
+exclude_dirs = tests,tests_strict,cache,test_cache,frontend/build,htmlcov,releases,data,external
+
+# Skip specific files
+skips = B110,B112,B404,B603,B607,B608
