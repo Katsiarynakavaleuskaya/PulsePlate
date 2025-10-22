@@ -5,6 +5,7 @@ Tests the ensure_database_versions script including error paths for 97% coverage
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, mock_open
@@ -107,22 +108,16 @@ class TestEnsureDatabaseVersions:
     def test_main_success(self) -> None:
         """Test main function success path."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock the repo root to point to temp directory
-            with patch("scripts.ensure_database_versions.Path") as mock_path:
-                mock_path.return_value.parents = [Path(temp_dir)]
-                mock_path.return_value.resolve.return_value = Path(temp_dir)
-
+            # Mock GITHUB_WORKSPACE environment variable
+            with patch.dict("os.environ", {"GITHUB_WORKSPACE": temp_dir}):
                 result = main()
                 assert result == 0
 
     def test_main_with_oserror(self) -> None:
         """Test main function with OSError propagation."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock the repo root to point to temp directory
-            with patch("scripts.ensure_database_versions.Path") as mock_path:
-                mock_path.return_value.parents = [Path(temp_dir)]
-                mock_path.return_value.resolve.return_value = Path(temp_dir)
-
+            # Mock GITHUB_WORKSPACE environment variable
+            with patch.dict("os.environ", {"GITHUB_WORKSPACE": temp_dir}):
                 # Mock ensure_versions_file to raise OSError
                 with patch(
                     "scripts.ensure_database_versions.ensure_versions_file",

@@ -8,6 +8,7 @@ RU: Гарантирует, что cache/food_db/database_versions.json суще
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -59,7 +60,12 @@ def main() -> int:
     Returns:
         0 on success.
     """
-    repo_root = Path(__file__).resolve().parents[1]
+    # Use GITHUB_WORKSPACE in CI, otherwise use script's parent directory
+    if "GITHUB_WORKSPACE" in os.environ:
+        repo_root = Path(os.environ["GITHUB_WORKSPACE"])
+    else:
+        repo_root = Path(__file__).resolve().parents[1]
+
     try:
         ensure_versions_file(repo_root / "cache" / "food_db" / "database_versions.json")
     except OSError:
