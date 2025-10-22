@@ -295,6 +295,8 @@ sudo chmod +x /srv/pulseplate-production/deploy.sh
    - `GHCR_READ_TOKEN`: GitHub Personal Access Token (PAT) with `read:packages` scope
    - `PRODUCTION_DOMAIN`: Your production domain (e.g., `yourdomain.com`)
 
+**⚠️ Important**: All secrets must be configured before the first deployment attempt. Missing secrets will cause the workflow to fail with "missing server host" error.
+
 ### 2. Configure Protection Rules
 
 1. In the `production` environment settings:
