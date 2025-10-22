@@ -15,30 +15,9 @@ except Exception as exc:  # pragma: no cover
     pytest.skip(f"Hypothesis not available: {exc}", allow_module_level=True)
 
 try:
-    import os
-    import sys
-
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    # Import the FastAPI app from app.py file
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
-    if spec is None or spec.loader is None:
-        raise ImportError("Cannot load app.py")
-
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
-    fastapi_app = app_module.app
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
-try:
     from bmi_core import bmi_category, bmi_value
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"bmi_core import failed: {exc}", allow_module_level=True)
-
-client = TestClient(fastapi_app)
 
 
 class _StubProvider:
@@ -54,7 +33,7 @@ class _StubProvider:
     height=st.floats(min_value=0.5, max_value=2.5),
 )
 @pytest.mark.slow
-def test_bmi_value_property(weight: float, height: float) -> None:
+def test_bmi_value_property(app, weight: float, height: float) -> None:
     """Test that BMI is always positive and within reasonable range."""
     assume(height > 0)  # Avoid division by zero
     bmi = bmi_value(weight, height)
@@ -66,7 +45,7 @@ def test_bmi_value_property(weight: float, height: float) -> None:
 
 @given(bmi_val=st.floats(min_value=10, max_value=50), lang=st.sampled_from(["en", "ru"]))
 @pytest.mark.slow
-def test_bmi_category_property(bmi_val: float, lang: str) -> None:
+def test_bmi_category_property(app, bmi_val: float, lang: str) -> None:
     """Test that BMI categories are consistent."""
     category = bmi_category(bmi_val, lang)
     assert category in [

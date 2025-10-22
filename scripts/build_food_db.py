@@ -16,7 +16,8 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Dict, Iterable, List
+from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
 from pydantic import ValidationError
@@ -26,6 +27,21 @@ from core.food_sources.base import FoodRecord
 from core.food_sources.off import OFFAdapter
 from core.food_sources.usda import USDAAdapter
 from core.schemas import FoodItem
+
+
+# Configure logging
+def setup_logging() -> None:
+    """Configure logging for the build process."""
+    # Ensure data directory exists
+    data_dir = Path(__file__).parent.parent / "data"
+    data_dir.mkdir(exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(data_dir / "build.log"), logging.StreamHandler()],
+    )
+
 
 # Micronutrient fields for coverage reporting
 MICRONUTRIENT_FIELDS = [
@@ -66,7 +82,7 @@ class FoodDatabaseBuilder:
         self.data_dir.mkdir(exist_ok=True)
         self.external_dir.mkdir(exist_ok=True)
 
-    def load_source_data(self) -> tuple[List[FoodRecord], List[FoodRecord]]:
+    def load_source_data(self) -> tuple[list[FoodRecord], list[FoodRecord]]:
         """
         RU: Загрузить данные из всех источников (USDA + OFF).
         EN: Load data from all sources (USDA + OFF).
@@ -74,7 +90,7 @@ class FoodDatabaseBuilder:
         print("🔄 Loading source data...")
 
         # Load USDA data (from chunks or single file)
-        usda_data: List[FoodRecord] = []
+        usda_data: list[FoodRecord] = []
         if self.usda_chunks_dir.exists() and any(self.usda_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading USDA chunks from {self.usda_chunks_dir}")
             adapter = USDAAdapter(str(self.usda_chunks_dir))
@@ -85,15 +101,15 @@ class FoodDatabaseBuilder:
         try:
             usda_data = list(adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except (OSError, UnicodeDecodeError, ValueError) as e:
+        except (FileNotFoundError, ValueError, OSError) as e:
             logging.exception("USDA load failed")
-            print(f"  ❌ USDA error: {e}")
+            raise
         except Exception:
             # Unexpected; let it bubble up
             raise
 
         # Load OFF data (from chunks or single file)
-        off_data: List[FoodRecord] = []
+        off_data: list[FoodRecord] = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
             print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
             off_adapter = OFFAdapter(str(self.off_chunks_dir))
@@ -104,9 +120,9 @@ class FoodDatabaseBuilder:
         try:
             off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
-        except (OSError, UnicodeDecodeError, ValueError) as e:
+        except (FileNotFoundError, ValueError, OSError) as e:
             logging.exception("OFF load failed")
-            print(f"  ❌ OFF error: {e}")
+            raise
         except Exception:
             # Unexpected; let it bubble up
             raise
@@ -114,8 +130,8 @@ class FoodDatabaseBuilder:
         return usda_data, off_data
 
     def merge_and_validate(
-        self, usda_data: List[FoodRecord], off_data: List[FoodRecord]
-    ) -> List[FoodItem]:
+        self, usda_data: list[FoodRecord], off_data: list[FoodRecord]
+    ) -> list[FoodItem]:
         """
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
@@ -123,7 +139,7 @@ class FoodDatabaseBuilder:
         print("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
-        streams: List[Iterable[FoodRecord]] = [usda_data, off_data]
+        streams: list[Iterable[FoodRecord]] = [usda_data, off_data]
         merged_records = merge_records(streams)
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
@@ -178,7 +194,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Validated: {len(validated_foods)} foods")
         return validated_foods
 
-    def _generate_food_id(self, canonical_name: str, record: Dict) -> str:
+    def _generate_food_id(self, canonical_name: str, record: dict) -> str:
         """
         RU: Генерировать детерминированный ID продукта.
         EN: Generate deterministic food ID.
@@ -190,7 +206,7 @@ class FoodDatabaseBuilder:
         )
         return hashlib.sha256(key_data.encode()).hexdigest()[:24]
 
-    def save_parquet(self, foods: List[FoodItem]) -> None:
+    def save_parquet(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить данные в Parquet для быстрого доступа.
         EN: Save data to Parquet for fast access.
@@ -211,7 +227,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Parquet saved: {self.food_parquet}")
         print(f"  📊 Records: {len(df)}")
 
-    def save_sqlite(self, foods: List[FoodItem]) -> None:
+    def save_sqlite(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить в SQLite с FTS для поиска.
         EN: Save to SQLite with FTS for search.
@@ -323,7 +339,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ SQLite saved: {self.food_sqlite}")
         print("  🔍 FTS enabled for search")
 
-    def generate_report(self, foods: List[FoodItem], usda_count: int, off_count: int) -> None:
+    def generate_report(self, foods: list[FoodItem], usda_count: int, off_count: int) -> None:
         """
         RU: Сгенерировать отчет о сборке.
         EN: Generate build report.
@@ -420,6 +436,7 @@ class FoodDatabaseBuilder:
 
 def main() -> None:
     """Main entry point."""
+    setup_logging()
     builder = FoodDatabaseBuilder()
     builder.build()
 
