@@ -1,0 +1,36 @@
+version: "3.9"
+
+networks:
+  web:
+    external: false
+
+services:
+  app:
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:${TAG:-latest}
+    env_file:
+      - /srv/pulseplate-staging/.env   # секреты бекенда (не в гите)
+    restart: always
+    networks: [web]
+    expose:
+      - "8000"
+    command: >
+      uvicorn app:app --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips="*"
+
+  caddy:
+    image: caddy:2
+    restart: always
+    networks: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /srv/pulseplate-staging/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,44 @@
+name: CD
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+  deployments: write
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ secrets.STAGING_DOMAIN }}
+    concurrency:
+      group: cd-staging-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag for main
+        id: meta
+        run: echo "TAG=latest" >> $GITHUB_OUTPUT
+
+      - name: Deploy to staging over SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SSH_HOST_STAGING }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            export GHCR_USER='${{ github.actor }}'
+            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT с read:packages
+            export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
+            cd /srv/pulseplate-staging
+            ./deploy.sh '${{ steps.meta.outputs.TAG }}'
+
+      - name: Verify health
+        run: curl -v --fail https://${{ secrets.STAGING_DOMAIN }}/health

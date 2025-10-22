@@ -489,6 +489,70 @@ make lint
   - **Automatic cache cleanup** in CI and pre-commit hooks
   - API key authentication and optional rate limiting
 
+## 🚀 Staging Deployment
+
+### Prerequisites
+
+- VPS with Docker and Docker Compose installed
+- Domain name pointing to your server
+- GitHub repository with staging environment configured
+
+### Server Setup
+
+1. **Install Docker and Docker Compose**:
+   ```bash
+   sudo apt update && sudo apt install -y docker.io docker-compose-plugin
+   sudo usermod -aG docker $USER
+   ```
+
+2. **Create staging directory**:
+   ```bash
+   sudo mkdir -p /srv/pulseplate-staging
+   ```
+
+3. **Copy deployment files**:
+   ```bash
+   sudo cp deploy/docker-compose.staging.yaml /srv/pulseplate-staging/
+   sudo cp deploy/Caddyfile /srv/pulseplate-staging/
+   sudo cp scripts/deploy.sh /srv/pulseplate-staging/
+   sudo chmod +x /srv/pulseplate-staging/deploy.sh
+   ```
+
+4. **Create environment file**:
+   ```bash
+   sudo touch /srv/pulseplate-staging/.env
+   # Add your application secrets and STAGING_DOMAIN=your-domain.com
+   ```
+
+### GitHub Environment Setup
+
+Configure the following secrets in GitHub → Settings → Environments → `staging`:
+
+- `SSH_HOST_STAGING` - Your server IP or domain
+- `SSH_USER` - SSH username
+- `SSH_KEY` - Private SSH key
+- `GHCR_READ_TOKEN` - GitHub PAT with read:packages permission
+- `STAGING_DOMAIN` - Your staging domain (e.g., staging.example.com)
+
+### Deployment
+
+Staging automatically deploys when you push to the `main` branch. The deployment process:
+
+1. Builds Docker image and pushes to GHCR
+2. Connects to staging server via SSH
+3. Pulls latest image
+4. Runs database migrations
+5. Restarts application stack
+6. Verifies health endpoint
+
+### Manual Deployment
+
+To deploy manually:
+```bash
+cd /srv/pulseplate-staging
+./deploy.sh latest
+```
+
 ## License
 
 This project is proprietary software. All rights reserved. Unauthorized copying, distribution, modification, or use of this code is strictly prohibited without prior written permission from the author.
