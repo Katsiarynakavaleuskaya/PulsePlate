@@ -44,7 +44,7 @@ sudo chown $USER:$USER /srv/pulseplate-production
 ### 3. Copy Deployment Files
 
 ```bash
-# Copy files from your repository (templates will be customized in next steps)
+# Copy deployment templates
 sudo cp deploy/Caddyfile /srv/pulseplate-production/
 sudo cp scripts/deploy.sh /srv/pulseplate-production/
 sudo chmod +x /srv/pulseplate-production/deploy.sh

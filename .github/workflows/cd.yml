@@ -60,7 +60,8 @@ jobs:
         id: check-tag
         run: |
           # Check if the workflow_run was triggered by a tag push
-          if [[ "${{ github.event.workflow_run.head_branch }}" == refs/tags/* ]]; then
+          # head_branch contains just the tag name (e.g., "v1.0.0") for tag pushes
+          if [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "is_tag=true" >> $GITHUB_OUTPUT
             echo "tag_name=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
           else
