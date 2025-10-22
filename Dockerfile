@@ -2,7 +2,7 @@
 # Optimized for production with minimal image size and security
 
 # Stage 1: Build stage
-FROM python:3.12-slim as builder
+FROM python:3.13-slim AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.12-slim as production
+FROM python:3.13-slim AS production
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -68,7 +68,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Stage 3: Development stage
-FROM production as development
+FROM production AS development
 
 # Switch back to root for development tools
 USER root

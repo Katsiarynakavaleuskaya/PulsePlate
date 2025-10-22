@@ -32,7 +32,10 @@ docker-clean:
 	docker system prune -f
 
 docker-clean-images: ## Remove old Docker images (keep latest 3)
-	docker images pulseplate --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}" | tail -n +2 | sort -k4 -r | tail -n +4 | awk '{print $$3}' | xargs -r docker rmi
+	@echo "Cleaning old PulsePlate images (keeping latest 3)..."
+	@docker images --filter "reference=pulseplate" --format "{{.ID}} {{.CreatedAt}}" | \
+		sort -k2 -r | tail -n +4 | awk '{print $$1}' | \
+		xargs -r docker rmi || echo "No old images to remove"
 
 docker-logs:
 	docker-compose logs -f

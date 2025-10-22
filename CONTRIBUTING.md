@@ -26,9 +26,9 @@ pytest -q --maxfail=1 --disable-warnings \
 
 # Docker tests (if Docker files changed)
 make docker-build
-docker run -d --name test -p 8000:8000 pulseplate:latest
-curl http://localhost:8000/health  # Verify health check
-docker stop test && docker rm test
+docker run -d --rm --name test -p 8000:8000 pulseplate:latest
+sleep 2  # Allow container to start
+curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify health check
 ```
 
 ## Auto‑delete merged branches

@@ -40,7 +40,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@8e5442c4ef5f0d8d48e953264ca330955e12aa9b # v5.3.0
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -76,7 +76,7 @@ jobs:
           echo "first_tag=$first_tag" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@4c780b130da6da2eb7129740d0b3b9d86ff5b37e # v5.2.0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -89,7 +89,7 @@ jobs:
 
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@7447b898a5dcfa230d1f2d285ad0e4dfc30ebcb1 # v0.20.5
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ steps.validate-tags.outputs.first_tag }}
           format: spdx-json
@@ -117,14 +117,14 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0f4e8b0b0e5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b # v0.30.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
         with:
           image-ref: ${{ needs.build.outputs.first_tag }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@b7c82b20a1cac5c85b27e924d62e69171647529f # v3.25.4
+        uses: github/codeql-action/upload-sarif@9df40db90f0cb2ff95d6367623d156bef43a7e11 # v3.25.4
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -148,6 +148,9 @@ jobs:
 
       - name: Test Docker image
         run: |
+          # Set up cleanup trap to ensure container is always removed
+          trap "docker stop pulseplate-test 2>/dev/null || true; docker rm pulseplate-test 2>/dev/null || true" EXIT
+
           # Start container
           docker run -d --name pulseplate-test -p 8000:8000 pulseplate:test
 
@@ -183,9 +186,7 @@ jobs:
           # Test health endpoint (canonical)
           curl -f http://localhost:8000/health || exit 1
 
-          # Cleanup
-          docker stop pulseplate-test
-          docker rm pulseplate-test
+          echo "✅ Docker image test completed successfully"
 
   # Deploy to staging (if on main branch)
   deploy-staging:
