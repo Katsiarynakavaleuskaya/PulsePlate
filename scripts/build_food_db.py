@@ -13,9 +13,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import hashlib
 import json
+import logging
 import sqlite3
 from datetime import datetime
-from typing import Dict, Iterable, List, cast
+from typing import Dict, Iterable, List
 
 import pandas as pd
 from pydantic import ValidationError
@@ -84,8 +85,12 @@ class FoodDatabaseBuilder:
         try:
             usda_data = list(adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            logging.exception("USDA load failed")
             print(f"  ❌ USDA error: {e}")
+        except Exception:
+            # Unexpected; let it bubble up
+            raise
 
         # Load OFF data (from chunks or single file)
         off_data: List[FoodRecord] = []
@@ -99,8 +104,12 @@ class FoodDatabaseBuilder:
         try:
             off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            logging.exception("OFF load failed")
             print(f"  ❌ OFF error: {e}")
+        except Exception:
+            # Unexpected; let it bubble up
+            raise
 
         return usda_data, off_data
 
@@ -114,7 +123,8 @@ class FoodDatabaseBuilder:
         print("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
-        merged_records = merge_records(cast(List[Iterable[FoodRecord]], [usda_data, off_data]))
+        streams: List[Iterable[FoodRecord]] = [usda_data, off_data]
+        merged_records = merge_records(streams)
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
@@ -178,7 +188,7 @@ class FoodDatabaseBuilder:
             f"{canonical_name}_{record.get('source', '')}_"
             f"{record.get('fdc_id', '')}_{record.get('gtin', '')}"
         )
-        return hashlib.sha256(key_data.encode()).hexdigest()[:16]
+        return hashlib.sha256(key_data.encode()).hexdigest()[:24]
 
     def save_parquet(self, foods: List[FoodItem]) -> None:
         """
@@ -403,12 +413,12 @@ class FoodDatabaseBuilder:
 
             print("✅ Build completed successfully!")
 
-        except Exception as e:
-            print(f"❌ Build failed: {e}")
+        except Exception:
+            logging.exception("Build failed")
             raise
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     builder = FoodDatabaseBuilder()
     builder.build()
