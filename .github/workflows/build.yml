@@ -19,6 +19,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -29,7 +31,7 @@ jobs:
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@f4ef78c080f8f303a20c9a61c27dd2d8d8fdcc3c # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -37,10 +39,11 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@8e5442c4ef5f0d8d48e953264ca330955e12aa9b # v5.3.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ github.sha }}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -48,7 +51,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@4c780b130da6da2eb7129740d0b3b9d86ff5b37e # v5.2.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -61,9 +64,9 @@ jobs:
 
       - name: Generate SBOM
         if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@7447b898a5dcfa230d1f2d285ad0e4dfc30ebcb1 # v0.20.5
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          image: ${{ fromJSON(steps.meta.outputs.tags)[0] }}
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -89,14 +92,14 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0f4e8b0b0e5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b # v0.30.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          image-ref: ${{ fromJSON(needs.build.outputs.tags)[0] }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@b7c82b20a1cac5c85b27e924d62e69171647529f # v3.25.4
         with:
           sarif_file: 'trivy-results.sarif'
 
