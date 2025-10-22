@@ -245,30 +245,8 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
 
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
-
-.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001
+.PHONY: help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001
 
 
 ## Run local dev server on :8001
@@ -314,28 +292,6 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-## Build docker image
-docker-build: ## docker build -t bmi-app:dev .
-	docker build -t bmi-app:dev .
-
-## Run docker (foreground) on :8000
-docker-run: ## docker run --rm -p 8000:8000 bmi-app:dev
-	docker run --rm -p 8000:8000 bmi-app:dev
-
-## Run docker (background) on :8000
-docker-run-bg: ## docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-	docker run -d --name bmi-app -p 8000:8000 bmi-app:dev
-
-## Stop & remove docker container
-docker-stop: ## stop & remove container bmi-app
-	- docker stop bmi-app 2>/dev/null || true
-	- docker rm bmi-app 2>/dev/null || true
-
-## Restart docker on :8001 (background)
-docker-restart-8001: ## run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	- docker rm -f bmi-app 2>/dev/null || true
-	docker run -d --name bmi-app -p 8001:8000 bmi-app:dev
-	@echo "✅ Open: http://127.0.0.1:8001/docs"
 
 bandit:
 	@echo "[bandit] scanning changed files via pre-commit"
@@ -352,4 +308,4 @@ lint:
 	black --check .
 	mypy app scripts
 
-.PHONY: help venv dev test cov cov-html lint fmt smoke-auto smoke-8000 smoke-8001 docker-build docker-run docker-run-bg docker-stop docker-restart-8001 bandit bandit-full
+.PHONY: bandit bandit-full

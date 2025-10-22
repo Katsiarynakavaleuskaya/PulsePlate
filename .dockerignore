@@ -107,7 +107,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Docker
-Dockerfile*
+# Keep primary Dockerfile in build context; do not exclude it
+# Allow ignoring non-default dockerfiles explicitly if added later
 docker-compose*.yml
 .dockerignore
 

@@ -58,15 +58,18 @@ def main() -> int:
     Returns:
         0 on success.
     """
-    # Find repository root by looking for repository markers
+    # Find repository root by looking for repository markers, with depth limit
     current_path = Path(__file__).resolve().parent
-    repo_root = None
-
-    # Walk up the directory tree looking for repository markers
-    for parent in current_path.parents:
-        if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
-            repo_root = parent
-            break
+    max_levels = 6
+    repo_root = next(
+        (
+            parent
+            for i, parent in enumerate(current_path.parents)
+            if i < max_levels
+            and ((parent / ".git").exists() or (parent / "pyproject.toml").exists())
+        ),
+        None,
+    )
 
     # Fallback to original approach if no markers found
     if repo_root is None:
