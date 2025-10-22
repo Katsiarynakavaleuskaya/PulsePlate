@@ -60,8 +60,8 @@ class TestAutoProductExpansionDemo:
 
             if result.found:
                 assert result.source in [
-                    "food_db",
-                    "external_api",
+                    "USDA",
+                    "OFF",
                 ], f"Unexpected source: {result.source}"
                 assert (
                     0 <= result.confidence <= 1
