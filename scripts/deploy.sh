@@ -4,6 +4,8 @@ set -euo pipefail
 
 # Validate required environment variables
 STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
+GHCR_TOKEN=${GHCR_TOKEN:?"GHCR_TOKEN not set"}
+GHCR_USER=${GHCR_USER:?"GHCR_USER not set"}
 
 IMG_REF="${1:-latest}"         # тег/диджест образа
 COMPOSE="docker compose -f /srv/pulseplate-staging/docker-compose.staging.yaml"

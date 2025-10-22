@@ -17,7 +17,6 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: staging
-      url: https://${{ secrets.STAGING_DOMAIN }}
     concurrency:
       group: cd-staging-${{ github.ref }}
       cancel-in-progress: true
