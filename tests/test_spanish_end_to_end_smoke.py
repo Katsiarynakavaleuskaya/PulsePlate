@@ -31,17 +31,17 @@ app = app_module.app
 class TestSpanishEndToEndSmoke:
     """End-to-end smoke test for Spanish language support."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(cast(ASGIApp, app))
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_spanish_end_to_end_workflow(self):
+    def test_spanish_end_to_end_workflow(self) -> None:
         """Test a complete workflow using Spanish language."""
         # 1. Test BMI calculation with Spanish language
         bmi_response = self.client.post(
@@ -121,7 +121,7 @@ class TestSpanishEndToEndSmoke:
         assert "Altura (m)" in html_content
         assert "Calcular IMC" in html_content
 
-    def test_spanish_language_consistency(self):
+    def test_spanish_language_consistency(self) -> None:
         """Test that Spanish language is consistent across different endpoints."""
         test_data = {
             "weight_kg": 70,

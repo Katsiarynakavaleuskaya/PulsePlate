@@ -15,7 +15,7 @@ import llm
 class TestStubProvider:
     """Тесты для StubProvider заглушки"""
 
-    def test_stub_provider_creation(self):
+    def test_stub_provider_creation(self) -> None:
         """Тест создания провайдера-заглушки"""
         provider = llm.StubProvider()
         assert provider is not None
@@ -23,7 +23,7 @@ class TestStubProvider:
         assert hasattr(provider, "generate")
 
     @pytest.mark.asyncio
-    async def test_stub_provider_generate(self):
+    async def test_stub_provider_generate(self) -> None:
         """Тест генерации текста провайдером-заглушкой"""
         provider = llm.StubProvider()
         result = await provider.generate("test input")
@@ -34,7 +34,7 @@ class TestStubProvider:
         assert "T" in result  # ISO datetime содержит T
 
     @pytest.mark.asyncio
-    async def test_stub_provider_generate_complex_text(self):
+    async def test_stub_provider_generate_complex_text(self) -> None:
         """Тест генерации с сложным текстом"""
         provider = llm.StubProvider()
         complex_input = "Многострочный\nтекст с символами: @#$%^&*()"

@@ -10,6 +10,7 @@ EN: Demo test for automatic product database expansion.
 import shutil
 from pathlib import Path
 from typing import Dict
+import pytest
 from core.product_finder import ProductFinder
 from core.recipe_db import parse_recipe_db, Recipe
 
@@ -34,8 +35,44 @@ class TestAutoProductExpansionDemo:
             all_ingredients.update(recipe.ingredients.keys())
         return all_ingredients
 
+    def test_auto_expansion_functionality(self) -> None:
+        """Focused unit test for automatic product expansion functionality."""
+        # Setup
+        finder = ProductFinder()
+        recipes = parse_recipe_db("data/recipes_extended.csv")
+        unique_ingredients = sorted(self._collect_all_ingredients(recipes))
+
+        # Test missing products detection
+        missing_products = finder.find_missing_products(unique_ingredients)
+
+        # Assertions
+        assert unique_ingredients, "Expected at least one unique ingredient"
+        assert len(missing_products) > 0, "Expected to find missing products"
+        assert len(finder.food_db) > 0, "Expected food database to be populated"
+
+        # Test product search functionality
+        test_products = missing_products[:3]  # Test with first 3 products
+        for product in test_products:
+            result = finder.search_product(product)
+            assert hasattr(result, "found"), "Search result should have 'found' attribute"
+            assert hasattr(result, "source"), "Search result should have 'source' attribute"
+            assert hasattr(result, "confidence"), "Search result should have 'confidence' attribute"
+
+            if result.found:
+                assert result.source in [
+                    "food_db",
+                    "external_api",
+                ], f"Unexpected source: {result.source}"
+                assert (
+                    0 <= result.confidence <= 1
+                ), f"Confidence should be between 0 and 1, got {result.confidence}"
+                assert (
+                    result.food_record is not None
+                ), "Food record should be present when found=True"
+
+    @pytest.mark.demo
     def test_auto_expansion_demo(self) -> None:
-        """Demo test showing automatic product expansion workflow."""
+        """Demo test showing automatic product expansion workflow (run with --capture=no)."""
         # Создаем поисковик продуктов
         finder = ProductFinder()
 
@@ -93,12 +130,6 @@ class TestAutoProductExpansionDemo:
                 print(f"  ❌ {product} - не найден")
 
         print(f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено")
-
-        # Проверяем, что система работает корректно
-        assert unique_ingredients, "Expected at least one unique ingredient"
-        assert len(missing_products) > 0, "Expected to find missing products"
-        assert len(finder.food_db) > 0, "Expected food database to be populated"
-
         print("\n✅ Демонстрация завершена успешно!")
 
     def test_missing_products_detection_accuracy(self) -> None:

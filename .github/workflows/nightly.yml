@@ -6,6 +6,10 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch: # Allow manual trigger
 
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref_name || 'schedule' }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: read
@@ -29,12 +33,12 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@0f5b4c0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b # v5.1.0
+        uses: actions/setup-python@a26af69 # v5.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache pip dependencies
-        uses: actions/cache@b0a5a4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4 # v4.1.0
+        uses: actions/cache@1bd1e32 # v4.1.0
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
@@ -100,7 +104,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@0f5a4c0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b # v5.1.0
+        uses: actions/setup-python@a26af69 # v5.1.0
         with:
           python-version: '3.12'
 
@@ -113,10 +117,10 @@ jobs:
       - name: Run security checks
         run: |
           # Bandit security scan
-          bandit -r app/ core/ -f json -o bandit-report.json || true
+          bandit -r app/ core/ -f json -o bandit-report.json
 
           # pip-audit for vulnerability scan
-          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json || true
+          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -138,7 +142,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@0f5a4c0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b # v5.1.0
+        uses: actions/setup-python@a26af69 # v5.1.0
         with:
           python-version: '3.12'
 
@@ -148,24 +152,24 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Run performance tests
+      - name: Run performance tests and record timing
         run: |
+          TEST_START=$(date +%s)
           # Run tests with timing information
           python -m pytest \
             --durations=10 \
             --tb=short \
             -v \
-            -n auto \
-            --maxfail=5 \
-            -x
+            -n auto
+          TEST_END=$(date +%s)
+          TEST_DURATION=$((TEST_END - TEST_START))
 
-      - name: Generate performance report
-        run: |
+          # Generate performance report with actual timing
           echo "## Performance Report" > performance-report.md
           echo "Generated: $(date)" >> performance-report.md
           echo "" >> performance-report.md
           echo "### Test Execution Summary" >> performance-report.md
-          echo "- Total test time: $(date)" >> performance-report.md
+          echo "- Total test time: ${TEST_DURATION} seconds" >> performance-report.md
           echo "- Python version: 3.12" >> performance-report.md
           echo "- Parallel workers: auto" >> performance-report.md
 
