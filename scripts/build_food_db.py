@@ -15,7 +15,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime
-from typing import Dict, List, Sequence, cast
+from typing import Dict, Iterable, List, cast
 
 import pandas as pd
 from pydantic import ValidationError
@@ -26,6 +26,18 @@ from core.food_sources.off import OFFAdapter
 from core.food_sources.usda import USDAAdapter
 from core.schemas import FoodItem
 
+# Micronutrient fields for coverage reporting
+MICRONUTRIENT_FIELDS = [
+    "Fe_mg",
+    "Ca_mg",
+    "K_mg",
+    "Mg_mg",
+    "VitD_IU",
+    "B12_ug",
+    "Folate_ug",
+    "Iodine_ug",
+]
+
 
 class FoodDatabaseBuilder:
     """
@@ -33,10 +45,10 @@ class FoodDatabaseBuilder:
     EN: Food database builder with full provenance tracking.
     """
 
-    def __init__(self, project_root: str | None = None):
+    def __init__(self, project_root: str | Path | None = None):
         """Initialize builder with project paths."""
         if project_root is None:
-            project_root = str(Path(__file__).parent.parent)
+            project_root = Path(__file__).parent.parent
 
         self.project_root = Path(project_root)
         self.data_dir = self.project_root / "data"
@@ -102,7 +114,7 @@ class FoodDatabaseBuilder:
         print("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
-        merged_records = merge_records(cast(List[Sequence[FoodRecord]], [usda_data, off_data]))
+        merged_records = merge_records(cast(List[Iterable[FoodRecord]], [usda_data, off_data]))
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
@@ -322,17 +334,7 @@ class FoodDatabaseBuilder:
             groups[food.group] = groups.get(food.group, 0) + 1
 
             # Micronutrient coverage
-            micronutrient_fields = [
-                "Fe_mg",
-                "Ca_mg",
-                "K_mg",
-                "Mg_mg",
-                "VitD_IU",
-                "B12_ug",
-                "Folate_ug",
-                "Iodine_ug",
-            ]
-            for field in micronutrient_fields:
+            for field in MICRONUTRIENT_FIELDS:
                 if getattr(food, field) > 0:
                     micronutrient_coverage[field] = micronutrient_coverage.get(field, 0) + 1
 

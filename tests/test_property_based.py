@@ -29,24 +29,14 @@ try:
 
     app_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_module)
-    fastapi_app = app_module.app  # type: ignore
+    fastapi_app = app_module.app
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 try:
-    pass  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"llm import failed: {exc}", allow_module_level=True)
-
-try:
-    from bmi_core import bmi_category, bmi_value  # type: ignore
+    from bmi_core import bmi_category, bmi_value
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"bmi_core import failed: {exc}", allow_module_level=True)
-
-try:
-    pass  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"bodyfat import failed: {exc}", allow_module_level=True)
 
 client = TestClient(fastapi_app)
 
