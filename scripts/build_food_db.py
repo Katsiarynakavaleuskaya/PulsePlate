@@ -38,7 +38,11 @@ def setup_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(data_dir / "build.log"), logging.StreamHandler()],
+        handlers=[
+            logging.FileHandler(data_dir / "build.log", encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+        force=True,
     )
 
 
@@ -86,20 +90,20 @@ class FoodDatabaseBuilder:
         RU: Загрузить данные из всех источников (USDA + OFF).
         EN: Load data from all sources (USDA + OFF).
         """
-        print("🔄 Loading source data...")
+        logging.info("Loading source data...")
 
         # Load USDA data (from chunks or single file)
         usda_data: list[FoodRecord] = []
         if self.usda_chunks_dir.exists() and any(self.usda_chunks_dir.glob("*.csv")):
-            print(f"  📊 Loading USDA chunks from {self.usda_chunks_dir}")
+            logging.info("Loading USDA chunks from %s", self.usda_chunks_dir)
             adapter = USDAAdapter(str(self.usda_chunks_dir))
         else:
-            print("  📊 Loading USDA from single file")
+            logging.info("Loading USDA from single file")
             adapter = USDAAdapter()
 
         try:
             usda_data = list(adapter.normalize())
-            print(f"  ✅ USDA: {len(usda_data)} records")
+            logging.info("USDA: %d records", len(usda_data))
         except (FileNotFoundError, ValueError, OSError):
             logging.exception("USDA load failed")
             raise
@@ -107,15 +111,15 @@ class FoodDatabaseBuilder:
         # Load OFF data (from chunks or single file)
         off_data: list[FoodRecord] = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
-            print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
+            logging.info("Loading OFF chunks from %s", self.off_chunks_dir)
             off_adapter = OFFAdapter(str(self.off_chunks_dir))
         else:
-            print("  📊 Loading OFF from single file")
+            logging.info("Loading OFF from single file")
             off_adapter = OFFAdapter()
 
         try:
             off_data = list(off_adapter.normalize())
-            print(f"  ✅ OFF: {len(off_data)} records")
+            logging.info("OFF: %d records", len(off_data))
         except (FileNotFoundError, ValueError, OSError):
             logging.exception("OFF load failed")
             raise
@@ -172,7 +176,8 @@ class FoodDatabaseBuilder:
                     source=record.get("source", "unknown"),
                     source_priority=record.get("source_priority", 0),
                     version_date=record.get("version_date", datetime.now().isoformat()),
-                    price_per_100g=record.get("price_per_100g", 0.0),
+                    # Accept either key to avoid losing OFF/merge price
+                    price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
                 )
                 validated_foods.append(food_item)
 
@@ -231,12 +236,12 @@ class FoodDatabaseBuilder:
         if self.food_sqlite.exists():
             self.food_sqlite.unlink()
 
-        conn = sqlite3.connect(self.food_sqlite)
-        cursor = conn.cursor()
+        with sqlite3.connect(self.food_sqlite) as conn:
+            cursor = conn.cursor()
 
-        # Create main table
-        cursor.execute(
-            """
+            # Create main table
+            cursor.execute(
+                """
             CREATE TABLE foods (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT NOT NULL,
@@ -265,69 +270,68 @@ class FoodDatabaseBuilder:
                 price_per_100g REAL
             )
         """
-        )
-
-        # Create FTS table for search
-        cursor.execute(
-            """
-            CREATE VIRTUAL TABLE foods_fts USING fts5(
-                canonical_name,
-                group_name,
-                brand,
-                flags,
-                content='foods',
-                content_rowid='rowid'
             )
-        """
-        )
 
-        # Insert data
-        for food in foods:
+            # Create FTS table for search
             cursor.execute(
                 """
-                INSERT INTO foods VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                CREATE VIRTUAL TABLE foods_fts USING fts5(
+                    canonical_name,
+                    group_name,
+                    brand,
+                    flags,
+                    content='foods',
+                    content_rowid='rowid'
                 )
-            """,
-                (
-                    food.id,
-                    food.canonical_name,
-                    food.group,
-                    food.per_g,
-                    food.kcal,
-                    food.protein_g,
-                    food.fat_g,
-                    food.carbs_g,
-                    food.fiber_g,
-                    food.Fe_mg,
-                    food.Ca_mg,
-                    food.K_mg,
-                    food.Mg_mg,
-                    food.VitD_IU,
-                    food.B12_ug,
-                    food.Folate_ug,
-                    food.Iodine_ug,
-                    json.dumps(food.flags),
-                    food.brand,
-                    food.gtin,
-                    food.fdc_id,
-                    food.source,
-                    food.source_priority,
-                    food.version_date,
-                    food.price_per_100g,
-                ),
+            """
             )
 
-        # Populate FTS
-        cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")
+            # Insert data using executemany for better performance
+            rows = []
+            for food in foods:
+                rows.append(
+                    (
+                        food.id,
+                        food.canonical_name,
+                        food.group,
+                        food.per_g,
+                        food.kcal,
+                        food.protein_g,
+                        food.fat_g,
+                        food.carbs_g,
+                        food.fiber_g,
+                        food.Fe_mg,
+                        food.Ca_mg,
+                        food.K_mg,
+                        food.Mg_mg,
+                        food.VitD_IU,
+                        food.B12_ug,
+                        food.Folate_ug,
+                        food.Iodine_ug,
+                        json.dumps(food.flags),
+                        food.brand,
+                        food.gtin,
+                        food.fdc_id,
+                        food.source,
+                        food.source_priority,
+                        food.version_date,
+                        food.price_per_100g,
+                    ),
+                )
+            cursor.executemany(
+                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                rows,
+            )
 
-        # Create indexes
-        cursor.execute("CREATE INDEX idx_foods_group ON foods(group_name)")
-        cursor.execute("CREATE INDEX idx_foods_source ON foods(source)")
-        cursor.execute("CREATE INDEX idx_foods_flags ON foods(flags)")
+            # Populate FTS
+            cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")
 
-        conn.commit()
-        conn.close()
+            # Create indexes
+            cursor.execute("CREATE INDEX idx_foods_group ON foods(group_name)")
+            cursor.execute("CREATE INDEX idx_foods_source ON foods(source)")
+            cursor.execute("CREATE INDEX idx_foods_flags ON foods(flags)")
+
+            conn.commit()
 
         print(f"  ✅ SQLite saved: {self.food_sqlite}")
         print("  🔍 FTS enabled for search")

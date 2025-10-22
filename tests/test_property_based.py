@@ -6,7 +6,6 @@ with random inputs.
 """
 
 import pytest
-from fastapi.testclient import TestClient
 
 try:  # Gracefully skip if Hypothesis is not installed locally
     from hypothesis import assume, given
