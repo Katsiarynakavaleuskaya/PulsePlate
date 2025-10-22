@@ -17,6 +17,12 @@ services:
       - ENVIRONMENT=production
     volumes:
       - ./data:/app/data:ro
+      # MIGRATION NOTE: Changed from bind mounts to named volumes to avoid permission issues
+      # If you have existing data in ./cache or ./logs directories, migrate it:
+      # 1. Stop containers: docker-compose down
+      # 2. Copy data: docker run --rm -v $(pwd)/cache:/source -v pulseplate_cache-volume:/dest alpine sh -c "cp -r /source/* /dest/ 2>/dev/null || true"
+      # 3. Copy logs: docker run --rm -v $(pwd)/logs:/source -v pulseplate_logs-volume:/dest alpine sh -c "cp -r /source/* /dest/ 2>/dev/null || true"
+      # 4. Start containers: docker-compose up -d
       - cache-volume:/app/cache:rw
       - logs-volume:/app/logs:rw
     restart: unless-stopped
