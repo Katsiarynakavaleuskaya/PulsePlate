@@ -126,6 +126,35 @@ class TestEnsureDatabaseVersions:
                     with pytest.raises(OSError, match="Mocked error"):
                         main()
 
+    def test_main_fallback_path(self) -> None:
+        """Test main function fallback path when GITHUB_WORKSPACE is not set."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a mock script file structure
+            script_dir = Path(temp_dir) / "scripts"
+            script_dir.mkdir()
+            script_file = script_dir / "ensure_database_versions.py"
+            script_file.touch()
+
+            # Mock __file__ to point to our mock script
+            with patch("scripts.ensure_database_versions.__file__", str(script_file)):
+                # Ensure GITHUB_WORKSPACE is not set
+                with patch.dict("os.environ", {}, clear=True):
+                    result = main()
+                    assert result == 0
+
+    def test_main_general_exception(self) -> None:
+        """Test main function with general exception handling."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Mock GITHUB_WORKSPACE environment variable
+            with patch.dict("os.environ", {"GITHUB_WORKSPACE": temp_dir}):
+                # Mock ensure_versions_file to raise a general exception
+                with patch(
+                    "scripts.ensure_database_versions.ensure_versions_file",
+                    side_effect=ValueError("Mocked general error"),
+                ):
+                    result = main()
+                    assert result == 1
+
     def test_default_meta_structure(self) -> None:
         """Test that DEFAULT_META has correct structure."""
         assert isinstance(DEFAULT_META, dict)

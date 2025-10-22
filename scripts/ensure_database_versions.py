@@ -73,7 +73,7 @@ def main() -> int:
         raise
     except Exception as exc:
         # Handle other unexpected exceptions without masking OS-level errors.
-        print(f"Error: {exc}")
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     return 0
 

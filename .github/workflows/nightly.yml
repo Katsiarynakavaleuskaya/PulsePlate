@@ -67,8 +67,7 @@ jobs:
             --junitxml=tests/results.xml \
             --tb=short \
             -v \
-            -n auto \
-            -m "slow or demo"
+            -n auto
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == env.COVERAGE_PY
