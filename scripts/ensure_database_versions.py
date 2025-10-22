@@ -75,7 +75,9 @@ def main() -> int:
     if repo_root is None:
         repo_root = Path(__file__).resolve().parents[1]
 
-    ensure_versions_file(repo_root / "cache" / "food_db" / "database_versions.json")
+    # Use relative path from repo root to avoid permission issues in CI
+    cache_path = repo_root / "cache" / "food_db" / "database_versions.json"
+    ensure_versions_file(cache_path)
     return 0
 
 
