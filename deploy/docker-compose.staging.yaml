@@ -1,0 +1,55 @@
+version: "3.9"
+
+networks:
+  web:
+    external: false
+
+services:
+  app:
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:${TAG:-latest}
+    env_file:
+      - /srv/pulseplate-staging/.env   # секреты бекенда (не в гите)
+    restart: always
+    networks: [web]
+    expose:
+      - "8000"
+    volumes:
+      - app_data:/app/cache
+    command: >
+      uvicorn app:app --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips="caddy"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  caddy:
+    image: caddy:2
+    restart: always
+    networks: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - STAGING_DOMAIN=${STAGING_DOMAIN}
+    volumes:
+      - /srv/pulseplate-staging/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:
+  app_data:

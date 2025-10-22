@@ -1,0 +1,46 @@
+name: CD
+on:
+  workflow_run:
+    workflows: ["Docker Build and Push"]
+    types: [completed]
+    branches: [ main ]
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+  deployments: write
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: staging
+    concurrency:
+      group: cd-staging-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: meta
+        run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to staging over SSH
+        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+        with:
+          host: ${{ secrets.SSH_HOST_STAGING }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            export GHCR_USER='${{ github.actor }}'
+            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
+            export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
+            cd /srv/pulseplate-staging
+            ./deploy.sh '${{ steps.meta.outputs.TAG }}'
+
+      - name: Verify health
+        run: curl -v --fail https://${{ secrets.STAGING_DOMAIN }}/health
