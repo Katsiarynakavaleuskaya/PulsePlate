@@ -6,9 +6,14 @@ ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
 # Docker targets
-.PHONY: docker-build docker-build-dev docker-run docker-stop docker-clean
+# 🐳 Docker Best Practices:
+# - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
+# - Clean old images regularly: make docker-clean-images
+# - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
+.PHONY: docker-build docker-build-dev docker-run docker-stop docker-clean docker-clean-images
 docker-build:
 	docker build -t pulseplate:latest --target production .
+	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
 docker-build-dev:
 	docker build -t pulseplate:dev --target development .
@@ -25,6 +30,9 @@ docker-stop:
 docker-clean:
 	docker-compose down -v
 	docker system prune -f
+
+docker-clean-images: ## Remove old Docker images (keep latest 3)
+	docker images pulseplate --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}" | tail -n +2 | sort -k4 -r | tail -n +4 | awk '{print $$3}' | xargs -r docker rmi
 
 docker-logs:
 	docker-compose logs -f
