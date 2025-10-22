@@ -16,7 +16,6 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
@@ -101,11 +100,8 @@ class FoodDatabaseBuilder:
         try:
             usda_data = list(adapter.normalize())
             print(f"  ✅ USDA: {len(usda_data)} records")
-        except (FileNotFoundError, ValueError, OSError) as e:
+        except (FileNotFoundError, ValueError, OSError):
             logging.exception("USDA load failed")
-            raise
-        except Exception:
-            # Unexpected; let it bubble up
             raise
 
         # Load OFF data (from chunks or single file)
@@ -120,11 +116,8 @@ class FoodDatabaseBuilder:
         try:
             off_data = list(off_adapter.normalize())
             print(f"  ✅ OFF: {len(off_data)} records")
-        except (FileNotFoundError, ValueError, OSError) as e:
+        except (FileNotFoundError, ValueError, OSError):
             logging.exception("OFF load failed")
-            raise
-        except Exception:
-            # Unexpected; let it bubble up
             raise
 
         return usda_data, off_data
@@ -140,7 +133,7 @@ class FoodDatabaseBuilder:
 
         # Merge records (pass objects directly)
         streams: list[Iterable[FoodRecord]] = [usda_data, off_data]
-        merged_records = merge_records(streams)
+        merged_records: list[dict] = merge_records(streams)
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem

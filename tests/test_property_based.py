@@ -33,7 +33,7 @@ class _StubProvider:
     height=st.floats(min_value=0.5, max_value=2.5),
 )
 @pytest.mark.slow
-def test_bmi_value_property(app, weight: float, height: float) -> None:
+def test_bmi_value_property(weight: float, height: float) -> None:
     """Test that BMI is always positive and within reasonable range."""
     assume(height > 0)  # Avoid division by zero
     bmi = bmi_value(weight, height)
@@ -45,7 +45,7 @@ def test_bmi_value_property(app, weight: float, height: float) -> None:
 
 @given(bmi_val=st.floats(min_value=10, max_value=50), lang=st.sampled_from(["en", "ru"]))
 @pytest.mark.slow
-def test_bmi_category_property(app, bmi_val: float, lang: str) -> None:
+def test_bmi_category_property(bmi_val: float, lang: str) -> None:
     """Test that BMI categories are consistent."""
     category = bmi_category(bmi_val, lang)
     assert category in [
