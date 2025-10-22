@@ -72,10 +72,9 @@ services:
     environment:
       - POSTGRES_DB=pulseplate
       - POSTGRES_USER=pulseplate
-      # WARNING: Default password is for development only - must not be used in production!
-      # In production, supply a secure password via environment variables or Docker secrets
-      # and never commit secrets to version control
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pulseplate_password}
+      # WARNING: You must supply a secure password via environment variables or Docker secrets.
+      # The service will fail to start if POSTGRES_PASSWORD is not set. Never commit secrets.
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
