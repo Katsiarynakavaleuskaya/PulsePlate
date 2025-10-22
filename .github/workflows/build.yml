@@ -32,7 +32,7 @@ jobs:
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@5e57cd1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -188,21 +188,22 @@ jobs:
           echo "✅ Docker image test completed successfully"
 
   # Deploy to staging (if on main branch)
-  deploy-staging:
-    runs-on: ubuntu-latest
-    needs: [build, security-scan, test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: staging
-    permissions:
-      contents: read
-      packages: read
-
-    steps:
-      - name: Deploy to staging
-        run: |
-          echo "Deploying to staging environment..."
-          # Add actual deployment commands here
-          # This could be:
-          # - kubectl apply -f k8s/staging/
-          # - docker-compose -f docker-compose.staging.yml up -d
-          # - helm upgrade --install pulseplate-staging ./helm-chart
+  # TODO: Enable when staging deployment is ready
+  # deploy-staging:
+  #   runs-on: ubuntu-latest
+  #   needs: [build, security-scan, test]
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   environment: staging
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #
+  #   steps:
+  #     - name: Deploy to staging
+  #       run: |
+  #         echo "Deploying to staging environment..."
+  #         # Add actual deployment commands here
+  #         # This could be:
+  #         # - kubectl apply -f k8s/staging/
+  #         # - docker-compose -f docker-compose.staging.yml up -d
+  #         # - helm upgrade --install pulseplate-staging ./helm-chart
