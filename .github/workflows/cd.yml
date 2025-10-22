@@ -4,6 +4,9 @@ on:
     workflows: ["Docker Build and Push"]
     types: [completed]
     branches: [ main ]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -46,7 +49,7 @@ jobs:
 
   production:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || startsWith(github.ref, 'refs/tags/v') }}
     environment:
       name: production
     concurrency:
@@ -58,9 +61,11 @@ jobs:
       - name: Check if this is a tag build
         id: check-tag
         run: |
-          # Check if the workflow_run was triggered by a tag push
-          # head_branch contains just the tag name (e.g., "v1.0.0") for tag pushes
-          if [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          # Check if this is triggered by a tag push
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "is_tag=true" >> $GITHUB_OUTPUT
             echo "tag_name=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
           else
@@ -70,6 +75,31 @@ jobs:
       - name: Resolve image tag
         id: meta
         run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Docker image to be available
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
+        run: |
+          # Wait for Docker image to be built and pushed
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            echo "Checking for image availability (attempt $attempt/$max_attempts)..."
+
+            # Try to pull the image (this will fail if image doesn't exist)
+            if docker pull ghcr.io/${{ github.repository }}:${{ github.sha }} >/dev/null 2>&1; then
+              echo "✅ Docker image is available"
+              break
+            fi
+
+            if [ $attempt -eq $max_attempts ]; then
+              echo "❌ Docker image not available after $max_attempts attempts"
+              exit 1
+            fi
+
+            echo "Image not ready, waiting 10 seconds..."
+            sleep 10
+          done
 
       - name: Deploy to production over SSH
         if: ${{ steps.check-tag.outputs.is_tag == 'true' }}

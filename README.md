@@ -583,7 +583,8 @@ Production deployments are automated via GitHub Actions with manual approval gat
 2. **GitHub Actions will**:
    - Build and push Docker image (triggered by tag push)
    - Wait for manual approval (production environment)
-   - Deploy to production server (after build completes)
+   - Wait for Docker image to be available (up to 5 minutes)
+   - Deploy to production server
    - Run health checks
 
 3. **Monitor deployment**:
