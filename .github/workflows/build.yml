@@ -55,19 +55,18 @@ jobs:
         id: validate-tags
         if: github.event_name != 'pull_request'
         run: |
-          tags_json='${{ steps.meta.outputs.tags }}'
-          echo "Tags JSON: $tags_json"
+          tags_output='${{ steps.meta.outputs.tags }}'
+          echo "Tags output: $tags_output"
 
-          # Parse tags and validate
-          tags_array=$(echo "$tags_json" | jq -r '.[]' 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$tags_array" ]; then
-            echo "Error: Invalid or empty tags JSON"
+          # Parse newline-separated tags
+          if [ -z "$tags_output" ]; then
+            echo "Error: No tags found"
             exit 1
           fi
 
-          # Get first tag
-          first_tag=$(echo "$tags_array" | head -n1)
-          if [ -z "$first_tag" ] || [ "$first_tag" = "null" ]; then
+          # Get first tag (first line)
+          first_tag=$(echo "$tags_output" | head -n1)
+          if [ -z "$first_tag" ]; then
             echo "Error: No valid tags found"
             exit 1
           fi
