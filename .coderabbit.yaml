@@ -32,5 +32,4 @@ reviews:
 # Code guidelines
 code_guidelines:
   enabled: true
-  usage: "auto"
-  file_patterns: [".cursorrules", "README.md", "CONTRIBUTING.md"]
+  filePatterns: [".cursorrules", "README.md", "CONTRIBUTING.md"]

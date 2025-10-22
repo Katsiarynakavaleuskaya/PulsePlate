@@ -27,11 +27,11 @@ class TestAutoProductExpansionDemo:
             or finder._similar_names(product, food_name)
         )
 
-    def _collect_all_ingredients(self, recipes: Dict[str, Recipe]) -> list[str]:
-        """Collect all ingredients from recipes."""
-        all_ingredients: list[str] = []
+    def _collect_all_ingredients(self, recipes: Dict[str, Recipe]) -> set[str]:
+        """Collect all unique ingredients from recipes."""
+        all_ingredients: set[str] = set()
         for recipe in recipes.values():
-            all_ingredients.extend(recipe.ingredients.keys())
+            all_ingredients.update(recipe.ingredients.keys())
         return all_ingredients
 
     def test_auto_expansion_demo(self) -> None:
@@ -42,11 +42,8 @@ class TestAutoProductExpansionDemo:
         # Загружаем рецепты
         recipes = parse_recipe_db("data/recipes_extended.csv")
 
-        # Получаем все ингредиенты
-        all_ingredients = self._collect_all_ingredients(recipes)
-
-        # Убираем дубликаты
-        unique_ingredients = list(set(all_ingredients))
+        # Получаем все ингредиенты (сортированные для детерминистичности)
+        unique_ingredients = sorted(self._collect_all_ingredients(recipes))
 
         print(f"📚 Всего уникальных ингредиентов: {len(unique_ingredients)}")
 
@@ -98,9 +95,9 @@ class TestAutoProductExpansionDemo:
         print(f"\n📈 Результат: {successful_searches}/{len(demo_products)} продуктов найдено")
 
         # Проверяем, что система работает корректно
-        assert unique_ingredients
-        assert len(missing_products) > 0
-        assert len(finder.food_db) > 0
+        assert unique_ingredients, "Expected at least one unique ingredient"
+        assert len(missing_products) > 0, "Expected to find missing products"
+        assert len(finder.food_db) > 0, "Expected food database to be populated"
 
         print("\n✅ Демонстрация завершена успешно!")
 
@@ -109,10 +106,8 @@ class TestAutoProductExpansionDemo:
         finder = ProductFinder()
         recipes = parse_recipe_db("data/recipes_extended.csv")
 
-        # Получаем все ингредиенты
-        all_ingredients = self._collect_all_ingredients(recipes)
-
-        unique_ingredients = list(set(all_ingredients))
+        # Получаем все ингредиенты (сортированные для детерминистичности)
+        unique_ingredients = sorted(self._collect_all_ingredients(recipes))
 
         # Находим недостающие продукты
         missing_products = finder.find_missing_products(unique_ingredients)
