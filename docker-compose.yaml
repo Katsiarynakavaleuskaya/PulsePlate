@@ -1,4 +1,4 @@
-version: '3.8'
+# Using Compose Specification (no version required)
 
 services:
   # Main application service

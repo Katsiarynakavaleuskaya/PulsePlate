@@ -133,12 +133,12 @@ class FoodDatabaseBuilder:
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
         """
-        print("🔄 Merging and validating data...")
+        logging.info("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
         streams: list[Iterable[FoodRecord]] = [usda_data, off_data]
         merged_records: list[dict] = merge_records(streams)
-        print(f"  📊 Merged: {len(merged_records)} unique foods")
+        logging.info(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
         validated_foods = []
@@ -185,11 +185,11 @@ class FoodDatabaseBuilder:
                 validation_errors.append({"index": i, "record": record, "error": str(e)})
 
         if validation_errors:
-            print(f"  ⚠️  Validation errors: {len(validation_errors)}")
+            logging.warning(f"  ⚠️  Validation errors: {len(validation_errors)}")
             for error in validation_errors[:3]:  # Show first 3
-                print(f"    - {error['error']}")
+                logging.warning(f"    - {error['error']}")
 
-        print(f"  ✅ Validated: {len(validated_foods)} foods")
+        logging.info(f"  ✅ Validated: {len(validated_foods)} foods")
         return validated_foods
 
     def _generate_food_id(self, canonical_name: str, record: dict) -> str:
@@ -209,7 +209,7 @@ class FoodDatabaseBuilder:
         RU: Сохранить данные в Parquet для быстрого доступа.
         EN: Save data to Parquet for fast access.
         """
-        print("🔄 Saving to Parquet...")
+        logging.info("🔄 Saving to Parquet...")
 
         # Convert to DataFrame
         data = []
@@ -222,15 +222,15 @@ class FoodDatabaseBuilder:
         df = pd.DataFrame(data)
         df.to_parquet(self.food_parquet, index=False)
 
-        print(f"  ✅ Parquet saved: {self.food_parquet}")
-        print(f"  📊 Records: {len(df)}")
+        logging.info(f"  ✅ Parquet saved: {self.food_parquet}")
+        logging.info(f"  📊 Records: {len(df)}")
 
     def save_sqlite(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить в SQLite с FTS для поиска.
         EN: Save to SQLite with FTS for search.
         """
-        print("🔄 Saving to SQLite with FTS...")
+        logging.info("🔄 Saving to SQLite with FTS...")
 
         # Remove existing database
         if self.food_sqlite.exists():
@@ -333,15 +333,15 @@ class FoodDatabaseBuilder:
 
             conn.commit()
 
-        print(f"  ✅ SQLite saved: {self.food_sqlite}")
-        print("  🔍 FTS enabled for search")
+        logging.info(f"  ✅ SQLite saved: {self.food_sqlite}")
+        logging.info("  🔍 FTS enabled for search")
 
     def generate_report(self, foods: list[FoodItem], usda_count: int, off_count: int) -> None:
         """
         RU: Сгенерировать отчет о сборке.
         EN: Generate build report.
         """
-        print("🔄 Generating build report...")
+        logging.info("🔄 Generating build report...")
 
         # Calculate statistics
         total_foods = len(foods)
@@ -388,23 +388,23 @@ class FoodDatabaseBuilder:
         with open(self.build_report, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
 
-        print(f"  ✅ Report saved: {self.build_report}")
+        logging.info(f"  ✅ Report saved: {self.build_report}")
 
         # Print summary
-        print("\n📊 BUILD SUMMARY:")
-        print(f"  Total foods: {total_foods}")
-        print(f"  Sources: {sources}")
-        print(f"  Groups: {len(groups)}")
-        print("  Micronutrient coverage:")
+        logging.info("\n📊 BUILD SUMMARY:")
+        logging.info(f"  Total foods: {total_foods}")
+        logging.info(f"  Sources: {sources}")
+        logging.info(f"  Groups: {len(groups)}")
+        logging.info("  Micronutrient coverage:")
         for field, pct in micronutrient_percentages.items():
-            print(f"    {field}: {pct:.1f}%")
+            logging.info(f"    {field}: {pct:.1f}%")
 
     def build(self) -> None:
         """
         RU: Выполнить полную сборку базы данных.
         EN: Perform complete database build.
         """
-        print("🚀 Starting food database build...")
+        logging.info("🚀 Starting food database build...")
 
         try:
             # Load source data
@@ -414,7 +414,7 @@ class FoodDatabaseBuilder:
             foods = self.merge_and_validate(usda_data, off_data)
 
             if not foods:
-                print("❌ No valid foods found!")
+                logging.error("❌ No valid foods found!")
                 return
 
             # Save outputs
@@ -424,7 +424,7 @@ class FoodDatabaseBuilder:
             # Generate report
             self.generate_report(foods, len(usda_data), len(off_data))
 
-            print("✅ Build completed successfully!")
+            logging.info("✅ Build completed successfully!")
 
         except Exception:
             logging.exception("Build failed")

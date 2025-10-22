@@ -17,6 +17,7 @@ DEFAULT_META = {
         "version": "0.0.1",
         "last_updated": "1970-01-01T00:00:00.000000+00:00",
         "record_count": 0,
+        # SHA-256 of an empty dataset / zero records used as the default checksum
         "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         "metadata": {
             "update_type": "default",
