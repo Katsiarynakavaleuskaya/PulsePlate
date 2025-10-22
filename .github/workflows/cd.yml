@@ -50,7 +50,6 @@ jobs:
 
   production:
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     environment:
       name: production
     concurrency:

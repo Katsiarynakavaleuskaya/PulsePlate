@@ -44,8 +44,7 @@ sudo chown $USER:$USER /srv/pulseplate-production
 ### 3. Copy Deployment Files
 
 ```bash
-# Copy files from your repository
-sudo cp deploy/docker-compose.staging.yaml /srv/pulseplate-production/docker-compose.production.yaml
+# Copy files from your repository (templates will be customized in next steps)
 sudo cp deploy/Caddyfile /srv/pulseplate-production/
 sudo cp scripts/deploy.sh /srv/pulseplate-production/
 sudo chmod +x /srv/pulseplate-production/deploy.sh
@@ -211,7 +210,7 @@ if docker exec "$APP_CONTAINER" test -f /app/cache/app.db 2>/dev/null; then
   echo "Creating database backup: $backup_path"
   docker cp "$APP_CONTAINER:/app/cache/app.db" "$backup_path"
 
-  # Remove old backups (keep last 10 for production)
+  # Remove old backups (keep most recent 10)
   ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +11 | xargs -r rm -f
   echo "Database backup completed"
 else
@@ -400,6 +399,7 @@ export TAG=previous-tag
 ## 📞 Support
 
 For production issues:
+
 1. Check GitHub Actions logs
 2. Review server logs
 3. Verify environment configuration
