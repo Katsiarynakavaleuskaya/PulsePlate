@@ -37,7 +37,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             export GHCR_USER='${{ github.actor }}'
             export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
             export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
@@ -109,7 +109,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             export GHCR_USER='${{ github.actor }}'
             export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
             export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'

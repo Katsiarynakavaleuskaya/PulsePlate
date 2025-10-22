@@ -297,6 +297,8 @@ sudo chmod +x /srv/pulseplate-production/deploy.sh
 
 **⚠️ Important**: All secrets must be configured before the first deployment attempt. Missing secrets will cause the workflow to fail with "missing server host" error.
 
+**📝 Note**: The deployment scripts use `set -euo pipefail` for strict error handling instead of the deprecated `script_stop` parameter. This ensures the workflow fails immediately if any command in the deployment script fails.
+
 ### 2. Configure Protection Rules
 
 1. In the `production` environment settings:
