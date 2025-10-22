@@ -2,13 +2,83 @@
 
 ## Overview
 
-This guide shows how to set up Ollama for local development and testing of the PulsePlate application. Ollama provides a local AI server that can be used for development, staging, and production environments.
+This guide shows how to set up AI for the PulsePlate application using our **Smart AI Router**. You can choose between:
+
+- **Hybrid Approach** (Recommended): Ollama + OpenAI with smart routing
+- **Local Ollama**: For development and testing (free, requires local setup)
+- **Ollama Cloud**: For production (budget-friendly, managed service)
+- **OpenAI Only**: High quality but expensive
+
+Our Smart AI Router automatically chooses the best provider based on query complexity, saving **~85% on AI costs** while maintaining quality.
 
 ## Prerequisites
 
 - Docker installed and running
-- Ollama installed locally
 - GitHub repository with CI/CD workflows
+- Choose your setup:
+  - **Local**: Ollama installed locally
+  - **Cloud**: Ollama Cloud account (recommended for production)
+
+## Setup Options
+
+### Option 1: Hybrid Approach (Recommended)
+
+**Best of both worlds:**
+- ✅ **85% cost savings** vs OpenAI-only
+- ✅ **High quality** for complex queries
+- ✅ **Free** for simple queries
+- ✅ **Automatic routing** based on complexity
+- ✅ **Fallback protection** if one provider fails
+
+**Setup:**
+1. Get OpenAI API key (for complex queries)
+2. Get Ollama Cloud API key (for simple queries)
+3. Use our Smart AI Router
+
+```bash
+# Hybrid configuration
+OLLAMA_ENDPOINT=https://api.ollama.ai/v1
+OLLAMA_API_KEY=your_ollama_cloud_key
+OPENAI_API_KEY=your_openai_key
+AI_ROUTER_ENABLED=true
+```
+
+**Cost Example:**
+- 1000 simple queries → Ollama (free)
+- 100 complex queries → OpenAI ($6)
+- **Total: $6/month** vs $60/month with OpenAI-only
+
+### Option 2: Ollama Cloud (Production Only)
+
+**Advantages:**
+
+- ✅ No server management
+- ✅ Budget-friendly pricing
+- ✅ Automatic scaling
+- ✅ Always up-to-date models
+- ✅ Global CDN
+
+**Setup:**
+
+1. Sign up at [Ollama Cloud](https://ollama.ai/cloud)
+2. Get your API key
+3. Use the cloud endpoint in your deployment
+
+```bash
+# Production configuration
+OLLAMA_ENDPOINT=https://api.ollama.ai/v1
+OLLAMA_API_KEY=your_api_key_here
+```
+
+**Pricing (as of 2025):**
+
+- **Free tier**: 1,000 requests/month
+- **Pro**: $20/month for 100,000 requests
+- **Enterprise**: Custom pricing for high volume
+
+*Much cheaper than running your own GPU servers!*
+
+### Option 2: Local Ollama (For Development)
 
 ## Installation
 
@@ -159,6 +229,7 @@ ollama rm llama2
 ### Common Issues
 
 1. **Ollama not accessible from Docker**
+
    ```bash
    # Ensure Ollama is running on host
    ollama serve
@@ -168,6 +239,7 @@ ollama rm llama2
    ```
 
 2. **Container fails to start**
+
    ```bash
    # Check container logs
    docker logs pulseplate-staging
@@ -177,6 +249,7 @@ ollama rm llama2
    ```
 
 3. **Health check failures**
+
    ```bash
    # Check if application is responding
    curl -v http://localhost:8000/health

@@ -32,6 +32,7 @@ from app.routers.premium_week import router as premium_week_router
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
+from app.routers.ai_chat import router as ai_chat_router
 from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
@@ -296,6 +297,7 @@ protected_dependency = Depends(_get_api_key_dynamic)
 app.include_router(foods_router)
 app.include_router(recipes_router)
 app.include_router(users_router)
+app.include_router(ai_chat_router)
 app.include_router(export_router, dependencies=[protected_dependency])
 app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])

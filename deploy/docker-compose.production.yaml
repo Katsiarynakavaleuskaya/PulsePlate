@@ -1,16 +1,16 @@
 version: '3.8'
 
 services:
-  pulseplate-staging:
+  pulseplate-production:
     image: ghcr.io/katsiarynakavaleuskaya/pulseplate:latest
-    container_name: pulseplate-staging
+    container_name: pulseplate-production
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=staging
+      - ENVIRONMENT=production
     env_file:
       - .env  # See .env file for DATABASE_URL configuration
-      - ../deploy/ollama-configs/local.env  # Local Ollama config
+      - ./ollama-configs/cloud.env  # Ollama Cloud config
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -25,9 +25,10 @@ services:
     container_name: pulseplate-nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - ./ssl:/etc/nginx/ssl
     depends_on:
-      - pulseplate-staging
+      - pulseplate-production
     restart: unless-stopped

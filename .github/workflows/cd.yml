@@ -69,7 +69,10 @@ jobs:
             --restart unless-stopped \
             -p 8000:8000 \
             -e ENVIRONMENT=staging \
-            -e OLLAMA_ENDPOINT=http://host.docker.internal:11434 \
+            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-http://host.docker.internal:11434} \
+            -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e AI_ROUTER_ENABLED=true \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Staging deployment completed"
@@ -189,7 +192,10 @@ jobs:
             --restart unless-stopped \
             -p 8001:8000 \
             -e ENVIRONMENT=production \
-            -e OLLAMA_ENDPOINT=http://host.docker.internal:11434 \
+            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-https://api.ollama.ai/v1} \
+            -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e AI_ROUTER_ENABLED=true \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Production deployment completed"

@@ -4027,6 +4027,7 @@ classmethod
 claude
 cloudflared
 Cobalamin
+codellama
 codepoint
 completa
 completado
