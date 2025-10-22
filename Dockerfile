@@ -17,11 +17,13 @@ RUN apt-get update && apt-get install -y \
 # Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_PYTHON_VERSION_WARNING=1
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir --upgrade pip==24.2 && \
-    pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
+    python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
 FROM python:3.13-slim AS production
