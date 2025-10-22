@@ -13,9 +13,25 @@ services:
     networks: [web]
     expose:
       - "8000"
+    volumes:
+      - app_data:/app/cache
     command: >
       uvicorn app:app --host 0.0.0.0 --port 8000
-      --proxy-headers --forwarded-allow-ips="*"
+      --proxy-headers --forwarded-allow-ips="caddy"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   caddy:
     image: caddy:2
@@ -24,6 +40,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - STAGING_DOMAIN=${STAGING_DOMAIN}
     volumes:
       - /srv/pulseplate-staging/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -34,3 +52,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  app_data:

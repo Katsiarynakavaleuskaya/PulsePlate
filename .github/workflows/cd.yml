@@ -1,6 +1,8 @@
 name: CD
 on:
-  push:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
     branches: [ main ]
 
 permissions:
@@ -12,6 +14,7 @@ permissions:
 jobs:
   staging:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: staging
       url: https://${{ secrets.STAGING_DOMAIN }}
@@ -35,7 +38,7 @@ jobs:
           script: |
             set -e
             export GHCR_USER='${{ github.actor }}'
-            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT с read:packages
+            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
             export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
             cd /srv/pulseplate-staging
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'

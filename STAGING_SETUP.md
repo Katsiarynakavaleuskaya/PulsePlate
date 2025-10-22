@@ -2,6 +2,8 @@
 
 ## 💰 Budget-Friendly VPS Options
 
+**Last updated: 2025-01-27** - *Maintainers: Update this date when pricing or provider information changes*
+
 ### Recommended Providers (Cheapest First)
 
 1. **Hetzner Cloud** - €3.29/month (1 vCPU, 2GB RAM)
@@ -111,6 +113,64 @@ sudo ufw --force enable
 # Check status
 sudo ufw status
 ```
+
+### 6. Security Hardening
+
+```bash
+# Install fail2ban for SSH protection
+sudo apt install -y fail2ban
+
+# Configure fail2ban for SSH
+sudo tee /etc/fail2ban/jail.local > /dev/null << 'EOF'
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+
+[sshd]
+enabled = true
+port = ssh
+logpath = /var/log/auth.log
+maxretry = 3
+EOF
+
+# Enable and start fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Install automatic security updates
+sudo apt install -y unattended-upgrades
+
+# Configure automatic updates
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Basic SSH hardening
+sudo tee -a /etc/ssh/sshd_config > /dev/null << 'EOF'
+
+# Security hardening
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+AllowUsers $USER
+EOF
+
+# Test SSH config (IMPORTANT: Keep current session open!)
+sudo sshd -t
+
+# If config is valid, restart SSH service
+sudo systemctl restart sshd
+
+# Verify fail2ban is working
+sudo fail2ban-client status sshd
+```
+
+**⚠️ Security Notes:**
+- Always test SSH config with `sudo sshd -t` before restarting
+- Keep an active SSH session open when making SSH changes
+- Use a non-root user with sudo privileges
+- Consider changing the default SSH port (22) for additional security
+- Monitor fail2ban logs: `sudo tail -f /var/log/fail2ban.log`
 
 ## 🔑 SSH Key Setup
 
