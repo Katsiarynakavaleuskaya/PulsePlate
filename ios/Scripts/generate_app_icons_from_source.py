@@ -8,10 +8,14 @@ import argparse
 import os
 import sys
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
+
 
 def _process_image_for_icon(img, size: int):
     """Обрабатывает изображение для создания иконки"""
-    from PIL import Image
 
     # Конвертируем в RGBA если нужно
     if img.mode != "RGBA":
@@ -45,9 +49,7 @@ def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> 
 
 def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
-    try:
-        from PIL import Image
-    except ImportError:
+    if Image is None:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 

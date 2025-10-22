@@ -61,12 +61,11 @@ repos:
         stages: [pre-commit]
         types: [python]
         # Changed-files only (fast path). Full scan added below on pre-push/CI.
-        exclude: |
-          ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
         args:
           - -q
-          - -s
-          - B101
+          - -c
+          - .bandit
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit

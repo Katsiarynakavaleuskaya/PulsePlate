@@ -20,7 +20,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip==24.2 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage

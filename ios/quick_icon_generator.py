@@ -7,7 +7,10 @@
 import os
 import sys
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
 
 
 def create_icons_from_source(source_path):
@@ -79,9 +82,7 @@ if __name__ == "__main__":
 
     source_path = sys.argv[1]
 
-    try:
-        from PIL import Image
-    except ImportError:
+    if Image is None:
         print("❌ Установите Pillow: pip install Pillow")
         sys.exit(1)
 
