@@ -553,6 +553,45 @@ cd /srv/pulseplate-staging
 ./deploy.sh latest
 ```
 
+## 🚀 Production Deployment
+
+Production deployments are automated via GitHub Actions with manual approval gates.
+
+### Production Prerequisites
+
+- Production server configured (see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md))
+- GitHub environment `production` configured with required secrets
+- Protection rules enabled for manual approval
+
+### Deployment Process
+
+1. **Create a release tag**:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **GitHub Actions will**:
+   - Build and push Docker image
+   - Wait for manual approval
+   - Deploy to production server
+   - Run health checks
+
+3. **Monitor deployment**:
+   - Check GitHub Actions logs
+   - Verify health endpoint: `https://yourdomain.com/health`
+
+### Production Features
+
+- ✅ **Manual approval gates** for safety
+- ✅ **Automatic database backups** before deployment
+- ✅ **Health checks** with retry logic
+- ✅ **Rollback capability** via previous tags
+- ✅ **SSL/TLS** automatic via Caddy
+- ✅ **Resource limits** and monitoring
+
+For detailed setup instructions, see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md).
+
 ## License
 
 This project is proprietary software. All rights reserved. Unauthorized copying, distribution, modification, or use of this code is strictly prohibited without prior written permission from the author.
