@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up QEMU (multi-arch emulation)
-        uses: docker/setup-qemu-action@49b3bc8e6b6737cd9f29c6a9b6f6e3e0f52f1bd0 # v3.2.0
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@2b51285b1a9ec5ab8b4d0b2b0613b9fe2f6bd9f0 # v3.7.1
