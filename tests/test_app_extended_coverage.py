@@ -25,6 +25,7 @@ spec.loader.exec_module(app_module)
 app = app_module.app
 
 
+@pytest.mark.slow
 class TestLifespanEvents:
     """Test lifespan event handlers."""
 

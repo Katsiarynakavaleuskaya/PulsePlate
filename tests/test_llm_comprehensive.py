@@ -11,6 +11,7 @@ import pytest
 import llm
 
 
+@pytest.mark.slow
 class TestStubProvider:
     """Тесты для StubProvider заглушки"""
 

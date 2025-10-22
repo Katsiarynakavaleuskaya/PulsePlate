@@ -9,6 +9,7 @@ import os
 import sys
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -26,6 +27,7 @@ spec.loader.exec_module(app_module)
 app = app_module.app
 
 
+@pytest.mark.slow
 class TestSpanishEndToEndSmoke:
     """End-to-end smoke test for Spanish language support."""
 

@@ -5,6 +5,7 @@ Focus on Fe/Ca/Mg/K micronutrient coverage and day_micros collection.
 
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -12,6 +13,7 @@ from hypothesis import strategies as st
 import app as app_mod
 
 
+@pytest.mark.slow
 class TestPlateTargetsMicrosHypothesis:
     """Hypothesis-based tests for Plate → Targets micros integration."""
 
