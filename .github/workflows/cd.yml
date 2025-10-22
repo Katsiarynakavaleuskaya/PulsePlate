@@ -29,7 +29,7 @@ jobs:
         run: echo "TAG=latest" >> $GITHUB_OUTPUT
 
       - name: Deploy to staging over SSH
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
