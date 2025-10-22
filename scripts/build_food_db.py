@@ -13,17 +13,50 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import hashlib
 import json
+import logging
 import sqlite3
 from datetime import datetime
-from typing import Dict, List
+from typing import Iterable
 
 import pandas as pd
 from pydantic import ValidationError
 
 from core.food_merge import merge_records
+from core.food_sources.base import FoodRecord
 from core.food_sources.off import OFFAdapter
 from core.food_sources.usda import USDAAdapter
 from core.schemas import FoodItem
+
+
+# Configure logging
+def setup_logging() -> None:
+    """Configure logging for the build process."""
+    # Ensure data directory exists
+    data_dir = Path(__file__).parent.parent / "data"
+    data_dir.mkdir(exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(data_dir / "build.log", encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+        force=True,
+    )
+
+
+# Micronutrient fields for coverage reporting
+MICRONUTRIENT_FIELDS = [
+    "Fe_mg",
+    "Ca_mg",
+    "K_mg",
+    "Mg_mg",
+    "VitD_IU",
+    "B12_ug",
+    "Folate_ug",
+    "Iodine_ug",
+]
 
 
 class FoodDatabaseBuilder:
@@ -32,7 +65,7 @@ class FoodDatabaseBuilder:
     EN: Food database builder with full provenance tracking.
     """
 
-    def __init__(self, project_root: str = None):
+    def __init__(self, project_root: str | Path | None = None):
         """Initialize builder with project paths."""
         if project_root is None:
             project_root = Path(__file__).parent.parent
@@ -52,46 +85,50 @@ class FoodDatabaseBuilder:
         self.data_dir.mkdir(exist_ok=True)
         self.external_dir.mkdir(exist_ok=True)
 
-    def load_source_data(self) -> tuple[List[Dict], List[Dict]]:
+    def load_source_data(self) -> tuple[list[FoodRecord], list[FoodRecord]]:
         """
         RU: Загрузить данные из всех источников (USDA + OFF).
         EN: Load data from all sources (USDA + OFF).
         """
-        print("🔄 Loading source data...")
+        logging.info("Loading source data...")
 
         # Load USDA data (from chunks or single file)
-        usda_data = []
+        usda_data: list[FoodRecord] = []
         if self.usda_chunks_dir.exists() and any(self.usda_chunks_dir.glob("*.csv")):
-            print(f"  📊 Loading USDA chunks from {self.usda_chunks_dir}")
+            logging.info("Loading USDA chunks from %s", self.usda_chunks_dir)
             adapter = USDAAdapter(str(self.usda_chunks_dir))
         else:
-            print("  📊 Loading USDA from single file")
+            logging.info("Loading USDA from single file")
             adapter = USDAAdapter()
 
         try:
             usda_data = list(adapter.normalize())
-            print(f"  ✅ USDA: {len(usda_data)} records")
-        except Exception as e:
-            print(f"  ❌ USDA error: {e}")
+            logging.info("USDA: %d records", len(usda_data))
+        except (FileNotFoundError, ValueError, OSError):
+            logging.exception("USDA load failed")
+            raise
 
         # Load OFF data (from chunks or single file)
-        off_data = []
+        off_data: list[FoodRecord] = []
         if self.off_chunks_dir.exists() and any(self.off_chunks_dir.glob("*.csv")):
-            print(f"  📊 Loading OFF chunks from {self.off_chunks_dir}")
-            adapter = OFFAdapter(str(self.off_chunks_dir))
+            logging.info("Loading OFF chunks from %s", self.off_chunks_dir)
+            off_adapter = OFFAdapter(str(self.off_chunks_dir))
         else:
-            print("  📊 Loading OFF from single file")
-            adapter = OFFAdapter()
+            logging.info("Loading OFF from single file")
+            off_adapter = OFFAdapter()
 
         try:
-            off_data = list(adapter.normalize())
-            print(f"  ✅ OFF: {len(off_data)} records")
-        except Exception as e:
-            print(f"  ❌ OFF error: {e}")
+            off_data = list(off_adapter.normalize())
+            logging.info("OFF: %d records", len(off_data))
+        except (FileNotFoundError, ValueError, OSError):
+            logging.exception("OFF load failed")
+            raise
 
         return usda_data, off_data
 
-    def merge_and_validate(self, usda_data: List[Dict], off_data: List[Dict]) -> List[FoodItem]:
+    def merge_and_validate(
+        self, usda_data: list[FoodRecord], off_data: list[FoodRecord]
+    ) -> list[FoodItem]:
         """
         RU: Объединить данные и валидировать через Pydantic.
         EN: Merge data and validate through Pydantic.
@@ -99,7 +136,8 @@ class FoodDatabaseBuilder:
         print("🔄 Merging and validating data...")
 
         # Merge records (pass objects directly)
-        merged_records = merge_records([usda_data, off_data])
+        streams: list[Iterable[FoodRecord]] = [usda_data, off_data]
+        merged_records: list[dict] = merge_records(streams)
         print(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
@@ -138,7 +176,8 @@ class FoodDatabaseBuilder:
                     source=record.get("source", "unknown"),
                     source_priority=record.get("source_priority", 0),
                     version_date=record.get("version_date", datetime.now().isoformat()),
-                    price_per_100g=record.get("price_per_100g", 0.0),
+                    # Accept either key to avoid losing OFF/merge price
+                    price_per_100g=record.get("price_per_100g", record.get("price", 0.0)),
                 )
                 validated_foods.append(food_item)
 
@@ -153,7 +192,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Validated: {len(validated_foods)} foods")
         return validated_foods
 
-    def _generate_food_id(self, canonical_name: str, record: Dict) -> str:
+    def _generate_food_id(self, canonical_name: str, record: dict) -> str:
         """
         RU: Генерировать детерминированный ID продукта.
         EN: Generate deterministic food ID.
@@ -163,9 +202,9 @@ class FoodDatabaseBuilder:
             f"{canonical_name}_{record.get('source', '')}_"
             f"{record.get('fdc_id', '')}_{record.get('gtin', '')}"
         )
-        return hashlib.sha256(key_data.encode()).hexdigest()[:12]
+        return hashlib.sha256(key_data.encode()).hexdigest()[:24]
 
-    def save_parquet(self, foods: List[FoodItem]) -> None:
+    def save_parquet(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить данные в Parquet для быстрого доступа.
         EN: Save data to Parquet for fast access.
@@ -175,7 +214,7 @@ class FoodDatabaseBuilder:
         # Convert to DataFrame
         data = []
         for food in foods:
-            row = food.dict()
+            row = food.model_dump()
             # Convert lists to JSON strings for Parquet compatibility
             row["flags"] = json.dumps(row["flags"])
             data.append(row)
@@ -186,7 +225,7 @@ class FoodDatabaseBuilder:
         print(f"  ✅ Parquet saved: {self.food_parquet}")
         print(f"  📊 Records: {len(df)}")
 
-    def save_sqlite(self, foods: List[FoodItem]) -> None:
+    def save_sqlite(self, foods: list[FoodItem]) -> None:
         """
         RU: Сохранить в SQLite с FTS для поиска.
         EN: Save to SQLite with FTS for search.
@@ -197,12 +236,12 @@ class FoodDatabaseBuilder:
         if self.food_sqlite.exists():
             self.food_sqlite.unlink()
 
-        conn = sqlite3.connect(self.food_sqlite)
-        cursor = conn.cursor()
+        with sqlite3.connect(self.food_sqlite) as conn:
+            cursor = conn.cursor()
 
-        # Create main table
-        cursor.execute(
-            """
+            # Create main table
+            cursor.execute(
+                """
             CREATE TABLE foods (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT NOT NULL,
@@ -231,74 +270,73 @@ class FoodDatabaseBuilder:
                 price_per_100g REAL
             )
         """
-        )
-
-        # Create FTS table for search
-        cursor.execute(
-            """
-            CREATE VIRTUAL TABLE foods_fts USING fts5(
-                canonical_name,
-                group_name,
-                brand,
-                flags,
-                content='foods',
-                content_rowid='rowid'
             )
-        """
-        )
 
-        # Insert data
-        for food in foods:
+            # Create FTS table for search
             cursor.execute(
                 """
-                INSERT INTO foods VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                CREATE VIRTUAL TABLE foods_fts USING fts5(
+                    canonical_name,
+                    group_name,
+                    brand,
+                    flags,
+                    content='foods',
+                    content_rowid='rowid'
                 )
-            """,
-                (
-                    food.id,
-                    food.canonical_name,
-                    food.group,
-                    food.per_g,
-                    food.kcal,
-                    food.protein_g,
-                    food.fat_g,
-                    food.carbs_g,
-                    food.fiber_g,
-                    food.Fe_mg,
-                    food.Ca_mg,
-                    food.K_mg,
-                    food.Mg_mg,
-                    food.VitD_IU,
-                    food.B12_ug,
-                    food.Folate_ug,
-                    food.Iodine_ug,
-                    json.dumps(food.flags),
-                    food.brand,
-                    food.gtin,
-                    food.fdc_id,
-                    food.source,
-                    food.source_priority,
-                    food.version_date,
-                    food.price_per_100g,
-                ),
+            """
             )
 
-        # Populate FTS
-        cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")
+            # Insert data using executemany for better performance
+            rows = []
+            for food in foods:
+                rows.append(
+                    (
+                        food.id,
+                        food.canonical_name,
+                        food.group,
+                        food.per_g,
+                        food.kcal,
+                        food.protein_g,
+                        food.fat_g,
+                        food.carbs_g,
+                        food.fiber_g,
+                        food.Fe_mg,
+                        food.Ca_mg,
+                        food.K_mg,
+                        food.Mg_mg,
+                        food.VitD_IU,
+                        food.B12_ug,
+                        food.Folate_ug,
+                        food.Iodine_ug,
+                        json.dumps(food.flags),
+                        food.brand,
+                        food.gtin,
+                        food.fdc_id,
+                        food.source,
+                        food.source_priority,
+                        food.version_date,
+                        food.price_per_100g,
+                    ),
+                )
+            cursor.executemany(
+                "INSERT INTO foods VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                rows,
+            )
 
-        # Create indexes
-        cursor.execute("CREATE INDEX idx_foods_group ON foods(group_name)")
-        cursor.execute("CREATE INDEX idx_foods_source ON foods(source)")
-        cursor.execute("CREATE INDEX idx_foods_flags ON foods(flags)")
+            # Populate FTS
+            cursor.execute("INSERT INTO foods_fts(foods_fts) VALUES('rebuild')")
 
-        conn.commit()
-        conn.close()
+            # Create indexes
+            cursor.execute("CREATE INDEX idx_foods_group ON foods(group_name)")
+            cursor.execute("CREATE INDEX idx_foods_source ON foods(source)")
+            cursor.execute("CREATE INDEX idx_foods_flags ON foods(flags)")
+
+            conn.commit()
 
         print(f"  ✅ SQLite saved: {self.food_sqlite}")
         print("  🔍 FTS enabled for search")
 
-    def generate_report(self, foods: List[FoodItem], usda_count: int, off_count: int) -> None:
+    def generate_report(self, foods: list[FoodItem], usda_count: int, off_count: int) -> None:
         """
         RU: Сгенерировать отчет о сборке.
         EN: Generate build report.
@@ -307,9 +345,9 @@ class FoodDatabaseBuilder:
 
         # Calculate statistics
         total_foods = len(foods)
-        sources = {}
-        groups = {}
-        micronutrient_coverage = {}
+        sources: dict[str, int] = {}
+        groups: dict[str, int] = {}
+        micronutrient_coverage: dict[str, int] = {}
 
         for food in foods:
             # Source distribution
@@ -319,17 +357,7 @@ class FoodDatabaseBuilder:
             groups[food.group] = groups.get(food.group, 0) + 1
 
             # Micronutrient coverage
-            micronutrient_fields = [
-                "Fe_mg",
-                "Ca_mg",
-                "K_mg",
-                "Mg_mg",
-                "VitD_IU",
-                "B12_ug",
-                "Folate_ug",
-                "Iodine_ug",
-            ]
-            for field in micronutrient_fields:
+            for field in MICRONUTRIENT_FIELDS:
                 if getattr(food, field) > 0:
                     micronutrient_coverage[field] = micronutrient_coverage.get(field, 0) + 1
 
@@ -398,13 +426,14 @@ class FoodDatabaseBuilder:
 
             print("✅ Build completed successfully!")
 
-        except Exception as e:
-            print(f"❌ Build failed: {e}")
+        except Exception:
+            logging.exception("Build failed")
             raise
 
 
-def main():
+def main() -> None:
     """Main entry point."""
+    setup_logging()
     builder = FoodDatabaseBuilder()
     builder.build()
 

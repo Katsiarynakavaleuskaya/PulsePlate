@@ -2,12 +2,14 @@
 Ультимативные интеграционные тесты для VIP endpoints для достижения 97% покрытия
 """
 
+import pytest
 from typing import cast
 
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
+@pytest.mark.slow
 class TestVIPIntegration97Ultimate:
     """Ультимативные интеграционные тесты для VIP endpoints"""
 

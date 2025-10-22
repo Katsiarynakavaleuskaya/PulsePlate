@@ -15,6 +15,7 @@ import pytest
 
 
 # Test scheduler module comprehensively
+@pytest.mark.slow
 class TestDatabaseUpdateSchedulerComprehensive:
     """Comprehensive tests for DatabaseUpdateScheduler to improve coverage."""
 

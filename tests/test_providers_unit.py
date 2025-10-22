@@ -10,7 +10,7 @@ import asyncio
 import importlib
 import sys
 import types
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import pytest
@@ -122,7 +122,7 @@ def test_grok_generate_error_wrapped(monkeypatch):
 
 
 class _FakeResp:
-    def __init__(self, status_code: int, data: Dict[str, Any] | None):
+    def __init__(self, status_code: int, data: dict[str, Any] | None):
         self.status_code = status_code
         self._data = data or {}
 
@@ -131,7 +131,7 @@ class _FakeResp:
 
 
 class _FakeAsyncClient:
-    def __init__(self, chat_payload: Dict[str, Any] | None, gen_payload: Dict[str, Any] | None):
+    def __init__(self, chat_payload: dict[str, Any] | None, gen_payload: dict[str, Any] | None):
         self._chat_payload = chat_payload
         self._gen_payload = gen_payload
 
@@ -254,7 +254,7 @@ def test_pico_generate_variants(monkeypatch):
     from providers import pico as pico_mod
 
     class _Resp:
-        def __init__(self, data: Dict[str, Any]):
+        def __init__(self, data: dict[str, Any]):
             self._data = data
 
         def raise_for_status(self):

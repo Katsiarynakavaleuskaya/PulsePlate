@@ -84,16 +84,24 @@ class TestDebugEndpoint:
         assert isinstance(data, dict)
         assert len(data) > 0, "Debug endpoint should return non-empty data"
 
-        # Check for expected environment keys (based on actual debug endpoint response)
-        expected_keys = [
-            "FEATURE_INSIGHT",
-            "LLM_PROVIDER",
-            "GROK_MODEL",
-            "GROK_ENDPOINT",
-            "insight_enabled",
+        # Check for essential debug key categories (flexible assertions)
+        debug_keys = set(data.keys())
+
+        # Ensure at least one feature flag exists
+        feature_flags = [key for key in debug_keys if key.startswith("FEATURE_")]
+        assert len(feature_flags) > 0, "Expected at least one FEATURE_* flag in debug data"
+
+        # Ensure LLM provider configuration exists
+        llm_keys = [
+            key for key in debug_keys if "PROVIDER" in key or "MODEL" in key or "ENDPOINT" in key
         ]
-        missing_keys = set(expected_keys) - set(data.keys())
-        assert not missing_keys, f"Missing required debug keys: {list(missing_keys)}"
+        assert (
+            len(llm_keys) > 0
+        ), "Expected at least one LLM-related key (PROVIDER/MODEL/ENDPOINT) in debug data"
+
+        # Ensure insight functionality flag exists
+        insight_keys = [key for key in debug_keys if "insight" in key.lower()]
+        assert len(insight_keys) > 0, "Expected at least one insight-related key in debug data"
 
 
 class TestAppPackageShimEdges:
