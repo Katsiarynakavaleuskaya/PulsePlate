@@ -13,23 +13,23 @@ ensure-database-versions:
 # - Always test builds locally: make docker-build && docker run -p 8000:8000 pulseplate:latest
 # - Clean old images regularly: make docker-clean-images
 # - Use versioned tags for production: docker tag pulseplate:latest pulseplate:v1.0.0
-docker-build:
+docker-build: ## Build production Docker image
 	docker build -t pulseplate:latest --target production .
 	docker tag pulseplate:latest pulseplate:$(shell git rev-parse --short HEAD)
 
-docker-build-dev:
+docker-build-dev: ## Build development Docker image
 	docker build -t pulseplate:dev --target development .
 
-docker-run:
+docker-run: ## Run Docker containers in background
 	docker-compose up -d
 
-docker-run-dev:
+docker-run-dev: ## Run development Docker containers
 	docker-compose --profile dev up -d
 
-docker-stop:
+docker-stop: ## Stop and remove Docker containers
 	docker-compose down
 
-docker-clean:
+docker-clean: ## Clean Docker containers and system
 	docker-compose down -v
 	docker system prune -f
 
@@ -39,10 +39,10 @@ docker-clean-images: ## Remove old Docker images (keep latest 3)
 		sort -k2 -r | tail -n +4 | awk '{print $$1}' | \
 		xargs -r docker rmi || echo "No old images to remove"
 
-docker-logs:
+docker-logs: ## Show Docker container logs
 	docker-compose logs -f
 
-docker-shell:
+docker-shell: ## Open shell in Docker container
 	docker-compose exec pulseplate /bin/bash
 
 health-check:
