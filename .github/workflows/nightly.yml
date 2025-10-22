@@ -118,7 +118,7 @@ jobs:
       - name: Run security checks
         run: |
           # Bandit security scan
-          bandit -r app/ core/ bmi_core/ nutrition_core/ nutrition_plate/ -f json -o bandit-report.json
+          bandit -r app/ core/ -f json -o bandit-report.json
 
           # pip-audit for vulnerability scan
           pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json

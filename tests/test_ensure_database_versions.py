@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Tests for scripts/ensure_database_versions.py
 
@@ -22,6 +21,7 @@ if spec is None or spec.loader is None:
     raise ImportError("Could not load ensure_database_versions module")
 ensure_database_versions = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ensure_database_versions)
+sys.modules["scripts.ensure_database_versions"] = ensure_database_versions
 
 ensure_versions_file = ensure_database_versions.ensure_versions_file
 main = ensure_database_versions.main

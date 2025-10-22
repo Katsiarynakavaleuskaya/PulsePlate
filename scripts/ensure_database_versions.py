@@ -60,7 +60,15 @@ def main() -> int:
         0 on success.
     """
     repo_root = Path(__file__).resolve().parents[1]
-    ensure_versions_file(repo_root / "cache" / "food_db" / "database_versions.json")
+    try:
+        ensure_versions_file(repo_root / "cache" / "food_db" / "database_versions.json")
+    except OSError:
+        # Let OSError and its subclasses propagate for callers/tests that expect it.
+        raise
+    except Exception as exc:
+        # Handle other unexpected exceptions without masking OS-level errors.
+        print(f"Error: {exc}")
+        return 1
     return 0
 
 

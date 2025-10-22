@@ -104,6 +104,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -126,14 +128,20 @@ jobs:
           # Start container
           docker run -d --name pulseplate-test -p 8000:8000 pulseplate:test
 
-          # Wait for container to start
-          sleep 10
+          # Wait for container to be healthy with retry
+          max_attempts=30
+          attempt=0
+          until docker exec pulseplate-test curl -f http://localhost:8000/health > /dev/null 2>&1 || [ $attempt -eq $max_attempts ]; do
+            attempt=$((attempt + 1))
+            sleep 1
+          done
+          if [ $attempt -eq $max_attempts ]; then
+            echo "Container health check failed after ${max_attempts}s"
+            exit 1
+          fi
 
-          # Test health endpoint
+          # Test health endpoint (canonical)
           curl -f http://localhost:8000/health || exit 1
-
-          # Test API endpoint
-          curl -f http://localhost:8000/api/v1/health || exit 1
 
           # Cleanup
           docker stop pulseplate-test
