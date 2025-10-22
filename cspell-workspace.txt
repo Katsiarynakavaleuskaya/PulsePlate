@@ -1000,6 +1000,8 @@
 изолированы
 изолировать
 изоляция
+иконки
+иконок
 имеет
 именем
 именно
@@ -4168,6 +4170,7 @@ jóvenes
 jspdf
 katch
 Katch
+katsiaryna
 katsiarynakavaleuskaya
 keyerror
 keyval
