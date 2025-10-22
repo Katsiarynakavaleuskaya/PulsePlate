@@ -15,7 +15,13 @@ echo "[2/4] Pull image $IMG_REF"
 export TAG="$IMG_REF"
 $COMPOSE pull app
 
-echo "[3/4] DB backup and migrations"
+echo "[3/4] Start stack and DB backup"
+# Start the stack first to ensure network exists
+$COMPOSE up -d app caddy
+
+# Wait for network to be ready
+sleep 5
+
 # Create database backup if it exists
 DB_PATH="/srv/pulseplate-staging/data/app.db"
 if [ -f "$DB_PATH" ]; then
@@ -31,11 +37,9 @@ else
   echo "No existing database found, skipping backup"
 fi
 
-# Run migrations
+echo "[4/4] Run migrations"
+# Run migrations with network now available
 docker run --rm --network=pulseplate-staging_web --env-file /srv/pulseplate-staging/.env ghcr.io/katsiarynakavaleuskaya/pulseplate:$TAG alembic upgrade head
-
-echo "[4/4] Restart stack"
-$COMPOSE up -d app caddy
 
 echo "[post] Smoke check with retry"
 max_attempts=30

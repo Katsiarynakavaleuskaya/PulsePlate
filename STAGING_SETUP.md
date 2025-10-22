@@ -144,8 +144,8 @@ sudo apt install -y unattended-upgrades
 # Configure automatic updates
 sudo dpkg-reconfigure -plow unattended-upgrades
 
-# Basic SSH hardening
-sudo tee -a /etc/ssh/sshd_config > /dev/null << 'EOF'
+# Basic SSH hardening (use double quotes for variable expansion)
+sudo tee -a /etc/ssh/sshd_config > /dev/null << EOF
 
 # Security hardening
 PermitRootLogin no
