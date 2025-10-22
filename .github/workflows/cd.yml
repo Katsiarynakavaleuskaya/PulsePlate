@@ -30,22 +30,63 @@ jobs:
         id: meta
         run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy to staging over SSH
-        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
-        with:
-          host: ${{ secrets.SSH_HOST_STAGING }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            set -euo pipefail
-            export GHCR_USER='${{ github.actor }}'
-            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
-            export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
-            cd /srv/pulseplate-staging
-            ./deploy.sh '${{ steps.meta.outputs.TAG }}'
+      - name: Deploy to staging with Ollama
+        run: |
+          echo "🚀 Deploying to staging with Ollama..."
 
-      - name: Verify health
-        run: curl -v --fail https://${{ secrets.STAGING_DOMAIN }}/health
+          # Pull the latest image
+          echo "${{ secrets.GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
+
+          # Stop existing container if running
+          docker stop pulseplate-staging || true
+          docker rm pulseplate-staging || true
+
+          # Run new container
+          docker run -d \
+            --name pulseplate-staging \
+            --restart unless-stopped \
+            -p 8000:8000 \
+            -e ENVIRONMENT=staging \
+            -e OLLAMA_HOST=http://host.docker.internal:11434 \
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
+
+          echo "✅ Staging deployment completed"
+
+      - name: Verify staging health
+        run: |
+          echo "🔍 Verifying staging health..."
+          sleep 10  # Wait for container to start
+
+          # Check if container is running
+          if docker ps | grep -q pulseplate-staging; then
+            echo "✅ Container is running"
+          else
+            echo "❌ Container failed to start"
+            docker logs pulseplate-staging
+            exit 1
+          fi
+
+          # Health check
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            echo "Health check attempt $attempt/$max_attempts..."
+
+            if curl -f http://localhost:8000/health >/dev/null 2>&1; then
+              echo "✅ Staging health check passed"
+              break
+            fi
+
+            if [ $attempt -eq $max_attempts ]; then
+              echo "❌ Staging health check failed after $max_attempts attempts"
+              docker logs pulseplate-staging
+              exit 1
+            fi
+
+            sleep 2
+          done
 
   production:
     runs-on: ubuntu-latest
@@ -76,51 +117,62 @@ jobs:
         id: meta
         run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for Docker image to be available
+      - name: Deploy to production with Ollama
         if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
-          # Authenticate to GHCR so we can pull the private image
-          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "🚀 Deploying to production with Ollama..."
 
-          # Wait for Docker image to be built and pushed
+          # Pull the latest image
+          echo "${{ secrets.GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
+
+          # Stop existing container if running
+          docker stop pulseplate-production || true
+          docker rm pulseplate-production || true
+
+          # Run new container
+          docker run -d \
+            --name pulseplate-production \
+            --restart unless-stopped \
+            -p 8001:8000 \
+            -e ENVIRONMENT=production \
+            -e OLLAMA_HOST=http://host.docker.internal:11434 \
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
+
+          echo "✅ Production deployment completed"
+
+      - name: Verify production health
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
+        run: |
+          echo "🔍 Verifying production health..."
+          sleep 10  # Wait for container to start
+
+          # Check if container is running
+          if docker ps | grep -q pulseplate-production; then
+            echo "✅ Container is running"
+          else
+            echo "❌ Container failed to start"
+            docker logs pulseplate-production
+            exit 1
+          fi
+
+          # Health check
           max_attempts=30
           attempt=0
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
-            echo "Checking for image availability (attempt $attempt/$max_attempts)..."
+            echo "Health check attempt $attempt/$max_attempts..."
 
-            # Try to pull the image (this will now succeed once built)
-            if docker pull ghcr.io/${{ github.repository }}:${{ github.sha }} >/dev/null 2>&1; then
-              echo "✅ Docker image is available"
+            if curl -f http://localhost:8001/health >/dev/null 2>&1; then
+              echo "✅ Production health check passed"
               break
             fi
 
             if [ $attempt -eq $max_attempts ]; then
-              echo "❌ Docker image not available after $max_attempts attempts"
+              echo "❌ Production health check failed after $max_attempts attempts"
+              docker logs pulseplate-production
               exit 1
             fi
 
-            echo "Image not ready, waiting 10 seconds..."
-            sleep 10
+            sleep 2
           done
-
-      - name: Deploy to production over SSH
-        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
-        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
-        with:
-          host: ${{ secrets.SSH_HOST_PRODUCTION }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            set -euo pipefail
-            export GHCR_USER='${{ github.actor }}'
-            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'   # PAT with read:packages
-            export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
-            cd /srv/pulseplate-production
-            ./deploy.sh '${{ steps.meta.outputs.TAG }}'
-
-      - name: Verify production health
-        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
-        run: curl -v --fail https://${{ secrets.PRODUCTION_DOMAIN }}/health

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  pulseplate-staging:
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:latest
+    container_name: pulseplate-staging
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=staging
+      - DATABASE_URL=sqlite:///app/data/pulseplate.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: pulseplate-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - pulseplate-staging
+    restart: unless-stopped
