@@ -1,5 +1,9 @@
-validate-data:
+validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
+
+.PHONY: ensure-database-versions
+ensure-database-versions:
+	python3 scripts/ensure_database_versions.py
 
 health-check:
 	python3 -m pytest -q tests/test_app_health_and_root.py
