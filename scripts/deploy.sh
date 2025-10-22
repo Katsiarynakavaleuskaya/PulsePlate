@@ -24,24 +24,27 @@ $COMPOSE up -d app caddy
 # Wait for network to be ready
 sleep 5
 
-# Create database backup if it exists
-DB_PATH="/srv/pulseplate-staging/data/app.db"
-if [ -f "$DB_PATH" ]; then
+# Create database backup if it exists in the running container
+if docker exec pulseplate-staging-app-1 test -f /app/cache/app.db 2>/dev/null; then
   timestamp=$(date +"%Y%m%d_%H%M%S")
-  backup_path="/srv/pulseplate-staging/data/app.db.backup-$timestamp"
+  backup_dir="/srv/pulseplate-staging/backups"
+  mkdir -p "$backup_dir"
+  backup_path="$backup_dir/app.db.backup-$timestamp"
   echo "Creating database backup: $backup_path"
-  cp "$DB_PATH" "$backup_path"
+  docker cp pulseplate-staging-app-1:/app/cache/app.db "$backup_path"
 
   # Remove old backups (keep last 5)
-  ls -t /srv/pulseplate-staging/data/app.db.backup-* 2>/dev/null | tail -n +6 | xargs -r rm -f
+  ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +6 | xargs -r rm -f
   echo "Database backup completed"
 else
   echo "No existing database found, skipping backup"
 fi
 
 echo "[4/4] Run migrations"
-# Run migrations with network now available
-docker run --rm --network=pulseplate-staging_web --env-file /srv/pulseplate-staging/.env ghcr.io/katsiarynakavaleuskaya/pulseplate:$TAG alembic upgrade head
+# Wait for app container to be ready
+sleep 5
+# Run migrations in the live app container
+docker exec pulseplate-staging-app-1 alembic upgrade head
 
 echo "[post] Smoke check with retry"
 max_attempts=30

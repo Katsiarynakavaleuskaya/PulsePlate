@@ -23,9 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve tag for main
+      - name: Resolve image tag
         id: meta
-        run: echo "TAG=latest" >> $GITHUB_OUTPUT
+        run: echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to staging over SSH
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
