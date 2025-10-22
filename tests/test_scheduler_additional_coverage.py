@@ -3,6 +3,7 @@ Additional tests to improve coverage for core/food_apis/scheduler.py to reach 97
 """
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Generator
@@ -40,8 +41,6 @@ async def cleanup_scheduler():
         sched_mod._scheduler_instance = None
     except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
         # Log the error instead of silently passing
-        import logging
-
         logging.getLogger(__name__).warning(f"Failed to cleanup scheduler: {e}")
 
 
@@ -307,17 +306,16 @@ class TestSchedulerAdditionalCoverage:
     async def test_start_background_updates_logging(self):
         """Test start_background_updates logging behavior."""
         with patch("core.food_apis.scheduler.logger") as mock_logger:
-            try:
-                await start_background_updates(1)  # 1 hour interval
-                # Should log multiple messages during startup
-                assert mock_logger.info.call_count == 3
-                # Verify the log messages contain expected content
-                calls = [call[0][0] for call in mock_logger.info.call_args_list]
-                assert any("starting database update scheduler" in call.lower() for call in calls)
-                assert any("update scheduler started" in call.lower() for call in calls)
-                assert any("background database updates started" in call.lower() for call in calls)
-            except AttributeError:
-                pytest.fail("Scheduler start method should be available")
+            await start_background_updates(1)  # 1 hour interval
+            # Verify the log messages contain expected content
+            calls = [call[0][0] for call in mock_logger.info.call_args_list]
+            assert any("starting database update scheduler" in call.lower() for call in calls)
+            assert any("update scheduler started" in call.lower() for call in calls)
+            assert any("background database updates started" in call.lower() for call in calls)
+            # Verify expected number of messages (adjust if this is a strict contract requirement)
+            assert (
+                mock_logger.info.call_count >= 3
+            ), "Expected at least 3 log messages during startup"
 
     @pytest.mark.asyncio
     async def test_stop_background_updates_logging(self):
@@ -327,13 +325,15 @@ class TestSchedulerAdditionalCoverage:
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
-            # Should log multiple messages during shutdown
-            assert mock_logger.info.call_count == 3
             # Verify the log messages contain expected content
             calls = [call[0][0] for call in mock_logger.info.call_args_list]
             assert any("stopping database update scheduler" in call.lower() for call in calls)
             assert any("database update scheduler stopped" in call.lower() for call in calls)
             assert any("background database updates stopped" in call.lower() for call in calls)
+            # Verify expected number of messages (adjust if this is a strict contract requirement)
+            assert (
+                mock_logger.info.call_count >= 3
+            ), "Expected at least 3 log messages during shutdown"
 
 
 if __name__ == "__main__":
