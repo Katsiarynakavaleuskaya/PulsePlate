@@ -27,7 +27,7 @@ docker-compose --env-file deploy/ollama-configs/cloud.env up
 
 | Variable | Local | Cloud | Description |
 |----------|-------|-------|-------------|
-| `OLLAMA_ENDPOINT` | `http://host.docker.internal:11434` | `https://api.ollama.ai/v1` | Ollama server URL |
+| `OLLAMA_ENDPOINT` | `http://host.docker.internal:11434` | `https://ollama.com` | Ollama server URL |
 | `OLLAMA_API_KEY` | Not needed | Required | API key for Ollama Cloud |
 | `OLLAMA_MODEL` | `llama3` | `llama3` | Model to use |
 | `ENVIRONMENT` | `staging` | `production` | Environment type |

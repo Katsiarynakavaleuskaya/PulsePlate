@@ -39,7 +39,7 @@ Our Smart AI Router automatically chooses the best provider based on query compl
 
 ```bash
 # Hybrid configuration
-OLLAMA_ENDPOINT=https://api.ollama.ai/v1
+OLLAMA_ENDPOINT=https://ollama.com
 OLLAMA_API_KEY=your_ollama_cloud_key
 OPENAI_API_KEY=your_openai_key
 AI_ROUTER_ENABLED=true
@@ -69,7 +69,7 @@ AI_ROUTER_ENABLED=true
 
 ```bash
 # Production configuration
-OLLAMA_ENDPOINT=https://api.ollama.ai/v1
+OLLAMA_ENDPOINT=https://ollama.com
 OLLAMA_API_KEY=your_api_key_here
 ```
 

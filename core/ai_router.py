@@ -259,7 +259,7 @@ class AIRouter:
         ]
 
         response = await client.chat.completions.create(
-            model=self.openai_model, messages=messages, temperature=0.7, max_tokens=self.max_tokens
+            model=self.openai_model, messages=messages, temperature=0.7, max_tokens=self.max_tokens  # type: ignore
         )
 
         usage = response.usage
@@ -298,7 +298,7 @@ class AIRouter:
 
         return base_prompt
 
-    def _calculate_openai_cost(self, usage) -> float:
+    def _calculate_openai_cost(self, usage: Any) -> float:
         """
         Calculate OpenAI API cost based on usage
         """
@@ -312,7 +312,7 @@ class AIRouter:
         input_cost = (usage.prompt_tokens / 1000) * input_cost_per_1k
         output_cost = (usage.completion_tokens / 1000) * output_cost_per_1k
 
-        return input_cost + output_cost
+        return float(input_cost + output_cost)
 
 
 # Global router instance

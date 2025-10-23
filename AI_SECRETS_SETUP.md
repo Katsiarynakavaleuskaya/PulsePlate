@@ -129,7 +129,7 @@ The system uses these environment variables:
 
 ```bash
 # Ollama Configuration
-OLLAMA_ENDPOINT=https://api.ollama.ai/v1  # or http://localhost:11434
+OLLAMA_ENDPOINT=https://ollama.com  # or http://localhost:11434
 OLLAMA_API_KEY=your_ollama_cloud_key
 OLLAMA_MODEL=llama3
 

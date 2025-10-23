@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.ai_router import ai_router
+from core.ai_router import ai_router, AIProvider
 
 
 async def test_ai_routing() -> None:
@@ -47,11 +47,15 @@ async def test_ai_routing() -> None:
 
         try:
             # Analyze complexity
-            complexity = ai_router.analyze_complexity(test_case["message"], test_case["context"])
+            message = str(test_case["message"])
+            context: dict[str, Any] = dict(test_case["context"])  # Convert to dict for mypy
+            user_tier = str(test_case["user_tier"])
+
+            complexity = ai_router.analyze_complexity(message, context)
             print(f"📊 Complexity: {complexity.value}")
 
             # Choose provider
-            provider = ai_router.choose_provider(complexity, test_case["user_tier"])
+            provider = ai_router.choose_provider(complexity, user_tier)
             print(f"🎯 Provider: {provider.value}")
 
             # Estimate cost
@@ -60,7 +64,7 @@ async def test_ai_routing() -> None:
                 print(f"💰 Cost: ${cost} (free)")
             else:
                 # Rough estimate
-                tokens = len(test_case["message"].split()) * 1.3
+                tokens = len(message.split()) * 1.3
                 cost = (tokens / 1000) * 0.0006
                 print(f"💰 Cost: ${cost:.6f} (estimated)")
 

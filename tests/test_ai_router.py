@@ -53,7 +53,7 @@ class TestRequestComplexity:
     def test_analyze_complexity_with_context(self, ai_router: AIRouter) -> None:
         """Test complexity analysis with context"""
         # Complex context
-        context = {"user_conditions": ["diabetes"], "allergies": ["nuts"]}
+        context: dict[str, Any] = {"user_conditions": ["diabetes"], "allergies": ["nuts"]}
         complexity = ai_router.analyze_complexity("Simple question", context)
         assert complexity == RequestComplexity.COMPLEX
 
@@ -263,7 +263,7 @@ class TestSystemPrompt:
 
     def test_build_system_prompt_basic(self, ai_router: AIRouter) -> None:
         """Test basic system prompt"""
-        context = {}
+        context: dict[str, Any] = {}
         prompt = ai_router._build_system_prompt(context)
 
         assert "nutrition and health AI assistant" in prompt
@@ -279,7 +279,7 @@ class TestSystemPrompt:
 
     def test_build_system_prompt_medical_disclaimer(self, ai_router: AIRouter) -> None:
         """Test that medical disclaimer is included"""
-        context = {}
+        context: dict[str, Any] = {}
         prompt = ai_router._build_system_prompt(context)
 
         assert "medical diagnosis" in prompt.lower()
