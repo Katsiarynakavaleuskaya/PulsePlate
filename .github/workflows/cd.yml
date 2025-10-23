@@ -15,16 +15,23 @@ permissions:
   deployments: write
 
 jobs:
-  staging:
+  smoke-test:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: staging
     concurrency:
-      group: cd-staging-${{ github.ref }}
+      group: cd-smoke-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+
+      - name: ⚠️ Smoke Test Warning
+        run: |
+          echo "⚠️  WARNING: This is a SMOKE TEST only!"
+          echo "Containers run on ephemeral GitHub Actions runners and will be destroyed after completion."
+          echo "This is NOT a persistent staging deployment."
+          echo "For real staging deployment, use self-hosted runners or SSH deployment to a persistent server."
 
       - name: Resolve image tag
         id: meta
@@ -60,8 +67,12 @@ jobs:
           done
 
           # Stop existing container if running
-          docker stop pulseplate-staging || true
-          docker rm pulseplate-staging || true
+          if ! docker stop pulseplate-staging 2>/dev/null; then
+            echo "::warning::Failed to stop pulseplate-staging container (may not exist)"
+          fi
+          if ! docker rm pulseplate-staging 2>/dev/null; then
+            echo "::warning::Failed to remove pulseplate-staging container (may not exist)"
+          fi
 
           # Run new container
           docker run -d \
@@ -84,23 +95,13 @@ jobs:
         run: |
           echo "🔍 Verifying staging health..."
 
-          # Wait for container to be running (poll up to 30s)
-          max_wait_attempts=30
-          wait_attempt=0
-          while [ $wait_attempt -lt $max_wait_attempts ]; do
-            if docker ps | grep -q pulseplate-staging; then
-              echo "✅ Container is running"
-              break
-            fi
-            wait_attempt=$((wait_attempt + 1))
-            sleep 1
-          done
-
-          if ! docker ps | grep -q pulseplate-staging; then
-            echo "❌ Container failed to start after waiting"
+          # Wait for container to be running (with timeout)
+          timeout 30 sh -c 'until docker ps | grep -q pulseplate-staging; do sleep 1; done' || {
+            echo "❌ Container failed to start after 30 seconds"
             docker logs pulseplate-staging
             exit 1
-          fi
+          }
+          echo "✅ Container is running"
 
           # Health check
           max_attempts=30
@@ -123,16 +124,23 @@ jobs:
             sleep 2
           done
 
-  production:
+  production-smoke-test:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' || startsWith(github.ref, 'refs/tags/v') }}
     environment:
       name: production
     concurrency:
-      group: cd-production-${{ github.ref }}
+      group: cd-production-smoke-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+
+      - name: ⚠️ Production Smoke Test Warning
+        run: |
+          echo "⚠️  WARNING: This is a PRODUCTION SMOKE TEST only!"
+          echo "Containers run on ephemeral GitHub Actions runners and will be destroyed after completion."
+          echo "This is NOT a persistent production deployment."
+          echo "For real production deployment, use self-hosted runners or SSH deployment to a persistent server."
 
       - name: Check if this is a tag build
         id: check-tag
@@ -183,8 +191,12 @@ jobs:
           done
 
           # Stop existing container if running
-          docker stop pulseplate-production || true
-          docker rm pulseplate-production || true
+          if ! docker stop pulseplate-production 2>/dev/null; then
+            echo "::warning::Failed to stop pulseplate-production container (may not exist)"
+          fi
+          if ! docker rm pulseplate-production 2>/dev/null; then
+            echo "::warning::Failed to remove pulseplate-production container (may not exist)"
+          fi
 
           # Run new container
           docker run -d \
@@ -192,7 +204,7 @@ jobs:
             --restart unless-stopped \
             -p 8001:8000 \
             -e ENVIRONMENT=production \
-            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-https://api.ollama.ai/v1} \
+            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-https://ollama.com} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
             -e AI_ROUTER_ENABLED=true \
@@ -208,23 +220,13 @@ jobs:
         run: |
           echo "🔍 Verifying production health..."
 
-          # Wait for container to be running (poll up to 30s)
-          max_wait_attempts=30
-          wait_attempt=0
-          while [ $wait_attempt -lt $max_wait_attempts ]; do
-            if docker ps | grep -q pulseplate-production; then
-              echo "✅ Container is running"
-              break
-            fi
-            wait_attempt=$((wait_attempt + 1))
-            sleep 1
-          done
-
-          if ! docker ps | grep -q pulseplate-production; then
-            echo "❌ Container failed to start after waiting"
+          # Wait for container to be running (with timeout)
+          timeout 30 sh -c 'until docker ps | grep -q pulseplate-production; do sleep 1; done' || {
+            echo "❌ Container failed to start after 30 seconds"
             docker logs pulseplate-production
             exit 1
-          fi
+          }
+          echo "✅ Container is running"
 
           # Health check
           max_attempts=30

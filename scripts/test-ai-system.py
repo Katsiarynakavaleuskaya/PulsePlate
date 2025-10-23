@@ -47,24 +47,20 @@ async def test_ai_routing() -> None:
 
         try:
             # Analyze complexity
-            message_str = str(test_case["message"])
-            context_dict = dict(test_case["context"])
-            complexity = ai_router.analyze_complexity(message_str, context_dict)
+            complexity = ai_router.analyze_complexity(test_case["message"], test_case["context"])
             print(f"📊 Complexity: {complexity.value}")
 
             # Choose provider
-            user_tier_str = str(test_case["user_tier"])
-            provider = ai_router.choose_provider(complexity, user_tier_str)
+            provider = ai_router.choose_provider(complexity, test_case["user_tier"])
             print(f"🎯 Provider: {provider.value}")
 
             # Estimate cost
-            if provider.value == "ollama":
+            if provider == AIProvider.OLLAMA:
                 cost = 0.0
                 print(f"💰 Cost: ${cost} (free)")
             else:
                 # Rough estimate
-                message_str = str(test_case["message"])
-                tokens = len(message_str.split()) * 1.3
+                tokens = len(test_case["message"].split()) * 1.3
                 cost = (tokens / 1000) * 0.0006
                 print(f"💰 Cost: ${cost:.6f} (estimated)")
 

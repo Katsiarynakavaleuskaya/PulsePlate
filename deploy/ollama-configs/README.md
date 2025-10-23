@@ -10,12 +10,14 @@ This directory contains configuration files for different Ollama deployment scen
 ## Usage
 
 ### Local Development
+
 ```bash
 # Use local.env for development
 docker-compose --env-file deploy/ollama-configs/local.env up
 ```
 
 ### Production with Ollama Cloud
+
 ```bash
 # Use cloud.env for production
 docker-compose --env-file deploy/ollama-configs/cloud.env up
@@ -33,12 +35,14 @@ docker-compose --env-file deploy/ollama-configs/cloud.env up
 ## Cost Comparison
 
 ### Local Ollama
+
 - ✅ **Free** (after initial setup)
 - ❌ Requires GPU/server
 - ❌ Manual updates
 - ❌ No scaling
 
 ### Ollama Cloud
+
 - 💰 **Pro tier: $20/month** — usage-based metered pricing coming soon
 - ✅ No server management
 - ✅ Automatic scaling

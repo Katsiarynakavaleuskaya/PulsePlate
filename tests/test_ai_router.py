@@ -5,18 +5,19 @@ Tests for AI Router
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 import os
+from typing import Any, Generator
 
 from core.ai_router import AIRouter, RequestComplexity, AIProvider
 
 
 @pytest.fixture
-def ai_router():
+def ai_router() -> AIRouter:
     """Create AI router instance"""
     return AIRouter()
 
 
 @pytest.fixture
-def mock_env_vars():
+def mock_env_vars() -> Generator[None, None, None]:
     """Mock environment variables"""
     with patch.dict(
         os.environ,
@@ -34,22 +35,22 @@ def mock_env_vars():
 class TestRequestComplexity:
     """Test request complexity analysis"""
 
-    def test_analyze_complexity_simple(self, ai_router):
+    def test_analyze_complexity_simple(self, ai_router: AIRouter) -> None:
         """Test simple request complexity"""
         complexity = ai_router.analyze_complexity("What is protein?", {})
         assert complexity == RequestComplexity.SIMPLE
 
-    def test_analyze_complexity_medium(self, ai_router):
+    def test_analyze_complexity_medium(self, ai_router: AIRouter) -> None:
         """Test medium request complexity"""
         complexity = ai_router.analyze_complexity("Create a meal plan", {})
         assert complexity == RequestComplexity.MEDIUM
 
-    def test_analyze_complexity_complex(self, ai_router):
+    def test_analyze_complexity_complex(self, ai_router: AIRouter) -> None:
         """Test complex request complexity"""
         complexity = ai_router.analyze_complexity("Analyze my medical condition", {})
         assert complexity == RequestComplexity.COMPLEX
 
-    def test_analyze_complexity_with_context(self, ai_router):
+    def test_analyze_complexity_with_context(self, ai_router: AIRouter) -> None:
         """Test complexity analysis with context"""
         # Complex context
         context = {"user_conditions": ["diabetes"], "allergies": ["nuts"]}
@@ -61,7 +62,7 @@ class TestRequestComplexity:
         complexity = ai_router.analyze_complexity("Simple question", context)
         assert complexity == RequestComplexity.MEDIUM
 
-    def test_analyze_complexity_priority(self, ai_router):
+    def test_analyze_complexity_priority(self, ai_router: AIRouter) -> None:
         """Test that COMPLEX keywords take priority over MEDIUM"""
         # Message with both complex and medium keywords
         message = "Analyze my medical condition and create a meal plan"
@@ -72,7 +73,7 @@ class TestRequestComplexity:
 class TestProviderSelection:
     """Test provider selection logic"""
 
-    def test_choose_provider_free_tier(self, ai_router):
+    def test_choose_provider_free_tier(self, ai_router: AIRouter) -> None:
         """Test provider selection for free tier"""
         # Simple request should use Ollama
         provider = ai_router.choose_provider(RequestComplexity.SIMPLE, "free")
@@ -82,11 +83,11 @@ class TestProviderSelection:
         provider = ai_router.choose_provider(RequestComplexity.MEDIUM, "free")
         assert provider == AIProvider.OLLAMA
 
-        # Complex request should use OpenAI
+        # Complex request should use Ollama (free users limited to Ollama)
         provider = ai_router.choose_provider(RequestComplexity.COMPLEX, "free")
-        assert provider == AIProvider.OPENAI
+        assert provider == AIProvider.OLLAMA
 
-    def test_choose_provider_premium_tier(self, ai_router):
+    def test_choose_provider_premium_tier(self, ai_router: AIRouter) -> None:
         """Test provider selection for premium tier"""
         # All requests should use OpenAI for premium
         for complexity in [
@@ -102,7 +103,9 @@ class TestRouteRequest:
     """Test request routing"""
 
     @pytest.mark.asyncio
-    async def test_route_request_auto_routing(self, ai_router, mock_env_vars):
+    async def test_route_request_auto_routing(
+        self, ai_router: AIRouter, mock_env_vars: Any
+    ) -> None:
         """Test automatic routing"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
             mock_ollama.return_value = {
@@ -121,7 +124,9 @@ class TestRouteRequest:
             mock_ollama.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_route_request_forced_provider(self, ai_router, mock_env_vars):
+    async def test_route_request_forced_provider(
+        self, ai_router: AIRouter, mock_env_vars: Any
+    ) -> None:
         """Test forced provider routing"""
         with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
             mock_openai.return_value = {
@@ -140,43 +145,40 @@ class TestRouteRequest:
             mock_openai.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_route_request_invalid_provider(self, ai_router):
+    async def test_route_request_invalid_provider(self, ai_router: AIRouter) -> None:
         """Test invalid provider handling"""
         with pytest.raises(ValueError, match="Invalid provider"):
             await ai_router.route_request("Test message", {}, "free", "invalid")
 
     @pytest.mark.asyncio
-    async def test_route_request_fallback(self, ai_router, mock_env_vars):
+    async def test_route_request_fallback(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
         """Test fallback mechanism"""
-        # Mock the complexity analysis to return COMPLEX so it chooses OpenAI first
-        with patch.object(ai_router, "analyze_complexity") as mock_analyze:
-            mock_analyze.return_value = RequestComplexity.COMPLEX
+        # Use premium user so it chooses OpenAI first
+        with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
+            # First call fails
+            mock_openai.side_effect = Exception("OpenAI error")
 
-            with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
-                # First call fails
-                mock_openai.side_effect = Exception("OpenAI error")
+            with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
+                mock_ollama.return_value = {
+                    "response": "Fallback response",
+                    "provider": "ollama",
+                    "model": "llama3",
+                    "cost": 0.0,
+                    "tokens_used": 10,
+                    "fallback_used": False,
+                }
 
-                with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
-                    mock_ollama.return_value = {
-                        "response": "Fallback response",
-                        "provider": "ollama",
-                        "model": "llama3",
-                        "cost": 0.0,
-                        "tokens_used": 10,
-                        "fallback_used": False,
-                    }
+                result = await ai_router.route_request("Complex query", {}, "premium")
 
-                    result = await ai_router.route_request("Complex query", {}, "free")
-
-                    assert result["provider"] == "ollama"
-                    assert result["fallback_used"] is True
+                assert result["provider"] == "ollama"
+                assert result["fallback_used"] is True
 
 
 class TestOllamaCall:
     """Test Ollama API calls"""
 
     @pytest.mark.asyncio
-    async def test_call_ollama_success(self, ai_router, mock_env_vars):
+    async def test_call_ollama_success(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
         """Test successful Ollama call"""
         mock_response = MagicMock()
         mock_response.json.return_value = {"response": "Ollama response", "eval_count": 15}
@@ -194,7 +196,7 @@ class TestOllamaCall:
             assert result["fallback_used"] is False
 
     @pytest.mark.asyncio
-    async def test_call_ollama_error(self, ai_router, mock_env_vars):
+    async def test_call_ollama_error(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
         """Test Ollama call error handling"""
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post.side_effect = Exception(
@@ -209,7 +211,7 @@ class TestOpenAICall:
     """Test OpenAI API calls"""
 
     @pytest.mark.asyncio
-    async def test_call_openai_success(self, ai_router, mock_env_vars):
+    async def test_call_openai_success(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
         """Test successful OpenAI call"""
         mock_usage = MagicMock()
         mock_usage.total_tokens = 100
@@ -235,7 +237,7 @@ class TestOpenAICall:
             assert result["fallback_used"] is False
 
     @pytest.mark.asyncio
-    async def test_call_openai_error(self, ai_router, mock_env_vars):
+    async def test_call_openai_error(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
         """Test OpenAI call error handling"""
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = mock_openai.return_value
@@ -248,7 +250,7 @@ class TestOpenAICall:
 class TestSystemPrompt:
     """Test system prompt building"""
 
-    def test_build_system_prompt_basic(self, ai_router):
+    def test_build_system_prompt_basic(self, ai_router: AIRouter) -> None:
         """Test basic system prompt"""
         context = {}
         prompt = ai_router._build_system_prompt(context)
@@ -256,7 +258,7 @@ class TestSystemPrompt:
         assert "nutrition and health AI assistant" in prompt
         assert "PulsePlate" in prompt
 
-    def test_build_system_prompt_with_context(self, ai_router):
+    def test_build_system_prompt_with_context(self, ai_router: AIRouter) -> None:
         """Test system prompt with context"""
         context = {"diet_goals": ["weight_loss", "muscle_gain"], "user_conditions": ["diabetes"]}
         prompt = ai_router._build_system_prompt(context)
@@ -264,7 +266,7 @@ class TestSystemPrompt:
         assert "weight_loss" in prompt
         assert "muscle_gain" in prompt
 
-    def test_build_system_prompt_medical_disclaimer(self, ai_router):
+    def test_build_system_prompt_medical_disclaimer(self, ai_router: AIRouter) -> None:
         """Test that medical disclaimer is included"""
         context = {}
         prompt = ai_router._build_system_prompt(context)
@@ -276,7 +278,7 @@ class TestSystemPrompt:
 class TestCostCalculation:
     """Test cost calculation"""
 
-    def test_calculate_openai_cost(self, ai_router):
+    def test_calculate_openai_cost(self, ai_router: AIRouter) -> None:
         """Test OpenAI cost calculation"""
         mock_usage = MagicMock()
         mock_usage.prompt_tokens = 1000
@@ -284,16 +286,16 @@ class TestCostCalculation:
 
         cost = ai_router._calculate_openai_cost(mock_usage)
 
-        # Expected: (1000/1000) * 0.00015 + (500/1000) * 0.0006 = 0.00015 + 0.0003 = 0.00045
-        expected_cost = (1000 / 1000) * 0.00015 + (500 / 1000) * 0.0006
+        # Expected: (1000/1000) * 0.0006 + (500/1000) * 0.0024 = 0.0006 + 0.0012 = 0.0018
+        expected_cost = (1000 / 1000) * 0.0006 + (500 / 1000) * 0.0024
         assert abs(cost - expected_cost) < 0.0001
 
-    def test_calculate_openai_cost_none_usage(self, ai_router):
+    def test_calculate_openai_cost_none_usage(self, ai_router: AIRouter) -> None:
         """Test cost calculation with None usage"""
         cost = ai_router._calculate_openai_cost(None)
         assert cost == 0.0
 
-    def test_calculate_openai_cost_zero_tokens(self, ai_router):
+    def test_calculate_openai_cost_zero_tokens(self, ai_router: AIRouter) -> None:
         """Test cost calculation with zero tokens"""
         mock_usage = MagicMock()
         mock_usage.prompt_tokens = 0
@@ -306,7 +308,7 @@ class TestCostCalculation:
 class TestEnvironmentConfiguration:
     """Test environment variable configuration"""
 
-    def test_environment_variables_loaded(self, mock_env_vars):
+    def test_environment_variables_loaded(self, mock_env_vars: Any) -> None:
         """Test that environment variables are properly loaded"""
         router = AIRouter()
 
@@ -315,7 +317,7 @@ class TestEnvironmentConfiguration:
         assert router.openai_api_key == "test_openai_key"
         assert router.openai_model == "gpt-4o-mini"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default values when environment variables are not set"""
         with patch.dict(os.environ, {}, clear=True):
             router = AIRouter()

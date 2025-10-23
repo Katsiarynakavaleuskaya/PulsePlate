@@ -518,6 +518,7 @@
 Гериатр
 гериатрами
 Гериатры
+гибридной
 гидратации
 гидратация
 гинеколог
@@ -2465,6 +2466,7 @@
 поясами
 поясничные
 Права
+правами
 правил
 правила
 Правила
@@ -2609,6 +2611,7 @@
 Прогресса
 прогулку
 продакшена
+продакшн
 продвинутые
 Продвинутые
 Продвинутый
@@ -4027,6 +4030,7 @@ classmethod
 claude
 cloudflared
 Cobalamin
+CODECOVE
 codellama
 codepoint
 completa
@@ -4084,6 +4088,7 @@ embaraz
 Embarazada
 embarazo
 Embarazo
+émojis
 enfócate
 ensalada
 equilibrada
@@ -4332,6 +4337,7 @@ PEFT
 Pepino
 perder
 pérdida
+permissioned
 PESC
 pgrep
 phytonutrient
@@ -4401,6 +4407,7 @@ pywin
 qualname
 queso
 quickcheck
+qwen
 randint
 Rango
 recipedb
@@ -4461,6 +4468,7 @@ sobreestimar
 Sobrepeso
 sourcery
 spanish
+spëcial
 splitlines
 sqlalchemy
 sqlite
@@ -4489,6 +4497,7 @@ testtarget
 TEXTCOLOR
 Tienes
 timedelta
+TOCKEN
 Tomate
 TOPPADDING
 touchpoints
@@ -4504,6 +4513,7 @@ unicode
 unicodedata
 unstub
 urllib
+urlparse
 Usando
 usda
 usefixtures

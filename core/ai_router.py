@@ -6,6 +6,8 @@ import os
 from typing import Dict, Any, Optional
 from enum import Enum
 import logging
+import httpx
+import openai
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +36,30 @@ class AIRouter:
         self.ollama_api_key = os.getenv("OLLAMA_API_KEY")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
+        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
 
-        # Cost thresholds (requests per month)
-        self.ollama_free_limit = 1000
-        self.openai_budget_limit = 10000
+        # Validate required environment variables (only in production)
+        # Skip validation during testing or when environment variables are not set
+        if os.getenv("ENVIRONMENT") == "production":
+            if not self.openai_api_key:
+                raise ValueError("OPENAI_API_KEY environment variable is required")
+            if not self.ollama_api_key:
+                raise ValueError("OLLAMA_API_KEY environment variable is required")
+
+        # Validate OLLAMA_ENDPOINT URL
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(self.ollama_endpoint)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}")
+        except Exception as e:
+            raise ValueError(f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}") from e
+
+        # Note: Rate limiting not implemented yet
+        # Future: self.ollama_free_limit = int(os.getenv("OLLAMA_FREE_LIMIT", "1000"))
+        # Future: self.openai_budget_limit = int(os.getenv("OPENAI_BUDGET_LIMIT", "10000"))
 
         # Quality thresholds
         self.complexity_keywords = {
@@ -110,13 +132,11 @@ class AIRouter:
         if user_tier == "premium":
             return AIProvider.OPENAI
 
-        # Free users: Ollama for simple/medium, OpenAI for complex (with limits)
+        # Free users: Ollama for simple/medium, OpenAI for complex queries
+        # TODO: Implement proper rate limiting with Redis/memory store
+        # For now, free users are limited to Ollama only
         if user_tier == "free":
-            if complexity in [RequestComplexity.SIMPLE, RequestComplexity.MEDIUM]:
-                return AIProvider.OLLAMA
-            else:
-                # Use OpenAI for complex but with rate limiting
-                return AIProvider.OPENAI
+            return AIProvider.OLLAMA
 
         # Default: Ollama for simple, OpenAI for medium/complex
         if complexity == RequestComplexity.SIMPLE:
@@ -155,38 +175,52 @@ class AIRouter:
                 return await self._call_ollama(prompt, context)
             else:
                 return await self._call_openai(prompt, context)
-        except Exception as e:
-            logger.error(f"Error with {chosen_provider.value}: {e}")
+        except (httpx.HTTPError, openai.APIError, Exception) as e:
+            logger.exception(f"Error with {chosen_provider.value}, attempting fallback")
             # Fallback to other provider
             fallback_provider = (
                 AIProvider.OPENAI if chosen_provider == AIProvider.OLLAMA else AIProvider.OLLAMA
             )
             logger.info(f"Falling back to {fallback_provider.value}")
 
-            if fallback_provider == AIProvider.OLLAMA:
-                result = await self._call_ollama(prompt, context)
-                result["fallback_used"] = True
-                return result
-            else:
-                result = await self._call_openai(prompt, context)
-                result["fallback_used"] = True
-                return result
+            try:
+                if fallback_provider == AIProvider.OLLAMA:
+                    result = await self._call_ollama(prompt, context)
+                    result["fallback_used"] = True
+                    return result
+                else:
+                    result = await self._call_openai(prompt, context)
+                    result["fallback_used"] = True
+                    return result
+            except Exception as fallback_error:
+                logger.error(f"Fallback to {fallback_provider.value} also failed: {fallback_error}")
+                # Return error structure instead of re-raising
+                return {
+                    "response": f"Both AI providers failed. Original error: {e}, Fallback error: {fallback_error}",
+                    "provider": fallback_provider.value,
+                    "model": "error",
+                    "cost": 0.0,
+                    "tokens_used": 0,
+                    "fallback_used": True,
+                    "error": True,
+                }
 
     async def _call_ollama(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Call Ollama API
         """
-        import httpx
 
         # Prepare context for Ollama
         system_prompt = self._build_system_prompt(context)
         full_prompt = f"{system_prompt}\n\nUser: {prompt}"
 
-        async with httpx.AsyncClient() as client:
+        # Configure timeout for connection and requests
+        timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT", "30"))
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(
                 f"{self.ollama_endpoint}/api/generate",
                 json={
-                    "model": "llama3",
+                    "model": self.ollama_model,
                     "prompt": full_prompt,
                     "stream": False,
                     "options": {"temperature": 0.7, "top_p": 0.9},
@@ -214,9 +248,10 @@ class AIRouter:
         """
         Call OpenAI API
         """
-        import openai
 
-        client = openai.AsyncOpenAI(api_key=self.openai_api_key)
+        # Configure timeout (configurable via environment)
+        timeout_seconds = int(os.getenv("OPENAI_TIMEOUT", "30"))
+        client = openai.AsyncOpenAI(api_key=self.openai_api_key, timeout=timeout_seconds)
 
         # Prepare messages
         messages = [
@@ -225,7 +260,7 @@ class AIRouter:
         ]
 
         response = await client.chat.completions.create(
-            model=self.openai_model, messages=messages, temperature=0.7, max_tokens=1000
+            model=self.openai_model, messages=messages, temperature=0.7, max_tokens=self.max_tokens
         )
 
         usage = response.usage
@@ -272,8 +307,8 @@ class AIRouter:
             return 0.0
 
         # GPT-4o-mini pricing (as of 2025)
-        input_cost_per_1k = 0.00015
-        output_cost_per_1k = 0.0006
+        input_cost_per_1k = 0.0006
+        output_cost_per_1k = 0.0024
 
         input_cost = (usage.prompt_tokens / 1000) * input_cost_per_1k
         output_cost = (usage.completion_tokens / 1000) * output_cost_per_1k

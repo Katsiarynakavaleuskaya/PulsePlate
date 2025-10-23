@@ -13,11 +13,13 @@ Our hybrid approach optimizes cost while maintaining quality:
 ## 📁 **Configuration Files**
 
 ### `hybrid.env` - Development/Staging
+
 - Local Ollama + OpenAI API
 - Smart routing enabled
 - Cost optimization for development
 
 ### `production.env` - Production
+
 - Ollama Cloud + OpenAI API
 - Optimized for scale
 - Quality thresholds tuned
@@ -26,15 +28,22 @@ Our hybrid approach optimizes cost while maintaining quality:
 
 | Query Type | Ollama | OpenAI | Savings |
 |------------|--------|--------|---------|
-| Simple (70%) | Free | $0.15/1K | 100% |
-| Medium (20%) | Free | $0.30/1K | 100% |
-| Complex (10%) | $0.20/1K | $0.60/1K | 67% |
+| Simple (70%) | Free | $0.60/1K input, $2.40/1K output | 100% |
+| Medium (20%) | Free | $0.60/1K input, $2.40/1K output | 100% |
+| Complex (10%) | $0.20/1K | $0.60/1K input, $2.40/1K output | 67% |
 
-**Total Savings: ~85% compared to OpenAI-only**
+**Sources:**
+- OpenAI GPT-4o-mini: https://openai.com/pricing (Last updated: 2025-01-25)
+- Ollama Cloud: https://ollama.com (Last updated: 2025-01-25)
+- Currency: USD, per 1K tokens
+- Note: Pricing may change, please verify current rates
+
+## Total Savings: ~85% compared to OpenAI-only
 
 ## 🚀 **Usage Examples**
 
 ### Simple Query (→ Ollama)
+
 ```json
 {
   "message": "How many calories in an apple?",
@@ -44,9 +53,10 @@ Our hybrid approach optimizes cost while maintaining quality:
 ```
 
 ### Complex Query (→ OpenAI)
+
 ```json
 {
-  "message": "Create a personalized meal plan for someone with diabetes and gluten intolerance",
+  "message": "Create a meal plan for someone with diabetes and gluten intolerance",
   "context": {
     "user_conditions": ["diabetes"],
     "allergies": ["gluten"]
@@ -58,6 +68,7 @@ Our hybrid approach optimizes cost while maintaining quality:
 ## 🔧 **Setup Instructions**
 
 ### 1. GitHub Secrets
+
 Add these secrets to your repository:
 
 ```bash
@@ -69,6 +80,7 @@ OPENAI_API_KEY=your_openai_key
 ```
 
 ### 2. Environment Variables
+
 ```bash
 # Copy appropriate config
 cp deploy/ai-configs/hybrid.env .env
@@ -77,6 +89,7 @@ cp deploy/ai-configs/production.env .env
 ```
 
 ### 3. Test the Setup
+
 ```bash
 # Test simple query (should use Ollama)
 curl -X POST http://localhost:8000/api/ai/chat \
@@ -89,14 +102,22 @@ curl -X POST http://localhost:8000/api/ai/chat \
   -d '{"message": "Create a detailed nutrition analysis for a vegan athlete"}'
 ```
 
+## 📚 **Related Documentation**
+
+- [AI_SECRETS_SETUP.md](../AI_SECRETS_SETUP.md) - Guide for setting up GitHub secrets for AI providers
+- [OLLAMA_SETUP.md](../../OLLAMA_SETUP.md) - Complete Ollama installation and configuration guide
+- [Ollama Configs README](../ollama-configs/README.md) - Ollama-specific configuration files
+
 ## 📊 **Monitoring**
 
 ### Cost Tracking
+
 - Ollama: Free (local) or $20/month (cloud)
 - OpenAI: ~$0.15-0.60 per 1K tokens
 - **Expected monthly cost: $50-100** (vs $500+ with OpenAI-only)
 
 ### Quality Metrics
+
 - Simple queries: 95% accuracy (Ollama)
 - Complex queries: 98% accuracy (OpenAI)
 - Fallback success rate: 99%

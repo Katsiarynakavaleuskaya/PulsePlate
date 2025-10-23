@@ -53,13 +53,13 @@ async def chat_with_ai(request: ChatRequest):
     Chat with AI using smart routing between Ollama and OpenAI
     """
     try:
+        # Analyze complexity first
+        complexity = ai_router.analyze_complexity(request.message, request.context)
+
         # Use smart routing with optional provider override
         result = await ai_router.route_request(
             request.message, request.context, request.user_tier, request.force_provider
         )
-
-        # Analyze complexity for response
-        complexity = ai_router.analyze_complexity(request.message, request.context)
 
         return ChatResponse(
             response=result["response"],
@@ -89,16 +89,18 @@ async def analyze_nutrition(request: NutritionAnalysisRequest):
 
         # Determine complexity based on analysis type
         if request.analysis_type == "comprehensive":
-            request.user_profile["analysis_type"] = "comprehensive"
+            user_profile = {**request.user_profile, "analysis_type": "comprehensive"}
             complexity = RequestComplexity.COMPLEX
         elif request.analysis_type == "detailed":
+            user_profile = request.user_profile
             complexity = RequestComplexity.MEDIUM
         else:
+            user_profile = request.user_profile
             complexity = RequestComplexity.SIMPLE
 
         # Route request
         result = await ai_router.route_request(
-            prompt, request.user_profile, request.user_profile.get("tier", "free")
+            prompt, user_profile, user_profile.get("tier", "free")
         )
 
         return ChatResponse(
@@ -108,7 +110,7 @@ async def analyze_nutrition(request: NutritionAnalysisRequest):
             cost=result["cost"],
             tokens_used=result["tokens_used"],
             complexity=complexity.value,
-            fallback_used=False,
+            fallback_used=result.get("fallback_used", False),
         )
 
     except Exception as e:
@@ -170,6 +172,8 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
             }
         else:
             # Rough estimate for OpenAI
+            # Note: estimated_tokens = len(message.split()) * 1.3 is a rough approximation
+            # Actual token counts/costs may vary by tokenizer/model
             estimated_tokens = len(message.split()) * 1.3  # Rough token estimation
             estimated_cost = (estimated_tokens / 1000) * 0.0006  # Output cost
 
@@ -178,6 +182,7 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
                 "estimated_cost": round(estimated_cost, 6),
                 "estimated_tokens": int(estimated_tokens),
                 "complexity": complexity_value,
+                "estimated_cost_note": "Cost is an estimate and may differ from final billed amount",
             }
 
     except Exception as e:

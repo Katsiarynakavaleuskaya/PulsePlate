@@ -24,6 +24,7 @@ Our Smart AI Router automatically chooses the best provider based on query compl
 ### Option 1: Hybrid Approach (Recommended)
 
 **Best of both worlds:**
+
 - ✅ **85% cost savings** vs OpenAI-only
 - ✅ **High quality** for complex queries
 - ✅ **Free** for simple queries
@@ -31,6 +32,7 @@ Our Smart AI Router automatically chooses the best provider based on query compl
 - ✅ **Fallback protection** if one provider fails
 
 **Setup:**
+
 1. Get OpenAI API key (for complex queries)
 2. Get Ollama Cloud API key (for simple queries)
 3. Use our Smart AI Router
@@ -44,6 +46,7 @@ AI_ROUTER_ENABLED=true
 ```
 
 **Cost Example:**
+
 - 1000 simple queries → Ollama (free)
 - 100 complex queries → OpenAI ($6)
 - **Total: $6/month** vs $60/month with OpenAI-only

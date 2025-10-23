@@ -2,33 +2,37 @@
 
 ## 📋 **Required Secrets**
 
-Для работы гибридной AI системы нужны следующие GitHub Secrets:
+The following GitHub Secrets are required for the hybrid AI system to work:
 
 ### ✅ **Already Configured:**
-- `PULSEPLATE_OPENAI` - OpenAI API ключ (уже настроен)
+
+- `PULSEPLATE_OPENAI` - OpenAI API key (already configured)
 
 ### 🔧 **Need to Configure:**
 
 #### 1. **OLLAMA_API_KEY**
+
 ```bash
-# Для Ollama Cloud (рекомендуется для продакшн)
+# For Ollama Cloud (recommended for production)
 gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_api_key_here"
 
-# Или для локального Ollama (оставить пустым)
+# Or for local Ollama (leave empty)
 gh secret set OLLAMA_API_KEY --body ""
 ```
 
-#### 2. **GHCR_READ_TOKEN** (для Docker images)
+#### 2. **GHCR_READ_TOKEN** (for Docker images)
+
 ```bash
-# Personal Access Token с правами read:packages
+# Personal Access Token with read:packages permissions
 gh secret set GHCR_READ_TOKEN --body "your_github_pat_token"
 ```
 
 ## 🚀 **Quick Setup Commands**
 
 ### **Option 1: Ollama Cloud (Recommended)**
+
 ```bash
-# 1. Get Ollama Cloud API key from https://ollama.ai/cloud
+# 1. Get Ollama Cloud API key from https://ollama.com/signin
 # 2. Set the secret
 gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_key"
 
@@ -37,6 +41,7 @@ gh secret list
 ```
 
 ### **Option 2: Local Ollama (Development)**
+
 ```bash
 # 1. Leave Ollama API key empty for local development
 gh secret set OLLAMA_API_KEY --body ""
@@ -51,17 +56,14 @@ gh secret list
 # Check all secrets
 gh secret list
 
-# Expected output:
+# Expected output (only AI-related secrets shown):
 # NAME                            UPDATED
-# CODECOVE_TOCKEN                 about 28 days ago
-# CODECOVE_TOKEN_STATIC_ANALYSIS  about 28 days ago
-# CODECOV_TOKEN_CI                about 28 days ago
-# GITHUB                          about 1 month ago
-# GROK_API                        about 1 month ago
-# HF_TOKEN                        about 1 month ago
-# HUGGING_FACE                    about 1 month ago
 # OLLAMA_API_KEY                  just now
 # PULSEPLATE_OPENAI               about 20 days ago
+# GHCR_READ_TOKEN                 just now
+
+# Note: Only these 3 secrets are required for AI routing setup.
+# Other secrets (CODECOV, GROK_API, etc.) are optional and not used by the AI system.
 # SOURCERY                        about 1 month ago
 # WINDSURF                        about 1 month ago
 ```
@@ -69,6 +71,7 @@ gh secret list
 ## 🧪 **Test the Setup**
 
 ### **1. Test Simple Query (should use Ollama)**
+
 ```bash
 curl -X POST http://localhost:8000/api/ai/chat \
   -H "Content-Type: application/json" \
@@ -80,6 +83,7 @@ curl -X POST http://localhost:8000/api/ai/chat \
 ```
 
 ### **2. Test Complex Query (should use OpenAI)**
+
 ```bash
 curl -X POST http://localhost:8000/api/ai/chat \
   -H "Content-Type: application/json" \
@@ -94,6 +98,7 @@ curl -X POST http://localhost:8000/api/ai/chat \
 ```
 
 ### **3. Test Cost Estimation**
+
 ```bash
 curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%20in%20an%20apple?&provider=auto"
 ```
@@ -101,11 +106,18 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 ## 💰 **Cost Monitoring**
 
 ### **Expected Costs:**
+
 - **Simple queries (70%)**: Ollama (free)
-- **Medium queries (20%)**: Ollama (free) or OpenAI ($0.15/1K tokens)
-- **Complex queries (10%)**: OpenAI ($0.60/1K tokens)
+- **Medium queries (20%)**: Ollama (free) or OpenAI ($0.60/1K input, $2.40/1K output tokens)
+- **Complex queries (10%)**: OpenAI ($0.60/1K input, $2.40/1K output tokens)
+
+**Sources:**
+- OpenAI GPT-4o-mini pricing: https://openai.com/pricing (Last updated: 2025-01-25)
+- Ollama Cloud: https://ollama.com (Last updated: 2025-01-25)
+- Assumptions: ~100 tokens per simple query, ~500 tokens per complex query
 
 ### **Monthly Estimate:**
+
 - **1000 simple queries**: $0 (Ollama)
 - **200 medium queries**: $0-3 (Ollama/OpenAI)
 - **100 complex queries**: $6 (OpenAI)
@@ -147,6 +159,7 @@ AI_FALLBACK_ENABLED=true
    - Monitor usage in OpenAI dashboard
 
 ### **Debug Commands:**
+
 ```bash
 # Check workflow logs
 gh run list
@@ -160,6 +173,7 @@ curl http://localhost:8000/health
 ## 📊 **Monitoring Dashboard**
 
 After setup, monitor:
+
 - **Cost per request** in API responses
 - **Provider usage** in logs
 - **Fallback frequency** in metrics
