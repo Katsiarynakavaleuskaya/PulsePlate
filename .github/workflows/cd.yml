@@ -31,7 +31,7 @@ jobs:
           echo "⚠️  WARNING: This is a SMOKE TEST only!"
           echo "Containers run on ephemeral GitHub Actions runners and will be destroyed after completion."
           echo "This is NOT a persistent staging deployment."
-          echo "For real staging deployment, use self-hosted runners or SSH deployment to a persistent server."
+          echo "For iOS app development, Ollama provides sufficient AI capabilities locally."
 
       - name: Resolve image tag
         id: meta
@@ -140,7 +140,7 @@ jobs:
           echo "⚠️  WARNING: This is a PRODUCTION SMOKE TEST only!"
           echo "Containers run on ephemeral GitHub Actions runners and will be destroyed after completion."
           echo "This is NOT a persistent production deployment."
-          echo "For real production deployment, use self-hosted runners or SSH deployment to a persistent server."
+          echo "For iOS app production, consider deploying Ollama to a dedicated server for better performance."
 
       - name: Check if this is a tag build
         id: check-tag
