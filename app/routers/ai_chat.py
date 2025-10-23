@@ -175,7 +175,11 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
             # Note: estimated_tokens = len(message.split()) * 1.3 is a rough approximation
             # Actual token counts/costs may vary by tokenizer/model
             estimated_tokens = len(message.split()) * 1.3  # Rough token estimation
-            estimated_cost = (estimated_tokens / 1000) * 0.0006  # Output cost
+            # Use realistic input/output split: 70% input, 30% output
+            input_tokens = estimated_tokens * 0.7
+            output_tokens = estimated_tokens * 0.3
+            # GPT-4o-mini pricing: input $0.0006/1K, output $0.0024/1K
+            estimated_cost = (input_tokens / 1000) * 0.0006 + (output_tokens / 1000) * 0.0024
 
             return {
                 "provider": "openai",

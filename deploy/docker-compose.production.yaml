@@ -5,7 +5,7 @@ services:
     image: ghcr.io/katsiarynakavaleuskaya/pulseplate:latest
     container_name: pulseplate-production
     ports:
-      - "8000:8000"
+      - "8001:8000"  # Match CD workflow production port
     environment:
       - ENVIRONMENT=production
     env_file:

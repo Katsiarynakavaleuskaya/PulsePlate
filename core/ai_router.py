@@ -193,7 +193,7 @@ class AIRouter:
                     result["fallback_used"] = True
                     return result
             except Exception as fallback_error:
-                logger.error(f"Fallback to {fallback_provider.value} also failed: {fallback_error}")
+                logger.exception(f"Fallback to {fallback_provider.value} also failed")
                 # Return error structure instead of re-raising
                 return {
                     "response": f"Both AI providers failed. Original error: {e}, Fallback error: {fallback_error}",
