@@ -22,9 +22,9 @@
   },
   "homepage": "https://github.com/Katsiarynakavaleuskaya/PulsePlate#readme",
   "devDependencies": {
-    "@cspell/dict-data-science": "^2.0.9",
+    "@cspell/dict-data-science": "^2.0.10",
     "@cspell/dict-es-es": "^3.0.8",
-    "@cspell/dict-python": "^4.2.19",
+    "@cspell/dict-python": "^4.2.20",
     "@cspell/dict-ru_ru": "^2.3.2",
     "cspell": "^9.2.1"
   }

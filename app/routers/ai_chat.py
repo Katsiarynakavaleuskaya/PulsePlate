@@ -49,7 +49,7 @@ class NutritionAnalysisRequest(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_with_ai(request: ChatRequest):
+async def chat_with_ai(request: ChatRequest) -> ChatResponse:
     """
     Chat with AI using smart routing between Ollama and OpenAI
     """
@@ -82,7 +82,7 @@ async def chat_with_ai(request: ChatRequest):
 
 
 @router.post("/analyze-nutrition", response_model=ChatResponse)
-async def analyze_nutrition(request: NutritionAnalysisRequest):
+async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
     """
     Analyze nutrition data using appropriate AI provider
     """

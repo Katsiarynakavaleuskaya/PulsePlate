@@ -116,11 +116,12 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 ### **Expected Costs:**
 
 - **Simple queries (60%)**: Ollama (free)
-- **Embedding queries (20%)**: Hugging Face (free tier: 1000 requests/month)
-- **Medium queries (15%)**: Ollama (free) or OpenAI ($0.60/1K input, $2.40/1K output tokens)
-- **Complex queries (5%)**: OpenAI ($0.60/1K input, $2.40/1K output tokens)
+- **Embedding queries (20%)**: Hugging Face (free tier: rate limits apply)
+- **Medium queries (15%)**: Ollama (free) or OpenAI ($0.15/1M input, $0.60/1M output tokens)
+- **Complex queries (5%)**: OpenAI ($0.15/1M input, $0.60/1M output tokens)
 
 **Sources:**
+
 - OpenAI GPT-4o-mini pricing: <https://openai.com/pricing> (Last updated: 2025-01-25)
 - Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
 - Assumptions: ~100 tokens per simple query, ~500 tokens per complex query
@@ -129,9 +130,9 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 
 - **600 simple queries**: $0 (Ollama)
 - **200 embedding queries**: $0 (Hugging Face free tier)
-- **150 medium queries**: $0-2 (Ollama/OpenAI)
-- **50 complex queries**: $3 (OpenAI)
-- **Total**: ~$3-5/month (vs $60+ with OpenAI-only)
+- **150 medium queries**: $0-0.1 (Ollama/OpenAI)
+- **50 complex queries**: $0.05 (OpenAI)
+- **Total**: ~$0.05-0.15/month (vs $3+ with OpenAI-only)
 
 ## 🔧 **Environment Variables**
 

@@ -174,19 +174,20 @@ ASIAN_APIS = {
 ```python
 # scripts/daily_sync.py
 import requests
+from typing import List, Dict
 from core.api_client import UniversalAPIClient
 
-def daily_sync():
+def daily_sync() -> None:
     """Ежедневная синхронизация с внешними API"""
 
     # 1. Получаем новые продукты из магазинов
-    store_products = sync_store_products()
+    store_products: List[Dict] = sync_store_products()
 
     # 2. Получаем меню ресторанов
-    restaurant_menus = sync_restaurant_menus()
+    restaurant_menus: List[Dict] = sync_restaurant_menus()
 
     # 3. Получаем рецепты кухонь мира
-    world_recipes = sync_world_recipes()
+    world_recipes: List[Dict] = sync_world_recipes()
 
     # 4. Обрабатываем через DLT pipeline
     process_with_dlt(store_products, restaurant_menus, world_recipes)
@@ -198,8 +199,10 @@ def daily_sync():
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Optional
+import requests
 
-def create_robust_session():
+def create_robust_session() -> requests.Session:
     """Создание сессии с retry логикой"""
     session = requests.Session()
 

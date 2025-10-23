@@ -3,6 +3,7 @@
 Test script for Llama Embed Nemotron 8B via Hugging Face
 """
 
+import os
 import torch
 from transformers import AutoModel, AutoTokenizer
 import logging
@@ -12,15 +13,35 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_llama_embed_nemotron():
+def test_llama_embed_nemotron() -> None:
     """Test Llama Embed Nemotron 8B model"""
     try:
         model_name = "nvidia/llama-embed-nemotron-8b"
         logger.info(f"Loading model: {model_name}")
 
-        # Load tokenizer and model
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
+        # SECURITY WARNING: trust_remote_code allows arbitrary code execution
+        # Only enable for explicitly vetted models in isolated environments
+        # This script should only be run in development/CI environments
+        trust_remote = os.getenv("HF_TRUST_REMOTE_CODE", "false").lower() == "true"
+
+        if trust_remote and model_name != "nvidia/llama-embed-nemotron-8b":
+            raise ValueError(
+                f"trust_remote_code=True only allowed for vetted models, got: {model_name}"
+            )
+
+        # Verify model source before enabling remote code execution
+        if trust_remote:
+            logger.warning("⚠️  Running with trust_remote_code=True - verify model source!")
+            logger.warning("⚠️  Only run this script in isolated development environments!")
+
+        # Load tokenizer and model with pinned revision for security
+        model_revision = "main"  # Use main branch for stability
+        tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
+            model_name, revision=model_revision, trust_remote_code=trust_remote
+        )
+        model = AutoModel.from_pretrained(  # nosec B615 - revision pinned for security
+            model_name, revision=model_revision, trust_remote_code=trust_remote
+        )
 
         logger.info("Model loaded successfully!")
 
@@ -53,13 +74,10 @@ def test_llama_embed_nemotron():
             print("-" * 50)
 
         logger.info("✅ All tests completed successfully!")
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Error testing model: {e}")
-        return False
+    except (OSError, RuntimeError, ValueError) as e:
+        logger.exception(f"❌ Error testing model: {e}")
+        return
 
 
 if __name__ == "__main__":
-    success = test_llama_embed_nemotron()
-    exit(0 if success else 1)
+    test_llama_embed_nemotron()

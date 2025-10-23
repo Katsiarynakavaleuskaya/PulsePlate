@@ -76,11 +76,11 @@ OLLAMA_API_KEY=your_api_key_here
 
 **Pricing (as of 2025):**
 
-- **Free tier**: 1,000 requests/month
+- **Free tier**: Rate limits apply (see Ollama docs for hourly/daily limits)
 - **Pro**: $20/month (pricing varies by usage)
 - **Enterprise**: Custom pricing for high volume
 
-*Much cheaper than running your own GPU servers!*
+*Cost-effective alternative to running your own GPU servers*
 
 ### Option 3: Local Ollama (For Development)
 
@@ -309,11 +309,13 @@ HUGGINGFACE_MODEL=nvidia/llama-embed-nemotron-8b
 ```
 
 **Cost Example:**
+
 - Free tier: 1000 requests/month
 - Pro plan: $9/month for 10,000 requests
 - Enterprise: Custom pricing
 
 **Best for:**
+
 - Semantic search in recipes
 - Product recommendations
 - Multilingual content analysis
@@ -321,8 +323,9 @@ HUGGINGFACE_MODEL=nvidia/llama-embed-nemotron-8b
 
 ## 🆕 Latest Updates
 
-### Llama Embed Nemotron 8B (December 2024)
-- **World's #1 open-source embedding model** 🏆
+### Llama Embed Nemotron 8B (October 2025)
+
+- **Top-ranked on MMTEB for multilingual embeddings** 🏆
 - **Multilingual support** - Perfect for iOS apps with RU/EN/ES
 - **Optimized for mobile** - 8B parameters, efficient for iOS
 - **Semantic search** - Great for recipe/product recommendations

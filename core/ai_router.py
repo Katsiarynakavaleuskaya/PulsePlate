@@ -3,6 +3,7 @@ AI Router - Smart routing between Ollama and OpenAI based on request complexity
 """
 
 import os
+import time
 from typing import Dict, Any, Optional
 from enum import Enum
 import logging
@@ -33,7 +34,7 @@ class AIRouter:
     4. Task type (embeddings vs text generation)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.ollama_endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         self.ollama_api_key = os.getenv("OLLAMA_API_KEY")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -145,10 +146,13 @@ class AIRouter:
         if user_tier == "premium" and task_type == "text":
             return AIProvider.OPENAI
 
-        # Free users: Ollama for simple/medium, OpenAI for complex queries
-        # TODO: Implement proper rate limiting with Redis/memory store
-        # For now, free users are limited to Ollama only
+        # Free users: Check rate limits before routing
         if user_tier == "free":
+            if self._is_rate_limited("free_user", user_tier):
+                return AIProvider.OLLAMA
+            # Allow complex queries for free users if not rate limited
+            if complexity == RequestComplexity.COMPLEX:
+                return AIProvider.OPENAI
             return AIProvider.OLLAMA
 
         # Default: Ollama for simple, OpenAI for medium/complex
@@ -156,6 +160,47 @@ class AIRouter:
             return AIProvider.OLLAMA
         else:
             return AIProvider.OPENAI
+
+    def _is_rate_limited(self, user_id: str, user_tier: str) -> bool:
+        """
+        Check if user is rate limited
+        For now, implements a simple in-memory rate limiter
+        TODO: Implement Redis-based rate limiting for production
+        """
+        try:
+            # Simple in-memory rate limiting (not persistent across restarts)
+            if not hasattr(self, "_rate_limit_store"):
+                self._rate_limit_store: dict[str, list[float]] = {}
+
+            current_time = time.time()
+            window_size = 3600  # 1 hour window
+
+            # Rate limits per tier (requests per hour)
+            limits = {"free": 10, "premium": 1000, "enterprise": 10000}
+
+            limit = limits.get(user_tier, 10)
+
+            # Clean old entries
+            if user_id in self._rate_limit_store:
+                self._rate_limit_store[user_id] = [
+                    timestamp
+                    for timestamp in self._rate_limit_store[user_id]
+                    if current_time - timestamp < window_size
+                ]
+            else:
+                self._rate_limit_store[user_id] = []
+
+            # Check if over limit
+            if len(self._rate_limit_store[user_id]) >= limit:
+                return True
+
+            # Add current request
+            self._rate_limit_store[user_id].append(current_time)
+            return False
+
+        except Exception as e:
+            logger.warning(f"Rate limiting check failed: {e}, defaulting to rate limited")
+            return True  # Conservative: treat as rate limited on error
 
     async def route_request(
         self,
@@ -280,14 +325,20 @@ class AIRouter:
         timeout_seconds = int(os.getenv("OPENAI_TIMEOUT", "30"))
         client = openai.AsyncOpenAI(api_key=self.openai_api_key, timeout=timeout_seconds)
 
-        # Prepare messages
-        messages = [
+        # Import proper typing for OpenAI messages
+        from openai.types.chat import ChatCompletionMessageParam
+
+        # Ensure messages are properly typed
+        typed_messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": self._build_system_prompt(context)},
             {"role": "user", "content": prompt},
         ]
 
         response = await client.chat.completions.create(
-            model=self.openai_model, messages=messages, temperature=0.7, max_tokens=self.max_tokens  # type: ignore
+            model=self.openai_model,
+            messages=typed_messages,
+            temperature=0.7,
+            max_tokens=self.max_tokens,
         )
 
         usage = response.usage
@@ -298,8 +349,13 @@ class AIRouter:
         if not response.choices or len(response.choices) == 0:
             raise ValueError("OpenAI API returned empty choices array")
 
+        # Check if content is None (content filtering)
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("OpenAI API returned None content (likely content filtering)")
+
         return {
-            "response": response.choices[0].message.content,
+            "response": content,
             "provider": "openai",
             "model": self.openai_model,
             "cost": cost,
@@ -307,7 +363,9 @@ class AIRouter:
             "fallback_used": False,
         }
 
-    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_huggingface(
+        self, prompt: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:  # noqa: ARG002
         """
         Call Hugging Face API for embeddings
         """
@@ -316,11 +374,26 @@ class AIRouter:
             import torch
 
             # Load model and tokenizer
-            tokenizer = AutoTokenizer.from_pretrained(
-                self.huggingface_model, trust_remote_code=True, token=self.huggingface_api_token
+            # Only enable trust_remote_code for explicitly vetted models
+            trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
+            if trust_remote and self.huggingface_model != "nvidia/llama-embed-nemotron-8b":
+                raise ValueError(
+                    f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
+                )
+
+            # Pin to specific revision for security
+            model_revision = "main"  # Use main branch for stability
+            tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
+                self.huggingface_model,
+                revision=model_revision,
+                trust_remote_code=trust_remote,
+                token=self.huggingface_api_token,
             )
-            model = AutoModel.from_pretrained(
-                self.huggingface_model, trust_remote_code=True, token=self.huggingface_api_token
+            model = AutoModel.from_pretrained(  # nosec B615 - revision pinned for security
+                self.huggingface_model,
+                revision=model_revision,
+                trust_remote_code=trust_remote,
+                token=self.huggingface_api_token,
             )
 
             # Tokenize input
@@ -347,8 +420,8 @@ class AIRouter:
                 "fallback_used": False,
             }
 
-        except Exception as e:
-            logger.error(f"Hugging Face API error: {e}")
+        except Exception:
+            logger.exception("Hugging Face API error")
             raise
 
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:

@@ -56,7 +56,7 @@ async def test_ai_routing() -> None:
         try:
             # Analyze complexity
             message = str(test_case["message"])
-            context: dict[str, Any] = dict(test_case["context"])  # Convert to dict for mypy
+            context: dict[str, Any] = test_case["context"]  # type: ignore[assignment]  # Already a dict
             user_tier = str(test_case["user_tier"])
             task_type = str(test_case.get("task_type", "text"))
 
@@ -83,7 +83,7 @@ async def test_ai_routing() -> None:
 
             print(f"✅ Test {i} completed successfully")
 
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             print(f"❌ Test {i} failed: {e}")
 
     print("\n" + "=" * 50)

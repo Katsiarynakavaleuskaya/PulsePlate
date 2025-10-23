@@ -12,7 +12,8 @@
 
 ## 🛠️ Установка и настройка
 
-### 1. Добавить в requirements.txt
+In BEAUTIFULSOUP_INTEGRATION_PLAN.md around lines 268 to 292, the example Python snippet for core/web_scrapers/european_stores.py uses re.search but does not import the re module; fix it by adding a top-level "import re" in that code block (alongside any existing imports) so the _extract_price method can call re.search without NameError.### 1. Добавить в requirements.txt
+
 ```bash
 # Веб-скрапинг и парсинг
 beautifulsoup4>=4.12.0
@@ -22,6 +23,7 @@ requests-html>=0.10.0  # Для JavaScript-рендеринга
 ```
 
 ### 2. Установить зависимости
+
 ```bash
 pip install beautifulsoup4 lxml html5lib requests-html
 ```
@@ -32,6 +34,7 @@ pip install beautifulsoup4 lxml html5lib requests-html
 
 ```python
 # core/web_scrapers/store_parsers.py
+import re
 import requests
 from bs4 import BeautifulSoup
 from typing import Dict, List, Optional
@@ -40,12 +43,12 @@ import logging
 class StoreParser:
     """Базовый класс для парсинга магазинов"""
 
-    def __init__(self, store_name: str, base_url: str):
+    def __init__(self, store_name: str, base_url: str, user_agent: str = 'Mozilla/5.0 (compatible; PulsePlate/1.0)'):
         self.store_name = store_name
         self.base_url = base_url
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)',
+            'User-Agent': user_agent,
             'Accept': 'text/html,application/xhtml+xml',
         })
 
@@ -141,18 +144,61 @@ class StoreParser:
 
     def _parse_nutrition_value(self, value_str: str) -> Optional[float]:
         """Парсинг nutritional values"""
-        import re
         # Извлекаем число из строки типа "12g", "12.5g", "12,5g"
         match = re.search(r'[\d,]+\.?\d*', value_str.replace(',', '.'))
         return float(match.group()) if match else None
+
+    def _extract_price(self, soup) -> Optional[float]:
+        """Извлечение цены продукта"""
+        price_elem = soup.find(['span', 'div'], class_=re.compile(r'price|cost'))
+        if price_elem:
+            price_text = price_elem.get_text(strip=True)
+            # Извлекаем число из строки цены
+            price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', '.'))
+            if price_match:
+                try:
+                    return float(price_match.group())
+                except ValueError:
+                    logging.warning(f"Failed to parse price: {price_text}")
+                    return None
+        return None
+
+    def close(self):
+        """Закрытие сессии"""
+        if hasattr(self, 'session'):
+            self.session.close()
+
+    def __enter__(self):
+        """Context manager entry"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        self.close()
+
+    def __del__(self):
+        """Destructor"""
+        self.close()
 ```
 
 ### 2. **Парсинг ресторанов и доставки**
 
 ```python
 # core/web_scrapers/restaurant_parsers.py
+import re
+import requests
+from bs4 import BeautifulSoup
+from typing import List, Dict, Optional
+
 class RestaurantParser:
     """Парсер для ресторанов и доставки еды"""
+
+    def __init__(self, session: Optional[requests.Session] = None):
+        """Инициализация парсера"""
+        self.session = session or requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
+        })
 
     def parse_menu_page(self, restaurant_url: str) -> List[Dict]:
         """Парсинг меню ресторана"""
@@ -184,14 +230,74 @@ class RestaurantParser:
         except Exception as e:
             logging.error(f"Error parsing restaurant menu: {e}")
             return []
+
+    def _extract_dish_name(self, item) -> str:
+        """Извлечение названия блюда"""
+        name_elem = item.find(['h3', 'h4', 'span'], class_=re.compile(r'name|title|dish-name'))
+        return name_elem.get_text(strip=True) if name_elem else ""
+
+    def _extract_dish_description(self, item) -> str:
+        """Извлечение описания блюда"""
+        desc_elem = item.find(['p', 'div'], class_=re.compile(r'description|desc|details'))
+        return desc_elem.get_text(strip=True) if desc_elem else ""
+
+    def _extract_dish_price(self, item) -> Optional[float]:
+        """Извлечение цены блюда"""
+        price_elem = item.find(['span', 'div'], class_=re.compile(r'price|cost'))
+        if price_elem:
+            price_text = price_elem.get_text(strip=True)
+            # Извлекаем число из строки цены
+            price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', '.'))
+            if price_match:
+                try:
+                    return float(price_match.group())
+                except ValueError:
+                    pass
+        return None
+
+    def _extract_dish_category(self, item) -> str:
+        """Извлечение категории блюда"""
+        category_elem = item.find(['span', 'div'], class_=re.compile(r'category|type|section'))
+        return category_elem.get_text(strip=True) if category_elem else ""
+
+    def _extract_allergens(self, item) -> List[str]:
+        """Извлечение аллергенов"""
+        allergen_elem = item.find(['span', 'div'], class_=re.compile(r'allergen|allergy'))
+        if allergen_elem:
+            allergen_text = allergen_elem.get_text(strip=True)
+            return [a.strip() for a in allergen_text.split(',') if a.strip()]
+        return []
+
+    def _extract_dish_image(self, item) -> str:
+        """Извлечение URL изображения блюда"""
+        img_elem = item.find('img')
+        if img_elem and img_elem.get('src'):
+            return img_elem['src']
+        return ""
+
+    def _extract_restaurant_name(self, soup) -> str:
+        """Извлечение названия ресторана"""
+        name_elem = soup.find(['h1', 'h2'], class_=re.compile(r'restaurant|name|title'))
+        return name_elem.get_text(strip=True) if name_elem else ""
 ```
 
 ### 3. **Парсинг кулинарных сайтов и рецептов**
 
 ```python
 # core/web_scrapers/recipe_parsers.py
+import requests
+from bs4 import BeautifulSoup
+from typing import Dict, Optional, List
+
 class RecipeParser:
     """Парсер для кулинарных сайтов"""
+
+    def __init__(self, session: Optional[requests.Session] = None):
+        """Инициализация парсера"""
+        self.session = session or requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
+        })
 
     def parse_recipe_page(self, recipe_url: str) -> Optional[Dict]:
         """Парсинг рецепта"""
@@ -220,6 +326,23 @@ class RecipeParser:
             logging.error(f"Error parsing recipe: {e}")
             return None
 
+    def _parse_html_recipe(self, soup) -> Dict:
+        """Fallback HTML парсинг рецепта"""
+        return {
+            'name': soup.find('h1').get_text(strip=True) if soup.find('h1') else '',
+            'description': soup.find('meta', {'name': 'description'}).get('content', '') if soup.find('meta', {'name': 'description'}) else '',
+            'ingredients': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: x and 'ingredient' in x.lower())],
+            'instructions': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: x and 'instruction' in x.lower())],
+            'prep_time': '',
+            'cook_time': '',
+            'servings': '',
+            'nutrition': {},
+            'image_url': soup.find('img').get('src', '') if soup.find('img') else '',
+            'source_url': '',
+            'cuisine': '',
+            'difficulty': ''
+        }
+
     def _parse_structured_recipe(self, data: Dict) -> Dict:
         """Парсинг structured data рецепта"""
         return {
@@ -242,6 +365,7 @@ class RecipeParser:
 ## 🌍 Региональные парсеры
 
 ### 1. **Российские магазины**
+
 ```python
 # core/web_scrapers/russian_stores.py
 class RussianStoreParser(StoreParser):
@@ -265,6 +389,7 @@ class RussianStoreParser(StoreParser):
 ```
 
 ### 2. **Европейские магазины**
+
 ```python
 # core/web_scrapers/european_stores.py
 class EuropeanStoreParser(StoreParser):
@@ -296,6 +421,7 @@ class EuropeanStoreParser(StoreParser):
 ```python
 # dlt_pipelines/sources/web_scraping_source.py
 import dlt
+from typing import List, Iterator, Dict
 from core.web_scrapers.store_parsers import StoreParser
 from core.web_scrapers.recipe_parsers import RecipeParser
 
@@ -337,6 +463,7 @@ def web_scraping_source(store_urls: List[str], recipe_urls: List[str]):
 ## 🛡️ Этические и правовые аспекты
 
 ### 1. **Соблюдение robots.txt**
+
 ```python
 # core/web_scrapers/robots_checker.py
 import urllib.robotparser
@@ -363,6 +490,7 @@ class RobotsChecker:
 ```
 
 ### 2. **Rate Limiting и вежливый скрапинг**
+
 ```python
 # core/web_scrapers/polite_scraper.py
 import time
@@ -397,18 +525,21 @@ class PoliteScraper:
 ## 📈 Преимущества BeautifulSoup для PulsePlate
 
 ### 1. **Автоматическое наполнение БД**
+
 - ✅ Парсинг миллионов продуктов из магазинов
 - ✅ Извлечение актуальных цен и наличия
 - ✅ Получение nutritional информации
 - ✅ Сбор рецептов из кулинарных сайтов
 
 ### 2. **Масштабируемость**
+
 - ✅ Поддержка множества сайтов
 - ✅ Адаптация под разные структуры HTML
 - ✅ Обработка JavaScript-рендеринга
 - ✅ Кэширование и оптимизация
 
 ### 3. **Качество данных**
+
 - ✅ Валидация и очистка данных
 - ✅ Нормализация единиц измерения
 - ✅ Дедупликация продуктов

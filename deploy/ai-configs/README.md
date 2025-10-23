@@ -33,8 +33,9 @@ Our hybrid approach optimizes cost while maintaining quality:
 | Complex (10%) | $0.20/1K | $0.60/1K input, $2.40/1K output | 67% |
 
 **Sources:**
-- OpenAI GPT-4o-mini: https://openai.com/pricing (Last updated: 2025-01-25)
-- Ollama Cloud: https://ollama.com (Last updated: 2025-01-25)
+
+- OpenAI GPT-4o-mini: <https://openai.com/pricing> (Last updated: 2025-01-25)
+- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
 - Currency: USD, per 1K tokens
 - Note: Pricing may change, please verify current rates
 
