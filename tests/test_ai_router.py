@@ -115,7 +115,7 @@ class TestRouteRequest:
 
     @pytest.mark.asyncio
     async def test_route_request_auto_routing(
-        self, ai_router: AIRouter, mock_env_vars: Any
+        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
     ) -> None:
         """Test automatic routing"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
@@ -136,7 +136,7 @@ class TestRouteRequest:
 
     @pytest.mark.asyncio
     async def test_route_request_forced_provider(
-        self, ai_router: AIRouter, mock_env_vars: Any
+        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
     ) -> None:
         """Test forced provider routing"""
         with (
@@ -404,7 +404,7 @@ class TestAdditionalCoverage:
 
     @pytest.mark.asyncio
     async def test_route_request_forced_ollama_provider(
-        self, ai_router: AIRouter, mock_env_vars: Any
+        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
     ) -> None:
         """Test route request with forced Ollama provider (line 160)"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:

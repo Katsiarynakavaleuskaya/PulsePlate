@@ -12,7 +12,7 @@
 
 ## 🛠️ Установка и настройка
 
-In BEAUTIFULSOUP_INTEGRATION_PLAN.md around lines 268 to 292, the example Python snippet for core/web_scrapers/european_stores.py uses re.search but does not import the re module; fix it by adding a top-level "import re" in that code block (alongside any existing imports) so the _extract_price method can call re.search without NameError.### 1. Добавить в requirements.txt
+### 1. Добавить в requirements.txt
 
 ```bash
 # Веб-скрапинг и парсинг
@@ -37,7 +37,7 @@ pip install beautifulsoup4 lxml html5lib requests-html
 import re
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import logging
 
 class StoreParser:
@@ -110,7 +110,7 @@ class StoreParser:
 
         return None
 
-    def _extract_nutrition(self, soup: BeautifulSoup) -> Dict:
+    def _extract_nutrition(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Извлечение nutritional информации"""
         nutrition = {}
 
@@ -171,6 +171,7 @@ class StoreParser:
 # core/web_scrapers/restaurant_parsers.py
 import re
 import requests
+import logging
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 
@@ -272,7 +273,7 @@ class RestaurantParser:
 import logging
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any, TypedDict
 
 class RecipeParser:
     """Парсер для кулинарных сайтов"""
@@ -513,8 +514,6 @@ class PoliteScraper:
         except requests.exceptions.RequestException as e:
             print(f"Request failed for {url}: {e}")
             return None
-
-        return response
 ```
 
 ## 📈 Преимущества BeautifulSoup для PulsePlate

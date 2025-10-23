@@ -4690,4 +4690,3 @@ robotparser
 urljoin
 walmart
 wildberries
-العربية

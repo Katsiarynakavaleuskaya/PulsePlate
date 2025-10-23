@@ -92,14 +92,22 @@ cp deploy/ai-configs/production.env .env
 
 ### 3. Test the Setup
 
+**Required Environment:**
+- Set `API_URL` to your server URL (e.g., `http://localhost:8000` for local, `https://your-domain.com` for production)
+- Ensure required environment variables are set: `OLLAMA_HOST`, `OPENAI_API_KEY`
+- For local testing, ensure your server is running on the specified port
+
 ```bash
+# Set your API base URL
+export API_URL="http://localhost:8000"  # Replace with your actual server URL
+
 # Test simple query (should use Ollama)
-curl -X POST http://localhost:8000/api/ai/chat \
+curl -X POST $API_URL/api/ai/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "What is protein?"}'
 
 # Test complex query (should use OpenAI)
-curl -X POST http://localhost:8000/api/ai/chat \
+curl -X POST $API_URL/api/ai/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Create a detailed nutrition analysis for a vegan athlete"}'
 ```

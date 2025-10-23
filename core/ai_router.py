@@ -61,9 +61,8 @@ class AIRouter:
         try:
             self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
         except ValueError:
-            logger.warning(
-                f"Invalid OPENAI_MAX_TOKENS value: {os.getenv('OPENAI_MAX_TOKENS')}, using default 1000"
-            )
+            msg = f"Invalid OPENAI_MAX_TOKENS value: {os.getenv('OPENAI_MAX_TOKENS')}, using default 1000"
+            logger.warning(msg)
             self.max_tokens = 1000
 
         # Hugging Face configuration
@@ -75,9 +74,8 @@ class AIRouter:
         try:
             self.huggingface_max_length = int(os.getenv("HUGGINGFACE_MAX_LENGTH", "512"))
         except ValueError:
-            logger.warning(
-                f"Invalid HUGGINGFACE_MAX_LENGTH value: {os.getenv('HUGGINGFACE_MAX_LENGTH')}, using default 512"
-            )
+            msg = f"Invalid HUGGINGFACE_MAX_LENGTH value: {os.getenv('HUGGINGFACE_MAX_LENGTH')}, using default 512"
+            logger.warning(msg)
             self.huggingface_max_length = 512
 
         # Validate required environment variables (only in production)
@@ -88,14 +86,12 @@ class AIRouter:
             if not self.ollama_api_key:
                 raise ValueError("OLLAMA_API_KEY environment variable is required")
             if not self.huggingface_model_revision:
-                raise ValueError(
-                    "HUGGINGFACE_MODEL_REVISION environment variable is required for security"
-                )
+                msg = "HUGGINGFACE_MODEL_REVISION environment variable is required for security"
+                raise ValueError(msg)
             # HuggingFace API token required for embedding tasks in production
             if not self.huggingface_api_token:
-                raise ValueError(
-                    "HUGGINGFACE_API_TOKEN environment variable is required for embedding tasks"
-                )
+                msg = "HUGGINGFACE_API_TOKEN environment variable is required for embedding tasks"
+                raise ValueError(msg)
 
         # Validate OLLAMA_ENDPOINT URL
         try:
@@ -103,19 +99,21 @@ class AIRouter:
 
             parsed = urlparse(self.ollama_endpoint)
             if not parsed.scheme or not parsed.netloc:
-                raise ValueError(f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}")
+                msg = f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}"
+                raise ValueError(msg)
         except Exception as e:
-            raise ValueError(f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}") from e
+            msg = f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}"
+            raise ValueError(msg) from e
 
         # Rate limiting implemented via _is_rate_limited method (lines 168-208)
         # Uses in-memory sliding window with configurable limits per user tier
         self._rate_limit_store: dict[str, list[float]] = {}
-        self._rate_limit_lock = threading.Lock()
+        self._rate_limit_lock: threading.Lock = threading.Lock()
         # Future: self.ollama_free_limit = int(os.getenv("OLLAMA_FREE_LIMIT", "1000"))
         # Future: self.openai_budget_limit = int(os.getenv("OPENAI_BUDGET_LIMIT", "10000"))
 
         # Quality thresholds
-        self.complexity_keywords = {
+        self.complexity_keywords: dict[RequestComplexity, list[str]] = {
             RequestComplexity.SIMPLE: [
                 "calories",
                 "protein",
@@ -442,12 +440,14 @@ class AIRouter:
 
         # Check if choices array is empty
         if not response.choices or len(response.choices) == 0:
-            raise ValueError("OpenAI API returned empty choices array")
+            msg = "OpenAI API returned empty choices array"
+            raise ValueError(msg)
 
         # Check if content is None (content filtering)
         content = response.choices[0].message.content
         if content is None:
-            raise ValueError("OpenAI API returned None content (likely content filtering)")
+            msg = "OpenAI API returned None content (likely content filtering)"
+            raise ValueError(msg)
 
         return AIResponse(
             response=content,
@@ -459,7 +459,9 @@ class AIRouter:
             error=False,
         )
 
-    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> AIResponse:
+    async def _call_huggingface(
+        self, prompt: str, context: Dict[str, Any]
+    ) -> AIResponse:  # noqa: ARG002
         """
         Call Hugging Face API for embeddings
 
@@ -480,15 +482,15 @@ class AIRouter:
             # Only enable trust_remote_code for explicitly vetted models
             trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
             if trust_remote and self.huggingface_model != "nvidia/llama-embed-nemotron-8b":
-                raise ValueError(
-                    f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
-                )
+                msg = f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
+                raise ValueError(msg)
 
             # Use specific commit hash for security (required in production)
             if not self.huggingface_model_revision:
-                raise ValueError(
+                msg = (
                     "HUGGINGFACE_MODEL_REVISION must be set to a specific commit hash for security"
                 )
+                raise ValueError(msg)
 
             tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
                 self.huggingface_model,

@@ -82,15 +82,15 @@ class UniversalAPIClient:
 
     def get_products(self, query: str, limit: int = 100) -> Dict[str, Any]:
         """Получить продукты по запросу"""
-        pass
+        raise NotImplementedError("Not implemented")
 
     def get_restaurant_menu(self, restaurant_id: str) -> Dict[str, Any]:
         """Получить меню ресторана"""
-        pass
+        raise NotImplementedError("Not implemented")
 
     def get_recipe_details(self, recipe_id: str) -> Dict[str, Any]:
         """Получить детали рецепта"""
-        pass
+        raise NotImplementedError("Not implemented")
 ```
 
 ### 2. **Интеграция с DLT для ETL**
@@ -403,21 +403,25 @@ def create_robust_session() -> requests.Session:
 ### Зависимости
 
 # Веб-скрапинг
+
 beautifulsoup4==4.12.3
 lxml==5.1.0
 html5lib==1.1
 requests-html==0.10.0
 selenium==4.16.0
 
-# ETL Pipeline
+In REQUESTS_INTEGRATION_PLAN.md around lines 63 to 94, the example methods should follow project coding guidelines: replace the bare pass statements with explicit NotImplementedError exceptions and ensure every function signature includes precise return type hints; update any methods currently missing or using vague return annotations to use concrete types (e.g., Dict[str, Any] or Optional[Dict[str, Any]] as appropriate) and raise NotImplementedError("Not implemented") inside the body to make intent explicit for implementers.# ETL Pipeline
+
 dlt[postgres,parquet]==0.5.2
 duckdb==0.10.0
 
 # Мониторинг
+
 prometheus-client==0.20.0
 grafana-api==1.0.3
 
 # Кэширование
+
 redis==5.0.1
 requests-cache==1.2.0
 

@@ -56,7 +56,7 @@ async def test_ai_routing() -> None:
         try:
             # Analyze complexity
             message = str(test_case["message"])
-            context: dict[str, Any] = test_case["context"]  # type: ignore[assignment]  # Already a dict
+            context: dict[str, Any] = test_case["context"]  # type: ignore[assignment]
             user_tier = str(test_case["user_tier"])
             task_type = str(test_case.get("task_type", "text"))
 
@@ -109,10 +109,10 @@ async def test_environment_variables() -> None:
         if (var.endswith("_KEY") or var.endswith("_TOKEN")) and value != "NOT SET":
             # Mask API keys for security
             value_str = str(value) if value else ""
-            if len(value_str) <= 12:
+            if len(value_str) <= 16:
                 value = "***"
             else:
-                value = f"{value_str[:8]}...{value_str[-4:]}"
+                value = f"{value_str[:4]}...{value_str[-4:]}"
         print(f"{var}: {value}")
 
     print("\n✅ Environment variables check completed!")

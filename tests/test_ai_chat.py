@@ -107,6 +107,8 @@ class TestChatEndpoint:
         )
 
         assert response.status_code == 500
+        data = response.json()
+        assert "Invalid provider" in data["detail"]
 
     def test_chat_router_error(self, client, mock_ai_router) -> None:
         """Test chat when router raises exception"""
@@ -297,6 +299,53 @@ class TestRequestModels:
         assert request.food_items == ["apple", "banana"]
         assert request.analysis_type == "basic"
         assert request.user_profile == {"tier": "free"}
+
+    def test_chat_request_pydantic_v2_apis(self):
+        """Test ChatRequest Pydantic v2 APIs (model_dump/model_validate)"""
+        # Create original request
+        original = ChatRequest(
+            message="Test message",
+            context={"key": "value"},
+            user_tier="premium",
+            force_provider="openai",
+        )
+
+        # Test model_dump()
+        dumped = original.model_dump()
+        assert isinstance(dumped, dict)
+        assert dumped["message"] == "Test message"
+        assert dumped["context"] == {"key": "value"}
+        assert dumped["user_tier"] == "premium"
+        assert dumped["force_provider"] == "openai"
+
+        # Test model_validate() to recreate
+        recreated = ChatRequest.model_validate(dumped)
+        assert recreated.message == original.message
+        assert recreated.context == original.context
+        assert recreated.user_tier == original.user_tier
+        assert recreated.force_provider == original.force_provider
+
+    def test_nutrition_analysis_request_pydantic_v2_apis(self):
+        """Test NutritionAnalysisRequest Pydantic v2 APIs (model_dump/model_validate)"""
+        # Create original request
+        original = NutritionAnalysisRequest(
+            food_items=["apple", "banana"],
+            analysis_type="comprehensive",
+            user_profile={"tier": "free", "preferences": "vegan"},
+        )
+
+        # Test model_dump()
+        dumped = original.model_dump()
+        assert isinstance(dumped, dict)
+        assert dumped["food_items"] == ["apple", "banana"]
+        assert dumped["analysis_type"] == "comprehensive"
+        assert dumped["user_profile"] == {"tier": "free", "preferences": "vegan"}
+
+        # Test model_validate() to recreate
+        recreated = NutritionAnalysisRequest.model_validate(dumped)
+        assert recreated.food_items == original.food_items
+        assert recreated.analysis_type == original.analysis_type
+        assert recreated.user_profile == original.user_profile
 
     def test_chat_response_validation(self):
         """Test ChatResponse model validation"""

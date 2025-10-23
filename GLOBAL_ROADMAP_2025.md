@@ -246,7 +246,7 @@
 - [ ] Widget support
 - [ ] macOS companion app
 
-### Business Innovation
+### Business Expansion
 
 - [ ] B2B nutrition consulting
 - [ ] White-label solutions

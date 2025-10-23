@@ -80,7 +80,7 @@ OLLAMA_API_KEY=your_api_key_here
 - **Pro**: $20/month (pricing varies by usage)
 - **Enterprise**: Custom pricing for high volume
 
-**Cost Consideration**
+### Cost Consideration
 
 Cost-effective alternative to running your own GPU servers.
 
@@ -277,10 +277,68 @@ ollama serve
 
 ## Security Considerations
 
-- Ollama runs on localhost only by default
-- No external network access required
-- All communication is local
-- Models are stored locally
+### 🔒 **Production Hardening Guide**
+
+#### **Network Security**
+- **Bind to localhost/private interfaces**: Ollama runs on localhost by default, but verify no external exposure
+- **Firewall configuration**: Block unnecessary ports, allow only required traffic
+- **Security groups/VPC**: Use private subnets, restrict access to authorized networks only
+- **Reverse proxy**: Use Nginx/Traefik with authentication for any remote access
+- **TLS encryption**: Enable HTTPS for all external connections, use valid certificates
+
+#### **Authentication & Authorization**
+- **API authentication**: Implement API keys, JWT tokens, or OAuth for Ollama API access
+- **User isolation**: Run Ollama under dedicated, least-privilege user accounts
+- **Access control**: Implement role-based access control (RBAC) for different user tiers
+- **Session management**: Enforce session timeouts and secure session handling
+
+#### **Runtime Isolation**
+- **Containerization**: Use Docker with security profiles (AppArmor/SELinux)
+- **Resource limits**: Set CPU, memory, and disk quotas to prevent resource exhaustion
+- **Process isolation**: Use cgroups, namespaces, and seccomp profiles
+- **File system**: Use read-only containers where possible, mount volumes with minimal permissions
+
+#### **Data Protection**
+- **Encryption at rest**: Encrypt model files and configuration data
+- **Encryption in transit**: Use TLS 1.3 for all network communications
+- **Secret management**: Store API keys and credentials in HashiCorp Vault, AWS Secrets Manager, or similar
+- **Data classification**: Identify and protect sensitive data according to compliance requirements
+
+#### **Integrity & Updates**
+- **Signed artifacts**: Verify model checksums and use signed binaries
+- **Regular updates**: Keep Ollama and models updated with security patches
+- **Vulnerability scanning**: Regular security scans of containers and dependencies
+- **Supply chain security**: Verify model sources and maintain software bill of materials (SBOM)
+
+#### **Monitoring & Alerting**
+- **Comprehensive logging**: Log all API calls, errors, and security events
+- **Anomaly detection**: Monitor for unusual usage patterns or access attempts
+- **Performance monitoring**: Track resource usage and response times
+- **Security alerts**: Set up alerts for failed authentications, rate limit violations, and errors
+
+#### **Rate Limiting & Abuse Prevention**
+- **API rate limits**: Implement per-user and per-endpoint rate limiting
+- **Resource quotas**: Limit concurrent requests and model loading
+- **Input validation**: Sanitize and validate all inputs to prevent injection attacks
+- **DDoS protection**: Use CDN and load balancer protections
+
+#### **Backup & Recovery**
+- **Model backups**: Regular backups of trained models and configurations
+- **Disaster recovery**: Document and test recovery procedures
+- **Data retention**: Implement proper data lifecycle management
+- **Business continuity**: Plan for service availability during maintenance
+
+#### **Compliance & Threat Modeling**
+- **Threat modeling**: Identify potential attack vectors and mitigation strategies
+- **Compliance requirements**: Ensure adherence to GDPR, HIPAA, SOC2, or other relevant standards
+- **Security audits**: Regular third-party security assessments
+- **Incident response**: Document and test incident response procedures
+
+### ⚠️ **Default Security Posture**
+- Ollama runs on localhost only by default (secure)
+- No external network access required (good)
+- All communication is local (secure)
+- Models are stored locally (data sovereignty)
 
 ### Option 4: Hugging Face (For Embeddings & Specialized Models)
 

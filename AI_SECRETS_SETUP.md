@@ -12,9 +12,11 @@ The following GitHub Secrets are required for the hybrid AI system to work:
 
 #### 1. **OLLAMA_API_KEY**
 
+⚠️ **SECURITY WARNING**: Never commit secrets to source control! Avoid pasting secret values in unsecured channels (chat, email, issue trackers). Always use GitHub Secrets or environment variables/secret managers. If secrets are accidentally exposed, rotate them immediately.
+
 ```bash
 # For Ollama Cloud (recommended for production)
-gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_api_key_here"
+gh secret set OLLAMA_API_KEY --body "REPLACE_WITH_ACTUAL_API_KEY"
 
 # Or for local Ollama (leave empty)
 gh secret set OLLAMA_API_KEY --body ""
@@ -24,14 +26,14 @@ gh secret set OLLAMA_API_KEY --body ""
 
 ```bash
 # Hugging Face API token for embeddings and specialized models
-gh secret set HUGGINGFACE_API_TOKEN --body "your_huggingface_token_here"
+gh secret set HUGGINGFACE_API_TOKEN --body "REPLACE_WITH_ACTUAL_HF_TOKEN"
 ```
 
 #### 3. **GHCR_READ_TOKEN** (for Docker images)
 
 ```bash
 # Personal Access Token with read:packages permissions
-gh secret set GHCR_READ_TOKEN --body "your_github_pat_token"
+gh secret set GHCR_READ_TOKEN --body "REPLACE_WITH_ACTUAL_GITHUB_PAT"
 ```
 
 ## 🚀 **Quick Setup Commands**
@@ -41,7 +43,7 @@ gh secret set GHCR_READ_TOKEN --body "your_github_pat_token"
 ```bash
 # 1. Get Ollama Cloud API key from [Ollama Cloud sign-in](https://ollama.com/signin)
 # 2. Set the secret
-gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_key"
+gh secret set OLLAMA_API_KEY --body "REPLACE_WITH_ACTUAL_OLLAMA_KEY"
 
 # 3. Verify secrets
 gh secret list
@@ -120,11 +122,15 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 - **Medium queries (15%)**: Ollama (free) or OpenAI ($0.15/1M input, $0.60/1M output tokens)
 - **Complex queries (5%)**: OpenAI ($0.15/1M input, $0.60/1M output tokens)
 
+⚠️ **PRICING WARNING**: Provider pricing is volatile and changes frequently. Always verify current pricing on the provider's official site before making decisions.
+
 **Sources:**
 
 - OpenAI GPT-4o-mini pricing: <https://openai.com/pricing> (Last updated: 2025-01-25)
 - Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
 - Assumptions: ~100 tokens per simple query, ~500 tokens per complex query
+
+> **Note**: This document was last reviewed on 2025-01-25. Prices may have changed since then.
 
 ### **Monthly Estimate:**
 
