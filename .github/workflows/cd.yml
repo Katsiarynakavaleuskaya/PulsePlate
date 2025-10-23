@@ -80,7 +80,6 @@ jobs:
             --restart unless-stopped \
             -p 8000:8000 \
             -e ENVIRONMENT=staging \
-            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
             -e AI_ROUTER_ENABLED=true \
@@ -204,7 +203,6 @@ jobs:
             --restart unless-stopped \
             -p 8001:8000 \
             -e ENVIRONMENT=production \
-            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
             -e AI_ROUTER_ENABLED=true \
