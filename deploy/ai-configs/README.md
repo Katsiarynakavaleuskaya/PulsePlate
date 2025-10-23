@@ -28,9 +28,9 @@ Our hybrid approach optimizes cost while maintaining quality:
 
 | Query Type | Ollama | OpenAI | Savings |
 |------------|--------|--------|---------|
-| Simple (70%) | Free | $0.00015/1K input, $0.0006/1K output | 100% |
-| Medium (20%) | Free | $0.00015/1K input, $0.0006/1K output | 100% |
-| Complex (10%) | $0.20/1K | $0.00015/1K input, $0.0006/1K output | 67% |
+| Simple (70%) | Free | $0.0006/1K input, $0.0024/1K output | 100% |
+| Medium (20%) | Free | $0.0006/1K input, $0.0024/1K output | 100% |
+| Complex (10%) | $0.20/1K | $0.0006/1K input, $0.0024/1K output | OpenAI cheaper (~99.6%) |
 
 **Sources:**
 
@@ -40,7 +40,7 @@ Our hybrid approach optimizes cost while maintaining quality:
 - **⚠️ Important**: AI pricing changes frequently. Please verify current rates on vendor pages before relying on these numbers for production cost estimates.
 - **Maintenance**: Re-verify pricing monthly or before major deployments. Consider setting up automated monitoring for price changes.
 
-## Total Savings: ~90% compared to OpenAI-only
+## Total Savings: Use Ollama for simple/medium (free) and OpenAI for complex (cheaper/higher quality)
 
 ## 🚀 **Usage Examples**
 

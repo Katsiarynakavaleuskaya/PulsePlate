@@ -6,7 +6,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -56,7 +56,7 @@ async def test_ai_routing() -> None:
         try:
             # Analyze complexity
             message = str(test_case["message"])
-            context: dict[str, Any] = test_case["context"]  # type: ignore[assignment]
+            context: dict[str, Any] = cast(dict[str, Any], test_case["context"])
             user_tier = str(test_case["user_tier"])
             task_type = str(test_case.get("task_type", "text"))
 
@@ -68,7 +68,7 @@ async def test_ai_routing() -> None:
             provider = ai_router.choose_provider(complexity, user_tier, task_type)
             print(f"🎯 Provider: {provider.value}")
 
-            # Estimate cost
+            # Estimate cost using centralized function
             if provider == AIProvider.OLLAMA:
                 cost = 0.0
                 print(f"💰 Cost: ${cost} (free)")
@@ -76,10 +76,11 @@ async def test_ai_routing() -> None:
                 cost = 0.0
                 print(f"💰 Cost: ${cost} (free tier)")
             else:
-                # Rough estimate
-                tokens = len(message.split()) * 1.3
-                cost = (tokens / 1000) * 0.0006
-                print(f"💰 Cost: ${cost:.6f} (estimated)")
+                # Use centralized cost estimation
+                from app.routers.ai_chat import estimate_openai_cost
+
+                cost, tokens = estimate_openai_cost(message)
+                print(f"💰 Cost: ${cost:.6f} (estimated, {tokens:.0f} tokens)")
 
             print(f"✅ Test {i} completed successfully")
 

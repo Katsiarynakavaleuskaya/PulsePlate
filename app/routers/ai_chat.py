@@ -3,8 +3,8 @@ AI Chat Router - Smart AI routing for nutrition and health queries
 """
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List, Tuple
+from pydantic import BaseModel, Field, validator
+from typing import Dict, Any, Optional, List, Tuple, Literal
 import logging
 
 from core.ai_router import ai_router, RequestComplexity
@@ -19,12 +19,12 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     Returns:
         Tuple of (estimated_cost, estimated_tokens)
     """
-    # Constants for OpenAI GPT-4o-mini pricing (as of 2025-01-26)
+    # Constants for OpenAI GPT-4o-mini pricing (as of 2025-10-23)
     TOKEN_MULTIPLIER = 1.3  # Rough approximation factor
     INPUT_RATIO = 0.7  # 70% of tokens are input
     OUTPUT_RATIO = 0.3  # 30% of tokens are output
-    INPUT_COST_PER_1K = 0.00015  # $0.00015 per 1K input tokens (from $0.15 per 1M)
-    OUTPUT_COST_PER_1K = 0.0006  # $0.0006 per 1K output tokens (from $0.60 per 1M)
+    INPUT_COST_PER_1K = 0.0006  # $0.0006 per 1K input tokens (from $0.60 per 1M)
+    OUTPUT_COST_PER_1K = 0.0024  # $0.0024 per 1K output tokens (from $2.40 per 1M)
 
     # Calculate estimated tokens
     estimated_tokens = len(message.split()) * TOKEN_MULTIPLIER
@@ -48,11 +48,19 @@ class ChatRequest(BaseModel):
 
     message: str = Field(..., description="User message")
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
-    user_tier: str = Field(default="free", description="User subscription tier")
+    user_tier: Literal["free", "premium"] = Field(
+        default="free", description="User subscription tier"
+    )
     task_type: str = Field(default="text", description="Task type (text/embedding)")
     force_provider: Optional[str] = Field(
         None, description="Force specific provider (ollama/huggingface/openai)"
     )
+
+    @validator("message")
+    def validate_message(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Message cannot be empty")
+        return v.strip()
 
 
 class ChatResponse(BaseModel):
@@ -72,10 +80,18 @@ class NutritionAnalysisRequest(BaseModel):
 
     food_items: List[str] = Field(..., description="List of food items to analyze")
     user_profile: Dict[str, Any] = Field(default_factory=dict, description="User profile data")
-    user_tier: str = Field(default="free", description="User tier (free/premium)")
-    analysis_type: str = Field(
+    user_tier: Literal["free", "premium"] = Field(
+        default="free", description="User tier (free/premium)"
+    )
+    analysis_type: Literal["basic", "detailed", "comprehensive"] = Field(
         default="basic", description="Type of analysis (basic/detailed/comprehensive)"
     )
+
+    @validator("food_items")
+    def validate_food_items(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError("At least one food item is required")
+        return v
 
 
 @router.post("/chat", response_model=ChatResponse)

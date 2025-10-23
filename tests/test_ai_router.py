@@ -114,51 +114,51 @@ class TestRouteRequest:
     """Test request routing"""
 
     @pytest.mark.asyncio
-    async def test_route_request_auto_routing(
-        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
-    ) -> None:
+    async def test_route_request_auto_routing(self, ai_router: AIRouter) -> None:  # noqa: ARG002
         """Test automatic routing"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
-            mock_ollama.return_value = {
-                "response": "Test response",
-                "provider": "ollama",
-                "model": "llama3",
-                "cost": 0.0,
-                "tokens_used": 10,
-                "fallback_used": False,
-            }
+            from core.ai_router import AIResponse
+
+            mock_ollama.return_value = AIResponse(
+                response="Test response",
+                provider="ollama",
+                model="llama3",
+                cost=0.0,
+                tokens_used=10,
+                fallback_used=False,
+            )
 
             result = await ai_router.route_request("What is protein?", {}, "free")
 
-            assert result["provider"] == "ollama"
-            assert result["response"] == "Test response"
+            assert result.provider == "ollama"
+            assert result.response == "Test response"
             mock_ollama.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_route_request_forced_provider(
-        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
-    ) -> None:
+    async def test_route_request_forced_provider(self, ai_router: AIRouter) -> None:  # noqa: ARG002
         """Test forced provider routing"""
         with (
             patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai,
             patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama,
         ):
-            mock_openai.return_value = {
-                "response": "OpenAI response",
-                "provider": "openai",
-                "model": "gpt-4o-mini",
-                "cost": 0.001,
-                "tokens_used": 50,
-                "fallback_used": False,
-            }
-            mock_ollama.return_value = {
-                "response": "Ollama response",
-                "provider": "ollama",
-                "model": "llama3",
-                "cost": 0.0,
-                "tokens_used": 0,
-                "fallback_used": False,
-            }
+            from core.ai_router import AIResponse
+
+            mock_openai.return_value = AIResponse(
+                response="OpenAI response",
+                provider="openai",
+                model="gpt-4o-mini",
+                cost=0.001,
+                tokens_used=50,
+                fallback_used=False,
+            )
+            mock_ollama.return_value = AIResponse(
+                response="Ollama response",
+                provider="ollama",
+                model="llama3",
+                cost=0.0,
+                tokens_used=0,
+                fallback_used=False,
+            )
 
             result = await ai_router.route_request(
                 "Test message", {}, "free", "anonymous", "openai"
@@ -177,7 +177,7 @@ class TestRouteRequest:
         assert "Invalid provider" in result.response
 
     @pytest.mark.asyncio
-    async def test_route_request_fallback(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_route_request_fallback(self, ai_router: AIRouter) -> None:
         """Test fallback mechanism"""
         # Use premium user so it chooses OpenAI first
         with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
@@ -185,26 +185,28 @@ class TestRouteRequest:
             mock_openai.side_effect = Exception("OpenAI error")
 
             with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
-                mock_ollama.return_value = {
-                    "response": "Fallback response",
-                    "provider": "ollama",
-                    "model": "llama3",
-                    "cost": 0.0,
-                    "tokens_used": 10,
-                    "fallback_used": False,
-                }
+                from core.ai_router import AIResponse
+
+                mock_ollama.return_value = AIResponse(
+                    response="Fallback response",
+                    provider="ollama",
+                    model="llama3",
+                    cost=0.0,
+                    tokens_used=10,
+                    fallback_used=False,
+                )
 
                 result = await ai_router.route_request("Complex query", {}, "premium")
 
-                assert result["provider"] == "ollama"
-                assert result["fallback_used"] is True
+                assert result.provider == "ollama"
+                assert result.fallback_used is True
 
 
 class TestOllamaCall:
     """Test Ollama API calls"""
 
     @pytest.mark.asyncio
-    async def test_call_ollama_success(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_call_ollama_success(self, ai_router: AIRouter) -> None:
         """Test successful Ollama call"""
         mock_response = MagicMock()
         mock_response.json.return_value = {"response": "Ollama response", "eval_count": 15}
@@ -222,7 +224,7 @@ class TestOllamaCall:
             assert result["fallback_used"] is False
 
     @pytest.mark.asyncio
-    async def test_call_ollama_error(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_call_ollama_error(self, ai_router: AIRouter) -> None:
         """Test Ollama call error handling"""
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post.side_effect = Exception(
@@ -237,7 +239,7 @@ class TestOpenAICall:
     """Test OpenAI API calls"""
 
     @pytest.mark.asyncio
-    async def test_call_openai_success(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_call_openai_success(self, ai_router: AIRouter) -> None:
         """Test successful OpenAI call"""
         mock_usage = MagicMock()
         mock_usage.total_tokens = 100
@@ -263,7 +265,7 @@ class TestOpenAICall:
             assert result["fallback_used"] is False
 
     @pytest.mark.asyncio
-    async def test_call_openai_error(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_call_openai_error(self, ai_router: AIRouter) -> None:
         """Test OpenAI call error handling"""
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = mock_openai.return_value
@@ -273,7 +275,7 @@ class TestOpenAICall:
                 await ai_router._call_openai("Test prompt", {})
 
     @pytest.mark.asyncio
-    async def test_call_openai_empty_choices(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+    async def test_call_openai_empty_choices(self, ai_router: AIRouter) -> None:
         """Test OpenAI call with empty choices array"""
         mock_response = MagicMock()
         mock_response.choices = []  # Empty choices array
@@ -404,7 +406,7 @@ class TestAdditionalCoverage:
 
     @pytest.mark.asyncio
     async def test_route_request_forced_ollama_provider(
-        self, ai_router: AIRouter, mock_env_vars: Any  # noqa: ARG002
+        self, ai_router: AIRouter  # noqa: ARG002
     ) -> None:
         """Test route request with forced Ollama provider (line 160)"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
@@ -428,9 +430,7 @@ class TestAdditionalCoverage:
             mock_ollama.assert_called_once_with("test message", {})
 
     @pytest.mark.asyncio
-    async def test_route_request_fallback_openai_success(
-        self, ai_router: AIRouter, mock_env_vars: Any
-    ) -> None:
+    async def test_route_request_fallback_openai_success(self, ai_router: AIRouter) -> None:
         """Test fallback to OpenAI when Ollama fails (lines 193-194)"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
             with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
@@ -438,20 +438,22 @@ class TestAdditionalCoverage:
                 mock_ollama.side_effect = Exception("Ollama failed")
 
                 # Mock OpenAI success
-                mock_openai.return_value = {
-                    "response": "OpenAI response",
-                    "provider": "openai",
-                    "model": "gpt-4o-mini",
-                    "cost": 0.001,
-                    "tokens_used": 20,
-                    "fallback_used": False,
-                }
+                from core.ai_router import AIResponse
+
+                mock_openai.return_value = AIResponse(
+                    response="OpenAI response",
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    cost=0.001,
+                    tokens_used=20,
+                    fallback_used=False,
+                )
 
                 result = await ai_router.route_request("test message", {}, "free")
 
-                assert result["response"] == "OpenAI response"
-                assert result["provider"] == "openai"
-                assert result["fallback_used"] is True
+                assert result.response == "OpenAI response"
+                assert result.provider == "openai"
+                assert result.fallback_used is True
                 mock_ollama.assert_called_once()
                 mock_openai.assert_called_once()
 

@@ -333,14 +333,17 @@ async def log_requests(request: Request, call_next: Callable) -> Any:
 
 
 @app.get("/health/db")
-def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
 
     EN: Lightweight database connectivity check.
     """
 
     try:
-        session.execute(text("SELECT 1"))
+        import asyncio
+
+        # Execute blocking DB check off the event loop
+        await asyncio.to_thread(session.execute, text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
         logger.error("Database health check failed: %s", exc)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
@@ -385,7 +388,7 @@ if _is_rate_limiting_available():
     # app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
     # Rate limiting not available
-    pass  # noqa: S110
+    pass
 
 
 # ---------- Models ----------
@@ -842,7 +845,7 @@ async def root() -> HTMLResponse:
                     athlete: document.getElementById('athlete').value,
                     waist_cm: document.getElementById('waist').value ?
                               parseFloat(document.getElementById('waist').value) : null,
-                    lang: 'en'
+                    lang: lang
                 };
 
                 try {
@@ -2250,7 +2253,7 @@ async def debug_env() -> Dict[str, Any]:
         "GROK_ENDPOINT": os.getenv("GROK_ENDPOINT", ""),
     }
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
-    data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
+    data["insight_enabled"] = flag in {"1", "true", "yes", "on"}
     return data
 
 

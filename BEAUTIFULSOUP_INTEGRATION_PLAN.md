@@ -542,6 +542,7 @@ class RobotsChecker:
 import time
 import random
 import requests
+import logging
 from typing import Dict, Optional
 
 class PoliteScraper:
