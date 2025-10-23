@@ -10,7 +10,7 @@ This guide shows how to set up AI for the PulsePlate application using our **Sma
 - **Hugging Face**: For embeddings and specialized models (free tier available)
 - **OpenAI Only**: High quality but expensive
 
-Our Smart AI Router automatically chooses the best provider based on query complexity, saving **~85% on AI costs** while maintaining quality.
+Our Smart AI Router automatically chooses the best provider based on query complexity, saving **~90% on AI costs** while maintaining quality.
 
 ## Prerequisites
 

@@ -133,7 +133,11 @@ class AIRouter:
         return RequestComplexity.SIMPLE
 
     def choose_provider(
-        self, complexity: RequestComplexity, user_tier: str = "free", task_type: str = "text"
+        self,
+        complexity: RequestComplexity,
+        user_tier: str = "free",
+        user_id: str = "anonymous",
+        task_type: str = "text",
     ) -> AIProvider:
         """
         Choose AI provider based on complexity, user tier, and task type
@@ -148,7 +152,7 @@ class AIRouter:
 
         # Free users: Check rate limits before routing
         if user_tier == "free":
-            if self._is_rate_limited("free_user", user_tier):
+            if self._is_rate_limited(f"free_user:{user_id}", user_tier):
                 return AIProvider.OLLAMA
             # Allow complex queries for free users if not rate limited
             if complexity == RequestComplexity.COMPLEX:
@@ -196,17 +200,18 @@ class AIRouter:
 
             # Add current request
             self._rate_limit_store[user_id].append(current_time)
-            return False
-
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             logger.warning(f"Rate limiting check failed: {e}, defaulting to rate limited")
             return True  # Conservative: treat as rate limited on error
+        else:
+            return False
 
     async def route_request(
         self,
         prompt: str,
         context: Dict[str, Any],
         user_tier: str = "free",
+        user_id: str = "anonymous",
         provider: Optional[str] = None,
         task_type: str = "text",
     ) -> Dict[str, Any]:
@@ -222,12 +227,11 @@ class AIRouter:
             elif provider == "huggingface":
                 return await self._call_huggingface(prompt, context)
             else:
-                raise ValueError(
-                    f"Invalid provider: {provider}. Use 'ollama', 'openai', or 'huggingface'"
-                )
+                valid_providers = "'ollama', 'openai', or 'huggingface'"
+                raise ValueError(f"Invalid provider: {provider}. Use {valid_providers}")
 
         complexity = self.analyze_complexity(prompt, context)
-        chosen_provider = self.choose_provider(complexity, user_tier, task_type)
+        chosen_provider = self.choose_provider(complexity, user_tier, user_id, task_type)
 
         logger.info(
             f"Routing request: complexity={complexity.value}, provider={chosen_provider.value}"
@@ -363,11 +367,10 @@ class AIRouter:
             "fallback_used": False,
         }
 
-    async def _call_huggingface(
-        self, prompt: str, context: Dict[str, Any]
-    ) -> Dict[str, Any]:  # noqa: ARG002
+    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Call Hugging Face API for embeddings
+        Note: context parameter unused but kept for interface consistency with other providers
         """
         try:
             from transformers import AutoModel, AutoTokenizer
@@ -450,16 +453,18 @@ class AIRouter:
     def _calculate_openai_cost(self, usage: Any) -> float:
         """
         Calculate OpenAI API cost based on usage
+        Pricing based on GPT-4o-mini rates as of January 2025
+        See: https://openai.com/pricing
         """
         if not usage:
             return 0.0
 
-        # GPT-4o-mini pricing (as of 2025)
-        input_cost_per_1k = 0.0006
-        output_cost_per_1k = 0.0024
+        # GPT-4o-mini pricing per 1M tokens (as of January 2025)
+        input_cost_per_1m = 0.15
+        output_cost_per_1m = 0.60
 
-        input_cost = (usage.prompt_tokens / 1000) * input_cost_per_1k
-        output_cost = (usage.completion_tokens / 1000) * output_cost_per_1k
+        input_cost = (usage.prompt_tokens / 1_000_000) * input_cost_per_1m
+        output_cost = (usage.completion_tokens / 1_000_000) * output_cost_per_1m
 
         return float(input_cost + output_cost)
 

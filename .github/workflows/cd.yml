@@ -83,7 +83,7 @@ jobs:
             -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
-            -e AI_ROUTER_ENABLED=false \
+            -e AI_ROUTER_ENABLED=true \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Staging deployment completed"
@@ -110,7 +110,7 @@ jobs:
             attempt=$((attempt + 1))
             echo "Health check attempt $attempt/$max_attempts..."
 
-            if curl -f http://localhost:8000/health >/dev/null 2>&1; then
+            if curl -f --connect-timeout 5 --max-time 10 -sS http://localhost:8000/health >/dev/null 2>&1; then
               echo "✅ Staging health check passed"
               break
             fi
@@ -207,7 +207,7 @@ jobs:
             -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
-            -e AI_ROUTER_ENABLED=false \
+            -e AI_ROUTER_ENABLED=true \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Production deployment completed"
@@ -235,7 +235,7 @@ jobs:
             attempt=$((attempt + 1))
             echo "Health check attempt $attempt/$max_attempts..."
 
-            if curl -f http://localhost:8001/health >/dev/null 2>&1; then
+            if curl -f --connect-timeout 5 --max-time 10 -sS http://localhost:8001/health >/dev/null 2>&1; then
               echo "✅ Production health check passed"
               break
             fi

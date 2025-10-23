@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_llama_embed_nemotron() -> None:
+def test_llama_embed_nemotron() -> bool:
     """Test Llama Embed Nemotron 8B model"""
     try:
         model_name = "nvidia/llama-embed-nemotron-8b"
@@ -24,13 +24,11 @@ def test_llama_embed_nemotron() -> None:
         # This script should only be run in development/CI environments
         trust_remote = os.getenv("HF_TRUST_REMOTE_CODE", "false").lower() == "true"
 
-        if trust_remote and model_name != "nvidia/llama-embed-nemotron-8b":
-            raise ValueError(
-                f"trust_remote_code=True only allowed for vetted models, got: {model_name}"
-            )
-
-        # Verify model source before enabling remote code execution
         if trust_remote:
+            if model_name != "nvidia/llama-embed-nemotron-8b":
+                raise ValueError(
+                    f"trust_remote_code=True only allowed for vetted models, got: {model_name}"
+                )
             logger.warning("⚠️  Running with trust_remote_code=True - verify model source!")
             logger.warning("⚠️  Only run this script in isolated development environments!")
 
@@ -74,9 +72,10 @@ def test_llama_embed_nemotron() -> None:
             print("-" * 50)
 
         logger.info("✅ All tests completed successfully!")
-    except (OSError, RuntimeError, ValueError) as e:
-        logger.exception(f"❌ Error testing model: {e}")
-        return
+        return True
+    except (OSError, RuntimeError, ValueError):
+        logger.exception("❌ Error testing model")
+        return False
 
 
 if __name__ == "__main__":

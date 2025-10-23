@@ -94,9 +94,9 @@ class TestProviderSelection:
             == AIProvider.OPENAI
         )
 
-        # Complex request should use Ollama (free users limited to Ollama)
-        provider = ai_router.choose_provider(RequestComplexity.COMPLEX, "free")
-        assert provider == AIProvider.OLLAMA
+        # Complex request should use OpenAI for free users (if not rate limited)
+        provider = ai_router.choose_provider(RequestComplexity.COMPLEX, "free", "test_user")
+        assert provider == AIProvider.OPENAI
 
     def test_choose_provider_premium_tier(self, ai_router: AIRouter) -> None:
         """Test provider selection for premium tier"""
@@ -139,7 +139,10 @@ class TestRouteRequest:
         self, ai_router: AIRouter, mock_env_vars: Any
     ) -> None:
         """Test forced provider routing"""
-        with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
+        with (
+            patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai,
+            patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama,
+        ):
             mock_openai.return_value = {
                 "response": "OpenAI response",
                 "provider": "openai",
@@ -148,18 +151,29 @@ class TestRouteRequest:
                 "tokens_used": 50,
                 "fallback_used": False,
             }
+            mock_ollama.return_value = {
+                "response": "Ollama response",
+                "provider": "ollama",
+                "model": "llama3",
+                "cost": 0.0,
+                "tokens_used": 0,
+                "fallback_used": False,
+            }
 
-            result = await ai_router.route_request("Test message", {}, "free", "openai")
+            result = await ai_router.route_request(
+                "Test message", {}, "free", "anonymous", "openai"
+            )
 
             assert result["provider"] == "openai"
             assert result["response"] == "OpenAI response"
             mock_openai.assert_called_once()
+            mock_ollama.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_route_request_invalid_provider(self, ai_router: AIRouter) -> None:
         """Test invalid provider handling"""
         with pytest.raises(ValueError, match="Invalid provider"):
-            await ai_router.route_request("Test message", {}, "free", "invalid")
+            await ai_router.route_request("Test message", {}, "free", "test_user", "invalid")
 
     @pytest.mark.asyncio
     async def test_route_request_fallback(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
@@ -311,8 +325,8 @@ class TestCostCalculation:
 
         cost = ai_router._calculate_openai_cost(mock_usage)
 
-        # Expected: (1000/1000) * 0.0006 + (500/1000) * 0.0024 = 0.0006 + 0.0012 = 0.0018
-        expected_cost = (1000 / 1000) * 0.0006 + (500 / 1000) * 0.0024
+        # Expected: (1000/1M) * 0.15 + (500/1M) * 0.60 = 0.00015 + 0.0003 = 0.00045
+        expected_cost = (1000 / 1_000_000) * 0.15 + (500 / 1_000_000) * 0.60
         assert abs(cost - expected_cost) < 0.0001
 
     def test_calculate_openai_cost_none_usage(self, ai_router: AIRouter) -> None:

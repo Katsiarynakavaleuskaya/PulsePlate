@@ -39,7 +39,7 @@ gh secret set GHCR_READ_TOKEN --body "your_github_pat_token"
 ### **Option 1: Ollama Cloud (Recommended)**
 
 ```bash
-# 1. Get Ollama Cloud API key from <https://ollama.com/signin>
+# 1. Get Ollama Cloud API key from [Ollama Cloud sign-in](https://ollama.com/signin)
 # 2. Set the secret
 gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_key"
 

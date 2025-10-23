@@ -34,12 +34,12 @@ Our hybrid approach optimizes cost while maintaining quality:
 
 **Sources:**
 
-- OpenAI GPT-4o-mini: <https://openai.com/pricing> (Last updated: 2025-01-25)
-- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
+- OpenAI GPT-4o-mini: <https://openai.com/pricing> (Last updated: 2025-01-26)
+- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-26)
 - Currency: USD, per 1K tokens
-- Note: Pricing may change, please verify current rates
+- **⚠️ Important**: AI pricing changes frequently. Please verify current rates on vendor pages before relying on these numbers for production cost estimates.
 
-## Total Savings: ~85% compared to OpenAI-only
+## Total Savings: ~90% compared to OpenAI-only
 
 ## 🚀 **Usage Examples**
 

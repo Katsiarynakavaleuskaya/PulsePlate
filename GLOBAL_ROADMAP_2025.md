@@ -133,7 +133,7 @@
 #### 📈 Growth & Marketing
 
 - [ ] App Store Optimization (ASO)
-- [ ] SEO
+- [ ] SEO optimization
 - [ ] Social media presence
 - [ ] Product Hunt launch
 - [ ] Influencer partnerships

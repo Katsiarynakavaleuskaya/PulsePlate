@@ -200,7 +200,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from typing import Optional
-import requests
 
 def create_robust_session() -> requests.Session:
     """Создание сессии с retry логикой"""

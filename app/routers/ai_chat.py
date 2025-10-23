@@ -43,6 +43,7 @@ class NutritionAnalysisRequest(BaseModel):
 
     food_items: List[str] = Field(..., description="List of food items to analyze")
     user_profile: Dict[str, Any] = Field(default_factory=dict, description="User profile data")
+    user_tier: str = Field(default="free", description="User tier (free/premium)")
     analysis_type: str = Field(
         default="basic", description="Type of analysis (basic/detailed/comprehensive)"
     )
@@ -62,8 +63,9 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             request.message,
             request.context,
             request.user_tier,
-            request.force_provider,
-            request.task_type,
+            user_id=request.context.get("user_id", "anonymous"),
+            provider=request.force_provider,
+            task_type=request.task_type,
         )
 
         return ChatResponse(
@@ -92,20 +94,27 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
             f"Analyze the nutrition content of these food items: {', '.join(request.food_items)}"
         )
 
+        # Create normalized user profile
+        user_profile = {
+            **request.user_profile,
+            "analysis_type": request.analysis_type or "basic",
+            "tier": request.user_tier or "free",
+        }
+
         # Determine complexity based on analysis type
         if request.analysis_type == "comprehensive":
-            user_profile = {**request.user_profile, "analysis_type": "comprehensive"}
             complexity = RequestComplexity.COMPLEX
         elif request.analysis_type == "detailed":
-            user_profile = request.user_profile
             complexity = RequestComplexity.MEDIUM
         else:
-            user_profile = request.user_profile
             complexity = RequestComplexity.SIMPLE
 
         # Route request
         result = await ai_router.route_request(
-            prompt, user_profile, user_profile.get("tier", "free")
+            prompt,
+            user_profile,
+            request.user_tier or "free",
+            user_id=request.user_profile.get("user_id", "anonymous"),
         )
 
         return ChatResponse(

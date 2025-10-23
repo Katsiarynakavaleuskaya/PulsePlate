@@ -148,21 +148,6 @@ class StoreParser:
         match = re.search(r'[\d,]+\.?\d*', value_str.replace(',', '.'))
         return float(match.group()) if match else None
 
-    def _extract_price(self, soup) -> Optional[float]:
-        """Извлечение цены продукта"""
-        price_elem = soup.find(['span', 'div'], class_=re.compile(r'price|cost'))
-        if price_elem:
-            price_text = price_elem.get_text(strip=True)
-            # Извлекаем число из строки цены
-            price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', '.'))
-            if price_match:
-                try:
-                    return float(price_match.group())
-                except ValueError:
-                    logging.warning(f"Failed to parse price: {price_text}")
-                    return None
-        return None
-
     def close(self):
         """Закрытие сессии"""
         if hasattr(self, 'session'):
@@ -285,6 +270,7 @@ class RestaurantParser:
 
 ```python
 # core/web_scrapers/recipe_parsers.py
+import logging
 import requests
 from bs4 import BeautifulSoup
 from typing import Dict, Optional, List
@@ -392,6 +378,10 @@ class RussianStoreParser(StoreParser):
 
 ```python
 # core/web_scrapers/european_stores.py
+import re
+from typing import Optional
+from bs4 import BeautifulSoup
+
 class EuropeanStoreParser(StoreParser):
     """Парсер для европейских магазинов"""
 
@@ -495,7 +485,8 @@ class RobotsChecker:
 # core/web_scrapers/polite_scraper.py
 import time
 import random
-from typing import Dict
+import requests
+from typing import Dict, Optional
 
 class PoliteScraper:
     """Вежливый скрапер с rate limiting"""
@@ -505,7 +496,7 @@ class PoliteScraper:
         self.max_delay = max_delay
         self.last_request_time = 0
 
-    def scrape_with_delay(self, url: str) -> requests.Response:
+    def scrape_with_delay(self, url: str) -> Optional[requests.Response]:
         """Скрапинг с задержкой между запросами"""
         # Соблюдаем rate limiting
         time_since_last = time.time() - self.last_request_time
@@ -516,8 +507,13 @@ class PoliteScraper:
         delay = random.uniform(self.min_delay, self.max_delay)
         time.sleep(delay)
 
-        response = requests.get(url)
-        self.last_request_time = time.time()
+        try:
+            response = requests.get(url, timeout=30)
+            self.last_request_time = time.time()
+            return response
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed for {url}: {e}")
+            return None
 
         return response
 ```

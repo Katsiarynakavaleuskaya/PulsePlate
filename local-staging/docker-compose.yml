@@ -22,7 +22,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: pulseplate-nginx
+    container_name: pulseplate-nginx-local
     ports:
       - "80:80"
     volumes:
