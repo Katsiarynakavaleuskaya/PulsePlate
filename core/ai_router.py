@@ -230,7 +230,6 @@ class AIRouter:
                     if self.ollama_api_key
                     else {}
                 ),
-                timeout=30.0,
             )
             response.raise_for_status()
             result = response.json()

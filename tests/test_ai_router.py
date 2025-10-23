@@ -83,6 +83,17 @@ class TestProviderSelection:
         provider = ai_router.choose_provider(RequestComplexity.MEDIUM, "free")
         assert provider == AIProvider.OLLAMA
 
+    def test_choose_provider_default_behavior(self, ai_router: AIRouter) -> None:
+        """Test default provider selection behavior"""
+        # Test the default case (line 145) - should return OPENAI for non-simple complexity
+        assert (
+            ai_router.choose_provider(RequestComplexity.MEDIUM, "unknown_tier") == AIProvider.OPENAI
+        )
+        assert (
+            ai_router.choose_provider(RequestComplexity.COMPLEX, "unknown_tier")
+            == AIProvider.OPENAI
+        )
+
         # Complex request should use Ollama (free users limited to Ollama)
         provider = ai_router.choose_provider(RequestComplexity.COMPLEX, "free")
         assert provider == AIProvider.OLLAMA
@@ -326,3 +337,101 @@ class TestEnvironmentConfiguration:
             assert router.openai_model == "gpt-4o-mini"
             assert router.ollama_api_key is None
             assert router.openai_api_key is None
+
+    def test_production_validation_missing_openai_key(self) -> None:
+        """Test production validation with missing OpenAI API key"""
+        with patch.dict(os.environ, {"ENVIRONMENT": "production", "OLLAMA_API_KEY": "test"}):
+            with pytest.raises(ValueError, match="OPENAI_API_KEY environment variable is required"):
+                AIRouter()
+
+    def test_production_validation_missing_ollama_key(self) -> None:
+        """Test production validation with missing Ollama API key"""
+        with patch.dict(os.environ, {"ENVIRONMENT": "production", "OPENAI_API_KEY": "test"}):
+            with pytest.raises(ValueError, match="OLLAMA_API_KEY environment variable is required"):
+                AIRouter()
+
+    def test_invalid_ollama_endpoint_no_scheme(self) -> None:
+        """Test invalid Ollama endpoint without scheme"""
+        with patch.dict(os.environ, {"OLLAMA_ENDPOINT": "invalid-url"}):
+            with pytest.raises(ValueError, match="Invalid OLLAMA_ENDPOINT URL"):
+                AIRouter()
+
+    def test_invalid_ollama_endpoint_no_netloc(self) -> None:
+        """Test invalid Ollama endpoint without netloc"""
+        with patch.dict(os.environ, {"OLLAMA_ENDPOINT": "http://"}):
+            with pytest.raises(ValueError, match="Invalid OLLAMA_ENDPOINT URL"):
+                AIRouter()
+
+    def test_invalid_ollama_endpoint_exception(self) -> None:
+        """Test invalid Ollama endpoint with exception during parsing"""
+        with patch.dict(os.environ, {"OLLAMA_ENDPOINT": "http://test.com"}):
+            with patch("urllib.parse.urlparse", side_effect=Exception("Parse error")):
+                with pytest.raises(ValueError, match="Invalid OLLAMA_ENDPOINT URL"):
+                    AIRouter()
+
+
+class TestAdditionalCoverage:
+    """Test additional coverage for uncovered lines"""
+
+    @pytest.mark.asyncio
+    async def test_route_request_forced_ollama_provider(
+        self, ai_router: AIRouter, mock_env_vars: Any
+    ) -> None:
+        """Test route request with forced Ollama provider (line 160)"""
+        with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
+            mock_ollama.return_value = {
+                "response": "Test response",
+                "provider": "ollama",
+                "model": "llama3",
+                "cost": 0.0,
+                "tokens_used": 10,
+                "fallback_used": False,
+            }
+
+            result = await ai_router.route_request("test message", {}, "free", "ollama")
+
+            assert result["response"] == "Test response"
+            assert result["provider"] == "ollama"
+            mock_ollama.assert_called_once_with("test message", {})
+
+    @pytest.mark.asyncio
+    async def test_route_request_fallback_openai_success(
+        self, ai_router: AIRouter, mock_env_vars: Any
+    ) -> None:
+        """Test fallback to OpenAI when Ollama fails (lines 193-194)"""
+        with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
+            with patch.object(ai_router, "_call_openai", new_callable=AsyncMock) as mock_openai:
+                # Mock Ollama failure
+                mock_ollama.side_effect = Exception("Ollama failed")
+
+                # Mock OpenAI success
+                mock_openai.return_value = {
+                    "response": "OpenAI response",
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                    "cost": 0.001,
+                    "tokens_used": 20,
+                    "fallback_used": False,
+                }
+
+                result = await ai_router.route_request("test message", {}, "free")
+
+                assert result["response"] == "OpenAI response"
+                assert result["provider"] == "openai"
+                assert result["fallback_used"] is True
+                mock_ollama.assert_called_once()
+                mock_openai.assert_called_once()
+
+    def test_build_system_prompt_with_allergies(self, ai_router: AIRouter) -> None:
+        """Test _build_system_prompt with allergies context (line 294)"""
+        context = {
+            "allergies": ["nuts", "dairy"],
+            "user_conditions": ["diabetes"],
+            "diet_goals": ["weight_loss"],
+        }
+
+        prompt = ai_router._build_system_prompt(context)
+
+        assert "User has conditions: diabetes" in prompt
+        assert "User allergies: nuts, dairy" in prompt
+        assert "User goals: weight_loss" in prompt

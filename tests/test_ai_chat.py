@@ -358,3 +358,36 @@ class TestEdgeCases:
             "/api/ai/chat", json={"message": special_message, "context": {}, "user_tier": "free"}
         )
         assert response.status_code == 200  # Should handle special chars gracefully
+
+    def test_detailed_analysis_type(self, client: TestClient, mock_ai_router: Any) -> None:
+        """Test detailed analysis type (lines 95-96)"""
+        # Mock the analyze_complexity method to return a proper enum
+        from core.ai_router import RequestComplexity
+
+        mock_ai_router.analyze_complexity.return_value = RequestComplexity.MEDIUM
+
+        mock_ai_router.route_request = AsyncMock(
+            return_value={
+                "response": "Detailed analysis response",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+                "cost": 0.001,
+                "tokens_used": 20,
+                "fallback_used": False,
+            }
+        )
+
+        response = client.post(
+            "/api/ai/chat",
+            json={
+                "message": "Analyze my nutrition",
+                "context": {"user_tier": "premium"},
+                "user_tier": "premium",
+                "analysis_type": "detailed",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["response"] == "Detailed analysis response"
+        assert data["complexity"] == "medium"
