@@ -41,7 +41,7 @@ class BMIVisualizer:
         "athlete": [(0, 18.5), (18.5, 27), (27, 32), (32, 45)],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not MATPLOTLIB_AVAILABLE:
             raise ImportError("matplotlib not available for visualization")
 
@@ -84,7 +84,7 @@ class BMIVisualizer:
 
         return image_base64
 
-    def _create_bmi_gauge(self, ax, bmi: float, group: str, lang: str):
+    def _create_bmi_gauge(self, ax: Any, bmi: float, group: str, lang: str) -> None:
         """Create BMI gauge chart showing current BMI position."""
         ranges = self.BMI_RANGES.get(group, self.BMI_RANGES["general"])
         colors = ["#3498db", "#27ae60", "#f39c12", "#e74c3c"]
@@ -146,7 +146,9 @@ class BMIVisualizer:
         ax.legend(loc="upper right")
         ax.set_title(f"Current BMI: {bmi}", fontsize=14, fontweight="bold")
 
-    def _create_guidance_chart(self, ax, bmi: float, age: int, gender: str, group: str, lang: str):
+    def _create_guidance_chart(
+        self, ax: Any, bmi: float, age: int, gender: str, group: str, lang: str
+    ) -> None:
         """Create guidance and recommendations chart."""
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)

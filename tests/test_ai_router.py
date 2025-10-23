@@ -172,8 +172,9 @@ class TestRouteRequest:
     @pytest.mark.asyncio
     async def test_route_request_invalid_provider(self, ai_router: AIRouter) -> None:
         """Test invalid provider handling"""
-        with pytest.raises(ValueError, match="Invalid provider"):
-            await ai_router.route_request("Test message", {}, "free", "test_user", "invalid")
+        result = await ai_router.route_request("Test message", {}, "free", "test_user", "invalid")
+        assert result["provider"] == "unknown"
+        assert "Invalid provider" in result["response"]
 
     @pytest.mark.asyncio
     async def test_route_request_fallback(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
@@ -407,19 +408,23 @@ class TestAdditionalCoverage:
     ) -> None:
         """Test route request with forced Ollama provider (line 160)"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
-            mock_ollama.return_value = {
-                "response": "Test response",
-                "provider": "ollama",
-                "model": "llama3",
-                "cost": 0.0,
-                "tokens_used": 10,
-                "fallback_used": False,
-            }
+            from core.ai_router import AIResponse
 
-            result = await ai_router.route_request("test message", {}, "free", "ollama")
+            mock_ollama.return_value = AIResponse(
+                response="Test response",
+                provider="ollama",
+                model="llama3",
+                cost=0.0,
+                tokens_used=10,
+                fallback_used=False,
+            )
 
-            assert result["response"] == "Test response"
-            assert result["provider"] == "ollama"
+            result = await ai_router.route_request(
+                "test message", {}, "free", "anonymous", "ollama"
+            )
+
+            assert result.response == "Test response"
+            assert result.provider == "ollama"
             mock_ollama.assert_called_once_with("test message", {})
 
     @pytest.mark.asyncio

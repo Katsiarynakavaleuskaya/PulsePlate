@@ -4,11 +4,15 @@ AI Router - Smart routing between Ollama and OpenAI based on request complexity
 
 import os
 import time
+import threading
 from typing import Dict, Any, Optional
 from enum import Enum
 import logging
 import httpx
 import openai
+import torch
+from transformers import AutoModel, AutoTokenizer
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +27,18 @@ class RequestComplexity(Enum):
     SIMPLE = "simple"  # Basic nutrition info, simple questions
     MEDIUM = "medium"  # Meal planning, basic analysis
     COMPLEX = "complex"  # Detailed analysis, complex recommendations
+
+
+class AIResponse(BaseModel):
+    """Structured response from AI providers"""
+
+    response: str
+    provider: str
+    model: str
+    cost: float
+    tokens_used: int
+    fallback_used: bool = False
+    error: bool = False
 
 
 class AIRouter:
@@ -40,12 +56,29 @@ class AIRouter:
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
-        self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+
+        # Safe parsing of OPENAI_MAX_TOKENS
+        try:
+            self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+        except ValueError:
+            logger.warning(
+                f"Invalid OPENAI_MAX_TOKENS value: {os.getenv('OPENAI_MAX_TOKENS')}, using default 1000"
+            )
+            self.max_tokens = 1000
 
         # Hugging Face configuration
         self.huggingface_api_token = os.getenv("HUGGINGFACE_API_TOKEN")
         self.huggingface_model = os.getenv("HUGGINGFACE_MODEL", "nvidia/llama-embed-nemotron-8b")
-        self.huggingface_max_length = int(os.getenv("HUGGINGFACE_MAX_LENGTH", "512"))
+        self.huggingface_model_revision = os.getenv("HUGGINGFACE_MODEL_REVISION")
+
+        # Safe parsing of HUGGINGFACE_MAX_LENGTH
+        try:
+            self.huggingface_max_length = int(os.getenv("HUGGINGFACE_MAX_LENGTH", "512"))
+        except ValueError:
+            logger.warning(
+                f"Invalid HUGGINGFACE_MAX_LENGTH value: {os.getenv('HUGGINGFACE_MAX_LENGTH')}, using default 512"
+            )
+            self.huggingface_max_length = 512
 
         # Validate required environment variables (only in production)
         # Skip validation during testing or when environment variables are not set
@@ -54,6 +87,15 @@ class AIRouter:
                 raise ValueError("OPENAI_API_KEY environment variable is required")
             if not self.ollama_api_key:
                 raise ValueError("OLLAMA_API_KEY environment variable is required")
+            if not self.huggingface_model_revision:
+                raise ValueError(
+                    "HUGGINGFACE_MODEL_REVISION environment variable is required for security"
+                )
+            # HuggingFace API token required for embedding tasks in production
+            if not self.huggingface_api_token:
+                raise ValueError(
+                    "HUGGINGFACE_API_TOKEN environment variable is required for embedding tasks"
+                )
 
         # Validate OLLAMA_ENDPOINT URL
         try:
@@ -65,7 +107,10 @@ class AIRouter:
         except Exception as e:
             raise ValueError(f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}") from e
 
-        # Note: Rate limiting not implemented yet
+        # Rate limiting implemented via _is_rate_limited method (lines 168-208)
+        # Uses in-memory sliding window with configurable limits per user tier
+        self._rate_limit_store: dict[str, list[float]] = {}
+        self._rate_limit_lock = threading.Lock()
         # Future: self.ollama_free_limit = int(os.getenv("OLLAMA_FREE_LIMIT", "1000"))
         # Future: self.openai_budget_limit = int(os.getenv("OPENAI_BUDGET_LIMIT", "10000"))
 
@@ -146,23 +191,24 @@ class AIRouter:
         if task_type == "embedding" and self.huggingface_api_token:
             return AIProvider.HUGGINGFACE
 
-        # Premium users get OpenAI for all text requests
+        # Check rate limits for all users (not just free)
+        if self._is_rate_limited(f"{user_tier}_user:{user_id}", user_tier):
+            return AIProvider.OLLAMA
+
+        # Premium users get OpenAI for all text requests (if not rate limited)
         if user_tier == "premium" and task_type == "text":
             return AIProvider.OPENAI
 
-        # Free users: Check rate limits before routing
-        if user_tier == "free":
-            if self._is_rate_limited(f"free_user:{user_id}", user_tier):
-                return AIProvider.OLLAMA
-            # Allow complex queries for free users if not rate limited
-            if complexity == RequestComplexity.COMPLEX:
-                return AIProvider.OPENAI
-            return AIProvider.OLLAMA
+        # Free users: Allow complex queries if not rate limited
+        if user_tier == "free" and complexity == RequestComplexity.COMPLEX:
+            return AIProvider.OPENAI
 
-        # Default: Ollama for simple, OpenAI for medium/complex
+        # Explicit complexity-based routing for other cases
         if complexity == RequestComplexity.SIMPLE:
             return AIProvider.OLLAMA
-        else:
+        elif complexity == RequestComplexity.MEDIUM:
+            return AIProvider.OPENAI
+        else:  # RequestComplexity.COMPLEX or any other value
             return AIProvider.OPENAI
 
     def _is_rate_limited(self, user_id: str, user_tier: str) -> bool:
@@ -172,39 +218,36 @@ class AIRouter:
         TODO: Implement Redis-based rate limiting for production
         """
         try:
-            # Simple in-memory rate limiting (not persistent across restarts)
-            if not hasattr(self, "_rate_limit_store"):
-                self._rate_limit_store: dict[str, list[float]] = {}
+            with self._rate_limit_lock:
+                current_time = time.time()
+                window_size = 3600  # 1 hour window
 
-            current_time = time.time()
-            window_size = 3600  # 1 hour window
+                # Rate limits per tier (requests per hour)
+                limits = {"free": 10, "premium": 1000, "enterprise": 10000}
 
-            # Rate limits per tier (requests per hour)
-            limits = {"free": 10, "premium": 1000, "enterprise": 10000}
+                limit = limits.get(user_tier, 10)
 
-            limit = limits.get(user_tier, 10)
+                # Clean old entries
+                if user_id in self._rate_limit_store:
+                    self._rate_limit_store[user_id] = [
+                        timestamp
+                        for timestamp in self._rate_limit_store[user_id]
+                        if current_time - timestamp < window_size
+                    ]
+                else:
+                    self._rate_limit_store[user_id] = []
 
-            # Clean old entries
-            if user_id in self._rate_limit_store:
-                self._rate_limit_store[user_id] = [
-                    timestamp
-                    for timestamp in self._rate_limit_store[user_id]
-                    if current_time - timestamp < window_size
-                ]
-            else:
-                self._rate_limit_store[user_id] = []
+                # Check if over limit
+                if len(self._rate_limit_store[user_id]) >= limit:
+                    return True
 
-            # Check if over limit
-            if len(self._rate_limit_store[user_id]) >= limit:
-                return True
-
-            # Add current request
-            self._rate_limit_store[user_id].append(current_time)
+                # Add current request
+                self._rate_limit_store[user_id].append(current_time)
         except (KeyError, AttributeError, TypeError) as e:
             logger.warning(f"Rate limiting check failed: {e}, defaulting to rate limited")
             return True  # Conservative: treat as rate limited on error
-        else:
-            return False
+
+        return False
 
     async def route_request(
         self,
@@ -214,7 +257,7 @@ class AIRouter:
         user_id: str = "anonymous",
         provider: Optional[str] = None,
         task_type: str = "text",
-    ) -> Dict[str, Any]:
+    ) -> AIResponse:
         """
         Route request to appropriate AI provider
         """
@@ -228,7 +271,15 @@ class AIRouter:
                 return await self._call_huggingface(prompt, context)
             else:
                 valid_providers = "'ollama', 'openai', or 'huggingface'"
-                raise ValueError(f"Invalid provider: {provider}. Use {valid_providers}")
+                return AIResponse(
+                    response=f"Invalid provider: {provider}. Use {valid_providers}",
+                    provider="unknown",
+                    model="error",
+                    cost=0.0,
+                    tokens_used=0,
+                    fallback_used=False,
+                    error=True,
+                )
 
         complexity = self.analyze_complexity(prompt, context)
         chosen_provider = self.choose_provider(complexity, user_tier, user_id, task_type)
@@ -259,30 +310,30 @@ class AIRouter:
             try:
                 if fallback_provider == AIProvider.OLLAMA:
                     result = await self._call_ollama(prompt, context)
-                    result["fallback_used"] = True
+                    result.fallback_used = True
                     return result
                 elif fallback_provider == AIProvider.HUGGINGFACE:
                     result = await self._call_huggingface(prompt, context)
-                    result["fallback_used"] = True
+                    result.fallback_used = True
                     return result
                 else:
                     result = await self._call_openai(prompt, context)
-                    result["fallback_used"] = True
+                    result.fallback_used = True
                     return result
             except Exception as fallback_error:
                 logger.exception(f"Fallback to {fallback_provider.value} also failed")
                 # Return error structure instead of re-raising
-                return {
-                    "response": f"Both AI providers failed. Original error: {e}, Fallback error: {fallback_error}",
-                    "provider": fallback_provider.value,
-                    "model": "error",
-                    "cost": 0.0,
-                    "tokens_used": 0,
-                    "fallback_used": True,
-                    "error": True,
-                }
+                return AIResponse(
+                    response=f"Both AI providers failed. Original error: {e}, Fallback error: {fallback_error}",
+                    provider=fallback_provider.value,
+                    model="error",
+                    cost=0.0,
+                    tokens_used=0,
+                    fallback_used=True,
+                    error=True,
+                )
 
-    async def _call_ollama(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_ollama(self, prompt: str, context: Dict[str, Any]) -> AIResponse:
         """
         Call Ollama API
         """
@@ -292,7 +343,13 @@ class AIRouter:
         full_prompt = f"{system_prompt}\n\nUser: {prompt}"
 
         # Configure timeout for connection and requests
-        timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT", "30"))
+        try:
+            timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT", "30"))
+        except ValueError:
+            logger.warning(
+                f"Invalid OLLAMA_TIMEOUT value: {os.getenv('OLLAMA_TIMEOUT')}, using default 30"
+            )
+            timeout_seconds = 30
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(
                 f"{self.ollama_endpoint}/api/generate",
@@ -311,22 +368,56 @@ class AIRouter:
             response.raise_for_status()
             result = response.json()
 
-            return {
-                "response": result.get("response", ""),
-                "provider": "ollama",
-                "model": self.ollama_model,
-                "cost": 0,  # Free
-                "tokens_used": result.get("eval_count", 0),
-                "fallback_used": False,
-            }
+            # Validate and normalize response
+            if not isinstance(result, dict):
+                logger.error(f"Invalid Ollama response format: {type(result)}")
+                return AIResponse(
+                    response="Error: Invalid response format from Ollama",
+                    provider="ollama",
+                    model=self.ollama_model,
+                    cost=0.0,
+                    tokens_used=0,
+                    fallback_used=True,
+                    error=True,
+                )
 
-    async def _call_openai(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+            # Ensure required fields exist and are correct types
+            response_text = result.get("response", "")
+            if not isinstance(response_text, str):
+                logger.warning(f"Ollama response field is not string: {type(response_text)}")
+                response_text = str(response_text) if response_text is not None else ""
+
+            eval_count = result.get("eval_count", 0)
+            if not isinstance(eval_count, int):
+                try:
+                    eval_count = int(eval_count) if eval_count is not None else 0
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid eval_count from Ollama: {eval_count}")
+                    eval_count = 0
+
+            return AIResponse(
+                response=response_text,
+                provider="ollama",
+                model=self.ollama_model,
+                cost=0.0,  # Free
+                tokens_used=eval_count,
+                fallback_used=False,
+                error=False,
+            )
+
+    async def _call_openai(self, prompt: str, context: Dict[str, Any]) -> AIResponse:
         """
         Call OpenAI API
         """
 
         # Configure timeout (configurable via environment)
-        timeout_seconds = int(os.getenv("OPENAI_TIMEOUT", "30"))
+        try:
+            timeout_seconds = int(os.getenv("OPENAI_TIMEOUT", "30"))
+        except ValueError:
+            logger.warning(
+                f"Invalid OPENAI_TIMEOUT value: {os.getenv('OPENAI_TIMEOUT')}, using default 30"
+            )
+            timeout_seconds = 30
         client = openai.AsyncOpenAI(api_key=self.openai_api_key, timeout=timeout_seconds)
 
         # Import proper typing for OpenAI messages
@@ -358,24 +449,33 @@ class AIRouter:
         if content is None:
             raise ValueError("OpenAI API returned None content (likely content filtering)")
 
-        return {
-            "response": content,
-            "provider": "openai",
-            "model": self.openai_model,
-            "cost": cost,
-            "tokens_used": tokens_used,
-            "fallback_used": False,
-        }
+        return AIResponse(
+            response=content,
+            provider="openai",
+            model=self.openai_model,
+            cost=cost,
+            tokens_used=tokens_used,
+            fallback_used=False,
+            error=False,
+        )
 
-    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> AIResponse:
         """
         Call Hugging Face API for embeddings
-        Note: context parameter unused but kept for interface consistency with other providers
+
+        Args:
+            prompt: Text to generate embeddings for
+            context: Optional context dictionary (currently unused but reserved for future features)
+                   Expected keys in future versions:
+                   - user_conditions: List[str] - User health conditions
+                   - allergies: List[str] - User allergies
+                   - meal_planning: bool - Whether this is for meal planning
+                   - diet_goals: List[str] - User diet goals
+                   - user_id: str - User identifier for personalization
+                   - task_type: str - Type of task (embedding, text, etc.)
+                   Can be None or empty dict for current implementation
         """
         try:
-            from transformers import AutoModel, AutoTokenizer
-            import torch
-
             # Load model and tokenizer
             # Only enable trust_remote_code for explicitly vetted models
             trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
@@ -384,17 +484,21 @@ class AIRouter:
                     f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
                 )
 
-            # Pin to specific revision for security
-            model_revision = "main"  # Use main branch for stability
+            # Use specific commit hash for security (required in production)
+            if not self.huggingface_model_revision:
+                raise ValueError(
+                    "HUGGINGFACE_MODEL_REVISION must be set to a specific commit hash for security"
+                )
+
             tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
                 self.huggingface_model,
-                revision=model_revision,
+                revision=self.huggingface_model_revision,
                 trust_remote_code=trust_remote,
                 token=self.huggingface_api_token,
             )
             model = AutoModel.from_pretrained(  # nosec B615 - revision pinned for security
                 self.huggingface_model,
-                revision=model_revision,
+                revision=self.huggingface_model_revision,
                 trust_remote_code=trust_remote,
                 token=self.huggingface_api_token,
             )
@@ -414,14 +518,15 @@ class AIRouter:
                 # Use mean pooling for sentence-level embedding
                 embeddings = outputs.last_hidden_state.mean(dim=1)
 
-            return {
-                "response": embeddings.tolist(),  # Convert to list for JSON serialization
-                "provider": "huggingface",
-                "model": self.huggingface_model,
-                "cost": 0.0,  # Free tier
-                "tokens_used": inputs.input_ids.shape[1],
-                "fallback_used": False,
-            }
+            return AIResponse(
+                response=str(embeddings.tolist()),  # Convert to string for JSON serialization
+                provider="huggingface",
+                model=self.huggingface_model,
+                cost=0.0,  # Free tier
+                tokens_used=inputs.input_ids.shape[1],
+                fallback_used=False,
+                error=False,
+            )
 
         except Exception:
             logger.exception("Hugging Face API error")
@@ -440,13 +545,26 @@ class AIRouter:
         )
 
         if context.get("user_conditions"):
-            base_prompt += f"\nUser has conditions: {', '.join(context['user_conditions'])}"
+            conditions = context.get("user_conditions", [])
+            if conditions and isinstance(conditions, list):
+                # Sanitize and validate conditions
+                safe_conditions = [str(c).strip() for c in conditions if c]
+                if safe_conditions:
+                    base_prompt += f"\nUser has conditions: {', '.join(safe_conditions)}"
 
         if context.get("allergies"):
-            base_prompt += f"\nUser allergies: {', '.join(context['allergies'])}"
+            allergies = context.get("allergies", [])
+            if allergies and isinstance(allergies, list):
+                safe_allergies = [str(a).strip() for a in allergies if a]
+                if safe_allergies:
+                    base_prompt += f"\nUser allergies: {', '.join(safe_allergies)}"
 
         if context.get("diet_goals"):
-            base_prompt += f"\nUser goals: {', '.join(context['diet_goals'])}"
+            diet_goals = context.get("diet_goals", [])
+            if diet_goals and isinstance(diet_goals, list):
+                safe_goals = [str(g).strip() for g in diet_goals if g]
+                if safe_goals:
+                    base_prompt += f"\nUser goals: {', '.join(safe_goals)}"
 
         return base_prompt
 

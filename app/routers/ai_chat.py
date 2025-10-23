@@ -4,12 +4,41 @@ AI Chat Router - Smart AI routing for nutrition and health queries
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import logging
 
 from core.ai_router import ai_router, RequestComplexity
 
 logger = logging.getLogger(__name__)
+
+
+def estimate_openai_cost(message: str) -> Tuple[float, int]:
+    """
+    Estimate OpenAI API cost and token usage for a message.
+
+    Returns:
+        Tuple of (estimated_cost, estimated_tokens)
+    """
+    # Constants for OpenAI GPT-4o-mini pricing (as of 2025-01-26)
+    TOKEN_MULTIPLIER = 1.3  # Rough approximation factor
+    INPUT_RATIO = 0.7  # 70% of tokens are input
+    OUTPUT_RATIO = 0.3  # 30% of tokens are output
+    INPUT_COST_PER_1K = 0.00015  # $0.00015 per 1K input tokens (from $0.15 per 1M)
+    OUTPUT_COST_PER_1K = 0.0006  # $0.0006 per 1K output tokens (from $0.60 per 1M)
+
+    # Calculate estimated tokens
+    estimated_tokens = len(message.split()) * TOKEN_MULTIPLIER
+
+    # Split into input/output tokens
+    input_tokens = estimated_tokens * INPUT_RATIO
+    output_tokens = estimated_tokens * OUTPUT_RATIO
+
+    # Calculate cost
+    cost = (input_tokens / 1000) * INPUT_COST_PER_1K + (output_tokens / 1000) * OUTPUT_COST_PER_1K
+
+    # Round cost to 6 decimal places
+    return round(cost, 6), int(estimated_tokens)
+
 
 router = APIRouter(prefix="/api/ai", tags=["AI Chat"])
 
@@ -69,13 +98,13 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
         )
 
         return ChatResponse(
-            response=result["response"],
-            provider=result["provider"],
-            model=result["model"],
-            cost=result["cost"],
-            tokens_used=result["tokens_used"],
+            response=result.response,
+            provider=result.provider,
+            model=result.model,
+            cost=result.cost,
+            tokens_used=result.tokens_used,
             complexity=complexity.value,
-            fallback_used=result.get("fallback_used", False),
+            fallback_used=result.fallback_used,
         )
 
     except Exception as e:
@@ -118,13 +147,13 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
         )
 
         return ChatResponse(
-            response=result["response"],
-            provider=result["provider"],
-            model=result["model"],
-            cost=result["cost"],
-            tokens_used=result["tokens_used"],
+            response=result.response,
+            provider=result.provider,
+            model=result.model,
+            cost=result.cost,
+            tokens_used=result.tokens_used,
             complexity=complexity.value,
-            fallback_used=result.get("fallback_used", False),
+            fallback_used=result.fallback_used,
         )
 
     except Exception as e:
@@ -150,7 +179,7 @@ async def get_available_providers() -> dict[str, Any]:
                 "name": "openai",
                 "description": "OpenAI API - High quality for complex queries",
                 "models": ["gpt-4o-mini", "gpt-4o"],
-                "cost": "$0.15-0.60 per 1K tokens",
+                "cost": "$0.15-0.60 per 1M tokens",
                 "best_for": ["Complex analysis", "Personalized recommendations"],
             },
         ],
@@ -185,20 +214,13 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
                 "complexity": complexity_value,
             }
         else:
-            # Rough estimate for OpenAI
-            # Note: estimated_tokens = len(message.split()) * 1.3 is a rough approximation
-            # Actual token counts/costs may vary by tokenizer/model
-            estimated_tokens = len(message.split()) * 1.3  # Rough token estimation
-            # Use realistic input/output split: 70% input, 30% output
-            input_tokens = estimated_tokens * 0.7
-            output_tokens = estimated_tokens * 0.3
-            # GPT-4o-mini pricing: input $0.0006/1K, output $0.0024/1K
-            estimated_cost = (input_tokens / 1000) * 0.0006 + (output_tokens / 1000) * 0.0024
+            # Use centralized cost estimation
+            estimated_cost, estimated_tokens = estimate_openai_cost(message)
 
             return {
                 "provider": "openai",
-                "estimated_cost": round(estimated_cost, 6),
-                "estimated_tokens": int(estimated_tokens),
+                "estimated_cost": estimated_cost,
+                "estimated_tokens": estimated_tokens,
                 "complexity": complexity_value,
                 "estimated_cost_note": "Cost is an estimate and may differ from final billed amount",
             }

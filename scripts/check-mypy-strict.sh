@@ -23,3 +23,4 @@ echo "✅ AI files passed strict mypy check!"
 # python -m mypy --config-file mypy.ini --no-error-summary .
 
 echo "🎉 All checks passed!"
+

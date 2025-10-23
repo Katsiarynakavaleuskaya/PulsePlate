@@ -133,7 +133,7 @@
 #### 📈 Growth & Marketing
 
 - [ ] App Store Optimization (ASO)
-- [ ] SEO optimization
+- [ ] SEO
 - [ ] Social media presence
 - [ ] Product Hunt launch
 - [ ] Influencer partnerships
@@ -246,7 +246,7 @@
 - [ ] Widget support
 - [ ] macOS companion app
 
-### Business
+### Business Innovation
 
 - [ ] B2B nutrition consulting
 - [ ] White-label solutions

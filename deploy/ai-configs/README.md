@@ -28,16 +28,17 @@ Our hybrid approach optimizes cost while maintaining quality:
 
 | Query Type | Ollama | OpenAI | Savings |
 |------------|--------|--------|---------|
-| Simple (70%) | Free | $0.60/1K input, $2.40/1K output | 100% |
-| Medium (20%) | Free | $0.60/1K input, $2.40/1K output | 100% |
-| Complex (10%) | $0.20/1K | $0.60/1K input, $2.40/1K output | 67% |
+| Simple (70%) | Free | $0.00015/1K input, $0.0006/1K output | 100% |
+| Medium (20%) | Free | $0.00015/1K input, $0.0006/1K output | 100% |
+| Complex (10%) | $0.20/1K | $0.00015/1K input, $0.0006/1K output | 67% |
 
 **Sources:**
 
-- OpenAI GPT-4o-mini: <https://openai.com/pricing> (Last updated: 2025-01-26)
-- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-26)
+- OpenAI GPT-4o-mini: <https://openai.com/pricing> (Last verified: 2025-01-26)
+- Ollama Cloud: <https://ollama.com> (Last verified: 2025-01-26)
 - Currency: USD, per 1K tokens
 - **⚠️ Important**: AI pricing changes frequently. Please verify current rates on vendor pages before relying on these numbers for production cost estimates.
+- **Maintenance**: Re-verify pricing monthly or before major deployments. Consider setting up automated monitoring for price changes.
 
 ## Total Savings: ~90% compared to OpenAI-only
 

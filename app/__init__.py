@@ -7,7 +7,7 @@ import importlib.util
 import os
 import sys
 from importlib.machinery import ModuleSpec
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 # Import FastAPI app and functions from the main module
 
@@ -62,7 +62,7 @@ class _RebindingModuleSpec(ModuleSpec):
         **kwargs: Keyword arguments passed to ModuleSpec
     """
 
-    def __init__(self, *args, owner_module=None, **kwargs):
+    def __init__(self, *args: Any, owner_module: Optional[object] = None, **kwargs: Any) -> None:
         """Initialize the rebinding module spec.
 
         Args:
@@ -73,7 +73,7 @@ class _RebindingModuleSpec(ModuleSpec):
         super().__init__(*args, **kwargs)
         self._owner_module = owner_module
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         result = super().__getattribute__(name)
         # When 'name' attribute is accessed, ensure sys.modules binding is correct
         if name == "name":
@@ -126,7 +126,7 @@ __all__ = [
 app_module = _mod
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     """Allow access to attributes from the underlying module"""
     if _mod is not None and hasattr(_mod, name):
         return getattr(_mod, name)

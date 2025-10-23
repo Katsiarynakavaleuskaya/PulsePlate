@@ -348,6 +348,80 @@ git push origin v1.0.0
 3. **Backups**: Automatic database backups before deployments
 4. **Rollback**: Previous image tags available for quick rollback
 
+## 🔐 SSL Certificate Setup
+
+### Required SSL Files
+
+The production deployment requires SSL certificates for HTTPS. The nginx service validates these files on startup.
+
+**Required files in `deploy/ssl/` directory:**
+- `private.key` - SSL private key (permissions: 600)
+- `certificate.crt` - SSL certificate (permissions: 644)
+
+### Generating Self-Signed Certificates (Development)
+
+```bash
+# Create SSL directory
+mkdir -p deploy/ssl
+
+# Generate private key
+openssl genrsa -out deploy/ssl/private.key 2048
+
+# Generate self-signed certificate
+openssl req -new -x509 -key deploy/ssl/private.key -out deploy/ssl/certificate.crt -days 365 \
+  -subj "/C=US/ST=State/L=City/O=Organization/CN=yourdomain.com"
+
+# Set correct permissions
+chmod 600 deploy/ssl/private.key
+chmod 644 deploy/ssl/certificate.crt
+```
+
+### Using Let's Encrypt (Production)
+
+```bash
+# Install certbot
+sudo apt install certbot
+
+# Generate certificate
+sudo certbot certonly --standalone -d yourdomain.com
+
+# Copy certificates to deploy directory
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem deploy/ssl/private.key
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem deploy/ssl/certificate.crt
+
+# Set correct permissions
+sudo chmod 600 deploy/ssl/private.key
+sudo chmod 644 deploy/ssl/certificate.crt
+```
+
+### Certificate Renewal
+
+**Let's Encrypt certificates expire every 90 days:**
+
+```bash
+# Test renewal
+sudo certbot renew --dry-run
+
+# Renew certificates
+sudo certbot renew
+
+# Update deployed certificates
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem deploy/ssl/private.key
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem deploy/ssl/certificate.crt
+sudo chmod 600 deploy/ssl/private.key
+sudo chmod 644 deploy/ssl/certificate.crt
+
+# Restart nginx to load new certificates
+docker compose -f deploy/docker-compose.production.yaml restart nginx
+```
+
+### Validation
+
+The nginx container will validate SSL certificates on startup and provide clear error messages if:
+- Files are missing
+- Permissions are incorrect
+- Certificate format is invalid
+
 ## 🧪 Testing Production Setup
 
 ### 1. Local Test

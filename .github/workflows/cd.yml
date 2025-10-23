@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "🚀 Deploying to staging with Ollama..."
 
-          # Login to GHCR
+          # Login to GHCR (requires GHCR_READ_TOKEN secret for pulling images)
           echo "${{ secrets.GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
           # Wait for Docker image to be available (with retry)
@@ -75,6 +75,8 @@ jobs:
           fi
 
           # Run new container
+          # Staging uses port 8000 (production uses 8001 to avoid conflicts)
+          # Note: AI secrets are passed but AI_ROUTER_ENABLED=false for smoke tests
           docker run -d \
             --name pulseplate-staging \
             --restart unless-stopped \
@@ -82,7 +84,7 @@ jobs:
             -e ENVIRONMENT=staging \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
-            -e AI_ROUTER_ENABLED=true \
+            -e AI_ROUTER_ENABLED=false \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Staging deployment completed"
@@ -164,7 +166,7 @@ jobs:
         run: |
           echo "🚀 Deploying to production with Ollama..."
 
-          # Login to GHCR
+          # Login to GHCR (requires GHCR_READ_TOKEN secret for pulling images)
           echo "${{ secrets.GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
           # Wait for Docker image to be available (with retry)
@@ -198,6 +200,9 @@ jobs:
           fi
 
           # Run new container
+          # Production uses port 8001 to avoid collision with staging (port 8000)
+          # Both containers run on same GitHub Actions runner with shared network
+          # Note: AI secrets are passed but AI_ROUTER_ENABLED=false for smoke tests
           docker run -d \
             --name pulseplate-production \
             --restart unless-stopped \
@@ -205,7 +210,7 @@ jobs:
             -e ENVIRONMENT=production \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
-            -e AI_ROUTER_ENABLED=true \
+            -e AI_ROUTER_ENABLED=false \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Production deployment completed"

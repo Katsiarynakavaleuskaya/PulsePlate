@@ -104,7 +104,6 @@ class StoreParser:
             if element:
                 price_text = element.get_text(strip=True)
                 # Извлекаем число из строки типа "$12.99" или "12,99 €"
-                import re
                 price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', '.'))
                 if price_match:
                     return float(price_match.group())

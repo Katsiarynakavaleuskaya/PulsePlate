@@ -33,7 +33,13 @@ def test_llama_embed_nemotron() -> bool:
             logger.warning("⚠️  Only run this script in isolated development environments!")
 
         # Load tokenizer and model with pinned revision for security
-        model_revision = "main"  # Use main branch for stability
+        model_revision = os.getenv("HUGGINGFACE_MODEL_REVISION", "main")
+        if model_revision == "main":
+            logger.warning("⚠️  Using 'main' branch - not recommended for production!")
+            logger.warning(
+                "⚠️  Set HUGGINGFACE_MODEL_REVISION to a specific commit hash for security"
+            )
+
         tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
             model_name, revision=model_revision, trust_remote_code=trust_remote
         )
@@ -72,10 +78,11 @@ def test_llama_embed_nemotron() -> bool:
             print("-" * 50)
 
         logger.info("✅ All tests completed successfully!")
-        return True
-    except (OSError, RuntimeError, ValueError):
+    except Exception:
         logger.exception("❌ Error testing model")
         return False
+    else:
+        return True
 
 
 if __name__ == "__main__":

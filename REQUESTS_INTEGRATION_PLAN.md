@@ -402,26 +402,24 @@ def create_robust_session() -> requests.Session:
 
 ### Зависимости
 
-```bash
 # Веб-скрапинг
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-html5lib>=1.1
-requests-html>=0.10.0
-selenium>=4.15.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+html5lib==1.1
+requests-html==0.10.0
+selenium==4.16.0
 
 # ETL Pipeline
-dlt[postgres,parquet]>=0.5.0
-duckdb>=0.9.0
+dlt[postgres,parquet]==0.5.2
+duckdb==0.10.0
 
 # Мониторинг
-prometheus-client>=0.19.0
-grafana-api>=1.0.3
+prometheus-client==0.20.0
+grafana-api==1.0.3
 
 # Кэширование
-redis>=5.0.0
-requests-cache>=1.1.0
-```
+redis==5.0.1
+requests-cache==1.2.0
 
 ### Конфигурация
 

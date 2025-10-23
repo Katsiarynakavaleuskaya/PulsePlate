@@ -80,7 +80,9 @@ OLLAMA_API_KEY=your_api_key_here
 - **Pro**: $20/month (pricing varies by usage)
 - **Enterprise**: Custom pricing for high volume
 
-*Cost-effective alternative to running your own GPU servers*
+**Cost Consideration**
+
+Cost-effective alternative to running your own GPU servers.
 
 ### Option 3: Local Ollama (For Development)
 
@@ -300,7 +302,7 @@ ollama serve
 pip install transformers torch huggingface-hub
 ```
 
-4. Configure environment:
+1. Configure environment:
 
 ```bash
 # Hugging Face configuration

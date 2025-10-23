@@ -30,3 +30,4 @@ services:
     depends_on:
       - pulseplate-staging
     restart: unless-stopped
+

@@ -93,18 +93,24 @@ if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRE
 
 
 # Create wrapper functions for easier mocking in tests
-def _calculate_all_bmr_wrapper(weight_kg, height_cm, age, sex, bodyfat=None):
+def _calculate_all_bmr_wrapper(
+    weight_kg: float,
+    height_cm: float,
+    age: int,
+    sex: Union[str, "Sex"],
+    bodyfat: Optional[float] = None,
+) -> Any:
     """Wrapper for calculate_all_bmr to support mocking in tests"""
     if calculate_all_bmr is None:
         raise ImportError("nutrition_core module not available")
-    return calculate_all_bmr(weight_kg, height_cm, age, sex, bodyfat)
+    return calculate_all_bmr(weight_kg, height_cm, age, sex, bodyfat)  # type: ignore[arg-type]
 
 
-def _calculate_all_tdee_wrapper(bmr_results, activity):
+def _calculate_all_tdee_wrapper(bmr_results: Any, activity: Union[str, "Activity"]) -> Any:
     """Wrapper for calculate_all_tdee to support mocking in tests"""
     if calculate_all_tdee is None:
         raise ImportError("nutrition_core module not available")
-    return calculate_all_tdee(bmr_results, activity)
+    return calculate_all_tdee(bmr_results, activity)  # type: ignore[arg-type]
 
 
 async def get_update_scheduler() -> Any:
@@ -123,7 +129,7 @@ logger = logging.getLogger(__name__)
 
 # Lifespan event handler
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> Any:
     # Startup
     try:
         init_db()
@@ -197,7 +203,7 @@ def _is_truthy(value: Optional[str]) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def get_api_key(api_key: str = Depends(api_key_header)):
+def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     """API key guard with optional strict mode.
 
     - If API_KEY is set: strict equality check.
@@ -240,7 +246,7 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Dependency wrapper that resolves get_api_key dynamically at runtime so tests can patch it
-def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
+def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
     import sys as _sys
 
     _pkg = _sys.modules.get("app")
@@ -259,7 +265,7 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-async def admin_status():
+async def admin_status() -> JSONResponse:
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
     Uses dynamic resolution for get_update_scheduler so tests can patch it easily.
@@ -280,7 +286,7 @@ async def admin_status():
                 status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Scheduler unavailable",
             )
-        return {"status": "ok", "scheduler": "available"}
+        return JSONResponse(content={"status": "ok", "scheduler": "available"})
     except HTTPException:
         # Re-raise explicit HTTP errors
         raise
@@ -317,7 +323,7 @@ start_time = time.time()
 
 # Add logging middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests(request: Request, call_next: Callable) -> Any:
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
     logger.info(f"Request: {request.method} {request.url} from {client_host}")
@@ -363,7 +369,7 @@ def legacy_category_label(cat: str, lang: str) -> str:
 
 
 # Rate limiting setup (only if slowapi is available)
-def _is_rate_limiting_available():
+def _is_rate_limiting_available() -> bool:
     return (
         slowapi_available
         and Limiter is not None
@@ -379,7 +385,8 @@ if _is_rate_limiting_available():
     # app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
     # app.add_middleware(SlowAPIMiddleware)  # type: ignore
 else:
-    pass
+    # Rate limiting not available
+    pass  # noqa: S110
 
 
 # ---------- Models ----------
@@ -403,7 +410,7 @@ class BMIRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values):  # sourcery skip: use-contextlib-suppress
+    def _normalize_values(cls, values: Any) -> Any:  # sourcery skip: use-contextlib-suppress
         if not isinstance(values, dict):
             return values
         # Allow legacy form fields "weight" (kg) and "height" (cm or m)
@@ -458,14 +465,14 @@ class BMIRequest(BaseModel):
         return values
 
     @model_validator(mode="after")
-    def _validate_gender(self):
+    def _validate_gender(self) -> "BMIRequest":
         # Legacy v0 endpoint: allow 'male', 'female', and 'unknown' (pass-through)
         if self.gender not in {"male", "female", "unknown"}:
             raise ValueError("gender must be 'male', 'female', or 'unknown'")
         return self
 
     @model_validator(mode="after")
-    def validate_realistic_values(self):
+    def validate_realistic_values(self) -> "BMIRequest":
         """Validate that weight and height are realistic."""
         # Check for unrealistic BMI values
         MIN_BMI = 10
@@ -492,7 +499,7 @@ class BMIRequestV1(BaseModel):
     lang: Language = "en"
 
     @model_validator(mode="after")
-    def validate_realistic_values(self):
+    def validate_realistic_values(self) -> "BMIRequestV1":
         """Validate that weight and height are realistic."""
         # Check for unrealistic weight (too low for height)
         height_m = self.height_cm / 100.0
@@ -507,7 +514,7 @@ class BMIRequestV1(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values):
+    def _normalize_values(cls, values: Any) -> Any:
         # Handle case where values might be bytes or other non-dict types
         if not isinstance(values, dict):
             return values
@@ -565,11 +572,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
                 "error": "Visualization not available - generation failed",
                 "available": False,
             }
-    elif not MATPLOTLIB_AVAILABLE:
-        result["visualization"] = {
-            "error": "Visualization not available - matplotlib not installed",
-            "available": False,
-        }
 
 
 # BMR Request and Response models
@@ -651,7 +653,7 @@ def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> 
 
 
 @app.get("/")
-async def root():
+async def root() -> HTMLResponse:
     html_content = """
     <!DOCTYPE html>
     <html lang="en">
@@ -870,22 +872,22 @@ async def root():
 
 
 @app.get("/favicon.ico")
-async def favicon():
+async def favicon() -> Response:
     return Response(status_code=204)
 
 
 @app.get("/health")
-async def health():
+async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/api/v1/health")
-async def health_v1():
+async def health_v1() -> Dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/metrics")
-async def metrics():
+async def metrics() -> Dict[str, str]:
     """Prometheus metrics endpoint."""
     # if generate_latest:
     #     return Response(generate_latest(), media_type="text/plain")
@@ -893,7 +895,7 @@ async def metrics():
 
 
 @app.get("/privacy")
-async def privacy():
+async def privacy() -> Dict[str, str]:
     """Privacy policy endpoint."""
     return {
         "privacy_policy": (
@@ -909,7 +911,7 @@ async def privacy():
 
 
 @app.post("/bmi")
-async def bmi_endpoint(req: BMIRequest):
+async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
 
@@ -950,7 +952,7 @@ async def bmi_endpoint(req: BMIRequest):
 
 
 @app.post("/plan")
-async def plan_endpoint(req: BMIRequest):
+async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     """Generate a personal plan based on BMI and user profile."""
     flags = normalize_flags(req.gender, req.pregnant, req.athlete)
     bmi = calc_bmi(req.weight_kg, req.height_m)
@@ -1001,7 +1003,7 @@ async def plan_endpoint(req: BMIRequest):
 
 
 @app.post("/api/v1/bmi")
-async def bmi_endpoint_v1(req: BMIRequestV1):
+async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     """V1 BMI endpoint (public access)."""
     # Convert height_cm to height_m
     height_m = req.height_cm / 100.0
@@ -1037,13 +1039,13 @@ async def bmi_endpoint_v1(req: BMIRequestV1):
 
 # Backward-compatible BMI calculate endpoint without API key
 @app.post("/api/v1/bmi/calculate")
-async def bmi_calculate_legacy(req: BMIRequestV1):
+async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
     """Legacy path for BMI calculation; delegates to v1 logic without API key dependency."""
     return await bmi_endpoint_v1(req)
 
 
 @app.post("/api/v1/insight", dependencies=[Depends(_get_api_key_dynamic)])
-async def insight_v1(req: InsightRequest):
+async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (v1 with API key)."""
     if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {
         "1",
@@ -1086,7 +1088,7 @@ async def insight_v1(req: InsightRequest):
 
 # Backward-compatible simple insight endpoint (no API key)
 @app.post("/insight")
-async def insight(req: InsightRequest):
+async def insight(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (legacy path without API key)."""
     if str(os.getenv("FEATURE_INSIGHT", "")).strip().lower() not in {"1", "true", "on", "yes"}:
         # For legacy path, return 503 if feature disabled
@@ -1267,7 +1269,7 @@ class WHOTargetsRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values):
+    def _normalize_values(cls, values: Any) -> Any:
         if not isinstance(values, dict):
             return values
         # Normalize goal synonyms used in tests (e.g., 'lose' -> 'loss')
@@ -1575,7 +1577,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 )
                 _targets = _build_targets(profile)
 
-                def _maybe_align(macro_name: str, max_dev: float):
+                def _maybe_align(macro_name: str, max_dev: float) -> None:
                     with suppress(Exception):
                         if macro_name in macros_aligned:
                             target_val = int(getattr(_targets.macros, macro_name))
@@ -2028,16 +2030,13 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
         # that patch __import__ or manipulate sys.modules.
         _rec_mod = _sys.modules.get("core.recommendations")
         if _rec_mod is not None and hasattr(_rec_mod, "validate_targets_safety"):
-            try:
+            with suppress(Exception):
                 safety_warnings = _rec_mod.validate_targets_safety(targets)
                 # Convert safety warnings to the new format if needed
                 if isinstance(safety_warnings, list) and safety_warnings:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except Exception:
-                # Safety validation is optional; ignore errors
-                pass
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
@@ -2242,7 +2241,7 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
 
 @app.get("/debug_env")
-async def debug_env():
+async def debug_env() -> Dict[str, Any]:
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
@@ -2251,7 +2250,7 @@ async def debug_env():
     }
     flag = str(os.getenv("FEATURE_INSIGHT", "")).strip().lower()
     data["insight_enabled"] = str(flag in {"1", "true", "yes", "on"})
-    return JSONResponse(content=data)
+    return data
 
 
 # ========================================
@@ -2260,7 +2259,7 @@ async def debug_env():
 
 
 @app.get("/api/v1/admin/db-status", dependencies=[Depends(_get_api_key_dynamic)])
-async def get_database_status():
+async def get_database_status() -> Any:
     """
     RU: Получить статус всех баз данных и планировщика обновлений.
     EN: Get status of all databases and update scheduler.
@@ -2279,7 +2278,7 @@ async def get_database_status():
         logger.debug(f"get_database_status using getter: {_getter!r}")
         scheduler = await _getter()
         status = scheduler.get_status()
-        return JSONResponse(content=status)
+        return status
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to get database status: {str(e)}"
@@ -2287,7 +2286,7 @@ async def get_database_status():
 
 
 @app.post("/api/v1/admin/force-update", dependencies=[Depends(_get_api_key_dynamic)])
-async def force_database_update(source: Optional[str] = None):
+async def force_database_update(source: Optional[str] = None) -> Dict[str, Any]:
     """
     RU: Принудительно запустить обновление баз данных.
     EN: Force immediate database update.
@@ -2325,14 +2324,14 @@ async def force_database_update(source: Optional[str] = None):
                 "errors": result.errors,
             }
 
-        return JSONResponse(content=response)
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Force update failed: {str(e)}") from e
 
 
 @app.get("/api/v1/admin/check-updates", dependencies=[Depends(_get_api_key_dynamic)])
-async def check_for_updates():
+async def check_for_updates() -> Dict[str, Any]:
     """
     RU: Проверить наличие доступных обновлений без их установки.
     EN: Check for available updates without installing them.
@@ -2344,20 +2343,18 @@ async def check_for_updates():
         scheduler = await get_update_scheduler()
         available_updates = await scheduler.update_manager.check_for_updates()
 
-        response = {
+        return {
             "message": "Update check completed",
             "updates_available": available_updates,
             "total_sources_with_updates": sum(available_updates.values()),
         }
-
-        return JSONResponse(content=response)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
 
 
 @app.post("/api/v1/admin/rollback", dependencies=[Depends(_get_api_key_dynamic)])
-async def rollback_database(source: str, target_version: str):
+async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
     """
     RU: Откатить базу данных к предыдущей версии.
     EN: Rollback database to a previous version.
@@ -2374,12 +2371,10 @@ async def rollback_database(source: str, target_version: str):
         success = await scheduler.update_manager.rollback_database(source, target_version)
 
         if success:
-            return JSONResponse(
-                content={
-                    "message": f"Successfully rolled back {source} to version {target_version}",
-                    "success": True,
-                }
-            )
+            return {
+                "message": f"Successfully rolled back {source} to version {target_version}",
+                "success": True,
+            }
         else:
             raise HTTPException(
                 status_code=400,
@@ -2394,7 +2389,7 @@ async def rollback_database(source: str, target_version: str):
 
 
 @app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_daily_plan_csv(plan_id: str):
+async def export_daily_plan_csv(plan_id: str) -> Response:
     """
     RU: Экспортировать дневной план в CSV.
     EN: Export daily meal plan to CSV.
@@ -2468,7 +2463,7 @@ async def export_daily_plan_csv(plan_id: str):
 
 
 @app.post("/api/v1/export/pdf")
-async def export_pdf_generic(payload: Dict[str, Any]):
+async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
     """Generic PDF export endpoint for tests' error-handling coverage.
 
     Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
@@ -2511,7 +2506,7 @@ async def export_pdf_generic(payload: Dict[str, Any]):
 
 
 @app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_weekly_plan_csv(plan_id: str):
+async def export_weekly_plan_csv(plan_id: str) -> Response:
     """
     RU: Экспортировать недельный план в CSV.
     EN: Export weekly meal plan to CSV.
@@ -2609,7 +2604,7 @@ async def export_weekly_plan_csv(plan_id: str):
 
 
 @app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_daily_plan_pdf(plan_id: str):
+async def export_daily_plan_pdf(plan_id: str) -> Response:
     # sourcery skip: raise-from-previous-error
     """
     RU: Экспортировать дневной план в PDF.
@@ -2689,7 +2684,7 @@ async def export_daily_plan_pdf(plan_id: str):
 
 
 @app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_weekly_plan_pdf(plan_id: str):
+async def export_weekly_plan_pdf(plan_id: str) -> Response:
     # sourcery skip: raise-from-previous-error
     """
     RU: Экспортировать недельный план в PDF.
