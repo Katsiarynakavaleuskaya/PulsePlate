@@ -28,17 +28,17 @@ if [ ! -f "$SSL_CERT" ]; then
 fi
 
 # Check permissions
-KEY_PERMS=$(stat -c "%a" "$SSL_KEY" 2>/dev/null || stat -f "%A" "$SSL_KEY" 2>/dev/null)
-CERT_PERMS=$(stat -c "%a" "$SSL_CERT" 2>/dev/null || stat -f "%A" "$SSL_CERT" 2>/dev/null)
+KEY_PERMS=$(stat -c "%a" "$SSL_KEY" 2>/dev/null || stat -f "%OLp" "$SSL_KEY" 2>/dev/null)
+CERT_PERMS=$(stat -c "%a" "$SSL_CERT" 2>/dev/null || stat -f "%OLp" "$SSL_CERT" 2>/dev/null)
 
-if [ "$KEY_PERMS" != "600" ]; then
-    echo "❌ SSL private key has incorrect permissions: $KEY_PERMS (expected 600)"
+if [ "$KEY_PERMS" != "600" ] && [ "$KEY_PERMS" != "400" ]; then
+    echo "❌ SSL private key has incorrect permissions: $KEY_PERMS (expected 600 or 400)"
     echo "💡 Fix with: chmod 600 $SSL_KEY"
     exit 1
 fi
 
-if [ "$CERT_PERMS" != "644" ]; then
-    echo "❌ SSL certificate has incorrect permissions: $CERT_PERMS (expected 644)"
+if [ "$CERT_PERMS" != "644" ] && [ "$CERT_PERMS" != "640" ]; then
+    echo "❌ SSL certificate has incorrect permissions: $CERT_PERMS (expected 644 or 640)"
     echo "💡 Fix with: chmod 644 $SSL_CERT"
     exit 1
 fi

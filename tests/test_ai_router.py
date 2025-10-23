@@ -79,9 +79,9 @@ class TestProviderSelection:
         provider = ai_router.choose_provider(RequestComplexity.SIMPLE, "free")
         assert provider == AIProvider.OLLAMA
 
-        # Medium request should use Ollama
+        # Medium request should use OpenAI
         provider = ai_router.choose_provider(RequestComplexity.MEDIUM, "free")
-        assert provider == AIProvider.OLLAMA
+        assert provider == AIProvider.OPENAI
 
     def test_choose_provider_default_behavior(self, ai_router: AIRouter) -> None:
         """Test default provider selection behavior"""
@@ -173,8 +173,8 @@ class TestRouteRequest:
     async def test_route_request_invalid_provider(self, ai_router: AIRouter) -> None:
         """Test invalid provider handling"""
         result = await ai_router.route_request("Test message", {}, "free", "test_user", "invalid")
-        assert result["provider"] == "unknown"
-        assert "Invalid provider" in result["response"]
+        assert result.provider == "unknown"
+        assert "Invalid provider" in result.response
 
     @pytest.mark.asyncio
     async def test_route_request_fallback(self, ai_router: AIRouter, mock_env_vars: Any) -> None:

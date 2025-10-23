@@ -264,7 +264,6 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
 
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status() -> JSONResponse:
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
@@ -2030,13 +2029,15 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
         # that patch __import__ or manipulate sys.modules.
         _rec_mod = _sys.modules.get("core.recommendations")
         if _rec_mod is not None and hasattr(_rec_mod, "validate_targets_safety"):
-            with suppress(Exception):
+            try:
                 safety_warnings = _rec_mod.validate_targets_safety(targets)
                 # Convert safety warnings to the new format if needed
                 if isinstance(safety_warnings, list) and safety_warnings:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
+            except Exception as e:
+                logger.debug(f"Failed to validate targets safety: {e}", exc_info=True)
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,

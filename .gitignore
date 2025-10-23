@@ -192,6 +192,10 @@ secrets.txt
 .key
 *.key
 
+# Deploy environment files (contain secrets)
+deploy/ai-configs/*.env
+deploy/ollama-configs/*.env
+
 # Database files
 *.db
 *.sqlite

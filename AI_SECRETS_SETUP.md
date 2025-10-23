@@ -127,7 +127,7 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 **Sources:**
 
 - OpenAI GPT-4o-mini pricing: <https://openai.com/pricing> (Last updated: 2025-01-25)
-- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
+- Ollama Cloud: <https://ollama.com> (Launched: October 2025)
 - Assumptions: ~100 tokens per simple query, ~500 tokens per complex query
 
 > **Note**: This document was last reviewed on 2025-01-25. Prices may have changed since then.

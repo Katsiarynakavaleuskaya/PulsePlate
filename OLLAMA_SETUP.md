@@ -97,8 +97,8 @@ brew install ollama
 # Linux
 # Download the install script
 curl -fsSL -o ollama-install.sh https://ollama.ai/install.sh
-# (Optional) Verify the script's checksum - see https://ollama.ai/install.sh for checksum info
-# sha256sum ollama-install.sh
+# Verify the script's checksum (see https://ollama.ai/install.sh for current checksum)
+echo "EXPECTED_CHECKSUM  ollama-install.sh" | sha256sum -c - || exit 1
 # Review the script before running:
 less ollama-install.sh
 # Run the script
@@ -106,7 +106,6 @@ sh ollama-install.sh
 
 # Windows
 # Download from https://ollama.ai/download
-```
 
 ### 2. Start Ollama Service
 
@@ -398,6 +397,15 @@ HUGGINGFACE_MODEL=nvidia/llama-embed-nemotron-8b
 1. **Custom Models**: Train or fine-tune models for your specific use case
 2. **Scaling**: Use Ollama with multiple GPUs for better performance
 3. **Integration**: Connect with other AI services as needed
+4. **Monitoring**: Set up logging and monitoring for production use
+5. **🆕 Embedding Models**: Consider Llama Embed Nemotron 8B for semantic search
+6. **🆕 Hugging Face**: Explore specialized models for nutrition and health
+
+## Support
+
+- [Ollama Documentation](https://ollama.ai/docs)
+- [Ollama GitHub](https://github.com/ollama/ollama)
+- [PulsePlate Issues](https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues)
 4. **Monitoring**: Set up logging and monitoring for production use
 5. **🆕 Embedding Models**: Consider Llama Embed Nemotron 8B for semantic search
 6. **🆕 Hugging Face**: Explore specialized models for nutrition and health

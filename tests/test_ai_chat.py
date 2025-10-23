@@ -276,7 +276,7 @@ class TestCostEstimateEndpoint:
 class TestRequestModels:
     """Test Pydantic request models"""
 
-    def test_chat_request_validation(self):
+    def test_chat_request_validation(self) -> None:
         """Test ChatRequest model validation"""
         # Valid request
         request = ChatRequest(message="Test message", context={"key": "value"}, user_tier="free")
@@ -291,7 +291,7 @@ class TestRequestModels:
         )
         assert request.force_provider == "openai"
 
-    def test_nutrition_analysis_request_validation(self):
+    def test_nutrition_analysis_request_validation(self) -> None:
         """Test NutritionAnalysisRequest model validation"""
         request = NutritionAnalysisRequest(
             food_items=["apple", "banana"], analysis_type="basic", user_profile={"tier": "free"}
@@ -300,7 +300,7 @@ class TestRequestModels:
         assert request.analysis_type == "basic"
         assert request.user_profile == {"tier": "free"}
 
-    def test_chat_request_pydantic_v2_apis(self):
+    def test_chat_request_pydantic_v2_apis(self) -> None:
         """Test ChatRequest Pydantic v2 APIs (model_dump/model_validate)"""
         # Create original request
         original = ChatRequest(
@@ -325,7 +325,7 @@ class TestRequestModels:
         assert recreated.user_tier == original.user_tier
         assert recreated.force_provider == original.force_provider
 
-    def test_nutrition_analysis_request_pydantic_v2_apis(self):
+    def test_nutrition_analysis_request_pydantic_v2_apis(self) -> None:
         """Test NutritionAnalysisRequest Pydantic v2 APIs (model_dump/model_validate)"""
         # Create original request
         original = NutritionAnalysisRequest(
@@ -347,7 +347,7 @@ class TestRequestModels:
         assert recreated.analysis_type == original.analysis_type
         assert recreated.user_profile == original.user_profile
 
-    def test_chat_response_validation(self):
+    def test_chat_response_validation(self) -> None:
         """Test ChatResponse model validation"""
         response = ChatResponse(
             response="Test response",

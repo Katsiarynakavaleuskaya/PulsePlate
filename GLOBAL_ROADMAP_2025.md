@@ -1,23 +1,23 @@
 # 🚀 PulsePlate Global Roadmap 2025
 
-## 📋 Обзор проекта
+## 📋 Project Overview
 
-**PulsePlate** — это комплексная health/nutrition платформа с FastAPI backend (97% test coverage) и iOS SwiftUI frontend с локализацией. Проект включает VIP функции для оптимизации питания и AI-powered рекомендации.
+**PulsePlate** is a comprehensive health/nutrition platform with FastAPI backend (97% test coverage) and iOS SwiftUI frontend with localization. The project includes VIP features for nutrition optimization and AI-powered recommendations.
 
-## 🎯 Ключевые достижения 2025
+## 🎯 Key Achievements 2025
 
-### ✅ Завершенные этапы
+### ✅ Completed Phases
 
 1. **CI/CD Optimization** (PR #221)
-   - Production deployment с approval gates
-   - GitHub Actions workflows с полной безопасностью
-   - Docker multi-stage builds с оптимизацией
+   - Production deployment with approval gates
+   - GitHub Actions workflows with full security
+   - Docker multi-stage builds with optimization
    - 97% test coverage requirement
 
 2. **AI System Integration** (PR #223)
    - Smart AI Router (Ollama + OpenAI + Hugging Face)
-   - Hybrid AI система для cost optimization
-   - Local Ollama deployment для разработки
+   - Hybrid AI system for cost optimization
+   - Local Ollama deployment for development
    - Comprehensive AI testing framework
 
 3. **Security & Compliance**
@@ -32,11 +32,11 @@
 
 #### 🤖 AI System Enhancement
 
-- **Статус**: В процессе (PR #223)
-- **Документация**: [AI_SECRETS_SETUP.md](AI_SECRETS_SETUP.md)
-- **Настройка**: [OLLAMA_SETUP.md](OLLAMA_SETUP.md)
+- **Status**: In progress (PR #223)
+- **Documentation**: [AI_SECRETS_SETUP.md](AI_SECRETS_SETUP.md)
+- **Setup**: [OLLAMA_SETUP.md](OLLAMA_SETUP.md)
 
-**Задачи:**
+**Tasks:**
 
 - [x] Smart AI Router implementation
 - [x] Ollama local deployment
@@ -48,43 +48,43 @@
 
 #### 📊 Data Integration Pipeline
 
-- **План**: [REQUESTS_INTEGRATION_PLAN.md](REQUESTS_INTEGRATION_PLAN.md)
-- **Веб-скрапинг**: [BEAUTIFULSOUP_INTEGRATION_PLAN.md](BEAUTIFULSOUP_INTEGRATION_PLAN.md)
+- **Plan**: [REQUESTS_INTEGRATION_PLAN.md](REQUESTS_INTEGRATION_PLAN.md)
+- **Web Scraping**: [BEAUTIFULSOUP_INTEGRATION_PLAN.md](BEAUTIFULSOUP_INTEGRATION_PLAN.md)
 
-**Этапы:**
+**Phases:**
 
-1. **Инфраструктура** (1-2 недели)
-   - Установка зависимостей (requests, beautifulsoup4, selenium)
+1. **Infrastructure** (1-2 weeks)
+   - Install dependencies (requests, beautifulsoup4, selenium)
    - DLT pipeline setup
-   - Базовые классы парсеров
+   - Base parser classes
 
-2. **API интеграция** (2-3 недели)
-   - Универсальный API клиент
-   - Магазины: Walmart, Target, Kroger
-   - Рестораны: UberEats, DoorDash, Grubhub
-   - Региональные API (Россия, Европа, Азия)
+2. **API Integration** (2-3 weeks)
+   - Universal API client
+   - Stores: Walmart, Target, Kroger
+   - Restaurants: UberEats, DoorDash, Grubhub
+   - Regional APIs (Russia, Europe, Asia)
 
-3. **Веб-скрапинг** (3-4 недели)
-   - Парсеры продуктов и рецептов
-   - Вежливый скрапинг (robots.txt, rate limiting)
-   - JavaScript обработка (Selenium)
+3. **Web Scraping** (3-4 weeks)
+   - Product and recipe parsers
+   - Polite scraping (robots.txt, rate limiting)
+   - JavaScript processing (Selenium)
 
-4. **ETL Pipeline** (2-3 недели)
-   - DLT sources для всех источников
-   - Трансформации и валидация
-   - Инкрементальные обновления
+4. **ETL Pipeline** (2-3 weeks)
+   - DLT sources for all data sources
+   - Transformations and validation
+   - Incremental updates
 
 ### Q2 2025: iOS App Development
 
 #### 📱 SwiftUI Frontend
 
-- **Цель**: Top-10 App Store
-- **Фокус**: Health/nutrition domain best practices
+- **Goal**: Top-10 App Store
+- **Focus**: Health/nutrition domain best practices
 
-**Ключевые функции:**
+**Key Features:**
 
 - [ ] HealthKit integration
-- [ ] StoreKit для подписок
+- [ ] StoreKit for subscriptions
 - [ ] Push notifications
 - [ ] i18n (RU/EN/ES)
 - [ ] Dynamic Type & VoiceOver
@@ -92,10 +92,10 @@
 
 #### 🎨 Design System
 
-- **Стиль**: Apple HIG guidelines
-- **Маскот**: FitChef (кот)
-- **Цвета**: Navy (#0F172A), Blue (#339FFF), Accent Green (#20C997)
-- **Философия**: Минимализм + уют + "лакшери"-чистота
+- **Style**: Apple HIG guidelines
+- **Mascot**: FitChef (cat)
+- **Colors**: Navy (#0F172A), Blue (#339FFF), Accent Green (#20C997)
+- **Philosophy**: Minimalism + comfort + "luxury" cleanliness
 
 ### Q3 2025: Advanced Features
 

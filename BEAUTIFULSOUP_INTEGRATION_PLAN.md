@@ -52,10 +52,10 @@ class StoreParser:
             'Accept': 'text/html,application/xhtml+xml',
         })
 
-    def parse_product_page(self, product_url: str) -> Optional[Dict]:
+    def parse_product_page(self, product_url: str) -> Optional[Dict[str, Any]]:
         """Парсинг страницы продукта"""
         try:
-            response = self.session.get(product_url)
+            response = self.session.get(product_url, timeout=30)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, 'lxml')
@@ -69,11 +69,14 @@ class StoreParser:
                 'store': self.store_name,
                 'source_url': product_url
             }
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error parsing {product_url}: {e}")
+            return None
         except Exception as e:
-            logging.error(f"Error parsing {product_url}: {e}")
+            logging.exception(f"Parsing error for {product_url}: {e}")
             return None
 
-    def _extract_name(self, soup: BeautifulSoup) -> str:
+    def _extract_name(self, soup: BeautifulSoup) -> Optional[str]:
         """Извлечение названия продукта"""
         # Разные селекторы для разных магазинов
         selectors = [
@@ -146,6 +149,55 @@ class StoreParser:
         # Извлекаем число из строки типа "12g", "12.5g", "12,5g"
         match = re.search(r'[\d,]+\.?\d*', value_str.replace(',', '.'))
         return float(match.group()) if match else None
+
+    def _extract_ingredients(self, soup: BeautifulSoup) -> Optional[List[str]]:
+        """Извлечение списка ингредиентов"""
+        # Разные селекторы для ингредиентов
+        selectors = [
+            '.ingredients-list li',
+            '.product-ingredients',
+            '[data-testid="ingredients"]',
+            '.ingredients p'
+        ]
+
+        for selector in selectors:
+            elements = soup.select(selector)
+            if elements:
+                ingredients = []
+                for element in elements:
+                    text = element.get_text(strip=True)
+                    if text and text.lower() not in ['ingredients:', 'состав:']:
+                        # Разделяем по запятым и очищаем
+                        parts = [part.strip() for part in text.split(',')]
+                        ingredients.extend(parts)
+                return ingredients if ingredients else None
+
+        return None
+
+    def _extract_image(self, soup: BeautifulSoup) -> Optional[str]:
+        """Извлечение URL изображения продукта"""
+        # Разные селекторы для изображений
+        selectors = [
+            '.product-image img',
+            '[data-testid="product-image"]',
+            '.product-photo img',
+            '.main-image img'
+        ]
+
+        for selector in selectors:
+            img = soup.select_one(selector)
+            if img:
+                src = img.get('src') or img.get('data-src')
+                if src:
+                    # Преобразуем относительные URL в абсолютные
+                    if src.startswith('//'):
+                        return f"https:{src}"
+                    elif src.startswith('/'):
+                        return f"{self.base_url.rstrip('/')}{src}"
+                    elif src.startswith('http'):
+                        return src
+
+        return None
 
     def close(self):
         """Закрытие сессии"""
@@ -270,6 +322,7 @@ class RestaurantParser:
 
 ```python
 # core/web_scrapers/recipe_parsers.py
+import json
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -294,7 +347,6 @@ class RecipeParser:
             # Ищем structured data (JSON-LD)
             json_ld = soup.find('script', type='application/ld+json')
             if json_ld:
-                import json
                 try:
                     recipe_data = json.loads(json_ld.string)
                     if isinstance(recipe_data, list):
@@ -312,13 +364,17 @@ class RecipeParser:
             logging.error(f"Error parsing recipe: {e}")
             return None
 
+    def _has_class_containing(self, class_list, substring: str) -> bool:
+        """Check if any class contains substring"""
+        return class_list and substring in str(class_list).lower()
+
     def _parse_html_recipe(self, soup) -> Dict:
         """Fallback HTML парсинг рецепта"""
         return {
             'name': soup.find('h1').get_text(strip=True) if soup.find('h1') else '',
             'description': soup.find('meta', {'name': 'description'}).get('content', '') if soup.find('meta', {'name': 'description'}) else '',
-            'ingredients': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: x and 'ingredient' in x.lower())],
-            'instructions': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: x and 'instruction' in x.lower())],
+            'ingredients': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: self._has_class_containing(x, 'ingredient'))],
+            'instructions': [li.get_text(strip=True) for li in soup.find_all('li', class_=lambda x: self._has_class_containing(x, 'instruction'))],
             'prep_time': '',
             'cook_time': '',
             'servings': '',
@@ -512,7 +568,7 @@ class PoliteScraper:
             self.last_request_time = time.time()
             return response
         except requests.exceptions.RequestException as e:
-            print(f"Request failed for {url}: {e}")
+            logging.error(f"Request failed for {url}: {e}")
             return None
 ```
 

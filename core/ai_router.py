@@ -102,13 +102,28 @@ class AIRouter:
                 msg = f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}"
                 raise ValueError(msg)
         except Exception as e:
-            msg = f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint}"
+            msg = f"Invalid OLLAMA_ENDPOINT URL: {self.ollama_endpoint} - {str(e)}"
             raise ValueError(msg) from e
 
         # Rate limiting implemented via _is_rate_limited method (lines 168-208)
         # Uses in-memory sliding window with configurable limits per user tier
         self._rate_limit_store: dict[str, list[float]] = {}
         self._rate_limit_lock: threading.Lock = threading.Lock()
+
+        # Redis client for rate limiting
+        self._redis_client = None
+        try:
+            import redis
+
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+            self._redis_client = redis.from_url(redis_url, decode_responses=True)
+            # Test connection
+            self._redis_client.ping()
+            logger.info("Redis client initialized successfully for rate limiting")
+        except Exception as e:
+            logger.warning(f"Redis not available for rate limiting: {e}, using in-memory fallback")
+            self._redis_client = None
+
         # Future: self.ollama_free_limit = int(os.getenv("OLLAMA_FREE_LIMIT", "1000"))
         # Future: self.openai_budget_limit = int(os.getenv("OPENAI_BUDGET_LIMIT", "10000"))
 
@@ -211,9 +226,48 @@ class AIRouter:
 
     def _is_rate_limited(self, user_id: str, user_tier: str) -> bool:
         """
-        Check if user is rate limited
-        For now, implements a simple in-memory rate limiter
-        TODO: Implement Redis-based rate limiting for production
+        Check if user is rate limited using Redis sliding window
+        """
+        try:
+            if not hasattr(self, "_redis_client") or self._redis_client is None:
+                # Fallback to in-memory rate limiting if Redis is not available
+                return self._is_rate_limited_memory(user_id, user_tier)
+
+            current_time = time.time()
+            window_size = 3600  # 1 hour window
+
+            # Rate limits per tier (requests per hour)
+            limits = {"free": 10, "premium": 1000, "enterprise": 10000}
+            limit = limits.get(user_tier, 10)
+
+            # Redis key for this user
+            redis_key = f"rate_limit:{user_tier}:{user_id}"
+
+            # Remove old entries (older than window_size)
+            self._redis_client.zremrangebyscore(redis_key, 0, current_time - window_size)
+
+            # Count current requests
+            current_count = self._redis_client.zcard(redis_key)
+
+            # Check if over limit
+            if current_count >= limit:
+                return True
+
+            # Add current request
+            self._redis_client.zadd(redis_key, {str(current_time): current_time})
+
+            # Set expiration on the key
+            self._redis_client.expire(redis_key, window_size)
+
+        except Exception as e:
+            logger.warning(f"Redis rate limiting failed: {e}, falling back to memory")
+            return self._is_rate_limited_memory(user_id, user_tier)
+
+        return False
+
+    def _is_rate_limited_memory(self, user_id: str, user_tier: str) -> bool:
+        """
+        Fallback in-memory rate limiter when Redis is not available
         """
         try:
             with self._rate_limit_lock:
@@ -222,7 +276,6 @@ class AIRouter:
 
                 # Rate limits per tier (requests per hour)
                 limits = {"free": 10, "premium": 1000, "enterprise": 10000}
-
                 limit = limits.get(user_tier, 10)
 
                 # Clean old entries
@@ -242,7 +295,7 @@ class AIRouter:
                 # Add current request
                 self._rate_limit_store[user_id].append(current_time)
         except (KeyError, AttributeError, TypeError) as e:
-            logger.warning(f"Rate limiting check failed: {e}, defaulting to rate limited")
+            logger.warning(f"Memory rate limiting check failed: {e}, defaulting to rate limited")
             return True  # Conservative: treat as rate limited on error
 
         return False
@@ -459,9 +512,7 @@ class AIRouter:
             error=False,
         )
 
-    async def _call_huggingface(
-        self, prompt: str, context: Dict[str, Any]
-    ) -> AIResponse:  # noqa: ARG002
+    async def _call_huggingface(self, prompt: str, _context: Dict[str, Any]) -> AIResponse:
         """
         Call Hugging Face API for embeddings
 
