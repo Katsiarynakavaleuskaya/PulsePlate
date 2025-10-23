@@ -20,8 +20,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
     user_tier: str = Field(default="free", description="User subscription tier")
+    task_type: str = Field(default="text", description="Task type (text/embedding)")
     force_provider: Optional[str] = Field(
-        None, description="Force specific provider (ollama/openai)"
+        None, description="Force specific provider (ollama/huggingface/openai)"
     )
 
 
@@ -58,7 +59,11 @@ async def chat_with_ai(request: ChatRequest):
 
         # Use smart routing with optional provider override
         result = await ai_router.route_request(
-            request.message, request.context, request.user_tier, request.force_provider
+            request.message,
+            request.context,
+            request.user_tier,
+            request.force_provider,
+            request.task_type,
         )
 
         return ChatResponse(

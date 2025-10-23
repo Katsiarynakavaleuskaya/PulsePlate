@@ -40,6 +40,13 @@ async def test_ai_routing() -> None:
             "context": {"user_conditions": ["diabetes"], "allergies": ["gluten"]},
             "user_tier": "premium",
         },
+        {
+            "name": "Embedding Query (should use Hugging Face)",
+            "message": "What is the nutritional value of an apple?",
+            "context": {},
+            "user_tier": "free",
+            "task_type": "embedding",
+        },
     ]
 
     for i, test_case in enumerate(test_cases, 1):
@@ -51,18 +58,23 @@ async def test_ai_routing() -> None:
             message = str(test_case["message"])
             context: dict[str, Any] = dict(test_case["context"])  # Convert to dict for mypy
             user_tier = str(test_case["user_tier"])
+            task_type = str(test_case.get("task_type", "text"))
 
             complexity = ai_router.analyze_complexity(message, context)
             print(f"📊 Complexity: {complexity.value}")
+            print(f"🔧 Task Type: {task_type}")
 
             # Choose provider
-            provider = ai_router.choose_provider(complexity, user_tier)
+            provider = ai_router.choose_provider(complexity, user_tier, task_type)
             print(f"🎯 Provider: {provider.value}")
 
             # Estimate cost
             if provider == AIProvider.OLLAMA:
                 cost = 0.0
                 print(f"💰 Cost: ${cost} (free)")
+            elif provider == AIProvider.HUGGINGFACE:
+                cost = 0.0
+                print(f"💰 Cost: ${cost} (free tier)")
             else:
                 # Rough estimate
                 tokens = len(message.split()) * 1.3
@@ -83,11 +95,18 @@ async def test_environment_variables() -> None:
     print("\n🔧 Testing Environment Variables")
     print("-" * 40)
 
-    env_vars = ["OLLAMA_ENDPOINT", "OLLAMA_API_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"]
+    env_vars = [
+        "OLLAMA_ENDPOINT",
+        "OLLAMA_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "HUGGINGFACE_API_TOKEN",
+        "HUGGINGFACE_MODEL",
+    ]
 
     for var in env_vars:
         value = os.getenv(var, "NOT SET")
-        if var.endswith("_KEY") and value != "NOT SET":
+        if (var.endswith("_KEY") or var.endswith("_TOKEN")) and value != "NOT SET":
             # Mask API keys for security
             value_str = str(value) if value else ""
             if len(value_str) <= 12:

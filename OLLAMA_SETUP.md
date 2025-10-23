@@ -7,6 +7,7 @@ This guide shows how to set up AI for the PulsePlate application using our **Sma
 - **Hybrid Approach** (Recommended): Ollama + OpenAI with smart routing
 - **Local Ollama**: For development and testing (free, requires local setup)
 - **Ollama Cloud**: For production (budget-friendly, managed service)
+- **Hugging Face**: For embeddings and specialized models (free tier available)
 - **OpenAI Only**: High quality but expensive
 
 Our Smart AI Router automatically chooses the best provider based on query complexity, saving **~85% on AI costs** while maintaining quality.
@@ -279,12 +280,64 @@ ollama serve
 - All communication is local
 - Models are stored locally
 
+### Option 4: Hugging Face (For Embeddings & Specialized Models)
+
+**Perfect for embeddings and specialized AI tasks:**
+
+- ✅ **Free tier available** - 1000 requests/month
+- ✅ **Best embedding models** - Llama Embed Nemotron 8B
+- ✅ **No local setup** - Cloud-based API
+- ✅ **Multilingual support** - Great for iOS apps
+- ✅ **Specialized models** - Nutrition, health, fitness
+
+**Setup:**
+
+1. Create Hugging Face account at <https://huggingface.co>
+2. Get API token from <https://huggingface.co/settings/tokens>
+3. Install required libraries:
+
+```bash
+pip install transformers torch huggingface-hub
+```
+
+4. Configure environment:
+
+```bash
+# Hugging Face configuration
+HUGGINGFACE_API_TOKEN=your_hf_token
+HUGGINGFACE_MODEL=nvidia/llama-embed-nemotron-8b
+```
+
+**Cost Example:**
+- Free tier: 1000 requests/month
+- Pro plan: $9/month for 10,000 requests
+- Enterprise: Custom pricing
+
+**Best for:**
+- Semantic search in recipes
+- Product recommendations
+- Multilingual content analysis
+- Embedding generation for iOS app
+
+## 🆕 Latest Updates
+
+### Llama Embed Nemotron 8B (December 2024)
+- **World's #1 open-source embedding model** 🏆
+- **Multilingual support** - Perfect for iOS apps with RU/EN/ES
+- **Optimized for mobile** - 8B parameters, efficient for iOS
+- **Semantic search** - Great for recipe/product recommendations
+- **Free and open-source** - No licensing costs
+
+**Consider upgrading to `llama-embed-nemotron:8b` for better multilingual embeddings in PulsePlate!**
+
 ## Next Steps
 
 1. **Custom Models**: Train or fine-tune models for your specific use case
 2. **Scaling**: Use Ollama with multiple GPUs for better performance
 3. **Integration**: Connect with other AI services as needed
 4. **Monitoring**: Set up logging and monitoring for production use
+5. **🆕 Embedding Models**: Consider Llama Embed Nemotron 8B for semantic search
+6. **🆕 Hugging Face**: Explore specialized models for nutrition and health
 
 ## Support
 

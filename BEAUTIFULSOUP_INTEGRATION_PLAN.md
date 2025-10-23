@@ -1,0 +1,434 @@
+# 🍲 BeautifulSoup Integration Plan для PulsePlate
+
+## 🎯 Цель
+
+Использовать BeautifulSoup для парсинга HTML страниц магазинов, ресторанов и кулинарных сайтов для автоматического извлечения данных о продуктах и рецептах.
+
+## 📊 Текущее состояние
+
+- ❌ BeautifulSoup не установлен
+- ❌ Нет парсеров для веб-скрапинга
+- ✅ requests уже используется для API интеграции
+
+## 🛠️ Установка и настройка
+
+### 1. Добавить в requirements.txt
+```bash
+# Веб-скрапинг и парсинг
+beautifulsoup4>=4.12.0
+lxml>=4.9.0  # Быстрый XML/HTML парсер
+html5lib>=1.1  # Альтернативный парсер
+requests-html>=0.10.0  # Для JavaScript-рендеринга
+```
+
+### 2. Установить зависимости
+```bash
+pip install beautifulsoup4 lxml html5lib requests-html
+```
+
+## 🌐 Применение для PulsePlate
+
+### 1. **Парсинг магазинов продуктов**
+
+```python
+# core/web_scrapers/store_parsers.py
+import requests
+from bs4 import BeautifulSoup
+from typing import Dict, List, Optional
+import logging
+
+class StoreParser:
+    """Базовый класс для парсинга магазинов"""
+
+    def __init__(self, store_name: str, base_url: str):
+        self.store_name = store_name
+        self.base_url = base_url
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)',
+            'Accept': 'text/html,application/xhtml+xml',
+        })
+
+    def parse_product_page(self, product_url: str) -> Optional[Dict]:
+        """Парсинг страницы продукта"""
+        try:
+            response = self.session.get(product_url)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, 'lxml')
+
+            return {
+                'name': self._extract_name(soup),
+                'price': self._extract_price(soup),
+                'nutrition': self._extract_nutrition(soup),
+                'ingredients': self._extract_ingredients(soup),
+                'image_url': self._extract_image(soup),
+                'store': self.store_name,
+                'source_url': product_url
+            }
+        except Exception as e:
+            logging.error(f"Error parsing {product_url}: {e}")
+            return None
+
+    def _extract_name(self, soup: BeautifulSoup) -> str:
+        """Извлечение названия продукта"""
+        # Разные селекторы для разных магазинов
+        selectors = [
+            'h1.product-title',
+            'h1[data-testid="product-title"]',
+            '.product-name h1',
+            'h1.title'
+        ]
+
+        for selector in selectors:
+            element = soup.select_one(selector)
+            if element:
+                return element.get_text(strip=True)
+
+        return "Unknown Product"
+
+    def _extract_price(self, soup: BeautifulSoup) -> Optional[float]:
+        """Извлечение цены"""
+        price_selectors = [
+            '.price-current',
+            '[data-testid="price"]',
+            '.product-price .current-price',
+            '.price .value'
+        ]
+
+        for selector in price_selectors:
+            element = soup.select_one(selector)
+            if element:
+                price_text = element.get_text(strip=True)
+                # Извлекаем число из строки типа "$12.99" или "12,99 €"
+                import re
+                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', '.'))
+                if price_match:
+                    return float(price_match.group())
+
+        return None
+
+    def _extract_nutrition(self, soup: BeautifulSoup) -> Dict:
+        """Извлечение nutritional информации"""
+        nutrition = {}
+
+        # Ищем таблицу nutrition facts
+        nutrition_table = soup.find('table', class_='nutrition-facts')
+        if not nutrition_table:
+            nutrition_table = soup.find('div', class_='nutrition-info')
+
+        if nutrition_table:
+            rows = nutrition_table.find_all('tr')
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                if len(cells) >= 2:
+                    nutrient = cells[0].get_text(strip=True).lower()
+                    value = cells[1].get_text(strip=True)
+
+                    # Маппинг nutrient names
+                    if 'calories' in nutrient or 'kcal' in nutrient:
+                        nutrition['calories'] = self._parse_nutrition_value(value)
+                    elif 'protein' in nutrient:
+                        nutrition['protein_g'] = self._parse_nutrition_value(value)
+                    elif 'fat' in nutrient and 'total' in nutrient:
+                        nutrition['fat_g'] = self._parse_nutrition_value(value)
+                    elif 'carbohydrate' in nutrient or 'carbs' in nutrient:
+                        nutrition['carbs_g'] = self._parse_nutrition_value(value)
+                    elif 'fiber' in nutrient:
+                        nutrition['fiber_g'] = self._parse_nutrition_value(value)
+
+        return nutrition
+
+    def _parse_nutrition_value(self, value_str: str) -> Optional[float]:
+        """Парсинг nutritional values"""
+        import re
+        # Извлекаем число из строки типа "12g", "12.5g", "12,5g"
+        match = re.search(r'[\d,]+\.?\d*', value_str.replace(',', '.'))
+        return float(match.group()) if match else None
+```
+
+### 2. **Парсинг ресторанов и доставки**
+
+```python
+# core/web_scrapers/restaurant_parsers.py
+class RestaurantParser:
+    """Парсер для ресторанов и доставки еды"""
+
+    def parse_menu_page(self, restaurant_url: str) -> List[Dict]:
+        """Парсинг меню ресторана"""
+        try:
+            response = self.session.get(restaurant_url)
+            soup = BeautifulSoup(response.content, 'lxml')
+
+            menu_items = []
+
+            # Ищем элементы меню
+            menu_items_elements = soup.find_all(['div', 'li'], class_=re.compile(r'menu-item|dish|food-item'))
+
+            for item in menu_items_elements:
+                menu_item = {
+                    'name': self._extract_dish_name(item),
+                    'description': self._extract_dish_description(item),
+                    'price': self._extract_dish_price(item),
+                    'category': self._extract_dish_category(item),
+                    'allergens': self._extract_allergens(item),
+                    'image_url': self._extract_dish_image(item),
+                    'restaurant': self._extract_restaurant_name(soup)
+                }
+
+                if menu_item['name']:
+                    menu_items.append(menu_item)
+
+            return menu_items
+
+        except Exception as e:
+            logging.error(f"Error parsing restaurant menu: {e}")
+            return []
+```
+
+### 3. **Парсинг кулинарных сайтов и рецептов**
+
+```python
+# core/web_scrapers/recipe_parsers.py
+class RecipeParser:
+    """Парсер для кулинарных сайтов"""
+
+    def parse_recipe_page(self, recipe_url: str) -> Optional[Dict]:
+        """Парсинг рецепта"""
+        try:
+            response = self.session.get(recipe_url)
+            soup = BeautifulSoup(response.content, 'lxml')
+
+            # Ищем structured data (JSON-LD)
+            json_ld = soup.find('script', type='application/ld+json')
+            if json_ld:
+                import json
+                try:
+                    recipe_data = json.loads(json_ld.string)
+                    if isinstance(recipe_data, list):
+                        recipe_data = recipe_data[0]
+
+                    if recipe_data.get('@type') == 'Recipe':
+                        return self._parse_structured_recipe(recipe_data)
+                except json.JSONDecodeError:
+                    pass
+
+            # Fallback: парсинг HTML
+            return self._parse_html_recipe(soup)
+
+        except Exception as e:
+            logging.error(f"Error parsing recipe: {e}")
+            return None
+
+    def _parse_structured_recipe(self, data: Dict) -> Dict:
+        """Парсинг structured data рецепта"""
+        return {
+            'name': data.get('name', ''),
+            'description': data.get('description', ''),
+            'ingredients': data.get('recipeIngredient', []),
+            'instructions': data.get('recipeInstructions', []),
+            'prep_time': data.get('prepTime', ''),
+            'cook_time': data.get('cookTime', ''),
+            'total_time': data.get('totalTime', ''),
+            'servings': data.get('recipeYield', ''),
+            'nutrition': data.get('nutrition', {}),
+            'image_url': data.get('image', ''),
+            'cuisine_type': data.get('recipeCuisine', ''),
+            'difficulty': data.get('recipeDifficulty', ''),
+            'source_url': data.get('url', '')
+        }
+```
+
+## 🌍 Региональные парсеры
+
+### 1. **Российские магазины**
+```python
+# core/web_scrapers/russian_stores.py
+class RussianStoreParser(StoreParser):
+    """Парсер для российских магазинов"""
+
+    def __init__(self):
+        super().__init__("Russian Store", "https://example.ru")
+
+    def _extract_price(self, soup: BeautifulSoup) -> Optional[float]:
+        """Парсинг цен в рублях"""
+        price_element = soup.find('span', class_='price')
+        if price_element:
+            price_text = price_element.get_text(strip=True)
+            # Убираем "₽" и пробелы, заменяем запятую на точку
+            price_clean = price_text.replace('₽', '').replace(' ', '').replace(',', '.')
+            try:
+                return float(price_clean)
+            except ValueError:
+                pass
+        return None
+```
+
+### 2. **Европейские магазины**
+```python
+# core/web_scrapers/european_stores.py
+class EuropeanStoreParser(StoreParser):
+    """Парсер для европейских магазинов"""
+
+    def _extract_price(self, soup: BeautifulSoup) -> Optional[float]:
+        """Парсинг цен в евро"""
+        # Поддержка разных форматов: "12,99 €", "€12.99", "12.99EUR"
+        price_patterns = [
+            r'(\d+[,.]?\d*)\s*€',
+            r'€\s*(\d+[,.]?\d*)',
+            r'(\d+[,.]?\d*)\s*EUR'
+        ]
+
+        price_text = soup.get_text()
+        for pattern in price_patterns:
+            match = re.search(pattern, price_text)
+            if match:
+                price_str = match.group(1).replace(',', '.')
+                try:
+                    return float(price_str)
+                except ValueError:
+                    continue
+        return None
+```
+
+## 🔄 Интеграция с DLT Pipeline
+
+```python
+# dlt_pipelines/sources/web_scraping_source.py
+import dlt
+from core.web_scrapers.store_parsers import StoreParser
+from core.web_scrapers.recipe_parsers import RecipeParser
+
+@dlt.source
+def web_scraping_source(store_urls: List[str], recipe_urls: List[str]):
+    """DLT source для веб-скрапинга"""
+
+    @dlt.resource(name="scraped_products", write_disposition="merge")
+    def scrape_products() -> Iterator[Dict]:
+        """Скрапинг продуктов из магазинов"""
+        parser = StoreParser("Generic Store", "")
+
+        for url in store_urls:
+            product_data = parser.parse_product_page(url)
+            if product_data:
+                yield {
+                    **product_data,
+                    'scraped_at': dlt.current_timestamp(),
+                    'source_type': 'web_scraping'
+                }
+
+    @dlt.resource(name="scraped_recipes", write_disposition="merge")
+    def scrape_recipes() -> Iterator[Dict]:
+        """Скрапинг рецептов"""
+        parser = RecipeParser()
+
+        for url in recipe_urls:
+            recipe_data = parser.parse_recipe_page(url)
+            if recipe_data:
+                yield {
+                    **recipe_data,
+                    'scraped_at': dlt.current_timestamp(),
+                    'source_type': 'web_scraping'
+                }
+
+    return [scrape_products(), scrape_recipes()]
+```
+
+## 🛡️ Этические и правовые аспекты
+
+### 1. **Соблюдение robots.txt**
+```python
+# core/web_scrapers/robots_checker.py
+import urllib.robotparser
+from urllib.parse import urljoin, urlparse
+
+class RobotsChecker:
+    """Проверка robots.txt перед скрапингом"""
+
+    def __init__(self):
+        self.robots_cache = {}
+
+    def can_scrape(self, url: str, user_agent: str = '*') -> bool:
+        """Проверка разрешения на скрапинг"""
+        parsed_url = urlparse(url)
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+        if base_url not in self.robots_cache:
+            rp = urllib.robotparser.RobotFileParser()
+            rp.set_url(urljoin(base_url, '/robots.txt'))
+            rp.read()
+            self.robots_cache[base_url] = rp
+
+        return self.robots_cache[base_url].can_fetch(user_agent, url)
+```
+
+### 2. **Rate Limiting и вежливый скрапинг**
+```python
+# core/web_scrapers/polite_scraper.py
+import time
+import random
+from typing import Dict
+
+class PoliteScraper:
+    """Вежливый скрапер с rate limiting"""
+
+    def __init__(self, min_delay: float = 1.0, max_delay: float = 3.0):
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.last_request_time = 0
+
+    def scrape_with_delay(self, url: str) -> requests.Response:
+        """Скрапинг с задержкой между запросами"""
+        # Соблюдаем rate limiting
+        time_since_last = time.time() - self.last_request_time
+        if time_since_last < self.min_delay:
+            time.sleep(self.min_delay - time_since_last)
+
+        # Случайная задержка для имитации человеческого поведения
+        delay = random.uniform(self.min_delay, self.max_delay)
+        time.sleep(delay)
+
+        response = requests.get(url)
+        self.last_request_time = time.time()
+
+        return response
+```
+
+## 📈 Преимущества BeautifulSoup для PulsePlate
+
+### 1. **Автоматическое наполнение БД**
+- ✅ Парсинг миллионов продуктов из магазинов
+- ✅ Извлечение актуальных цен и наличия
+- ✅ Получение nutritional информации
+- ✅ Сбор рецептов из кулинарных сайтов
+
+### 2. **Масштабируемость**
+- ✅ Поддержка множества сайтов
+- ✅ Адаптация под разные структуры HTML
+- ✅ Обработка JavaScript-рендеринга
+- ✅ Кэширование и оптимизация
+
+### 3. **Качество данных**
+- ✅ Валидация и очистка данных
+- ✅ Нормализация единиц измерения
+- ✅ Дедупликация продуктов
+- ✅ Контроль качества
+
+## 🚀 Следующие шаги
+
+1. **Установить BeautifulSoup** и зависимости
+2. **Создать базовые парсеры** для популярных магазинов
+3. **Интегрировать с DLT pipeline** для ETL
+4. **Добавить мониторинг** и алерты
+5. **Создать dashboard** для отслеживания скрапинга
+
+## 💰 Экономический эффект
+
+- **Экономия времени**: Автоматизация vs ручной сбор данных
+- **Качество данных**: Актуальные цены и наличие
+- **Масштаб**: Миллионы продуктов vs тысячи
+- **Локализация**: Поддержка разных регионов и валют
+
+---
+
+**Вывод**: BeautifulSoup критически важен для масштабирования проекта и автоматического сбора данных о продуктах и рецептах!

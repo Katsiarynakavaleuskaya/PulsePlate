@@ -80,7 +80,7 @@ jobs:
             --restart unless-stopped \
             -p 8000:8000 \
             -e ENVIRONMENT=staging \
-            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-http://localhost:11434} \
+            -e OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-http://host.docker.internal:11434} \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
             -e AI_ROUTER_ENABLED=true \

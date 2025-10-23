@@ -20,7 +20,14 @@ gh secret set OLLAMA_API_KEY --body "your_ollama_cloud_api_key_here"
 gh secret set OLLAMA_API_KEY --body ""
 ```
 
-#### 2. **GHCR_READ_TOKEN** (for Docker images)
+#### 2. **HUGGINGFACE_API_TOKEN** (optional, for embeddings)
+
+```bash
+# Hugging Face API token for embeddings and specialized models
+gh secret set HUGGINGFACE_API_TOKEN --body "your_huggingface_token_here"
+```
+
+#### 3. **GHCR_READ_TOKEN** (for Docker images)
 
 ```bash
 # Personal Access Token with read:packages permissions
@@ -60,9 +67,10 @@ gh secret list
 # NAME                            UPDATED
 # OLLAMA_API_KEY                  just now
 # PULSEPLATE_OPENAI               about 20 days ago
+# HUGGINGFACE_API_TOKEN           just now
 # GHCR_READ_TOKEN                 just now
 
-# Note: Only these 3 secrets are required for AI routing setup.
+# Note: Only these 4 secrets are required for AI routing setup.
 # Other secrets (CODECOV, GROK_API, etc.) are optional and not used by the AI system.
 # SOURCERY                        about 1 month ago
 # WINDSURF                        about 1 month ago
@@ -107,21 +115,23 @@ curl "http://localhost:8000/api/ai/cost-estimate?message=How%20many%20calories%2
 
 ### **Expected Costs:**
 
-- **Simple queries (70%)**: Ollama (free)
-- **Medium queries (20%)**: Ollama (free) or OpenAI ($0.60/1K input, $2.40/1K output tokens)
-- **Complex queries (10%)**: OpenAI ($0.60/1K input, $2.40/1K output tokens)
+- **Simple queries (60%)**: Ollama (free)
+- **Embedding queries (20%)**: Hugging Face (free tier: 1000 requests/month)
+- **Medium queries (15%)**: Ollama (free) or OpenAI ($0.60/1K input, $2.40/1K output tokens)
+- **Complex queries (5%)**: OpenAI ($0.60/1K input, $2.40/1K output tokens)
 
 **Sources:**
-- OpenAI GPT-4o-mini pricing: https://openai.com/pricing (Last updated: 2025-01-25)
-- Ollama Cloud: https://ollama.com (Last updated: 2025-01-25)
+- OpenAI GPT-4o-mini pricing: <https://openai.com/pricing> (Last updated: 2025-01-25)
+- Ollama Cloud: <https://ollama.com> (Last updated: 2025-01-25)
 - Assumptions: ~100 tokens per simple query, ~500 tokens per complex query
 
 ### **Monthly Estimate:**
 
-- **1000 simple queries**: $0 (Ollama)
-- **200 medium queries**: $0-3 (Ollama/OpenAI)
-- **100 complex queries**: $6 (OpenAI)
-- **Total**: ~$6-9/month (vs $60+ with OpenAI-only)
+- **600 simple queries**: $0 (Ollama)
+- **200 embedding queries**: $0 (Hugging Face free tier)
+- **150 medium queries**: $0-2 (Ollama/OpenAI)
+- **50 complex queries**: $3 (OpenAI)
+- **Total**: ~$3-5/month (vs $60+ with OpenAI-only)
 
 ## 🔧 **Environment Variables**
 
@@ -136,6 +146,10 @@ OLLAMA_MODEL=llama3
 # OpenAI Configuration
 OPENAI_API_KEY=your_openai_key
 OPENAI_MODEL=gpt-4o-mini
+
+# Hugging Face Configuration
+HUGGINGFACE_API_TOKEN=your_huggingface_token
+HUGGINGFACE_MODEL=nvidia/llama-embed-nemotron-8b
 
 # AI Router Settings
 AI_ROUTER_ENABLED=true

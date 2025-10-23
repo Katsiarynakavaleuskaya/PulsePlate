@@ -2888,6 +2888,7 @@
 Ремонт
 ремонта
 ремонте
+ресторанов
 ресурсы
 ретраи
 рецепт
@@ -4169,6 +4170,7 @@ hexdigest
 hierro
 htmlcov
 httpx
+HUGGINGFACE
 IFPA
 iloc
 imageset
@@ -4288,6 +4290,7 @@ nтекст
 NASM
 necesidades
 Necesitas
+nemotron
 newgrp
 NFKD
 niño
@@ -4380,6 +4383,7 @@ pptest
 Predeclare
 prefs
 preg
+pretrained
 Principiante
 profesional
 prometheus

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class AIProvider(Enum):
     OLLAMA = "ollama"
+    HUGGINGFACE = "huggingface"
     OPENAI = "openai"
 
 
@@ -25,10 +26,11 @@ class RequestComplexity(Enum):
 
 class AIRouter:
     """
-    Smart AI router that chooses between Ollama and OpenAI based on:
+    Smart AI router that chooses between Ollama, Hugging Face, and OpenAI based on:
     1. Request complexity
     2. Cost optimization
     3. Quality requirements
+    4. Task type (embeddings vs text generation)
     """
 
     def __init__(self):
@@ -38,6 +40,11 @@ class AIRouter:
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+
+        # Hugging Face configuration
+        self.huggingface_api_token = os.getenv("HUGGINGFACE_API_TOKEN")
+        self.huggingface_model = os.getenv("HUGGINGFACE_MODEL", "nvidia/llama-embed-nemotron-8b")
+        self.huggingface_max_length = int(os.getenv("HUGGINGFACE_MAX_LENGTH", "512"))
 
         # Validate required environment variables (only in production)
         # Skip validation during testing or when environment variables are not set
@@ -124,12 +131,18 @@ class AIRouter:
         # Default to simple
         return RequestComplexity.SIMPLE
 
-    def choose_provider(self, complexity: RequestComplexity, user_tier: str = "free") -> AIProvider:
+    def choose_provider(
+        self, complexity: RequestComplexity, user_tier: str = "free", task_type: str = "text"
+    ) -> AIProvider:
         """
-        Choose AI provider based on complexity and user tier
+        Choose AI provider based on complexity, user tier, and task type
         """
-        # Premium users get OpenAI for all requests
-        if user_tier == "premium":
+        # For embedding tasks, prefer Hugging Face (free tier available)
+        if task_type == "embedding" and self.huggingface_api_token:
+            return AIProvider.HUGGINGFACE
+
+        # Premium users get OpenAI for all text requests
+        if user_tier == "premium" and task_type == "text":
             return AIProvider.OPENAI
 
         # Free users: Ollama for simple/medium, OpenAI for complex queries
@@ -150,6 +163,7 @@ class AIRouter:
         context: Dict[str, Any],
         user_tier: str = "free",
         provider: Optional[str] = None,
+        task_type: str = "text",
     ) -> Dict[str, Any]:
         """
         Route request to appropriate AI provider
@@ -160,11 +174,15 @@ class AIRouter:
                 return await self._call_ollama(prompt, context)
             elif provider == "openai":
                 return await self._call_openai(prompt, context)
+            elif provider == "huggingface":
+                return await self._call_huggingface(prompt, context)
             else:
-                raise ValueError(f"Invalid provider: {provider}. Use 'ollama' or 'openai'")
+                raise ValueError(
+                    f"Invalid provider: {provider}. Use 'ollama', 'openai', or 'huggingface'"
+                )
 
         complexity = self.analyze_complexity(prompt, context)
-        chosen_provider = self.choose_provider(complexity, user_tier)
+        chosen_provider = self.choose_provider(complexity, user_tier, task_type)
 
         logger.info(
             f"Routing request: complexity={complexity.value}, provider={chosen_provider.value}"
@@ -173,19 +191,29 @@ class AIRouter:
         try:
             if chosen_provider == AIProvider.OLLAMA:
                 return await self._call_ollama(prompt, context)
+            elif chosen_provider == AIProvider.HUGGINGFACE:
+                return await self._call_huggingface(prompt, context)
             else:
                 return await self._call_openai(prompt, context)
         except (httpx.HTTPError, openai.APIError, Exception) as e:
             logger.exception(f"Error with {chosen_provider.value}, attempting fallback")
-            # Fallback to other provider
-            fallback_provider = (
-                AIProvider.OPENAI if chosen_provider == AIProvider.OLLAMA else AIProvider.OLLAMA
-            )
+            # Fallback to other provider (prioritize Ollama for free users)
+            if chosen_provider == AIProvider.HUGGINGFACE:
+                fallback_provider = AIProvider.OLLAMA
+            elif chosen_provider == AIProvider.OLLAMA:
+                fallback_provider = AIProvider.OPENAI
+            else:
+                fallback_provider = AIProvider.OLLAMA
+
             logger.info(f"Falling back to {fallback_provider.value}")
 
             try:
                 if fallback_provider == AIProvider.OLLAMA:
                     result = await self._call_ollama(prompt, context)
+                    result["fallback_used"] = True
+                    return result
+                elif fallback_provider == AIProvider.HUGGINGFACE:
+                    result = await self._call_huggingface(prompt, context)
                     result["fallback_used"] = True
                     return result
                 else:
@@ -278,6 +306,50 @@ class AIRouter:
             "tokens_used": tokens_used,
             "fallback_used": False,
         }
+
+    async def _call_huggingface(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Call Hugging Face API for embeddings
+        """
+        try:
+            from transformers import AutoModel, AutoTokenizer
+            import torch
+
+            # Load model and tokenizer
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.huggingface_model, trust_remote_code=True, token=self.huggingface_api_token
+            )
+            model = AutoModel.from_pretrained(
+                self.huggingface_model, trust_remote_code=True, token=self.huggingface_api_token
+            )
+
+            # Tokenize input
+            inputs = tokenizer(
+                prompt,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.huggingface_max_length,
+            )
+
+            # Generate embedding
+            with torch.no_grad():
+                outputs = model(**inputs)
+                # Use mean pooling for sentence-level embedding
+                embeddings = outputs.last_hidden_state.mean(dim=1)
+
+            return {
+                "response": embeddings.tolist(),  # Convert to list for JSON serialization
+                "provider": "huggingface",
+                "model": self.huggingface_model,
+                "cost": 0.0,  # Free tier
+                "tokens_used": inputs.input_ids.shape[1],
+                "fallback_used": False,
+            }
+
+        except Exception as e:
+            logger.error(f"Hugging Face API error: {e}")
+            raise
 
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
         """
