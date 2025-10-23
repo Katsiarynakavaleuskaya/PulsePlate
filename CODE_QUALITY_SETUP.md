@@ -173,4 +173,3 @@ All checks must pass before merging to main branch.
 - [Bandit Documentation](https://bandit.readthedocs.io/)
 - [Pre-commit Documentation](https://pre-commit.com/)
 - [Python Type Hints Guide](https://docs.python.org/3/library/typing.html)
-

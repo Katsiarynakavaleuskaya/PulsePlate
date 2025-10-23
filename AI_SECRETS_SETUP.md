@@ -208,4 +208,3 @@ After setup, monitor:
 4. ✅ Monitor costs
 5. ✅ Optimize thresholds
 6. ✅ Scale to production
-

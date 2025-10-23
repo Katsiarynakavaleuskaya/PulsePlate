@@ -50,6 +50,7 @@ repos:
           - --ignore-missing-imports
           - --install-types
           - --non-interactive
+          - --explicit-package-bases
         files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 
   # --- Security: bandit
