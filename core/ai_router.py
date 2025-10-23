@@ -237,7 +237,7 @@ class AIRouter:
             return {
                 "response": result.get("response", ""),
                 "provider": "ollama",
-                "model": "llama3",
+                "model": self.ollama_model,
                 "cost": 0,  # Free
                 "tokens_used": result.get("eval_count", 0),
                 "fallback_used": False,
@@ -265,6 +265,10 @@ class AIRouter:
         usage = response.usage
         tokens_used = usage.total_tokens if usage else 0
         cost = self._calculate_openai_cost(usage) if usage else 0.0
+
+        # Check if choices array is empty
+        if not response.choices or len(response.choices) == 0:
+            raise ValueError("OpenAI API returned empty choices array")
 
         return {
             "response": response.choices[0].message.content,

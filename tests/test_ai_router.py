@@ -257,6 +257,20 @@ class TestOpenAICall:
             with pytest.raises(Exception, match="API error"):
                 await ai_router._call_openai("Test prompt", {})
 
+    @pytest.mark.asyncio
+    async def test_call_openai_empty_choices(self, ai_router: AIRouter, mock_env_vars: Any) -> None:
+        """Test OpenAI call with empty choices array"""
+        mock_response = MagicMock()
+        mock_response.choices = []  # Empty choices array
+        mock_response.usage = None
+
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(ValueError, match="OpenAI API returned empty choices array"):
+                await ai_router._call_openai("Test prompt", {})
+
 
 class TestSystemPrompt:
     """Test system prompt building"""
