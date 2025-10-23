@@ -2,7 +2,7 @@
 AI Chat Router - Smart AI routing for nutrition and health queries
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 import logging
@@ -53,21 +53,10 @@ async def chat_with_ai(request: ChatRequest):
     Chat with AI using smart routing between Ollama and OpenAI
     """
     try:
-        # Force provider if specified
-        if request.force_provider:
-            if request.force_provider == "ollama":
-                result = await ai_router._call_ollama(request.message, request.context)
-            elif request.force_provider == "openai":
-                result = await ai_router._call_openai(request.message, request.context)
-            else:
-                raise HTTPException(
-                    status_code=400, detail="Invalid provider. Use 'ollama' or 'openai'"
-                )
-        else:
-            # Use smart routing
-            result = await ai_router.route_request(
-                request.message, request.context, request.user_tier
-            )
+        # Use smart routing with optional provider override
+        result = await ai_router.route_request(
+            request.message, request.context, request.user_tier, request.force_provider
+        )
 
         # Analyze complexity for response
         complexity = ai_router.analyze_complexity(request.message, request.context)
@@ -79,12 +68,12 @@ async def chat_with_ai(request: ChatRequest):
             cost=result["cost"],
             tokens_used=result["tokens_used"],
             complexity=complexity.value,
-            fallback_used=request.force_provider is not None,
+            fallback_used=result.get("fallback_used", False),
         )
 
     except Exception as e:
-        logger.error(f"Error in AI chat: {e}")
-        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+        logger.exception("Error in AI chat")
+        raise HTTPException(status_code=500, detail=f"AI service error: {e!s}") from e
 
 
 @router.post("/analyze-nutrition", response_model=ChatResponse)
@@ -123,12 +112,12 @@ async def analyze_nutrition(request: NutritionAnalysisRequest):
         )
 
     except Exception as e:
-        logger.error(f"Error in nutrition analysis: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
+        logger.exception("Error in nutrition analysis")
+        raise HTTPException(status_code=500, detail=f"Analysis error: {e!s}") from e
 
 
 @router.get("/providers")
-async def get_available_providers():
+async def get_available_providers() -> dict[str, Any]:
     """
     Get information about available AI providers
     """
@@ -158,22 +147,26 @@ async def get_available_providers():
 
 
 @router.get("/cost-estimate")
-async def estimate_cost(message: str, provider: str = "auto"):
+async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
     """
     Estimate cost for a message
     """
     try:
+        complexity = None
         if provider == "auto":
             complexity = ai_router.analyze_complexity(message, {})
-            chosen_provider = ai_router.choose_provider(complexity, "free")
+            provider_enum = ai_router.choose_provider(complexity, "free")
+            chosen_provider = provider_enum.value
         else:
             chosen_provider = provider
+
+        complexity_value = complexity.value if complexity is not None else "unknown"
 
         if chosen_provider == "ollama":
             return {
                 "provider": "ollama",
                 "estimated_cost": 0.0,
-                "complexity": complexity.value if provider == "auto" else "unknown",
+                "complexity": complexity_value,
             }
         else:
             # Rough estimate for OpenAI
@@ -184,9 +177,9 @@ async def estimate_cost(message: str, provider: str = "auto"):
                 "provider": "openai",
                 "estimated_cost": round(estimated_cost, 6),
                 "estimated_tokens": int(estimated_tokens),
-                "complexity": complexity.value if provider == "auto" else "unknown",
+                "complexity": complexity_value,
             }
 
     except Exception as e:
-        logger.error(f"Error estimating cost: {e}")
-        raise HTTPException(status_code=500, detail=f"Cost estimation error: {str(e)}")
+        logger.exception("Error estimating cost")
+        raise HTTPException(status_code=500, detail=f"Cost estimation error: {e!s}") from e

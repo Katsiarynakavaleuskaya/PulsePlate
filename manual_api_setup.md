@@ -2,7 +2,7 @@
 
 ## Step 1: Get OpenAI API Key
 
-1. **Open**: https://platform.openai.com/api-keys
+1. **Open**: <https://platform.openai.com/api-keys>
 2. **Login** with your ChatGPT Pro account
 3. **Click** "Create new secret key"
 4. **Name it**: "Cursor MCP Integration"
@@ -12,12 +12,14 @@
 ## Step 2: Update Configuration Files
 
 ### Update MCP Configuration
+
 ```bash
 # Edit the MCP config file
 nano ~/.cursor/mcp.json
 ```
 
 Replace `"your_openai_api_key_here"` with your actual API key:
+
 ```json
 {
   "mcpServers": {
@@ -35,12 +37,14 @@ Replace `"your_openai_api_key_here"` with your actual API key:
 ```
 
 ### Update Environment File
+
 ```bash
 # Edit the environment file
 nano ~/.cursor/.env
 ```
 
 Replace `your_openai_api_key_here` with your actual API key:
+
 ```
 # OpenAI API Configuration
 OPENAI_API_KEY=sk-proj-YOUR_ACTUAL_KEY_HERE
@@ -50,12 +54,14 @@ MCP_ENABLED=true
 ```
 
 ### Update Cursor Settings
+
 ```bash
 # Edit Cursor settings
 nano ~/.cursor/settings.json
 ```
 
 Replace `your_openai_api_key_here` with your actual API key:
+
 ```json
 {
   "cursor.ai.enabled": true,
@@ -78,6 +84,7 @@ Replace `your_openai_api_key_here` with your actual API key:
 ## Step 4: Verify API Key
 
 Test your API key:
+
 ```bash
 # Test API key
 curl -H "Authorization: Bearer sk-proj-YOUR_KEY_HERE" \
@@ -86,13 +93,15 @@ curl -H "Authorization: Bearer sk-proj-YOUR_KEY_HERE" \
 
 ## Troubleshooting
 
-### If MCP tools don't appear:
+### If MCP tools don't appear
+
 1. Check API key format (should start with `sk-proj-`)
 2. Verify all configuration files are updated
 3. Restart Cursor completely
 4. Check Cursor logs for errors
 
-### If API key doesn't work:
+### If API key doesn't work
+
 1. Verify key is correct
 2. Check OpenAI account has credits
 3. Ensure Pro subscription is active

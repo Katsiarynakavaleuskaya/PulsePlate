@@ -39,7 +39,7 @@ docker-compose --env-file deploy/ollama-configs/cloud.env up
 - ❌ No scaling
 
 ### Ollama Cloud
-- 💰 **$20/month** for 100k requests
+- 💰 **Pro tier: $20/month** — usage-based metered pricing coming soon
 - ✅ No server management
 - ✅ Automatic scaling
 - ✅ Always updated models

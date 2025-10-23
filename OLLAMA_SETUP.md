@@ -73,12 +73,12 @@ OLLAMA_API_KEY=your_api_key_here
 **Pricing (as of 2025):**
 
 - **Free tier**: 1,000 requests/month
-- **Pro**: $20/month for 100,000 requests
+- **Pro**: $20/month (pricing varies by usage)
 - **Enterprise**: Custom pricing for high volume
 
 *Much cheaper than running your own GPU servers!*
 
-### Option 2: Local Ollama (For Development)
+### Option 3: Local Ollama (For Development)
 
 ## Installation
 

@@ -3,9 +3,7 @@ AI Router - Smart routing between Ollama and OpenAI based on request complexity
 """
 
 import os
-import json
-import asyncio
-from typing import Dict, Any, Optional, Literal
+from typing import Dict, Any, Optional
 from enum import Enum
 import logging
 
@@ -89,13 +87,10 @@ class AIRouter:
         """
         prompt_lower = prompt.lower()
 
-        # Check for complex keywords
-        for complexity, keywords in self.complexity_keywords.items():
-            if any(keyword in prompt_lower for keyword in keywords):
-                if complexity == RequestComplexity.COMPLEX:
-                    return RequestComplexity.COMPLEX
-                elif complexity == RequestComplexity.MEDIUM:
-                    return RequestComplexity.MEDIUM
+        # Keyword-based detection (priority: COMPLEX > MEDIUM)
+        for level in (RequestComplexity.COMPLEX, RequestComplexity.MEDIUM):
+            if any(kw in prompt_lower for kw in self.complexity_keywords[level]):
+                return level
 
         # Check context for complexity indicators
         if context.get("user_conditions") or context.get("allergies"):
@@ -111,8 +106,8 @@ class AIRouter:
         """
         Choose AI provider based on complexity and user tier
         """
-        # Premium users get OpenAI for complex requests
-        if user_tier == "premium" and complexity == RequestComplexity.COMPLEX:
+        # Premium users get OpenAI for all requests
+        if user_tier == "premium":
             return AIProvider.OPENAI
 
         # Free users: Ollama for simple/medium, OpenAI for complex (with limits)
@@ -130,33 +125,52 @@ class AIRouter:
             return AIProvider.OPENAI
 
     async def route_request(
-        self, prompt: str, context: Dict[str, Any], user_tier: str = "free"
+        self,
+        prompt: str,
+        context: Dict[str, Any],
+        user_tier: str = "free",
+        provider: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Route request to appropriate AI provider
         """
-        complexity = self.analyze_complexity(prompt, context)
-        provider = self.choose_provider(complexity, user_tier)
+        if provider:
+            # Force specific provider
+            if provider == "ollama":
+                return await self._call_ollama(prompt, context)
+            elif provider == "openai":
+                return await self._call_openai(prompt, context)
+            else:
+                raise ValueError(f"Invalid provider: {provider}. Use 'ollama' or 'openai'")
 
-        logger.info(f"Routing request: complexity={complexity.value}, provider={provider.value}")
+        complexity = self.analyze_complexity(prompt, context)
+        chosen_provider = self.choose_provider(complexity, user_tier)
+
+        logger.info(
+            f"Routing request: complexity={complexity.value}, provider={chosen_provider.value}"
+        )
 
         try:
-            if provider == AIProvider.OLLAMA:
+            if chosen_provider == AIProvider.OLLAMA:
                 return await self._call_ollama(prompt, context)
             else:
                 return await self._call_openai(prompt, context)
         except Exception as e:
-            logger.error(f"Error with {provider.value}: {e}")
+            logger.error(f"Error with {chosen_provider.value}: {e}")
             # Fallback to other provider
             fallback_provider = (
-                AIProvider.OPENAI if provider == AIProvider.OLLAMA else AIProvider.OLLAMA
+                AIProvider.OPENAI if chosen_provider == AIProvider.OLLAMA else AIProvider.OLLAMA
             )
             logger.info(f"Falling back to {fallback_provider.value}")
 
             if fallback_provider == AIProvider.OLLAMA:
-                return await self._call_ollama(prompt, context)
+                result = await self._call_ollama(prompt, context)
+                result["fallback_used"] = True
+                return result
             else:
-                return await self._call_openai(prompt, context)
+                result = await self._call_openai(prompt, context)
+                result["fallback_used"] = True
+                return result
 
     async def _call_ollama(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -193,6 +207,7 @@ class AIRouter:
                 "model": "llama3",
                 "cost": 0,  # Free
                 "tokens_used": result.get("eval_count", 0),
+                "fallback_used": False,
             }
 
     async def _call_openai(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -213,20 +228,30 @@ class AIRouter:
             model=self.openai_model, messages=messages, temperature=0.7, max_tokens=1000
         )
 
+        usage = response.usage
+        tokens_used = usage.total_tokens if usage else 0
+        cost = self._calculate_openai_cost(usage) if usage else 0.0
+
         return {
             "response": response.choices[0].message.content,
             "provider": "openai",
             "model": self.openai_model,
-            "cost": self._calculate_openai_cost(response.usage),
-            "tokens_used": response.usage.total_tokens,
+            "cost": cost,
+            "tokens_used": tokens_used,
+            "fallback_used": False,
         }
 
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
         """
         Build system prompt based on context
         """
-        base_prompt = """You are a nutrition and health AI assistant for PulsePlate.
-        Provide accurate, helpful, and personalized nutrition advice."""
+        base_prompt = (
+            "You are a nutrition and health AI assistant for PulsePlate. "
+            "Provide accurate, helpful, and personalized nutrition guidance. "
+            "Do not provide medical diagnosis or emergency advice. "
+            "Advise users to consult a healthcare professional for medical concerns. "
+            "If information is uncertain, state limitations and suggest evidence-based sources."
+        )
 
         if context.get("user_conditions"):
             base_prompt += f"\nUser has conditions: {', '.join(context['user_conditions'])}"
@@ -243,6 +268,9 @@ class AIRouter:
         """
         Calculate OpenAI API cost based on usage
         """
+        if not usage:
+            return 0.0
+
         # GPT-4o-mini pricing (as of 2025)
         input_cost_per_1k = 0.00015
         output_cost_per_1k = 0.0006
