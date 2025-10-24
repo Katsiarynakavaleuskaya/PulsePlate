@@ -57,9 +57,15 @@ jobs:
             -d '{"height": 180, "weight": 70}' || exit 1
 
           # Test SQL injection protection
-          curl -f -X POST http://localhost:8000/bmi \
+          # API should reject invalid input with 422 (good security) or handle safely with 200
+          status=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/bmi \
             -H "Content-Type: application/json" \
-            -d '{"height": 180, "weight": "70; DROP TABLE users; --"}' || exit 1
+            -d '{"height": 180, "weight": "70; DROP TABLE users; --"}')
+          if [[ "$status" != "200" && "$status" != "422" ]]; then
+            echo "❌ Unexpected status code: $status (expected 200 or 422)"
+            exit 1
+          fi
+          echo "✅ SQL injection test passed with status: $status"
 
       - name: Test API endpoints security
         run: |
