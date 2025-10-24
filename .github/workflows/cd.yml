@@ -75,13 +75,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate environment
-        run: |
-          echo "🔍 Validating production environment..."
-          ./scripts/validate-ci-environment.sh
-        env:
-          ENVIRONMENT: production
-
       - name: Check if this is a tag build
         id: check-tag
         run: |
@@ -99,6 +92,17 @@ jobs:
       - name: Resolve image tag
         id: meta
         run: echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate environment
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
+        run: |
+          echo "🔍 Validating production environment..."
+          ./scripts/validate-ci-environment.sh
+        env:
+          ENVIRONMENT: production
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          PULSEPLATE_OPENAI: ${{ secrets.PULSEPLATE_OPENAI }}
 
       - name: Wait for Docker image to be available
         if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
