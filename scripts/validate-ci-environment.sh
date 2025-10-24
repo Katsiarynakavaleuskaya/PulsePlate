@@ -70,17 +70,28 @@ if [ "$ENVIRONMENT" = "local" ]; then
     echo ""
     echo "Checking environment files..."
 
-    if [ ! -f "deploy/ollama-configs/local.env.example" ]; then
-        echo "::error::deploy/ollama-configs/local.env.example not found."
-        exit 1
+    # Check for existing environment files
+    if [ -f "deploy/ollama-configs/local.env" ]; then
+        echo "✅ deploy/ollama-configs/local.env exists."
+    elif [ -f "deploy/ollama-configs/local.env.example" ]; then
+        echo "✅ deploy/ollama-configs/local.env.example exists."
+    else
+        echo "⚠️  No Ollama environment file found in deploy/ollama-configs/"
+        echo "Consider creating local.env or local.env.example for local development."
     fi
-    echo "✅ deploy/ollama-configs/local.env.example exists."
 
-    if [ ! -f "deploy/ai-configs/huggingface.env.example" ]; then
-        echo "::error::deploy/ai-configs/huggingface.env.example not found."
-        exit 1
+    # Check for AI configs directory (optional)
+    if [ -d "deploy/ai-configs" ]; then
+        if [ -f "deploy/ai-configs/huggingface.env" ]; then
+            echo "✅ deploy/ai-configs/huggingface.env exists."
+        elif [ -f "deploy/ai-configs/huggingface.env.example" ]; then
+            echo "✅ deploy/ai-configs/huggingface.env.example exists."
+        else
+            echo "⚠️  No Hugging Face environment file found in deploy/ai-configs/"
+        fi
+    else
+        echo "ℹ️  deploy/ai-configs/ directory not found (optional for local development)."
     fi
-    echo "✅ deploy/ai-configs/huggingface.env.example exists."
 else
     echo "ℹ️  Skipping environment file checks for $ENVIRONMENT environment."
 fi
