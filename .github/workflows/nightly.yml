@@ -135,30 +135,40 @@ jobs:
           if [ -f "bandit-report.json" ]; then
             echo "### Bandit Security Scan" >> $GITHUB_STEP_SUMMARY
             python - <<'PY'
-          import json, sys
-          try:
-              with open('bandit-report.json') as f:
-                  data = json.load(f)
+                import json, sys
 
-              results = data.get('results', [])
-              high_severity = [r for r in results if r.get('issue_severity', '').upper() == 'HIGH']
-              medium_severity = [r for r in results if r.get('issue_severity', '').upper() == 'MEDIUM']
-              low_severity = [r for r in results if r.get('issue_severity', '').upper() == 'LOW']
+                try:
+                    with open('bandit-report.json') as f:
+                        data = json.load(f)
 
-              print(f"**Total Issues:** {len(results)}")
-              print(f"- 🔴 High: {len(high_severity)}")
-              print(f"- 🟡 Medium: {len(medium_severity)}")
-              print(f"- 🟢 Low: {len(low_severity)}")
+                    results = data.get('results', [])
+                    high_severity = [
+                        r for r in results if r.get('issue_severity', '').upper() == 'HIGH'
+                    ]
+                    medium_severity = [
+                        r for r in results if r.get('issue_severity', '').upper() == 'MEDIUM'
+                    ]
+                    low_severity = [
+                        r for r in results if r.get('issue_severity', '').upper() == 'LOW'
+                    ]
 
-              if high_severity:
-                  print(f"\n⚠️ **High severity issues found!**")
-                  for issue in high_severity[:3]:  # Show first 3
-                      print(f"- {issue.get('test_name', 'Unknown')}: {issue.get('filename', 'Unknown file')}")
-                  if len(high_severity) > 3:
-                      print(f"- ... and {len(high_severity) - 3} more")
-          except Exception as e:
-              print(f"Error analyzing bandit report: {e}")
-          PY
+                    print(f"**Total Issues:** {len(results)}")
+                    print(f"- 🔴 High: {len(high_severity)}")
+                    print(f"- 🟡 Medium: {len(medium_severity)}")
+                    print(f"- 🟢 Low: {len(low_severity)}")
+
+                    if high_severity:
+                        print(f"\n⚠️ **High severity issues found!**")
+                        for issue in high_severity[:3]:  # Show first 3
+                            print(
+                                f"- {issue.get('test_name', 'Unknown')}: "
+                                f"{issue.get('filename', 'Unknown file')}"
+                            )
+                        if len(high_severity) > 3:
+                            print(f"- ... and {len(high_severity) - 3} more")
+                except Exception as exc:
+                    print(f"Error analyzing bandit report: {exc}")
+PY
           else
             echo "❌ Bandit report not found" >> $GITHUB_STEP_SUMMARY
           fi
@@ -169,23 +179,27 @@ jobs:
           if [ -f "pip-audit-report.json" ]; then
             echo "### Dependency Vulnerability Scan" >> $GITHUB_STEP_SUMMARY
             python - <<'PY'
-          import json, sys
-          try:
-              with open('pip-audit-report.json') as f:
-                  data = json.load(f)
+                import json, sys
 
-              vulnerabilities = data.get('vulnerabilities', [])
-              if vulnerabilities:
-                  print(f"**Total Vulnerabilities:** {len(vulnerabilities)}")
-                  for vuln in vulnerabilities[:3]:  # Show first 3
-                      print(f"- {vuln.get('package', 'Unknown')}: {vuln.get('advisory', 'No advisory')}")
-                  if len(vulnerabilities) > 3:
-                      print(f"- ... and {len(vulnerabilities) - 3} more")
-              else:
-                  print("✅ No vulnerabilities found")
-          except Exception as e:
-              print(f"Error analyzing pip-audit report: {e}")
-          PY
+                try:
+                    with open('pip-audit-report.json') as f:
+                        data = json.load(f)
+
+                    vulnerabilities = data.get('vulnerabilities', [])
+                    if vulnerabilities:
+                        print(f"**Total Vulnerabilities:** {len(vulnerabilities)}")
+                        for vuln in vulnerabilities[:3]:  # Show first 3
+                            print(
+                                f"- {vuln.get('package', 'Unknown')}: "
+                                f"{vuln.get('advisory', 'No advisory')}"
+                            )
+                        if len(vulnerabilities) > 3:
+                            print(f"- ... and {len(vulnerabilities) - 3} more")
+                    else:
+                        print('✅ No vulnerabilities found')
+                except Exception as exc:
+                    print(f"Error analyzing pip-audit report: {exc}")
+PY
           else
             echo "❌ pip-audit report not found" >> $GITHUB_STEP_SUMMARY
           fi

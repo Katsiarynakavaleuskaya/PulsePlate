@@ -36,7 +36,16 @@ jobs:
       - name: Start application
         run: |
           python -m uvicorn app:app --host 0.0.0.0 --port 8000 &
-          sleep 10
+          max_attempts=30
+          for attempt in $(seq 1 $max_attempts); do
+            if curl -f --connect-timeout 2 http://localhost:8000/health >/dev/null 2>&1; then
+              echo "✅ Application ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "❌ Application failed to become ready"
+          exit 1
         env:
           APP_ENV: test
           API_KEY: test_key
@@ -57,7 +66,7 @@ jobs:
             -d '{"height": 180, "weight": 70}' || exit 1
 
           # Test SQL injection protection
-          # API should reject invalid input with 422 (good security) or handle safely with 200
+          # Verify the application handles malicious input gracefully (returns 200/422 and does not crash)
           status=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/bmi \
             -H "Content-Type: application/json" \
             -d '{"height": 180, "weight": "70; DROP TABLE users; --"}')

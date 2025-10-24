@@ -662,8 +662,8 @@ class AIRouter:
 
             # Convert embeddings to list of floats for proper serialization
             embeddings_list = embeddings.tolist()
-            # If we have multiple embeddings, return the first one
-            if len(embeddings_list) > 1:
+            # Unwrap batch dimension (embedding is batched as [[...]])
+            if isinstance(embeddings_list, list) and embeddings_list:
                 embeddings_list = embeddings_list[0]
 
             return AIResponse(

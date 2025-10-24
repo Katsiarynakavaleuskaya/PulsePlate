@@ -35,20 +35,34 @@ jobs:
       - name: Start application
         run: |
           python -m uvicorn app:app --host 0.0.0.0 --port 8000 &
-          sleep 15
         env:
           APP_ENV: test
           API_KEY: test_key
 
+      - name: Wait for application readiness
+        run: |
+          max_attempts=30
+          attempt=0
+          while [ "$attempt" -lt "$max_attempts" ]; do
+            if curl -f --connect-timeout 2 http://localhost:8000/health >/dev/null 2>&1; then
+              echo "✅ Application is ready"
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 1
+          done
+          echo "❌ Application failed to become ready"
+          exit 1
+
       - name: OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.9.0
+        uses: zaproxy/action-baseline@41aee98ebc7cf2802c3beae4e7d4336413a21e43
         with:
           target: 'http://localhost:8000'
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
 
       - name: Upload ZAP results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: zap-results
