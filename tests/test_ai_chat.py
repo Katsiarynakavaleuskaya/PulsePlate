@@ -432,7 +432,8 @@ class TestEdgeCases:
                 "message": "Analyze my nutrition",
                 "context": {"user_tier": "premium"},
                 "user_tier": "premium",
-                "analysis_type": "detailed",
+                # Note: "analysis_type" is not a valid field for ChatRequest
+                # Pydantic will ignore unknown fields, which is the expected behavior
             },
         )
 

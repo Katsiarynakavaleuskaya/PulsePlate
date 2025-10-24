@@ -109,9 +109,11 @@ if [ ! -z "$PYTHON_CHANGES" ]; then
 
     # Black formatting (only check, don't fail on legacy files)
     echo "🎨 Running Black formatter..."
-    if ! echo "$PYTHON_CHANGES" | xargs -r python -m black --check --diff; then
-        echo "⚠️  Black formatting issues found. Consider running: python -m black $PYTHON_CHANGES"
-        echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+    if [ -n "$PYTHON_CHANGES" ]; then
+        if ! echo "$PYTHON_CHANGES" | xargs python -m black --check --diff; then
+            echo "⚠️  Black formatting issues found. Consider running: python -m black $PYTHON_CHANGES"
+            echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+        fi
     fi
 
     # Ruff linting (only check, don't fail on legacy files)

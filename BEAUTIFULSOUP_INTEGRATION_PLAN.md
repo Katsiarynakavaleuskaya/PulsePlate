@@ -43,7 +43,12 @@ import logging
 class StoreParser:
     """Базовый класс для парсинга магазинов"""
 
-    def __init__(self, store_name: str, base_url: str, user_agent: str = 'Mozilla/5.0 (compatible; PulsePlate/1.0)'):
+    def __init__(
+        self,
+        store_name: str,
+        base_url: str,
+        user_agent: str = 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
+    ) -> None:
         self.store_name = store_name
         self.base_url = base_url
         self.session = requests.Session()

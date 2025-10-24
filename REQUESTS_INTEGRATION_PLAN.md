@@ -69,7 +69,7 @@ import logging
 class UniversalAPIClient:
     """Универсальный клиент для интеграции с внешними API"""
 
-    def __init__(self, base_url: str, api_key: str = None):
+    def __init__(self, base_url: str, api_key: Optional[str] = None) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.session = requests.Session()
@@ -91,7 +91,6 @@ class UniversalAPIClient:
     def get_recipe_details(self, recipe_id: str) -> Dict[str, Any]:
         """Получить детали рецепта"""
         raise NotImplementedError("Not implemented")
-```
 
 ### 2. **Интеграция с DLT для ETL**
 

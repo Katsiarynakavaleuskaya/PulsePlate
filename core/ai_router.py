@@ -14,6 +14,8 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from pydantic import BaseModel
 
+from .ai_constants import OPENAI_INPUT_COST_PER_1M, OPENAI_OUTPUT_COST_PER_1M
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +66,15 @@ class AIRouter:
             msg = f"Invalid OPENAI_MAX_TOKENS value: {os.getenv('OPENAI_MAX_TOKENS')}, using default 1000"
             logger.warning(msg)
             self.max_tokens = 1000
+
+        # Hugging Face model caching
+        self._hf_tokenizer = None
+        self._hf_model = None
+        self._hf_model_name = None
+        self._hf_revision = None
+        self._hf_trust_remote = None
+        self._hf_token = None
+        self._hf_lock = threading.Lock()
 
         # Hugging Face configuration
         self.huggingface_api_token = os.getenv("HUGGINGFACE_API_TOKEN")
@@ -512,6 +523,58 @@ class AIRouter:
             error=False,
         )
 
+    def _load_huggingface_model(self) -> None:
+        """Load and cache Hugging Face model and tokenizer"""
+        with self._hf_lock:
+            # Check if we need to reload the model
+            trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
+            if (
+                self._hf_tokenizer is None
+                or self._hf_model is None
+                or self._hf_model_name != self.huggingface_model
+                or self._hf_revision != self.huggingface_model_revision
+                or self._hf_trust_remote != trust_remote
+                or self._hf_token != self.huggingface_api_token
+            ):
+                logger.info(f"Loading Hugging Face model: {self.huggingface_model}")
+
+                # Only enable trust_remote_code for explicitly vetted models
+                if trust_remote and self.huggingface_model != "nvidia/llama-embed-nemotron-8b":
+                    msg = f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
+                    raise ValueError(msg)
+
+                # Use specific commit hash for security (required in production)
+                if not self.huggingface_model_revision:
+                    msg = "HUGGINGFACE_MODEL_REVISION must be set to a specific commit hash for security"
+                    raise ValueError(msg)
+
+                self._hf_tokenizer = (
+                    AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
+                        self.huggingface_model,
+                        revision=self.huggingface_model_revision,
+                        trust_remote_code=trust_remote,
+                        token=self.huggingface_api_token,
+                    )
+                )
+                self._hf_model = (
+                    AutoModel.from_pretrained(  # nosec B615 - revision pinned for security
+                        self.huggingface_model,
+                        revision=self.huggingface_model_revision,
+                        trust_remote_code=trust_remote,
+                        token=self.huggingface_api_token,
+                    )
+                )
+
+                # Cache the configuration
+                self._hf_model_name = self.huggingface_model
+                self._hf_revision = self.huggingface_model_revision
+                self._hf_trust_remote = trust_remote
+                self._hf_token = self.huggingface_api_token
+
+                logger.info(
+                    f"Successfully loaded and cached Hugging Face model: {self.huggingface_model}"
+                )
+
     async def _call_huggingface(self, prompt: str, _context: Dict[str, Any]) -> AIResponse:
         """
         Call Hugging Face API for embeddings
@@ -529,35 +592,11 @@ class AIRouter:
                    Can be None or empty dict for current implementation
         """
         try:
-            # Load model and tokenizer
-            # Only enable trust_remote_code for explicitly vetted models
-            trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
-            if trust_remote and self.huggingface_model != "nvidia/llama-embed-nemotron-8b":
-                msg = f"trust_remote_code=True only allowed for vetted models, got: {self.huggingface_model}"
-                raise ValueError(msg)
+            # Load model and tokenizer (cached)
+            self._load_huggingface_model()
 
-            # Use specific commit hash for security (required in production)
-            if not self.huggingface_model_revision:
-                msg = (
-                    "HUGGINGFACE_MODEL_REVISION must be set to a specific commit hash for security"
-                )
-                raise ValueError(msg)
-
-            tokenizer = AutoTokenizer.from_pretrained(  # nosec B615 - revision pinned for security
-                self.huggingface_model,
-                revision=self.huggingface_model_revision,
-                trust_remote_code=trust_remote,
-                token=self.huggingface_api_token,
-            )
-            model = AutoModel.from_pretrained(  # nosec B615 - revision pinned for security
-                self.huggingface_model,
-                revision=self.huggingface_model_revision,
-                trust_remote_code=trust_remote,
-                token=self.huggingface_api_token,
-            )
-
-            # Tokenize input
-            inputs = tokenizer(
+            # Tokenize input using cached tokenizer
+            inputs = self._hf_tokenizer(
                 prompt,
                 return_tensors="pt",
                 padding=True,
@@ -565,9 +604,9 @@ class AIRouter:
                 max_length=self.huggingface_max_length,
             )
 
-            # Generate embedding
+            # Generate embedding using cached model
             with torch.no_grad():
-                outputs = model(**inputs)
+                outputs = self._hf_model(**inputs)
                 # Use mean pooling for sentence-level embedding
                 embeddings = outputs.last_hidden_state.mean(dim=1)
 
@@ -624,18 +663,15 @@ class AIRouter:
     def _calculate_openai_cost(self, usage: Any) -> float:
         """
         Calculate OpenAI API cost based on usage
-        Pricing based on GPT-4o-mini rates as of January 2025
+        Pricing based on GPT-4o-mini rates as of October 2025
         See: https://openai.com/pricing
         """
         if not usage:
             return 0.0
 
-        # GPT-4o-mini pricing per 1M tokens (as of January 2025)
-        input_cost_per_1m = 0.15
-        output_cost_per_1m = 0.60
-
-        input_cost = (usage.prompt_tokens / 1_000_000) * input_cost_per_1m
-        output_cost = (usage.completion_tokens / 1_000_000) * output_cost_per_1m
+        # Use centralized pricing constants
+        input_cost = (usage.prompt_tokens / 1_000_000) * OPENAI_INPUT_COST_PER_1M
+        output_cost = (usage.completion_tokens / 1_000_000) * OPENAI_OUTPUT_COST_PER_1M
 
         return float(input_cost + output_cost)
 

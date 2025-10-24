@@ -8,6 +8,13 @@ from typing import Dict, Any, Optional, List, Tuple, Literal
 import logging
 
 from core.ai_router import ai_router, RequestComplexity
+from core.ai_constants import (
+    OPENAI_INPUT_COST_PER_1K,
+    OPENAI_OUTPUT_COST_PER_1K,
+    TOKEN_MULTIPLIER,
+    INPUT_RATIO,
+    OUTPUT_RATIO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +26,6 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     Returns:
         Tuple of (estimated_cost, estimated_tokens)
     """
-    # Constants for OpenAI GPT-4o-mini pricing (as of 2025-10-23)
-    TOKEN_MULTIPLIER = 1.3  # Rough approximation factor
-    INPUT_RATIO = 0.7  # 70% of tokens are input
-    OUTPUT_RATIO = 0.3  # 30% of tokens are output
-    INPUT_COST_PER_1K = 0.0006  # $0.0006 per 1K input tokens (from $0.60 per 1M)
-    OUTPUT_COST_PER_1K = 0.0024  # $0.0024 per 1K output tokens (from $2.40 per 1M)
-
     # Calculate estimated tokens
     estimated_tokens = len(message.split()) * TOKEN_MULTIPLIER
 
@@ -33,8 +33,10 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     input_tokens = estimated_tokens * INPUT_RATIO
     output_tokens = estimated_tokens * OUTPUT_RATIO
 
-    # Calculate cost
-    cost = (input_tokens / 1000) * INPUT_COST_PER_1K + (output_tokens / 1000) * OUTPUT_COST_PER_1K
+    # Calculate cost using centralized constants
+    cost = (input_tokens / 1000) * OPENAI_INPUT_COST_PER_1K + (
+        output_tokens / 1000
+    ) * OPENAI_OUTPUT_COST_PER_1K
 
     # Round cost to 6 decimal places
     return round(cost, 6), int(estimated_tokens)
@@ -114,7 +116,11 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             request.message,
             request.context,
             request.user_tier,
-            user_id=request.context.get("user_id", "anonymous"),
+            user_id=(
+                request.context.get("user_id", "anonymous")[:8]
+                if request.context.get("user_id")
+                else "anonymous"
+            ),  # Truncate for privacy
             provider=request.force_provider,
             task_type=request.task_type,
         )
@@ -131,7 +137,7 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
 
     except Exception as e:
         logger.exception("Error in AI chat")
-        raise HTTPException(status_code=500, detail=f"AI service error: {e!s}") from e
+        raise HTTPException(status_code=500, detail="AI service error") from e
 
 
 @router.post("/analyze-nutrition", response_model=ChatResponse)
