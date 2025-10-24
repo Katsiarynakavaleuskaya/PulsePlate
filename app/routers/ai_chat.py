@@ -195,7 +195,7 @@ async def get_available_providers() -> dict[str, Any]:
                 "name": "openai",
                 "description": "OpenAI API - High quality for complex queries",
                 "models": ["gpt-4o-mini", "gpt-4o"],
-                "cost": "$0.15-0.60 per 1M tokens",
+                "cost": "$0.60 per 1M input tokens, $2.40 per 1M output tokens",
                 "best_for": ["Complex analysis", "Personalized recommendations"],
             },
         ],

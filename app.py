@@ -340,8 +340,6 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
     """
 
     try:
-        import asyncio
-
         # Execute blocking DB check off the event loop
         await asyncio.to_thread(session.execute, text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
