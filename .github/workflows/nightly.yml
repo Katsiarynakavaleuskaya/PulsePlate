@@ -79,7 +79,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload test results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.python-version }}
@@ -87,7 +87,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        uses: actions/upload-artifact@v4
         if: matrix.python-version == env.COVERAGE_PY
         with:
           name: coverage-xml-${{ matrix.python-version }}
@@ -191,7 +191,7 @@ jobs:
           fi
 
       - name: Upload security reports
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-reports
@@ -242,7 +242,7 @@ jobs:
           echo "- Parallel workers: auto" >> performance-report.md
 
       - name: Upload performance report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-report

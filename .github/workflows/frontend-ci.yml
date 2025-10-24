@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload frontend build artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: frontend/${{ env.BUILD_OUTPUT_DIR }}
@@ -96,7 +96,7 @@ jobs:
 
       - name: Upload frontend test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-test-results
           path: frontend/coverage
