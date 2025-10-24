@@ -12,9 +12,6 @@ from core.ai_router import ai_router, RequestComplexity
 from core.ai_constants import (
     OPENAI_INPUT_COST_PER_1K,
     OPENAI_OUTPUT_COST_PER_1K,
-    TOKEN_MULTIPLIER,
-    INPUT_RATIO,
-    OUTPUT_RATIO,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,12 +24,12 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     Returns:
         Tuple of (estimated_cost, estimated_tokens)
     """
-    # Calculate estimated tokens
-    estimated_tokens = len(message.split()) * TOKEN_MULTIPLIER
+    # Calculate estimated tokens (rough estimate: 4 chars per token)
+    estimated_tokens = len(message) // 4
 
-    # Split into input/output tokens
-    input_tokens = estimated_tokens * INPUT_RATIO
-    output_tokens = estimated_tokens * OUTPUT_RATIO
+    # Split into input/output tokens (80% input, 20% output)
+    input_tokens = int(estimated_tokens * 0.8)
+    output_tokens = int(estimated_tokens * 0.2)
 
     # Calculate cost using centralized constants
     cost = (input_tokens / 1000) * OPENAI_INPUT_COST_PER_1K + (

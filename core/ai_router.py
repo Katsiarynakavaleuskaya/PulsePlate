@@ -18,9 +18,9 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
-    torch = None
-    AutoModel = None
-    AutoTokenizer = None
+    torch = None  # type: ignore
+    AutoModel = None  # type: ignore
+    AutoTokenizer = None  # type: ignore
     TORCH_AVAILABLE = False
 from pydantic import BaseModel
 
