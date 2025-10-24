@@ -3,7 +3,7 @@ AI Chat Router - Smart AI routing for nutrition and health queries
 """
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Any, Optional, List, Tuple, Literal
 import logging
 
@@ -56,7 +56,8 @@ class ChatRequest(BaseModel):
         None, description="Force specific provider (ollama/huggingface/openai)"
     )
 
-    @validator("message")
+    @field_validator("message")
+    @classmethod
     def validate_message(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Message cannot be empty")
@@ -87,8 +88,9 @@ class NutritionAnalysisRequest(BaseModel):
         default="basic", description="Type of analysis (basic/detailed/comprehensive)"
     )
 
-    @validator("food_items")
-    def validate_food_items(cls, v: list[str]) -> list[str]:
+    @field_validator("food_items")
+    @classmethod
+    def validate_food_items(cls, v: List[str]) -> List[str]:
         if not v or len(v) == 0:
             raise ValueError("At least one food item is required")
         return v
@@ -159,7 +161,7 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
             prompt,
             user_profile,
             request.user_tier,
-            user_id=request.user_profile.get("user_id", "anonymous"),
+            user_id=user_profile.get("user_id", "anonymous"),
         )
 
         return ChatResponse(

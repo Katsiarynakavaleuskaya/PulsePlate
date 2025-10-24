@@ -350,7 +350,7 @@ class TestCostCalculation:
 class TestEnvironmentConfiguration:
     """Test environment variable configuration"""
 
-    def test_environment_variables_loaded(self, mock_env_vars: Any) -> None:
+    def test_environment_variables_loaded(self) -> None:
         """Test that environment variables are properly loaded"""
         router = AIRouter()
 
