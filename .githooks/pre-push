@@ -1,0 +1,44 @@
+#!/bin/bash
+# Pre-push hook for PulsePlate project
+# Runs additional checks before pushing to remote repository
+
+set -e
+
+echo "🚀 Running pre-push checks..."
+
+# Check if we're pushing to main branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch" = "main" ]; then
+    echo "⚠️  Pushing to main branch - running full test suite..."
+
+    # Run tests
+    echo "🧪 Running tests..."
+    if command -v python >/dev/null 2>&1 && python -m pytest --version >/dev/null 2>&1; then
+        python -m pytest tests/ -v --tb=short
+    else
+        echo "⚠️  pytest not available, skipping tests"
+    fi
+
+    # Run linting
+    echo "🔍 Running linting..."
+    if command -v python >/dev/null 2>&1 && python -m ruff --version >/dev/null 2>&1; then
+        python -m ruff check .
+    else
+        echo "⚠️  ruff not available, skipping linting"
+    fi
+
+    # Run type checking
+    echo "🔍 Running type checking..."
+    if command -v python >/dev/null 2>&1 && python -m mypy --version >/dev/null 2>&1; then
+        python -m mypy --pretty --show-error-codes .
+    else
+        echo "⚠️  mypy not available, skipping type checking"
+    fi
+
+    echo "✅ All pre-push checks passed for main branch!"
+else
+    echo "ℹ️  Pushing to feature branch: $current_branch"
+    echo "✅ Pre-push checks completed for feature branch"
+fi
+
+echo "🚀 Ready to push!"
