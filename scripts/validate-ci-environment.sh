@@ -23,31 +23,38 @@ if [ -z "$GHCR_READ_TOKEN" ]; then
     echo "Please add GHCR_READ_TOKEN to your repository secrets."
     exit 1
 fi
+
+# Basic format validation for GHCR_READ_TOKEN
+if [ ${#GHCR_READ_TOKEN} -lt 10 ]; then
+    echo "::warning::GHCR_READ_TOKEN appears to be too short (${#GHCR_READ_TOKEN} chars)."
+    echo "Please verify this is a valid GitHub Personal Access Token."
+fi
+
 echo "✅ GHCR_READ_TOKEN is configured."
 
-# Check OLLAMA_API_KEY (only for production)
-if [ "$ENVIRONMENT" = "production" ]; then
-    if [ -z "$OLLAMA_API_KEY" ]; then
-        echo "::error::OLLAMA_API_KEY secret is not configured for production."
-        echo "Please add OLLAMA_API_KEY to your repository secrets."
-        exit 1
+# Function to validate environment-specific secrets
+validate_required_secret() {
+    local secret_name="$1"
+    local environment_name="$2"
+    local current_env="$3"
+
+    if [ "$current_env" = "$environment_name" ]; then
+        if [ -z "${!secret_name}" ]; then
+            echo "::error::$secret_name secret is not configured for $environment_name."
+            echo "Please add $secret_name to your repository secrets."
+            exit 1
+        fi
+        echo "✅ $secret_name is configured for $environment_name."
+    else
+        echo "ℹ️  $secret_name not required for $current_env environment."
     fi
-    echo "✅ OLLAMA_API_KEY is configured for production."
-else
-    echo "ℹ️  OLLAMA_API_KEY not required for $ENVIRONMENT environment."
-fi
+}
+
+# Check OLLAMA_API_KEY (only for production)
+validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
 
 # Check PULSEPLATE_OPENAI (only for production)
-if [ "$ENVIRONMENT" = "production" ]; then
-    if [ -z "$PULSEPLATE_OPENAI" ]; then
-        echo "::error::PULSEPLATE_OPENAI secret is not configured for production."
-        echo "Please add PULSEPLATE_OPENAI to your repository secrets."
-        exit 1
-    fi
-    echo "✅ PULSEPLATE_OPENAI is configured for production."
-else
-    echo "ℹ️  PULSEPLATE_OPENAI not required for $ENVIRONMENT environment."
-fi
+validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
 
 # Check environment files exist (only for local development)
 if [ "$ENVIRONMENT" = "local" ]; then
