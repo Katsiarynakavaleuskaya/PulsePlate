@@ -5,6 +5,7 @@ AI Router - Smart routing between Ollama and OpenAI based on request complexity
 import os
 import time
 import threading
+import uuid
 from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 import logging
@@ -300,8 +301,9 @@ class AIRouter:
             if current_count >= limit:
                 return True
 
-            # Add current request
-            self._redis_client.zadd(redis_key, {str(current_time): current_time})
+            # Add current request with unique member to avoid collisions
+            unique_member = f"{current_time}:{uuid.uuid4()}"
+            self._redis_client.zadd(redis_key, {unique_member: current_time})
 
             # Set expiration on the key
             self._redis_client.expire(redis_key, window_size)

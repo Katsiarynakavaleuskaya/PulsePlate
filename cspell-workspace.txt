@@ -4675,6 +4675,7 @@ certbot
 certonly
 chinese
 european
+frozenset
 fullchain
 grafana
 indian
@@ -4690,8 +4691,10 @@ redis
 robotparser
 seccomp
 startswith
+tiktoken
 Traefik
 urljoin
+uuid
 walmart
 wildberries
 zadd

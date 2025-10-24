@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-from typing import Any
+from typing import Any, Generator
 
 from app.routers.ai_chat import router, ChatRequest, ChatResponse, NutritionAnalysisRequest
 from core.ai_router import RequestComplexity, AIProvider
@@ -27,7 +27,7 @@ def client(app: FastAPI) -> TestClient:
 
 
 @pytest.fixture
-def mock_ai_router() -> Any:
+def mock_ai_router() -> Generator[MagicMock, None, None]:
     """Mock AI router"""
     with patch("app.routers.ai_chat.ai_router") as mock:
         yield mock
@@ -36,7 +36,9 @@ def mock_ai_router() -> Any:
 class TestChatEndpoint:
     """Test /chat endpoint"""
 
-    def test_chat_with_auto_routing(self, client, mock_ai_router) -> None:
+    def test_chat_with_auto_routing(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test chat with automatic routing"""
         # Mock router response
         mock_ai_router.route_request = AsyncMock(
@@ -62,7 +64,9 @@ class TestChatEndpoint:
         assert data["complexity"] == "simple"
         assert data["fallback_used"] is False
 
-    def test_chat_with_forced_provider(self, client, mock_ai_router) -> None:
+    def test_chat_with_forced_provider(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test chat with forced provider"""
         # Mock router response for forced provider
         mock_ai_router.route_request = AsyncMock(
@@ -92,7 +96,9 @@ class TestChatEndpoint:
         assert data["provider"] == "openai"
         assert data["complexity"] == "complex"
 
-    def test_chat_with_invalid_provider(self, client, mock_ai_router) -> None:
+    def test_chat_with_invalid_provider(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test chat with invalid provider"""
         mock_ai_router.route_request.side_effect = ValueError("Invalid provider: invalid")
 
@@ -110,7 +116,9 @@ class TestChatEndpoint:
         data = response.json()
         assert "Invalid provider" in data["detail"]
 
-    def test_chat_router_error(self, client, mock_ai_router) -> None:
+    def test_chat_router_error(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test chat when router raises exception"""
         mock_ai_router.route_request.side_effect = Exception("Router error")
 
@@ -125,7 +133,9 @@ class TestChatEndpoint:
 class TestNutritionAnalysisEndpoint:
     """Test /analyze-nutrition endpoint"""
 
-    def test_nutrition_analysis_simple(self, client, mock_ai_router) -> None:
+    def test_nutrition_analysis_simple(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test simple nutrition analysis"""
         mock_ai_router.route_request = AsyncMock(
             return_value={
@@ -152,7 +162,9 @@ class TestNutritionAnalysisEndpoint:
         assert data["response"] == "Basic nutrition info"
         assert data["provider"] == "ollama"
 
-    def test_nutrition_analysis_comprehensive(self, client, mock_ai_router) -> None:
+    def test_nutrition_analysis_comprehensive(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test comprehensive nutrition analysis"""
         mock_ai_router.route_request = AsyncMock(
             return_value={
@@ -179,7 +191,9 @@ class TestNutritionAnalysisEndpoint:
         assert data["provider"] == "openai"
         assert data["complexity"] == "complex"
 
-    def test_nutrition_analysis_error(self, client, mock_ai_router) -> None:
+    def test_nutrition_analysis_error(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test nutrition analysis error handling"""
         mock_ai_router.route_request.side_effect = Exception("Analysis error")
 
@@ -199,7 +213,7 @@ class TestNutritionAnalysisEndpoint:
 class TestProvidersEndpoint:
     """Test /providers endpoint"""
 
-    def test_get_providers(self, client) -> None:
+    def test_get_providers(self, client: TestClient) -> None:
         """Test getting available providers"""
         response = client.get("/api/ai/providers")
 
@@ -215,7 +229,9 @@ class TestProvidersEndpoint:
 class TestCostEstimateEndpoint:
     """Test /cost-estimate endpoint"""
 
-    def test_cost_estimate_auto_ollama(self, client, mock_ai_router) -> None:
+    def test_cost_estimate_auto_ollama(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test cost estimate with auto routing to Ollama"""
         mock_ai_router.analyze_complexity.return_value = RequestComplexity.SIMPLE
         mock_ai_router.choose_provider.return_value = AIProvider.OLLAMA
@@ -230,7 +246,9 @@ class TestCostEstimateEndpoint:
         assert data["estimated_cost"] == 0.0
         assert data["complexity"] == "simple"
 
-    def test_cost_estimate_auto_openai(self, client, mock_ai_router) -> None:
+    def test_cost_estimate_auto_openai(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test cost estimate with auto routing to OpenAI"""
         mock_ai_router.analyze_complexity.return_value = RequestComplexity.COMPLEX
         mock_ai_router.choose_provider.return_value = AIProvider.OPENAI
@@ -249,7 +267,7 @@ class TestCostEstimateEndpoint:
         assert data["estimated_cost"] > 0
         assert data["complexity"] == "complex"
 
-    def test_cost_estimate_forced_provider(self, client) -> None:
+    def test_cost_estimate_forced_provider(self, client: TestClient) -> None:
         """Test cost estimate with forced provider"""
         response = client.get(
             "/api/ai/cost-estimate", params={"message": "Test message", "provider": "ollama"}
@@ -261,7 +279,9 @@ class TestCostEstimateEndpoint:
         assert data["estimated_cost"] == 0.0
         assert data["complexity"] == "unknown"
 
-    def test_cost_estimate_error(self, client, mock_ai_router) -> None:
+    def test_cost_estimate_error(
+        self, client: TestClient, mock_ai_router: MagicMock
+    ) -> None:
         """Test cost estimate error handling"""
         mock_ai_router.analyze_complexity.side_effect = Exception("Analysis error")
 
@@ -279,7 +299,9 @@ class TestRequestModels:
     def test_chat_request_validation(self) -> None:
         """Test ChatRequest model validation"""
         # Valid request
-        request = ChatRequest(message="Test message", context={"key": "value"}, user_tier="free")
+        request = ChatRequest(
+            message="Test message", context={"key": "value"}, user_tier="free", force_provider=None
+        )
         assert request.message == "Test message"
         assert request.context == {"key": "value"}
         assert request.user_tier == "free"
@@ -367,7 +389,7 @@ class TestRequestModels:
 class TestEdgeCases:
     """Test edge cases and input validation"""
 
-    def test_empty_message(self, client) -> None:
+    def test_empty_message(self, client: TestClient) -> None:
         """Test empty message string"""
         response = client.post(
             "/api/ai/chat", json={"message": "", "context": {}, "user_tier": "free"}
@@ -375,7 +397,7 @@ class TestEdgeCases:
         # API currently accepts empty messages, may return error from AI provider
         assert response.status_code in [200, 400, 500]
 
-    def test_missing_context(self, client) -> None:
+    def test_missing_context(self, client: TestClient) -> None:
         """Test missing/null context"""
         response = client.post(
             "/api/ai/chat", json={"message": "Test message", "user_tier": "free"}
@@ -383,7 +405,7 @@ class TestEdgeCases:
         # API currently accepts missing context (defaults to {})
         assert response.status_code in [200, 400, 500]
 
-    def test_invalid_user_tier(self, client) -> None:
+    def test_invalid_user_tier(self, client: TestClient) -> None:
         """Test invalid user_tier values"""
         response = client.post(
             "/api/ai/chat", json={"message": "Test message", "context": {}, "user_tier": "invalid"}
@@ -391,7 +413,7 @@ class TestEdgeCases:
         # API currently accepts invalid user_tier (defaults to "free")
         assert response.status_code in [200, 400, 500]
 
-    def test_very_long_message(self, client) -> None:
+    def test_very_long_message(self, client: TestClient) -> None:
         """Test very long messages (token limit simulation)"""
         long_message = "word " * 10000  # Very long message
         response = client.post(
@@ -400,7 +422,7 @@ class TestEdgeCases:
         # Should either succeed or return appropriate error
         assert response.status_code in [200, 400, 413, 422]
 
-    def test_special_characters(self, client) -> None:
+    def test_special_characters(self, client: TestClient) -> None:
         """Test messages with special characters"""
         special_message = "Test with émojis 🍎 and spëcial chars: @#$%^&*()"
         response = client.post(

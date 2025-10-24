@@ -39,6 +39,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Dict, List, Optional, Any
 import logging
+from core.web_scrapers.robots_checker import RobotsChecker
 
 class StoreParser:
     """Базовый класс для парсинга магазинов"""
@@ -47,7 +48,8 @@ class StoreParser:
         self,
         store_name: str,
         base_url: str,
-        user_agent: str = 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
+        user_agent: str = 'Mozilla/5.0 (compatible; PulsePlate/1.0)',
+        robots_checker: Optional[RobotsChecker] = None,
     ) -> None:
         self.store_name = store_name
         self.base_url = base_url
@@ -56,10 +58,18 @@ class StoreParser:
             'User-Agent': user_agent,
             'Accept': 'text/html,application/xhtml+xml',
         })
+        self.robots_checker = robots_checker or RobotsChecker()
+        self._user_agent = user_agent
 
     def parse_product_page(self, product_url: str) -> Optional[Dict[str, Any]]:
         """Парсинг страницы продукта"""
         try:
+            if not self.robots_checker.can_scrape(
+                product_url, self.session.headers.get('User-Agent', self._user_agent)
+            ):
+                logging.warning("Robots.txt blocks scraping for %s; skipping", product_url)
+                return None
+
             response = self.session.get(product_url, timeout=30)
             response.raise_for_status()
 
@@ -231,20 +241,34 @@ import requests
 import logging
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
+from core.web_scrapers.robots_checker import RobotsChecker
 
 class RestaurantParser:
     """Парсер для ресторанов и доставки еды"""
 
-    def __init__(self, session: Optional[requests.Session] = None):
+    def __init__(
+        self,
+        session: Optional[requests.Session] = None,
+        robots_checker: Optional[RobotsChecker] = None,
+    ) -> None:
         """Инициализация парсера"""
         self.session = session or requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
         })
+        self.robots_checker = robots_checker or RobotsChecker()
 
     def parse_menu_page(self, restaurant_url: str) -> List[Dict]:
         """Парсинг меню ресторана"""
         try:
+            if not self.robots_checker.can_scrape(
+                restaurant_url, self.session.headers.get('User-Agent', 'Mozilla/5.0 (compatible; PulsePlate/1.0)')
+            ):
+                logging.warning(
+                    "Robots.txt blocks scraping restaurant menu for %s; skipping", restaurant_url
+                )
+                return []
+
             response = self.session.get(restaurant_url, timeout=30)
             soup = BeautifulSoup(response.content, 'lxml')
 
@@ -331,21 +355,35 @@ import json
 import logging
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, Optional, List, Any, TypedDict
+from typing import Dict, Optional, List, Any, TypedDict, Sequence, Union
+from core.web_scrapers.robots_checker import RobotsChecker
 
 class RecipeParser:
     """Парсер для кулинарных сайтов"""
 
-    def __init__(self, session: Optional[requests.Session] = None):
+    def __init__(
+        self,
+        session: Optional[requests.Session] = None,
+        robots_checker: Optional[RobotsChecker] = None,
+    ) -> None:
         """Инициализация парсера"""
         self.session = session or requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (compatible; PulsePlate/1.0)'
         })
+        self.robots_checker = robots_checker or RobotsChecker()
 
     def parse_recipe_page(self, recipe_url: str) -> Optional[Dict]:
         """Парсинг рецепта"""
         try:
+            if not self.robots_checker.can_scrape(
+                recipe_url, self.session.headers.get('User-Agent', 'Mozilla/5.0 (compatible; PulsePlate/1.0)')
+            ):
+                logging.warning(
+                    "Robots.txt blocks scraping recipe for %s; skipping", recipe_url
+                )
+                return None
+
             response = self.session.get(recipe_url, timeout=30)
             soup = BeautifulSoup(response.content, 'lxml')
 
@@ -369,9 +407,13 @@ class RecipeParser:
             logging.error(f"Error parsing recipe: {e}")
             return None
 
-    def _has_class_containing(self, class_list, substring: str) -> bool:
+    def _has_class_containing(
+        self, class_list: Optional[Union[str, Sequence[str]]], substring: str
+    ) -> bool:
         """Check if any class contains substring"""
-        return class_list and substring in str(class_list).lower()
+        if not class_list:
+            return False
+        return substring in str(class_list).lower()
 
     def _parse_html_recipe(self, soup) -> Dict:
         """Fallback HTML парсинг рецепта"""
@@ -386,7 +428,7 @@ class RecipeParser:
             'nutrition': {},
             'image_url': soup.find('img').get('src', '') if soup.find('img') else '',
             'source_url': '',
-            'cuisine': '',
+            'cuisine_type': '',
             'difficulty': ''
         }
 
@@ -418,7 +460,7 @@ class RecipeParser:
 class RussianStoreParser(StoreParser):
     """Парсер для российских магазинов"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("Russian Store", "https://example.ru")
 
     def _extract_price(self, soup: BeautifulSoup) -> Optional[float]:
@@ -523,7 +565,7 @@ from urllib.parse import urljoin, urlparse
 class RobotsChecker:
     """Проверка robots.txt перед скрапингом"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.robots_cache = {}
 
     def can_scrape(self, url: str, user_agent: str = '*') -> bool:
@@ -553,7 +595,7 @@ from typing import Dict, Optional
 class PoliteScraper:
     """Вежливый скрапер с rate limiting"""
 
-    def __init__(self, min_delay: float = 1.0, max_delay: float = 3.0):
+    def __init__(self, min_delay: float = 1.0, max_delay: float = 3.0) -> None:
         self.min_delay = min_delay
         self.max_delay = max_delay
         self.last_request_time = 0
