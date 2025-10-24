@@ -1,0 +1,43 @@
+# OWASP ZAP Rules Configuration for PulsePlate
+# This file defines which security rules to run during scans
+
+# High Priority Rules (must pass)
+10011	High	SQL Injection
+10015	High	Cross Site Scripting (Reflected)
+10020	High	Cross Site Scripting (Persistent)
+10021	High	Cross Site Scripting (DOM Based)
+10023	High	Remote OS Command Injection
+10024	High	Remote OS Command Injection (Blind)
+10025	High	LDAP Injection
+10026	High	NoSQL Injection
+10027	High	SQL Injection (Blind)
+10029	High	Server Side Template Injection
+10030	High	Server Side Template Injection (Blind)
+10031	High	Server Side Request Forgery
+10032	High	Server Side Request Forgery (SSRF)
+10033	High	Cross Site Scripting (Reflected) - URL
+10034	High	Cross Site Scripting (Reflected) - Body
+10035	High	Cross Site Scripting (Reflected) - Header
+10036	High	Cross Site Scripting (Reflected) - All Parameters
+10037	High	Cross Site Scripting (Reflected) - All Parameters (Extra)
+10038	High	Cross Site Scripting (Reflected) - All Parameters (Extra) - URL
+10039	High	Cross Site Scripting (Reflected) - All Parameters (Extra) - Body
+10040	High	Cross Site Scripting (Reflected) - All Parameters (Extra) - Header
+
+# Medium Priority Rules (should pass)
+10012	Medium	Cross Site Scripting (Reflected)
+10013	Medium	Cross Site Scripting (Persistent)
+10014	Medium	Cross Site Scripting (DOM Based)
+10016	Medium	Cross Site Scripting (Reflected) - URL
+10017	Medium	Cross Site Scripting (Reflected) - Body
+10018	Medium	Cross Site Scripting (Reflected) - Header
+10019	Medium	Cross Site Scripting (Reflected) - All Parameters
+10022	Medium	Cross Site Scripting (Reflected) - All Parameters (Extra)
+10028	Medium	Cross Site Scripting (Reflected) - All Parameters (Extra) - URL
+10041	Medium	Cross Site Scripting (Reflected) - All Parameters (Extra) - Body
+10042	Medium	Cross Site Scripting (Reflected) - All Parameters (Extra) - Header
+
+# Low Priority Rules (nice to have)
+10043	Low	Cross Site Scripting (Reflected) - All Parameters (Extra) - Header
+10044	Low	Cross Site Scripting (Reflected) - All Parameters (Extra) - Body
+10045	Low	Cross Site Scripting (Reflected) - All Parameters (Extra) - URL
