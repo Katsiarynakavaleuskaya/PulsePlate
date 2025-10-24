@@ -8,6 +8,7 @@ integration with the richer generator pipeline.
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -18,6 +19,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+from core.shoplist import get_shoplist
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
 
@@ -146,8 +151,9 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except Exception:
+        except Exception as e:
             # Fall back to default Helvetica if registration fails for any reason.
+            logger.warning(f"Failed to register custom font {FONT_NAME}: {e}")
             pass
     return "Helvetica"
 

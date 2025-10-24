@@ -816,8 +816,9 @@ class DatabaseUpdateManager:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
                     continue
                 foods[name] = UnifiedFoodItem(**food_data)
-            except Exception:
+            except Exception as e:
                 # Skip malformed entries
+                logger.debug(f"Expected exception: {e}")
                 continue
 
         return foods

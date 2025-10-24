@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 # -*- coding: utf-8 -*-
 """
 RU: Модуль для создания списков покупок из недельных планов питания.
@@ -75,8 +78,9 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:
+            except Exception as e:
                 # Если не удалось загрузить, используем правила по умолчанию
+                logger.debug(f"Expected exception: {e}")
                 pass
 
         # Если файл не существует или не загрузился, используем правила по умолчанию

@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 """Core utilities shared across endpoints.
 
 - get_activity_factor: unified mapping for activity multipliers.
@@ -75,8 +78,9 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
             # Fallback: if it's a real module, allow getattr
             if isinstance(m, types.ModuleType) and hasattr(m, name):
                 return getattr(m, name)
-        except Exception:
+        except Exception as e:
             # Ignore any errors from broken modules; continue searching
+            logger.debug(f"Expected exception: {e}")
             continue
     return local_default
 

@@ -421,8 +421,9 @@ class ProductFinder:
             path_obj = Path(csv_path)
             if path_obj.parent and not path_obj.parent.exists():
                 path_obj.parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except Exception as e:
             # Best-effort; writing the file below will surface any errors
+            logger.debug(f"Expected exception: {e}")
             pass
 
         # Determine if we need to write header: file missing or empty

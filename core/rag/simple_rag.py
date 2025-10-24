@@ -10,10 +10,13 @@ FEATURE_RAG=on.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Iterable, List, Tuple
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
@@ -68,7 +71,8 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to process file {path}: {e}")
             continue
         for ch in _chunk(text):
             if ch:
