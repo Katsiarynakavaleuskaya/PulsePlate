@@ -1,4 +1,14 @@
 name: CD
+
+# Continuous Deployment workflow
+#
+# Environment Configuration:
+# - Staging: AI_ROUTER_ENABLED=false (core functionality testing only)
+# - Production: AI_ROUTER_ENABLED=true (full functionality with AI features)
+#
+# This separation allows staging to focus on core app functionality
+# while production includes AI features for complete testing.
+
 on:
   workflow_run:
     workflows: ["Docker Build and Push"]
@@ -76,14 +86,12 @@ jobs:
 
           # Run new container
           # Staging uses port 8000 (production uses 8001 to avoid conflicts)
-          # Note: AI secrets are passed but AI_ROUTER_ENABLED=false for smoke tests
+          # AI router disabled for staging to focus on core functionality testing
           docker run -d \
             --name pulseplate-staging \
             --restart unless-stopped \
             -p 8000:8000 \
             -e ENVIRONMENT=staging \
-            -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
-            -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
             -e AI_ROUTER_ENABLED=false \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
@@ -202,7 +210,7 @@ jobs:
           # Run new container
           # Production uses port 8001 to avoid collision with staging (port 8000)
           # Both containers run on same GitHub Actions runner with shared network
-          # Note: AI secrets are passed but AI_ROUTER_ENABLED=false for smoke tests
+          # Production deployment with AI router enabled for full functionality
           docker run -d \
             --name pulseplate-production \
             --restart unless-stopped \
@@ -210,7 +218,7 @@ jobs:
             -e ENVIRONMENT=production \
             -e OLLAMA_API_KEY=${{ secrets.OLLAMA_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.PULSEPLATE_OPENAI }} \
-            -e AI_ROUTER_ENABLED=false \
+            -e AI_ROUTER_ENABLED=true \
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.TAG }}
 
           echo "✅ Production deployment completed"
@@ -240,6 +248,15 @@ jobs:
 
             if curl -f --connect-timeout 5 --max-time 10 -sS http://localhost:8001/health >/dev/null 2>&1; then
               echo "✅ Production health check passed"
+
+              # Test AI endpoints since AI router is enabled in production
+              echo "🔍 Testing AI endpoints..."
+              if curl -f --connect-timeout 5 --max-time 10 -sS http://localhost:8001/api/v1/ai/providers >/dev/null 2>&1; then
+                echo "✅ AI providers endpoint accessible"
+              else
+                echo "⚠️  AI providers endpoint not accessible (may be expected if AI services are down)"
+              fi
+
               break
             fi
 

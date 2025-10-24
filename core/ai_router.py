@@ -5,7 +5,7 @@ AI Router - Smart routing between Ollama and OpenAI based on request complexity
 import os
 import time
 import threading
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 import logging
 import httpx
@@ -50,7 +50,7 @@ class RequestComplexity(Enum):
 class AIResponse(BaseModel):
     """Structured response from AI providers"""
 
-    response: str
+    response: Union[str, List[float]]  # Support both text responses and embeddings
     provider: str
     model: str
     cost: float
@@ -244,11 +244,11 @@ class AIRouter:
         Choose AI provider based on complexity, user tier, and task type
         """
         # For embedding tasks, prefer Hugging Face (free tier available)
-        if task_type == "embedding" and self.huggingface_api_token:
+        if task_type == "embedding" and self.huggingface_api_token and TORCH_AVAILABLE:
             return AIProvider.HUGGINGFACE
 
         # Check rate limits for all users (not just free)
-        if self._is_rate_limited(f"{user_tier}_user:{user_id}", user_tier):
+        if self._is_rate_limited(user_id, user_tier):
             return AIProvider.OLLAMA
 
         # Premium users get OpenAI for all text requests (if not rate limited)
@@ -660,8 +660,14 @@ class AIRouter:
                 # Use mean pooling for sentence-level embedding
                 embeddings = outputs.last_hidden_state.mean(dim=1)
 
+            # Convert embeddings to list of floats for proper serialization
+            embeddings_list = embeddings.tolist()
+            # If we have multiple embeddings, return the first one
+            if len(embeddings_list) > 1:
+                embeddings_list = embeddings_list[0]
+
             return AIResponse(
-                response=str(embeddings.tolist()),  # Convert to string for JSON serialization
+                response=embeddings_list,  # Return as native list of floats
                 provider="huggingface",
                 model=self.huggingface_model,
                 cost=0.0,  # Free tier

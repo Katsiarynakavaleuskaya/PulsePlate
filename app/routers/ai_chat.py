@@ -5,7 +5,7 @@ AI Chat Router - Smart AI routing for nutrition and health queries
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 import logging
 
 from core.ai_router import ai_router, RequestComplexity
@@ -21,15 +21,50 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     """
     Estimate OpenAI API cost and token usage for a message.
 
+    IMPORTANT LIMITATIONS:
+    - This is a rough estimate and may differ significantly from actual costs
+    - Token counting is simplified and doesn't account for model-specific tokenization
+    - Output token estimation is based on typical response patterns
+    - Actual costs may vary due to model behavior, prompt complexity, and response length
+    - For accurate billing, always check the actual usage in OpenAI dashboard
+
+    Args:
+        message: Input message to estimate cost for
+
     Returns:
         Tuple of (estimated_cost, estimated_tokens)
     """
-    # Calculate estimated tokens (rough estimate: 4 chars per token)
-    estimated_tokens = len(message) // 4
+    try:
+        # Try to use tiktoken for more accurate token counting
+        import tiktoken
 
-    # Split into input/output tokens (80% input, 20% output)
-    input_tokens = int(estimated_tokens * 0.8)
-    output_tokens = int(estimated_tokens * 0.2)
+        # Use GPT-4 tokenizer (closest to GPT-4o-mini)
+        encoding = tiktoken.get_encoding("cl100k_base")
+        input_tokens = len(encoding.encode(message))
+
+        # Estimate output tokens based on input complexity
+        # More complex prompts typically generate longer responses
+        if len(message) < 100:
+            output_ratio = 0.3  # Short prompts -> shorter responses
+        elif len(message) < 500:
+            output_ratio = 0.5  # Medium prompts -> medium responses
+        else:
+            output_ratio = 0.7  # Long prompts -> longer responses
+
+        output_tokens = int(input_tokens * output_ratio)
+        total_tokens = input_tokens + output_tokens
+
+    except ImportError:
+        # Fallback to simple estimation if tiktoken is not available
+        logger.warning("tiktoken not available, using simplified token estimation")
+
+        # Calculate estimated tokens (rough estimate: 4 chars per token)
+        estimated_tokens = len(message) // 4
+
+        # Split into input/output tokens (80% input, 20% output)
+        input_tokens = int(estimated_tokens * 0.8)
+        output_tokens = int(estimated_tokens * 0.2)
+        total_tokens = estimated_tokens
 
     # Calculate cost using centralized constants
     cost = (input_tokens / 1000) * OPENAI_INPUT_COST_PER_1K + (
@@ -37,7 +72,7 @@ def estimate_openai_cost(message: str) -> Tuple[float, int]:
     ) * OPENAI_OUTPUT_COST_PER_1K
 
     # Round cost to 6 decimal places
-    return round(cost, 6), int(estimated_tokens)
+    return round(cost, 6), int(total_tokens)
 
 
 router = APIRouter(prefix="/api/ai", tags=["AI Chat"])
@@ -70,7 +105,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Chat response model"""
 
-    response: str
+    response: Union[str, List[float]]  # Support both text responses and embeddings
     provider: str
     model: str
     cost: float
@@ -127,10 +162,14 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
 
         # Surface router errors with proper status
         if getattr(result, "error", False):
-            raise HTTPException(status_code=400, detail=result.response)
+            # For error responses, result.response should be a string
+            error_detail = (
+                result.response if isinstance(result.response, str) else str(result.response)
+            )
+            raise HTTPException(status_code=400, detail=error_detail)
 
         return ChatResponse(
-            response=result.response,
+            response=result.response,  # This can be either str or List[float]
             provider=result.provider,
             model=result.model,
             cost=result.cost,
@@ -179,10 +218,14 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
         )
 
         if getattr(result, "error", False):
-            raise HTTPException(status_code=400, detail=result.response)
+            # For error responses, result.response should be a string
+            error_detail = (
+                result.response if isinstance(result.response, str) else str(result.response)
+            )
+            raise HTTPException(status_code=400, detail=error_detail)
 
         return ChatResponse(
-            response=result.response,
+            response=result.response,  # This can be either str or List[float]
             provider=result.provider,
             model=result.model,
             cost=result.cost,
@@ -263,7 +306,13 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
                 "estimated_cost": estimated_cost,
                 "estimated_tokens": estimated_tokens,
                 "complexity": complexity_value,
-                "estimated_cost_note": "Cost is an estimate and may differ from final billed amount",
+                "estimated_cost_note": "⚠️ IMPORTANT: This is a rough estimate and may differ significantly from actual costs. Actual billing depends on model behavior, prompt complexity, and response length. Always check OpenAI dashboard for accurate usage.",
+                "limitations": [
+                    "Token counting is simplified and may not match actual model tokenization",
+                    "Output token estimation is based on typical response patterns",
+                    "Actual costs may vary due to model-specific behavior",
+                    "For accurate billing, always check actual usage in OpenAI dashboard",
+                ],
             }
         else:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {chosen_provider}")

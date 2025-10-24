@@ -3,12 +3,12 @@ AI Constants - Centralized configuration for AI providers and pricing
 """
 
 # OpenAI GPT-4o-mini pricing (per 1K tokens) - October 2025
-OPENAI_INPUT_COST_PER_1K = 0.00015  # $0.15 per 1M tokens
-OPENAI_OUTPUT_COST_PER_1K = 0.00060  # $0.60 per 1M tokens
+OPENAI_INPUT_COST_PER_1K = 0.0006  # $0.60 per 1M tokens
+OPENAI_OUTPUT_COST_PER_1K = 0.0024  # $2.40 per 1M tokens
 
 # OpenAI GPT-4o-mini pricing (per 1M tokens) - for display purposes
-OPENAI_INPUT_COST_PER_1M = 0.15
-OPENAI_OUTPUT_COST_PER_1M = 0.60
+OPENAI_INPUT_COST_PER_1M = 0.60
+OPENAI_OUTPUT_COST_PER_1M = 2.40
 
 # Token estimation constants
 AVERAGE_CHARS_PER_TOKEN = 4  # Rough estimate for English text
