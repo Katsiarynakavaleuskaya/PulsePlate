@@ -2244,7 +2244,7 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
 @app.get("/debug_env")
 async def debug_env() -> Dict[str, Any]:
-    data = {
+    data: Dict[str, Any] = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
         "GROK_MODEL": os.getenv("GROK_MODEL", ""),

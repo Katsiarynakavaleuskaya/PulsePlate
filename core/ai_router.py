@@ -113,7 +113,7 @@ class AIRouter:
         # Redis client for rate limiting
         self._redis_client = None
         try:
-            import redis
+            import redis  # type: ignore[import-not-found]
 
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
             self._redis_client = redis.from_url(redis_url, decode_responses=True)

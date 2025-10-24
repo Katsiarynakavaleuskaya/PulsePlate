@@ -57,7 +57,7 @@ class ChatRequest(BaseModel):
     )
 
     @validator("message")
-    def validate_message(cls, v):
+    def validate_message(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Message cannot be empty")
         return v.strip()
@@ -88,7 +88,7 @@ class NutritionAnalysisRequest(BaseModel):
     )
 
     @validator("food_items")
-    def validate_food_items(cls, v):
+    def validate_food_items(cls, v: list[str]) -> list[str]:
         if not v or len(v) == 0:
             raise ValueError("At least one food item is required")
         return v
@@ -142,8 +142,8 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
         # Create normalized user profile
         user_profile = {
             **request.user_profile,
-            "analysis_type": request.analysis_type or "basic",
-            "tier": request.user_tier or "free",
+            "analysis_type": request.analysis_type,
+            "tier": request.user_tier,
         }
 
         # Determine complexity based on analysis type
@@ -158,7 +158,7 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
         result = await ai_router.route_request(
             prompt,
             user_profile,
-            request.user_tier or "free",
+            request.user_tier,
             user_id=request.user_profile.get("user_id", "anonymous"),
         )
 

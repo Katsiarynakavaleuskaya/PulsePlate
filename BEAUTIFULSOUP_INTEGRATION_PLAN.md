@@ -240,7 +240,7 @@ class RestaurantParser:
     def parse_menu_page(self, restaurant_url: str) -> List[Dict]:
         """Парсинг меню ресторана"""
         try:
-            response = self.session.get(restaurant_url)
+            response = self.session.get(restaurant_url, timeout=30)
             soup = BeautifulSoup(response.content, 'lxml')
 
             menu_items = []
@@ -341,7 +341,7 @@ class RecipeParser:
     def parse_recipe_page(self, recipe_url: str) -> Optional[Dict]:
         """Парсинг рецепта"""
         try:
-            response = self.session.get(recipe_url)
+            response = self.session.get(recipe_url, timeout=30)
             soup = BeautifulSoup(response.content, 'lxml')
 
             # Ищем structured data (JSON-LD)

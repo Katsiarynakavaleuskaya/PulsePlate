@@ -405,9 +405,7 @@ class TestAdditionalCoverage:
     """Test additional coverage for uncovered lines"""
 
     @pytest.mark.asyncio
-    async def test_route_request_forced_ollama_provider(
-        self, ai_router: AIRouter
-    ) -> None:
+    async def test_route_request_forced_ollama_provider(self, ai_router: AIRouter) -> None:
         """Test route request with forced Ollama provider (line 160)"""
         with patch.object(ai_router, "_call_ollama", new_callable=AsyncMock) as mock_ollama:
             from core.ai_router import AIResponse

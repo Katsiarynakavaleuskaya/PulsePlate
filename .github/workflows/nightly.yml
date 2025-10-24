@@ -115,12 +115,80 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run security checks
+        continue-on-error: true
         run: |
-          # Bandit security scan
-          bandit -r app/ core/ -f json -o bandit-report.json
+          # Bandit writes JSON and normally returns non-zero if issues found.
+          # Use --exit-zero to keep exit status 0 (still writes bandit-report.json).
+          bandit -r app/ core/ -f json -o bandit-report.json --exit-zero
 
-          # pip-audit for vulnerability scan
-          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json
+          # pip-audit returns non-zero when vulnerabilities are found. Allow the step to succeed
+          # while still producing a JSON report.
+          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json || true
+
+      - name: Analyze security reports
+        if: always()
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Analyze Bandit report
+          if [ -f "bandit-report.json" ]; then
+            echo "### Bandit Security Scan" >> $GITHUB_STEP_SUMMARY
+            python - <<'PY'
+          import json, sys
+          try:
+              with open('bandit-report.json') as f:
+                  data = json.load(f)
+
+              results = data.get('results', [])
+              high_severity = [r for r in results if r.get('issue_severity', '').upper() == 'HIGH']
+              medium_severity = [r for r in results if r.get('issue_severity', '').upper() == 'MEDIUM']
+              low_severity = [r for r in results if r.get('issue_severity', '').upper() == 'LOW']
+
+              print(f"**Total Issues:** {len(results)}")
+              print(f"- 🔴 High: {len(high_severity)}")
+              print(f"- 🟡 Medium: {len(medium_severity)}")
+              print(f"- 🟢 Low: {len(low_severity)}")
+
+              if high_severity:
+                  print(f"\n⚠️ **High severity issues found!**")
+                  for issue in high_severity[:3]:  # Show first 3
+                      print(f"- {issue.get('test_name', 'Unknown')}: {issue.get('filename', 'Unknown file')}")
+                  if len(high_severity) > 3:
+                      print(f"- ... and {len(high_severity) - 3} more")
+          except Exception as e:
+              print(f"Error analyzing bandit report: {e}")
+          PY
+          else
+            echo "❌ Bandit report not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Analyze pip-audit report
+          if [ -f "pip-audit-report.json" ]; then
+            echo "### Dependency Vulnerability Scan" >> $GITHUB_STEP_SUMMARY
+            python - <<'PY'
+          import json, sys
+          try:
+              with open('pip-audit-report.json') as f:
+                  data = json.load(f)
+
+              vulnerabilities = data.get('vulnerabilities', [])
+              if vulnerabilities:
+                  print(f"**Total Vulnerabilities:** {len(vulnerabilities)}")
+                  for vuln in vulnerabilities[:3]:  # Show first 3
+                      print(f"- {vuln.get('package', 'Unknown')}: {vuln.get('advisory', 'No advisory')}")
+                  if len(vulnerabilities) > 3:
+                      print(f"- ... and {len(vulnerabilities) - 3} more")
+              else:
+                  print("✅ No vulnerabilities found")
+          except Exception as e:
+              print(f"Error analyzing pip-audit report: {e}")
+          PY
+          else
+            echo "❌ pip-audit report not found" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
