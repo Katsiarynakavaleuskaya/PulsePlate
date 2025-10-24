@@ -42,6 +42,7 @@ jobs:
           ./scripts/validate-ci-environment.sh
         env:
           ENVIRONMENT: staging
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
       - name: Resolve image tag
         id: meta
@@ -81,6 +82,9 @@ jobs:
           ./scripts/validate-ci-environment.sh
         env:
           ENVIRONMENT: production
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          PULSEPLATE_OPENAI: ${{ secrets.PULSEPLATE_OPENAI }}
 
       - name: Check if this is a tag build
         id: check-tag

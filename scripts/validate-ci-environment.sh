@@ -13,57 +13,60 @@ else
     echo "⚠️  Not in CI environment - some checks may be skipped"
 fi
 
+# Function to validate a secret
+validate_secret() {
+    local secret_name="$1"
+    local secret_value="$2"
+    local required_for="$3"
+
+    if [ -z "$secret_value" ]; then
+        echo "::error::$secret_name secret is not configured for $required_for."
+        echo "Please add $secret_name to your repository secrets."
+        exit 1
+    fi
+    echo "✅ $secret_name is configured for $required_for."
+}
+
 # Check required secrets for CD workflow
 echo ""
 echo "Checking required secrets..."
 
-# Check GHCR_READ_TOKEN
-if [ -z "$GHCR_READ_TOKEN" ]; then
-    echo "::error::GHCR_READ_TOKEN secret is not configured."
-    echo "Please add GHCR_READ_TOKEN to your repository secrets."
-    exit 1
-fi
-echo "✅ GHCR_READ_TOKEN is configured."
+# Check GHCR_READ_TOKEN (required for all environments)
+validate_secret "GHCR_READ_TOKEN" "$GHCR_READ_TOKEN" "all environments"
 
 # Check OLLAMA_API_KEY (only for production)
 if [ "$ENVIRONMENT" = "production" ]; then
-    if [ -z "$OLLAMA_API_KEY" ]; then
-        echo "::error::OLLAMA_API_KEY secret is not configured for production."
-        echo "Please add OLLAMA_API_KEY to your repository secrets."
-        exit 1
-    fi
-    echo "✅ OLLAMA_API_KEY is configured for production."
+    validate_secret "OLLAMA_API_KEY" "$OLLAMA_API_KEY" "production"
 else
     echo "ℹ️  OLLAMA_API_KEY not required for $ENVIRONMENT environment."
 fi
 
 # Check PULSEPLATE_OPENAI (only for production)
 if [ "$ENVIRONMENT" = "production" ]; then
-    if [ -z "$PULSEPLATE_OPENAI" ]; then
-        echo "::error::PULSEPLATE_OPENAI secret is not configured for production."
-        echo "Please add PULSEPLATE_OPENAI to your repository secrets."
-        exit 1
-    fi
-    echo "✅ PULSEPLATE_OPENAI is configured for production."
+    validate_secret "PULSEPLATE_OPENAI" "$PULSEPLATE_OPENAI" "production"
 else
     echo "ℹ️  PULSEPLATE_OPENAI not required for $ENVIRONMENT environment."
 fi
 
-# Check environment files exist
-echo ""
-echo "Checking environment files..."
+# Check environment files exist (only for local development)
+if [ "$ENVIRONMENT" = "local" ]; then
+    echo ""
+    echo "Checking environment files..."
 
-if [ ! -f "deploy/ollama-configs/local.env.example" ]; then
-    echo "::error::deploy/ollama-configs/local.env.example not found."
-    exit 1
-fi
-echo "✅ deploy/ollama-configs/local.env.example exists."
+    if [ ! -f "deploy/ollama-configs/local.env.example" ]; then
+        echo "::error::deploy/ollama-configs/local.env.example not found."
+        exit 1
+    fi
+    echo "✅ deploy/ollama-configs/local.env.example exists."
 
-if [ ! -f "deploy/ai-configs/huggingface.env.example" ]; then
-    echo "::error::deploy/ai-configs/huggingface.env.example not found."
-    exit 1
+    if [ ! -f "deploy/ai-configs/huggingface.env.example" ]; then
+        echo "::error::deploy/ai-configs/huggingface.env.example not found."
+        exit 1
+    fi
+    echo "✅ deploy/ai-configs/huggingface.env.example exists."
+else
+    echo "ℹ️  Skipping environment file checks for $ENVIRONMENT environment."
 fi
-echo "✅ deploy/ai-configs/huggingface.env.example exists."
 
 # Check Docker is available
 echo ""
