@@ -103,6 +103,37 @@ if [ ! -z "$PYTHON_CHANGES" ]; then
             fi
         fi
     done
+
+    # Run full Python quality checks
+    echo "🔍 Running Python quality checks..."
+
+    # Black formatting
+    echo "🎨 Running Black formatter..."
+    if ! python -m black --check --diff $PYTHON_CHANGES; then
+        echo "❌ Black formatting failed. Please run: python -m black $PYTHON_CHANGES"
+        exit 1
+    fi
+
+    # Ruff linting
+    echo "🔍 Running Ruff linter..."
+    if ! python -m ruff check $PYTHON_CHANGES; then
+        echo "❌ Ruff linting failed. Please fix linting errors."
+        exit 1
+    fi
+
+    # MyPy type checking
+    echo "🔍 Running MyPy type checker..."
+    if ! python -m mypy --pretty --show-error-codes --ignore-missing-imports $PYTHON_CHANGES; then
+        echo "❌ MyPy type checking failed. Please fix type errors."
+        exit 1
+    fi
+
+    # Bandit security check
+    echo "🔒 Running Bandit security check..."
+    if ! python -m bandit -r $PYTHON_CHANGES; then
+        echo "❌ Bandit security check failed. Please fix security issues."
+        exit 1
+    fi
 fi
 
 echo "✅ All pre-commit checks passed!"
