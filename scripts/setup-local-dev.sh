@@ -60,10 +60,11 @@ set_env_var "IMAGE_TAG" "latest"
 set_env_var "ENVIRONMENT" "development"
 set_env_var "AI_ROUTER_ENABLED" "true"
 
-# Set default API keys for local testing (these are dummy values)
-set_env_var "OLLAMA_API_KEY" "test_ollama_key_local"
-set_env_var "OPENAI_API_KEY" "test_openai_key_local"
-set_env_var "HUGGINGFACE_TOKEN" "test_huggingface_token_local"
+# Set default API keys for local testing
+# WARNING: These are placeholder values. Replace with real credentials for actual use.
+set_env_var "OLLAMA_API_KEY" "YOUR_OLLAMA_API_KEY_HERE"
+set_env_var "OPENAI_API_KEY" "YOUR_OPENAI_API_KEY_HERE"
+set_env_var "HUGGINGFACE_TOKEN" "YOUR_HUGGINGFACE_TOKEN_HERE"
 
 echo ""
 echo "🐍 Setting up Python environment..."
@@ -71,7 +72,7 @@ echo "🐍 Setting up Python environment..."
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo -e "${BLUE}📦 Creating Python virtual environment...${NC}"
-    python -m venv venv
+    python3 -m venv venv
 fi
 
 # Activate virtual environment
@@ -80,9 +81,9 @@ source venv/bin/activate
 
 # Install dependencies
 echo -e "${BLUE}📦 Installing Python dependencies...${NC}"
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 
 echo ""
 echo "🔍 Running environment validation..."

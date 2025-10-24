@@ -153,7 +153,9 @@ def _register_font_if_available() -> str:
             return FONT_NAME
         except Exception as e:
             # Fall back to default Helvetica if registration fails for any reason.
-            logger.warning(f"Failed to register custom font {FONT_NAME}: {e}")
+            logger.warning(
+                f"Failed to register custom font {FONT_NAME}, falling back to Helvetica: {e}"
+            )
             pass
     return "Helvetica"
 

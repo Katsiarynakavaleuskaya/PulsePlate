@@ -47,7 +47,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
             "SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g "
             "FROM foods f "
             "JOIN foods_fts ff ON ff.rowid = f.rowid "
-            f"WHERE {match_placeholders} "  # nosec B608 - safe parameterized query
+            "WHERE " + match_placeholders + " "  # nosec B608 - safe parameterized query
             "LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]

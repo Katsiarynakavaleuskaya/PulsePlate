@@ -20,11 +20,17 @@ validate_secret() {
     local required_for="$3"
 
     if [ -z "$secret_value" ]; then
-        echo "::error::$secret_name secret is not configured for $required_for."
-        echo "Please add $secret_name to your repository secrets."
-        exit 1
+        if [ "$CI" = "true" ]; then
+            echo "::error::$secret_name secret is not configured for $required_for."
+            echo "Please add $secret_name to your repository secrets."
+            exit 1
+        else
+            echo "⚠️  $secret_name secret is not configured for $required_for."
+            echo "This may affect some functionality. For local development, you can set this in your environment or skip related steps."
+        fi
+    else
+        echo "✅ $secret_name is configured for $required_for."
     fi
-    echo "✅ $secret_name is configured for $required_for."
 }
 
 # Check required secrets for CD workflow
@@ -32,7 +38,18 @@ echo ""
 echo "Checking required secrets..."
 
 # Check GHCR_READ_TOKEN (required for all environments)
-validate_secret "GHCR_READ_TOKEN" "$GHCR_READ_TOKEN" "all environments"
+if [ -z "$GHCR_READ_TOKEN" ]; then
+    if [ "$CI" = "true" ]; then
+        echo "::error::GHCR_READ_TOKEN secret is not configured."
+        echo "Please add GHCR_READ_TOKEN to your repository secrets."
+        exit 1
+    else
+        echo "⚠️  GHCR_READ_TOKEN secret is not configured."
+        echo "This may affect some functionality. For local development, you can set this in your environment or skip related steps."
+    fi
+else
+    echo "✅ GHCR_READ_TOKEN is configured for all environments."
+fi
 
 # Check OLLAMA_API_KEY (only for production)
 if [ "$ENVIRONMENT" = "production" ]; then
