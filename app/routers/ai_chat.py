@@ -58,7 +58,9 @@ class ChatRequest(BaseModel):
 
     @field_validator("message")
     @classmethod
-    def validate_message(cls, v: str) -> str:
+    def validate_message(cls, v) -> str:
+        if not isinstance(v, str):
+            raise ValueError("Message must be a string")
         if not v or not v.strip():
             raise ValueError("Message cannot be empty")
         return v.strip()
@@ -90,7 +92,9 @@ class NutritionAnalysisRequest(BaseModel):
 
     @field_validator("food_items")
     @classmethod
-    def validate_food_items(cls, v: List[str]) -> List[str]:
+    def validate_food_items(cls, v) -> List[str]:
+        if not isinstance(v, list):
+            raise ValueError("Food items must be a list")
         if not v or len(v) == 0:
             raise ValueError("At least one food item is required")
         return v
