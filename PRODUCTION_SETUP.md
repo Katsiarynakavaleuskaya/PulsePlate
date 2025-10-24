@@ -360,7 +360,7 @@ For Caddy-based production deployments, SSL/TLS is automatically managed by Cadd
 - HTTPS redirection
 - Certificate validation
 
-This replaces the manual SSL setup described in the earlier nginx sections (lines ~110-124, 138-142). When using Caddy, simply configure your domain in the Caddyfile and SSL certificates will be automatically obtained and renewed.
+This replaces the manual SSL setup described in the earlier nginx sections. When using Caddy, simply configure your domain in the Caddyfile and SSL certificates will be automatically obtained and renewed.
 
 **No manual certificate management is required for Caddy-based production deployments.**
 

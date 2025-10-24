@@ -93,8 +93,14 @@ PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
 if [ ! -z "$PYTHON_CHANGES" ]; then
     echo "🐍 Python changes detected, running basic checks..."
 
+    # Create array of Python files for safe handling of filenames with spaces
+    py_files=()
+    while IFS= read -r -d '' file; do
+        py_files+=("$file")
+    done < <(git diff --cached --name-only -z | grep -z "\.py$" || true)
+
     # Check Python syntax
-    for file in $PYTHON_CHANGES; do
+    for file in "${py_files[@]}"; do
         if [ -f "$file" ]; then
             echo "Checking syntax: $file"
             if ! python -m py_compile "$file"; then
@@ -109,38 +115,62 @@ if [ ! -z "$PYTHON_CHANGES" ]; then
 
     # Black formatting (only check, don't fail on legacy files)
     echo "🎨 Running Black formatter..."
-    if [ -n "$PYTHON_CHANGES" ]; then
-        if ! echo "$PYTHON_CHANGES" | xargs python -m black --check --diff; then
-            echo "⚠️  Black formatting issues found. Consider running: python -m black $PYTHON_CHANGES"
-            echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+    if [ ${#py_files[@]} -gt 0 ]; then
+        if command -v python >/dev/null 2>&1 && python -m black --version >/dev/null 2>&1; then
+            if ! python -m black --check --diff "${py_files[@]}"; then
+                echo "⚠️  Black formatting issues found. Consider running: python -m black ${py_files[*]}"
+                echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+            fi
+        else
+            echo "⚠️  Black not available. Install with: pip install black"
+            echo "ℹ️  Skipping Black formatting check"
         fi
     fi
 
     # Ruff linting (only check, don't fail on legacy files)
     echo "🔍 Running Ruff linter..."
-    if ! echo "$PYTHON_CHANGES" | xargs -r python -m ruff check; then
-        echo "⚠️  Ruff linting issues found. Consider fixing linting errors."
-        echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+    if [ ${#py_files[@]} -gt 0 ]; then
+        if command -v python >/dev/null 2>&1 && python -m ruff --version >/dev/null 2>&1; then
+            if ! python -m ruff check "${py_files[@]}"; then
+                echo "⚠️  Ruff linting issues found. Consider fixing linting errors."
+                echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+            fi
+        else
+            echo "⚠️  Ruff not available. Install with: pip install ruff"
+            echo "ℹ️  Skipping Ruff linting check"
+        fi
     fi
 
     # MyPy type checking (check all files but don't fail on legacy errors)
     echo "🔍 Running MyPy type checker..."
-    if ! echo "$PYTHON_CHANGES" | xargs -r python -m mypy --pretty --show-error-codes; then
-        echo "⚠️  MyPy found issues in code. Consider fixing them gradually."
-        echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+    if [ ${#py_files[@]} -gt 0 ]; then
+        if command -v python >/dev/null 2>&1 && python -m mypy --version >/dev/null 2>&1; then
+            if ! python -m mypy --pretty --show-error-codes "${py_files[@]}"; then
+                echo "⚠️  MyPy found issues in code. Consider fixing them gradually."
+                echo "ℹ️  Continuing with commit (legacy code compatibility mode)"
+            fi
+        else
+            echo "⚠️  MyPy not available. Install with: pip install mypy"
+            echo "ℹ️  Skipping MyPy type checking"
+        fi
     fi
 
     # Bandit security check (check all changed files except tests)
     echo "🔒 Running Bandit security check..."
-    # Process each file individually to handle spaces in filenames, exclude test files
-    for file in $PYTHON_CHANGES; do
-        if [ -f "$file" ] && [[ ! "$file" =~ ^tests/ ]]; then
-            if ! python -m bandit "$file"; then
-                echo "❌ Bandit security check failed for $file. Please fix security issues."
-                exit 1
+    if command -v python >/dev/null 2>&1 && python -m bandit --version >/dev/null 2>&1; then
+        # Process each file individually to handle spaces in filenames, exclude test files
+        for file in "${py_files[@]}"; do
+            if [ -f "$file" ] && [[ ! "$file" =~ (^|/)tests?/ ]] && [[ ! "$file" =~ (^|/)test_ ]] && [[ ! "$file" =~ _test\.py$ ]]; then
+                if ! python -m bandit "$file"; then
+                    echo "❌ Bandit security check failed for $file. Please fix security issues."
+                    exit 1
+                fi
             fi
-        fi
-    done
+        done
+    else
+        echo "⚠️  Bandit not available. Install with: pip install bandit"
+        echo "ℹ️  Skipping Bandit security check"
+    fi
 fi
 
 echo "✅ All pre-commit checks passed!"

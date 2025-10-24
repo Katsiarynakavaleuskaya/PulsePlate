@@ -1,17 +1,24 @@
 """
-AI service constants and configuration
+AI Constants - Centralized configuration for AI providers and pricing
 """
 
-# OpenAI pricing constants (as of 2025-10-23)
-# GPT-4o-mini pricing per 1M tokens
-OPENAI_INPUT_COST_PER_1M = 0.60  # $0.60 per 1M input tokens
-OPENAI_OUTPUT_COST_PER_1M = 2.40  # $2.40 per 1M output tokens
+# OpenAI GPT-4o-mini pricing (per 1K tokens) - October 2025
+OPENAI_INPUT_COST_PER_1K = 0.00015  # $0.15 per 1M tokens
+OPENAI_OUTPUT_COST_PER_1K = 0.00060  # $0.60 per 1M tokens
 
-# Convert to per-1K for calculations
-OPENAI_INPUT_COST_PER_1K = OPENAI_INPUT_COST_PER_1M / 1000  # $0.0006 per 1K input tokens
-OPENAI_OUTPUT_COST_PER_1K = OPENAI_OUTPUT_COST_PER_1M / 1000  # $0.0024 per 1K output tokens
+# OpenAI GPT-4o-mini pricing (per 1M tokens) - for display purposes
+OPENAI_INPUT_COST_PER_1M = 0.15
+OPENAI_OUTPUT_COST_PER_1M = 0.60
 
 # Token estimation constants
-TOKEN_MULTIPLIER = 1.3  # Rough approximation factor
-INPUT_RATIO = 0.7  # 70% of tokens are input
-OUTPUT_RATIO = 0.3  # 30% of tokens are output
+AVERAGE_CHARS_PER_TOKEN = 4  # Rough estimate for English text
+MAX_TOKENS_PER_REQUEST = 4000  # Conservative limit for GPT-4o-mini
+
+# Rate limiting constants (requests per hour)
+DEFAULT_RATE_LIMIT_FREE = 10
+DEFAULT_RATE_LIMIT_PREMIUM = 1000
+DEFAULT_RATE_LIMIT_ENTERPRISE = 10000
+
+# Complexity thresholds
+SIMPLE_QUERY_THRESHOLD = 0.3
+COMPLEX_QUERY_THRESHOLD = 0.7

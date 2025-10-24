@@ -190,7 +190,7 @@ class DatabaseUpdateScheduler:
             # Handle exception
             self._handle_update_failure(source, [str(e)])
 
-    def _handle_update_failure(self, source: str, errors: list) -> None:
+    def _handle_update_failure(self, source: str, errors: list[str]) -> None:
         """Handle update failure with retry logic."""
         self.retry_counts[source] = self.retry_counts.get(source, 0) + 1
 

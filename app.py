@@ -134,8 +134,8 @@ async def lifespan(app: FastAPI) -> Any:
     try:
         init_db()
         logger.info("Database schema initialized")
-    except Exception as db_err:
-        logger.error(f"Failed to initialize database: {db_err}")
+    except Exception:
+        logger.exception("Failed to initialize database")
         raise
 
     try:
@@ -166,8 +166,8 @@ async def lifespan(app: FastAPI) -> Any:
                         _task.cancel()
                         with suppress(Exception):
                             await _task
-                except Exception as e:
-                    logger.error(f"Failed to start background updates (async): {e}")
+                except Exception:
+                    logger.exception("Failed to start background updates (async)")
         logger.info("Started background database updates")
     except Exception as e:
         logger.error(f"Failed to start background updates: {e}")
@@ -191,8 +191,8 @@ async def lifespan(app: FastAPI) -> Any:
             if _inspect.isawaitable(result):
                 await result
         logger.info("Stopped background database updates")
-    except Exception as e:
-        logger.error(f"Error stopping background updates: {e}")
+    except Exception:
+        logger.exception("Error stopping background updates")
 
 
 app = FastAPI(title="PulsePlate", lifespan=lifespan)
@@ -2038,7 +2038,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
             except Exception as e:
-                logger.debug(f"Failed to validate targets safety: {e}", exc_info=True)
+                logger.warning(f"Failed to validate targets safety: {e}", exc_info=True)
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
@@ -2242,7 +2242,7 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
         ) from e
 
 
-@app.get("/debug_env")
+@app.get("/debug_env", dependencies=[Depends(_get_api_key_dynamic)])
 async def debug_env() -> Dict[str, Any]:
     data: Dict[str, Any] = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),

@@ -10,11 +10,27 @@ from enum import Enum
 import logging
 import httpx
 import openai
-import torch
-from transformers import AutoModel, AutoTokenizer
+
+# Optional imports for Hugging Face functionality
+try:
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    AutoModel = None
+    AutoTokenizer = None
+    TORCH_AVAILABLE = False
 from pydantic import BaseModel
 
-from .ai_constants import OPENAI_INPUT_COST_PER_1M, OPENAI_OUTPUT_COST_PER_1M
+from core.ai_constants import (
+    OPENAI_INPUT_COST_PER_1M,
+    OPENAI_OUTPUT_COST_PER_1M,
+    DEFAULT_RATE_LIMIT_FREE,
+    DEFAULT_RATE_LIMIT_PREMIUM,
+    DEFAULT_RATE_LIMIT_ENTERPRISE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +84,12 @@ class AIRouter:
             self.max_tokens = 1000
 
         # Hugging Face model caching
-        self._hf_tokenizer = None
-        self._hf_model = None
-        self._hf_model_name = None
-        self._hf_revision = None
-        self._hf_trust_remote = None
-        self._hf_token = None
+        self._hf_tokenizer: Optional[Any] = None
+        self._hf_model: Optional[Any] = None
+        self._hf_model_name: Optional[str] = None
+        self._hf_revision: Optional[str] = None
+        self._hf_trust_remote: Optional[bool] = None
+        self._hf_token: Optional[str] = None
         self._hf_lock = threading.Lock()
 
         # Hugging Face configuration
@@ -135,8 +151,24 @@ class AIRouter:
             logger.warning(f"Redis not available for rate limiting: {e}, using in-memory fallback")
             self._redis_client = None
 
-        # Future: self.ollama_free_limit = int(os.getenv("OLLAMA_FREE_LIMIT", "1000"))
-        # Future: self.openai_budget_limit = int(os.getenv("OPENAI_BUDGET_LIMIT", "10000"))
+        # Configurable per-tier hourly limits (defaults are conservative)
+        try:
+            self.rate_limit_free = int(
+                os.getenv("AI_RATE_LIMIT_FREE_PER_HOUR", str(DEFAULT_RATE_LIMIT_FREE))
+            )
+            self.rate_limit_premium = int(
+                os.getenv("AI_RATE_LIMIT_PREMIUM_PER_HOUR", str(DEFAULT_RATE_LIMIT_PREMIUM))
+            )
+            self.rate_limit_enterprise = int(
+                os.getenv("AI_RATE_LIMIT_ENTERPRISE_PER_HOUR", str(DEFAULT_RATE_LIMIT_ENTERPRISE))
+            )
+        except ValueError:
+            logger.warning("Invalid AI_RATE_LIMIT_* envs; using defaults 10/1000/10000")
+            self.rate_limit_free, self.rate_limit_premium, self.rate_limit_enterprise = (
+                DEFAULT_RATE_LIMIT_FREE,
+                DEFAULT_RATE_LIMIT_PREMIUM,
+                DEFAULT_RATE_LIMIT_ENTERPRISE,
+            )
 
         # Quality thresholds
         self.complexity_keywords: dict[RequestComplexity, list[str]] = {
@@ -248,7 +280,11 @@ class AIRouter:
             window_size = 3600  # 1 hour window
 
             # Rate limits per tier (requests per hour)
-            limits = {"free": 10, "premium": 1000, "enterprise": 10000}
+            limits = {
+                "free": self.rate_limit_free,
+                "premium": self.rate_limit_premium,
+                "enterprise": self.rate_limit_enterprise,
+            }
             limit = limits.get(user_tier, 10)
 
             # Redis key for this user
@@ -286,7 +322,11 @@ class AIRouter:
                 window_size = 3600  # 1 hour window
 
                 # Rate limits per tier (requests per hour)
-                limits = {"free": 10, "premium": 1000, "enterprise": 10000}
+                limits = {
+                    "free": self.rate_limit_free,
+                    "premium": self.rate_limit_premium,
+                    "enterprise": self.rate_limit_enterprise,
+                }
                 limit = limits.get(user_tier, 10)
 
                 # Clean old entries
@@ -525,6 +565,9 @@ class AIRouter:
 
     def _load_huggingface_model(self) -> None:
         """Load and cache Hugging Face model and tokenizer"""
+        if not TORCH_AVAILABLE:
+            raise ImportError("torch and transformers are required for Hugging Face functionality")
+
         with self._hf_lock:
             # Check if we need to reload the model
             trust_remote = os.getenv("HUGGINGFACE_TRUST_REMOTE_CODE", "false").lower() == "true"
@@ -591,9 +634,16 @@ class AIRouter:
                    - task_type: str - Type of task (embedding, text, etc.)
                    Can be None or empty dict for current implementation
         """
+        if not TORCH_AVAILABLE:
+            raise ImportError("torch and transformers are required for Hugging Face functionality")
+
         try:
             # Load model and tokenizer (cached)
             self._load_huggingface_model()
+
+            # Ensure model and tokenizer are loaded
+            if self._hf_tokenizer is None or self._hf_model is None:
+                raise RuntimeError("Failed to load Hugging Face model and tokenizer")
 
             # Tokenize input using cached tokenizer
             inputs = self._hf_tokenizer(

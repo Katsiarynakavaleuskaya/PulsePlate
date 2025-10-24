@@ -4,7 +4,8 @@ AI Chat Router - Smart AI routing for nutrition and health queries
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any, Optional, List, Tuple, Literal
+from typing import Literal
+from typing import Dict, Any, Optional, List, Tuple
 import logging
 
 from core.ai_router import ai_router, RequestComplexity
@@ -53,19 +54,20 @@ class ChatRequest(BaseModel):
     user_tier: Literal["free", "premium"] = Field(
         default="free", description="User subscription tier"
     )
-    task_type: str = Field(default="text", description="Task type (text/embedding)")
-    force_provider: Optional[str] = Field(
+    task_type: Literal["text", "embedding"] = Field(default="text", description="Task type")
+    force_provider: Optional[Literal["ollama", "huggingface", "openai"]] = Field(
         None, description="Force specific provider (ollama/huggingface/openai)"
     )
 
-    @field_validator("message")
+    @field_validator("message", mode="before")
     @classmethod
-    def validate_message(cls, v) -> str:
+    def validate_message(cls, v: Any) -> str:
         if not isinstance(v, str):
-            raise ValueError("Message must be a string")
-        if not v or not v.strip():
-            raise ValueError("Message cannot be empty")
-        return v.strip()
+            raise TypeError("message must be a string")
+        s = v.strip()
+        if not s:
+            raise ValueError("message cannot be empty")
+        return s
 
 
 class ChatResponse(BaseModel):
@@ -92,14 +94,15 @@ class NutritionAnalysisRequest(BaseModel):
         default="basic", description="Type of analysis (basic/detailed/comprehensive)"
     )
 
-    @field_validator("food_items")
+    @field_validator("food_items", mode="before")
     @classmethod
-    def validate_food_items(cls, v) -> List[str]:
+    def validate_food_items(cls, v: Any) -> List[str]:
         if not isinstance(v, list):
-            raise ValueError("Food items must be a list")
-        if not v or len(v) == 0:
-            raise ValueError("At least one food item is required")
-        return v
+            raise TypeError("food_items must be a list")
+        items = [str(it).strip() for it in v if it is not None and str(it).strip()]
+        if not items:
+            raise ValueError("at least one non-empty food item is required")
+        return items
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -124,6 +127,10 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             provider=request.force_provider,
             task_type=request.task_type,
         )
+
+        # Surface router errors with proper status
+        if getattr(result, "error", False):
+            raise HTTPException(status_code=400, detail=result.response)
 
         return ChatResponse(
             response=result.response,
@@ -173,6 +180,9 @@ async def analyze_nutrition(request: NutritionAnalysisRequest) -> ChatResponse:
             request.user_tier,
             user_id=user_profile.get("user_id", "anonymous"),
         )
+
+        if getattr(result, "error", False):
+            raise HTTPException(status_code=400, detail=result.response)
 
         return ChatResponse(
             response=result.response,
@@ -241,7 +251,13 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
                 "estimated_cost": 0.0,
                 "complexity": complexity_value,
             }
-        else:
+        elif chosen_provider == "huggingface":
+            return {
+                "provider": "huggingface",
+                "estimated_cost": 0.0,
+                "complexity": complexity_value,
+            }
+        elif chosen_provider == "openai":
             # Use centralized cost estimation
             estimated_cost, estimated_tokens = estimate_openai_cost(message)
 
@@ -252,6 +268,8 @@ async def estimate_cost(message: str, provider: str = "auto") -> dict[str, Any]:
                 "complexity": complexity_value,
                 "estimated_cost_note": "Cost is an estimate and may differ from final billed amount",
             }
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {chosen_provider}")
 
     except Exception as e:
         logger.exception("Error estimating cost")

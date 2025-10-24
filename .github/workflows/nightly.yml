@@ -158,7 +158,7 @@ jobs:
                       print(f"- ... and {len(high_severity) - 3} more")
           except Exception as e:
               print(f"Error analyzing bandit report: {e}")
-          PY
+PY
           else
             echo "❌ Bandit report not found" >> $GITHUB_STEP_SUMMARY
           fi
@@ -185,7 +185,7 @@ jobs:
                   print("✅ No vulnerabilities found")
           except Exception as e:
               print(f"Error analyzing pip-audit report: {e}")
-          PY
+PY
           else
             echo "❌ pip-audit report not found" >> $GITHUB_STEP_SUMMARY
           fi

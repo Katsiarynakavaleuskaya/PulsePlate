@@ -208,6 +208,8 @@ def create_robust_session() -> requests.Session:
         total=3,
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=frozenset(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+        respect_retry_after_header=True,
     )
 
     adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -401,7 +403,7 @@ def create_robust_session() -> requests.Session:
 
 ### Зависимости
 
-# Веб-скрапинг
+#### Веб-скрапинг
 
 beautifulsoup4==4.12.3
 lxml==5.1.0
@@ -409,17 +411,17 @@ html5lib==1.1
 requests-html==0.10.0
 selenium==4.16.0
 
-# ETL Pipeline
+#### ETL Pipeline
 
 dlt[postgres,parquet]==0.5.2
 duckdb==0.10.0
 
-# Мониторинг
+#### Мониторинг
 
 prometheus-client==0.20.0
 grafana-api==1.0.3
 
-# Кэширование
+#### Кэширование
 
 redis==5.0.1
 requests-cache==1.2.0

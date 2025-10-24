@@ -10,7 +10,7 @@ services:
       - ENVIRONMENT=staging
     env_file:
       - .env  # See .env file for DATABASE_URL configuration
-      - ../deploy/ollama-configs/local.env  # Local Ollama config
+      - ../deploy/ollama-configs/local.env.example  # Local Ollama config
     volumes:
       - ./data:/app/data
     restart: unless-stopped

@@ -329,7 +329,11 @@ class TestCostCalculation:
         cost = ai_router._calculate_openai_cost(mock_usage)
 
         # Expected: (1000/1M) * 0.15 + (500/1M) * 0.60 = 0.00015 + 0.0003 = 0.00045
-        expected_cost = (1000 / 1_000_000) * 0.15 + (500 / 1_000_000) * 0.60
+        from core.ai_constants import OPENAI_INPUT_COST_PER_1M, OPENAI_OUTPUT_COST_PER_1M
+
+        expected_cost = (1000 / 1_000_000) * OPENAI_INPUT_COST_PER_1M + (
+            500 / 1_000_000
+        ) * OPENAI_OUTPUT_COST_PER_1M
         assert abs(cost - expected_cost) < 0.0001
 
     def test_calculate_openai_cost_none_usage(self, ai_router: AIRouter) -> None:
@@ -350,7 +354,7 @@ class TestCostCalculation:
 class TestEnvironmentConfiguration:
     """Test environment variable configuration"""
 
-    def test_environment_variables_loaded(self) -> None:
+    def test_environment_variables_loaded(self, mock_env_vars: Generator[None, None, None]) -> None:
         """Test that environment variables are properly loaded"""
         router = AIRouter()
 

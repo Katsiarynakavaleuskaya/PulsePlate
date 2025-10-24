@@ -4,7 +4,7 @@ This directory contains configuration files for different Ollama deployment scen
 
 ## Files
 
-- **`local.env`** - Local Ollama setup (development/staging)
+- **`local.env.example`** - Local Ollama setup (development/staging)
 - **`cloud.env`** - Ollama Cloud setup (production)
 
 ## Usage
@@ -12,15 +12,17 @@ This directory contains configuration files for different Ollama deployment scen
 ### Local Development
 
 ```bash
-# Use local.env for development
-docker-compose --env-file deploy/ollama-configs/local.env up
+# Use local.env.example for development
+# Note: Add env_file: deploy/ollama-configs/local.env.example to your docker-compose.yml
+docker-compose up
 ```
 
 ### Production with Ollama Cloud
 
 ```bash
 # Use cloud.env for production
-docker-compose --env-file deploy/ollama-configs/cloud.env up
+# Note: Add env_file: deploy/ollama-configs/cloud.env to your docker-compose.yml
+docker-compose -f deploy/docker-compose.production.yaml up
 ```
 
 ## Environment Variables
