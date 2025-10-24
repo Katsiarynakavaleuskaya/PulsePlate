@@ -4,9 +4,9 @@ permissions:
 
 on:
   push:
-    branches: [ "main", "feat/**", "fix/**" ]
+    branches: [ "main", "feat/**", "fix/**", "feature/**" ]
   pull_request:
-    branches: [ "main", "feat/**", "fix/**" ]
+    branches: [ "main", "feat/**", "fix/**", "feature/**" ]
 
 jobs:
 

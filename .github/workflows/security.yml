@@ -10,9 +10,9 @@ concurrency:
 
 on:
   push:
-    branches: [main, develop, feat/**, fix/**]
+    branches: [main, develop, feat/**, fix/**, feature/**]
   pull_request:
-    branches: [main, develop, feat/**, fix/**]
+    branches: [main, develop, feat/**, fix/**, feature/**]
   schedule:
     - cron: '0 3 * * 1' # Every Monday at 03:00 UTC
   workflow_dispatch:
