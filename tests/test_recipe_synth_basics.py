@@ -460,11 +460,11 @@ class TestRecipeSynthesizerMethods:
     """Test RecipeSynthesizer core methods for better coverage."""
 
     @pytest.fixture
-    def synthesizer(self):
+    def synthesizer(self) -> RecipeSynthesizer:
         """Create a RecipeSynthesizer instance for testing."""
         return RecipeSynthesizer()
 
-    def test_synthesize_recipe_basic(self, synthesizer):
+    def test_synthesize_recipe_basic(self, synthesizer: RecipeSynthesizer) -> None:
         """Test synthesize_recipe with basic parameters."""
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
@@ -553,8 +553,8 @@ class TestRecipeSynthesizerMethods:
         assert recipe.servings == 2
         assert len(recipe.ingredients) == len(ingredients)
 
-    def test_generate_recipe_name(self, synthesizer):
-        """Test _generate_recipe_name method."""
+    def test_generate_recipe_title(self, synthesizer):
+        """Test _generate_recipe_title method."""
         template = list(synthesizer.templates.values())[0]
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
@@ -645,10 +645,10 @@ class TestRecipeSynthesizerMethods:
             {"name": "pasta", "amount": 100, "unit": "g"},
         ]
 
-        adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, 2)
+        adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, 1)
 
         # Method assumes ingredients > 100g are for 4 servings, scales to target servings
-        # 200g > 100g, so scaled: 200 * 2 / 4 = 100
-        assert adjusted[0]["amount"] == 100.0
+        # 200g > 100g, so scaled: 200 * 1 / 4 = 50
+        assert adjusted[0]["amount"] == 50.0
         # 100g = 100g, so no scaling (not > 100g)
         assert adjusted[1]["amount"] == 100.0
