@@ -42,7 +42,7 @@ jobs:
           ./scripts/validate-ci-environment.sh
         env:
           ENVIRONMENT: staging
-               GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
       - name: Resolve image tag
         id: meta
