@@ -59,7 +59,7 @@ class RecipeTemplate:
         difficulty: str,
         instruction_template: str,
         nutrition_profile: Dict[str, float],
-    ):
+    ) -> None:
         self.template_id = template_id
         self.name = name
         self.cuisine_type = cuisine_type
@@ -70,6 +70,27 @@ class RecipeTemplate:
         self.difficulty = difficulty
         self.instruction_template = instruction_template
         self.nutrition_profile = nutrition_profile
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        RU: Преобразовать шаблон рецепта в словарь.
+        EN: Convert recipe template to dictionary.
+
+        Returns:
+            Dictionary representation of the recipe template
+        """
+        return {
+            "template_id": self.template_id,
+            "name": self.name,
+            "cuisine_type": self.cuisine_type,
+            "base_ingredients": self.base_ingredients,
+            "cooking_methods": self.cooking_methods,
+            "typical_prep_time": self.typical_prep_time,
+            "typical_cook_time": self.typical_cook_time,
+            "difficulty": self.difficulty,
+            "instruction_template": self.instruction_template,
+            "nutrition_profile": self.nutrition_profile,
+        }
 
 
 class RecipeSynthesizer:
@@ -216,18 +237,7 @@ class RecipeSynthesizer:
         ]
 
         for template_data in default_templates:
-            template = RecipeTemplate(
-                template_id=template_data["template_id"],
-                name=template_data["name"],
-                cuisine_type=template_data["cuisine_type"],
-                base_ingredients=template_data["base_ingredients"],
-                cooking_methods=template_data["cooking_methods"],
-                typical_prep_time=template_data["typical_prep_time"],
-                typical_cook_time=template_data["typical_cook_time"],
-                difficulty=template_data["difficulty"],
-                instruction_template=template_data["instruction_template"],
-                nutrition_profile=template_data["nutrition_profile"],
-            )
+            template = RecipeTemplate(**template_data)
             self.templates[template.template_id] = template
 
     def synthesize_recipe_from_ingredients(
@@ -312,7 +322,9 @@ class RecipeSynthesizer:
         servings: int,
     ) -> Recipe:
         """Создает рецепт на основе шаблона"""
-        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"  # nosec B311
+        recipe_id = (
+            f"synth_{template.template_id}_{random.randint(1000, 9999)}"  # noqa: S311  # nosec B311
+        )
 
         # Адаптируем ингредиенты под количество порций
         adapted_ingredients = self._adapt_ingredients_for_servings(ingredients, servings)

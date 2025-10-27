@@ -151,7 +151,7 @@ security: ## Run security checks (bandit + pip-audit)
 ## Full Bandit security scan (for pre-push)
 bandit-full: ## Full Bandit security scan (excludes tests/frontend)
 	@echo "$(YELLOW)🔒 Полная проверка безопасности Bandit...$(NC)"
-	bandit -r app/ core/ -f json -o bandit-final.json
+	bandit -r app/ core/ -f json -o bandit-full-report.json
 	@echo "$(GREEN)✅ Полная проверка Bandit завершена$(NC)"
 
 ## Run all pre-commit hooks
@@ -226,7 +226,7 @@ clean: ## Clean temporary files
 	find . -type d -name "__pycache__" -delete
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
 	rm -rf .coverage htmlcov/ .pytest_cache/
-	rm -f bandit-report.json pip-audit.json
+	rm -f bandit-report.json bandit-full-report.json pip-audit.json
 	@echo "$(GREEN)✅ Очистка завершена$(NC)"
 
 ## Full quality check

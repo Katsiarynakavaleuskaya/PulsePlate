@@ -247,17 +247,12 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _parse_food_item(self, food_data: Any) -> Optional[USDAFoodItem]:
+    def _parse_food_item(self, food_data: Dict) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
         """
         try:
-            # Debug: Check if food_data is actually a dict
-            if not isinstance(food_data, dict):
-                logger.error(f"Expected dict, got {type(food_data)}: {food_data}")
-                return None
-
             # Extract basic info
             fdc_id_raw = food_data.get("fdcId")
             # Guard and normalize fdc_id to int

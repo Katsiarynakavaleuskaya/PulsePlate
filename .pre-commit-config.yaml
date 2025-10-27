@@ -38,6 +38,10 @@ repos:
         args: [--fix]
 
   # --- Type checking: mypy (temporarily disabled due to module path conflict)
+  # TODO: Re-enable mypy after resolving module path conflicts
+  # Issue: app/routers/__init__.py causes "Source file found twice under different module names"
+  # Solution: Either fix module structure or update mypy configuration
+  # Timeline: Re-enable within 2 weeks to maintain type safety
   # - repo: https://github.com/pre-commit/mirrors-mypy
   #   rev: v1.18.2
   #   hooks:
