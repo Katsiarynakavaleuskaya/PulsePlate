@@ -44,7 +44,6 @@ class Recipe:
     image_url: Optional[str] = None
 
 
-@dataclass
 class RecipeTemplate:
     """Шаблон рецепта"""
 

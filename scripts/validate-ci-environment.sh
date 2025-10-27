@@ -48,16 +48,15 @@ if [ -z "$GHCR_READ_TOKEN" ]; then
     echo "::error::GHCR_READ_TOKEN secret is not configured."
     echo "Please add GHCR_READ_TOKEN to your repository secrets."
     ERRORS+=("GHCR_READ_TOKEN secret is not configured.")
+else
+    # Basic format validation for GHCR_READ_TOKEN (only if token is set)
+    if [ ${#GHCR_READ_TOKEN} -lt 30 ]; then
+        echo "::warning::GHCR_READ_TOKEN appears to be too short."
+        echo "Please verify this is a valid GitHub Personal Access Token (minimum 30 characters)."
+        WARNINGS+=("GHCR_READ_TOKEN appears to be too short.")
+    fi
+    echo "✅ GHCR_READ_TOKEN is configured."
 fi
-
-# Basic format validation for GHCR_READ_TOKEN
-if [ ${#GHCR_READ_TOKEN} -lt 30 ]; then
-    echo "::warning::GHCR_READ_TOKEN appears to be too short."
-    echo "Please verify this is a valid GitHub Personal Access Token (minimum 30 characters)."
-    WARNINGS+=("GHCR_READ_TOKEN appears to be too short.")
-fi
-
-echo "✅ GHCR_READ_TOKEN is configured."
 
 # Function to validate environment-specific secrets
 validate_required_secret() {
