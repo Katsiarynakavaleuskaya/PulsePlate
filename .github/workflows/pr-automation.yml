@@ -74,4 +74,8 @@ jobs:
       - name: Validate PR state
         run: |
           echo "✅ PR validation completed successfully"
-          echo "PR #${{ steps.get-pr.outputs.pr_number }} is valid and ready for review"
+          if [ -n "${{ steps.get-pr.outputs.pr_number }}" ]; then
+            echo "PR #${{ steps.get-pr.outputs.pr_number }} is valid and ready for review"
+          else
+            echo "⚠️ PR validation completed but PR number could not be determined"
+          fi

@@ -63,7 +63,10 @@ jobs:
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'
 
       - name: Verify health
-        run: curl -v --fail https://${{ secrets.STAGING_DOMAIN }}/health
+        if: ${{ env.STAGING_DOMAIN != '' }}
+        env:
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+        run: curl -v --fail https://${STAGING_DOMAIN}/health
 
   production:
     runs-on: ubuntu-latest
@@ -151,5 +154,8 @@ jobs:
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'
 
       - name: Verify production health
-        if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
-        run: curl -v --fail https://${{ secrets.PRODUCTION_DOMAIN }}/health
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' && env.PRODUCTION_DOMAIN != '' }}
+        env:
+          PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
+        run: curl -v --fail https://$PRODUCTION_DOMAIN/health
+

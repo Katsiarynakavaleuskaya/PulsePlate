@@ -66,6 +66,12 @@ validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
 # Check PULSEPLATE_OPENAI (only for production)
 validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
 
+# Check SSH secrets (required for both staging and production)
+validate_required_secret "SSH_USER" "staging" "$ENVIRONMENT"
+validate_required_secret "SSH_KEY" "staging" "$ENVIRONMENT"
+validate_required_secret "SSH_USER" "production" "$ENVIRONMENT"
+validate_required_secret "SSH_KEY" "production" "$ENVIRONMENT"
+
 # Check environment files exist (only for local development)
 if [ "$ENVIRONMENT" = "local" ]; then
     echo ""
