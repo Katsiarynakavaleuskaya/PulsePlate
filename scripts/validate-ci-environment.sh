@@ -158,6 +158,13 @@ if [ ${#ERRORS[@]} -gt 0 ]; then
     for err in "${ERRORS[@]}"; do
         echo "  - $err"
     done
+    echo ""
+    echo "Next steps:"
+    echo "1. Ensure all required secrets are configured in GitHub repository settings"
+    echo "2. Copy example environment files if needed:"
+    echo "   cp deploy/ollama-configs/local.env.example deploy/ollama-configs/local.env"
+    echo "   cp deploy/ai-configs/huggingface.env.example deploy/ai-configs/huggingface.env"
+    echo "3. Set IMAGE_TAG for local testing: export IMAGE_TAG=\$(git rev-parse --short HEAD)"
     exit 1
 elif [ ${#WARNINGS[@]} -gt 0 ]; then
     echo "⚠️ Environment validation completed with warnings:"
