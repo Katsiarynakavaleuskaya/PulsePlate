@@ -149,7 +149,7 @@ security: ## Run security checks (bandit + pip-audit)
 	@echo "$(GREEN)✅ Проверка безопасности завершена$(NC)"
 
 ## Full Bandit security scan (for pre-push)
-bandit-full: ## Full Bandit security scan (excludes tests/frontend)
+bandit-full: ## Full Bandit security scan (scans app/ and core/ only)
 	@echo "$(YELLOW)🔒 Полная проверка безопасности Bandit...$(NC)"
 	bandit -r app/ core/ -f json -o bandit-full-report.json
 	@echo "$(GREEN)✅ Полная проверка Bandit завершена$(NC)"

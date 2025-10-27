@@ -42,16 +42,14 @@ gh secret set --env production PRODUCTION_DOMAIN --body "localhost:8000"
 **Railway (рекомендуется):**
 
 1. Зайдите на railway.app
-2. Подключите GitHub репозиторий
-3. Выберите "Deploy from GitHub repo"
+2. Подключите GitHub репозиторий и Выберите "Deploy from GitHub repo"
 4. Railway автоматически создаст сервер и даст вам URL
 
 **Render:**
 
 1. Зайдите на render.com
 2. Создайте "Web Service"
-3. Подключите GitHub репозиторий
-4. Получите URL вида: `your-app.onrender.com`
+3. Подключите GitHub репозиторий и Получите URL вида: `your-app.onrender.com`
 
    **Fly.io:**
 
@@ -124,8 +122,7 @@ gh secret set --env staging SSH_KEY --body "$(cat ~/.ssh/id_ed25519)"
 ### Шаг 1: Создайте сервер
 
 1. Выберите провайдера (Railway/Render/Fly.io)
-2. Подключите GitHub репозиторий
-3. Получите URL сервера
+2. Подключите GitHub репозиторий и Получите URL сервера
 
 ### Шаг 2: Обновите секреты
 

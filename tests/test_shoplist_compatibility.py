@@ -15,7 +15,7 @@ class TestShoplistCompatibility:
     """Test shoplist compatibility functions."""
 
     @patch("core.shoplist.ShoplistGenerator")
-    def test_get_shoplist_basic(self, mock_generator_class):
+    def test_get_shoplist_basic(self, mock_generator_class) -> None:
         """Test basic get_shoplist function."""
         # Setup mock
         mock_generator = Mock()
@@ -39,7 +39,7 @@ class TestShoplistCompatibility:
         mock_generator.format_export.assert_called_once()
 
     @patch("core.shoplist.ShoplistGenerator")
-    def test_get_shoplist_with_options(self, mock_generator_class):
+    def test_get_shoplist_with_options(self, mock_generator_class) -> None:
         """Test get_shoplist with all optional parameters."""
         # Setup mock
         mock_generator = Mock()

@@ -79,18 +79,7 @@ class RecipeTemplate:
         Returns:
             Dictionary representation of the recipe template
         """
-        return {
-            "template_id": self.template_id,
-            "name": self.name,
-            "cuisine_type": self.cuisine_type,
-            "base_ingredients": self.base_ingredients,
-            "cooking_methods": self.cooking_methods,
-            "typical_prep_time": self.typical_prep_time,
-            "typical_cook_time": self.typical_cook_time,
-            "difficulty": self.difficulty,
-            "instruction_template": self.instruction_template,
-            "nutrition_profile": self.nutrition_profile,
-        }
+        return self.__dict__.copy()
 
 
 class RecipeSynthesizer:
