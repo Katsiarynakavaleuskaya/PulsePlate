@@ -141,8 +141,6 @@ jobs:
             sleep 10
           done
 
-          # Cleanup will be handled by trap on EXIT
-
       - name: Deploy to production over SSH
         if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
