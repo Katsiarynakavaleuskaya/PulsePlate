@@ -191,7 +191,19 @@ class TestRecipeTemplateDataClass:
             nutrition_profile={"calories": 400},
         )
 
-        template_dict = asdict(template)
+        # RecipeTemplate is no longer a dataclass, so we manually create the dict
+        template_dict = {
+            "template_id": template.template_id,
+            "name": template.name,
+            "cuisine_type": template.cuisine_type,
+            "base_ingredients": template.base_ingredients,
+            "cooking_methods": template.cooking_methods,
+            "typical_prep_time": template.typical_prep_time,
+            "typical_cook_time": template.typical_cook_time,
+            "difficulty": template.difficulty,
+            "instruction_template": template.instruction_template,
+            "nutrition_profile": template.nutrition_profile,
+        }
 
         assert template_dict["template_id"] == "pasta"
         assert template_dict["name"] == "Pasta Dish"

@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 import os
 from datetime import date
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
 from .base import BaseAdapter, FoodRecord
@@ -22,7 +22,7 @@ class OFFAdapter(BaseAdapter):
     EN: Adapter for Open Food Facts database.
     """
 
-    def __init__(self, csv_path: str = None, locale: str = "en"):
+    def __init__(self, csv_path: Optional[str] = None, locale: str = "en"):
         """
         RU: Инициализировать адаптер OFF.
         EN: Initialize OFF adapter.

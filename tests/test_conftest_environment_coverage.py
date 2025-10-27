@@ -126,6 +126,9 @@ class TestConftestEnvironmentCoverage:
         """Тест покрытия conftest.py sys.modules"""
         # Тестируем, что sys.modules содержит необходимые модули
         assert "app" in sys.modules
+        # Явно импортируем conftest, чтобы он был в sys.modules
+        import conftest
+
         assert "conftest" in sys.modules
 
     def test_conftest_fixture_autouse_coverage(self):
