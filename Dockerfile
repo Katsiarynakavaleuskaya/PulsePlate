@@ -8,10 +8,6 @@
 # Using bookworm variant for better security posture and package availability
 FROM python:3.13-slim-bookworm@sha256:4c9fe962f6ce46ecf3633a7e9d0a9fb7f5622121ee00d628eff206da024147c9 AS builder
 
-# Set build arguments
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
-
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -85,7 +81,7 @@ USER root
 
 # Install development dependencies
 COPY requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
+RUN python -m pip install --no-cache-dir -r requirements-dev.txt
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \
