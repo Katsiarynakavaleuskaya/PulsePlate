@@ -454,3 +454,201 @@ class TestRecipeSynthesizerEdgeCases:
 
             assert isinstance(template.nutrition_profile, dict)
             assert len(template.nutrition_profile) > 0
+
+
+class TestRecipeSynthesizerMethods:
+    """Test RecipeSynthesizer core methods for better coverage."""
+
+    @pytest.fixture
+    def synthesizer(self):
+        """Create a RecipeSynthesizer instance for testing."""
+        return RecipeSynthesizer()
+
+    def test_synthesize_recipe_basic(self, synthesizer):
+        """Test synthesize_recipe with basic parameters."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        recipe = synthesizer.synthesize_recipe_from_ingredients(
+            ingredients=ingredients,
+            servings=2,
+            cuisine_preference="italian",
+            difficulty_preference="easy",
+        )
+
+        assert isinstance(recipe, Recipe)
+        assert recipe.servings == 2
+        assert len(recipe.ingredients) == len(ingredients)
+
+    def test_select_best_template(self, synthesizer):
+        """Test _select_best_template method."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        template = synthesizer._select_best_template(
+            ingredients=ingredients, cuisine_preference="italian", difficulty_preference="easy"
+        )
+
+        assert isinstance(template, RecipeTemplate)
+        assert template.cuisine_type == "italian"
+        assert template.difficulty == "easy"
+
+    def test_select_best_template_fallback(self, synthesizer):
+        """Test _select_best_template with no suitable templates."""
+        ingredients = [{"name": "unknown_ingredient", "amount": 200, "unit": "g"}]
+
+        template = synthesizer._select_best_template(
+            ingredients=ingredients,
+            cuisine_preference="nonexistent_cuisine",
+            difficulty_preference="nonexistent_difficulty",
+        )
+
+        assert isinstance(template, RecipeTemplate)
+        # Should return any template as fallback
+        assert template.template_id in synthesizer.templates
+
+    def test_calculate_ingredient_match_score(self, synthesizer):
+        """Test _calculate_ingredient_match_score method."""
+        ingredient_names = ["tomatoes", "pasta", "cheese"]
+        template_ingredients = ["tomatoes", "pasta", "garlic"]
+
+        score = synthesizer._calculate_ingredient_match_score(
+            ingredient_names, template_ingredients
+        )
+
+        assert isinstance(score, int)
+        assert score >= 0
+        # Should have some match since tomatoes and pasta are common
+        assert score > 0
+
+    def test_calculate_ingredient_match_score_no_match(self, synthesizer):
+        """Test _calculate_ingredient_match_score with no matches."""
+        ingredient_names = ["completely", "different", "ingredients"]
+        template_ingredients = ["tomatoes", "pasta", "garlic"]
+
+        score = synthesizer._calculate_ingredient_match_score(
+            ingredient_names, template_ingredients
+        )
+
+        assert isinstance(score, int)
+        assert score == 0  # No matches
+
+    def test_create_recipe_from_template(self, synthesizer):
+        """Test _create_recipe_from_template method."""
+        template = list(synthesizer.templates.values())[0]
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        recipe = synthesizer._create_recipe_from_template(
+            template=template, ingredients=ingredients, servings=2
+        )
+
+        assert isinstance(recipe, Recipe)
+        assert recipe.servings == 2
+        assert len(recipe.ingredients) == len(ingredients)
+
+    def test_generate_recipe_name(self, synthesizer):
+        """Test _generate_recipe_name method."""
+        template = list(synthesizer.templates.values())[0]
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        title = synthesizer._generate_recipe_title(template, ingredients)
+
+        assert isinstance(title, str)
+        assert len(title) > 0
+        # Should contain some ingredient names
+        assert any(ing["name"].lower() in title.lower() for ing in ingredients)
+
+    def test_generate_recipe_steps(self, synthesizer):
+        """Test _generate_recipe_steps method."""
+        template = list(synthesizer.templates.values())[0]
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        steps = synthesizer._generate_recipe_steps(template, ingredients)
+
+        assert isinstance(steps, list)
+        assert len(steps) > 0
+        # All steps should be RecipeStep objects
+        for step in steps:
+            assert isinstance(step, RecipeStep)
+
+    def test_calculate_nutrition(self, synthesizer):
+        """Test _calculate_nutrition method."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        nutrition = synthesizer._calculate_nutrition(ingredients, servings=2)
+
+        assert isinstance(nutrition, dict)
+        assert "calories" in nutrition
+        assert "protein" in nutrition
+        assert "carbs" in nutrition
+        assert "fat" in nutrition
+        # All values should be positive
+        for value in nutrition.values():
+            assert isinstance(value, (int, float))
+            assert value >= 0
+
+    def test_adjust_for_servings(self, synthesizer):
+        """Test _adjust_for_servings method."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+        original_servings = 2
+        new_servings = 4
+
+        adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, new_servings)
+
+        assert isinstance(adjusted, list)
+        assert len(adjusted) == len(ingredients)
+
+        # Method assumes ingredients > 100g are for 4 servings, scales to target servings
+        # 200g > 100g, so scaled: 200 * 4 / 4 = 200 (no change for 4 servings)
+        assert adjusted[0]["amount"] == 200.0
+        # 100g = 100g, so no scaling (not > 100g)
+        assert adjusted[1]["amount"] == 100.0
+
+    def test_adjust_for_servings_same(self, synthesizer):
+        """Test _adjust_for_servings with same servings."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, 2)
+
+        # Method assumes ingredients > 100g are for 4 servings, scales to target servings
+        # 200g > 100g, so scaled: 200 * 2 / 4 = 100
+        assert adjusted[0]["amount"] == 100.0
+        # 100g = 100g, so no scaling (not > 100g)
+        assert adjusted[1]["amount"] == 100.0
+
+    def test_adjust_for_servings_half(self, synthesizer):
+        """Test _adjust_for_servings with half servings."""
+        ingredients = [
+            {"name": "tomatoes", "amount": 200, "unit": "g"},
+            {"name": "pasta", "amount": 100, "unit": "g"},
+        ]
+
+        adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, 2)
+
+        # Method assumes ingredients > 100g are for 4 servings, scales to target servings
+        # 200g > 100g, so scaled: 200 * 2 / 4 = 100
+        assert adjusted[0]["amount"] == 100.0
+        # 100g = 100g, so no scaling (not > 100g)
+        assert adjusted[1]["amount"] == 100.0

@@ -8,7 +8,7 @@ EN: Tests for shoplist compatibility functions
 import pytest
 from unittest.mock import Mock, patch
 
-from core.shoplist import get_shoplist
+from core.shoplist import get_shoplist, ShoplistGenerator, PackagingRule, ShoppingItem
 
 
 class TestShoplistCompatibility:
@@ -69,3 +69,165 @@ class TestShoplistCompatibility:
         mock_generator.format_export.assert_called_once_with(
             [{"name": "ingredient1", "amount": 1}], locale=locale, format_type=format_type
         )
+
+
+class TestShoplistGenerator:
+    """Test ShoplistGenerator class methods."""
+
+    def test_packaging_rule_creation(self) -> None:
+        """Test PackagingRule dataclass creation."""
+        rule = PackagingRule(
+            category="vegetables",
+            unit="g",
+            typical_packages=[100, 250, 500],
+            rounding_strategy="up",
+        )
+        assert rule.category == "vegetables"
+        assert rule.unit == "g"
+        assert rule.typical_packages == [100, 250, 500]
+        assert rule.rounding_strategy == "up"
+
+    def test_shopping_item_creation(self) -> None:
+        """Test ShoppingItem dataclass creation."""
+        item = ShoppingItem(
+            name="tomatoes",
+            quantity=500.0,
+            unit="g",
+            category="vegetables",
+            package_size=250.0,
+            packages_needed=2,
+            total_weight=500.0,
+        )
+        assert item.name == "tomatoes"
+        assert item.quantity == 500.0
+        assert item.unit == "g"
+        assert item.category == "vegetables"
+        assert item.package_size == 250.0
+        assert item.packages_needed == 2
+        assert item.total_weight == 500.0
+
+    @patch("core.shoplist.Path.exists")
+    def test_shoplist_generator_init_with_file(self, mock_exists) -> None:
+        """Test ShoplistGenerator initialization with packaging rules file."""
+        mock_exists.return_value = True
+
+        with patch(
+            "builtins.open",
+            mock_open(
+                read_data='category,unit,typical_packages,rounding_strategy\nvegetables,g,"100,250,500",up'
+            ),
+        ):
+            generator = ShoplistGenerator("test_rules.csv")
+            assert generator.packaging_rules_file == "test_rules.csv"
+            assert isinstance(generator.packaging_rules, dict)
+
+    @patch("core.shoplist.Path.exists")
+    def test_shoplist_generator_init_without_file(self, mock_exists) -> None:
+        """Test ShoplistGenerator initialization without packaging rules file."""
+        mock_exists.return_value = False
+
+        generator = ShoplistGenerator("nonexistent.csv")
+        assert generator.packaging_rules_file == "nonexistent.csv"
+        assert isinstance(generator.packaging_rules, dict)
+        # Should have default rules
+        assert len(generator.packaging_rules) > 0
+
+    def test_aggregate_ingredients_empty_plan(self) -> None:
+        """Test aggregate_ingredients with empty week plan."""
+        generator = ShoplistGenerator()
+        week_plan = {"recipes": []}
+
+        result = generator.aggregate_ingredients(week_plan)
+        assert result == {}
+
+    def test_aggregate_ingredients_with_recipes(self) -> None:
+        """Test aggregate_ingredients with recipes containing ingredients."""
+        generator = ShoplistGenerator()
+        week_plan = {
+            "days": [
+                {
+                    "meals": [
+                        {
+                            "ingredients": [
+                                {"name": "tomatoes", "amount": 200, "unit": "g"},
+                                {"name": "onions", "amount": 100, "unit": "g"},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "meals": [
+                        {
+                            "ingredients": [
+                                {"name": "tomatoes", "amount": 300, "unit": "g"},
+                                {"name": "garlic", "amount": 50, "unit": "g"},
+                            ]
+                        }
+                    ]
+                },
+            ]
+        }
+
+        result = generator.aggregate_ingredients(week_plan)
+        assert "tomatoes" in result
+        assert result["tomatoes"] == 500.0  # 200 + 300
+        assert result["onions"] == 100.0
+        assert result["garlic"] == 50.0
+
+    def test_round_to_packages_basic(self) -> None:
+        """Test round_to_packages with basic functionality."""
+        generator = ShoplistGenerator()
+        aggregated = {"tomatoes": 500.0, "onions": 150.0}
+
+        result = generator.round_to_packages(aggregated)
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+    def test_format_export_json(self) -> None:
+        """Test format_export with JSON format."""
+        generator = ShoplistGenerator()
+        shopping_items = [
+            ShoppingItem(name="tomatoes", quantity=2, unit="packages", category="vegetables")
+        ]
+
+        result = generator.format_export(shopping_items, format_type="json")
+        assert isinstance(result, (str, dict))
+
+    def test_format_export_csv(self) -> None:
+        """Test format_export with CSV format."""
+        generator = ShoplistGenerator()
+        shopping_items = [
+            ShoppingItem(name="tomatoes", quantity=2, unit="packages", category="vegetables")
+        ]
+
+        result = generator.format_export(shopping_items, format_type="csv")
+        assert isinstance(result, str)
+
+    def test_format_export_text(self) -> None:
+        """Test format_export with text format."""
+        generator = ShoplistGenerator()
+        shopping_items = [
+            ShoppingItem(name="tomatoes", quantity=2, unit="packages", category="vegetables")
+        ]
+
+        result = generator.format_export(shopping_items, format_type="text")
+        assert isinstance(result, str)
+
+    def test_format_export_with_locale(self) -> None:
+        """Test format_export with different locales."""
+        generator = ShoplistGenerator()
+        shopping_items = [
+            ShoppingItem(name="tomatoes", quantity=2, unit="packages", category="vegetables")
+        ]
+
+        # Test different locales
+        for locale in ["ru", "en", "es"]:
+            result = generator.format_export(shopping_items, locale=locale)
+            assert isinstance(result, (str, dict))
+
+
+def mock_open(read_data):
+    """Helper function to mock file opening."""
+    from unittest.mock import mock_open as _mock_open
+
+    return _mock_open(read_data=read_data)
