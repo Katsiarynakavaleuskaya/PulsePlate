@@ -4,6 +4,18 @@
 
 set -e
 
+# Validate ENVIRONMENT variable early
+if [ -z "$ENVIRONMENT" ]; then
+    echo "::error::ENVIRONMENT variable is not set."
+    echo "Please set ENVIRONMENT to one of: local, staging, production"
+    exit 1
+fi
+
+if [[ ! "$ENVIRONMENT" =~ ^(staging|production|local)$ ]]; then
+    echo "::error::ENVIRONMENT must be set to 'staging', 'production', or 'local'. Got: '$ENVIRONMENT'"
+    exit 1
+fi
+
 # Configuration paths
 OLLAMA_DIR="deploy/ollama-configs"
 OLLAMA_LOCAL_ENV="${OLLAMA_DIR}/local.env"
@@ -27,17 +39,23 @@ fi
 echo ""
 echo "Checking required secrets..."
 
+# Initialize arrays for tracking warnings and errors
+WARNINGS=()
+ERRORS=()
+
 # Check GHCR_READ_TOKEN
 if [ -z "$GHCR_READ_TOKEN" ]; then
     echo "::error::GHCR_READ_TOKEN secret is not configured."
     echo "Please add GHCR_READ_TOKEN to your repository secrets."
+    ERRORS+=("GHCR_READ_TOKEN secret is not configured.")
     exit 1
 fi
 
 # Basic format validation for GHCR_READ_TOKEN
 if [ ${#GHCR_READ_TOKEN} -lt 30 ]; then
-    echo "::warning::GHCR_READ_TOKEN appears to be too short (${#GHCR_READ_TOKEN} chars)."
+    echo "::warning::GHCR_READ_TOKEN appears to be too short."
     echo "Please verify this is a valid GitHub Personal Access Token (minimum 30 characters)."
+    WARNINGS+=("GHCR_READ_TOKEN appears to be too short.")
 fi
 
 echo "✅ GHCR_READ_TOKEN is configured."
@@ -127,10 +145,29 @@ if [ -f "$REQUIREMENTS_DEV_FILE" ]; then
     echo "✅ $REQUIREMENTS_DEV_FILE exists."
 else
     echo "::warning::$REQUIREMENTS_DEV_FILE not found."
+    WARNINGS+=("$REQUIREMENTS_DEV_FILE not found.")
 fi
 
 echo ""
-echo "🎉 Environment validation completed successfully!"
+
+# Summary of validation results
+if [ ${#ERRORS[@]} -gt 0 ]; then
+    echo "❌ Environment validation failed with errors:"
+    for err in "${ERRORS[@]}"; do
+        echo "  - $err"
+    done
+    exit 1
+elif [ ${#WARNINGS[@]} -gt 0 ]; then
+    echo "⚠️ Environment validation completed with warnings:"
+    for warn in "${WARNINGS[@]}"; do
+        echo "  - $warn"
+    done
+    echo ""
+    echo "Please review the warnings above before proceeding."
+else
+    echo "🎉 Environment validation completed successfully!"
+fi
+
 echo ""
 echo "Next steps:"
 echo "1. Ensure all required secrets are configured in GitHub repository settings"
