@@ -4,6 +4,16 @@
 
 set -e
 
+# Configuration paths
+OLLAMA_DIR="deploy/ollama-configs"
+OLLAMA_LOCAL_ENV="${OLLAMA_DIR}/local.env"
+OLLAMA_LOCAL_EXAMPLE="${OLLAMA_DIR}/local.env.example"
+AI_CONFIGS_DIR="deploy/ai-configs"
+HUGGINGFACE_ENV="${AI_CONFIGS_DIR}/huggingface.env"
+HUGGINGFACE_EXAMPLE="${AI_CONFIGS_DIR}/huggingface.env.example"
+REQUIREMENTS_FILE="requirements.txt"
+REQUIREMENTS_DEV_FILE="requirements-dev.txt"
+
 echo "🔍 Validating CI/CD environment..."
 
 # Check if we're in CI environment
@@ -25,9 +35,9 @@ if [ -z "$GHCR_READ_TOKEN" ]; then
 fi
 
 # Basic format validation for GHCR_READ_TOKEN
-if [ ${#GHCR_READ_TOKEN} -lt 10 ]; then
+if [ ${#GHCR_READ_TOKEN} -lt 30 ]; then
     echo "::warning::GHCR_READ_TOKEN appears to be too short (${#GHCR_READ_TOKEN} chars)."
-    echo "Please verify this is a valid GitHub Personal Access Token."
+    echo "Please verify this is a valid GitHub Personal Access Token (minimum 30 characters)."
 fi
 
 echo "✅ GHCR_READ_TOKEN is configured."
@@ -62,26 +72,26 @@ if [ "$ENVIRONMENT" = "local" ]; then
     echo "Checking environment files..."
 
     # Check for existing environment files
-    if [ -f "deploy/ollama-configs/local.env" ]; then
-        echo "✅ deploy/ollama-configs/local.env exists."
-    elif [ -f "deploy/ollama-configs/local.env.example" ]; then
-        echo "✅ deploy/ollama-configs/local.env.example exists."
+    if [ -f "$OLLAMA_LOCAL_ENV" ]; then
+        echo "✅ $OLLAMA_LOCAL_ENV exists."
+    elif [ -f "$OLLAMA_LOCAL_EXAMPLE" ]; then
+        echo "✅ $OLLAMA_LOCAL_EXAMPLE exists."
     else
-        echo "⚠️  No Ollama environment file found in deploy/ollama-configs/"
+        echo "⚠️  No Ollama environment file found in $OLLAMA_DIR/"
         echo "Consider creating local.env or local.env.example for local development."
     fi
 
     # Check for AI configs directory (optional)
-    if [ -d "deploy/ai-configs" ]; then
-        if [ -f "deploy/ai-configs/huggingface.env" ]; then
-            echo "✅ deploy/ai-configs/huggingface.env exists."
-        elif [ -f "deploy/ai-configs/huggingface.env.example" ]; then
-            echo "✅ deploy/ai-configs/huggingface.env.example exists."
+    if [ -d "$AI_CONFIGS_DIR" ]; then
+        if [ -f "$HUGGINGFACE_ENV" ]; then
+            echo "✅ $HUGGINGFACE_ENV exists."
+        elif [ -f "$HUGGINGFACE_EXAMPLE" ]; then
+            echo "✅ $HUGGINGFACE_EXAMPLE exists."
         else
-            echo "⚠️  No Hugging Face environment file found in deploy/ai-configs/"
+            echo "⚠️  No Hugging Face environment file found in $AI_CONFIGS_DIR/"
         fi
     else
-        echo "ℹ️  deploy/ai-configs/ directory not found (optional for local development)."
+        echo "ℹ️  $AI_CONFIGS_DIR/ directory not found (optional for local development)."
     fi
 else
     echo "ℹ️  Skipping environment file checks for $ENVIRONMENT environment."
@@ -100,17 +110,17 @@ fi
 # Check Python dependencies
 echo ""
 echo "Checking Python dependencies..."
-if [ -f "requirements.txt" ]; then
-    echo "✅ requirements.txt exists."
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    echo "✅ $REQUIREMENTS_FILE exists."
 else
-    echo "::error::requirements.txt not found."
+    echo "::error::$REQUIREMENTS_FILE not found."
     exit 1
 fi
 
-if [ -f "requirements-dev.txt" ]; then
-    echo "✅ requirements-dev.txt exists."
+if [ -f "$REQUIREMENTS_DEV_FILE" ]; then
+    echo "✅ $REQUIREMENTS_DEV_FILE exists."
 else
-    echo "::warning::requirements-dev.txt not found."
+    echo "::warning::$REQUIREMENTS_DEV_FILE not found."
 fi
 
 echo ""
