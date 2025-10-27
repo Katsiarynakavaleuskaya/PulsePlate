@@ -69,9 +69,10 @@ validate_required_secret() {
         if [ -z "${!secret_name}" ]; then
             echo "::error::$secret_name secret is not configured for $environment_name."
             echo "Please add $secret_name to your repository secrets."
-            exit 1
+            ERRORS+=("$secret_name secret is not configured for $environment_name")
+        else
+            echo "✅ $secret_name is configured for $environment_name."
         fi
-        echo "✅ $secret_name is configured for $environment_name."
     else
         echo "ℹ️  $secret_name not required for $current_env environment."
     fi

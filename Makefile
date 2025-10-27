@@ -148,6 +148,12 @@ security: ## Run security checks (bandit + pip-audit)
 	fi
 	@echo "$(GREEN)✅ Проверка безопасности завершена$(NC)"
 
+## Full Bandit security scan (for pre-push)
+bandit-full: ## Full Bandit security scan (excludes tests/frontend)
+	@echo "$(YELLOW)🔒 Полная проверка безопасности Bandit...$(NC)"
+	bandit -r app/ core/ -f json -o bandit-final.json
+	@echo "$(GREEN)✅ Полная проверка Bandit завершена$(NC)"
+
 ## Run all pre-commit hooks
 pre-commit: ## Run all pre-commit hooks
 	@echo "$(YELLOW)🔄 Запуск pre-commit хуков...$(NC)"
@@ -255,4 +261,4 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security bandit-full pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell

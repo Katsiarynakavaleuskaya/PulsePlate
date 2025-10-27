@@ -247,7 +247,7 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _parse_food_item(self, food_data: Dict) -> Optional[USDAFoodItem]:
+    def _parse_food_item(self, food_data: Any) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.

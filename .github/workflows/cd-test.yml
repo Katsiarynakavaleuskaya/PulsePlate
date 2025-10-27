@@ -53,16 +53,16 @@ jobs:
           # Set up cleanup trap to ensure container is always stopped
           CONTAINER_NAME="pulseplate-test-$$"
           trap 'echo "🧹 Cleaning up container..."; docker stop "$CONTAINER_NAME" 2>/dev/null || true; docker rm "$CONTAINER_NAME" 2>/dev/null || true' EXIT
-          
+
           # Start container and capture its ID
           docker run --rm -d --name "$CONTAINER_NAME" -p 8000:8000 ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
-          
+
           # Wait for container to start
           sleep 10
-          
+
           # Test health endpoint (allow failure since frontend is not ready)
           curl -f http://localhost:8000/health || echo "⚠️ Health check failed (expected without frontend)"
-          
+
           # Container will be cleaned up by trap on EXIT
 
       - name: Environment validation complete

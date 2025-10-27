@@ -29,8 +29,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = cast(Any, None)
-    create_async_engine = cast(Any, None)
+    async_sessionmaker = None  # type: ignore
+    create_async_engine = None  # type: ignore
 
 
 def _build_engine_url() -> str:
@@ -52,7 +52,7 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
 
     # Only derive async URLs if async support is available
     if create_async_engine is None:
-        return None
+        return None  # type: ignore[unreachable]
 
     # If already async-capable, return as-is
     if (
@@ -139,6 +139,10 @@ _POOL_CONFIG = {
     "pool_pre_ping": True,
 }
 
+# Initialize async variables
+_ASYNC_ENGINE: Optional[AsyncEngineType] = None
+AsyncSessionLocal: Optional[Any] = None
+
 if ASYNC_DATABASE_URL and create_async_engine is not None:
     try:
         async_kwargs: dict[str, Any] = {
@@ -162,9 +166,6 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
         # Fallback if async drivers are not available
         _ASYNC_ENGINE = None
         AsyncSessionLocal = None
-else:
-    _ASYNC_ENGINE = None
-    AsyncSessionLocal = None
 
 async_engine: Optional[AsyncEngineType] = _ASYNC_ENGINE
 

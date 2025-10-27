@@ -10,7 +10,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 @dataclass
@@ -48,16 +48,29 @@ class Recipe:
 class RecipeTemplate:
     """Шаблон рецепта"""
 
-    template_id: str
-    name: str
-    cuisine_type: str
-    base_ingredients: List[str]
-    cooking_methods: List[str]
-    typical_prep_time: int
-    typical_cook_time: int
-    difficulty: str
-    instruction_template: str
-    nutrition_profile: Dict[str, float]
+    def __init__(
+        self,
+        template_id: str,
+        name: str,
+        cuisine_type: str,
+        base_ingredients: List[str],
+        cooking_methods: List[str],
+        typical_prep_time: int,
+        typical_cook_time: int,
+        difficulty: str,
+        instruction_template: str,
+        nutrition_profile: Dict[str, float],
+    ):
+        self.template_id = template_id
+        self.name = name
+        self.cuisine_type = cuisine_type
+        self.base_ingredients = base_ingredients
+        self.cooking_methods = cooking_methods
+        self.typical_prep_time = typical_prep_time
+        self.typical_cook_time = typical_cook_time
+        self.difficulty = difficulty
+        self.instruction_template = instruction_template
+        self.nutrition_profile = nutrition_profile
 
 
 class RecipeSynthesizer:
@@ -91,7 +104,7 @@ class RecipeSynthesizer:
 
     def _create_default_templates(self):
         """Создает шаблоны рецептов по умолчанию"""
-        default_templates = [
+        default_templates: List[Dict[str, Any]] = [
             {
                 "template_id": "stir_fry",
                 "name": "Stir Fry",
@@ -204,7 +217,18 @@ class RecipeSynthesizer:
         ]
 
         for template_data in default_templates:
-            template = RecipeTemplate(**template_data)
+            template = RecipeTemplate(
+                template_id=template_data["template_id"],
+                name=template_data["name"],
+                cuisine_type=template_data["cuisine_type"],
+                base_ingredients=template_data["base_ingredients"],
+                cooking_methods=template_data["cooking_methods"],
+                typical_prep_time=template_data["typical_prep_time"],
+                typical_cook_time=template_data["typical_cook_time"],
+                difficulty=template_data["difficulty"],
+                instruction_template=template_data["instruction_template"],
+                nutrition_profile=template_data["nutrition_profile"],
+            )
             self.templates[template.template_id] = template
 
     def synthesize_recipe_from_ingredients(

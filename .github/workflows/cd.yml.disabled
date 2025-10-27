@@ -163,4 +163,3 @@ jobs:
         env:
           PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
         run: curl -v --fail https://$PRODUCTION_DOMAIN/health
-

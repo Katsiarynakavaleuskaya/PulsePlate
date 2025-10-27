@@ -17,7 +17,7 @@ import asyncio
 import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
@@ -155,7 +155,7 @@ class OFFClient:
         """
         try:
             url = f"{self.BASE_URL}/search"
-            params = {
+            params: Dict[str, Union[str, int]] = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
                 "json": "true",

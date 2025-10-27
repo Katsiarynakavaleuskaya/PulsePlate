@@ -1,5 +1,8 @@
 # Multi-stage Dockerfile for PulsePlate
 # Optimized for production with minimal image size and security
+# Security: Updates system packages to fix CVE-2025-62813 (liblz4-1 vulnerability)
+# Note: CVE-2025-62813 is a very recent vulnerability (2025) and fix may not be available in Debian repos yet
+# We update all packages to get the latest available security patches
 
 # Stage 1: Build stage
 FROM python:3.13-slim AS builder
@@ -8,10 +11,11 @@ FROM python:3.13-slim AS builder
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-# Install system dependencies for building
+# Install system dependencies for building and update security packages
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -34,9 +38,11 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app"
 
-# Install runtime dependencies only
+# Install runtime dependencies and update security packages
 RUN apt-get update && apt-get install -y \
     curl \
+    && apt-get upgrade -y \
+    && apt-get install -y liblz4-1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -79,10 +85,11 @@ USER root
 COPY requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
-# Install additional development tools
+# Install additional development tools and update security packages
 RUN apt-get update && apt-get install -y \
     git \
     vim \
+    && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Switch back to non-root user
