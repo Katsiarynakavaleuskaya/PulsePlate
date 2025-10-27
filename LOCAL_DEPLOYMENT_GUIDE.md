@@ -60,10 +60,10 @@ gh secret set --env production PRODUCTION_DOMAIN --body "localhost:8000"
    # Способ 1: Через пакетный менеджер (самый безопасный)
    # macOS
    brew install flyctl
-   
+
    # Ubuntu/Debian
    curl -L https://fly.io/install.sh | sh
-   
+
    # Способ 2: Ручная установка (если доверяете скрипту)
    # Сначала скачайте и проверьте скрипт:
    curl -L https://fly.io/install.sh -o fly-install.sh
@@ -72,8 +72,8 @@ gh secret set --env production PRODUCTION_DOMAIN --body "localhost:8000"
    # Если доверяете, выполните:
    sh fly-install.sh
    ```
-   **⚠️ Внимание**: Команда `curl ... | sh` может быть небезопасной. 
-   Рекомендуется сначала скачать скрипт, проверить его содержимое, 
+   **⚠️ Внимание**: Команда `curl ... | sh` может быть небезопасной.
+   Рекомендуется сначала скачать скрипт, проверить его содержимое,
    и только потом выполнять. Используйте пакетные менеджеры когда возможно.
 2. Запустите: `fly launch`
 3. Получите URL вида: `your-app.fly.dev`
