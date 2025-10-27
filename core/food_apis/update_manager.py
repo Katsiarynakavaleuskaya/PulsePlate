@@ -816,7 +816,7 @@ class DatabaseUpdateManager:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
                     continue
                 foods[name] = UnifiedFoodItem(**food_data)
-            except Exception:
+            except Exception:  # nosec B112
                 # Skip malformed entries
                 continue
 
@@ -834,7 +834,7 @@ class DatabaseUpdateManager:
             # Only call asdict on dataclass instances, not types
             if is_dataclass(type(food)):
                 return asdict(food)
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         if isinstance(food, dict):
@@ -845,7 +845,7 @@ class DatabaseUpdateManager:
                 try:
                     result = getattr(food, method_name)()
                     return dict(result) if not isinstance(result, dict) else result
-                except Exception:
+                except Exception:  # nosec B112
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values

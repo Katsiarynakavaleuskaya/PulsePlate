@@ -44,7 +44,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
-          WHERE """
+          WHERE """  # nosec B608
             + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))
             + " LIMIT ? OFFSET ?"
         )

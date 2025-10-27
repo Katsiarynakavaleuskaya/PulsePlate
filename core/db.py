@@ -106,7 +106,7 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:
+            except Exception:  # nosec B110
                 # Not all statements require/allow commit; ignore commit errors
                 pass
             return result

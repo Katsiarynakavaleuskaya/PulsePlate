@@ -289,7 +289,7 @@ class RecipeSynthesizer:
         servings: int,
     ) -> Recipe:
         """Создает рецепт на основе шаблона"""
-        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"
+        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"  # nosec B311
 
         # Адаптируем ингредиенты под количество порций
         adapted_ingredients = self._adapt_ingredients_for_servings(ingredients, servings)

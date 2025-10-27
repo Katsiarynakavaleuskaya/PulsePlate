@@ -63,7 +63,7 @@ jobs:
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'
 
       - name: Verify health
-        if: ${{ env.STAGING_DOMAIN != '' }}
+        if: ${{ secrets.STAGING_DOMAIN != '' }}
         env:
           STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
         run: curl -v --fail https://${STAGING_DOMAIN}/health
@@ -113,6 +113,9 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
+          # Set up cleanup trap to ensure logout on exit
+          trap 'echo "🧹 Logging out from GHCR..."; docker logout ghcr.io 2>/dev/null || true' EXIT
+
           # Authenticate to GHCR so we can pull the private image
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
@@ -138,6 +141,8 @@ jobs:
             sleep 10
           done
 
+          # Cleanup will be handled by trap on EXIT
+
       - name: Deploy to production over SSH
         if: ${{ steps.check-tag.outputs.is_tag == 'true' }}
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
@@ -154,7 +159,7 @@ jobs:
             ./deploy.sh '${{ steps.meta.outputs.TAG }}'
 
       - name: Verify production health
-        if: ${{ steps.check-tag.outputs.is_tag == 'true' && env.PRODUCTION_DOMAIN != '' }}
+        if: ${{ steps.check-tag.outputs.is_tag == 'true' && secrets.PRODUCTION_DOMAIN != '' }}
         env:
           PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
         run: curl -v --fail https://$PRODUCTION_DOMAIN/health

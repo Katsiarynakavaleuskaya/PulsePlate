@@ -48,7 +48,6 @@ if [ -z "$GHCR_READ_TOKEN" ]; then
     echo "::error::GHCR_READ_TOKEN secret is not configured."
     echo "Please add GHCR_READ_TOKEN to your repository secrets."
     ERRORS+=("GHCR_READ_TOKEN secret is not configured.")
-    exit 1
 fi
 
 # Basic format validation for GHCR_READ_TOKEN

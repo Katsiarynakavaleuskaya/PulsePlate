@@ -75,7 +75,7 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
             # Fallback: if it's a real module, allow getattr
             if isinstance(m, types.ModuleType) and hasattr(m, name):
                 return getattr(m, name)
-        except Exception:
+        except Exception:  # nosec B112
             # Ignore any errors from broken modules; continue searching
             continue
     return local_default

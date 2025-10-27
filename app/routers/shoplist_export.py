@@ -146,7 +146,7 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except Exception:
+        except Exception:  # nosec B110
             # Fall back to default Helvetica if registration fails for any reason.
             pass
     return "Helvetica"

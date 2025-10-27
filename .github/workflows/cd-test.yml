@@ -44,14 +44,26 @@ jobs:
           echo ${{ secrets.GHCR_READ_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker pull ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
           echo "✅ Docker image pull successful"
+          # Cleanup: logout from GHCR to remove credentials
+          docker logout ghcr.io
 
       - name: Test health endpoint locally
         run: |
           echo "🏥 Testing health endpoint locally..."
-          docker run --rm -d --name pulseplate-test -p 8000:8000 ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
+          # Set up cleanup trap to ensure container is always stopped
+          CONTAINER_NAME="pulseplate-test-$$"
+          trap 'echo "🧹 Cleaning up container..."; docker stop "$CONTAINER_NAME" 2>/dev/null || true; docker rm "$CONTAINER_NAME" 2>/dev/null || true' EXIT
+          
+          # Start container and capture its ID
+          docker run --rm -d --name "$CONTAINER_NAME" -p 8000:8000 ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
+          
+          # Wait for container to start
           sleep 10
+          
+          # Test health endpoint (allow failure since frontend is not ready)
           curl -f http://localhost:8000/health || echo "⚠️ Health check failed (expected without frontend)"
-          docker stop pulseplate-test
+          
+          # Container will be cleaned up by trap on EXIT
 
       - name: Environment validation complete
         run: |
