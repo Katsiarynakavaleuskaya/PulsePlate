@@ -461,3 +461,33 @@ def format_export(
     """Форматирует список покупок для экспорта"""
     generator = ShoplistGenerator()
     return generator.format_export(shopping_list, locale, format_type)
+
+
+def get_shoplist(
+    week_plan: Dict,
+    format_type: str = "json",
+    locale: str = "ru",
+    packaging_db: Optional[Dict] = None,
+    rules: Optional[Dict] = None,
+) -> Union[str, Dict]:
+    """
+    Backward-compatible wrapper expected by the application.
+    Builds a shopping list from week_plan and returns it in the requested format.
+    
+    Args:
+        week_plan: Словарь с недельным планом питания
+        format_type: Тип формата (json, csv, text)
+        locale: Локаль (ru, en, es)
+        packaging_db: База данных упаковок (опционально)
+        rules: Правила округления (опционально)
+    
+    Returns:
+        Отформатированный список покупок
+    """
+    generator = ShoplistGenerator()
+    # Aggregate ingredients from week_plan
+    aggregated = generator.aggregate_ingredients(week_plan)
+    # Round to packages using provided rules / packaging_db (falls back to defaults)
+    shopping_items = generator.round_to_packages(aggregated, packaging_db, rules)
+    # Format the result
+    return generator.format_export(shopping_items, locale=locale, format_type=format_type)

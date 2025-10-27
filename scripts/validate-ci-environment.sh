@@ -103,6 +103,7 @@ if [ "$ENVIRONMENT" = "local" ]; then
     else
         echo "⚠️  No Ollama environment file found in $OLLAMA_DIR/"
         echo "Consider creating local.env or local.env.example for local development."
+        WARNINGS+=("No Ollama environment file found in $OLLAMA_DIR/")
     fi
 
     # Check for AI configs directory (optional)
@@ -113,6 +114,7 @@ if [ "$ENVIRONMENT" = "local" ]; then
             echo "✅ $HUGGINGFACE_EXAMPLE exists."
         else
             echo "⚠️  No Hugging Face environment file found in $AI_CONFIGS_DIR/"
+            WARNINGS+=("No Hugging Face environment file found in $AI_CONFIGS_DIR/")
         fi
     else
         echo "ℹ️  $AI_CONFIGS_DIR/ directory not found (optional for local development)."
@@ -129,6 +131,7 @@ if command -v docker >/dev/null 2>&1; then
     docker --version
 else
     echo "::warning::Docker is not available. Some tests may be skipped."
+    WARNINGS+=("Docker is not available.")
 fi
 
 # Check Python dependencies
