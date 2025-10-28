@@ -7,7 +7,7 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 from __future__ import annotations
 
 import os
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
 
 from sqlalchemy import create_engine, text
@@ -106,12 +106,10 @@ class EngineCompat:
         # Use a short-lived connection to mimic Engine.execute behavior
         with self._engine.connect() as conn:
             result = conn.execute(stmt, *args, **kwargs)
-            try:
-                conn.commit()
-            except (InvalidRequestError, SQLAlchemyError, RuntimeError, ValueError):
+            with suppress(InvalidRequestError, SQLAlchemyError, RuntimeError, ValueError):
                 # Some statements don't require/support commit (e.g., SELECT, DDL in autocommit mode)
                 # Also handle other common exceptions that might occur during commit
-                pass
+                conn.commit()
             return result
 
 
@@ -153,10 +151,8 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             "future": True,
         }
 
-        if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
+        if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             # SQLite async doesn't support pooling
-            pass
-        else:
             async_kwargs.update(_POOL_CONFIG)
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)

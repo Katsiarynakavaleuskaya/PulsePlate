@@ -61,7 +61,7 @@ def get_provider() -> Optional[ProviderBase]:
     (а не Ollama по умолчанию)."""
     val = (os.getenv("LLM_PROVIDER") or "").strip().lower()
 
-    if val in {"", "none", "no"}:
+    if val in {"", "none", "no", "off", "false"}:
         return None
 
     if val == "stub":
@@ -99,8 +99,8 @@ def get_provider() -> Optional[ProviderBase]:
             (os.getenv("PICO_ENDPOINT") or os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"))
             or ""
         ).strip()
-        # Optional with sensible default
-        model = os.getenv("PICO_MODEL", "pico-default").strip() or "pico-default"
+        # Optional with sensible default aligned with provider
+        model = (os.getenv("PICO_MODEL") or "").strip() or "llama3.1:8b"
 
         if not api_key or not endpoint:
             # Missing required configuration → provider not available
@@ -116,8 +116,8 @@ def get_provider() -> Optional[ProviderBase]:
 
     if val == "ollama" and OllamaProvider is not None:
         ollama_cls = cast(Any, OllamaProvider)
-        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        endpoint = (os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434") or "").strip()
+        model = (os.getenv("OLLAMA_MODEL", "llama3.1:8b") or "").strip()
         # малый таймаут, чтобы даже при misconfig не висеть
         raw_timeout = os.getenv("OLLAMA_TIMEOUT", "5")
         try:

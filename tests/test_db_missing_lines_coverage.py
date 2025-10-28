@@ -22,313 +22,82 @@ class TestDbMissingLinesCoverage:
 
     def test_engine_compat_execute_commit_exception_lines_56_65(self) -> None:
         """Test lines 56-65: exception handling in EngineCompat.execute()"""
-        with suppress(ImportError):
-            from core.db import EngineCompat
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat
 
-            # Create a mock engine with a mock connection
-            mock_engine = Mock()
-            mock_conn = Mock()
-            mock_result = Mock()
+        # Create a mock engine with a mock connection
+        mock_engine = Mock()
+        mock_conn = Mock()
+        mock_result = Mock()
 
-            # Set up the context manager behavior
-            mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-            mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
+        # Set up the context manager behavior
+        mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
 
-            # Set up execute to work normally
-            mock_conn.execute.return_value = mock_result
+        # Set up execute to work normally
+        mock_conn.execute.return_value = mock_result
 
-            # Set up commit to raise an exception (lines 62-64)
-            mock_conn.commit.side_effect = SQLAlchemyError("Commit failed")
+        # Set up commit to raise an exception (lines 62-64)
+        mock_conn.commit.side_effect = SQLAlchemyError("Commit failed")
 
-            # Create EngineCompat instance
-            engine_compat = EngineCompat(mock_engine)
+        # Create EngineCompat instance
+        engine_compat = EngineCompat(mock_engine)
 
-            # Execute a statement - should handle commit exception gracefully
-            result = engine_compat.execute("SELECT 1")
+        # Execute a statement - should handle commit exception gracefully
+        result = engine_compat.execute("SELECT 1")
 
-            # Should return the result despite commit failure
-            assert result == mock_result
+        # Should return the result despite commit failure
+        assert result == mock_result
 
-            # Verify the methods were called
-            mock_engine.connect.assert_called_once()
-            mock_conn.execute.assert_called_once()
-            mock_conn.commit.assert_called_once()
+        # Verify the methods were called
+        mock_engine.connect.assert_called_once()
+        mock_conn.execute.assert_called_once()
+        mock_conn.commit.assert_called_once()
 
     def test_engine_compat_execute_with_string_statement(self) -> None:
         """Test EngineCompat.execute with string statement conversion"""
-        with suppress(ImportError):
-            from core.db import EngineCompat
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat
 
-            # Create a mock engine
-            mock_engine = Mock()
-            mock_conn = Mock()
-            mock_result = Mock()
+        # Create a mock engine
+        mock_engine = Mock()
+        mock_conn = Mock()
+        mock_result = Mock()
 
-            # Set up context manager
-            mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-            mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
+        # Set up context manager
+        mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
 
-            mock_conn.execute.return_value = mock_result
-            mock_conn.commit.return_value = None  # Successful commit
+        mock_conn.execute.return_value = mock_result
+        mock_conn.commit.return_value = None  # Successful commit
 
-            # Create EngineCompat instance
-            engine_compat = EngineCompat(mock_engine)
+        # Create EngineCompat instance
+        engine_compat = EngineCompat(mock_engine)
 
-            # Test with string statement (should convert to text())
-            result = engine_compat.execute("SELECT * FROM users")
+        # Test with string statement (should convert to text())
+        result = engine_compat.execute("SELECT * FROM users")
 
-            assert result == mock_result
+        assert result == mock_result
 
-            # Verify text() conversion happened
-            call_args = mock_conn.execute.call_args[0]
-            assert len(call_args) > 0
-            # The statement should be converted to a text() object
+        # Verify text() conversion happened
+        call_args = mock_conn.execute.call_args[0]
+        assert len(call_args) > 0
+        # The statement should be converted to a text() object
 
     def test_engine_compat_execute_different_exception_types(self) -> None:
         """Test different types of exceptions in commit"""
-        with suppress(ImportError):
-            from core.db import EngineCompat
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat
 
-            exception_types = [
-                InvalidRequestError("Generic error"),
-                RuntimeError("Runtime error"),
-                ValueError("Value error"),
-                SQLAlchemyError("SQLAlchemy error"),
-            ]
+        exception_types = [
+            InvalidRequestError("Generic error"),
+            RuntimeError("Runtime error"),
+            ValueError("Value error"),
+            SQLAlchemyError("SQLAlchemy error"),
+        ]
 
-            for exception in exception_types:
-                # Create fresh mocks for each test
-                mock_engine = Mock()
-                mock_conn = Mock()
-                mock_result = Mock()
-
-                mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-                mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
-
-                mock_conn.execute.return_value = mock_result
-                mock_conn.commit.side_effect = exception  # Different exception each time
-
-                engine_compat = EngineCompat(mock_engine)
-
-                # Should handle these specific commit exceptions gracefully
-                result = engine_compat.execute("SELECT 1")
-                assert result == mock_result
-
-    def test_init_db_assert_called_once_line_136(self) -> None:
-        """Test line 136: assert_called_once error condition in init_db()"""
-        with suppress(ImportError):
-            import core.db
-
-            # Save original metadata
-            original_metadata = core.db.Base.metadata
-            original_raw_engine = core.db._RAW_ENGINE
-
-            try:
-                # Create a real function that doesn't have assert_called_once
-                def mock_create_all(*args, **kwargs):
-                    pass
-
-                # Create metadata with this function
-                mock_metadata = Mock()
-                mock_metadata.create_all = mock_create_all
-
-                # Ensure it doesn't have assert_called_once initially
-                assert not hasattr(mock_create_all, "assert_called_once")
-
-                # Replace metadata temporarily
-                core.db.Base.metadata = mock_metadata
-
-                # Mock the engine to prevent actual database operations
-                mock_engine = Mock()
-                core.db._RAW_ENGINE = mock_engine
-
-                # Call init_db - this should wrap create_all
-                core.db.init_db()
-
-                # Now the wrapped function should have assert_called_once
-                wrapped_create_all = mock_metadata.create_all
-                assert hasattr(wrapped_create_all, "assert_called_once")
-
-                # Reset the "called" status by creating a fresh wrapper
-                # We need to manually test the _assert_called_once function
-                called = {"value": False}
-
-                def _assert_called_once():
-                    if not called["value"]:
-                        raise AssertionError("create_all was not invoked")
-
-                # Test line 136: AssertionError when not called
-                with pytest.raises(AssertionError, match="create_all was not invoked"):
-                    _assert_called_once()  # Should raise (line 136)
-
-                # Now set called to True
-                called["value"] = True
-                _assert_called_once()  # Should not raise
-
-            finally:
-                # Restore original metadata and engine
-                core.db.Base.metadata = original_metadata
-                core.db._RAW_ENGINE = original_raw_engine
-
-    def test_get_session_lines_90_94(self) -> None:
-        """Test lines 90-94: get_session dependency function"""
-        with suppress(ImportError):
-            from core.db import get_session
-
-            # Mock SessionLocal
-            mock_session_class = Mock()
-            mock_session = Mock()
-            mock_session_class.return_value = mock_session
-
-            with patch("core.db.SessionLocal", mock_session_class):
-                # Test the generator function
-                session_generator = get_session()
-
-                # Get the session from the generator
-                session = next(session_generator)
-                assert session == mock_session
-
-                # Trigger the finally block by stopping the generator
-                with suppress(StopIteration):
-                    next(session_generator)
-
-                # Verify session was closed
-                mock_session.close.assert_called_once()
-
-    def test_get_session_with_exception(self) -> None:
-        """Test get_session with exception during session usage"""
-        with suppress(ImportError):
-            from core.db import get_session
-
-            mock_session_class = Mock()
-            mock_session = Mock()
-            mock_session_class.return_value = mock_session
-
-            with patch("core.db.SessionLocal", mock_session_class):
-                session_gen = get_session()
-                session = next(session_gen)
-
-                # Exception should propagate after cleanup
-                with pytest.raises(Exception, match="Test exception"):
-                    session_gen.throw(Exception("Test exception"))
-
-                # Session should still be closed
-                mock_session.close.assert_called_once()
-
-    def test_init_db_metadata_wrapping_behavior(self) -> None:
-        """Test the metadata wrapping behavior in init_db"""
-        with suppress(ImportError):
-            import core.db
-
-            # Save original
-            original_metadata = core.db.Base.metadata
-
-            try:
-                # Test with metadata that already has assert_called_once
-                mock_metadata = Mock()
-
-                class CreateAllCallable:
-                    def __call__(self, *args, **kwargs):
-                        return None
-
-                mock_create_all = CreateAllCallable()
-                # Override assert_called_once with Mock to stub call assertion in this test
-                setattr(mock_create_all, "assert_called_once", Mock())
-                mock_metadata.create_all = mock_create_all
-
-                core.db.Base.metadata = mock_metadata
-
-                # Call init_db - should not wrap if already has assert_called_once
-                core.db.init_db()
-
-                # The original mock should still be there
-                assert mock_metadata.create_all == mock_create_all
-
-            finally:
-                core.db.Base.metadata = original_metadata
-
-    def test_engine_compat_getattr_delegation(self) -> None:
-        """Test EngineCompat.__getattr__ delegation"""
-        with suppress(ImportError):
-            from core.db import EngineCompat
-
-            # Create mock engine with some attributes
-            mock_engine = Mock()
-            mock_engine.url = "sqlite:///test.db"
-            mock_engine.dialect = Mock()
-            mock_engine.driver = "sqlite"
-
-            engine_compat = EngineCompat(mock_engine)
-
-            # Test attribute delegation
-            assert engine_compat.url == "sqlite:///test.db"
-            assert engine_compat.dialect == mock_engine.dialect
-            assert engine_compat.driver == "sqlite"
-
-    def test_comprehensive_database_edge_cases(self) -> None:
-        """Test comprehensive database edge cases with faker data"""
-        with suppress(ImportError):
-            from core.db import EngineCompat, get_session, session_scope
-
-            # Test session_scope with exception handling
-            mock_session_class = Mock()
-            mock_session = Mock()
-            mock_session_class.return_value = mock_session
-
-            # Test successful session scope
-            with patch("core.db.SessionLocal", mock_session_class):
-                with session_scope() as session:
-                    assert session == mock_session
-                    # Mock session.query
-                    setattr(session, "query", Mock())
-
-                # Should have committed and closed
-                mock_session.commit.assert_called_once()
-                mock_session.close.assert_called_once()
-
-            # Test session scope with exception
-            mock_session.reset_mock()
-            mock_session.commit.side_effect = Exception("Database error")
-
-            with patch("core.db.SessionLocal", mock_session_class):
-                with pytest.raises(Exception, match="Database error"):
-                    with session_scope() as session:
-                        # Mock session.query
-                        setattr(session, "query", Mock())
-                        raise Exception("Database error")
-
-                # Should have rolled back and closed
-                mock_session.rollback.assert_called_once()
-                mock_session.close.assert_called_once()
-
-    def test_database_url_building_edge_cases(self) -> None:
-        """Test database URL building with different environments"""
-        with suppress(ImportError):
-            from core.db import _build_engine_url, _sqlite_connect_args
-
-            # Test with custom DATABASE_URL
-            test_urls = [
-                "postgresql://user:pass@localhost/db",
-                "mysql://user:pass@localhost/db",
-                "sqlite:///custom.db",
-                fake.url(),
-            ]
-
-            for test_url in test_urls:
-                with patch.dict(os.environ, {"DATABASE_URL": test_url}):
-                    result = _build_engine_url()
-                    assert result == test_url
-
-            # Test SQLite connection args
-            assert _sqlite_connect_args("sqlite:///test.db") == {"check_same_thread": False}
-            assert _sqlite_connect_args("postgresql://localhost/db") == {}
-            assert _sqlite_connect_args("mysql://localhost/db") == {}
-
-    def test_engine_compat_execute_with_args_kwargs(self) -> None:
-        """Test EngineCompat.execute with various args and kwargs"""
-        with suppress(ImportError):
-            from core.db import EngineCompat
-
+        for exception in exception_types:
+            # Create fresh mocks for each test
             mock_engine = Mock()
             mock_conn = Mock()
             mock_result = Mock()
@@ -337,19 +106,239 @@ class TestDbMissingLinesCoverage:
             mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
 
             mock_conn.execute.return_value = mock_result
-            mock_conn.commit.return_value = None
+            mock_conn.commit.side_effect = exception  # Different exception each time
 
             engine_compat = EngineCompat(mock_engine)
 
-            # Test with args and kwargs
-            test_args = (fake.random_int(), fake.word())
-            test_kwargs = {"param1": fake.word(), "param2": fake.random_int()}
-
-            result = engine_compat.execute("SELECT ?", *test_args, **test_kwargs)
-
+            # Should handle these specific commit exceptions gracefully
+            result = engine_compat.execute("SELECT 1")
             assert result == mock_result
 
-            # Verify args and kwargs were passed through
-            call_args, call_kwargs = mock_conn.execute.call_args
-            assert len(call_args) == 1 + len(test_args)  # statement + args
-            assert call_kwargs == test_kwargs
+    def test_init_db_assert_called_once_line_136(self) -> None:
+        """Test line 136: assert_called_once error condition in init_db()"""
+        pytest.importorskip("core.db")
+        import core.db
+
+        # Save original metadata
+        original_metadata = core.db.Base.metadata
+        original_raw_engine = core.db._RAW_ENGINE
+
+        try:
+            # Create a real function that doesn't have assert_called_once
+            def mock_create_all(*args, **kwargs):
+                pass
+
+            # Create metadata with this function
+            mock_metadata = Mock()
+            mock_metadata.create_all = mock_create_all
+
+            # Ensure it doesn't have assert_called_once initially
+            assert not hasattr(mock_create_all, "assert_called_once")
+
+            # Replace metadata temporarily
+            core.db.Base.metadata = mock_metadata
+
+            # Mock the engine to prevent actual database operations
+            mock_engine = Mock()
+            core.db._RAW_ENGINE = mock_engine
+
+            # Call init_db - this should wrap create_all
+            core.db.init_db()
+
+            # Now the wrapped function should have assert_called_once
+            wrapped_create_all = mock_metadata.create_all
+            assert hasattr(wrapped_create_all, "assert_called_once")
+
+            # Reset the "called" status by creating a fresh wrapper
+            # We need to manually test the _assert_called_once function
+            called = {"value": False}
+
+            def _assert_called_once():
+                if not called["value"]:
+                    raise AssertionError("create_all was not invoked")
+
+            # Test line 136: AssertionError when not called
+            with pytest.raises(AssertionError, match="create_all was not invoked"):
+                _assert_called_once()  # Should raise (line 136)
+
+            # Now set called to True
+            called["value"] = True
+            _assert_called_once()  # Should not raise
+
+        finally:
+            # Restore original metadata and engine
+            core.db.Base.metadata = original_metadata
+            core.db._RAW_ENGINE = original_raw_engine
+
+    def test_get_session_lines_90_94(self) -> None:
+        """Test lines 90-94: get_session dependency function"""
+        pytest.importorskip("core.db")
+        from core.db import get_session
+
+        # Mock SessionLocal
+        mock_session_class = Mock()
+        mock_session = Mock()
+        mock_session_class.return_value = mock_session
+
+        with patch("core.db.SessionLocal", mock_session_class):
+            # Test the generator function
+            session_generator = get_session()
+
+            # Get the session from the generator
+            session = next(session_generator)
+            assert session == mock_session
+
+            # Trigger the finally block by stopping the generator
+            with suppress(StopIteration):
+                next(session_generator)
+
+            # Verify session was closed
+            mock_session.close.assert_called_once()
+
+    def test_get_session_with_exception(self) -> None:
+        """Test get_session with exception during session usage"""
+        pytest.importorskip("core.db")
+        from core.db import get_session
+
+        mock_session_class = Mock()
+        mock_session = Mock()
+        mock_session_class.return_value = mock_session
+
+        with patch("core.db.SessionLocal", mock_session_class):
+            session_gen = get_session()
+            session = next(session_gen)
+
+            # Exception should propagate after cleanup
+            with pytest.raises(Exception, match="Test exception"):
+                session_gen.throw(Exception("Test exception"))
+
+            # Session should still be closed
+            mock_session.close.assert_called_once()
+
+    def test_init_db_metadata_wrapping_behavior(self) -> None:
+        """Test the metadata wrapping behavior in init_db"""
+        pytest.importorskip("core.db")
+        import core.db
+
+        # Save original
+        original_metadata = core.db.Base.metadata
+
+        try:
+            # Test with metadata that already has assert_called_once
+            mock_metadata = Mock()
+            mock_create_all = Mock(return_value=None)
+            mock_metadata.create_all = mock_create_all
+
+            core.db.Base.metadata = mock_metadata
+
+            # Call init_db - should not wrap if already has assert_called_once
+            core.db.init_db()
+
+            # The original mock should still be there
+            assert mock_metadata.create_all == mock_create_all
+
+        finally:
+            core.db.Base.metadata = original_metadata
+
+    def test_engine_compat_getattr_delegation(self) -> None:
+        """Test EngineCompat.__getattr__ delegation"""
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat
+
+        # Create mock engine with some attributes
+        mock_engine = Mock()
+        mock_engine.url = "sqlite:///test.db"
+        mock_engine.dialect = Mock()
+        mock_engine.driver = "sqlite"
+
+        engine_compat = EngineCompat(mock_engine)
+
+        # Test attribute delegation
+        assert engine_compat.url == "sqlite:///test.db"
+        assert engine_compat.dialect == mock_engine.dialect
+        assert engine_compat.driver == "sqlite"
+
+    def test_comprehensive_database_edge_cases(self) -> None:
+        """Test comprehensive database edge cases with faker data"""
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat, get_session, session_scope
+
+        # Test session_scope with exception handling
+        mock_session_class = Mock()
+        mock_session = Mock()
+        mock_session_class.return_value = mock_session
+
+        # Test successful session scope
+        with patch("core.db.SessionLocal", mock_session_class):
+            with session_scope() as session:
+                assert session == mock_session
+
+            # Should have committed and closed
+            mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
+
+        # Test session scope with exception
+        mock_session.reset_mock()
+        mock_session.commit.side_effect = Exception("Database error")
+
+        with patch("core.db.SessionLocal", mock_session_class):
+            with pytest.raises(Exception, match="Database error"):
+                with session_scope() as session:
+                    raise Exception("Database error")
+
+            # Should have rolled back and closed
+            mock_session.rollback.assert_called_once()
+            mock_session.close.assert_called_once()
+
+    def test_database_url_building_edge_cases(self) -> None:
+        """Test database URL building with different environments"""
+        pytest.importorskip("core.db")
+        from core.db import _build_engine_url, _sqlite_connect_args
+
+        # Test with custom DATABASE_URL
+        test_urls = [
+            "postgresql://user:pass@localhost/db",
+            "mysql://user:pass@localhost/db",
+            "sqlite:///custom.db",
+            fake.url(),
+        ]
+
+        for test_url in test_urls:
+            with patch.dict(os.environ, {"DATABASE_URL": test_url}):
+                result = _build_engine_url()
+                assert result == test_url
+
+        # Test SQLite connection args
+        assert _sqlite_connect_args("sqlite:///test.db") == {"check_same_thread": False}
+        assert _sqlite_connect_args("postgresql://localhost/db") == {}
+        assert _sqlite_connect_args("mysql://localhost/db") == {}
+
+    def test_engine_compat_execute_with_args_kwargs(self) -> None:
+        """Test EngineCompat.execute with various args and kwargs"""
+        pytest.importorskip("core.db")
+        from core.db import EngineCompat
+
+        mock_engine = Mock()
+        mock_conn = Mock()
+        mock_result = Mock()
+
+        mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
+
+        mock_conn.execute.return_value = mock_result
+        mock_conn.commit.return_value = None
+
+        engine_compat = EngineCompat(mock_engine)
+
+        # Test with args and kwargs
+        test_args = (fake.random_int(), fake.word())
+        test_kwargs = {"param1": fake.word(), "param2": fake.random_int()}
+
+        result = engine_compat.execute("SELECT ?", *test_args, **test_kwargs)
+
+        assert result == mock_result
+
+        # Verify args and kwargs were passed through
+        call_args, call_kwargs = mock_conn.execute.call_args
+        assert len(call_args) == 1 + len(test_args)  # statement + args
+        assert call_kwargs == test_kwargs
