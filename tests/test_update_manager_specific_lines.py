@@ -2,6 +2,7 @@
 Targeted tests for specific uncovered lines to reach 97% coverage.
 """
 
+import json
 import tempfile
 from pathlib import Path
 from typing import Generator
@@ -32,7 +33,7 @@ class TestUpdateManagerSpecificLines:
         return DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
     @pytest.mark.asyncio
-    async def test_backup_load_exception_logging_lines_329_330(self, manager):
+    async def test_backup_load_exception_logging_lines_329_330(self, manager) -> None:
         """Test backup load exception logging covering lines 329-330."""
         # Add existing version
         manager.versions["usda"] = DatabaseVersion(
@@ -45,24 +46,20 @@ class TestUpdateManagerSpecificLines:
         )
 
         # Mock _load_backup to raise exception
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {
-                    "calories": 100,
-                    "protein_g": 0.3,
-                    "fat_g": 0.2,
-                    "carbs_g": 25.0,
-                },
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "usda",
-                "source_id": "1",
+        mock_food = MagicMock(
+            name="Apple",
+            nutrients_per_100g={
+                "calories": 100,
+                "protein_g": 0.3,
+                "fat_g": 0.2,
+                "carbs_g": 25.0,
             },
-        )()
+            cost_per_100g=0.5,
+            tags=["fruit"],
+            availability_regions=["US"],
+            source="usda",
+            source_id="1",
+        )
 
         with patch.object(manager, "_load_backup", side_effect=Exception("Backup file corrupted")):
             with patch.object(manager, "usda_client") as mock_usda:
@@ -82,7 +79,7 @@ class TestUpdateManagerSpecificLines:
                     assert result.source == "usda"
 
     @pytest.mark.asyncio
-    async def test_backup_load_exception_logging_lines_474_475(self, manager, temp_dir):
+    async def test_backup_load_exception_logging_lines_474_475(self, manager, temp_dir) -> None:
         """Test OFF backup load exception logging covering lines 474-475."""
         # Add existing version
         manager.versions["openfoodfacts"] = DatabaseVersion(
@@ -94,24 +91,20 @@ class TestUpdateManagerSpecificLines:
             metadata={"test": "data"},
         )
 
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {
-                    "calories": 100,
-                    "protein_g": 0.3,
-                    "fat_g": 0.2,
-                    "carbs_g": 25.0,
-                },
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "openfoodfacts",
-                "source_id": "1",
+        mock_food = MagicMock(
+            name="Apple",
+            nutrients_per_100g={
+                "calories": 100,
+                "protein_g": 0.3,
+                "fat_g": 0.2,
+                "carbs_g": 25.0,
             },
-        )()
+            cost_per_100g=0.5,
+            tags=["fruit"],
+            availability_regions=["US"],
+            source="openfoodfacts",
+            source_id="1",
+        )
 
         # Mock _load_backup to raise exception
         with patch.object(manager, "_load_backup", side_effect=Exception("Backup file corrupted")):
@@ -236,7 +229,5 @@ class TestUpdateManagerSpecificLines:
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        import json
-
-        with suppress((json.JSONDecodeError, OSError, ValueError)):
+        with suppress(json.JSONDecodeError, OSError, ValueError):
             await manager._load_backup("usda", "1.0.0")

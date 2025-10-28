@@ -8,6 +8,7 @@ import json
 import sqlite3
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -30,7 +31,7 @@ class TestUpdateManagerFileCache:
         return DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
     @pytest.mark.asyncio
-    async def test_record_count_csv_files(self, manager, temp_dir):
+    async def test_record_count_csv_files(self, manager, temp_dir) -> None:
         """Test record counting with CSV files (lines 575-600)."""
         # Create CSV file with header
         csv_file = temp_dir / "products.csv"
@@ -178,7 +179,7 @@ class TestUpdateManagerFileCache:
         assert "banana" in cache_data
 
     @pytest.mark.asyncio
-    async def test_cache_data_sqlite_fallback(self, manager, temp_dir):
+    async def test_cache_data_sqlite_fallback(self, manager, temp_dir) -> None:
         """Test cache data retrieval with SQLite fallback (lines 614-630)."""
         # Create SQLite database
         sqlite_file = temp_dir / "off.sqlite"
@@ -199,27 +200,25 @@ class TestUpdateManagerFileCache:
         assert "checksum" in cache_data["apple"]
 
     @pytest.mark.asyncio
-    async def test_usda_update_success_path_coverage(self, manager):
+    async def test_usda_update_success_path_coverage(self, manager) -> None:
         """Test USDA update success path to cover lines 325-371."""
         # Create mock data that will trigger the success path
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {"calories": 100},
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "usda",
-                "source_id": "1",
-            },
-        )()
-
         with patch.object(
             manager.unified_db,
             "get_common_foods_database",
-            new=AsyncMock(return_value={"apple": mock_food}),
+            new=AsyncMock(
+                return_value={
+                    "apple": SimpleNamespace(
+                        name="Apple",
+                        nutrients_per_100g={"calories": 100},
+                        cost_per_100g=0.5,
+                        tags=["fruit"],
+                        availability_regions=["US"],
+                        source="usda",
+                        source_id="1",
+                    )
+                }
+            ),
         ):
 
             # Mock the external dependencies
@@ -236,7 +235,7 @@ class TestUpdateManagerFileCache:
                 assert result.source == "usda"
 
     @pytest.mark.asyncio
-    async def test_off_update_success_path_coverage(self, manager, temp_dir):
+    async def test_off_update_success_path_coverage(self, manager, temp_dir) -> None:
         """Test OFF update success path to cover lines 470-543."""
         # Create SQLite database for record counting
         sqlite_file = temp_dir / "off.sqlite"
@@ -249,24 +248,22 @@ class TestUpdateManagerFileCache:
             conn.close()
 
         # Create mock data
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {"calories": 100},
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "openfoodfacts",
-                "source_id": "1",
-            },
-        )()
-
         with patch.object(
             manager.unified_db,
             "get_common_foods_database",
-            new=AsyncMock(return_value={"apple": mock_food}),
+            new=AsyncMock(
+                return_value={
+                    "apple": SimpleNamespace(
+                        name="Apple",
+                        nutrients_per_100g={"calories": 100},
+                        cost_per_100g=0.5,
+                        tags=["fruit"],
+                        availability_regions=["US"],
+                        source="openfoodfacts",
+                        source_id="1",
+                    )
+                }
+            ),
         ):
             # Mock the external dependencies
             with patch.object(manager, "off_client") as mock_off:
@@ -282,7 +279,7 @@ class TestUpdateManagerFileCache:
                 assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_update_with_existing_version_coverage(self, manager, temp_dir):
+    async def test_update_with_existing_version_coverage(self, manager, temp_dir) -> None:
         """Test update with existing version to cover lines 326-330, 471-475."""
         # Create backup file
         backup_data = {
@@ -311,21 +308,17 @@ class TestUpdateManagerFileCache:
 
         # Mock the update process
         with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {"calories": 100},
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "usda",
-                    "source_id": "1",
-                },
-            )()
-
-            mock_get_foods.return_value = {"apple": mock_food}
+            mock_get_foods.return_value = {
+                "apple": SimpleNamespace(
+                    name="Apple",
+                    nutrients_per_100g={"calories": 100},
+                    cost_per_100g=0.5,
+                    tags=["fruit"],
+                    availability_regions=["US"],
+                    source="usda",
+                    source_id="1",
+                )
+            }
 
             with patch.object(manager, "usda_client") as mock_usda:
                 mock_usda.fetch_all_foods = AsyncMock(
@@ -341,25 +334,21 @@ class TestUpdateManagerFileCache:
                 assert result.old_version == "1.0.0"
 
     @pytest.mark.asyncio
-    async def test_record_count_fallback_logic(self, manager):
+    async def test_record_count_fallback_logic(self, manager) -> None:
         """Test record count fallback logic (lines 485-486)."""
         # Create mock data
         with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {"calories": 100},
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "openfoodfacts",
-                    "source_id": "1",
-                },
-            )()
-
-            mock_get_foods.return_value = {"apple": mock_food}
+            mock_get_foods.return_value = {
+                "apple": SimpleNamespace(
+                    name="Apple",
+                    nutrients_per_100g={"calories": 100},
+                    cost_per_100g=0.5,
+                    tags=["fruit"],
+                    availability_regions=["US"],
+                    source="openfoodfacts",
+                    source_id="1",
+                )
+            }
 
             # Mock _get_actual_record_count to return 0
             with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=0)):
