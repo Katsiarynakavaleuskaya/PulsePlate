@@ -351,8 +351,10 @@ class TestModuleImports:
         with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
             with patch.object(llm, "GrokProvider", None):
                 grok_lite = llm.get_provider()
-                # Avoid optional-attr lint: use getattr
-                assert getattr(grok_lite, "name", None) == "grok"
+                # Explicitly require non-None provider and name attribute
+                assert grok_lite is not None
+                assert hasattr(grok_lite, "name")
+                assert grok_lite.name == "grok"
 
         stub = llm.StubProvider()
         assert stub.name == "stub"

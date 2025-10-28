@@ -17,10 +17,10 @@ fake = Faker()
 class TestDbMissingLinesCoverage:
     """Test specific missing lines in core/db.py"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         Faker.seed(42)
 
-    def test_engine_compat_execute_commit_exception_lines_56_65(self):
+    def test_engine_compat_execute_commit_exception_lines_56_65(self) -> None:
         """Test lines 56-65: exception handling in EngineCompat.execute()"""
         with suppress(ImportError):
             from core.db import EngineCompat
@@ -54,7 +54,7 @@ class TestDbMissingLinesCoverage:
             mock_conn.execute.assert_called_once()
             mock_conn.commit.assert_called_once()
 
-    def test_engine_compat_execute_with_string_statement(self):
+    def test_engine_compat_execute_with_string_statement(self) -> None:
         """Test EngineCompat.execute with string statement conversion"""
         with suppress(ImportError):
             from core.db import EngineCompat
@@ -84,7 +84,7 @@ class TestDbMissingLinesCoverage:
             assert len(call_args) > 0
             # The statement should be converted to a text() object
 
-    def test_engine_compat_execute_different_exception_types(self):
+    def test_engine_compat_execute_different_exception_types(self) -> None:
         """Test different types of exceptions in commit"""
         with suppress(ImportError):
             from core.db import EngineCompat
@@ -110,11 +110,11 @@ class TestDbMissingLinesCoverage:
 
                 engine_compat = EngineCompat(mock_engine)
 
-                # Should handle any exception gracefully (line 63: except Exception)
+                # Should handle these specific commit exceptions gracefully
                 result = engine_compat.execute("SELECT 1")
                 assert result == mock_result
 
-    def test_init_db_assert_called_once_line_136(self):
+    def test_init_db_assert_called_once_line_136(self) -> None:
         """Test line 136: assert_called_once error condition in init_db()"""
         with suppress(ImportError):
             import core.db
@@ -170,7 +170,7 @@ class TestDbMissingLinesCoverage:
                 core.db.Base.metadata = original_metadata
                 core.db._RAW_ENGINE = original_raw_engine
 
-    def test_get_session_lines_90_94(self):
+    def test_get_session_lines_90_94(self) -> None:
         """Test lines 90-94: get_session dependency function"""
         with suppress(ImportError):
             from core.db import get_session
@@ -195,7 +195,7 @@ class TestDbMissingLinesCoverage:
                 # Verify session was closed
                 mock_session.close.assert_called_once()
 
-    def test_get_session_with_exception(self):
+    def test_get_session_with_exception(self) -> None:
         """Test get_session with exception during session usage"""
         with suppress(ImportError):
             from core.db import get_session
@@ -208,14 +208,14 @@ class TestDbMissingLinesCoverage:
                 session_gen = get_session()
                 session = next(session_gen)
 
-                # Simulate an exception by throwing into the generator
-                with suppress(Exception):
+                # Exception should propagate after cleanup
+                with pytest.raises(Exception, match="Test exception"):
                     session_gen.throw(Exception("Test exception"))
 
                 # Session should still be closed
                 mock_session.close.assert_called_once()
 
-    def test_init_db_metadata_wrapping_behavior(self):
+    def test_init_db_metadata_wrapping_behavior(self) -> None:
         """Test the metadata wrapping behavior in init_db"""
         with suppress(ImportError):
             import core.db
@@ -226,9 +226,14 @@ class TestDbMissingLinesCoverage:
             try:
                 # Test with metadata that already has assert_called_once
                 mock_metadata = Mock()
-                mock_create_all = Mock()
-                # Use a proper mock method instead of direct assignment
-                mock_create_all.assert_called_once = Mock()
+
+                class CreateAllCallable:
+                    def __call__(self, *args, **kwargs):
+                        return None
+
+                mock_create_all = CreateAllCallable()
+                # Override assert_called_once with Mock to stub call assertion in this test
+                setattr(mock_create_all, "assert_called_once", Mock())
                 mock_metadata.create_all = mock_create_all
 
                 core.db.Base.metadata = mock_metadata
@@ -242,7 +247,7 @@ class TestDbMissingLinesCoverage:
             finally:
                 core.db.Base.metadata = original_metadata
 
-    def test_engine_compat_getattr_delegation(self):
+    def test_engine_compat_getattr_delegation(self) -> None:
         """Test EngineCompat.__getattr__ delegation"""
         with suppress(ImportError):
             from core.db import EngineCompat
@@ -260,7 +265,7 @@ class TestDbMissingLinesCoverage:
             assert engine_compat.dialect == mock_engine.dialect
             assert engine_compat.driver == "sqlite"
 
-    def test_comprehensive_database_edge_cases(self):
+    def test_comprehensive_database_edge_cases(self) -> None:
         """Test comprehensive database edge cases with faker data"""
         with suppress(ImportError):
             from core.db import EngineCompat, get_session, session_scope
@@ -274,8 +279,8 @@ class TestDbMissingLinesCoverage:
             with patch("core.db.SessionLocal", mock_session_class):
                 with session_scope() as session:
                     assert session == mock_session
-                    # Simulate some work - use proper mock method
-                    session.query = Mock()
+                    # Mock session.query
+                    setattr(session, "query", Mock())
 
                 # Should have committed and closed
                 mock_session.commit.assert_called_once()
@@ -288,17 +293,15 @@ class TestDbMissingLinesCoverage:
             with patch("core.db.SessionLocal", mock_session_class):
                 with pytest.raises(Exception, match="Database error"):
                     with session_scope() as session:
-                        # Use proper mock method
-                        session.query = Mock()
+                        # Mock session.query
+                        setattr(session, "query", Mock())
                         raise Exception("Database error")
 
                 # Should have rolled back and closed
                 mock_session.rollback.assert_called_once()
                 mock_session.close.assert_called_once()
 
-        # suppress(ImportError) handled above
-
-    def test_database_url_building_edge_cases(self):
+    def test_database_url_building_edge_cases(self) -> None:
         """Test database URL building with different environments"""
         with suppress(ImportError):
             from core.db import _build_engine_url, _sqlite_connect_args
@@ -321,9 +324,7 @@ class TestDbMissingLinesCoverage:
             assert _sqlite_connect_args("postgresql://localhost/db") == {}
             assert _sqlite_connect_args("mysql://localhost/db") == {}
 
-        # suppress(ImportError) handled above
-
-    def test_engine_compat_execute_with_args_kwargs(self):
+    def test_engine_compat_execute_with_args_kwargs(self) -> None:
         """Test EngineCompat.execute with various args and kwargs"""
         with suppress(ImportError):
             from core.db import EngineCompat

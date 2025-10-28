@@ -82,21 +82,27 @@ class TestImportFallbacks:
 
     def test_ollama_import_exception_coverage(self):
         """Тест покрытия исключения при импорте OllamaProvider"""
-        # Симулируем отсутствие модуля через sys.modules (скоуп-патч)
-        sys.modules.pop("providers.ollama", None)
-        with patch.dict("sys.modules", {"providers.ollama": None}):
+        # Симулируем отсутствие модуля через scoped patch, гарантируя восстановление
+        try:
+            with patch.dict("sys.modules", {"providers.ollama": None}):
+                reload(llm)
+                assert llm.OllamaProvider is None
+        finally:
             reload(llm)
-            assert llm.OllamaProvider is None
-        # восстановление состояния
-        reload(llm)
 
     def test_pico_import_exception_coverage(self):
         """Тест покрытия исключения при импорте PicoProvider"""
-        sys.modules.pop("providers.pico", None)
-        with patch.dict("sys.modules", {"providers.pico": None}):
+        original = sys.modules.get("providers.pico")
+        try:
+            with patch.dict("sys.modules", {"providers.pico": None}):
+                reload(llm)
+                assert llm.PicoProvider is None
+        finally:
+            if original is not None:
+                sys.modules["providers.pico"] = original
+            else:
+                sys.modules.pop("providers.pico", None)
             reload(llm)
-            assert llm.PicoProvider is None
-        reload(llm)
 
 
 class TestGetProviderEdgeCases:

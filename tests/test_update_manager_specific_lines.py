@@ -213,10 +213,14 @@ class TestUpdateManagerSpecificLines:
     @pytest.mark.asyncio
     async def test_backup_creation_exception_lines_817_819_821(self, manager) -> None:
         """Test backup creation exception paths covering lines 817, 819-821."""
-        # Mock file operations to simulate permission error
+        # Mock file operations to simulate permission error and assert logging
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            # _create_backup handles errors internally; suppress isn't needed
-            await manager._create_backup("usda", "1.0.0")
+            with patch("core.food_apis.update_manager.logger") as mock_logger:
+                result = await manager._create_backup("usda", "1.0.0")
+                # Expect error logged with Permission denied
+                assert mock_logger.error.called or mock_logger.exception.called
+                # Method should not raise; may return None/False depending on implementation
+                assert result in (None, False)
 
     @pytest.mark.asyncio
     async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir) -> None:
@@ -225,6 +229,6 @@ class TestUpdateManagerSpecificLines:
         backup_file = temp_dir / "usda_backup_1.0.0.json"
         backup_file.write_text("invalid json")
 
-        # Try to load backup - should handle exception gracefully
+        # Test that loading an invalid backup raises json.JSONDecodeError
         with pytest.raises(json.JSONDecodeError):
             await manager._load_backup("usda", "1.0.0")
