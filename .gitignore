@@ -348,3 +348,8 @@ frontend/tsconfig.node.tsbuildinfo
 bandit-report.json
 bandit-test.json
 bandit-full-report.json
+
+# Coverage artifacts
+.coverage*
+coverage.xml
+htmlcov/

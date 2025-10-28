@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
@@ -108,9 +108,9 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except (InvalidRequestError, SQLAlchemyError, Exception):  # noqa: BLE001
-                # Some statements don't require/support commit or drivers may raise generic errors.
-                # Tests expect commit failures to be ignored here.
+            except (InvalidRequestError, SQLAlchemyError, RuntimeError, ValueError):
+                # Some statements don't require/support commit (e.g., SELECT, DDL in autocommit mode)
+                # Also handle other common exceptions that might occur during commit
                 pass
             return result
 

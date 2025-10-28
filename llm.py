@@ -15,7 +15,7 @@ from providers import ProviderBase
 class GrokLiteProvider:  # lightweight fallback that never uses network
     name = "grok"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     async def generate(self, text: str) -> str:
@@ -27,8 +27,11 @@ def _load_provider(module_name: str, attr: str) -> Optional[Type[ProviderBase]]:
 
     try:
         module = importlib.import_module(module_name)
+    except ImportError:
+        return None
+    try:
         candidate = getattr(module, attr)
-    except Exception:
+    except AttributeError:
         return None
 
     if isinstance(candidate, type):
@@ -75,12 +78,14 @@ def get_provider() -> Optional[ProviderBase]:
             if not api_key.strip():
                 return GrokLiteProvider()
             try:
-                return provider_cls(endpoint=endpoint, api_key=api_key, model=model)
-            except Exception:  # tests expect broad fallback here
+                return cast(
+                    ProviderBase, provider_cls(endpoint=endpoint, api_key=api_key, model=model)
+                )
+            except (TypeError, ValueError):
                 # Fallback to positional args if keyword args fail
                 try:
-                    return provider_cls(endpoint, model, api_key)
-                except Exception:
+                    return cast(ProviderBase, provider_cls(endpoint, model, api_key))
+                except (TypeError, ValueError, RuntimeError):
                     # If both fail, return lite provider
                     return GrokLiteProvider()
         # Fallback when real provider unavailable
@@ -90,7 +95,10 @@ def get_provider() -> Optional[ProviderBase]:
         pico_cls = cast(Any, PicoProvider)
         # Required settings must be non-empty
         api_key = (os.getenv("PICO_API_KEY") or "").strip()
-        endpoint = (os.getenv("PICO_ENDPOINT") or "").strip()
+        endpoint = (
+            (os.getenv("PICO_ENDPOINT") or os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"))
+            or ""
+        ).strip()
         # Optional with sensible default
         model = os.getenv("PICO_MODEL", "pico-default").strip() or "pico-default"
 
@@ -99,11 +107,11 @@ def get_provider() -> Optional[ProviderBase]:
             return None
 
         try:
-            return pico_cls(endpoint=endpoint, model=model, api_key=api_key)
+            return cast(ProviderBase, pico_cls(endpoint=endpoint, model=model, api_key=api_key))
         except (TypeError, ValueError):
             try:
-                return pico_cls(endpoint, model, api_key)
-            except Exception:
+                return cast(ProviderBase, pico_cls(endpoint, model, api_key))
+            except (TypeError, ValueError, RuntimeError):
                 return None
 
     if val == "ollama" and OllamaProvider is not None:
@@ -117,12 +125,14 @@ def get_provider() -> Optional[ProviderBase]:
         except (TypeError, ValueError):
             timeout_s = 5.0
         try:
-            return ollama_cls(endpoint=endpoint, model=model, timeout_s=timeout_s)
+            return cast(
+                ProviderBase, ollama_cls(endpoint=endpoint, model=model, timeout_s=timeout_s)
+            )
         except (TypeError, ValueError):
             # Fallback to positional args if keyword args fail
             try:
-                return ollama_cls(endpoint, model, timeout_s)
-            except Exception:
+                return cast(ProviderBase, ollama_cls(endpoint, model, timeout_s))
+            except (TypeError, ValueError, RuntimeError):
                 # If both fail, return None
                 return None
 

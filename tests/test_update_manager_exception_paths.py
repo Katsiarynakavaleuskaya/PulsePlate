@@ -3,8 +3,11 @@ Tests to cover remaining exception and logging paths for 97% coverage.
 Targeting lines: 329-330, 369-371, 442, 474-475, 541-543, 631-632, 688-689, 817, 819-821, 837-838, 841
 """
 
+import json
 import tempfile
+from contextlib import suppress
 from pathlib import Path
+from typing import Generator
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
@@ -20,7 +23,7 @@ class TestUpdateManagerExceptionPaths:
     """Test exception and logging paths to achieve 97% coverage."""
 
     @pytest.fixture
-    def temp_dir(self) -> Path:
+    def temp_dir(self) -> Generator[Path, None, None]:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)
@@ -251,9 +254,5 @@ class TestUpdateManagerExceptionPaths:
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        from contextlib import suppress
-
-        import json
-
-        with suppress((json.JSONDecodeError, OSError, ValueError)):
+        with suppress(json.JSONDecodeError, OSError, ValueError):
             await manager._load_backup("usda", "1.0.0")

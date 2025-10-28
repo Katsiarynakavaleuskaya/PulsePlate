@@ -82,30 +82,21 @@ class TestImportFallbacks:
 
     def test_ollama_import_exception_coverage(self):
         """Тест покрытия исключения при импорте OllamaProvider"""
-        # Симулируем отсутствие модуля через sys.modules
-        original_modules = sys.modules.copy()
-        try:
-            sys.modules.pop("providers.ollama", None)
-            with patch.dict("sys.modules", {"providers.ollama": None}):
-                reload(llm)
-                assert llm.OllamaProvider is None
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        # Симулируем отсутствие модуля через sys.modules (скоуп-патч)
+        sys.modules.pop("providers.ollama", None)
+        with patch.dict("sys.modules", {"providers.ollama": None}):
             reload(llm)
+            assert llm.OllamaProvider is None
+        # восстановление состояния
+        reload(llm)
 
     def test_pico_import_exception_coverage(self):
         """Тест покрытия исключения при импорте PicoProvider"""
-        original_modules = sys.modules.copy()
-        try:
-            sys.modules.pop("providers.pico", None)
-            with patch.dict("sys.modules", {"providers.pico": None}):
-                reload(llm)
-                assert llm.PicoProvider is None
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        sys.modules.pop("providers.pico", None)
+        with patch.dict("sys.modules", {"providers.pico": None}):
             reload(llm)
+            assert llm.PicoProvider is None
+        reload(llm)
 
 
 class TestGetProviderEdgeCases:
@@ -119,25 +110,23 @@ class TestGetProviderEdgeCases:
     def test_get_provider_with_pico(self):
         """Тест провайдера pico когда PicoProvider недоступен"""
         # Симулируем отсутствие PicoProvider, чтобы проверить fallback
-        original_modules = sys.modules.copy()
-        try:
-            sys.modules.pop("providers.pico", None)
-            with patch.dict("sys.modules", {"providers.pico": None}):
-                with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
-                    reload(llm)
-                    provider = llm.get_provider()
-                    assert provider is None
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
-            reload(llm)
+        sys.modules.pop("providers.pico", None)
+        with patch.dict("sys.modules", {"providers.pico": None}):
+            with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
+                reload(llm)
+                provider = llm.get_provider()
+                assert provider is None
+        reload(llm)
 
     def test_get_provider_ollama_with_exception_coverage(self):
         """Тест покрытия всех путей исключений в Ollama"""
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             with patch.object(llm, "OllamaProvider") as mock_ollama:
                 # Тест TypeError в первом try/except блоке
-                mock_ollama.side_effect = [TypeError("keyword error"), Exception("creation failed")]
+                mock_ollama.side_effect = [
+                    TypeError("keyword error"),
+                    RuntimeError("creation failed"),
+                ]
 
                 provider = llm.get_provider()
                 assert provider is None

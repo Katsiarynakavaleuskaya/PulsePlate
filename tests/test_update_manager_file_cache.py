@@ -3,7 +3,6 @@ Additional tests for core.food_apis.update_manager module.
 Focus on file cache operations and missing coverage paths.
 """
 
-import csv
 import json
 import sqlite3
 import tempfile
@@ -43,7 +42,7 @@ class TestUpdateManagerFileCache:
         assert count == 3  # 4 lines - 1 header = 3 records
 
     @pytest.mark.asyncio
-    async def test_record_count_jsonl_files(self, manager, temp_dir):
+    async def test_record_count_jsonl_files(self, manager, temp_dir) -> None:
         """Test record counting with JSONL files (lines 575-600)."""
         # Create JSONL file
         jsonl_file = temp_dir / "products.jsonl"
@@ -55,7 +54,7 @@ class TestUpdateManagerFileCache:
         assert count == 3
 
     @pytest.mark.asyncio
-    async def test_record_count_ndjson_files(self, manager, temp_dir):
+    async def test_record_count_ndjson_files(self, manager, temp_dir) -> None:
         """Test record counting with NDJSON files (lines 575-600)."""
         # Create NDJSON file
         ndjson_file = temp_dir / "products.ndjson"
@@ -67,7 +66,7 @@ class TestUpdateManagerFileCache:
         assert count == 2
 
     @pytest.mark.asyncio
-    async def test_record_count_multiple_patterns(self, manager, temp_dir):
+    async def test_record_count_multiple_patterns(self, manager, temp_dir) -> None:
         """Test record counting with multiple file patterns (lines 575-600)."""
         # Create files with different patterns
         (temp_dir / "openfoodfacts.org.products.csv").write_text("name,calories\napple,100\n")
@@ -79,14 +78,14 @@ class TestUpdateManagerFileCache:
         assert count == 1  # 2 lines - 1 header = 1 record
 
     @pytest.mark.asyncio
-    async def test_record_count_no_files(self, manager):
+    async def test_record_count_no_files(self, manager) -> None:
         """Test record counting when no files found (lines 602-604)."""
         # No files in directory
         count = await manager._get_actual_record_count("openfoodfacts")
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_record_count_exception_handling(self, manager, temp_dir, monkeypatch):
+    async def test_record_count_exception_handling(self, manager, temp_dir, monkeypatch) -> None:
         """Test record counting exception handling (lines 606-608)."""
         # Create a directory with invalid permissions or corrupted file
         invalid_file = temp_dir / "products.csv"
@@ -102,7 +101,7 @@ class TestUpdateManagerFileCache:
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_cache_data_jsonl_files(self, manager, temp_dir):
+    async def test_cache_data_jsonl_files(self, manager, temp_dir) -> None:
         """Test cache data retrieval with JSONL files (lines 640-672)."""
         # Create JSONL file
         jsonl_file = temp_dir / "products.jsonl"
@@ -117,7 +116,7 @@ class TestUpdateManagerFileCache:
         assert cache_data["apple"]["calories"] == 100
 
     @pytest.mark.asyncio
-    async def test_cache_data_ndjson_files(self, manager, temp_dir):
+    async def test_cache_data_ndjson_files(self, manager, temp_dir) -> None:
         """Test cache data retrieval with NDJSON files (lines 640-672)."""
         # Create NDJSON file
         ndjson_file = temp_dir / "products.ndjson"
@@ -131,7 +130,7 @@ class TestUpdateManagerFileCache:
         assert "banana" in cache_data
 
     @pytest.mark.asyncio
-    async def test_cache_data_csv_files(self, manager, temp_dir):
+    async def test_cache_data_csv_files(self, manager, temp_dir) -> None:
         """Test cache data retrieval with CSV files (lines 674-687)."""
         # Create CSV file
         csv_file = temp_dir / "products.csv"
@@ -146,7 +145,7 @@ class TestUpdateManagerFileCache:
         assert cache_data["apple"]["calories"] == "100"
 
     @pytest.mark.asyncio
-    async def test_cache_data_multiple_patterns(self, manager, temp_dir):
+    async def test_cache_data_multiple_patterns(self, manager, temp_dir) -> None:
         """Test cache data retrieval with multiple file patterns (lines 640-687)."""
         # Create files with different patterns
         (temp_dir / "products.jsonl").write_text('{"name": "apple"}\n')
@@ -158,7 +157,7 @@ class TestUpdateManagerFileCache:
         assert "apple" in cache_data
 
     @pytest.mark.asyncio
-    async def test_cache_data_no_files(self, manager):
+    async def test_cache_data_no_files(self, manager) -> None:
         """Test cache data retrieval when no files found."""
         # No files in directory
         cache_data = await manager._get_cache_data_for_checksum("openfoodfacts")
@@ -166,7 +165,7 @@ class TestUpdateManagerFileCache:
         assert len(cache_data) == 0
 
     @pytest.mark.asyncio
-    async def test_cache_data_exception_handling(self, manager, temp_dir):
+    async def test_cache_data_exception_handling(self, manager, temp_dir) -> None:
         """Test cache data retrieval exception handling (lines 688-689)."""
         # Create a file that will cause JSON decode error
         jsonl_file = temp_dir / "products.jsonl"
@@ -210,7 +209,12 @@ class TestUpdateManagerFileCache:
                 return_value={
                     "apple": SimpleNamespace(
                         name="Apple",
-                        nutrients_per_100g={"calories": 100},
+                        nutrients_per_100g={
+                            "calories": 100,
+                            "protein_g": 0.3,
+                            "fat_g": 0.2,
+                            "carbs_g": 25.0,
+                        },
                         cost_per_100g=0.5,
                         tags=["fruit"],
                         availability_regions=["US"],
@@ -255,7 +259,12 @@ class TestUpdateManagerFileCache:
                 return_value={
                     "apple": SimpleNamespace(
                         name="Apple",
-                        nutrients_per_100g={"calories": 100},
+                        nutrients_per_100g={
+                            "calories": 100,
+                            "protein_g": 0.3,
+                            "fat_g": 0.2,
+                            "carbs_g": 25.0,
+                        },
                         cost_per_100g=0.5,
                         tags=["fruit"],
                         availability_regions=["US"],
@@ -307,48 +316,63 @@ class TestUpdateManagerFileCache:
         )
 
         # Mock the update process
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_get_foods.return_value = {
-                "apple": SimpleNamespace(
-                    name="Apple",
-                    nutrients_per_100g={"calories": 100},
-                    cost_per_100g=0.5,
-                    tags=["fruit"],
-                    availability_regions=["US"],
-                    source="usda",
-                    source_id="1",
-                )
-            }
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(
+                return_value={
+                    "apple": SimpleNamespace(
+                        name="Apple",
+                        nutrients_per_100g={
+                            "calories": 100,
+                            "protein_g": 0.3,
+                            "fat_g": 0.2,
+                            "carbs_g": 25.0,
+                        },
+                        cost_per_100g=0.5,
+                        tags=["fruit"],
+                        availability_regions=["US"],
+                        source="usda",
+                        source_id="1",
+                    )
+                }
+            ),
+        ):
+            # No usda_client mocking necessary for this path
+            # Execute update
+            result = await manager._update_usda_database(force=True)
 
-            with patch.object(manager, "usda_client") as mock_usda:
-                mock_usda.fetch_all_foods = AsyncMock(
-                    return_value=[{"fdcId": "1", "description": "Apple"}]
-                )
-
-                # Execute update
-                result = await manager._update_usda_database(force=True)
-
-                # Verify the result
-                assert isinstance(result, UpdateResult)
-                assert result.source == "usda"
-                assert result.old_version == "1.0.0"
+            # Verify the result
+            assert isinstance(result, UpdateResult)
+            assert result.source == "usda"
+            assert result.old_version == "1.0.0"
 
     @pytest.mark.asyncio
     async def test_record_count_fallback_logic(self, manager) -> None:
         """Test record count fallback logic (lines 485-486)."""
         # Create mock data
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_get_foods.return_value = {
-                "apple": SimpleNamespace(
-                    name="Apple",
-                    nutrients_per_100g={"calories": 100},
-                    cost_per_100g=0.5,
-                    tags=["fruit"],
-                    availability_regions=["US"],
-                    source="openfoodfacts",
-                    source_id="1",
-                )
-            }
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(
+                return_value={
+                    "apple": SimpleNamespace(
+                        name="Apple",
+                        nutrients_per_100g={
+                            "calories": 100,
+                            "protein_g": 0.3,
+                            "fat_g": 0.2,
+                            "carbs_g": 25.0,
+                        },
+                        cost_per_100g=0.5,
+                        tags=["fruit"],
+                        availability_regions=["US"],
+                        source="openfoodfacts",
+                        source_id="1",
+                    )
+                }
+            ),
+        ):
 
             # Mock _get_actual_record_count to return 0
             with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=0)):
@@ -365,25 +389,31 @@ class TestUpdateManagerFileCache:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_checksum_calculation_paths(self, manager):
+    async def test_checksum_calculation_paths(self, manager) -> None:
         """Test checksum calculation paths (lines 492-498)."""
         # Create mock data
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {"calories": 100},
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "openfoodfacts",
-                    "source_id": "1",
-                },
-            )()
-
-            mock_get_foods.return_value = {"apple": mock_food}
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(
+                return_value={
+                    "apple": SimpleNamespace(
+                        name="Apple",
+                        nutrients_per_100g={
+                            "calories": 100,
+                            "protein_g": 0.3,
+                            "fat_g": 0.2,
+                            "carbs_g": 25.0,
+                        },
+                        cost_per_100g=0.5,
+                        tags=["fruit"],
+                        availability_regions=["US"],
+                        source="openfoodfacts",
+                        source_id="1",
+                    )
+                }
+            ),
+        ):
 
             # Mock _get_actual_record_count to return same as unified_foods
             with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=1)):
@@ -400,11 +430,14 @@ class TestUpdateManagerFileCache:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_empty_database_warning(self, manager):
+    async def test_empty_database_warning(self, manager) -> None:
         """Test empty database warning (lines 502-505)."""
         # Create mock data
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_get_foods.return_value = {}
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(return_value={}),
+        ):
 
             # Mock _get_actual_record_count to return 0
             with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=0)):
@@ -419,12 +452,14 @@ class TestUpdateManagerFileCache:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_error_handling_paths(self, manager):
+    async def test_error_handling_paths(self, manager) -> None:
         """Test error handling paths (lines 369-371, 541-543)."""
         # Test USDA error handling
-        with patch.object(manager, "usda_client") as mock_usda:
-            mock_usda.fetch_all_foods = AsyncMock(side_effect=Exception("API Error"))
-
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(side_effect=Exception("Critical database error")),
+        ):
             result = await manager._update_usda_database(force=True)
             assert isinstance(result, UpdateResult)
             # The result might be successful even with API errors due to fallback logic
@@ -432,9 +467,9 @@ class TestUpdateManagerFileCache:
             assert result.source == "usda"
 
         # Test OFF error handling
-        with patch.object(manager, "off_client") as mock_off:
-            mock_off.search_products = AsyncMock(side_effect=Exception("API Error"))
-
+        with patch.object(
+            manager, "_get_actual_record_count", new=AsyncMock(side_effect=Exception("boom"))
+        ):
             result = await manager._update_off_database(force=True)
             assert isinstance(result, UpdateResult)
             # The result might be successful even with API errors due to fallback logic

@@ -300,7 +300,7 @@ class TestGetProviderOllama:
     def test_get_provider_ollama_exception_fallback(self, mock_ollama_class):
         """Тест fallback при ошибках создания OllamaProvider"""
         # Первый вызов с kwargs дает ошибку, второй с positional args тоже
-        mock_ollama_class.side_effect = [TypeError("keyword issue"), Exception("failed")]
+        mock_ollama_class.side_effect = [TypeError("keyword issue"), RuntimeError("failed")]
 
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             provider = llm.get_provider()
@@ -351,7 +351,8 @@ class TestModuleImports:
         with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
             with patch.object(llm, "GrokProvider", None):
                 grok_lite = llm.get_provider()
-                assert grok_lite.name == "grok"
+                # Avoid optional-attr lint: use getattr
+                assert getattr(grok_lite, "name", None) == "grok"
 
         stub = llm.StubProvider()
         assert stub.name == "stub"

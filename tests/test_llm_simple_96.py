@@ -58,7 +58,7 @@ class TestLlmSimple96:
             # Mock both calls fail
             mock_grok_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
-                Exception("Positional args failed"),  # Second call fails
+                RuntimeError("Positional args failed"),  # Second call fails
             ]
             mock_lite_provider = Mock()
             mock_grok_lite.return_value = mock_lite_provider
@@ -112,7 +112,7 @@ class TestLlmSimple96:
             # Mock both calls fail
             mock_ollama_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
-                Exception("Positional args failed"),  # Second call fails
+                RuntimeError("Positional args failed"),  # Second call fails
             ]
 
             result = get_provider()

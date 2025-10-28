@@ -79,7 +79,7 @@ class TestUpdateManagerSpecificLines:
                     assert result.source == "usda"
 
     @pytest.mark.asyncio
-    async def test_backup_load_exception_logging_lines_474_475(self, manager, temp_dir) -> None:
+    async def test_backup_load_exception_logging_lines_474_475(self, manager) -> None:
         """Test OFF backup load exception logging covering lines 474-475."""
         # Add existing version
         manager.versions["openfoodfacts"] = DatabaseVersion(
@@ -125,15 +125,14 @@ class TestUpdateManagerSpecificLines:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_usda_exception_logging_lines_369_371(self, manager):
+    async def test_usda_exception_logging_lines_369_371(self, manager) -> None:
         """Test USDA exception logging covering lines 369-371."""
-        # Mock USDA client to raise exception during fetch_all_foods
-        with patch.object(manager, "usda_client") as mock_usda:
-            mock_usda.fetch_all_foods = AsyncMock(
-                side_effect=Exception("Database connection failed")
-            )
-
-            # Execute update that should trigger exception logging
+        # Raise from awaited unified_db method to trigger top-level exception handler
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(side_effect=Exception("Critical database error")),
+        ):
             result = await manager._update_usda_database(force=True)
 
             # Verify exception handling covers lines 369-371
@@ -141,13 +140,12 @@ class TestUpdateManagerSpecificLines:
             assert result.source == "usda"
 
     @pytest.mark.asyncio
-    async def test_off_exception_logging_lines_541_543(self, manager):
+    async def test_off_exception_logging_lines_541_543(self, manager) -> None:
         """Test OFF exception logging covering lines 541-543."""
-        # Mock OFF client to raise exception during search_products
-        with patch.object(manager, "off_client") as mock_off:
-            mock_off.search_products = AsyncMock(side_effect=Exception("API rate limit exceeded"))
-
-            # Execute update that should trigger exception logging
+        # Raise from a later awaited helper to reach top-level exception handling
+        with patch.object(
+            manager, "_get_actual_record_count", new=AsyncMock(side_effect=Exception("boom"))
+        ):
             result = await manager._update_off_database(force=True)
 
             # Verify exception handling covers lines 541-543
@@ -155,7 +153,7 @@ class TestUpdateManagerSpecificLines:
             assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_validation_error_logging_line_442(self, manager):
+    async def test_validation_error_logging_line_442(self, manager) -> None:
         """Test validation error logging covering line 442."""
         # Create mock food with missing required nutrients
         mock_food = type(
@@ -213,21 +211,20 @@ class TestUpdateManagerSpecificLines:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_backup_creation_exception_lines_817_819_821(self, manager, temp_dir):
+    async def test_backup_creation_exception_lines_817_819_821(self, manager) -> None:
         """Test backup creation exception paths covering lines 817, 819-821."""
         # Mock file operations to simulate permission error
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            # Try to create backup - should handle exception gracefully
-            with suppress(PermissionError):
-                await manager._create_backup("usda", "1.0.0")
+            # _create_backup handles errors internally; suppress isn't needed
+            await manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
-    async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir):
+    async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir) -> None:
         """Test backup load exception paths covering lines 837-838, 841."""
         # Create invalid backup file
         backup_file = temp_dir / "usda_backup_1.0.0.json"
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        with suppress(json.JSONDecodeError, OSError, ValueError):
+        with pytest.raises(json.JSONDecodeError):
             await manager._load_backup("usda", "1.0.0")

@@ -51,13 +51,9 @@ class TestUpdateManagerFinal97Percent:
     @pytest.mark.asyncio
     async def test_off_main_exception_logging_lines_541_543(self, manager):
         """Test OFF main exception logging covering lines 541-543."""
-        # Mock unified_db to raise exception during get_common_foods_database
-        with patch.object(
-            manager.unified_db,
-            "get_common_foods_database",
-            side_effect=Exception("Critical API error"),
-        ):
-            # Execute update that should trigger exception logging
+        # Raise from OFF client to trigger top-level exception handler
+        with patch.object(manager, "off_client") as mock_off:
+            mock_off.search_products = AsyncMock(side_effect=Exception("Critical API error"))
             result = await manager._update_off_database(force=True)
 
             # Verify exception handling covers lines 541-543
@@ -119,11 +115,9 @@ class TestUpdateManagerFinal97Percent:
     @pytest.mark.asyncio
     async def test_backup_creation_exception_lines_817_819_821(self, manager):
         """Test backup creation exception paths covering lines 817, 819-821."""
-        # Mock file operations to simulate permission error
+        # Mock file operations to simulate permission error; method handles internally
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            # Try to create backup - should handle exception gracefully
-            with suppress(PermissionError):
-                await manager._create_backup("usda", "1.0.0")
+            await manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
     async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir):
