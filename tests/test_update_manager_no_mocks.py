@@ -24,13 +24,13 @@ class TestUpdateManagerRealCoverage:
     """Test class focused on real logic coverage without Mock patching."""
 
     @pytest.fixture
-    def temp_dir(self):
+    def temp_dir(self) -> Path:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)
 
     @pytest.fixture
-    def manager(self, temp_dir):
+    def manager(self, temp_dir: Path) -> DatabaseUpdateManager:
         """Create DatabaseUpdateManager instance."""
         return DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
@@ -273,11 +273,11 @@ class TestUpdateManagerRealCoverage:
     @pytest.mark.asyncio
     async def test_backup_operations_real_logic(self, manager, temp_dir):
         """Test backup operations with real file operations."""
-        # Test real backup creation (will fail due to no real data, but covers code)
+        # Test real backup creation error path - expected to fail without real data
         try:
             await manager._create_backup("usda", "1.0.0")
-        except Exception:
-            pass  # Expected to fail without real data
+        except Exception:  # Expected: exercises error handling without real database
+            pass
 
         # Test real backup loading with real file
         backup_data = {
@@ -379,15 +379,14 @@ class TestUpdateManagerRealCoverage:
         usda_files = list(temp_dir.glob("usda_backup_*.json"))
         assert len(usda_files) <= 5  # max_rollback_versions=5
 
-    def test_scheduled_update_real_logic(self):
+    @pytest.mark.asyncio
+    async def test_scheduled_update_real_logic(self, temp_dir):
         """Test run_scheduled_update with real logic."""
         # Test with real manager instance
-        manager = DatabaseUpdateManager(cache_dir=Path("/tmp"), update_interval_hours=24)
+        manager = DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
         # This will test the real function logic
-        import asyncio
-
-        result = asyncio.run(run_scheduled_update(manager))
+        result = await run_scheduled_update(manager)
         assert isinstance(result, dict)
 
     def test_database_status_real_logic(self, manager):
@@ -409,7 +408,10 @@ class TestUpdateManagerRealCoverage:
 
     def test_callback_management_real_logic(self, manager):
         """Test callback management with real callbacks."""
-        callback = lambda x: x  # Real function
+
+        def callback(x: UpdateResult) -> UpdateResult:
+            return x  # Real function
+
         manager.add_update_callback(callback)
         assert callback in manager.update_callbacks
 

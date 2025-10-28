@@ -92,7 +92,7 @@ class TestUpdateManagerFileCache:
         invalid_file.write_text("invalid,csv\n")
 
         # Mock open to raise exception
-        with pytest.MonkeyPatch().context() as mp:
+        with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
                 "builtins.open",
                 lambda *args, **kwargs: (_ for _ in ()).throw(IOError("Permission denied")),
@@ -358,7 +358,7 @@ class TestUpdateManagerFileCache:
             mock_get_foods.return_value = {"apple": mock_food}
 
             # Mock _get_actual_record_count to return 0
-            with patch.object(manager, "_get_actual_record_count", return_value=0):
+            with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=0)):
                 with patch.object(manager, "off_client") as mock_off:
                     mock_off.search_products = AsyncMock(
                         return_value=[{"code": "1", "product_name": "Apple"}]
@@ -393,7 +393,7 @@ class TestUpdateManagerFileCache:
             mock_get_foods.return_value = {"apple": mock_food}
 
             # Mock _get_actual_record_count to return same as unified_foods
-            with patch.object(manager, "_get_actual_record_count", return_value=1):
+            with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=1)):
                 with patch.object(manager, "off_client") as mock_off:
                     mock_off.search_products = AsyncMock(
                         return_value=[{"code": "1", "product_name": "Apple"}]
@@ -414,7 +414,7 @@ class TestUpdateManagerFileCache:
             mock_get_foods.return_value = {}
 
             # Mock _get_actual_record_count to return 0
-            with patch.object(manager, "_get_actual_record_count", return_value=0):
+            with patch.object(manager, "_get_actual_record_count", new=AsyncMock(return_value=0)):
                 with patch.object(manager, "off_client") as mock_off:
                     mock_off.search_products = AsyncMock(return_value=[])
 
@@ -431,17 +431,17 @@ class TestUpdateManagerFileCache:
         # Test USDA error handling
         with patch.object(manager, "usda_client") as mock_usda:
             mock_usda.fetch_all_foods = AsyncMock(side_effect=Exception("API Error"))
-            
+
             result = await manager._update_usda_database(force=True)
             assert isinstance(result, UpdateResult)
             # The result might be successful even with API errors due to fallback logic
             # Just verify it's a valid UpdateResult
             assert result.source == "usda"
-        
+
         # Test OFF error handling
         with patch.object(manager, "off_client") as mock_off:
             mock_off.search_products = AsyncMock(side_effect=Exception("API Error"))
-            
+
             result = await manager._update_off_database(force=True)
             assert isinstance(result, UpdateResult)
             # The result might be successful even with API errors due to fallback logic
