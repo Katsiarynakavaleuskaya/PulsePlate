@@ -106,9 +106,8 @@ class EngineCompat:
         # Use a short-lived connection to mimic Engine.execute behavior
         with self._engine.connect() as conn:
             result = conn.execute(stmt, *args, **kwargs)
-            with suppress(InvalidRequestError, SQLAlchemyError, RuntimeError, ValueError):
+            with suppress(InvalidRequestError, SQLAlchemyError):
                 # Some statements don't require/support commit (e.g., SELECT, DDL in autocommit mode)
-                # Also handle other common exceptions that might occur during commit
                 conn.commit()
             return result
 

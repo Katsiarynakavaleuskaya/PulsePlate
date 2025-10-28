@@ -55,10 +55,10 @@ class StubProvider(ProviderBase):
 
 
 def get_provider() -> Optional[ProviderBase]:
-    """Возвращает провайдер по переменной окружения LLM_PROVIDER.
+    """Returns provider based on LLM_PROVIDER environment variable.
 
-    Если переменная пустая/неизвестная — возвращает None
-    (а не Ollama по умолчанию)."""
+    If variable is empty/unknown - returns None
+    (not Ollama by default)."""
     val = (os.getenv("LLM_PROVIDER") or "").strip().lower()
 
     if val in {"", "none", "no", "off", "false"}:
@@ -93,8 +93,8 @@ def get_provider() -> Optional[ProviderBase]:
 
     if val == "pico" and PicoProvider is not None:
         pico_cls = cast(Any, PicoProvider)
-        # Required settings must be non-empty
-        api_key = (os.getenv("PICO_API_KEY") or "").strip()
+        # Only endpoint is required, api_key is optional
+        api_key = (os.getenv("PICO_API_KEY") or "").strip() or None
         endpoint = (
             (os.getenv("PICO_ENDPOINT") or os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434"))
             or ""
@@ -102,7 +102,7 @@ def get_provider() -> Optional[ProviderBase]:
         # Optional with sensible default aligned with provider
         model = (os.getenv("PICO_MODEL") or "").strip() or "llama3.1:8b"
 
-        if not api_key or not endpoint:
+        if not endpoint:
             # Missing required configuration → provider not available
             return None
 

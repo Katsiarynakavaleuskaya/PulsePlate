@@ -91,8 +91,6 @@ class TestDbMissingLinesCoverage:
 
         exception_types = [
             InvalidRequestError("Generic error"),
-            RuntimeError("Runtime error"),
-            ValueError("Value error"),
             SQLAlchemyError("SQLAlchemy error"),
         ]
 
@@ -282,9 +280,9 @@ class TestDbMissingLinesCoverage:
         mock_session.commit.side_effect = Exception("Database error")
 
         with patch("core.db.SessionLocal", mock_session_class):
-            with pytest.raises(Exception, match="Database error"):
+            with pytest.raises(RuntimeError, match="Database error"):
                 with session_scope() as session:
-                    raise Exception("Database error")
+                    raise RuntimeError("Database error")
 
             # Should have rolled back and closed
             mock_session.rollback.assert_called_once()
