@@ -9,7 +9,6 @@ from typing import Generator
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
-from contextlib import suppress
 
 from core.food_apis.update_manager import (
     DatabaseUpdateManager,
@@ -156,22 +155,18 @@ class TestUpdateManagerSpecificLines:
     async def test_validation_error_logging_line_442(self, manager) -> None:
         """Test validation error logging covering line 442."""
         # Create mock food with missing required nutrients
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {
-                    "calories": 100,
-                    # Missing protein_g, fat_g, carbs_g
-                },
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "usda",
-                "source_id": "1",
+        mock_food = MagicMock(
+            name="Apple",
+            nutrients_per_100g={
+                "calories": 100,
+                # Missing protein_g, fat_g, carbs_g
             },
-        )()
+            cost_per_100g=0.5,
+            tags=["fruit"],
+            availability_regions=["US"],
+            source="usda",
+            source_id="1",
+        )
 
         # Mock USDA client to return data that will fail validation
         with patch.object(manager, "usda_client") as mock_usda:
@@ -196,7 +191,7 @@ class TestUpdateManagerSpecificLines:
                 assert len(result.errors) > 0
 
     @pytest.mark.asyncio
-    async def test_cache_data_exception_lines_631_632(self, manager):
+    async def test_cache_data_exception_lines_631_632(self, manager) -> None:
         """Test cache data exception paths covering lines 631-632."""
         # Test with invalid source
         result = await manager._get_cache_data_for_checksum("invalid_source")
@@ -204,7 +199,7 @@ class TestUpdateManagerSpecificLines:
         assert len(result) == 0
 
     @pytest.mark.asyncio
-    async def test_record_count_exception_lines_688_689(self, manager):
+    async def test_record_count_exception_lines_688_689(self, manager) -> None:
         """Test record count exception paths covering lines 688-689."""
         # Test with invalid source
         result = await manager._get_actual_record_count("invalid_source")
@@ -219,8 +214,8 @@ class TestUpdateManagerSpecificLines:
                 result = await manager._create_backup("usda", "1.0.0")
                 # Expect error logged with Permission denied
                 assert mock_logger.error.called or mock_logger.exception.called
-                # Method should not raise; may return None/False depending on implementation
-                assert result in (None, False)
+                # Method should not raise; returns None on error
+                assert result is None
 
     @pytest.mark.asyncio
     async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir) -> None:
