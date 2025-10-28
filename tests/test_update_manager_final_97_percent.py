@@ -117,17 +117,11 @@ class TestUpdateManagerFinal97Percent:
     @pytest.mark.asyncio
     async def test_backup_creation_exception_lines_817_819_821(self, manager, temp_dir):
         """Test backup creation exception paths covering lines 817, 819-821."""
-        # Create a file that will cause permission error
-        backup_file = temp_dir / "usda_backup_1.0.0.json"
-        backup_file.write_text("{}")
-        backup_file.chmod(0o444)  # Read-only
-
-        # Try to create backup - should handle exception gracefully
-        with suppress(Exception):
-            await manager._create_backup("usda", "1.0.0")
-
-        # Restore permissions
-        backup_file.chmod(0o644)
+        # Mock file operations to simulate permission error
+        with patch("builtins.open", side_effect=PermissionError("Permission denied")):
+            # Try to create backup - should handle exception gracefully
+            with suppress(Exception):
+                await manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
     async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir):

@@ -35,7 +35,9 @@ class TestUpdateManagerExceptionPaths:
         """Test USDA exception logging covering lines 369-371."""
         # Mock USDA client to raise exception during fetch_all_foods
         with patch.object(manager, "usda_client") as mock_usda:
-            mock_usda.fetch_all_foods = AsyncMock(side_effect=Exception("Database connection failed"))
+            mock_usda.fetch_all_foods = AsyncMock(
+                side_effect=Exception("Database connection failed")
+            )
 
             # Execute update that should trigger exception logging
             result = await manager._update_usda_database(force=True)

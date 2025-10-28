@@ -28,7 +28,7 @@ def _load_provider(module_name: str, attr: str) -> Optional[Type[ProviderBase]]:
     try:
         module = importlib.import_module(module_name)
         candidate = getattr(module, attr)
-    except Exception:
+    except (ModuleNotFoundError, AttributeError):
         return None
 
     if isinstance(candidate, type):
@@ -51,7 +51,7 @@ class StubProvider(ProviderBase):
         return f"[stub @ {dt}] Insight: {text}"
 
 
-def get_provider():
+def get_provider() -> Optional[ProviderBase]:
     """Возвращает провайдер по переменной окружения LLM_PROVIDER.
 
     Если переменная пустая/неизвестная — возвращает None
@@ -76,29 +76,46 @@ def get_provider():
                 return GrokLiteProvider()
             try:
                 return provider_cls(endpoint=endpoint, api_key=api_key, model=model)
-            except Exception:
+            except (TypeError, ValueError):
                 # Fallback to positional args if keyword args fail
                 try:
                     return provider_cls(endpoint, model, api_key)
-                except Exception:
+                except (TypeError, ValueError):
                     # If both fail, return lite provider
                     return GrokLiteProvider()
         # Fallback when real provider unavailable
         return GrokLiteProvider()
+
+    if val == "pico" and PicoProvider is not None:
+        pico_cls = cast(Any, PicoProvider)
+        endpoint = os.getenv("PICO_ENDPOINT")
+        model = os.getenv("PICO_MODEL")
+        api_key = os.getenv("PICO_API_KEY")
+        try:
+            return pico_cls(endpoint=endpoint, model=model, api_key=api_key)
+        except (TypeError, ValueError):
+            try:
+                return pico_cls(endpoint, model, api_key)
+            except (TypeError, ValueError):
+                return None
 
     if val == "ollama" and OllamaProvider is not None:
         ollama_cls = cast(Any, OllamaProvider)
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
-        timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+        raw_timeout = os.getenv("OLLAMA_TIMEOUT", "5")
+        try:
+            timeout_s = float(raw_timeout)
+        except (TypeError, ValueError):
+            timeout_s = 5.0
         try:
             return ollama_cls(endpoint=endpoint, model=model, timeout_s=timeout_s)
-        except Exception:
+        except (TypeError, ValueError):
             # Fallback to positional args if keyword args fail
             try:
                 return ollama_cls(endpoint, model, timeout_s)
-            except Exception:
+            except (TypeError, ValueError):
                 # If both fail, return None
                 return None
 

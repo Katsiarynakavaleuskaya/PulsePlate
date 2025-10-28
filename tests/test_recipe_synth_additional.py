@@ -4,7 +4,8 @@ Additional tests for core.recipe_synth to cover helper APIs and week synthesis.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
+from pathlib import Path
 
 from core.recipe_synth import (
     RecipeSynthesizer,
@@ -36,7 +37,6 @@ def test_recipe_template_to_dict_copy_semantics() -> None:
 
 
 def test_wrapper_get_and_synthesize_single() -> None:
-    synth = get_recipe_synthesizer()
     r = synthesize_recipe_from_ingredients(
         ingredients=[{"name": "pasta", "amount": 100, "unit": "g"}],
         cuisine_preference="italian",
@@ -47,7 +47,7 @@ def test_wrapper_get_and_synthesize_single() -> None:
 
 
 def test_synthesize_recipes_for_week_wrapper() -> None:
-    week_plan: Dict = {
+    week_plan: Dict[str, Any] = {
         "days": [
             {
                 "day": "Mon",
@@ -75,7 +75,7 @@ def test_synthesize_recipes_for_week_wrapper() -> None:
     assert len(weekly["Mon"]) == 1
 
 
-def test_load_templates_paths(tmp_path) -> None:
+def test_load_templates_paths(tmp_path: Path) -> None:
     # Existing empty dir triggers default template creation branch
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -120,7 +120,10 @@ def test_select_best_template_fallback_branch() -> None:
 def test_private_extraction_helpers() -> None:
     synth = get_recipe_synthesizer()
     # Duration buckets
-    assert synth._estimate_step_duration("Marinate chicken", next(iter(synth.templates.values()))) == 30
+    assert (
+        synth._estimate_step_duration("Marinate chicken", next(iter(synth.templates.values())))
+        == 30
+    )
     assert synth._estimate_step_duration("Boil water", next(iter(synth.templates.values()))) == 20
     assert synth._estimate_step_duration("Chop veggies", next(iter(synth.templates.values()))) == 5
     assert synth._estimate_step_duration("Heat oil", next(iter(synth.templates.values()))) == 2

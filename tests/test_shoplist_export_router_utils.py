@@ -57,8 +57,7 @@ def test_render_pdf_without_items_triggers_group_flatten_and_page_break() -> Non
         {
             "aisle": f"A{i}",
             "items": [
-                {"id": str(j), "name": f"Item {j}", "qty": j, "unit": "u"}
-                for j in range(10)
+                {"id": str(j), "name": f"Item {j}", "qty": j, "unit": "u"} for j in range(10)
             ],
         }
         for i in range(30)

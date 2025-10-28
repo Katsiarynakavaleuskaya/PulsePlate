@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
@@ -107,8 +108,7 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:  # nosec B110
-                # Not all statements require/allow commit; ignore commit errors
+            except InvalidRequestError:  # commit not applicable for some statements
                 pass
             return result
 

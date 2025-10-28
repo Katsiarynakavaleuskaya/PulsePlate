@@ -85,21 +85,20 @@ class TestUpdateManagerFileCache:
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_record_count_exception_handling(self, manager, temp_dir):
+    async def test_record_count_exception_handling(self, manager, temp_dir, monkeypatch):
         """Test record counting exception handling (lines 606-608)."""
         # Create a directory with invalid permissions or corrupted file
         invalid_file = temp_dir / "products.csv"
         invalid_file.write_text("invalid,csv\n")
 
         # Mock open to raise exception
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(
-                "builtins.open",
-                lambda *args, **kwargs: (_ for _ in ()).throw(IOError("Permission denied")),
-            )
+        def mock_open(*args, **kwargs):
+            raise IOError("Permission denied")
 
-            count = await manager._get_actual_record_count("openfoodfacts")
-            assert count == 0
+        monkeypatch.setattr("builtins.open", mock_open)
+
+        count = await manager._get_actual_record_count("openfoodfacts")
+        assert count == 0
 
     @pytest.mark.asyncio
     async def test_cache_data_jsonl_files(self, manager, temp_dir):

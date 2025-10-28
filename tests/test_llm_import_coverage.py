@@ -82,47 +82,30 @@ class TestImportFallbacks:
 
     def test_ollama_import_exception_coverage(self):
         """Тест покрытия исключения при импорте OllamaProvider"""
-        # Мокаем ошибку импорта OllamaProvider
-        original_import = builtins.__import__
-        with patch("builtins.__import__") as mock_import:
-
-            def import_side_effect(name, *args, **kwargs):
-                if "providers.ollama" in name:
-                    raise ImportError("No module named 'providers.ollama'")
-                return original_import(name, *args, **kwargs)
-
-            mock_import.side_effect = import_side_effect
-
-            # Перезагружаем модуль для активации except блока
+        # Симулируем отсутствие модуля через sys.modules
+        original_modules = sys.modules.copy()
+        try:
+            sys.modules.pop("providers.ollama", None)
+            with patch.dict("sys.modules", {"providers.ollama": None}):
+                reload(llm)
+                assert llm.OllamaProvider is None
+        finally:
+            sys.modules.clear()
+            sys.modules.update(original_modules)
             reload(llm)
-
-            # OllamaProvider должен быть None
-            assert llm.OllamaProvider is None
-
-        # Восстанавливаем нормальное состояние
-        reload(llm)
 
     def test_pico_import_exception_coverage(self):
         """Тест покрытия исключения при импорте PicoProvider"""
-        # Мокаем ошибку импорта PicoProvider
-        original_import = builtins.__import__
-        with patch("builtins.__import__") as mock_import:
-
-            def import_side_effect(name, *args, **kwargs):
-                if "providers.pico" in name:
-                    raise ImportError("No module named 'providers.pico'")
-                return original_import(name, *args, **kwargs)
-
-            mock_import.side_effect = import_side_effect
-
-            # Перезагружаем модуль для активации except блока
+        original_modules = sys.modules.copy()
+        try:
+            sys.modules.pop("providers.pico", None)
+            with patch.dict("sys.modules", {"providers.pico": None}):
+                reload(llm)
+                assert llm.PicoProvider is None
+        finally:
+            sys.modules.clear()
+            sys.modules.update(original_modules)
             reload(llm)
-
-            # PicoProvider должен быть None
-            assert llm.PicoProvider is None
-
-        # Восстанавливаем нормальное состояние
-        reload(llm)
 
 
 class TestGetProviderEdgeCases:

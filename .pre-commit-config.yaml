@@ -42,7 +42,7 @@ repos:
     rev: v1.18.2
     hooks:
       - id: mypy
-        name: mypy (type-check, changed files)
+        name: mypy (type-check, all matching files)
         args:
           - --pretty
           - --show-error-codes
