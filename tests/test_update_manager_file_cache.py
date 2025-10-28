@@ -92,8 +92,8 @@ class TestUpdateManagerFileCache:
         invalid_file.write_text("invalid,csv\n")
 
         # Mock open to raise exception
-        def mock_open(*args, **kwargs):
-            raise IOError("Permission denied")
+        def mock_open(*_args, **_kwargs):
+            raise PermissionError("Permission denied")
 
         monkeypatch.setattr("builtins.open", mock_open)
 
@@ -199,25 +199,28 @@ class TestUpdateManagerFileCache:
         assert "checksum" in cache_data["apple"]
 
     @pytest.mark.asyncio
-    async def test_usda_update_success_path_coverage(self, manager, temp_dir):
+    async def test_usda_update_success_path_coverage(self, manager):
         """Test USDA update success path to cover lines 325-371."""
         # Create mock data that will trigger the success path
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {"calories": 100},
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "usda",
-                    "source_id": "1",
-                },
-            )()
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {"calories": 100},
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "usda",
+                "source_id": "1",
+            },
+        )()
 
-            mock_get_foods.return_value = {"apple": mock_food}
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(return_value={"apple": mock_food}),
+        ):
 
             # Mock the external dependencies
             with patch.object(manager, "usda_client") as mock_usda:
@@ -246,23 +249,25 @@ class TestUpdateManagerFileCache:
             conn.close()
 
         # Create mock data
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {"calories": 100},
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "openfoodfacts",
-                    "source_id": "1",
-                },
-            )()
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {"calories": 100},
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "openfoodfacts",
+                "source_id": "1",
+            },
+        )()
 
-            mock_get_foods.return_value = {"apple": mock_food}
-
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(return_value={"apple": mock_food}),
+        ):
             # Mock the external dependencies
             with patch.object(manager, "off_client") as mock_off:
                 mock_off.search_products = AsyncMock(

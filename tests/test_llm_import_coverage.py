@@ -117,11 +117,20 @@ class TestGetProviderEdgeCases:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_get_provider_with_pico(self):
-        """Тест несуществующего провайдера pico"""
-        with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
-            provider = llm.get_provider()
-            # Должен вернуться None так как pico не обрабатывается в get_provider
-            assert provider is None
+        """Тест провайдера pico когда PicoProvider недоступен"""
+        # Симулируем отсутствие PicoProvider, чтобы проверить fallback
+        original_modules = sys.modules.copy()
+        try:
+            sys.modules.pop("providers.pico", None)
+            with patch.dict("sys.modules", {"providers.pico": None}):
+                with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
+                    reload(llm)
+                    provider = llm.get_provider()
+                    assert provider is None
+        finally:
+            sys.modules.clear()
+            sys.modules.update(original_modules)
+            reload(llm)
 
     def test_get_provider_ollama_with_exception_coverage(self):
         """Тест покрытия всех путей исключений в Ollama"""

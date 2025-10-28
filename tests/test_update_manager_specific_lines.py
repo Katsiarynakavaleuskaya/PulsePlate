@@ -32,7 +32,7 @@ class TestUpdateManagerSpecificLines:
         return DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
     @pytest.mark.asyncio
-    async def test_backup_load_exception_logging_lines_329_330(self, manager, temp_dir):
+    async def test_backup_load_exception_logging_lines_329_330(self, manager):
         """Test backup load exception logging covering lines 329-330."""
         # Add existing version
         manager.versions["usda"] = DatabaseVersion(
@@ -45,33 +45,33 @@ class TestUpdateManagerSpecificLines:
         )
 
         # Mock _load_backup to raise exception
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {
+                    "calories": 100,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 25.0,
+                },
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "usda",
+                "source_id": "1",
+            },
+        )()
+
         with patch.object(manager, "_load_backup", side_effect=Exception("Backup file corrupted")):
             with patch.object(manager, "usda_client") as mock_usda:
                 with patch.object(
-                    manager.unified_db, "get_common_foods_database"
-                ) as mock_get_foods:
+                    manager.unified_db,
+                    "get_common_foods_database",
+                    new=AsyncMock(return_value={"apple": mock_food}),
+                ):
                     mock_usda.fetch_all_foods = AsyncMock(return_value=[])
-
-                    mock_food = type(
-                        "Food",
-                        (),
-                        {
-                            "name": "Apple",
-                            "nutrients_per_100g": {
-                                "calories": 100,
-                                "protein_g": 0.3,
-                                "fat_g": 0.2,
-                                "carbs_g": 25.0,
-                            },
-                            "cost_per_100g": 0.5,
-                            "tags": ["fruit"],
-                            "availability_regions": ["US"],
-                            "source": "usda",
-                            "source_id": "1",
-                        },
-                    )()
-
-                    mock_get_foods.return_value = {"apple": mock_food}
 
                     # Execute update - should trigger exception logging
                     result = await manager._update_usda_database(force=True)
@@ -94,34 +94,34 @@ class TestUpdateManagerSpecificLines:
             metadata={"test": "data"},
         )
 
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {
+                    "calories": 100,
+                    "protein_g": 0.3,
+                    "fat_g": 0.2,
+                    "carbs_g": 25.0,
+                },
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "openfoodfacts",
+                "source_id": "1",
+            },
+        )()
+
         # Mock _load_backup to raise exception
         with patch.object(manager, "_load_backup", side_effect=Exception("Backup file corrupted")):
             with patch.object(manager, "off_client") as mock_off:
                 with patch.object(
-                    manager.unified_db, "get_common_foods_database"
-                ) as mock_get_foods:
+                    manager.unified_db,
+                    "get_common_foods_database",
+                    new=AsyncMock(return_value={"apple": mock_food}),
+                ):
                     mock_off.search_products = AsyncMock(return_value=[])
-
-                    mock_food = type(
-                        "Food",
-                        (),
-                        {
-                            "name": "Apple",
-                            "nutrients_per_100g": {
-                                "calories": 100,
-                                "protein_g": 0.3,
-                                "fat_g": 0.2,
-                                "carbs_g": 25.0,
-                            },
-                            "cost_per_100g": 0.5,
-                            "tags": ["fruit"],
-                            "availability_regions": ["US"],
-                            "source": "openfoodfacts",
-                            "source_id": "1",
-                        },
-                    )()
-
-                    mock_get_foods.return_value = {"apple": mock_food}
 
                     # Execute update - should trigger exception logging
                     result = await manager._update_off_database(force=True)
@@ -164,34 +164,36 @@ class TestUpdateManagerSpecificLines:
     @pytest.mark.asyncio
     async def test_validation_error_logging_line_442(self, manager):
         """Test validation error logging covering line 442."""
+        # Create mock food with missing required nutrients
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {
+                    "calories": 100,
+                    # Missing protein_g, fat_g, carbs_g
+                },
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "usda",
+                "source_id": "1",
+            },
+        )()
+
         # Mock USDA client to return data that will fail validation
         with patch.object(manager, "usda_client") as mock_usda:
-            with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
+            with patch.object(
+                manager.unified_db,
+                "get_common_foods_database",
+                new=AsyncMock(return_value={"apple": mock_food}),
+            ):
                 mock_usda.fetch_all_foods = AsyncMock(
                     return_value=[
                         {"fdcId": "1", "description": "Apple"},
                     ]
                 )
-
-                # Create mock food with missing required nutrients
-                mock_food = type(
-                    "Food",
-                    (),
-                    {
-                        "name": "Apple",
-                        "nutrients_per_100g": {
-                            "calories": 100,
-                            # Missing protein_g, fat_g, carbs_g
-                        },
-                        "cost_per_100g": 0.5,
-                        "tags": ["fruit"],
-                        "availability_regions": ["US"],
-                        "source": "usda",
-                        "source_id": "1",
-                    },
-                )()
-
-                mock_get_foods.return_value = {"apple": mock_food}
 
                 # Execute update - should trigger validation error logging
                 result = await manager._update_usda_database(force=True)
@@ -223,7 +225,7 @@ class TestUpdateManagerSpecificLines:
         # Mock file operations to simulate permission error
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
             # Try to create backup - should handle exception gracefully
-            with suppress(Exception):
+            with suppress(PermissionError):
                 await manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
@@ -234,5 +236,7 @@ class TestUpdateManagerSpecificLines:
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        with suppress(Exception):
+        import json
+
+        with suppress((json.JSONDecodeError, OSError, ValueError)):
             await manager._load_backup("usda", "1.0.0")

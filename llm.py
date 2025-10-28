@@ -28,7 +28,7 @@ def _load_provider(module_name: str, attr: str) -> Optional[Type[ProviderBase]]:
     try:
         module = importlib.import_module(module_name)
         candidate = getattr(module, attr)
-    except (ModuleNotFoundError, AttributeError):
+    except Exception:
         return None
 
     if isinstance(candidate, type):
@@ -76,11 +76,11 @@ def get_provider() -> Optional[ProviderBase]:
                 return GrokLiteProvider()
             try:
                 return provider_cls(endpoint=endpoint, api_key=api_key, model=model)
-            except (TypeError, ValueError):
+            except Exception:  # tests expect broad fallback here
                 # Fallback to positional args if keyword args fail
                 try:
                     return provider_cls(endpoint, model, api_key)
-                except (TypeError, ValueError):
+                except Exception:
                     # If both fail, return lite provider
                     return GrokLiteProvider()
         # Fallback when real provider unavailable
@@ -88,15 +88,22 @@ def get_provider() -> Optional[ProviderBase]:
 
     if val == "pico" and PicoProvider is not None:
         pico_cls = cast(Any, PicoProvider)
-        endpoint = os.getenv("PICO_ENDPOINT")
-        model = os.getenv("PICO_MODEL")
-        api_key = os.getenv("PICO_API_KEY")
+        # Required settings must be non-empty
+        api_key = (os.getenv("PICO_API_KEY") or "").strip()
+        endpoint = (os.getenv("PICO_ENDPOINT") or "").strip()
+        # Optional with sensible default
+        model = os.getenv("PICO_MODEL", "pico-default").strip() or "pico-default"
+
+        if not api_key or not endpoint:
+            # Missing required configuration → provider not available
+            return None
+
         try:
             return pico_cls(endpoint=endpoint, model=model, api_key=api_key)
         except (TypeError, ValueError):
             try:
                 return pico_cls(endpoint, model, api_key)
-            except (TypeError, ValueError):
+            except Exception:
                 return None
 
     if val == "ollama" and OllamaProvider is not None:
@@ -115,7 +122,7 @@ def get_provider() -> Optional[ProviderBase]:
             # Fallback to positional args if keyword args fail
             try:
                 return ollama_cls(endpoint, model, timeout_s)
-            except (TypeError, ValueError):
+            except Exception:
                 # If both fail, return None
                 return None
 

@@ -104,7 +104,8 @@ def test_title_and_tags_generation() -> None:
     assert "Chicken" in title or "Delicious" in title
     # Calculate tags
     tags = synth._generate_tags(tpl, ings)
-    assert any(t in tags for t in ["protein-rich", "vegetarian", "spicy"])  # heuristic
+    # Chicken triggers protein-rich, vegetables trigger vegetarian, herbs trigger spicy
+    assert "protein-rich" in tags and "vegetarian" in tags
 
 
 def test_select_best_template_fallback_branch() -> None:
@@ -114,7 +115,7 @@ def test_select_best_template_fallback_branch() -> None:
         cuisine_preference="nonexistent",
         difficulty_preference="impossible",
     )
-    assert isinstance(tpl, type(next(iter(synth.templates.values()))))
+    assert isinstance(tpl, RecipeTemplate)
 
 
 def test_private_extraction_helpers() -> None:
@@ -150,7 +151,11 @@ def test_calculate_nutrition_edges() -> None:
         ],
         servings=2,
     )
-    assert nutrients["calories"] > 0 and nutrients["fat"] > 0
+    # Based on ingredients: chicken (500 cal), vegetables (20 cal), pasta (350 cal), oil (90 cal)
+    # Total ~960 cal / 2 servings = ~480 cal per serving
+    assert 400 < nutrients["calories"] < 600
+    assert nutrients["fat"] > 4  # Oil contributes ~5g fat per serving
+    assert nutrients["protein"] > 0
 
 
 def test_nonexistent_templates_dir_branch() -> None:

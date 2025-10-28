@@ -235,4 +235,4 @@ def test_round_to_packages_rule_fallback_on_bad_rule(generator: ShoplistGenerato
 def test_round_to_packages_ml_unit_branch(generator: ShoplistGenerator) -> None:
     aggregated = {"olive oil": 1200.0}
     items = generator.round_to_packages(aggregated)
-    assert items[0].unit in ("l", "ml")  # ml path with >= 1000 converts to liters
+    assert items[0].unit == "l"  # ml path with >= 1000 converts to liters

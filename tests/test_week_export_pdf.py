@@ -221,9 +221,8 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
                 onLaterPages(canvas, self)
             canvas.save()
 
-    def noop_register_font(*_args, **_kwargs) -> None:
+    def noop_register_font(*_args: Any, **_kwargs: Any) -> None:
         """No-op function to mock font registration."""
-        return None
 
     # Mock font registration to avoid TTF file dependency
     monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)

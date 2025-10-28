@@ -68,27 +68,29 @@ class TestUpdateManagerFinal97Percent:
     async def test_validation_error_logging_line_442(self, manager):
         """Test validation error logging covering line 442."""
         # Mock unified_db to return data that will fail validation
-        with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
-
-            # Create mock food with missing required nutrients
-            mock_food = type(
-                "Food",
-                (),
-                {
-                    "name": "Apple",
-                    "nutrients_per_100g": {
-                        "calories": 100,
-                        # Missing protein_g, fat_g, carbs_g
-                    },
-                    "cost_per_100g": 0.5,
-                    "tags": ["fruit"],
-                    "availability_regions": ["US"],
-                    "source": "usda",
-                    "source_id": "1",
+        # Create mock food with missing required nutrients
+        mock_food = type(
+            "Food",
+            (),
+            {
+                "name": "Apple",
+                "nutrients_per_100g": {
+                    "calories": 100,
+                    # Missing protein_g, fat_g, carbs_g
                 },
-            )()
+                "cost_per_100g": 0.5,
+                "tags": ["fruit"],
+                "availability_regions": ["US"],
+                "source": "usda",
+                "source_id": "1",
+            },
+        )()
 
-            mock_get_foods.return_value = {"apple": mock_food}
+        with patch.object(
+            manager.unified_db,
+            "get_common_foods_database",
+            new=AsyncMock(return_value={"apple": mock_food}),
+        ):
 
             # Execute update - should trigger validation error logging
             result = await manager._update_usda_database(force=True)
@@ -115,12 +117,12 @@ class TestUpdateManagerFinal97Percent:
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_backup_creation_exception_lines_817_819_821(self, manager, temp_dir):
+    async def test_backup_creation_exception_lines_817_819_821(self, manager):
         """Test backup creation exception paths covering lines 817, 819-821."""
         # Mock file operations to simulate permission error
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
             # Try to create backup - should handle exception gracefully
-            with suppress(Exception):
+            with suppress(PermissionError):
                 await manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
