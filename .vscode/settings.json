@@ -36,6 +36,7 @@
     "flyctl",
     "huggingface",
     "HUGGINGFACE",
+    "ndjson",
     "onrender",
     "pesc",
     "pppull",

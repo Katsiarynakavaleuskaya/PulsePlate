@@ -78,7 +78,7 @@ class TestUpdateManagerFileCache:
         assert count == 1  # 2 lines - 1 header = 1 record
 
     @pytest.mark.asyncio
-    async def test_record_count_no_files(self, manager, temp_dir):
+    async def test_record_count_no_files(self, manager):
         """Test record counting when no files found (lines 602-604)."""
         # No files in directory
         count = await manager._get_actual_record_count("openfoodfacts")
@@ -158,7 +158,7 @@ class TestUpdateManagerFileCache:
         assert "apple" in cache_data
 
     @pytest.mark.asyncio
-    async def test_cache_data_no_files(self, manager, temp_dir):
+    async def test_cache_data_no_files(self, manager):
         """Test cache data retrieval when no files found."""
         # No files in directory
         cache_data = await manager._get_cache_data_for_checksum("openfoodfacts")
@@ -337,7 +337,7 @@ class TestUpdateManagerFileCache:
                 assert result.old_version == "1.0.0"
 
     @pytest.mark.asyncio
-    async def test_record_count_fallback_logic(self, manager, temp_dir):
+    async def test_record_count_fallback_logic(self, manager):
         """Test record count fallback logic (lines 485-486)."""
         # Create mock data
         with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
@@ -372,7 +372,7 @@ class TestUpdateManagerFileCache:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_checksum_calculation_paths(self, manager, temp_dir):
+    async def test_checksum_calculation_paths(self, manager):
         """Test checksum calculation paths (lines 492-498)."""
         # Create mock data
         with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:
@@ -407,7 +407,7 @@ class TestUpdateManagerFileCache:
                     assert result.source == "openfoodfacts"
 
     @pytest.mark.asyncio
-    async def test_empty_database_warning(self, manager, temp_dir):
+    async def test_empty_database_warning(self, manager):
         """Test empty database warning (lines 502-505)."""
         # Create mock data
         with patch.object(manager.unified_db, "get_common_foods_database") as mock_get_foods:

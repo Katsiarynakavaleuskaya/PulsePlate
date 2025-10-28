@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+from typing import Any, Optional, Type, cast
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
@@ -20,22 +22,23 @@ class GrokLiteProvider:  # lightweight fallback that never uses network
         return f"[grok-lite] {text}"
 
 
-# Опциональные импорты — модуль должен грузиться даже без внешних либ
-try:
-    from providers.grok import GrokProvider  # xAI
-except Exception:
-    GrokProvider = None  # type: ignore
+def _load_provider(module_name: str, attr: str) -> Optional[Type[ProviderBase]]:
+    """Dynamically load provider class, returning None if unavailable."""
+
+    try:
+        module = importlib.import_module(module_name)
+        candidate = getattr(module, attr)
+    except Exception:
+        return None
+
+    if isinstance(candidate, type):
+        return cast(Type[ProviderBase], candidate)
+    return None
 
 
-try:
-    from providers.ollama import OllamaProvider  # локальные/совместимые
-except Exception:
-    OllamaProvider = None  # type: ignore
-
-try:
-    from providers.pico import PicoProvider  # если у тебя есть этот файл
-except Exception:
-    PicoProvider = None  # type: ignore
+GrokProvider = _load_provider("providers.grok", "GrokProvider")
+OllamaProvider = _load_provider("providers.ollama", "OllamaProvider")
+PicoProvider = _load_provider("providers.pico", "PicoProvider")
 
 
 class StubProvider(ProviderBase):
@@ -62,7 +65,8 @@ def get_provider():
         return StubProvider()
 
     if val == "grok":
-        if GrokProvider:
+        if GrokProvider is not None:
+            provider_cls = cast(Any, GrokProvider)
             # пример: можно пробросить ключ и модель через env
             api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
             model = os.getenv("GROK_MODEL", "grok-4-latest")
@@ -71,28 +75,29 @@ def get_provider():
             if not api_key.strip():
                 return GrokLiteProvider()
             try:
-                return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
+                return provider_cls(endpoint=endpoint, api_key=api_key, model=model)
             except Exception:
                 # Fallback to positional args if keyword args fail
                 try:
-                    return GrokProvider(endpoint, model, api_key)
+                    return provider_cls(endpoint, model, api_key)
                 except Exception:
                     # If both fail, return lite provider
                     return GrokLiteProvider()
         # Fallback when real provider unavailable
         return GrokLiteProvider()
 
-    if val == "ollama" and OllamaProvider:
+    if val == "ollama" and OllamaProvider is not None:
+        ollama_cls = cast(Any, OllamaProvider)
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
         timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
         try:
-            return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
+            return ollama_cls(endpoint=endpoint, model=model, timeout_s=timeout_s)
         except Exception:
             # Fallback to positional args if keyword args fail
             try:
-                return OllamaProvider(endpoint, model, timeout_s)
+                return ollama_cls(endpoint, model, timeout_s)
             except Exception:
                 # If both fail, return None
                 return None

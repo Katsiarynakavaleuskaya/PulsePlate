@@ -195,8 +195,8 @@ def main() -> int:
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")
-        for p in removed + [str(p) for p in to_remove]:
-            print("  ", p)
+        for entry in removed + [str(path) for path in to_remove]:
+            print("  ", entry)
     else:
         print(
             "\n(dry-run) pass --execute to apply backup removals; --apply-identical to prune identical duplicates; --suggest to only show canonical picks"

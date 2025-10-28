@@ -6,7 +6,7 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from bmi_core import auto_group, bmi_category, group_display_name
 
@@ -14,12 +14,13 @@ try:
     import matplotlib
 
     matplotlib.use("Agg")  # Use non-interactive backend
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as _plt
 
     MATPLOTLIB_AVAILABLE = True
+    plt: Optional[Any] = _plt
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    plt = None  # type: ignore[assignment]
+    plt = None
 
 
 class BMIVisualizer:

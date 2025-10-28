@@ -20,8 +20,9 @@ if TYPE_CHECKING:  # pragma: no cover - type check only
         async_sessionmaker as AsyncSessionmakerType,
     )
 else:
-    AsyncEngineType = AsyncSessionType = Any  # type: ignore[assignment]
-    AsyncSessionmakerType = Any  # type: ignore[assignment]
+    AsyncEngineType = Any
+    AsyncSessionType = Any
+    AsyncSessionmakerType = Any
 
 try:  # Optional async support
     from sqlalchemy.ext.asyncio import (
@@ -29,8 +30,8 @@ try:  # Optional async support
         create_async_engine,
     )
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None  # type: ignore
-    create_async_engine = None  # type: ignore
+    async_sessionmaker = None
+    create_async_engine = None
 
 
 def _build_engine_url() -> str:
@@ -52,7 +53,7 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
 
     # Only derive async URLs if async support is available
     if create_async_engine is None:
-        return None  # type: ignore[unreachable]
+        return None
 
     # If already async-capable, return as-is
     if (

@@ -10,11 +10,17 @@ EN: Demo script for working with product varieties.
 
 import sys
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, TypedDict
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.product_varieties import ProductVarietiesManager
+
+
+class UserProfile(TypedDict):
+    name: str
+    preferences: Dict[str, bool]
 
 
 def main():
@@ -92,7 +98,7 @@ def main():
     print("👤 Персонализированные рекомендации")
     print("=" * 50)
 
-    user_profiles = [
+    user_profiles: List[UserProfile] = [
         {"name": "Диабетик", "preferences": {"low_sugar": True, "low_fat": True}},
         {"name": "Спортсмен", "preferences": {"high_protein": True, "low_sugar": True}},
         {
@@ -120,20 +126,20 @@ def main():
     print("🔍 Поиск по критериям")
     print("=" * 50)
 
-    search_examples = [
+    search_examples: List[Tuple[str, Optional[str], Optional[str]]] = [
         ("Молоко", "обезжиренное", None),
         ("Сыр", "твердый", None),
         ("Йогурт", None, "стандарт"),
     ]
 
-    for product_name, variety_name, brand in search_examples:
+    for product_name, desired_variety, brand in search_examples:
         print(f"🔍 Поиск: {product_name}")
-        if variety_name:
-            print(f"   Сорт: {variety_name}")
+        if desired_variety:
+            print(f"   Сорт: {desired_variety}")
         if brand:
             print(f"   Марка: {brand}")
 
-        if results := manager.search_varieties(product_name, variety_name, brand):
+        if results := manager.search_varieties(product_name, desired_variety, brand):
             print(f"   Найдено: {len(results)} результатов")
             for variety in results:
                 print(f"     - {variety.variety} ({variety.brand})")

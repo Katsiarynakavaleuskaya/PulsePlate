@@ -11,6 +11,7 @@ EN: Script for automatic expansion of product database.
 import logging
 import sys
 from pathlib import Path
+from typing import List
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -39,7 +40,7 @@ def main():
         logger.info(f"📚 Loaded {len(recipes)} recipes")
 
         # Получаем все ингредиенты из рецептов
-        all_ingredients = []
+        all_ingredients: List[str] = []
         for recipe in recipes.values():
             all_ingredients.extend(recipe.ingredients.keys())
 

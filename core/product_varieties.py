@@ -13,7 +13,7 @@ import csv
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Dict, List, Mapping, Optional, Set, Union
 
 from .food_db import FoodItem
 
@@ -280,7 +280,7 @@ class ProductVarietiesManager:
         return comparison
 
     def recommend_variety(
-        self, product_name: str, user_preferences: Dict[str, str]
+        self, product_name: str, user_preferences: Mapping[str, bool]
     ) -> Optional[ProductVariety]:
         """
         RU: Рекомендовать сорт продукта на основе предпочтений пользователя.

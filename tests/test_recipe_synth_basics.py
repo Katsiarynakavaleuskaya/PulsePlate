@@ -539,7 +539,7 @@ class TestRecipeSynthesizerMethods:
 
     def test_create_recipe_from_template(self, synthesizer):
         """Test _create_recipe_from_template method."""
-        template = list(synthesizer.templates.values())[0]
+        template = next(iter(synthesizer.templates.values()))
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
@@ -555,7 +555,7 @@ class TestRecipeSynthesizerMethods:
 
     def test_generate_recipe_title(self, synthesizer):
         """Test _generate_recipe_title method."""
-        template = list(synthesizer.templates.values())[0]
+        template = next(iter(synthesizer.templates.values()))
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
@@ -563,14 +563,13 @@ class TestRecipeSynthesizerMethods:
 
         title = synthesizer._generate_recipe_title(template, ingredients)
 
-        assert isinstance(title, str)
-        assert len(title) > 0
-        # Should contain some ingredient names
-        assert any(ing["name"].lower() in title.lower() for ing in ingredients)
+        assert isinstance(title, str) and len(title) > 0
+        # Title should at least include the template name
+        assert template.name.lower() in title.lower()
 
     def test_generate_recipe_steps(self, synthesizer):
         """Test _generate_recipe_steps method."""
-        template = list(synthesizer.templates.values())[0]
+        template = next(iter(synthesizer.templates.values()))
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
@@ -609,7 +608,6 @@ class TestRecipeSynthesizerMethods:
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
         ]
-        original_servings = 2
         new_servings = 4
 
         adjusted = synthesizer._adapt_ingredients_for_servings(ingredients, new_servings)

@@ -221,11 +221,15 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
                 onLaterPages(canvas, self)
             canvas.save()
 
+    def noop_register_font(*args, **kwargs):
+        """No-op function to mock font registration."""
+        return None
+
     # Mock font registration to avoid TTF file dependency
     monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
     # Also mock the pdfmetrics.registerFont to prevent actual font registration
-    monkeypatch.setattr("reportlab.pdfbase.pdfmetrics.registerFont", lambda *args, **kwargs: None)
+    monkeypatch.setattr("reportlab.pdfbase.pdfmetrics.registerFont", noop_register_font)
 
     url = _signed_pdf_url(export_client, "ru")
     response = export_client.get(url, headers={"X-API-Key": "test_key"})
