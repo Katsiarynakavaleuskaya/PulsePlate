@@ -139,42 +139,48 @@ class TestUpdateManagerRealCoverage:
 
     def test_food_to_dict_real_conversion(self, manager):
         """Test food to dict conversion with real objects."""
+
         # Test successful conversion with to_dict method
-        mock_food = type("Food", (), {"to_dict": lambda: {"name": "Apple", "calories": 100}})()
+        class MockFood1:
+            def to_dict(self):
+                return {"name": "Apple", "calories": 100}
+
+        mock_food = MockFood1()
         result = manager._food_to_dict(mock_food)
         assert result["name"] == "Apple"
         assert result["calories"] == 100
 
         # Test fallback conversion with model_dump method
-        mock_food2 = type(
-            "Food",
-            (),
-            {
-                "to_dict": lambda: (_ for _ in ()).throw(Exception("Failed")),
-                "model_dump": lambda: {"name": "Apple", "calories": 100},
-            },
-        )()
+        class MockFood2:
+            def to_dict(self):
+                raise Exception("Failed")
+
+            def model_dump(self):
+                return {"name": "Apple", "calories": 100}
+
+        mock_food2 = MockFood2()
         result = manager._food_to_dict(mock_food2)
         assert result["name"] == "Apple"
         assert result["calories"] == 100
 
         # Test fallback conversion when both methods fail
-        mock_food3 = type(
-            "Food",
-            (),
-            {
-                "to_dict": lambda: (_ for _ in ()).throw(Exception("Failed")),
-                "model_dump": lambda: (_ for _ in ()).throw(Exception("Failed")),
-                "name": "Apple",
-                "nutrients_per_100g": {"calories": 100},
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "test",
-                "source_id": "test_id",
-            },
-        )()
+        class MockFood3:
+            def __init__(self):
+                self.name = "Apple"
+                self.nutrients_per_100g = {"calories": 100}
+                self.cost_per_100g = 0.5
+                self.tags = ["fruit"]
+                self.availability_regions = ["US"]
+                self.source = "test"
+                self.source_id = "test_id"
 
+            def to_dict(self):
+                raise Exception("Failed")
+
+            def model_dump(self):
+                raise Exception("Failed")
+
+        mock_food3 = MockFood3()
         result = manager._food_to_dict(mock_food3)
         assert isinstance(result, dict)
         assert result["name"] == "Apple"
