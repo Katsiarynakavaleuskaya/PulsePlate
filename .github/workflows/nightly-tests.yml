@@ -1,0 +1,63 @@
+name: Nightly Full Tests
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-tests
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'constraints.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Run full test suite with coverage (include slow/MC)
+        env:
+          PYTHONUNBUFFERED: '1'
+          BAYESIAN_PERSIST: '1'
+          BAYESIAN_HISTORY_PATH: '/tmp/test_execution_history.json'
+          MC_SEED: '2025'
+          MC_SAMPLES: '40'
+          MC_SAMPLES_FEW: '15'
+        run: |
+          pytest -c pyproject.toml -m "not demo" -n auto \
+            --cov=core --cov=app --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=97 -ra
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      - name: Upload HTML coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htmlcov
+          path: htmlcov
