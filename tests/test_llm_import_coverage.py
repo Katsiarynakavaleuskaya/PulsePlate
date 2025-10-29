@@ -116,13 +116,21 @@ class TestGetProviderEdgeCases:
     def test_get_provider_with_pico(self):
         """Тест провайдера pico когда PicoProvider недоступен"""
         # Симулируем отсутствие PicoProvider, чтобы проверить fallback
-        sys.modules.pop("providers.pico", None)
-        with patch.dict("sys.modules", {"providers.pico": None}):
-            with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
-                reload(llm)
-                provider = llm.get_provider()
-                assert provider is None
-        reload(llm)
+        orig = sys.modules.get("providers.pico")
+        try:
+            sys.modules.pop("providers.pico", None)
+            with patch.dict("sys.modules", {"providers.pico": None}):
+                with patch.dict(os.environ, {"LLM_PROVIDER": "pico"}, clear=False):
+                    reload(llm)
+                    provider = llm.get_provider()
+                    assert provider is None
+        finally:
+            # Restore original module state
+            if orig is not None:
+                sys.modules["providers.pico"] = orig
+            else:
+                sys.modules.pop("providers.pico", None)
+            reload(llm)
 
     def test_get_provider_ollama_with_exception_coverage(self):
         """Тест покрытия всех путей исключений в Ollama"""

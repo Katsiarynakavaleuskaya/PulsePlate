@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager, contextmanager, suppress
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
+from typing import Any, AsyncGenerator, Callable, Generator, Optional, TYPE_CHECKING
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
@@ -25,14 +25,19 @@ else:
     AsyncSessionType = Any
     AsyncSessionmakerType = Any
 
+_async_sessionmaker: Optional[Callable[..., Any]] = None
+_create_async_engine: Optional[Callable[..., Any]] = None
 try:  # Optional async support
-    from sqlalchemy.ext.asyncio import (
-        async_sessionmaker,
-        create_async_engine,
-    )
+    from sqlalchemy.ext.asyncio import async_sessionmaker as imported_async_sessionmaker
+    from sqlalchemy.ext.asyncio import create_async_engine as imported_create_async_engine
+
+    _async_sessionmaker = imported_async_sessionmaker
+    _create_async_engine = imported_create_async_engine
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = None
-    create_async_engine = None
+    pass
+
+async_sessionmaker: Optional[Callable[..., Any]] = _async_sessionmaker
+create_async_engine: Optional[Callable[..., Any]] = _create_async_engine
 
 
 def _build_engine_url() -> str:
@@ -106,6 +111,7 @@ class EngineCompat:
         # Use a short-lived connection to mimic Engine.execute behavior
         with self._engine.connect() as conn:
             result = conn.execute(stmt, *args, **kwargs)
+            # Only suppress the specific "no transaction" error and SQLAlchemy errors
             with suppress(InvalidRequestError, SQLAlchemyError):
                 # Some statements don't require/support commit (e.g., SELECT, DDL in autocommit mode)
                 conn.commit()
@@ -143,7 +149,7 @@ _POOL_CONFIG = {
 _ASYNC_ENGINE: Optional[AsyncEngineType] = None
 AsyncSessionLocal: Optional[Any] = None
 
-if ASYNC_DATABASE_URL and create_async_engine is not None:
+if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker is not None:
     try:
         async_kwargs: dict[str, Any] = {
             "echo": False,
@@ -154,8 +160,11 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             # SQLite async doesn't support pooling
             async_kwargs.update(_POOL_CONFIG)
 
-        _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
-        AsyncSessionLocal = async_sessionmaker(
+        create_async = create_async_engine
+        session_factory = async_sessionmaker
+
+        _ASYNC_ENGINE = create_async(ASYNC_DATABASE_URL, **async_kwargs)
+        AsyncSessionLocal = session_factory(
             bind=_ASYNC_ENGINE,
             autoflush=False,
             expire_on_commit=False,

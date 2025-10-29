@@ -38,10 +38,11 @@ create_alias() {
 # Переход в директорию проекта
 create_alias "pp" "cd $PROJECT_ROOT"
 
-# Тестирование
-create_alias "pptest" "cd $PROJECT_ROOT && python -m pytest tests/ -v"
-create_alias "pptest-quick" "cd $PROJECT_ROOT && python -m pytest tests/ -q --tb=short"
-create_alias "pptest-failed" "cd $PROJECT_ROOT && python -m pytest tests/ --lf --maxfail=3 -q"
+# Тестирование (с очисткой кеша)
+create_alias "pptest" "cd $PROJECT_ROOT && python -m pytest tests/ -v --cache-clear"
+create_alias "pptest-quick" "cd $PROJECT_ROOT && python -m pytest tests/ -q --tb=short --cache-clear"
+create_alias "pptest-failed" "cd $PROJECT_ROOT && python -m pytest tests/ --lf --maxfail=3 -q --cache-clear"
+create_alias "pptest-bayesian" "cd $PROJECT_ROOT && python scripts/run_tests_bayesian.py"
 # Functions for parameterized test commands
 pptest-file() {
   cd "$PROJECT_ROOT" && python -m pytest "tests/$1" -v
@@ -56,17 +57,17 @@ echo "✅ Функция 'pptest-file' создана"
 echo "✅ Функция 'pptest-class' создана"
 echo "✅ Функция 'pptest-method' создана"
 
-# Покрытие кода
-create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
+# Покрытие кода (с исключением кеш-файлов через .coveragerc)
+create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=core --cov=app --cov-report=term-missing --cov-report=xml --cache-clear"
 
 # Coverage with threshold enforcement (default 97%)
 # Allows overriding via PPCOV_FAIL_UNDER env variable.
-create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=\${PPCOV_FAIL_UNDER:-97}"
+create_alias "ppcov-check" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=core --cov=app --cov-report=term-missing --cov-fail-under=\${PPCOV_FAIL_UNDER:-97} --cache-clear"
 
 # Функция для покрытия с HTML и автооткрытием браузера
 ppcov-html() {
   cd "$PROJECT_ROOT" || return 1
-  python -m pytest tests/ --cov=. --cov-report=html || return 1
+  python -m pytest tests/ --cov=core --cov=app --cov-report=html --cache-clear || return 1
   if command -v open >/dev/null 2>&1; then
     open htmlcov/index.html
   elif command -v xdg-open >/dev/null 2>&1; then
@@ -82,8 +83,8 @@ create_alias "pplint" "cd $PROJECT_ROOT && flake8 ."
 create_alias "ppformat" "cd $PROJECT_ROOT && black . && isort ."
 create_alias "ppformat-check" "cd $PROJECT_ROOT && black --check --diff . && isort --check-only --diff ."
 
-# Полная проверка
-create_alias "ppcheck" "cd $PROJECT_ROOT && echo '🧪 Тесты...' && python -m pytest tests/ -q && echo '📊 Покрытие...' && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=97 && echo '🔍 Линтинг...' && flake8 . && echo '🎨 Форматирование...' && black --check . && isort --check-only . && echo '✅ Все проверки пройдены!'"
+# Полная проверка (с очисткой кеша)
+create_alias "ppcheck" "cd $PROJECT_ROOT && echo '🧪 Тесты...' && python -m pytest tests/ -q --cache-clear && echo '📊 Покрытие...' && python -m pytest tests/ --cov=core --cov=app --cov-report=term-missing --cov-fail-under=97 --cache-clear && echo '🔍 Линтинг...' && flake8 . && echo '🎨 Форматирование...' && black --check . && isort --check-only . && echo '✅ Все проверки пройдены!'"
 
 # Сервер
 create_alias "ppserver" "cd $PROJECT_ROOT && uvicorn app:app --reload --host 0.0.0.0 --port 8001"
@@ -157,6 +158,7 @@ echo ""
 echo "🔧 Дополнительные команды:"
 echo "  pptest-quick         - Быстрые тесты"
 echo "  pptest-failed        - Только упавшие тесты"
+echo "  pptest-bayesian      - Тесты с байесовским анализом упавших"
 echo "  ppcov-html           - HTML отчет покрытия"
 echo "  ppformat-check       - Проверка форматирования"
 echo "  ppsmoke              - Smoke тесты"

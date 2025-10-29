@@ -238,13 +238,14 @@ class TestUpdateManagerExceptionPaths:
         backup_file.chmod(0o444)  # Read-only
 
         # Try to create backup - should handle exception gracefully
-        from contextlib import suppress
-
-        with suppress(PermissionError):
-            await manager._create_backup("usda", "1.0.0")
-
-        # Restore permissions
-        backup_file.chmod(0o644)
+        try:
+            result = await manager._create_backup("usda", "1.0.0")
+            # Method should complete without raising exception
+            # Assert that backup file still exists (graceful handling)
+            assert backup_file.exists()
+        finally:
+            # Restore permissions
+            backup_file.chmod(0o644)
 
     @pytest.mark.asyncio
     async def test_backup_load_exception_lines_837_838_841(self, manager, temp_dir):
@@ -254,5 +255,6 @@ class TestUpdateManagerExceptionPaths:
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        with suppress(json.JSONDecodeError, OSError, ValueError):
-            await manager._load_backup("usda", "1.0.0")
+        result = await manager._load_backup("usda", "1.0.0")
+        # Should return None or empty dict for invalid backup
+        assert result is None or result == {}

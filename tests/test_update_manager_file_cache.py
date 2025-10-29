@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Iterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -19,7 +20,7 @@ class TestUpdateManagerFileCache:
     """Tests for file cache operations and missing coverage paths."""
 
     @pytest.fixture
-    def temp_dir(self):
+    def temp_dir(self) -> Iterator[Path]:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)

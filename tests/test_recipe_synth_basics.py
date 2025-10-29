@@ -603,7 +603,7 @@ class TestRecipeSynthesizerMethods:
             assert value >= 0
 
     def test_adjust_for_servings(self, synthesizer):
-        """Test _adjust_for_servings method."""
+        """Test _adapt_ingredients_for_servings method."""
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
@@ -622,7 +622,7 @@ class TestRecipeSynthesizerMethods:
         assert adjusted[1]["amount"] == 100.0
 
     def test_adjust_for_servings_same(self, synthesizer):
-        """Test _adjust_for_servings with same servings."""
+        """Test _adapt_ingredients_for_servings with same servings."""
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},
@@ -637,7 +637,7 @@ class TestRecipeSynthesizerMethods:
         assert adjusted[1]["amount"] == 100.0
 
     def test_adjust_for_servings_half(self, synthesizer):
-        """Test _adjust_for_servings with half servings."""
+        """Test _adapt_ingredients_for_servings with half servings."""
         ingredients = [
             {"name": "tomatoes", "amount": 200, "unit": "g"},
             {"name": "pasta", "amount": 100, "unit": "g"},

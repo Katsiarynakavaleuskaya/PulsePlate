@@ -14,24 +14,17 @@
 Нужно покрыть: 262+ дополнительных линии
 """
 
-import importlib.util
 import os
-import sys
-
 import pytest
 from fastapi.testclient import TestClient
 
-# Resolve app.py relative to this test file
-test_dir = os.path.dirname(os.path.abspath(__file__))
-app_path = os.path.join(os.path.dirname(test_dir), "app.py")
+# Ensure routers package is importable or skip
+pytest.importorskip("app.routers.api_key")
 
-spec = importlib.util.spec_from_file_location("app_module", app_path)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Cannot load app.py from {app_path}")
+# Use shared helper to safely load FastAPI app avoiding app.py vs app/ conflicts
+from tests.test_helpers import load_app
 
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+app = load_app()
 
 
 @pytest.fixture

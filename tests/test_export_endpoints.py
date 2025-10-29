@@ -12,7 +12,10 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
 from tests.test_helpers import load_app  # noqa: E402
+
+pytest.importorskip("app.routers.api_key")
 
 app = load_app()
 

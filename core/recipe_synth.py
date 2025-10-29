@@ -6,6 +6,7 @@ EN: Module for recipe synthesis based on weekly meal plans.
 Sprint 4: Recipe Synth под меню
 """
 
+import dataclasses
 import json
 import random
 from dataclasses import dataclass
@@ -44,32 +45,20 @@ class Recipe:
     image_url: Optional[str] = None
 
 
+@dataclass
 class RecipeTemplate:
     """Шаблон рецепта"""
 
-    def __init__(
-        self,
-        template_id: str,
-        name: str,
-        cuisine_type: str,
-        base_ingredients: List[str],
-        cooking_methods: List[str],
-        typical_prep_time: int,
-        typical_cook_time: int,
-        difficulty: str,
-        instruction_template: str,
-        nutrition_profile: Dict[str, float],
-    ) -> None:
-        self.template_id = template_id
-        self.name = name
-        self.cuisine_type = cuisine_type
-        self.base_ingredients = base_ingredients
-        self.cooking_methods = cooking_methods
-        self.typical_prep_time = typical_prep_time
-        self.typical_cook_time = typical_cook_time
-        self.difficulty = difficulty
-        self.instruction_template = instruction_template
-        self.nutrition_profile = nutrition_profile
+    template_id: str
+    name: str
+    cuisine_type: str
+    base_ingredients: List[str]
+    cooking_methods: List[str]
+    typical_prep_time: int
+    typical_cook_time: int
+    difficulty: str
+    instruction_template: str
+    nutrition_profile: Dict[str, float]
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -79,7 +68,7 @@ class RecipeTemplate:
         Returns:
             Dictionary representation of the recipe template
         """
-        return self.__dict__.copy()
+        return dataclasses.asdict(self)
 
 
 class RecipeSynthesizer:

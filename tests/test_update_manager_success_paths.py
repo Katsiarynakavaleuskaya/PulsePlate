@@ -7,6 +7,7 @@ import json
 import sqlite3
 import tempfile
 from pathlib import Path
+from typing import Iterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ class TestUpdateManagerSuccessPaths:
     """Test successful update paths to achieve 97% coverage."""
 
     @pytest.fixture
-    def temp_dir(self) -> Path:
+    def temp_dir(self) -> Iterator[Path]:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)

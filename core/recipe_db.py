@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 
 from .food_db import FoodItem, parse_food_db
 
@@ -30,7 +30,7 @@ class Recipe:
 
 
 def parse_recipe_db(
-    csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodItem] = None
+    csv_path: str = "data/recipes.csv", food_db: Optional[Dict[str, FoodItem]] = None
 ) -> Dict[str, Recipe]:
     """
     RU: Парсит CSV файл базы данных рецептов.
@@ -46,7 +46,7 @@ def parse_recipe_db(
     if food_db is None:
         food_db = parse_food_db()
 
-    recipe_db = {}
+    recipe_db: Dict[str, Recipe] = {}
 
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)

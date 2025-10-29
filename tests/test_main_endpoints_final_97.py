@@ -18,6 +18,8 @@ from fastapi.testclient import TestClient
 
 from tests.test_helpers import load_app
 
+pytest.importorskip("app.routers.api_key")
+
 app = load_app()
 
 

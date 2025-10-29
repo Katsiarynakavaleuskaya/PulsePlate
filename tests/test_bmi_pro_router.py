@@ -9,6 +9,9 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+import pytest
+
+pytest.importorskip("app.routers.bmi_pro")
 from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
 
 

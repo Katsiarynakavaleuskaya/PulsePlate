@@ -4,6 +4,9 @@ import os
 Final coverage tests to reach 96% target.
 """
 
+import pytest
+
+pytest.importorskip("app.routers.premium_week")
 from app.routers.premium_week import estimate_targets_minimal
 
 

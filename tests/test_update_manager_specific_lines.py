@@ -224,6 +224,6 @@ class TestUpdateManagerSpecificLines:
         backup_file = temp_dir / "usda_backup_1.0.0.json"
         backup_file.write_text("invalid json")
 
-        # Test that loading an invalid backup raises json.JSONDecodeError
-        with pytest.raises(json.JSONDecodeError):
-            await manager._load_backup("usda", "1.0.0")
+        # Test that loading an invalid backup returns empty dict (graceful handling)
+        result = await manager._load_backup("usda", "1.0.0")
+        assert result == {}

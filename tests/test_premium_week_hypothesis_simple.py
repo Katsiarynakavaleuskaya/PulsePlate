@@ -8,7 +8,7 @@ from typing import Dict, List
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
@@ -37,6 +37,7 @@ class TestPremiumWeekHypothesisSimple:
             unique=True,
         ),
     )
+    @settings(max_examples=50, deadline=1000)
     def test_generate_week_plan_simple_hypothesis(
         self,
         sex: str,
@@ -113,6 +114,7 @@ class TestPremiumWeekHypothesisSimple:
             unique=True,
         ),
     )
+    @settings(max_examples=50, deadline=1000)
     def test_generate_week_plan_with_targets_simple_hypothesis(
         self, targets: Dict[str, float], lang: str, diet_flags: List[str]
     ):

@@ -65,22 +65,17 @@ class TestUpdateManagerFinal97Percent:
         """Test validation error logging covering line 442."""
         # Mock unified_db to return data that will fail validation
         # Create mock food with missing required nutrients
-        mock_food = type(
-            "Food",
-            (),
-            {
-                "name": "Apple",
-                "nutrients_per_100g": {
-                    "calories": 100,
-                    # Missing protein_g, fat_g, carbs_g
-                },
-                "cost_per_100g": 0.5,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-                "source": "usda",
-                "source_id": "1",
-            },
-        )()
+        mock_food = MagicMock()
+        mock_food.name = "Apple"
+        mock_food.nutrients_per_100g = {
+            "calories": 100,
+            # Missing protein_g, fat_g, carbs_g
+        }
+        mock_food.cost_per_100g = 0.5
+        mock_food.tags = ["fruit"]
+        mock_food.availability_regions = ["US"]
+        mock_food.source = "usda"
+        mock_food.source_id = "1"
 
         with patch.object(
             manager.unified_db,
@@ -127,5 +122,7 @@ class TestUpdateManagerFinal97Percent:
         backup_file.write_text("invalid json")
 
         # Try to load backup - should handle exception gracefully
-        with suppress(Exception):
-            await manager._load_backup("usda", "1.0.0")
+        # Test that _load_backup handles invalid JSON gracefully
+        result = await manager._load_backup("usda", "1.0.0")
+        # Should return None or empty dict for invalid backup
+        assert result is None or result == {}

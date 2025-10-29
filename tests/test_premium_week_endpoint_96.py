@@ -3,34 +3,15 @@ Tests for premium week endpoint to reach 96% coverage.
 """
 
 import os
-import sys
 from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
+import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+pytest.importorskip("app.routers.api_key")
+from tests.test_helpers import load_app
 
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+app = load_app()
 
 
 class TestPremiumWeekEndpoint96:

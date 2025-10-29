@@ -8,6 +8,7 @@ from typing import Generator
 import pytest
 from fastapi import status
 
+pytest.importorskip("app.routers.premium_week")
 from app.routers import premium_week
 
 

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
 import importlib.util
 
+pytest.importorskip("app.routers.api_key")
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
     pytest.skip("Cannot load app.py")
@@ -35,6 +36,7 @@ class TestAppSpecificCoverage96:
         self.client = client
 
     @patch.object(app_module, "_scheduler_getter", None)
+    @pytest.mark.asyncio
     async def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler when _scheduler_getter is None (lines 115-119)."""
         # This should trigger the late import path

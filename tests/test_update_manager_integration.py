@@ -22,14 +22,86 @@ from core.time_utils import now_utc
 class TestUpdateManagerIntegration:
     """Integration tests focusing on real update paths."""
 
+    def _create_mock_food(
+        self,
+        name: str,
+        calories: int,
+        source: str,
+        source_id: str,
+        cost: float = 0.5,
+        tags: list = None,
+        regions: list = None,
+    ):
+        """Helper function to create mock Food objects."""
+        if tags is None:
+            tags = ["fruit"]
+        if regions is None:
+            regions = ["US"]
+
+        return type(
+            "Food",
+            (),
+            {
+                "name": name,
+                "nutrients_per_100g": {"calories": calories},
+                "cost_per_100g": cost,
+                "tags": tags,
+                "availability_regions": regions,
+                "source": source,
+                "source_id": source_id,
+            },
+        )()
+
+
+from typing import Generator
+from pathlib import Path
+
+
+import pytest
+from core.food_apis.update_manager import DatabaseUpdateManager
+
+
+class TestUpdateManagerIntegration:
+    """Integration tests focusing on real update paths."""
+
+    def _create_mock_food(
+        self,
+        name: str,
+        calories: int,
+        source: str,
+        source_id: str,
+        cost: float = 0.5,
+        tags: list = None,
+        regions: list = None,
+    ):
+        """Helper function to create mock Food objects."""
+        if tags is None:
+            tags = ["fruit"]
+        if regions is None:
+            regions = ["US"]
+
+        return type(
+            "Food",
+            (),
+            {
+                "name": name,
+                "nutrients_per_100g": {"calories": calories},
+                "cost_per_100g": cost,
+                "tags": tags,
+                "availability_regions": regions,
+                "source": source,
+                "source_id": source_id,
+            },
+        )()
+
     @pytest.fixture
-    def temp_dir(self):
+    def temp_dir(self) -> Generator[Path, None, None]:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)
 
     @pytest.fixture
-    def manager(self, temp_dir):
+    def manager(self, temp_dir: Path) -> DatabaseUpdateManager:
         """Create DatabaseUpdateManager instance."""
         return DatabaseUpdateManager(cache_dir=temp_dir, update_interval_hours=24)
 
@@ -47,33 +119,8 @@ class TestUpdateManagerIntegration:
                     ]
                 )
 
-                mock_food1 = type(
-                    "Food",
-                    (),
-                    {
-                        "name": "Apple",
-                        "nutrients_per_100g": {"calories": 100},
-                        "cost_per_100g": 0.5,
-                        "tags": ["fruit"],
-                        "availability_regions": ["US"],
-                        "source": "usda",
-                        "source_id": "1",
-                    },
-                )()
-
-                mock_food2 = type(
-                    "Food",
-                    (),
-                    {
-                        "name": "Banana",
-                        "nutrients_per_100g": {"calories": 200},
-                        "cost_per_100g": 0.3,
-                        "tags": ["fruit"],
-                        "availability_regions": ["US"],
-                        "source": "usda",
-                        "source_id": "2",
-                    },
-                )()
+                mock_food1 = self._create_mock_food("Apple", 100, "usda", "1")
+                mock_food2 = self._create_mock_food("Banana", 200, "usda", "2", cost=0.3)
 
                 mock_get_foods.return_value = {"apple": mock_food1, "banana": mock_food2}
 

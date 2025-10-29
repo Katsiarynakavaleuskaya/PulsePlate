@@ -12,6 +12,7 @@ from bmi_core import auto_group, bmi_category, group_display_name
 
 try:
     import matplotlib
+    from matplotlib import MatplotlibError
 
     matplotlib.use("Agg")  # Use non-interactive backend
     import matplotlib.pyplot as _plt
@@ -21,6 +22,9 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
     plt = None
+
+    class MatplotlibError(RuntimeError):
+        """Fallback Matplotlib error type when matplotlib is unavailable."""
 
 
 class BMIVisualizer:
@@ -261,9 +265,14 @@ def generate_bmi_visualization(
             "encoding": "base64",
         }
 
+    except (ValueError, TypeError, MatplotlibError) as error:
+        return {
+            "error": f"Visualization generation failed: {str(error)}",
+            "available": False,
+        }
     except Exception as e:
         return {
-            "error": f"Visualization generation failed: {str(e)}",
+            "error": f"Visualization failed: {str(e)}",
             "available": False,
         }
 

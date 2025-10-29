@@ -797,8 +797,12 @@ class DatabaseUpdateManager:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, "r") as f:
-            data = json.load(f)
+        try:
+            with open(backup_file, "r") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError, ValueError) as e:
+            logger.debug(f"Failed to load backup {backup_file}: {e}", exc_info=True)
+            return {}
 
         # Basic schema validation: ensure minimal keys exist
         required = {
@@ -816,8 +820,11 @@ class DatabaseUpdateManager:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
                     continue
                 foods[name] = UnifiedFoodItem(**food_data)
-            except Exception:  # nosec B112
+            except Exception as e:  # nosec B112
                 # Skip malformed entries
+                logger.debug(
+                    f"Skipping malformed backup entry: {repr(food_data)[:100]}...", exc_info=True
+                )
                 continue
 
         return foods

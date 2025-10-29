@@ -7,6 +7,7 @@ import json
 import sqlite3
 import tempfile
 from pathlib import Path
+from typing import Generator
 
 import pytest
 
@@ -24,7 +25,7 @@ class TestUpdateManagerRealCoverage:
     """Test class focused on real logic coverage without Mock patching."""
 
     @pytest.fixture
-    def temp_dir(self) -> Path:
+    def temp_dir(self) -> Generator[Path, None, None]:
         """Create temporary directory for tests."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             yield Path(tmp_dir)
@@ -274,10 +275,10 @@ class TestUpdateManagerRealCoverage:
     async def test_backup_operations_real_logic(self, manager, temp_dir):
         """Test backup operations with real file operations."""
         # Test real backup creation error path - expected to fail without real data
-        try:
-            await manager._create_backup("usda", "1.0.0")
-        except Exception:  # Expected: exercises error handling without real database
-            pass
+        # The method should handle the error gracefully and return None or False
+        result = await manager._create_backup("usda", "1.0.0")
+        # Should return None or False when backup creation fails
+        assert result is None or result is False
 
         # Test real backup loading with real file
         backup_data = {
@@ -356,9 +357,9 @@ class TestUpdateManagerRealCoverage:
         assert not result.success
         assert "Unknown source" in result.errors[0]
 
-        # Test backup not found
-        with pytest.raises(FileNotFoundError):
-            await manager._load_backup("usda", "nonexistent")
+        # Test backup not found - should return empty dict gracefully
+        result = await manager._load_backup("usda", "nonexistent")
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_cleanup_real_logic(self, manager, temp_dir):

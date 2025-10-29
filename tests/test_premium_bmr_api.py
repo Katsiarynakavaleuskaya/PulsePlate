@@ -10,24 +10,15 @@ Tests cover:
 """
 
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Import the FastAPI app from app.py file
-import importlib.util
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
+pytest.importorskip("app.routers.api_key")
+from tests.test_helpers import load_app
 
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
+app = load_app()
 client = TestClient(app)
 
 

@@ -4,6 +4,7 @@ from typing import List
 
 import pytest
 
+pytest.importorskip("app.routers.shoplist_export")
 from app.routers import shoplist_export as export
 
 

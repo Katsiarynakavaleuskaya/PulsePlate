@@ -66,7 +66,22 @@ jobs:
         if: ${{ secrets.STAGING_DOMAIN != '' }}
         env:
           STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
-        run: curl -v --fail https://${STAGING_DOMAIN}/health
+        run: |
+          max_attempts=10
+          sleep_interval=5
+          for i in $(seq 1 $max_attempts); do
+            echo "Health check attempt $i/$max_attempts"
+            if curl -v --fail https://${STAGING_DOMAIN}/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            if [ $i -lt $max_attempts ]; then
+              echo "Health check failed, retrying in ${sleep_interval}s..."
+              sleep $sleep_interval
+            fi
+          done
+          echo "Health check failed after $max_attempts attempts"
+          exit 1
 
   production:
     runs-on: ubuntu-latest
@@ -160,4 +175,19 @@ jobs:
         if: ${{ steps.check-tag.outputs.is_tag == 'true' && secrets.PRODUCTION_DOMAIN != '' }}
         env:
           PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
-        run: curl -v --fail https://$PRODUCTION_DOMAIN/health
+        run: |
+          max_attempts=10
+          sleep_interval=5
+          for i in $(seq 1 $max_attempts); do
+            echo "Production health check attempt $i/$max_attempts"
+            if curl -v --fail https://$PRODUCTION_DOMAIN/health; then
+              echo "Production health check passed"
+              exit 0
+            fi
+            if [ $i -lt $max_attempts ]; then
+              echo "Production health check failed, retrying in ${sleep_interval}s..."
+              sleep $sleep_interval
+            fi
+          done
+          echo "Production health check failed after $max_attempts attempts"
+          exit 1

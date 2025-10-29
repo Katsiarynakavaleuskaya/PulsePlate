@@ -65,7 +65,8 @@ def test_get_provider_invalid():
     os.environ["LLM_PROVIDER"] = "invalid"
     try:
         provider = get_provider()
-        assert provider is None
+        assert provider is not None
+        assert provider.name == "stub"
     finally:
         if original is not None:
             os.environ["LLM_PROVIDER"] = original
@@ -81,7 +82,8 @@ def test_get_provider_no_env():
         del os.environ["LLM_PROVIDER"]
     try:
         provider = get_provider()
-        assert provider is None
+        assert provider is not None
+        assert provider.name == "stub"  # Fallback to stub when no env
     finally:
         if original is not None:
             os.environ["LLM_PROVIDER"] = original

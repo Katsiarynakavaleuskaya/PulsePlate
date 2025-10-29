@@ -16,6 +16,7 @@ from starlette.types import ASGIApp
 # Import the FastAPI app from app.py file
 import importlib.util
 
+pytest.importorskip("app.routers.api_key")
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")

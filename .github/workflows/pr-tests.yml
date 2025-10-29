@@ -1,0 +1,144 @@
+name: PR Tests (Fast)
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+concurrency:
+  group: pr-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'constraints.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Ruff Lint
+        run: ruff . --output-format=github
+
+      - name: Black Check
+        run: black --check --diff .
+
+      - name: Mypy (loose)
+        run: mypy .
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Bandit (app/ core/)
+        run: bandit -r app/ core/ -f json -o bandit-report.json || true
+
+      - name: pip-audit (non-fatal)
+        continue-on-error: true
+        run: pip-audit -r requirements.txt -f json -o pip-audit.json
+
+      - name: Upload security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            pip-audit.json
+
+  tests:
+    needs: [lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            code:
+              - 'app/**'
+              - 'core/**'
+              - 'providers/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'pytest.ini'
+              - '.coveragerc'
+            docs:
+              - 'README.md'
+              - 'docs/**'
+              - '**/*.md'
+
+      - name: Run fast test suite with coverage (no slow/MC/demo)
+        if: steps.filter.outputs.code == 'true' || github.event_name != 'pull_request'
+        env:
+          PYTHONUNBUFFERED: '1'
+          BAYESIAN_PERSIST: '0'
+          MC_SEED: '2025'
+          MC_SAMPLES: '5'
+          MC_SAMPLES_FEW: '3'
+        run: |
+          pytest -c pyproject.toml -m "not slow and not monte_carlo and not demo" \
+            --cov=core --cov=app --cov-report=xml --junitxml=junit.xml -ra tests
+
+      - name: Diff coverage on changed lines (PR)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          diff-cover coverage.xml --compare-branch origin/main --fail-under=90
+
+      - name: Upload coverage.xml (PR diagnostics)
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-coverage-xml
+          path: coverage.xml
+
+      - name: JUnit report upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: junit.xml

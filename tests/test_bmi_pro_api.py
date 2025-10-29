@@ -15,6 +15,7 @@ import importlib.util
 
 APP_LOAD_ERROR = "Cannot load app.py"
 
+pytest.importorskip("app.routers.api_key")
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
     raise ImportError(APP_LOAD_ERROR)

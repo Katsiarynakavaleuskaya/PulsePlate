@@ -13,3 +13,5 @@ mypy==1.18.2
 black==25.9.0
 ruff==0.14.2
 asgi-lifespan==2.1.0
+diff-cover==9.0.0
+nox==2024.10.9

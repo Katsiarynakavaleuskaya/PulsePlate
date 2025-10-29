@@ -7,9 +7,12 @@ Sprint 2: Shoplist с округлением до упаковок
 """
 
 import csv
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -75,9 +78,9 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:  # nosec B110
+            except Exception as e:  # nosec B110
                 # Если не удалось загрузить, используем правила по умолчанию
-                pass
+                logger.warning(f"Failed to load custom packaging rules: {e}", exc_info=True)
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
         if not rules:

@@ -18,13 +18,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.product_varieties import ProductVarietiesManager
 
 
-class UserProfile(TypedDict):
-    name: str
-    preferences: Dict[str, bool]
-
-
-def main():
+def main() -> None:
     """Main function for product varieties demo."""
+
+    class UserProfile(TypedDict):
+        name: str
+        preferences: Dict[str, bool]
+
     print("🚀 Демонстрация системы сортов продуктов")
     print("=" * 50)
 

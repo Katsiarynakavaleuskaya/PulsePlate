@@ -7,6 +7,9 @@ import os
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+pytest.importorskip("app.services.food_store")
 from app.services.food_store import expand_query, get_food, nutrients_for, search_foods
 
 

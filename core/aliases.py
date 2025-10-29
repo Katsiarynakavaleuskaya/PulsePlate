@@ -60,7 +60,7 @@ def map_to_canonical(raw_name: str, locale: str = "en") -> str:
     return canonical or "unknown"
 
 
-def add_alias(alias: str, canonical: str, path: Optional[str] = None):
+def add_alias(alias: str, canonical: str, path: Optional[str] = None) -> None:
     """
     RU: Добавить новую пару синоним-каноническое имя.
     EN: Add new alias-canonical pair.

@@ -99,6 +99,17 @@ repos:
         additional_dependencies: []
         # Expects a pyproject.toml with [tool.commitizen] config, otherwise uses defaults
 
+  # --- Bayesian analysis (pre-commit) - быстрая проверка измененных файлов
+  - repo: local
+    hooks:
+      - id: bayesian-analysis
+        name: bayesian-analysis
+        entry: python scripts/bayesian-pre-commit.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^(core/.*\.py|scripts/.*\.py|tests/.*\.py)$
+
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
@@ -114,6 +125,14 @@ repos:
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)
         entry: bash -c "make bandit-full"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # test-coverage — diff coverage gate on changed lines (90%)
+      - id: test-coverage
+        name: test coverage (diff >=90% on changed lines)
+        entry: bash -c "pytest -q -m 'not slow and not monte_carlo and not demo' --cov=core --cov=app --cov-report=xml -ra tests && diff-cover coverage.xml --compare-branch origin/main --fail-under=90"
         language: system
         pass_filenames: false
         stages: [pre-push]

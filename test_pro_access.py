@@ -6,6 +6,9 @@ Test script to verify OpenAI Pro access and available models
 import os
 from typing import Any, Dict
 
+import pytest
+
+pytest.skip("Skipping OpenAI Pro access test in CI/local runs", allow_module_level=True)
 import openai
 
 

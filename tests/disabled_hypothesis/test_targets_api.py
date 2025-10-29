@@ -179,7 +179,7 @@ class TestTargetsAPI:
             response = self.client.post(
                 "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert response.status_code == 200
+            assert response.status_code == 500  # Internal error should return 500
 
     def test_targets_endpoint_value_error(self):
         """Test targets endpoint with value error."""
@@ -197,5 +197,4 @@ class TestTargetsAPI:
             response = self.client.post(
                 "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test_key"}
             )
-            # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
-            assert response.status_code == 200
+            assert response.status_code == 400  # Value error should return 400

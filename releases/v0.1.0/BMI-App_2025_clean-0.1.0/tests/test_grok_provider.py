@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for GrokProvider."""
 
-from unittest.mock import MagicMock, patch
+import asyncio
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
@@ -10,7 +11,8 @@ with patch.dict("sys.modules", {"openai": MagicMock()}):
     from providers.grok import GrokProvider
 
 
-def test_grok_provider_initialization():
+@pytest.mark.asyncio
+async def test_grok_provider_initialization():
     """Test GrokProvider initialization."""
     endpoint = "https://api.x.ai/v1"
     model = "grok-4-latest"
@@ -25,7 +27,8 @@ def test_grok_provider_initialization():
     assert provider.timeout == 30.0
 
 
-def test_grok_provider_initialization_with_timeout():
+@pytest.mark.asyncio
+async def test_grok_provider_initialization_with_timeout():
     """Test GrokProvider initialization with custom timeout."""
     endpoint = "https://api.x.ai/v1"
     model = "grok-4-latest"
@@ -37,12 +40,16 @@ def test_grok_provider_initialization_with_timeout():
     assert provider.timeout == timeout
 
 
-def test_grok_provider_generate_success():
+@pytest.mark.asyncio
+async def test_grok_provider_generate_success():
     """Test successful generation with GrokProvider."""
     with patch("providers.grok.OpenAI") as mock_openai:
         # Setup mock response
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = "Test response"
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Test response"
+        mock_response.choices = [mock_choice]
+
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
@@ -51,17 +58,24 @@ def test_grok_provider_generate_success():
             endpoint="https://api.x.ai/v1", model="grok-4-latest", api_key="test-key"
         )
 
-        result = provider.generate("Test input")
+        # Mock the run_in_executor call directly
+        with patch("asyncio.get_running_loop") as mock_loop:
+            mock_loop_instance = MagicMock()
+            mock_loop_instance.run_in_executor = AsyncMock(return_value=mock_response)
+            mock_loop.return_value = mock_loop_instance
 
-        assert result == "Test response"
-        mock_client.chat.completions.create.assert_called_once_with(
-            model="grok-4-latest",
-            messages=[{"role": "user", "content": "Test input"}],
-            timeout=30.0,
-        )
+            result = await provider.generate("Test input")
+
+            assert result == "Test response"
+            mock_client.chat.completions.create.assert_called_once_with(
+                model="grok-4-latest",
+                messages=[{"role": "user", "content": "Test input"}],
+                timeout=30.0,
+            )
 
 
-def test_grok_provider_generate_exception():
+@pytest.mark.asyncio
+async def test_grok_provider_generate_exception():
     """Test exception handling in GrokProvider."""
     with patch("providers.grok.OpenAI") as mock_openai:
         # Setup mock to raise an exception
@@ -73,5 +87,63 @@ def test_grok_provider_generate_exception():
             endpoint="https://api.x.ai/v1", model="grok-4-latest", api_key="test-key"
         )
 
-        with pytest.raises(RuntimeError, match="Grok error: Exception: API Error"):
-            provider.generate("Test input")
+        # Mock the run_in_executor call to raise exception
+        with patch("asyncio.get_running_loop") as mock_loop:
+            mock_loop_instance = MagicMock()
+            mock_loop_instance.run_in_executor = AsyncMock(side_effect=Exception("API Error"))
+            mock_loop.return_value = mock_loop_instance
+
+            with pytest.raises(RuntimeError, match="Grok error: Exception: API Error"):
+                await provider.generate("Test input")
+
+
+@pytest.mark.asyncio
+async def test_grok_provider_invalid_response():
+    """Test handling of invalid response structure."""
+    with patch("providers.grok.OpenAI") as mock_openai:
+        # Setup mock response with invalid structure
+        mock_response = MagicMock()
+        mock_response.choices = []  # Empty choices
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        provider = GrokProvider(
+            endpoint="https://api.x.ai/v1", model="grok-4-latest", api_key="test-key"
+        )
+
+        # Mock the run_in_executor call
+        with patch("asyncio.get_running_loop") as mock_loop:
+            mock_loop_instance = MagicMock()
+            mock_loop_instance.run_in_executor = AsyncMock(return_value=mock_response)
+            mock_loop.return_value = mock_loop_instance
+
+            with pytest.raises(RuntimeError, match="Invalid response: no choices found"):
+                await provider.generate("Test input")
+
+
+@pytest.mark.asyncio
+async def test_grok_provider_non_string_content():
+    """Test handling of non-string content in response."""
+    with patch("providers.grok.OpenAI") as mock_openai:
+        # Setup mock response with non-string content
+        mock_response = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = 123  # Non-string content
+        mock_response.choices = [mock_choice]
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        provider = GrokProvider(
+            endpoint="https://api.x.ai/v1", model="grok-4-latest", api_key="test-key"
+        )
+
+        # Mock the run_in_executor call
+        with patch("asyncio.get_running_loop") as mock_loop:
+            mock_loop_instance = MagicMock()
+            mock_loop_instance.run_in_executor = AsyncMock(return_value=mock_response)
+            mock_loop.return_value = mock_loop_instance
+
+            with pytest.raises(RuntimeError, match="Invalid response: expected string content"):
+                await provider.generate("Test input")

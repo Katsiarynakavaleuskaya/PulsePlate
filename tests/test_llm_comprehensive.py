@@ -112,7 +112,8 @@ class TestGetProvider:
         for case in test_cases:
             with patch.dict(os.environ, {"LLM_PROVIDER": case}, clear=False):
                 provider = llm.get_provider()
-                assert provider is None, f"Failed for case: '{case}'"
+                assert provider is not None, f"Failed for case: '{case}'"
+        assert provider.name == "stub", f"Expected stub provider for case: '{case}'"
 
     def test_get_provider_stub(self):
         """Тест возврата StubProvider"""
@@ -139,7 +140,8 @@ class TestGetProvider:
         for val in unknown_values:
             with patch.dict(os.environ, {"LLM_PROVIDER": val}, clear=False):
                 provider = llm.get_provider()
-                assert provider is None, f"Should return None for '{val}'"
+                assert provider is not None, f"Should return stub for '{val}'"
+        assert provider.name == "stub", f"Expected stub provider for '{val}'"
 
 
 class TestGetProviderGrok:
@@ -320,7 +322,8 @@ class TestEnvironmentVariableHandling:
             del os.environ["LLM_PROVIDER"]
 
         provider = llm.get_provider()
-        assert provider is None
+        assert provider is not None
+        assert provider.name == "stub"
 
     def test_whitespace_handling(self):
         """Тест обработки пробелов и символов в переменных"""
@@ -368,6 +371,6 @@ async def test_full_integration_scenario():
         provider = llm.get_provider()
         assert provider is not None
 
-        result = await provider.generate("Calculate BMI for 70kg, 175cm")
+        result = provider.generate("Calculate BMI for 70kg, 175cm")
         assert "Calculate BMI for 70kg, 175cm" in result
         assert "[stub @" in result

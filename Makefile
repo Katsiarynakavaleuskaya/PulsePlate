@@ -92,37 +92,47 @@ dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
 	@echo "$(YELLOW)🔥 Запуск сервера разработки...$(NC)"
 	uvicorn app:app --reload --host 0.0.0.0 --port 8001
 
-## Run tests (quiet)
-test: ## Run pytest
+## Run tests (quiet, cache cleared)
+test: ## Run pytest (cache cleared)
 	@echo "$(YELLOW)🧪 Запуск тестов...$(NC)"
-	. .venv/bin/activate && pytest -q
+	. .venv/bin/activate && pytest -q --cache-clear
 
-## Fast tests (last failed)
-test-fast: ## Run only last failed tests
+## Fast tests (last failed, cache cleared)
+test-fast: ## Run only last failed tests (cache cleared)
 	@echo "$(YELLOW)⚡ Быстрые тесты...$(NC)"
-	. .venv/bin/activate && pytest --lf --maxfail=3 -q
+	. .venv/bin/activate && pytest --lf --maxfail=3 -q --cache-clear
 
-## Coverage in terminal + XML (uses .coveragerc)
-cov: ## Run coverage with pytest (term + XML)
+## Coverage in terminal + XML (uses .coveragerc, excludes cache)
+cov: ## Run coverage with pytest (term + XML, cache cleared)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage report -m && coverage xml
+	. .venv/bin/activate && coverage erase && pytest -q --cov=core --cov=app --cov-report=term-missing --cache-clear && coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
-## Coverage check >=97%
-cov-check: ## Check coverage >= 97%
+## Coverage check >=97% (excludes cache)
+cov-check: ## Check coverage >= 97% (cache cleared)
 	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	. .venv/bin/activate && coverage run -m pytest && coverage report --fail-under=97
+	. .venv/bin/activate && pytest --cov=core --cov=app --cov-report=term-missing --cov-fail-under=97 --cache-clear
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
-## Coverage HTML and open report (uses .coveragerc)
-cov-html: ## Generate HTML coverage and open in browser
+## Coverage HTML and open report (uses .coveragerc, excludes cache)
+cov-html: ## Generate HTML coverage and open in browser (cache cleared)
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
+	. .venv/bin/activate && pytest --cov=core --cov=app --cov-report=html --cache-clear && open htmlcov/index.html
 
 ## Lint (flake8)
 lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
 	flake8 .
+
+## CI PR: lint + type + fast tests with diff coverage
+ci-pr: ## Run CI PR parity (lint, type, tests_pr via nox)
+	@echo "$(YELLOW)🏁 CI PR parity...$(NC)"
+	. .venv/bin/activate && nox -s lint type tests_pr
+
+## CI Nightly: full tests with coverage gates
+ci-nightly: ## Run CI Nightly parity (tests_nightly via nox)
+	@echo "$(YELLOW)🌙 CI Nightly parity...$(NC)"
+	. .venv/bin/activate && nox -s tests_nightly
 
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort

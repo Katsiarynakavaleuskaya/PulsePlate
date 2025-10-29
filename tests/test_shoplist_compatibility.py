@@ -226,7 +226,7 @@ class TestShoplistGenerator:
             assert isinstance(result, (str, dict))
 
 
-def mock_open(read_data):
+def mock_open(read_data: str):
     """Helper function to mock file opening."""
     from unittest.mock import mock_open as _mock_open
 

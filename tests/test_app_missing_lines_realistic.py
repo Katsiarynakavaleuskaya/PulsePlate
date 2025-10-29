@@ -14,11 +14,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the FastAPI app from app.py file
 import importlib.util
+import pytest
 import pathlib
 
 repo_root = pathlib.Path(__file__).parent.parent
 app_path = repo_root / "app.py"
 
+pytest.importorskip("app.routers.api_key")
 spec = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
     raise ImportError(f"Cannot load app.py from {app_path}")

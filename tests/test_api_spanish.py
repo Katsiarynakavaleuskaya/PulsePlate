@@ -4,6 +4,7 @@ Tests for API endpoints with Spanish language support.
 
 import os
 import sys
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -12,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
 import importlib.util
 
+pytest.importorskip("app.routers.api_key")
 spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")

@@ -257,7 +257,7 @@ class TestDbMissingLinesCoverage:
         assert engine_compat.driver == "sqlite"
 
     def test_comprehensive_database_edge_cases(self) -> None:
-        """Test comprehensive database edge cases with faker data"""
+        """Test comprehensive database edge cases"""
         pytest.importorskip("core.db")
         from core.db import EngineCompat, get_session, session_scope
 

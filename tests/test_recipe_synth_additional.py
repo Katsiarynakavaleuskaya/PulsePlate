@@ -158,7 +158,9 @@ def test_calculate_nutrition_edges() -> None:
     assert nutrients["protein"] > 0
 
 
-def test_nonexistent_templates_dir_branch() -> None:
+def test_nonexistent_templates_dir_branch(tmp_path: Path) -> None:
     # Provide a path that does not exist to hit the exists()==False branch
-    synth = RecipeSynthesizer(templates_dir="surely/does/not/exist/pp")
+    nonexistent_dir = tmp_path / "nonexistent_dir"
+    # Deliberately do not create the directory so exists()==False is exercised
+    synth = RecipeSynthesizer(templates_dir=str(nonexistent_dir))
     assert synth.templates

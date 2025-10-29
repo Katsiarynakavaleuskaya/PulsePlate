@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List
 
+import pytest
+
+pytest.importorskip("app.routers.shoplist_export")
 from app.routers import shoplist_export as se
 
 

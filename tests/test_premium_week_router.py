@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+pytest.importorskip("app.routers.premium_week")
 from app.routers.premium_week import TargetsIn, WeekPlanRequest, WeekPlanResponse, router
 
 

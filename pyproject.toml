@@ -1,7 +1,25 @@
 [tool.pytest.ini_options]
 pythonpath = "."
-addopts = "-q"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
 asyncio_mode = "auto"
+addopts = "--strict-markers --strict-config --tb=short -ra"
+markers = [
+  "slow: marks tests as slow",
+  "integration: marks tests as integration tests",
+  "unit: marks tests as unit tests",
+  "e2e: marks tests as end-to-end tests",
+  "performance: marks tests as performance tests",
+  "coverage: marks tests as coverage tests",
+  "monte_carlo: marks tests as Monte Carlo tests",
+  "bayesian: marks tests as Bayesian analysis tests",
+  "hypothesis: marks tests using Hypothesis property-based testing",
+  "smoke: marks tests as smoke tests",
+  "demo: marks tests as demo tests",
+  "quarantined: marks tests as quarantined (skip in PR)",
+]
 
 [tool.isort]
 profile = "black"

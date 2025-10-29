@@ -29,6 +29,12 @@ def load_app() -> Any:
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
+    # Ensure the package 'app' (directory) is imported first to avoid app.py shadowing
+    try:
+        __import__("app")
+    except Exception:
+        pass
+
     # Load app.py dynamically
     spec = importlib.util.spec_from_file_location("app_module", "app.py")
     if spec is None or spec.loader is None:

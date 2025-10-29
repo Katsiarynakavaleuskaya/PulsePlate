@@ -20,16 +20,17 @@ def _reload_llm() -> Any:
 def test_llm_provider_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "none")
     llm = _reload_llm()
-    assert llm.get_provider() is None
+    provider = llm.get_provider()
+    assert provider is not None
+    assert provider.name == "stub"
 
 
-@pytest.mark.asyncio
-async def test_llm_provider_stub(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_llm_provider_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "stub")
     llm = _reload_llm()
     provider = llm.get_provider()
     assert provider is not None
-    out = await provider.generate("hello")
+    out = provider.generate("hello")
     assert out.startswith("[stub @ ")
     assert "hello" in out
 
