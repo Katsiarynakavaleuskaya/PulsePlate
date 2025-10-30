@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager, contextmanager
+import logging
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
@@ -106,9 +107,10 @@ class EngineCompat:
             result = conn.execute(stmt, *args, **kwargs)
             try:
                 conn.commit()
-            except Exception:
-                # Not all statements require/allow commit; ignore commit errors
-                pass
+            except Exception as commit_error:
+                # Some statements do not support commit (e.g., read-only SELECT in SQLite).
+                # Log at debug level and continue without failing the operation.
+                logging.debug("Commit skipped due to non-fatal error: %s", commit_error)
             return result
 
 

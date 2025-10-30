@@ -1,0 +1,175 @@
+{
+  "total_issues": 5,
+  "analysis_results": [
+    {
+      "issue": {
+        "test_name": "test_llm_enhanced_simple.py::TestEnhancedLLMProvider::test_generate_structured_success",
+        "error_message": "AttributeError: 'EnhancedLLMProvider' object has no attribute 'generate_text'",
+        "category": "llm_enhanced",
+        "context": {
+          "is_async": true,
+          "has_mocks": true,
+          "coverage_related": false,
+          "recent_changes": true
+        }
+      },
+      "diagnosis": {
+        "most_likely_cause": "async_error",
+        "probability": 0.08000000000000002,
+        "confidence": 1.0,
+        "evidence": [
+          "Найдено 0 случаев async_error в истории",
+          "Найдено 2 похожих случаев",
+          "Обнаружены симптомы: async_context, mock_context, attribute"
+        ],
+        "recommendations": [
+          "Используйте AsyncMock для асинхронных методов",
+          "Проверьте правильность await в тестах",
+          "Убедитесь, что тесты помечены @pytest.mark.asyncio",
+          "Проверьте асинхронную логику теста",
+          "Пересмотрите настройку моков"
+        ],
+        "alternative_causes": []
+      }
+    },
+    {
+      "issue": {
+        "test_name": "test_rag_system_simple.py::TestFoodRAGSystem::test_init",
+        "error_message": "TypeError: FoodRAGSystem.__init__() missing 1 required positional argument: 'vector_store'",
+        "category": "rag_system",
+        "context": {
+          "is_async": false,
+          "has_mocks": true,
+          "coverage_related": false,
+          "recent_changes": true
+        }
+      },
+      "diagnosis": {
+        "most_likely_cause": "TYPE_ERROR",
+        "probability": 0.9,
+        "confidence": 0.95,
+      "evidence": [
+          "Exception TypeError: '__init__' missing required positional argument 'vector_store'",
+          "Message: FoodRAGSystem.__init__() missing 1 required positional argument: 'vector_store'",
+          "Constructor signature mismatch with the test call"
+        ],
+        "recommendations": [
+          "Ensure tests provide a mock or fixture for vector_store",
+          "Pass required 'vector_store' to FoodRAGSystem.__init__ in test setup",
+          "Validate constructor signature in implementation/tests"
+        ],
+        "alternative_causes": []
+      }
+    },
+    {
+      "issue": {
+        "test_name": "test_evaluation_system_simple.py::TestEvaluationCriteria::test_init",
+        "error_message": "TypeError: EvaluationCriteria.__init__() missing 3 required positional arguments: 'metric', 'weight', and 'description'",
+        "category": "evaluation_system",
+        "context": {
+          "is_async": false,
+          "has_mocks": false,
+          "coverage_related": false,
+          "recent_changes": true
+        }
+      },
+      "diagnosis": {
+        "most_likely_cause": "type_error",
+        "probability": 0.08000000000000002,
+        "confidence": 1.0,
+        "evidence": [
+          "Найдено 0 случаев async_error в истории",
+          "Найдено 4 похожих случаев",
+          "Обнаружены симптомы: type"
+        ],
+        "recommendations": [
+          "Проверьте сигнатуру конструктора EvaluationCriteria",
+          "Передайте обязательные аргументы: metric, weight, description",
+          "Убедитесь, что все параметры указаны при создании объекта"
+        ],
+        "alternative_causes": []
+      }
+    },
+    {
+      "issue": {
+        "test_name": "test_agent_system_simple.py::TestAgentTask::test_init_defaults",
+        "error_message": "AssertionError: assert 1 == 0",
+        "category": "agent_system",
+        "context": {
+          "is_async": false,
+          "has_mocks": false,
+          "coverage_related": false,
+          "recent_changes": true
+        }
+      },
+      "diagnosis": {
+        "most_likely_cause": "assertion_error",
+        "probability": 0.08000000000000002,
+        "confidence": 1.0,
+        "evidence": [
+          "Found 0 occurrences of assertion_error in history",
+          "Found 4 similar occurrences",
+          "Detected symptoms: assertion"
+        ],
+        "recommendations": [
+          "Check the logic of the test test_init_defaults",
+          "Ensure the expected value matches actual behavior",
+          "Verify AgentTask initialization and default values"
+        ],
+        "alternative_causes": []
+      }
+    },
+    {
+      "issue": {
+        "test_name": "test_llm_enhanced_simple.py::TestEnhancedLLMProvider::test_generate_structured_json_success",
+        "error_message": "AssertionError: assert '' == '{\"key\": \"value\"}'",
+        "category": "llm_enhanced",
+        "context": {
+          "is_async": true,
+          "has_mocks": true,
+          "coverage_related": false,
+          "recent_changes": true
+        }
+      },
+      "diagnosis": {
+        "most_likely_cause": "async_error",
+        "probability": 0.08000000000000002,
+        "confidence": 1.0,
+        "evidence": [
+          "Найдено 0 случаев async_error в истории",
+          "Найдено 4 похожих случаев",
+          "Обнаружены симптомы: async_context, assertion, mock_context"
+        ],
+        "recommendations": [
+          "Используйте AsyncMock для асинхронных методов",
+          "Проверьте правильность await в тестах",
+          "Убедитесь, что тесты помечены @pytest.mark.asyncio",
+          "Проверьте асинхронную логику теста",
+          "Пересмотрите настройку моков"
+        ],
+        "alternative_causes": []
+      }
+    }
+  ],
+  "summary": {
+    "error_types": {
+      "async_error": 5
+    },
+    "categories": {
+      "llm_enhanced": 2,
+      "rag_system": 1,
+      "evaluation_system": 1,
+      "agent_system": 1
+    },
+    "most_problematic_category": [
+      "llm_enhanced",
+      2
+    ],
+    "most_common_error": [
+      "async_error",
+      5
+    ],
+    "average_confidence": 1.0,
+    "total_issues": 5
+  }
+}

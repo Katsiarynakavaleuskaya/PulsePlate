@@ -11,8 +11,9 @@ import sys
 def run_test_file(test_file):
     """Run a single test file and return result"""
     try:
+        # Use the running interpreter for safety and portability (Bandit: B607)
         result = subprocess.run(
-            ["python", "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
+            [sys.executable, "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
             capture_output=True,
             text=True,
             timeout=60,

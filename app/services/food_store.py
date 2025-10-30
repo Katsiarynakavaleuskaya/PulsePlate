@@ -39,6 +39,8 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     terms = expand_query(query) if query else []
     params: list = []
     if terms:
+        # nosec B608: The query uses parameter placeholders for all user inputs;
+        # only the number of placeholders is constructed dynamically.
         sql = (
             """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
