@@ -2,6 +2,7 @@
 bayesian_quality_report.json
 bayesian_analysis_results.json
 bayesian_analysis_results_updated.json
+uv
 pytest_report.xml
 test_execution_history.json
 # Byte-compiled / optimized / DLL files

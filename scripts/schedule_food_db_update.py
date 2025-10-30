@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def update_food_database():
+def update_food_database() -> bool:
     """
     RU: Обновить базу данных продуктов.
     EN: Update food database.
@@ -63,7 +63,7 @@ def update_food_database():
         return False
 
 
-def main():
+def main() -> None:
     """
     RU: Основная функция планировщика.
     EN: Main scheduler function.

@@ -21,6 +21,7 @@ def call_premium_bmr_api(
     lang: str = "en",
     api_key: str = "test_key",
     base_url: str = "http://localhost:8000",
+    timeout: float = 10.0,
 ) -> Dict[str, Any]:
     """
     Call the Premium BMR API endpoint.
@@ -38,6 +39,10 @@ def call_premium_bmr_api(
 
     Returns:
         API response as dictionary
+
+    Raises:
+        requests.exceptions.Timeout: If server doesn't respond within the timeout
+        requests.exceptions.HTTPError: If the API returns an error status code
     """
     url = f"{base_url}/api/v1/premium/bmr"
 
@@ -55,7 +60,7 @@ def call_premium_bmr_api(
 
     headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers, timeout=10)
+    response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
     return response.json()

@@ -11,7 +11,7 @@ import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
 
 from sqlalchemy import create_engine, text
 from sqlalchemy import exc as sa_exc
@@ -129,7 +129,7 @@ class EngineCompat:
                 # Avoid exposing sensitive details in production logs
                 env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
                 safe_message = str(db_err).splitlines()[0]
-                if (logging.getLogger().isEnabledFor(logging.DEBUG)) or env.lower() != "production":
+                if logger.isEnabledFor(logging.DEBUG) or env.lower() != "production":
                     logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
                 else:
                     logger.error("Commit failed (database error): %s", safe_message)

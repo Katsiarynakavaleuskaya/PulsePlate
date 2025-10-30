@@ -145,15 +145,16 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
         styles["Heading3"],
     )
 
-    plain_slogan = subtitle.getPlainText()
-    logger.warning(
-        "Slogan comparison lang=%s plain=%r dict=%r equal=%s",
-        lang,
-        plain_slogan,
-        SLOGAN.get(lang, plain_slogan),
-        plain_slogan == SLOGAN.get(lang, plain_slogan),
-    )
-    logger.warning("Table class id=%s repr=%s", id(Table), Table)
+    if logger.isEnabledFor(logging.DEBUG):
+        plain_slogan = subtitle.getPlainText()
+        logger.debug(
+            "Slogan comparison lang=%s plain=%r dict=%r equal=%s",
+            lang,
+            plain_slogan,
+            SLOGAN.get(lang, plain_slogan),
+            plain_slogan == SLOGAN.get(lang, plain_slogan),
+        )
+        logger.debug("Table class id=%s repr=%s", id(Table), Table)
 
     # Use a local import to avoid external monkeypatching of Table
     from reportlab.platypus.tables import Table as RLTable
@@ -178,7 +179,8 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
             ]
         )
     )
-    logger.warning("Header subtitle for %s: %s", lang, subtitle.getPlainText())
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Header subtitle for %s: %s", lang, subtitle.getPlainText())
     story.append(header_table)
     story.append(Spacer(1, 8))
 
@@ -440,7 +442,8 @@ def export_week_pdf(
     week = _get_week_plan()
     font = _register_font()
     slogan_text = _slogan(lang)
-    logger.warning("export_week_pdf lang=%s slogan=%s map=%s", lang, slogan_text, SLOGAN)
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("export_week_pdf lang=%s slogan=%s", lang, slogan_text)
     totals = sum_week_macros(week)
 
     buf = BytesIO()
@@ -531,31 +534,13 @@ def export_week_pdf(
             story.append(PageBreak())
 
     footer_text = f"PulsePlate · week of {_week_start(week)}"
-    logger.warning(
-        "Story components count=%d tables=%d paragraphs=%d",
-        len(story),
-        sum(1 for node in story if node.__class__.__name__ == "Table"),
-        sum(1 for node in story if isinstance(node, Paragraph)),
-    )
-    for node in story:
-        if (
-            node.__class__.__name__ == "Table"
-            and len(node._cellvalues) > 1
-            and len(node._cellvalues[1]) > 1
-        ):
-            cell = node._cellvalues[1][1]
-            has_plain = hasattr(cell, "getPlainText")
-            text = cell.getPlainText() if has_plain else str(cell)
-            logger.warning(
-                "Table inspect id=%s isinstance=%s row_len=%s cell_len=%s type=%s has_plain=%s text=%r",
-                id(node),
-                isinstance(node, Table),
-                len(node._cellvalues),
-                len(node._cellvalues[1]),
-                type(cell).__name__,
-                has_plain,
-                text,
-            )
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "Story components count=%d tables=%d paragraphs=%d",
+            len(story),
+            sum(1 for node in story if node.__class__.__name__ == "Table"),
+            sum(1 for node in story if isinstance(node, Paragraph)),
+        )
     doc.build(
         story,
         onFirstPage=lambda can, d: _draw_footer(can, d, footer_text),
