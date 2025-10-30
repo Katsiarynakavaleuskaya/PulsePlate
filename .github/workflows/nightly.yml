@@ -184,7 +184,7 @@ jobs:
           echo "" >> performance-report.md
           echo "### Test Execution Summary" >> performance-report.md
           echo "- Total test time: ${TEST_DURATION} seconds" >> performance-report.md
-          echo "- Python version: 3.12" >> performance-report.md
+          echo "- Python version: 3.13" >> performance-report.md
           echo "- Parallel workers: auto" >> performance-report.md
 
       - name: Upload performance report
