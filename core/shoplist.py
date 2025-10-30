@@ -1,14 +1,12 @@
-"""Shopping list generation and export utilities."""
+"""Shopping list generation and export utilities.
 
-import math
-
-# -*- coding: utf-8 -*-
-"""
 RU: Модуль для создания списков покупок из недельных планов питания.
 EN: Module for creating shopping lists from weekly meal plans.
 
-Sprint 2: Shoplist с округлением до упаковок
+Sprint 2: Shoplist с округлением до упаковок.
 """
+
+import math
 
 import csv
 from dataclasses import dataclass
@@ -18,7 +16,7 @@ from typing import Dict, List, Optional, Union
 
 @dataclass
 class PackagingRule:
-    """Правило упаковки для категории продуктов"""
+    """Правило упаковки для категории продуктов."""
 
     category: str
     unit: str  # 'g', 'ml', 'pcs', 'kg', 'l'
@@ -28,7 +26,7 @@ class PackagingRule:
 
 @dataclass
 class ShoppingItem:
-    """Элемент списка покупок"""
+    """Элемент списка покупок."""
 
     name: str
     quantity: float
@@ -40,14 +38,19 @@ class ShoppingItem:
 
 
 class ShoplistGenerator:
-    """Генератор списков покупок"""
+    """Генератор списков покупок."""
 
     def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv"):
+        """Инициализирует генератор и загружает правила упаковки.
+
+        Args:
+            packaging_rules_file: Путь к CSV с правилами упаковки по умолчанию.
+        """
         self.packaging_rules_file = packaging_rules_file
         self.packaging_rules = self._load_packaging_rules()
 
     def _load_packaging_rules(self) -> Dict[str, PackagingRule]:
-        """Загружает правила упаковки из CSV файла"""
+        """Загружает правила упаковки из CSV файла."""
         rules = {}
 
         # Базовые правила по умолчанию
@@ -90,14 +93,13 @@ class ShoplistGenerator:
         return rules
 
     def aggregate_ingredients(self, week_plan: Dict) -> Dict[str, float]:
-        """
-        Агрегирует ингредиенты из недельного плана
+        """Агрегирует ингредиенты из недельного плана.
 
         Args:
-            week_plan: Словарь с недельным планом питания
+            week_plan: Словарь с недельным планом питания.
 
         Returns:
-            Словарь {ingredient_name: total_grams}
+            Словарь вида {ingredient_name: total_grams}.
         """
         aggregated: Dict[str, float] = {}
 
@@ -137,7 +139,7 @@ class ShoplistGenerator:
         return aggregated
 
     def _convert_to_grams(self, amount: float, unit: str) -> float:
-        """Конвертирует количество в граммы"""
+        """Конвертирует количество в граммы."""
         conversion_factors = {
             "g": 1.0,
             "kg": 1000.0,
@@ -157,16 +159,15 @@ class ShoplistGenerator:
         packaging_db: Optional[Dict] = None,
         rules: Optional[Dict] = None,
     ) -> List[ShoppingItem]:
-        """
-        Округляет агрегированные ингредиенты до упаковок
+        """Округляет агрегированные ингредиенты до упаковок.
 
         Args:
-            aggregated: Словарь {ingredient_name: total_grams}
-            packaging_db: База данных упаковок (опционально)
-            rules: Правила округления (опционально)
+            aggregated: Словарь {ingredient_name: total_grams}.
+            packaging_db: База данных упаковок (опционально).
+            rules: Правила округления (опционально).
 
         Returns:
-            Список ShoppingItem с округленными количествами
+            Список ShoppingItem с округленными количествами.
         """
         if rules is None:
             rules = self.packaging_rules
@@ -214,7 +215,7 @@ class ShoplistGenerator:
         return shopping_list
 
     def _categorize_ingredient(self, ingredient_name: str) -> str:
-        """Определяет категорию ингредиента по названию"""
+        """Определяет категорию ингредиента по названию."""
         name_lower = ingredient_name.lower()
 
         # Простая категоризация по ключевым словам
@@ -296,7 +297,7 @@ class ShoplistGenerator:
     def _find_best_package(
         self, total_amount: float, typical_packages: List[float], strategy: str
     ) -> tuple[float, int]:
-        """Находит оптимальный размер упаковки и количество"""
+        """Находит оптимальный размер упаковки и количество."""
         if not typical_packages:
             return total_amount, 1
 
@@ -337,13 +338,12 @@ class ShoplistGenerator:
         locale: str = "ru",
         format_type: str = "json",
     ) -> Union[str, Dict]:
-        """
-        Форматирует список покупок для экспорта
+        """Форматирует список покупок для экспорта.
 
         Args:
-            shopping_list: Список ShoppingItem
-            locale: Локаль (ru, en, es)
-            format_type: Тип формата (json, csv, text)
+            shopping_list: Список ShoppingItem.
+            locale: Локаль (ru, en, es).
+            format_type: Тип формата (json, csv, text).
 
         Returns:
             Отформатированный список покупок
@@ -446,7 +446,7 @@ class ShoplistGenerator:
 
 # Функции для удобного использования
 def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
-    """Агрегирует ингредиенты из недельного плана"""
+    """Агрегирует ингредиенты из недельного плана."""
     generator = ShoplistGenerator()
     return generator.aggregate_ingredients(week_plan)
 
@@ -456,7 +456,7 @@ def round_to_packages(
     packaging_db: Optional[Dict] = None,
     rules: Optional[Dict] = None,
 ) -> List[ShoppingItem]:
-    """Округляет агрегированные ингредиенты до упаковок"""
+    """Округляет агрегированные ингредиенты до упаковок."""
     generator = ShoplistGenerator()
     return generator.round_to_packages(aggregated, packaging_db, rules)
 
@@ -464,7 +464,7 @@ def round_to_packages(
 def format_export(
     shopping_list: List[ShoppingItem], locale: str = "ru", format_type: str = "json"
 ) -> Union[str, Dict]:
-    """Форматирует список покупок для экспорта"""
+    """Форматирует список покупок для экспорта."""
     generator = ShoplistGenerator()
     return generator.format_export(shopping_list, locale, format_type)
 
@@ -476,19 +476,19 @@ def get_shoplist(
     packaging_db: Optional[Dict] = None,
     rules: Optional[Dict] = None,
 ) -> Union[str, Dict]:
-    """
+    """Собирает и форматирует список покупок из недельного плана.
+
     Backward-compatible wrapper expected by the application.
-    Builds a shopping list from week_plan and returns it in the requested format.
 
     Args:
-        week_plan: Словарь с недельным планом питания
-        format_type: Тип формата (json, csv, text)
-        locale: Локаль (ru, en, es)
-        packaging_db: База данных упаковок (опционально)
-        rules: Правила округления (опционально)
+        week_plan: Словарь с недельным планом питания.
+        format_type: Тип формата (json, csv, text).
+        locale: Локаль (ru, en, es).
+        packaging_db: База данных упаковок (опционально).
+        rules: Правила округления (опционально).
 
     Returns:
-        Отформатированный список покупок
+        Отформатированный список покупок.
     """
     generator = ShoplistGenerator()
     # Aggregate ingredients from week_plan
