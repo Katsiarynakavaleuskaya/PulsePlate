@@ -12,6 +12,9 @@ concurrency:
 
 jobs:
   lint:
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -23,7 +26,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -49,6 +52,9 @@ jobs:
 
   tests:
     needs: [lint]
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -60,7 +66,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -105,12 +111,12 @@ jobs:
           MC_SAMPLES_FEW: '3'
         run: |
           pytest -c pyproject.toml -m "not slow and not monte_carlo and not demo" \
-            --cov=core --cov=app --cov-report=xml --junitxml=junit.xml -ra tests
+            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Diff coverage on changed lines (PR)
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != '' }}
         run: |
-          diff-cover coverage.xml --compare-branch origin/main --fail-under=90
+          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)
         if: always() && github.event_name == 'pull_request'
