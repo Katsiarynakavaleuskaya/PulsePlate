@@ -1,3 +1,5 @@
+import math
+
 # -*- coding: utf-8 -*-
 """
 RU: Модуль для создания списков покупок из недельных планов питания.
@@ -302,22 +304,22 @@ class ShoplistGenerator:
         if strategy == "up":
             # Округляем вверх - берем упаковку, которая покроет все количество
             for package_size in sorted_packages:
-                packages_needed = int((total_amount + package_size - 1) // package_size)
+                packages_needed = int(math.ceil(total_amount / package_size))
                 if packages_needed > 0:
                     return package_size, packages_needed
         elif strategy == "down":
             # Округляем вниз - берем максимальную упаковку, которая помещается
             for package_size in reversed(sorted_packages):
-                packages_needed = int(total_amount // package_size)
+                packages_needed = int(math.floor(total_amount / package_size))
                 if packages_needed > 0:
                     return package_size, packages_needed
         else:  # 'nearest'
             # Ближайшее округление
             best_package = min(
                 sorted_packages,
-                key=lambda x: abs(total_amount - x * int(total_amount // x)),
+                key=lambda x: abs(total_amount - x * int(math.floor(total_amount / x))),
             )
-            packages_needed = int(total_amount // best_package)
+            packages_needed = int(math.floor(total_amount / best_package))
             if packages_needed == 0:
                 packages_needed = 1
             return best_package, packages_needed

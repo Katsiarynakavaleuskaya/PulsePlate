@@ -7,17 +7,47 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 
 import sqlite3
 from pathlib import Path
+import csv
 from typing import Dict, List, Optional
 
 DB_PATH = Path("data/food.sqlite")
 MAX_LIMIT = 100
 
-ALIASES = {
+DEFAULT_ALIASES = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
     "йогурт": ["yogurt", "yoghurt"],
     "масло оливковое": ["olive oil", "aceite de oliva"],
     "творог": ["cottage cheese", "queso cottage"],
 }
+
+
+def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
+    """Load aliases from CSV file with columns: primary, aliases (comma separated)."""
+    aliases: Dict[str, List[str]] = {}
+    if not csv_path.exists():
+        return aliases
+    try:
+        with csv_path.open("r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                primary = (row.get("primary") or "").strip().lower()
+                alias_str = (row.get("aliases") or "").strip()
+                if not primary:
+                    continue
+                alias_list = [a.strip().lower() for a in alias_str.split(",") if a.strip()]
+                if primary in aliases:
+                    aliases[primary] = sorted(list(set(aliases[primary] + alias_list)))
+                else:
+                    aliases[primary] = alias_list
+    except Exception:
+        # Graceful fallback to defaults on any CSV error
+        return {}
+    return aliases
+
+
+# Load aliases once at import, merging CSV over defaults
+_CSV_ALIASES = _load_aliases_csv(Path("data/food_aliases.csv"))
+ALIASES: Dict[str, List[str]] = {**DEFAULT_ALIASES, **_CSV_ALIASES}
 
 
 def expand_query(q: str) -> List[str]:

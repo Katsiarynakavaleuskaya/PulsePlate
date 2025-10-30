@@ -244,13 +244,13 @@ bandit-full:
 ## Smoke test (auto: 8000 then 8001)
 smoke-auto: ## Try health+bmi on 8000 then 8001
 	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
+		echo "$(YELLOW)Using 8000$(NC)"; \
 		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
 	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
+		echo "$(YELLOW)Using 8001$(NC)"; \
 		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
 	else \
-		echo "No server found on 8000/8001"; exit 1; \
+		echo "$(RED)No server found on 8000/8001$(NC)"; exit 1; \
 	fi
 
 ## Smoke test on :8000

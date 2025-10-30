@@ -1,3 +1,9 @@
+# Generated analysis artifacts
+bayesian_quality_report.json
+bayesian_analysis_results.json
+bayesian_analysis_results_updated.json
+pytest_report.xml
+test_execution_history.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 **/__pycache__/
