@@ -124,16 +124,27 @@ jobs:
 
       - name: Run security checks
         run: |
-          # Bandit security scan (using .bandit config)
+          set +e
+          echo "Running Bandit security scan..."
           bandit -r app/ core/ -f json -o bandit-report.json
+          bandit_rc=$?
 
-          # pip-audit for vulnerability scan (using safety-policy.toml)
-          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json || true
+          echo "Running pip-audit..."
+          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json
+          pip_audit_rc=$?
 
-          # Safety check (if available)
           if command -v safety &> /dev/null; then
-            safety check --full-report --file safety-policy.toml || true
+            echo "Running Safety check..."
+            safety check --full-report --file safety-policy.toml
+            safety_rc=$?
+          else
+            safety_rc=0
           fi
+
+          echo "Bandit exit code: ${bandit_rc}"
+          echo "pip-audit exit code: ${pip_audit_rc}"
+          echo "Safety exit code: ${safety_rc}"
+          set -e
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
