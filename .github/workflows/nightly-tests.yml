@@ -20,7 +20,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -45,7 +45,7 @@ jobs:
           MC_SAMPLES_FEW: '15'
         run: |
           pytest -c pyproject.toml -m "not demo" -n auto \
-            --cov=core --cov=app --cov-report=term-missing --cov-report=xml \
+            --cov=. --cov-report=term-missing --cov-report=xml --cov-report=html \
             --cov-fail-under=97 -ra
 
       - name: Upload coverage artifact

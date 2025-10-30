@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 DB_PATH = Path("data/food.sqlite")
+MAX_LIMIT = 100
 
 ALIASES = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
@@ -39,6 +40,18 @@ def _connect() -> sqlite3.Connection:
 
 def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     """Search foods via FTS; parameters are safely bound using placeholders."""
+    # Defensive bounds and type validation for pagination
+    try:
+        limit = int(limit)
+        offset = int(offset)
+    except (TypeError, ValueError):
+        raise ValueError("limit and offset must be integers")
+    if limit < 1:
+        raise ValueError("limit must be >= 1")
+    if limit > MAX_LIMIT:
+        limit = MAX_LIMIT
+    if offset < 0:
+        raise ValueError("offset must be >= 0")
     terms = expand_query(query) if query else []
     params: list = []
     if terms:

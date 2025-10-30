@@ -36,7 +36,6 @@ except ImportError:  # pragma: no cover - async extras not installed
 
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
-
     default_path = os.path.join("cache", "app.db")
     # Use file-based SQLite by default so the data survives across runs.
     return os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
@@ -44,13 +43,11 @@ def _build_engine_url() -> str:
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
-
     return {"check_same_thread": False} if url.startswith("sqlite") else {}
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:
     """Derive an async-capable URL from a synchronous URL when possible."""
-
     # Only derive async URLs if async support is available
     if create_async_engine is None:
         return None
@@ -89,10 +86,12 @@ class EngineCompat:
     """
 
     def __init__(self, engine: Any) -> None:
+        """Wrap a SQLAlchemy Engine to expose a legacy-like execute method."""
         self._engine = engine
 
     # Delegate unknown attributes to the underlying Engine
     def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to the underlying engine instance."""
         return getattr(self._engine, name)
 
     def execute(self, statement: Any, *args: Any, **kwargs: Any):

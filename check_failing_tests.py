@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script to find and fix failing tests systematically
-"""
+"""Find and summarize failing tests quickly."""
 
 import glob
 import subprocess
@@ -9,7 +7,7 @@ import sys
 
 
 def run_test_file(test_file):
-    """Run a single test file and return result"""
+    """Run a single test file and return tuple(status, output)."""
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
         result = subprocess.run(
@@ -30,6 +28,7 @@ def run_test_file(test_file):
 
 
 def main():
+    """Execute quick pass over tests/test_*.py and print a compact summary."""
     # Get all test files
     test_files = glob.glob("tests/test_*.py")
     failing_tests = []
