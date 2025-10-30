@@ -102,7 +102,7 @@ jobs:
               - '**/*.md'
 
       - name: Run fast test suite with coverage (no slow/MC/demo)
-        if: steps.filter.outputs.code == 'true' || github.event_name != 'pull_request'
+        if: steps.filter.outputs.code == 'true' || github.event_name != 'pull_request'  # noqa: FBT003
         env:
           PYTHONUNBUFFERED: '1'
           BAYESIAN_PERSIST: '0'
@@ -114,7 +114,7 @@ jobs:
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Diff coverage on changed lines (PR)
-        if: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != '' }}
+        if: github.event_name == 'pull_request' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''  # noqa: FBT003
         run: |
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
