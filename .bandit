@@ -1,2 +1,2 @@
-skips: ['B110', 'B112', 'B404', 'B603', 'B607', 'B608', 'B311', 'B113', 'B101']
-exclude_dirs: ['tests', 'tests_strict', 'cache', 'test_cache', 'frontend/build', 'htmlcov', 'releases', 'data', 'external']
+skips: ['B101', 'B105']
+exclude_dirs: ['tests', 'tests_strict', 'cache', 'test_cache', 'frontend/build', 'htmlcov', 'releases', 'data', 'external', 'node_modules', 'dist', 'build', '.venv']

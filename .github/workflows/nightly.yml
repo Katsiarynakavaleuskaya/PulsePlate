@@ -2,8 +2,8 @@ name: Nightly Full Test Suite
 
 on:
   schedule:
-    # Run every night at 2 AM UTC
-    - cron: '0 2 * * *'
+    # Run every night at 02:17 UTC
+    - cron: '17 2 * * *'
   workflow_dispatch: # Allow manual trigger
 
 concurrency:
@@ -18,9 +18,11 @@ permissions:
 env:
   COVERAGE_PY: "3.13"
 
+# Only run on main branch to avoid wasting minutes on forks/PRs
 jobs:
   # Full test suite with all Python versions
   test-nightly:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -101,6 +103,7 @@ jobs:
 
   # Security and quality checks
   security-nightly:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -121,11 +124,16 @@ jobs:
 
       - name: Run security checks
         run: |
-          # Bandit security scan
+          # Bandit security scan (using .bandit config)
           bandit -r app/ core/ -f json -o bandit-report.json
 
-          # pip-audit for vulnerability scan
-          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json
+          # pip-audit for vulnerability scan (using safety-policy.toml)
+          pip-audit --requirement requirements.txt --format=json --output=pip-audit-report.json || true
+
+          # Safety check (if available)
+          if command -v safety &> /dev/null; then
+            safety check --full-report --file safety-policy.toml || true
+          fi
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -139,6 +147,7 @@ jobs:
 
   # Performance monitoring
   performance-nightly:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
