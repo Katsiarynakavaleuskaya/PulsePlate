@@ -34,7 +34,7 @@ def main() -> int:
     # Get all test files (restrict to repo tests dir, avoid traversal)
     test_files = [
         str(p)
-        for p in map(Path, glob.glob("tests/test_*.py"))
+        for p in map(Path, sorted(glob.glob("tests/test_*.py")))
         if p.is_file() and p.resolve().is_relative_to(Path("tests").resolve())
     ]
     failing_tests = []
