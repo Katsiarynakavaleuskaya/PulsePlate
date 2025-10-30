@@ -8,6 +8,7 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 import sqlite3
 from pathlib import Path
 import csv
+import logging
 from typing import Dict, List, Optional
 
 DB_PATH: Path = Path("data/food.sqlite")
@@ -26,6 +27,7 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
     aliases: Dict[str, List[str]] = {}
     if not csv_path.exists():
         return aliases
+    logger = logging.getLogger(__name__)
     try:
         with csv_path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -39,9 +41,18 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
                     aliases[primary] = sorted(list(set(aliases[primary] + alias_list)))
                 else:
                     aliases[primary] = alias_list
-    except Exception:
-        # Graceful fallback to defaults on any CSV error
+    except (csv.Error, UnicodeDecodeError):
+        logger.error("Failed to parse aliases CSV '%s'", csv_path, exc_info=True)
         return {}
+    except FileNotFoundError:
+        logger.error("Aliases CSV not found: %s", csv_path, exc_info=True)
+        return {}
+    except OSError:
+        logger.error("OS error reading aliases CSV '%s'", csv_path, exc_info=True)
+        return {}
+    except Exception as e:  # Unexpected
+        logger.exception("Unexpected error while loading aliases CSV '%s'", csv_path)
+        raise
     return aliases
 
 

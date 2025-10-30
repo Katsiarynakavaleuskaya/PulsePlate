@@ -12,6 +12,7 @@ import logging
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
@@ -97,7 +98,7 @@ class EngineCompat:
         """Delegate attribute access to the underlying engine instance."""
         return getattr(self._engine, name)
 
-    def execute(self, statement: Any, *args: Any, **kwargs: Any):
+    def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
         """Execute a statement using a temporary connection.
 
         - Accepts both SQL strings and SQLAlchemy expressions.
@@ -107,12 +108,18 @@ class EngineCompat:
         # Use a short-lived connection to mimic Engine.execute behavior
         with self._engine.connect() as conn:
             result = conn.execute(stmt, *args, **kwargs)
+            # Commit only when there is an active transaction; otherwise rely on autocommit.
             try:
-                conn.commit()
-            except Exception as commit_error:
-                # Some statements do not support commit (e.g., read-only SELECT in SQLite).
-                # Log at debug level and continue without failing the operation.
-                logger.debug("Commit skipped due to non-fatal error: %s", commit_error)
+                in_tx = False
+                if hasattr(conn, "get_transaction"):
+                    in_tx = conn.get_transaction() is not None  # type: ignore[attr-defined]
+                elif hasattr(conn, "in_transaction"):
+                    in_tx = bool(conn.in_transaction())  # type: ignore[attr-defined]
+                if in_tx:
+                    conn.commit()
+            except (sa_exc.OperationalError, sa_exc.IntegrityError, sa_exc.DatabaseError) as db_err:
+                logger.error("Commit failed (database error): %s", db_err, exc_info=True)
+                raise
             return result
 
 

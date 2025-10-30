@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Shopping list generation and export utilities.
 
 RU: Модуль для создания списков покупок из недельных планов питания.
@@ -40,7 +41,7 @@ class ShoppingItem:
 class ShoplistGenerator:
     """Генератор списков покупок."""
 
-    def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv"):
+    def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv") -> None:
         """Инициализирует генератор и загружает правила упаковки.
 
         Args:
