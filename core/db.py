@@ -118,7 +118,13 @@ class EngineCompat:
                 if in_tx:
                     conn.commit()
             except (sa_exc.OperationalError, sa_exc.IntegrityError, sa_exc.DatabaseError) as db_err:
-                logger.error("Commit failed (database error): %s", db_err, exc_info=True)
+                # Avoid exposing sensitive details in production logs
+                env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
+                safe_message = str(db_err).splitlines()[0]
+                if (logging.getLogger().isEnabledFor(logging.DEBUG)) or env.lower() != "production":
+                    logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
+                else:
+                    logger.error("Commit failed (database error): %s", safe_message)
                 raise
             return result
 
@@ -157,10 +163,8 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             "future": True,
         }
 
-        if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
-            # SQLite async doesn't support pooling
-            pass
-        else:
+        # SQLite async doesn't support pooling; add pool config for other databases
+        if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             async_kwargs.update(_POOL_CONFIG)
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)

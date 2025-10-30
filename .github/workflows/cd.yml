@@ -28,7 +28,7 @@ jobs:
       name: staging
       url: https://dummy.pulseplate.dev
     concurrency:
-      group: cd-build-${{ github.ref }}
+      group: cd-build-${{ github.ref_name }}
       cancel-in-progress: true
     steps:
       - name: Checkout
@@ -61,7 +61,7 @@ jobs:
       name: production
       url: https://dummy.pulseplate.prod
     concurrency:
-      group: cd-build-production-${{ github.ref }}
+      group: cd-build-production-${{ github.ref_name }}
       cancel-in-progress: true
     steps:
       - name: Checkout

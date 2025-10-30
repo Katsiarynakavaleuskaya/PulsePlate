@@ -12,7 +12,8 @@ import math
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Tuple
+import logging
 
 
 @dataclass
@@ -83,9 +84,10 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:
+            except (OSError, csv.Error, ValueError, KeyError) as load_err:
                 # Если не удалось загрузить, используем правила по умолчанию
-                pass
+                # Логируем кратко и продолжаем с правилами по умолчанию
+                logging.getLogger(__name__).warning("Failed to load packaging rules: %s", load_err)
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
         if not rules:
@@ -297,13 +299,17 @@ class ShoplistGenerator:
 
     def _find_best_package(
         self, total_amount: float, typical_packages: List[float], strategy: str
-    ) -> tuple[float, int]:
+    ) -> Tuple[float, int]:
         """Находит оптимальный размер упаковки и количество."""
         if not typical_packages:
             return total_amount, 1
 
         # Сортируем упаковки по размеру
         sorted_packages = sorted(typical_packages)
+        # Фильтруем некорректные значения (<= 0), чтобы избежать деления на ноль и нелепых результатов
+        sorted_packages = [p for p in sorted_packages if p > 0]
+        if not sorted_packages:
+            return total_amount, 1
 
         if strategy == "up":
             # Округляем вверх - берем упаковку, которая покроет все количество
@@ -319,7 +325,7 @@ class ShoplistGenerator:
                     return package_size, packages_needed
         else:  # 'nearest'
             # Ближайшее округление: оцениваем для каждой упаковки разницу после округления
-            best_choice: tuple[float, int] | None = None
+            best_choice: Optional[Tuple[float, int]] = None
             best_error = float("inf")
             for package_size in sorted_packages:
                 packages_needed = max(1, int(round(total_amount / package_size)))

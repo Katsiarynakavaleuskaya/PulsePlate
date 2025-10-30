@@ -9,6 +9,7 @@ import sqlite3
 from pathlib import Path
 import csv
 import logging
+import os
 from typing import Dict, List, Optional
 
 DB_PATH: Path = Path("data/food.sqlite")
@@ -21,13 +22,14 @@ DEFAULT_ALIASES: Dict[str, List[str]] = {
     "творог": ["cottage cheese", "queso cottage"],
 }
 
+logger = logging.getLogger(__name__)
+
 
 def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
     """Load aliases from CSV file with columns: primary, aliases (comma separated)."""
     aliases: Dict[str, List[str]] = {}
     if not csv_path.exists():
         return aliases
-    logger = logging.getLogger(__name__)
     try:
         with csv_path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -41,24 +43,29 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
                     aliases[primary] = sorted(list(set(aliases[primary] + alias_list)))
                 else:
                     aliases[primary] = alias_list
-    except (csv.Error, UnicodeDecodeError):
-        logger.error("Failed to parse aliases CSV '%s'", csv_path, exc_info=True)
+    except (csv.Error, UnicodeDecodeError, OSError) as exc:
+        env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
+        # Log detailed info and fail fast in non-production to avoid hiding config issues.
+        if env.lower() != "production":
+            logger.error("Error reading/parsing aliases CSV '%s': %s", csv_path, exc, exc_info=True)
+            raise
+        # In production, log concise error and continue with defaults
+        logger.error("Error reading/parsing aliases CSV '%s': %s", csv_path, exc)
         return {}
-    except FileNotFoundError:
-        logger.error("Aliases CSV not found: %s", csv_path, exc_info=True)
-        return {}
-    except OSError:
-        logger.error("OS error reading aliases CSV '%s'", csv_path, exc_info=True)
-        return {}
-    except Exception as e:  # Unexpected
-        logger.exception("Unexpected error while loading aliases CSV '%s'", csv_path)
-        raise
     return aliases
 
 
-# Load aliases once at import, merging CSV over defaults
-_CSV_ALIASES: Dict[str, List[str]] = _load_aliases_csv(Path("data/food_aliases.csv"))
-ALIASES: Dict[str, List[str]] = {**DEFAULT_ALIASES, **_CSV_ALIASES}
+# Lazy alias cache to avoid file I/O at import time
+_ALIASES_CACHE: Optional[Dict[str, List[str]]] = None
+
+
+def get_aliases() -> Dict[str, List[str]]:
+    """Return merged alias mapping (defaults + CSV), loading lazily on first use."""
+    global _ALIASES_CACHE
+    if _ALIASES_CACHE is None:
+        csv_aliases = _load_aliases_csv(Path("data/food_aliases.csv"))
+        _ALIASES_CACHE = {**DEFAULT_ALIASES, **csv_aliases}
+    return _ALIASES_CACHE
 
 
 def expand_query(q: str) -> List[str]:
@@ -66,8 +73,8 @@ def expand_query(q: str) -> List[str]:
     ql = (q or "").strip().lower()
     if not ql:
         return []
-    terms = set([ql])
-    for k, vs in ALIASES.items():
+    terms = {ql}
+    for k, vs in get_aliases().items():
         if ql == k or ql in vs:
             terms.update([k, *vs])
     return list(terms)
@@ -82,15 +89,21 @@ def _connect() -> sqlite3.Connection:
 def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     """Search foods via FTS; parameters are safely bound using placeholders."""
     # Defensive bounds and type validation for pagination
-    try:
-        limit = int(limit)
-        offset = int(offset)
-    except (TypeError, ValueError):
-        raise ValueError("limit and offset must be integers")
+    if not isinstance(limit, int):
+        try:
+            limit = int(limit)  # noqa: PLR2004 - defensive conversion needed for runtime validation
+        except (TypeError, ValueError):
+            raise ValueError("limit must be an integer")
+    if not isinstance(offset, int):
+        try:
+            offset = int(
+                offset
+            )  # noqa: PLR2004 - defensive conversion needed for runtime validation
+        except (TypeError, ValueError):
+            raise ValueError("offset must be an integer")
     if limit < 1:
         raise ValueError("limit must be >= 1")
-    if limit > MAX_LIMIT:
-        limit = MAX_LIMIT
+    limit = min(limit, MAX_LIMIT)
     if offset < 0:
         raise ValueError("offset must be >= 0")
     terms = expand_query(query) if query else []
@@ -104,7 +117,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE """
-            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))
+            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))  # nosec B608
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]

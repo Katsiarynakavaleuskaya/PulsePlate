@@ -4,10 +4,11 @@
 import glob
 import subprocess
 import sys
+from typing import Tuple
 
 
-def run_test_file(test_file):
-    """Run a single test file and return tuple(status, output)."""
+def run_test_file(test_file: str) -> Tuple[bool, str]:
+    """Run a single test file and return (status_ok, output)."""
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
         result = subprocess.run(
@@ -18,16 +19,16 @@ def run_test_file(test_file):
         )
 
         if result.returncode == 0:
-            return "PASS", result.stdout
+            return True, result.stdout
         else:
-            return "FAIL", result.stdout + result.stderr
+            return False, result.stdout + result.stderr
     except subprocess.TimeoutExpired:
-        return "TIMEOUT", f"Test {test_file} timed out"
+        return False, f"TIMEOUT: Test {test_file} timed out"
     except Exception as e:
-        return "ERROR", str(e)
+        return False, f"ERROR: {e}"
 
 
-def main():
+def main() -> int:
     """Execute quick pass over tests/test_*.py and print a compact summary."""
     # Get all test files
     test_files = glob.glob("tests/test_*.py")
@@ -39,18 +40,15 @@ def main():
     for i, test_file in enumerate(test_files, 1):
         print(f"[{i:03d}/{len(test_files)}] Testing {test_file}... ", end="")
 
-        status, output = run_test_file(test_file)
+        status_ok, output = run_test_file(test_file)
 
-        if status == "PASS":
+        if status_ok:
             print("✅ PASS")
-        elif status == "FAIL":
-            print("❌ FAIL")
-            failing_tests.append((test_file, output))
-        elif status == "TIMEOUT":
+        elif output.startswith("TIMEOUT"):
             print("⏰ TIMEOUT")
             timeout_tests.append(test_file)
         else:
-            print("💥 ERROR")
+            print("❌ FAIL")
             failing_tests.append((test_file, output))
 
     print("\n📊 Summary:")
