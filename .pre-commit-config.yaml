@@ -30,7 +30,7 @@ repos:
 
   # --- Lint: Ruff (fast flake8 + isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.1
+    rev: v0.4.4
     hooks:
       - id: ruff
         name: ruff (lint, local)
@@ -43,14 +43,15 @@ repos:
     hooks:
       - id: mypy
         name: mypy (type-check)
+        pass_filenames: false
+        stages: [pre-push]
         args:
+          - --explicit-package-bases
           - --pretty
           - --show-error-codes
-          - --implicit-optional
-          - --ignore-missing-imports
-          - --install-types
-          - --non-interactive
-        files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
+          - app
+          - core
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit

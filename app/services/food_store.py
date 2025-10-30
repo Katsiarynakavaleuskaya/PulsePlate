@@ -10,7 +10,7 @@ from pathlib import Path
 import csv
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 DB_PATH: Path = Path("data/food.sqlite")
 MAX_LIMIT: int = 100
@@ -86,7 +86,7 @@ def _connect() -> sqlite3.Connection:
     return con
 
 
-def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> List[Dict[str, Any]]:
     """Search foods via FTS; parameters are safely bound using placeholders."""
     # Defensive bounds and type validation for pagination
     if not isinstance(limit, int):
@@ -107,7 +107,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     if offset < 0:
         raise ValueError("offset must be >= 0")
     terms = expand_query(query) if query else []
-    params: list = []
+    params: List[Any] = []
     if terms:
         # nosec B608: The query uses parameter placeholders for all user inputs;
         # only the number of placeholders is constructed dynamically.
@@ -131,7 +131,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_food(food_id: str) -> Optional[Dict]:
+def get_food(food_id: str) -> Optional[Dict[str, Any]]:
     """Return a single food by id or None if not found."""
     with _connect() as con:
         row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()

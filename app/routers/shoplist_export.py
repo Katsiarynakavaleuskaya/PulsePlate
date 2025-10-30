@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime, timezone
+import logging
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -18,6 +19,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/shoplist", tags=["shoplist"])
 
@@ -146,9 +149,8 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except Exception:
-            # Fall back to default Helvetica if registration fails for any reason.
-            pass
+        except Exception as exc:  # noqa: BLE001 - report and use fallback font
+            logger.warning("Font registration failed, falling back to Helvetica: %s", exc)
     return "Helvetica"
 
 

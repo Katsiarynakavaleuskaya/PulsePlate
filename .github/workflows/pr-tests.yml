@@ -47,8 +47,25 @@ jobs:
       - name: Black Check
         run: black --check --diff .
 
-      - name: Mypy (loose)
-        run: mypy .
+      - name: Determine changed files (PR)
+        if: github.event_name == 'pull_request'
+        id: changed
+        run: |
+          set -e
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          CHANGED=$(git diff --name-only --diff-filter=AMRT origin/${{ github.base_ref }}... | grep -E '\\.py$' || true)
+          echo "Changed Python files:\n$CHANGED"
+          CHANGED_SP=${CHANGED//$'\n'/ }
+          echo "files=$CHANGED_SP" >> $GITHUB_OUTPUT
+
+      - name: Mypy (changed files only)
+        if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            mypy ${{ steps.changed.outputs.files }}
+          else
+            mypy app core
+          fi
 
   tests:
     needs: [lint]

@@ -3,7 +3,7 @@
 Быстрая проверка покрытия тестов
 """
 
-import subprocess
+import subprocess  # nosec B404 - running internal pytest helper
 import sys
 
 
@@ -13,7 +13,7 @@ def main():
 
     try:
         # Запуск тестов с покрытием
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - controlled command arguments
             [
                 sys.executable,
                 "-m",

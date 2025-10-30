@@ -6,9 +6,11 @@ EN: Basic SQLAlchemy integration for the FastAPI app.
 
 from __future__ import annotations
 
+import importlib
+import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
-import logging
+from types import ModuleType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
@@ -16,23 +18,21 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
-    from sqlalchemy.ext.asyncio import (
-        AsyncEngine as AsyncEngineType,
-        AsyncSession as AsyncSessionType,
-        async_sessionmaker as AsyncSessionmakerType,
-    )
-else:
-    AsyncEngineType = AsyncSessionType = Any  # type: ignore[assignment]
-    AsyncSessionmakerType = Any  # type: ignore[assignment]
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+    from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
+sa_asyncio: ModuleType | None
 try:  # Optional async support
-    from sqlalchemy.ext.asyncio import (
-        async_sessionmaker,
-        create_async_engine,
-    )
+    sa_asyncio = importlib.import_module("sqlalchemy.ext.asyncio")
 except ImportError:  # pragma: no cover - async extras not installed
-    async_sessionmaker = cast(Any, None)
-    create_async_engine = cast(Any, None)
+    sa_asyncio = None
+
+if sa_asyncio is not None:
+    create_async_engine = getattr(sa_asyncio, "create_async_engine", None)
+    async_sessionmaker = getattr(sa_asyncio, "async_sessionmaker", None)
+else:
+    create_async_engine = None
+    async_sessionmaker = None
 
 
 logger = logging.getLogger(__name__)
@@ -111,13 +111,21 @@ class EngineCompat:
             # Commit only when there is an active transaction; otherwise rely on autocommit.
             try:
                 in_tx = False
-                if hasattr(conn, "get_transaction"):
-                    in_tx = conn.get_transaction() is not None  # type: ignore[attr-defined]
-                elif hasattr(conn, "in_transaction"):
-                    in_tx = bool(conn.in_transaction())  # type: ignore[attr-defined]
+                get_transaction = getattr(conn, "get_transaction", None)
+                if callable(get_transaction):
+                    in_tx = get_transaction() is not None
+                else:
+                    in_transaction = getattr(conn, "in_transaction", None)
+                    if callable(in_transaction):
+                        in_tx = bool(in_transaction())
                 if in_tx:
                     conn.commit()
-            except (sa_exc.OperationalError, sa_exc.IntegrityError, sa_exc.DatabaseError) as db_err:
+            except (
+                sa_exc.OperationalError,
+                sa_exc.IntegrityError,
+                sa_exc.DatabaseError,
+                sa_exc.SQLAlchemyError,
+            ) as db_err:
                 # Avoid exposing sensitive details in production logs
                 env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
                 safe_message = str(db_err).splitlines()[0]
@@ -125,7 +133,24 @@ class EngineCompat:
                     logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
                 else:
                     logger.error("Commit failed (database error): %s", safe_message)
-                raise
+                rollback = getattr(conn, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception as rollback_err:  # pragma: no cover - defensive log
+                        logger.debug("Rollback after commit failure also failed: %s", rollback_err)
+            except (
+                Exception
+            ) as unexpected:  # noqa: BLE001 - log and continue to mimic legacy behavior
+                logger.warning("Commit failed with unexpected error; continuing: %s", unexpected)
+                rollback = getattr(conn, "rollback", None)
+                if callable(rollback):
+                    try:
+                        rollback()
+                    except Exception as rollback_err:  # pragma: no cover - defensive log
+                        logger.debug(
+                            "Rollback after unexpected commit failure failed: %s", rollback_err
+                        )
             return result
 
 
@@ -139,8 +164,8 @@ engine = EngineCompat(_RAW_ENGINE)
 
 
 # Async engine configuration (optional)
-ASYNC_DATABASE_URL = None
-if create_async_engine is not None:
+ASYNC_DATABASE_URL: Optional[str] = None
+if create_async_engine is not None and async_sessionmaker is not None:
     # Check for explicit async URL first
     async_url = os.getenv("DATABASE_ASYNC_URL")
 
@@ -150,13 +175,16 @@ if create_async_engine is not None:
 
     ASYNC_DATABASE_URL = async_url
 
+_ASYNC_ENGINE: Optional["AsyncEngine"] = None
+AsyncSessionLocal: Optional["AsyncSessionmaker[AsyncSession]"] = None
+
 _POOL_CONFIG = {
     "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
     "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
     "pool_pre_ping": True,
 }
 
-if ASYNC_DATABASE_URL and create_async_engine is not None:
+if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker is not None:
     try:
         async_kwargs: dict[str, Any] = {
             "echo": False,
@@ -168,6 +196,11 @@ if ASYNC_DATABASE_URL and create_async_engine is not None:
             async_kwargs.update(_POOL_CONFIG)
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
+        if async_sessionmaker is None:
+            raise RuntimeError(
+                "SQLAlchemy async extras are not available but async mode requested."
+            )
+
         AsyncSessionLocal = async_sessionmaker(
             bind=_ASYNC_ENGINE,
             autoflush=False,
@@ -181,7 +214,7 @@ else:
     _ASYNC_ENGINE = None
     AsyncSessionLocal = None
 
-async_engine: Optional[AsyncEngineType] = _ASYNC_ENGINE
+async_engine: Optional["AsyncEngine"] = _ASYNC_ENGINE
 
 
 class Base(DeclarativeBase):
@@ -220,10 +253,10 @@ def session_scope() -> Generator[Session, None, None]:
         session.close()
 
 
-async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
+async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     if AsyncSessionLocal is None:
-        if create_async_engine is None:
+        if create_async_engine is None or async_sessionmaker is None:
             raise ImportError(
                 "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
             )
@@ -239,7 +272,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSessionType, None]:
 
 
 @asynccontextmanager
-async def session_scope_async() -> AsyncGenerator[AsyncSessionType, None]:
+async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     """Async context manager for atomic DB operations."""
     if AsyncSessionLocal is None:
         raise RuntimeError(

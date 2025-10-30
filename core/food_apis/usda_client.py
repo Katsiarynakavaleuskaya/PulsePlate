@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import httpx
 
@@ -247,15 +247,15 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _parse_food_item(self, food_data: Dict) -> Optional[USDAFoodItem]:
+    def _parse_food_item(self, food_data: Mapping[str, Any] | None) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
         """
         try:
             # Debug: Check if food_data is actually a dict
-            if not isinstance(food_data, dict):
-                logger.error(f"Expected dict, got {type(food_data)}: {food_data}")
+            if not isinstance(food_data, Mapping):
+                logger.error("Expected mapping, got %s: %s", type(food_data), food_data)
                 return None
 
             # Extract basic info

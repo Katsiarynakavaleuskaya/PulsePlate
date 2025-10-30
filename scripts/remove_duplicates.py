@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -37,6 +38,7 @@ SKIP_DIRS = {
     "external",
 }
 SAFE_SUFFIXES = [".bak", ".broken", ".old", ".orig", ".copy", ".tmp"]
+logger = logging.getLogger(__name__)
 
 
 def sha256_of(path: Path) -> str:
@@ -81,7 +83,8 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
         # Full duplicates hash collection
         try:
             h = sha256_of(f)
-        except Exception:
+        except (OSError, ValueError) as hash_err:
+            logger.debug("Skipping %s due to hash error: %s", f, hash_err)
             continue
         by_hash.setdefault(h, []).append(f)
 

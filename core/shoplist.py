@@ -88,6 +88,11 @@ class ShoplistGenerator:
                 # Если не удалось загрузить, используем правила по умолчанию
                 # Логируем кратко и продолжаем с правилами по умолчанию
                 logging.getLogger(__name__).warning("Failed to load packaging rules: %s", load_err)
+            except Exception as unexpected:  # noqa: BLE001 - continue with defaults
+                logging.getLogger(__name__).error(
+                    "Unhandled error loading packaging rules; falling back to defaults: %s",
+                    unexpected,
+                )
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
         if not rules:

@@ -30,7 +30,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13"
+          python-version: "3.13.5"
           install-dev-deps: "true"
 
       - name: Pre-commit (lint/format/security quick checks)
@@ -49,7 +49,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13"
+          python-version: "3.13.5"
           install-dev-deps: "true"
 
       - name: Security scan with Bandit

@@ -10,6 +10,7 @@ FEATURE_RAG=on.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -19,6 +20,7 @@ ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 DOC_GLOBS = ["*.md"]
 MAX_FILE_SIZE = 256 * 1024  # bytes, skip very large files
 _INDEX: List[Tuple[str, str]] | None = None  # list of (source, chunk)
+logger = logging.getLogger(__name__)
 
 
 _WORD_RE = re.compile(r"[\w\-]+", re.UNICODE)
@@ -68,7 +70,8 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except (OSError, UnicodeDecodeError, RuntimeError) as read_err:
+            logger.debug("Skipping %s during index build: %s", path, read_err)
             continue
         for ch in _chunk(text):
             if ch:

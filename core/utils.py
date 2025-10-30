@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import types
 from typing import Any, Iterable, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def get_activity_factor(activity: str) -> float:
@@ -42,41 +45,44 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
     """
     if candidates is None:
         candidates = [sys.modules.get("app"), sys.modules.get("_app_top_module")]
-    for m in candidates:
+    for candidate in candidates:
+        module = candidate
+        skip_candidate = False
         try:
-            if m is None:
+            if module is None:
+                skip_candidate = True
+            elif isinstance(module, str):
+                module = sys.modules.get(module)
+                if module is None:
+                    skip_candidate = True
+
+            if skip_candidate:
                 continue
-            # If candidate is a module name string, fetch module object
-            if isinstance(m, str):
-                m = sys.modules.get(m)
-                if m is None:
-                    continue
 
             # Prefer explicit attributes to avoid Mock auto-created attrs.
-            dct = getattr(m, "__dict__", None)
+            dct = getattr(module, "__dict__", None)
             if isinstance(dct, dict) and name in dct:
                 return dct[name]
 
             # Avoid triggering unittest.mock auto-creation of attributes
-            # If it's a mock-like object and attribute isn't explicitly set, skip it
             try:
                 is_mock_like = (
-                    getattr(m, "_mock_children", None) is not None
-                    or m.__class__.__name__ in {"Mock", "MagicMock", "AsyncMock"}
-                    or getattr(m, "__module__", "").startswith("unittest.mock")
+                    getattr(module, "_mock_children", None) is not None
+                    or module.__class__.__name__ in {"Mock", "MagicMock", "AsyncMock"}
+                    or getattr(module, "__module__", "").startswith("unittest.mock")
                 )
-            except Exception:
+            except Exception:  # pragma: no cover - extremely defensive
                 is_mock_like = False
+
             if is_mock_like:
-                # Only return values that are explicitly present in __dict__ for mocks
-                # If not present, continue searching other candidates
                 continue
 
-            # Fallback: if it's a real module, allow getattr
-            if isinstance(m, types.ModuleType) and hasattr(m, name):
-                return getattr(m, name)
-        except Exception:
-            # Ignore any errors from broken modules; continue searching
+            if isinstance(module, types.ModuleType) and hasattr(module, name):
+                return getattr(module, name)
+        except Exception as resolve_err:  # pragma: no cover - defensive guard
+            logger.debug("resolve_attr ignored %s while inspecting %s", resolve_err, candidate)
+            skip_candidate = True
+        if skip_candidate:
             continue
     return local_default
 

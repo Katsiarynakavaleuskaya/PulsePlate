@@ -11,6 +11,7 @@ information becomes available, with version tracking, validation, and rollback.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import hashlib
 import json
 import logging
@@ -27,6 +28,13 @@ from .usda_client import USDAClient
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
+
+
+async def _maybe_await(value: Any) -> Any:
+    """Return awaited value if awaitable, otherwise the value itself."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 class _PatchablePathWrapper:
@@ -307,7 +315,7 @@ class DatabaseUpdateManager:
                 )
 
             # Validate new data
-            validation_errors = await self._validate_food_data(updated_foods)
+            validation_errors = await _maybe_await(self._validate_food_data(updated_foods))
             if validation_errors:
                 return UpdateResult(
                     success=False,
@@ -325,7 +333,9 @@ class DatabaseUpdateManager:
             old_foods = {}
             if current_version:
                 try:
-                    old_foods = await self._load_backup(source, current_version.version)
+                    old_foods = await _maybe_await(
+                        self._load_backup(source, current_version.version)
+                    )
                 except Exception as e:
                     logger.warning(f"Could not load old data for comparison: {e}")
 
@@ -452,7 +462,7 @@ class DatabaseUpdateManager:
                 )
 
             # Validate new data
-            validation_errors = await self._validate_food_data(unified_foods)
+            validation_errors = await _maybe_await(self._validate_food_data(unified_foods))
             if validation_errors:
                 return UpdateResult(
                     success=False,
@@ -470,7 +480,9 @@ class DatabaseUpdateManager:
             old_foods = {}
             if current_version:
                 try:
-                    old_foods = await self._load_backup(source, current_version.version)
+                    old_foods = await _maybe_await(
+                        self._load_backup(source, current_version.version)
+                    )
                 except Exception as e:
                     logger.warning(f"Could not load old data for comparison: {e}")
 
@@ -778,26 +790,27 @@ class DatabaseUpdateManager:
     async def _create_backup(self, source: str, version: str):
         """Create backup of current database version."""
         try:
-            current_data = await self.unified_db.get_common_foods_database()
+            current_data = await _maybe_await(self.unified_db.get_common_foods_database())
             backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-            with open(backup_file, "w") as f:
+            with open(backup_file, "w", encoding="utf-8") as f:
                 json.dump(
                     {name: self._food_to_dict(food) for name, food in current_data.items()},
                     f,
                     indent=2,
                 )
 
-            logger.info(f"Created backup for {source} version {version}")
-
-        except Exception as e:
-            logger.error(f"Error creating backup: {e}")
+            logger.info("Created backup for %s version %s", source, version)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error("Error creating backup for %s: %s", source, exc, exc_info=True)
+        except Exception as exc:
+            logger.error("Unexpected error creating backup for %s: %s", source, exc, exc_info=True)
 
     async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, "r") as f:
+        with open(backup_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         # Basic schema validation: ensure minimal keys exist
@@ -816,8 +829,8 @@ class DatabaseUpdateManager:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
                     continue
                 foods[name] = UnifiedFoodItem(**food_data)
-            except Exception:
-                # Skip malformed entries
+            except (TypeError, ValueError) as parse_err:
+                logger.debug("Skipping malformed backup entry %s: %s", name, parse_err)
                 continue
 
         return foods
@@ -834,8 +847,8 @@ class DatabaseUpdateManager:
             # Only call asdict on dataclass instances, not types
             if is_dataclass(type(food)):
                 return asdict(food)
-        except Exception:
-            pass
+        except (TypeError, ValueError) as dataclass_err:
+            logger.debug("Failed dataclass conversion for %s: %s", food, dataclass_err)
 
         if isinstance(food, dict):
             return food
@@ -845,7 +858,10 @@ class DatabaseUpdateManager:
                 try:
                     result = getattr(food, method_name)()
                     return dict(result) if not isinstance(result, dict) else result
-                except Exception:
+                except (TypeError, ValueError, AttributeError) as transform_err:
+                    logger.debug(
+                        "Conversion method %s failed for %s: %s", method_name, food, transform_err
+                    )
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values
@@ -870,10 +886,10 @@ class DatabaseUpdateManager:
             # Remove old backups beyond the limit
             for old_backup in backup_files[self.max_rollback_versions :]:
                 old_backup.unlink()
-                logger.info(f"Removed old backup: {old_backup.name}")
+                logger.info("Removed old backup: %s", old_backup.name)
 
-        except Exception as e:
-            logger.error(f"Error cleaning up backups: {e}")
+        except Exception as exc:
+            logger.error("Error cleaning up backups for %s: %s", source, exc, exc_info=True)
 
     async def rollback_database(self, source: str, target_version: str) -> bool:
         """
@@ -889,7 +905,7 @@ class DatabaseUpdateManager:
         """
         try:
             # Load backup data
-            backup_data = await self._load_backup(source, target_version)
+            backup_data = await _maybe_await(self._load_backup(source, target_version))
 
             # Restore the data (implementation depends on storage method)
             # For now, just update the version tracking
@@ -915,11 +931,13 @@ class DatabaseUpdateManager:
                 self.versions[source] = rollback_version
                 self._save_versions()
 
-                logger.info(f"Successfully rolled back {source} to version {target_version}")
+                logger.info("Successfully rolled back %s to version %s", source, target_version)
                 return True
 
-        except Exception as e:
-            logger.error(f"Error rolling back {source} to {target_version}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error rolling back %s to %s: %s", source, target_version, exc, exc_info=True
+            )
 
         return False
 

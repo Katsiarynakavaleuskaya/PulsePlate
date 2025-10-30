@@ -1,10 +1,10 @@
 import csv
 import os
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 
-def _load_aliases(path: str = None) -> Dict[str, str]:
+def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
     """
     RU: Загрузить таблицу синонимов.
     EN: Load alias table.
@@ -60,7 +60,7 @@ def map_to_canonical(raw_name: str, locale: str = "en") -> str:
     return canonical or "unknown"
 
 
-def add_alias(alias: str, canonical: str, path: str = None):
+def add_alias(alias: str, canonical: str, path: Optional[str] = None) -> None:
     """
     RU: Добавить новую пару синоним-каноническое имя.
     EN: Add new alias-canonical pair.

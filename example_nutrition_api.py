@@ -55,7 +55,7 @@ def call_premium_bmr_api(
 
     headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=10)
     response.raise_for_status()
 
     return response.json()

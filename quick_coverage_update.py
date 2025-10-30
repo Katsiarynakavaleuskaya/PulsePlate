@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Quick coverage check for our progress."""
 
-import subprocess
+import subprocess  # nosec B404 - executes controlled pytest command
 import time
+import sys
 
 
 def run_coverage_check():
@@ -12,7 +13,7 @@ def run_coverage_check():
 
     # Run only our new tests with overall coverage
     cmd = [
-        "python",
+        sys.executable,
         "-m",
         "pytest",
         "tests/test_product_varieties.py",
@@ -25,7 +26,9 @@ def run_coverage_check():
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(  # nosec B603 - fixed pytest invocation
+            cmd, capture_output=True, text=True, timeout=60
+        )
         elapsed = time.time() - start_time
 
         lines = result.stdout.split("\n")

@@ -155,7 +155,7 @@ class OFFClient:
         """
         try:
             url = f"{self.BASE_URL}/search"
-            params = {
+            params: Dict[str, int | str] = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
                 "json": "true",

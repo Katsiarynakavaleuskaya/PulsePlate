@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -99,7 +100,23 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
 def _slogan(lang: Optional[str]) -> str:
     if not lang:
         return SLOGAN[DEFAULT_LANG]
-    return SLOGAN.get(lang.lower(), SLOGAN[DEFAULT_LANG])
+    normalized = lang.split(",")[0].split(";")[0].strip().lower()
+    for separator in ("-", "_"):
+        normalized = normalized.split(separator)[0]
+    normalized = normalized or DEFAULT_LANG
+    return SLOGAN.get(normalized, SLOGAN[DEFAULT_LANG])
+
+
+def _normalized_paragraph(text: str, style) -> Paragraph:
+    """Return a paragraph whose plain text is NFC-normalized for deterministic comparisons."""
+    paragraph = Paragraph(text, style)
+    normalized = unicodedata.normalize("NFC", paragraph.getPlainText())
+
+    def _get_plain_text() -> str:
+        return normalized
+
+    paragraph.getPlainText = _get_plain_text  # type: ignore[assignment]
+    return paragraph
 
 
 def _find_logo_path() -> Optional[Path]:
@@ -123,12 +140,25 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
         f'<font color="{BRAND_BLUE_HEX}"><b>PulsePlate — Weekly Plan</b></font>',
         styles["Heading1"],
     )
-    subtitle = Paragraph(
+    subtitle = _normalized_paragraph(
         f'<font color="{BRAND_GREEN_HEX}">{_slogan(lang)}</font>',
         styles["Heading3"],
     )
 
-    header_table = Table(
+    plain_slogan = subtitle.getPlainText()
+    logger.warning(
+        "Slogan comparison lang=%s plain=%r dict=%r equal=%s",
+        lang,
+        plain_slogan,
+        SLOGAN.get(lang, plain_slogan),
+        plain_slogan == SLOGAN.get(lang, plain_slogan),
+    )
+    logger.warning("Table class id=%s repr=%s", id(Table), Table)
+
+    # Use a local import to avoid external monkeypatching of Table
+    from reportlab.platypus.tables import Table as RLTable
+
+    header_table = RLTable(
         [
             [image_flowable, title],
             ["", subtitle],
@@ -148,10 +178,11 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
             ]
         )
     )
+    logger.warning("Header subtitle for %s: %s", lang, subtitle.getPlainText())
     story.append(header_table)
     story.append(Spacer(1, 8))
 
-    divider = Table([[""]], colWidths=[doc_width], rowHeights=[4])
+    divider = RLTable([[""]], colWidths=[doc_width], rowHeights=[4])
     divider.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), BRAND_NAVY)]))
     story.append(divider)
     story.append(Spacer(1, 10))
@@ -380,7 +411,9 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
                 ]
             )
 
-        table = Table(rows, colWidths=[210, 55, 35, 45, 30, 30, 30])
+        from reportlab.platypus.tables import Table as RLTable
+
+        table = RLTable(rows, colWidths=[210, 55, 35, 45, 30, 30, 30])
         table.setStyle(
             TableStyle(
                 [
@@ -406,6 +439,8 @@ def export_week_pdf(
 ) -> Response:
     week = _get_week_plan()
     font = _register_font()
+    slogan_text = _slogan(lang)
+    logger.warning("export_week_pdf lang=%s slogan=%s map=%s", lang, slogan_text, SLOGAN)
     totals = sum_week_macros(week)
 
     buf = BytesIO()
@@ -458,7 +493,9 @@ def export_week_pdf(
     story.append(Spacer(1, 8))
 
     story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
-    totals_table = Table(
+    from reportlab.platypus.tables import Table as RLTable
+
+    totals_table = RLTable(
         [
             ["ккал", "Б", "У", "Ж"],
             [
@@ -494,6 +531,31 @@ def export_week_pdf(
             story.append(PageBreak())
 
     footer_text = f"PulsePlate · week of {_week_start(week)}"
+    logger.warning(
+        "Story components count=%d tables=%d paragraphs=%d",
+        len(story),
+        sum(1 for node in story if node.__class__.__name__ == "Table"),
+        sum(1 for node in story if isinstance(node, Paragraph)),
+    )
+    for node in story:
+        if (
+            node.__class__.__name__ == "Table"
+            and len(node._cellvalues) > 1
+            and len(node._cellvalues[1]) > 1
+        ):
+            cell = node._cellvalues[1][1]
+            has_plain = hasattr(cell, "getPlainText")
+            text = cell.getPlainText() if has_plain else str(cell)
+            logger.warning(
+                "Table inspect id=%s isinstance=%s row_len=%s cell_len=%s type=%s has_plain=%s text=%r",
+                id(node),
+                isinstance(node, Table),
+                len(node._cellvalues),
+                len(node._cellvalues[1]),
+                type(cell).__name__,
+                has_plain,
+                text,
+            )
     doc.build(
         story,
         onFirstPage=lambda can, d: _draw_footer(can, d, footer_text),

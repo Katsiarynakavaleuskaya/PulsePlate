@@ -1244,6 +1244,25 @@ class PlateResponse(BaseModel):
     day_micros: Dict[str, float] = {}  # агрегированные микронутриенты за день
 
 
+MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
+    "iron_mg": ("iron", "fe", "fe_mg"),
+    "calcium_mg": ("calcium", "ca", "ca_mg"),
+    "magnesium_mg": ("magnesium", "mg", "mg_mg"),
+    "potassium_mg": ("potassium", "k", "k_mg"),
+}
+
+
+def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
+    """Expose micronutrients under common aliases for downstream consumers."""
+    for primary, aliases in MICRO_ALIAS_MAP.items():
+        if primary not in values:
+            continue
+        primary_value = values[primary]
+        for alias in aliases:
+            values.setdefault(alias, primary_value)
+    return values
+
+
 # WHO-Based Nutrition Models
 class WHOTargetsRequest(BaseModel):
     """RU: Запрос на расчёт целей по нормам ВОЗ.
@@ -1542,9 +1561,10 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             "b12_ug": 1.2,
         }
         for meal in plate_data["meals"]:
-            meal["micros"] = mock_micros_per_meal.copy()
+            meal["micros"] = _alias_micros(mock_micros_per_meal.copy())
             for nutrient, amount in mock_micros_per_meal.items():
                 day_micros[nutrient] = day_micros.get(nutrient, 0.0) + amount
+        day_micros = _alias_micros(day_micros)
 
         # Align macros with WHO targets when available to keep deviation thresholds in tests
         # Otherwise, use a simple heuristic fallback for carbs.
@@ -1966,6 +1986,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "potassium_mg": 3500.0,
                 "b12_ug": 2.4,
             }
+            priority_micros = _alias_micros(priority_micros)
 
             activity_weekly = {
                 "moderate_aerobic_min": 150,
@@ -2033,9 +2054,11 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except Exception:
-                # Safety validation is optional; ignore errors
-                pass
+            except Exception as exc:  # noqa: BLE001 - validation is optional, log and continue
+                logger.warning(
+                    "Safety validation failed; continuing without safety warnings: %s",
+                    exc,
+                )
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
@@ -2046,7 +2069,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "fiber_g": targets.macros.fiber_g,
             },
             water_ml=targets.water_ml_daily,
-            priority_micros=targets.micros.get_priority_nutrients(),
+            priority_micros=_alias_micros(dict(targets.micros.get_priority_nutrients())),
             activity_weekly={
                 "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
                 "strength_sessions": targets.activity.strength_sessions,

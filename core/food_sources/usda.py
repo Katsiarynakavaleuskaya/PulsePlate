@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 import os
 from datetime import date
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
@@ -23,7 +23,7 @@ class USDAAdapter(BaseAdapter):
     EN: Adapter for USDA database.
     """
 
-    def __init__(self, csv_path: str = None):
+    def __init__(self, csv_path: Optional[str] = None) -> None:
         """
         RU: Инициализировать адаптер USDA.
         EN: Initialize USDA adapter.

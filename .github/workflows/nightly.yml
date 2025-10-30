@@ -16,7 +16,7 @@ permissions:
   id-token: write
 
 env:
-  COVERAGE_PY: "3.13"
+  COVERAGE_PY: "3.13.5"
 
 # Only run on main branch to avoid wasting minutes on forks/PRs
 jobs:
