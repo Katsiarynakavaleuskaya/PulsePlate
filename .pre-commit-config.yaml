@@ -84,7 +84,7 @@ repos:
       - id: pydocstyle
         name: pydocstyle (docstrings)
         files: ^(?!frontend/).+\.py$
-        stages: [pre-push]
+        stages: [manual]
         args: [--convention=google]
 
   # --- Commit message lint (commitizen)

@@ -115,7 +115,7 @@ def _normalized_paragraph(text: str, style) -> Paragraph:
     def _get_plain_text() -> str:
         return normalized
 
-    paragraph.getPlainText = _get_plain_text  # type: ignore[assignment]
+    paragraph.getPlainText = _get_plain_text
     return paragraph
 
 

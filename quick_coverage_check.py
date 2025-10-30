@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-Быстрая проверка покрытия тестов
-"""
+"""Быстрая проверка покрытия тестов."""
 
 import subprocess  # nosec B404 - running internal pytest helper
 import sys
 
 
-def main():
+def main() -> None:
+    """Run a quick single-file coverage check and print results."""
     print("🚀 Быстрая проверка покрытия")
     print("=" * 40)
 
