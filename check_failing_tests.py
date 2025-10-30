@@ -2,6 +2,7 @@
 """Find and summarize failing tests quickly."""
 
 import glob
+from pathlib import Path
 import subprocess
 import sys
 from typing import Tuple
@@ -30,8 +31,12 @@ def run_test_file(test_file: str) -> Tuple[bool, str]:
 
 def main() -> int:
     """Execute quick pass over tests/test_*.py and print a compact summary."""
-    # Get all test files
-    test_files = glob.glob("tests/test_*.py")
+    # Get all test files (restrict to repo tests dir, avoid traversal)
+    test_files = [
+        str(p)
+        for p in map(Path, glob.glob("tests/test_*.py"))
+        if p.is_file() and p.resolve().is_relative_to(Path("tests").resolve())
+    ]
     failing_tests = []
     timeout_tests = []
 
