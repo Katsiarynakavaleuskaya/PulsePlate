@@ -42,7 +42,7 @@ jobs:
           pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Ruff Lint
-        run: ruff . --output-format=github
+        run: ruff check . --output-format=github
 
       - name: Black Check
         run: black --check --diff .
