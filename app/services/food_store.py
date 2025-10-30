@@ -10,10 +10,10 @@ from pathlib import Path
 import csv
 from typing import Dict, List, Optional
 
-DB_PATH = Path("data/food.sqlite")
-MAX_LIMIT = 100
+DB_PATH: Path = Path("data/food.sqlite")
+MAX_LIMIT: int = 100
 
-DEFAULT_ALIASES = {
+DEFAULT_ALIASES: Dict[str, List[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
     "йогурт": ["yogurt", "yoghurt"],
     "масло оливковое": ["olive oil", "aceite de oliva"],
@@ -46,7 +46,7 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
 
 
 # Load aliases once at import, merging CSV over defaults
-_CSV_ALIASES = _load_aliases_csv(Path("data/food_aliases.csv"))
+_CSV_ALIASES: Dict[str, List[str]] = _load_aliases_csv(Path("data/food_aliases.csv"))
 ALIASES: Dict[str, List[str]] = {**DEFAULT_ALIASES, **_CSV_ALIASES}
 
 

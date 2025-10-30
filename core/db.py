@@ -9,8 +9,6 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager, contextmanager
 import logging
-
-logger = logging.getLogger(__name__)
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, cast
 
 from sqlalchemy import create_engine, text
@@ -34,6 +32,9 @@ try:  # Optional async support
 except ImportError:  # pragma: no cover - async extras not installed
     async_sessionmaker = cast(Any, None)
     create_async_engine = cast(Any, None)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _build_engine_url() -> str:

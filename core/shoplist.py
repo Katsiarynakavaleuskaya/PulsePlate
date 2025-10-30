@@ -1,3 +1,5 @@
+"""Shopping list generation and export utilities."""
+
 import math
 
 # -*- coding: utf-8 -*-
@@ -314,15 +316,17 @@ class ShoplistGenerator:
                 if packages_needed > 0:
                     return package_size, packages_needed
         else:  # 'nearest'
-            # Ближайшее округление
-            best_package = min(
-                sorted_packages,
-                key=lambda x: abs(total_amount - x * int(math.floor(total_amount / x))),
-            )
-            packages_needed = int(math.floor(total_amount / best_package))
-            if packages_needed == 0:
-                packages_needed = 1
-            return best_package, packages_needed
+            # Ближайшее округление: оцениваем для каждой упаковки разницу после округления
+            best_choice: tuple[float, int] | None = None
+            best_error = float("inf")
+            for package_size in sorted_packages:
+                packages_needed = max(1, int(round(total_amount / package_size)))
+                error = abs(total_amount - packages_needed * package_size)
+                if error < best_error:
+                    best_error = error
+                    best_choice = (package_size, packages_needed)
+            if best_choice is not None:
+                return best_choice
 
         # Fallback
         return sorted_packages[0], 1
