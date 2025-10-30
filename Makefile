@@ -235,6 +235,12 @@ fix-all: fmt lint ## Fix all auto-fixable issues
 ci: test cov-check lint security ## CI/CD pipeline commands
 	@echo "$(GREEN)✅ CI проверки завершены$(NC)"
 
+## Full Bandit scan (used by pre-push hook)
+bandit-full:
+	@echo "$(YELLOW)🔒 Полное сканирование Bandit...$(NC)"
+	bandit -r . -x tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache -f json -o bandit-report.json || true
+	@echo "$(GREEN)✅ Bandit отчет: bandit-report.json$(NC)"
+
 ## Smoke test (auto: 8000 then 8001)
 smoke-auto: ## Try health+bmi on 8000 then 8001
 	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \

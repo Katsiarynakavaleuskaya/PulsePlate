@@ -4,7 +4,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13"
+  COVERAGE_PY: "3.13.5"
 
 permissions:
   contents: read
@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12']
+        python-version: ['3.13.5']
 
     steps:
       - name: Checkout
@@ -157,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12']
+        python-version: ['3.13.5']
 
     steps:
       - name: Checkout

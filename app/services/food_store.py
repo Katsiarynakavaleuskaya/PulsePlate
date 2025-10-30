@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
+"""FoodDB access service with FTS and alias expansion.
+
 RU: Сервис доступа к FoodDB (SQLite) с FTS и алиасами.
 EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
@@ -19,6 +20,7 @@ ALIASES = {
 
 
 def expand_query(q: str) -> List[str]:
+    """Expand a query using alias mappings; returns unique lowercase terms."""
     ql = (q or "").strip().lower()
     if not ql:
         return []
@@ -36,6 +38,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+    """Search foods via FTS; parameters are safely bound using placeholders."""
     terms = expand_query(query) if query else []
     params: list = []
     if terms:
@@ -62,6 +65,7 @@ def search_foods(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
 
 
 def get_food(food_id: str) -> Optional[Dict]:
+    """Return a single food by id or None if not found."""
     with _connect() as con:
         row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
     return dict(row) if row else None

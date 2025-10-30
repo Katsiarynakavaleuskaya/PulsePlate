@@ -473,14 +473,14 @@ def get_shoplist(
     """
     Backward-compatible wrapper expected by the application.
     Builds a shopping list from week_plan and returns it in the requested format.
-    
+
     Args:
         week_plan: Словарь с недельным планом питания
         format_type: Тип формата (json, csv, text)
         locale: Локаль (ru, en, es)
         packaging_db: База данных упаковок (опционально)
         rules: Правила округления (опционально)
-    
+
     Returns:
         Отформатированный список покупок
     """
