@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Food Database Update Scheduler
+"""Food Database Update Scheduler.
 
 RU: Планировщик обновления базы данных продуктов.
 EN: Food database update scheduler.
@@ -33,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 def update_food_database() -> bool:
-    """
+    """Update food database.
+
     RU: Обновить базу данных продуктов.
     EN: Update food database.
     """
@@ -68,7 +68,8 @@ def update_food_database() -> bool:
 
 
 def main() -> None:
-    """
+    """Main scheduler function.
+
     RU: Основная функция планировщика.
     EN: Main scheduler function.
     """

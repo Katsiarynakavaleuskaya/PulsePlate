@@ -1,5 +1,4 @@
-"""
-Open Food Facts API Client
+"""Open Food Facts API Client.
 
 RU: Клиент для работы с API Open Food Facts.
 EN: Client for Open Food Facts API integration.
@@ -30,7 +29,8 @@ OFF_AVAILABLE: bool = True
 
 @dataclass
 class OFFFoodItem:
-    """
+    """Open Food Facts food item with complete information.
+
     RU: Элемент из базы данных Open Food Facts с полной информацией.
     EN: Open Food Facts food item with complete information.
     """
@@ -48,7 +48,8 @@ class OFFFoodItem:
     last_modified_t: int  # Unix timestamp
 
     def to_menu_engine_format(self) -> dict[str, Any]:
-        """
+        """Convert to menu_engine format.
+
         RU: Конвертирует в формат для menu_engine.
         EN: Converts to menu_engine format.
         """
@@ -95,7 +96,8 @@ class OFFFoodItem:
 
 
 async def _maybe_await(value):
-    """
+    """Await the value if it is awaitable; otherwise return it as-is.
+
     RU: Если значение ожидаемо (awaitable), подождать его; иначе вернуть как есть.
     EN: Await the value if it is awaitable; otherwise return it as-is.
     """
@@ -103,7 +105,8 @@ async def _maybe_await(value):
 
 
 class OFFClient:
-    """
+    """Client for Open Food Facts API.
+
     RU: Клиент для работы с Open Food Facts API.
     EN: Client for Open Food Facts API.
 
@@ -114,9 +117,7 @@ class OFFClient:
     BASE_URL = "https://world.openfoodfacts.org/api/v2"
 
     def __init__(self):
-        """
-        Initialize Open Food Facts client.
-        """
+        """Initialize Open Food Facts client."""
         # Underlying async HTTP client
         self.client = httpx.AsyncClient()
 
@@ -151,7 +152,8 @@ class OFFClient:
         }
 
     async def search_products(self, query: str, page_size: int = 25) -> list[OFFFoodItem]:
-        """
+        """Search products by name.
+
         RU: Поиск продуктов по названию.
         EN: Search products by name.
 
@@ -193,7 +195,8 @@ class OFFClient:
             return []
 
     async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
-        """
+        """Get detailed product information by barcode.
+
         RU: Получить детальную информацию о продукте по штрихкоду.
         EN: Get detailed product information by barcode.
 
@@ -229,7 +232,8 @@ class OFFClient:
         return None
 
     def _parse_product_item(self, product_data: dict[str, Any]) -> OFFFoodItem | None:
-        """
+        """Parse product data from Open Food Facts format.
+
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
         """
@@ -302,7 +306,8 @@ class OFFClient:
             return None
 
     async def get_multiple_products(self, barcodes: list[str]) -> list[OFFFoodItem]:
-        """
+        """Get information for multiple products by barcodes.
+
         RU: Получить информацию о нескольких продуктах по штрихкодам.
         EN: Get information for multiple products by barcodes.
         """
