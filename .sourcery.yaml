@@ -1,0 +1,18 @@
+version: 1
+python_version: "3.13"
+exclude:
+  - node_modules/**
+  - releases/**
+  - htmlcov/**
+  - cache/**
+  - .pytest_cache/**
+  - .ruff_cache/**
+  - .mypy_cache/**
+  - tests_strict/**
+  - "**/*.ipynb"
+  - app.py
+include:
+  - app/**
+  - core/**
+  - scripts/**
+  - providers/**
