@@ -139,6 +139,8 @@ class EngineCompat:
                         rollback()
                     except Exception as rollback_err:  # pragma: no cover - defensive log
                         logger.debug("Rollback after commit failure also failed: %s", rollback_err)
+                # Re-raise to ensure callers see commit failures
+                raise
             except (
                 Exception
             ) as unexpected:  # noqa: BLE001 - log and continue to mimic legacy behavior
@@ -151,6 +153,8 @@ class EngineCompat:
                         logger.debug(
                             "Rollback after unexpected commit failure failed: %s", rollback_err
                         )
+                # Re-raise unexpected exceptions as well
+                raise
             return result
 
 

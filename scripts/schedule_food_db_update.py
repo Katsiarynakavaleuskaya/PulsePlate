@@ -17,6 +17,11 @@ project_root = os.path.join(script_dir, "..")
 sys.path.insert(0, project_root)
 
 # Configure logging
+# Ensure logs directory exists before configuring file handler
+logs_dir = os.path.join(project_root, "logs")
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -69,11 +74,6 @@ def main() -> None:
     EN: Main scheduler function.
     """
     logger.info("Food database update scheduler started")
-
-    # Create logs directory if it doesn't exist
-    logs_dir = os.path.join(project_root, "logs")
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
 
     # Update the food database
     success = update_food_database()

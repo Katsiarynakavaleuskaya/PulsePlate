@@ -30,7 +30,7 @@ repos:
 
   # --- Lint: Ruff (fast flake8 + isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.14.2
     hooks:
       - id: ruff
         name: ruff (lint, local)
@@ -51,7 +51,7 @@ repos:
           - --show-error-codes
           - app
           - core
-        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py|providers/.*\.py)$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -84,7 +84,7 @@ repos:
       - id: pydocstyle
         name: pydocstyle (docstrings)
         files: ^(?!frontend/).+\.py$
-        stages: [manual]
+        stages: [pre-push]
         args: [--convention=google]
 
   # --- Commit message lint (commitizen)
