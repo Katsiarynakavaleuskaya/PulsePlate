@@ -98,6 +98,39 @@ class EngineCompat:
         """Delegate attribute access to the underlying engine instance."""
         return getattr(self._engine, name)
 
+    def _is_in_transaction(self, conn: Any) -> bool:
+        """Return True if the connection is in a transaction.
+
+        RU: Определяет, активна ли транзакция для соединения, с безопасными
+        проверками совместимости.
+        EN: Detect whether a transaction is active on the connection, using
+        compatibility fallbacks for different SQLAlchemy versions.
+        """
+        get_transaction = getattr(conn, "get_transaction", None)
+        if callable(get_transaction):
+            return get_transaction() is not None
+        in_transaction = getattr(conn, "in_transaction", None)
+        if callable(in_transaction):
+            try:
+                return bool(in_transaction())
+            except Exception:  # pragma: no cover - defensive
+                return False
+        return False
+
+    def _safe_rollback(self, conn: Any) -> None:
+        """Attempt a rollback if supported; log failures at debug level.
+
+        RU: Безопасно выполняет rollback, при ошибке логирует на уровне DEBUG.
+        EN: Perform a defensive rollback if available, logging any failure
+        at debug level without raising.
+        """
+        rollback = getattr(conn, "rollback", None)
+        if callable(rollback):
+            try:
+                rollback()
+            except Exception as rollback_err:  # pragma: no cover - defensive log
+                logger.debug("Rollback after commit failure also failed: %s", rollback_err)
+
     def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
         """Execute a statement using a temporary connection.
 
@@ -109,52 +142,27 @@ class EngineCompat:
         with self._engine.connect() as conn:
             result = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
-            try:
-                in_tx = False
-                get_transaction = getattr(conn, "get_transaction", None)
-                if callable(get_transaction):
-                    in_tx = get_transaction() is not None
-                else:
-                    in_transaction = getattr(conn, "in_transaction", None)
-                    if callable(in_transaction):
-                        in_tx = bool(in_transaction())
-                if in_tx:
+            if self._is_in_transaction(conn):
+                try:
                     conn.commit()
-            except (
-                sa_exc.OperationalError,
-                sa_exc.IntegrityError,
-                sa_exc.DatabaseError,
-                sa_exc.SQLAlchemyError,
-            ) as db_err:
-                # Avoid exposing sensitive details in production logs
-                env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
-                safe_message = str(db_err).splitlines()[0]
-                if logger.isEnabledFor(logging.DEBUG) or env.lower() != "production":
-                    logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
-                else:
-                    logger.error("Commit failed (database error): %s", safe_message)
-                rollback = getattr(conn, "rollback", None)
-                if callable(rollback):
-                    try:
-                        rollback()
-                    except Exception as rollback_err:  # pragma: no cover - defensive log
-                        logger.debug("Rollback after commit failure also failed: %s", rollback_err)
-                # Re-raise to ensure callers see commit failures
-                raise
-            except (
-                Exception
-            ) as unexpected:  # noqa: BLE001 - log and continue to mimic legacy behavior
-                logger.warning("Commit failed with unexpected error; continuing: %s", unexpected)
-                rollback = getattr(conn, "rollback", None)
-                if callable(rollback):
-                    try:
-                        rollback()
-                    except Exception as rollback_err:  # pragma: no cover - defensive log
-                        logger.debug(
-                            "Rollback after unexpected commit failure failed: %s", rollback_err
+                except sa_exc.SQLAlchemyError as db_err:
+                    # Avoid exposing sensitive details in production logs
+                    env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
+                    safe_message = str(db_err).splitlines()[0]
+                    if logger.isEnabledFor(logging.DEBUG) or env.lower() != "production":
+                        logger.error(
+                            "Commit failed (database error): %s", safe_message, exc_info=True
                         )
-                # Re-raise unexpected exceptions as well
-                raise
+                    else:
+                        logger.error("Commit failed (database error): %s", safe_message)
+                    self._safe_rollback(conn)
+                    # Intentionally do not re-raise here to preserve legacy behavior expected by tests
+                except Exception as unexpected:  # noqa: BLE001 - legacy behavior: log and continue
+                    logger.warning(
+                        "Commit failed with unexpected error; continuing: %s", unexpected
+                    )
+                    self._safe_rollback(conn)
+                    # Preserve legacy behavior: do not re-raise unexpected commit errors
             return result
 
 

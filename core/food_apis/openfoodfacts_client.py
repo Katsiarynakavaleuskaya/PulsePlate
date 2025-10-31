@@ -17,14 +17,15 @@ import asyncio
 import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# Flag to indicate if Open Food Facts client is available
-OFF_AVAILABLE = True
+
+# Availability flag expected by callers/tests
+OFF_AVAILABLE: bool = True
 
 
 @dataclass
@@ -36,17 +37,17 @@ class OFFFoodItem:
 
     code: str  # Barcode
     product_name: str
-    categories: List[str]
-    nutrients_per_100g: Dict[str, float]
-    ingredients_text: Optional[str]
-    brands: Optional[str]
-    labels: List[str]
-    countries: List[str]
-    packaging: List[str]
-    image_url: Optional[str]
+    categories: list[str]
+    nutrients_per_100g: dict[str, float]
+    ingredients_text: str | None
+    brands: str | None
+    labels: list[str]
+    countries: list[str]
+    packaging: list[str]
+    image_url: str | None
     last_modified_t: int  # Unix timestamp
 
-    def to_menu_engine_format(self) -> Dict[str, Any]:
+    def to_menu_engine_format(self) -> dict[str, Any]:
         """
         RU: Конвертирует в формат для menu_engine.
         EN: Converts to menu_engine format.
@@ -61,7 +62,7 @@ class OFFFoodItem:
             "source_id": self.code,
         }
 
-    def _generate_tags(self) -> List[str]:
+    def _generate_tags(self) -> list[str]:
         """Generate diet tags based on labels and categories."""
         tags = []
 
@@ -91,6 +92,14 @@ class OFFFoodItem:
             tags.append("LOW_COST")
 
         return tags
+
+
+async def _maybe_await(value):
+    """
+    RU: Если значение ожидаемо (awaitable), подождать его; иначе вернуть как есть.
+    EN: Await the value if it is awaitable; otherwise return it as-is.
+    """
+    return await value if inspect.isawaitable(value) else value
 
 
 class OFFClient:
@@ -141,7 +150,7 @@ class OFFClient:
             "vitamin-b6_100g": "b6_mg",
         }
 
-    async def search_products(self, query: str, page_size: int = 25) -> List[OFFFoodItem]:
+    async def search_products(self, query: str, page_size: int = 25) -> list[OFFFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search products by name.
@@ -155,7 +164,7 @@ class OFFClient:
         """
         try:
             url = f"{self.BASE_URL}/search"
-            params: Dict[str, int | str] = {
+            params: dict[str, int | str] = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
                 "json": "true",
@@ -167,11 +176,8 @@ class OFFClient:
 
             response = await self.client.get(url, params=params)
             # Support both sync and async mocks for tests
-            maybe = response.raise_for_status()
-            if inspect.isawaitable(maybe):
-                await maybe
-            res = response.json()
-            data = await res if inspect.isawaitable(res) else res
+            await _maybe_await(response.raise_for_status())
+            data = await _maybe_await(response.json())
 
             products = []
             for product_data in data.get("products", []):
@@ -186,7 +192,7 @@ class OFFClient:
             logger.error(f"Error searching Open Food Facts products for '{query}': {e}")
             return []
 
-    async def get_product_details(self, barcode: str) -> Optional[OFFFoodItem]:
+    async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
         """
         RU: Получить детальную информацию о продукте по штрихкоду.
         EN: Get detailed product information by barcode.
@@ -207,11 +213,8 @@ class OFFClient:
             }
 
             response = await self.client.get(url, params=params)
-            maybe = response.raise_for_status()
-            if inspect.isawaitable(maybe):
-                await maybe
-            res = response.json()
-            data = await res if inspect.isawaitable(res) else res
+            await _maybe_await(response.raise_for_status())
+            data = await _maybe_await(response.json())
 
             if data.get("status") == 1:  # Product found
                 return self._parse_product_item(data.get("product", {}))
@@ -225,7 +228,7 @@ class OFFClient:
         # Explicitly return None when product is not found
         return None
 
-    def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
+    def _parse_product_item(self, product_data: dict[str, Any]) -> OFFFoodItem | None:
         """
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
@@ -298,7 +301,7 @@ class OFFClient:
             logger.error(f"Error parsing Open Food Facts product data: {e}")
             return None
 
-    async def get_multiple_products(self, barcodes: List[str]) -> List[OFFFoodItem]:
+    async def get_multiple_products(self, barcodes: list[str]) -> list[OFFFoodItem]:
         """
         RU: Получить информацию о нескольких продуктах по штрихкодам.
         EN: Get information for multiple products by barcodes.
@@ -307,7 +310,7 @@ class OFFClient:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and None values
-        valid_results: List[OFFFoodItem] = []
+        valid_results: list[OFFFoodItem] = []
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Error fetching product: {result}")
@@ -318,4 +321,8 @@ class OFFClient:
 
     async def close(self):
         """Close the HTTP client."""
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+        except RuntimeError:
+            # Event loop may already be closed in certain test shutdown paths
+            pass

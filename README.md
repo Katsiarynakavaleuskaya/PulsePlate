@@ -597,13 +597,18 @@ Production deployments are automated via GitHub Actions with manual approval gat
 ### Production Features
 
 - ✅ **Manual approval gates** for safety
-- ✅ **Automatic database backups** before deployment
+- ✅ **Automatic database backups** before deployment (keeps last 30 backups)
 - ✅ **Health checks** with retry logic
 - ✅ **Rollback capability** via previous tags
-- ✅ **SSL/TLS** automatic via Caddy
+- ✅ **SSL/TLS** automatic via Caddy + Cloudflare Full Strict
+- ✅ **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
+- ✅ **Server hardening** (UFW, fail2ban, SSH key-only access)
 - ✅ **Resource limits** and monitoring
 
-For detailed setup instructions, see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md).
+For detailed setup instructions, see:
+- **[НАЧНИТЕ_ОТСЮДА.md](НАЧНИТЕ_ОТСЮДА.md)** - Главная точка входа для новичков
+- [DEPLOYMENT_FULL_GUIDE.md](DEPLOYMENT_FULL_GUIDE.md) - Полная пошаговая инструкция
+- [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) - Детальная настройка production
 
 ## License
 

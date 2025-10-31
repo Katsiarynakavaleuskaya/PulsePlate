@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
@@ -100,10 +101,10 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
 def _slogan(lang: Optional[str]) -> str:
     if not lang:
         return SLOGAN[DEFAULT_LANG]
-    normalized = lang.split(",")[0].split(";")[0].strip().lower()
-    for separator in ("-", "_"):
-        normalized = normalized.split(separator)[0]
-    normalized = normalized or DEFAULT_LANG
+    # Extract first language token by splitting on ',' or ';'
+    first_token = re.split(r"[,;]", lang, maxsplit=1)[0].strip().lower()
+    # Split once on '-' or '_' and take leftmost subtag
+    normalized = re.split(r"[-_]", first_token, maxsplit=1)[0] or DEFAULT_LANG
     return SLOGAN.get(normalized, SLOGAN[DEFAULT_LANG])
 
 
@@ -179,8 +180,6 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
             ]
         )
     )
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("Header subtitle for %s: %s", lang, subtitle.getPlainText())
     story.append(header_table)
     story.append(Spacer(1, 8))
 
@@ -441,9 +440,8 @@ def export_week_pdf(
 ) -> Response:
     week = _get_week_plan()
     font = _register_font()
-    slogan_text = _slogan(lang)
     if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("export_week_pdf lang=%s slogan=%s", lang, slogan_text)
+        logger.debug("export_week_pdf lang=%s slogan=%s", lang, _slogan(lang))
     totals = sum_week_macros(week)
 
     buf = BytesIO()

@@ -14,7 +14,8 @@ import csv
 from dataclasses import dataclass
 from typing import Dict, Optional, Set
 
-from .food_db import FoodItem, parse_food_db
+from .food_db import FoodItem
+from .food_apis.unified_db import get_unified_food_db
 
 
 @dataclass
@@ -44,7 +45,10 @@ def parse_recipe_db(
         Dictionary mapping recipe names to Recipe objects
     """
     if food_db is None:
-        food_db = parse_food_db()
+        # RU: get_unified_food_db() is async, but this function is sync.
+        # EN: Fallback to empty dict; caller should provide food_db if needed.
+        # TODO: Make this function async or provide sync wrapper
+        food_db = {}
 
     recipe_db = {}
 

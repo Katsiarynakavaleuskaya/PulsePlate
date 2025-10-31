@@ -1,0 +1,51 @@
+name: PR Coverage Guard
+
+on:
+  pull_request:
+    branches: [ main, master, develop, ci/** ]
+  workflow_dispatch: {}
+
+jobs:
+  diff-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'constraints.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies (constrained)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Run tests with coverage (xml)
+        env:
+          PYTHONWARNINGS: default
+        run: |
+          pytest -q --maxfail=1 --disable-warnings --cov=. --cov-report=xml
+
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}":"${{ github.base_ref }}"
+
+      - name: Enforce diff coverage >= 97%
+        if: github.event_name == 'pull_request'
+        run: |
+          diff-cover coverage.xml \
+            --compare-branch "${{ github.base_ref }}" \
+            --fail-under 97

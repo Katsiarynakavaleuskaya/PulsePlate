@@ -226,10 +226,9 @@ class ShoplistGenerator:
         """Определяет категорию ингредиента по названию."""
         name_lower = ingredient_name.lower()
 
-        # Простая категоризация по ключевым словам
-        if any(
-            word in name_lower
-            for word in [
+        # Простая категоризация по ключевым словам через словарь ключевых слов
+        category_keywords: Dict[str, List[str]] = {
+            "meat": [
                 "мясо",
                 "говядина",
                 "свинина",
@@ -238,20 +237,10 @@ class ShoplistGenerator:
                 "beef",
                 "pork",
                 "chicken",
-            ]
-        ):
-            return "meat"
-        elif any(
-            word in name_lower for word in ["рыба", "лосось", "тунец", "fish", "salmon", "tuna"]
-        ):
-            return "fish"
-        elif any(
-            word in name_lower for word in ["молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"]
-        ):
-            return "dairy"
-        elif any(
-            word in name_lower
-            for word in [
+            ],
+            "fish": ["рыба", "лосось", "тунец", "fish", "salmon", "tuna"],
+            "dairy": ["молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"],
+            "vegetables": [
                 "овощ",
                 "помидор",
                 "огурец",
@@ -260,12 +249,8 @@ class ShoplistGenerator:
                 "tomato",
                 "cucumber",
                 "carrot",
-            ]
-        ):
-            return "vegetables"
-        elif any(
-            word in name_lower
-            for word in [
+            ],
+            "fruits": [
                 "фрукт",
                 "яблоко",
                 "банан",
@@ -274,12 +259,8 @@ class ShoplistGenerator:
                 "apple",
                 "banana",
                 "orange",
-            ]
-        ):
-            return "fruits"
-        elif any(
-            word in name_lower
-            for word in [
+            ],
+            "grains": [
                 "крупа",
                 "рис",
                 "гречка",
@@ -288,19 +269,17 @@ class ShoplistGenerator:
                 "rice",
                 "buckwheat",
                 "oats",
-            ]
-        ):
-            return "grains"
-        elif any(word in name_lower for word in ["орех", "миндаль", "nut", "almond"]):
-            return "nuts"
-        elif any(word in name_lower for word in ["масло", "оливковое", "oil", "olive"]):
-            return "oils"
-        elif any(
-            word in name_lower for word in ["специя", "соль", "перец", "spice", "salt", "pepper"]
-        ):
-            return "spices"
-        else:
-            return "default"
+            ],
+            "nuts": ["орех", "миндаль", "nut", "almond"],
+            "oils": ["масло", "оливковое", "oil", "olive"],
+            "spices": ["специя", "соль", "перец", "spice", "salt", "pepper"],
+        }
+
+        for category, keywords in category_keywords.items():
+            if any(keyword in name_lower for keyword in keywords):
+                return category
+
+        return "default"
 
     def _find_best_package(
         self, total_amount: float, typical_packages: List[float], strategy: str

@@ -30,6 +30,7 @@ def run_coverage_check():
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent,
+            timeout=300,
         )
 
         print("📊 Результат проверки покрытия:")
@@ -46,6 +47,9 @@ def run_coverage_check():
 
         return result.returncode == 0
 
+    except subprocess.TimeoutExpired:
+        print("⏳ Таймаут при запуске проверки покрытия (300s). CI остановлен.")
+        raise
     except Exception as e:
         print(f"❌ Ошибка при запуске проверки покрытия: {e}")
         return False
@@ -73,6 +77,7 @@ def run_detailed_coverage():
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent,
+            timeout=300,
         )
 
         print("📊 Детальный отчет создан:")
@@ -85,6 +90,9 @@ def run_detailed_coverage():
 
         return True
 
+    except subprocess.TimeoutExpired:
+        print("⏳ Таймаут при создании детального отчета (300s). CI остановлен.")
+        raise
     except Exception as e:
         print(f"❌ Ошибка при создании детального отчета: {e}")
         return False

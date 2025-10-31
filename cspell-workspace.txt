@@ -4161,6 +4161,7 @@ healthcheck
 healthz
 hexdigest
 hierro
+HSTS
 htmlcov
 httpx
 IFPA
@@ -4280,6 +4281,7 @@ mypy
 mysql
 nтекст
 NASM
+ndjson
 necesidades
 Necesitas
 newgrp
@@ -4509,6 +4511,7 @@ usefixtures
 usermod
 utcnow
 Utilice
+uuid
 uvicorn
 Uvicorn
 validkey

@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
+      # Staging domain (subdomain or free domain)
+      # Options: staging.yourdomain.com, pulseplate-staging.duckdns.org, or free Freenom domain
+      # Set STAGING_DOMAIN secret in GitHub Environment (e.g., "pulseplate-staging.duckdns.org")
+      # If secret not set, defaults to placeholder URL
+      url: ${{ secrets.STAGING_DOMAIN != '' && format('https://{0}', secrets.STAGING_DOMAIN) || 'https://staging.pulseplate.app' }}
     concurrency:
       group: cd-build-${{ github.ref_name }}
       cancel-in-progress: true
@@ -43,7 +48,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image (staging)
+      - name: Build & Push image (staging, using production target)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
@@ -51,14 +56,46 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:staging-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Intentionally build from the "production" stage for staging to ensure parity
+          # between staging and production runtime images. If a dedicated staging stage
+          # is added to the Dockerfile later, update this to `target: staging`.
           target: production
+
+      # SSH deployment for staging (commented out until servers are available)
+      # - name: Prepare known_hosts (staging)
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     ssh-keyscan -H ${{ secrets.SSH_HOST_STAGING }} >> ~/.ssh/known_hosts 2>/dev/null
+      #     chmod 644 ~/.ssh/known_hosts
+      #
+      # - name: Deploy to staging over SSH
+      #   uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+      #   with:
+      #     host: ${{ secrets.SSH_HOST_STAGING }}
+      #     username: ${{ secrets.SSH_USER }}
+      #     key: ${{ secrets.SSH_KEY }}
+      #     script: |
+      #       set -euo pipefail
+      #       export GHCR_USER='${{ github.actor }}'
+      #       export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+      #       export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
+      #       cd /srv/pulseplate-staging
+      #       ./deploy.sh '${{ github.sha }}'
+      #
+      # - name: Healthcheck (staging)
+      #   run: |
+      #     curl -fsS --max-time 5 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null
 
   build-production:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://dummy.pulseplate.prod
+      # Production domain from secrets (configure in GitHub Environments)
+      # For free tier: use Freenom (.tk, .ml, .ga, .cf) or DuckDNS subdomain
+      # For budget: Namecheap .xyz ($1-2/year) or Cloudflare Registrar ($1.03/year for .xyz)
+      # Set PRODUCTION_DOMAIN secret (e.g., "pulseplate.xyz")
+      url: ${{ secrets.PRODUCTION_DOMAIN != '' && format('https://{0}', secrets.PRODUCTION_DOMAIN) || 'https://pulseplate.app' }}
     concurrency:
       group: cd-build-production-${{ github.ref_name }}
       cancel-in-progress: true
@@ -87,6 +124,13 @@ jobs:
           target: production
 
       # SSH deployment steps (commented out until servers are available)
+      # When ready, uncomment and configure SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY secrets
+      # - name: Prepare known_hosts
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     ssh-keyscan -H ${{ secrets.SSH_HOST_PRODUCTION }} >> ~/.ssh/known_hosts 2>/dev/null
+      #     chmod 644 ~/.ssh/known_hosts
+      #
       # - name: Deploy to production over SSH
       #   uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
       #   with:
@@ -100,3 +144,17 @@ jobs:
       #       export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
       #       cd /srv/pulseplate-production
       #       ./deploy.sh '${{ github.sha }}'
+      #
+      # - name: Post-deploy healthcheck
+      #   run: |
+      #     URL="https://${{ secrets.PRODUCTION_DOMAIN }}/health"
+      #     for i in $(seq 1 10); do
+      #       if curl -fsS --max-time 5 "$URL" > /dev/null 2>&1; then
+      #         echo "✅ Health check passed"
+      #         exit 0
+      #       fi
+      #       echo "⏳ Waiting for health check ($i/10)..."
+      #       sleep 6
+      #     done
+      #     echo "❌ Health check failed after deployment"
+      #     exit 1

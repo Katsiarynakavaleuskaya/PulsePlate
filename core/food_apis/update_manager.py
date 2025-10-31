@@ -155,7 +155,7 @@ class DatabaseUpdateManager:
             return {}
 
         try:
-            with open(self.versions_file, "r") as f:
+            with open(self.versions_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             return {
@@ -171,7 +171,7 @@ class DatabaseUpdateManager:
         try:
             data = {source: asdict(version) for source, version in self.versions.items()}
 
-            with open(self.versions_file, "w") as f:
+            with open(self.versions_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:

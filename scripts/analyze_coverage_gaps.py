@@ -3,23 +3,27 @@
 Анализ непокрытых строк для достижения 97% покрытия тестами.
 """
 
+from typing import List
+import os
 import subprocess  # nosec B404 - subprocess used with static arguments for pytest
 import sys
 
 
-def run_coverage_analysis():
-    """Запустить анализ покрытия и получить детальную информацию."""
+def run_coverage_analysis() -> bool:
+    """Запустить анализ покрытия и получить детальную информацию.
+
+    Returns:
+        bool: True если анализ и запуск тестов завершились успешно, иначе False.
+    """
     print("🔍 Анализ покрытия тестами...")
 
     # Устанавливаем переменные окружения
-    import os
-
     os.environ.update(
         {
             "PYTHONPATH": ".:core:app:tests",
             "VIP_MODULE_ENABLED": "true",
             "FEATURE_PREMIUM_NUTRITION": "true",
-            "API_KEY": "test_key",
+            "API_KEY": "test_key",  # nosec B105  # Test key for coverage analysis script
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
         }
@@ -56,7 +60,7 @@ def run_coverage_analysis():
         print(result.stderr)
 
     # Анализируем основные файлы с низким покрытием
-    critical_files = ["app.py", "app/routers/vip.py", "conftest.py"]
+    critical_files: List[str] = ["app.py", "app/routers/vip.py", "conftest.py"]
 
     print("\n🎯 Критические файлы для улучшения покрытия:")
     for file in critical_files:
@@ -68,7 +72,9 @@ def run_coverage_analysis():
     print("3. Добавить тесты для conftest.py")
     print("4. Проверить htmlcov/index.html для детального анализа")
 
+    return True
+
 
 if __name__ == "__main__":
-    success = run_coverage_analysis()
+    success: bool = run_coverage_analysis()
     sys.exit(0 if success else 1)

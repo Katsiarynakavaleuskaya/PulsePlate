@@ -19,8 +19,7 @@ sys.path.insert(0, project_root)
 # Configure logging
 # Ensure logs directory exists before configuring file handler
 logs_dir = os.path.join(project_root, "logs")
-if not os.path.exists(logs_dir):
-    os.makedirs(logs_dir)
+os.makedirs(logs_dir, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,

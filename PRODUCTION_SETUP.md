@@ -33,6 +33,65 @@ docker --version
 docker compose version
 ```
 
+### 1.5 Security Hardening (Обязательно!)
+
+**RU: Базовый hardening для production сервера.
+EN: Basic security hardening for production server.**
+
+```bash
+# Install security tools
+sudo apt install -y ufw fail2ban unattended-upgrades
+
+# UFW Firewall configuration
+sudo ufw allow ssh
+sudo ufw allow 80/tcp   # HTTP
+sudo ufw allow 443/tcp  # HTTPS
+sudo ufw --force enable
+
+# Verify firewall status
+sudo ufw status
+
+# fail2ban configuration (protection against SSH brute force)
+sudo tee /etc/fail2ban/jail.local > /dev/null << 'EOF'
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+
+[sshd]
+enabled = true
+port = ssh
+logpath = /var/log/auth.log
+maxretry = 3
+EOF
+
+sudo systemctl enable --now fail2ban
+
+# Verify fail2ban is working
+sudo fail2ban-client status sshd
+
+# SSH daemon hardening
+sudo tee -a /etc/ssh/sshd_config > /dev/null << 'EOF'
+
+# Security hardening (production)
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+EOF
+
+# Test SSH config before restarting (IMPORTANT!)
+sudo sshd -t
+
+# If config is valid, restart SSH
+sudo systemctl restart sshd
+
+# Enable automatic security updates
+sudo dpkg-reconfigure -plow unattended-upgrades
+```
+
+**⚠️ ВАЖНО:** После настройки SSH вы сможете подключаться только по SSH ключу. Убедитесь, что ваш публичный ключ уже добавлен в `~/.ssh/authorized_keys` на сервере перед выполнением этих команд!
+
 ### 2. Create Production Directory
 
 ```bash
@@ -87,19 +146,16 @@ services:
     networks: [web]
     expose:
       - "8000"
+    # RU: Bind mount БД на хост для персистентности и бэкапов
+    # EN: Bind mount DB to host for persistence and backups
     volumes:
-      - app_data:/app/cache
+      - /srv/pulseplate-production/app_data:/app/cache
     command: >
       uvicorn app:app --host 0.0.0.0 --port 8000
       --proxy-headers --forwarded-allow-ips="caddy"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '1.0'
-          memory: 1G
+    # RU: Resource limits (deploy: блок удалён из примера, т.к. работает только в Swarm)
+    # EN: Resource limits (deploy: block removed from example as it only works in Swarm)
+    # Limits can be set via docker-compose CLI flags if needed
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 30s
@@ -126,18 +182,33 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-  app_data:
+  # RU: app_data volume не используется, т.к. БД монтируется через bind mount
+  # EN: app_data volume not used, as DB is mounted via bind mount
 EOF
 ```
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+read_file
 
 ### 6. Update Caddyfile for Production
 
 ```bash
-# Update Caddyfile
+# Update Caddyfile with security headers
 sudo tee /srv/pulseplate-production/Caddyfile > /dev/null << 'EOF'
 {$PRODUCTION_DOMAIN} {
     encode gzip
     reverse_proxy app:8000
+
+    # RU: Безопасные заголовки по умолчанию (дополняет Cloudflare)
+    # EN: Basic security headers (complements Cloudflare)
+    header {
+        # HSTS уже настроен в Cloudflare, но дублируем на origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        # Минимальная CSP: разрешаем всё с того же источника
+        Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+    }
 }
 EOF
 ```
@@ -210,8 +281,9 @@ if docker exec "$APP_CONTAINER" test -f /app/cache/app.db 2>/dev/null; then
   echo "Creating database backup: $backup_path"
   docker cp "$APP_CONTAINER:/app/cache/app.db" "$backup_path"
 
-  # Remove old backups (keep most recent 10)
-  ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +11 | xargs -r rm -f
+  # RU: Храним 30 последних бэкапов для production
+  # EN: Keep last 30 backups for production
+  ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
   echo "Database backup completed"
 else
   echo "No existing database found, skipping backup"

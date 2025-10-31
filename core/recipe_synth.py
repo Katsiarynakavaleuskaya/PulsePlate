@@ -7,10 +7,96 @@ Sprint 4: Recipe Synth под меню
 """
 
 import json
-import random
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator
+
+# RU: Константы для масштабирования ингредиентов, чтобы избежать «магических» чисел.
+# EN: Constants for ingredient scaling to avoid magic numbers.
+LARGE_AMOUNT_THRESHOLD = (
+    100  # RU: порог (в граммах), считаем количеством на несколько порций; EN: grams threshold
+)
+DEFAULT_SERVINGS_FOR_LARGE_AMOUNT = (
+    4  # RU: предполагаемое число порций для большого количества; EN: assumed servings
+)
+
+
+# Pydantic models for validation
+class RecipeStepModel(BaseModel):
+    """Pydantic model for recipe step validation."""
+
+    step_number: int = Field(..., ge=1, description="Step number (1-indexed)")
+    instruction: str = Field(..., min_length=1, description="Step instruction text")
+    duration_minutes: Optional[int] = Field(None, ge=0, description="Duration in minutes")
+    temperature: Optional[str] = Field(None, description="Cooking temperature")
+    equipment: Optional[str] = Field(None, description="Required equipment")
+
+    model_config = {"frozen": True}
+
+
+class RecipeTemplateModel(BaseModel):
+    """Pydantic model for recipe template validation."""
+
+    template_id: str = Field(..., min_length=1, description="Unique template identifier")
+    name: str = Field(..., min_length=1, description="Template name")
+    cuisine_type: str = Field(..., min_length=1, description="Cuisine type")
+    base_ingredients: List[str] = Field(..., min_length=1, description="Base ingredient list")
+    cooking_methods: List[str] = Field(..., min_length=1, description="Cooking methods")
+    typical_prep_time: int = Field(..., ge=0, description="Typical prep time in minutes")
+    typical_cook_time: int = Field(..., ge=0, description="Typical cook time in minutes")
+    difficulty: str = Field(..., pattern="^(easy|medium|hard)$", description="Difficulty level")
+    instruction_template: str = Field(..., min_length=1, description="Instruction template text")
+    nutrition_profile: Dict[str, float] = Field(
+        ..., description="Nutrition profile (calories, protein, carbs, fat)"
+    )
+
+    @field_validator("base_ingredients", "cooking_methods")
+    @classmethod
+    def validate_non_empty_items(cls, v: List[str]) -> List[str]:
+        """Ensure no empty strings in lists."""
+        if any(not s.strip() for s in v):
+            raise ValueError("Items cannot be empty strings")
+        return v
+
+    model_config = {"frozen": True}
+
+
+class RecipeModel(BaseModel):
+    """Pydantic model for recipe validation."""
+
+    recipe_id: str = Field(..., min_length=1, description="Unique recipe identifier")
+    title: str = Field(..., min_length=1, description="Recipe title")
+    description: str = Field(..., min_length=1, description="Recipe description")
+    cuisine_type: str = Field(..., min_length=1, description="Cuisine type")
+    difficulty_level: str = Field(
+        ..., pattern="^(easy|medium|hard)$", description="Difficulty level"
+    )
+    prep_time_minutes: int = Field(..., ge=0, description="Prep time in minutes")
+    cook_time_minutes: int = Field(..., ge=0, description="Cook time in minutes")
+    total_time_minutes: int = Field(..., ge=0, description="Total time in minutes")
+    servings: int = Field(..., ge=1, description="Number of servings")
+    ingredients: List[Dict[str, Union[str, float]]] = Field(
+        ..., min_length=1, description="List of ingredients with quantities"
+    )
+    steps: List[RecipeStepModel] = Field(..., min_length=1, description="Cooking steps")
+    nutrition_per_serving: Dict[str, float] = Field(
+        ..., description="Nutrition per serving (calories, protein, carbs, fat)"
+    )
+    tags: List[str] = Field(default_factory=list, description="Recipe tags")
+    image_url: Optional[str] = Field(None, description="Image URL")
+
+    @field_validator("total_time_minutes")
+    @classmethod
+    def validate_total_time(cls, v: int, info) -> int:
+        """Ensure total_time >= prep_time + cook_time."""
+        prep: int = int(info.data.get("prep_time_minutes", 0))
+        cook: int = int(info.data.get("cook_time_minutes", 0))
+        return max(v, prep + cook)
+
+    model_config = {"frozen": True}
 
 
 @dataclass
@@ -84,7 +170,9 @@ class RecipeSynthesizer:
             try:
                 with open(template_file, "r", encoding="utf-8") as f:
                     template_data = json.load(f)
-                    template = RecipeTemplate(**template_data)
+                    # Validate with Pydantic before creating dataclass
+                    validated = RecipeTemplateModel.model_validate(template_data)
+                    template = RecipeTemplate(**validated.model_dump())
                     self.templates[template.template_id] = template
             except Exception as e:
                 print(f"Error loading template {template_file}: {e}")
@@ -288,7 +376,7 @@ class RecipeSynthesizer:
         servings: int,
     ) -> Recipe:
         """Создает рецепт на основе шаблона"""
-        recipe_id = f"synth_{template.template_id}_{random.randint(1000, 9999)}"  # nosec B311
+        recipe_id = f"synth_{template.template_id}_{uuid.uuid4().hex[:8]}"
 
         # Адаптируем ингредиенты под количество порций
         adapted_ingredients = self._adapt_ingredients_for_servings(ingredients, servings)
@@ -302,20 +390,48 @@ class RecipeSynthesizer:
         # Создаем теги
         tags = self._generate_tags(template, adapted_ingredients)
 
+        recipe_data = {
+            "recipe_id": recipe_id,
+            "title": self._generate_recipe_title(template, adapted_ingredients),
+            "description": self._generate_recipe_description(template, adapted_ingredients),
+            "cuisine_type": template.cuisine_type,
+            "difficulty_level": template.difficulty,
+            "prep_time_minutes": template.typical_prep_time,
+            "cook_time_minutes": template.typical_cook_time,
+            "total_time_minutes": template.typical_prep_time + template.typical_cook_time,
+            "servings": servings,
+            "ingredients": adapted_ingredients,
+            "steps": [
+                {
+                    "step_number": s.step_number,
+                    "instruction": s.instruction,
+                    "duration_minutes": s.duration_minutes,
+                    "temperature": s.temperature,
+                    "equipment": s.equipment,
+                }
+                for s in steps
+            ],
+            "nutrition_per_serving": nutrition,
+            "tags": tags,
+            "image_url": None,
+        }
+        # Validate with Pydantic before creating dataclass
+        validated = RecipeModel.model_validate(recipe_data)
         recipe = Recipe(
-            recipe_id=recipe_id,
-            title=self._generate_recipe_title(template, adapted_ingredients),
-            description=self._generate_recipe_description(template, adapted_ingredients),
-            cuisine_type=template.cuisine_type,
-            difficulty_level=template.difficulty,
-            prep_time_minutes=template.typical_prep_time,
-            cook_time_minutes=template.typical_cook_time,
-            total_time_minutes=template.typical_prep_time + template.typical_cook_time,
-            servings=servings,
-            ingredients=adapted_ingredients,
-            steps=steps,
-            nutrition_per_serving=nutrition,
-            tags=tags,
+            recipe_id=validated.recipe_id,
+            title=validated.title,
+            description=validated.description,
+            cuisine_type=validated.cuisine_type,
+            difficulty_level=validated.difficulty_level,
+            prep_time_minutes=validated.prep_time_minutes,
+            cook_time_minutes=validated.cook_time_minutes,
+            total_time_minutes=validated.total_time_minutes,
+            servings=validated.servings,
+            ingredients=validated.ingredients,
+            steps=[RecipeStep(**step.model_dump()) for step in validated.steps],
+            nutrition_per_serving=validated.nutrition_per_serving,
+            tags=validated.tags,
+            image_url=validated.image_url,
         )
 
         return recipe
@@ -329,8 +445,10 @@ class RecipeSynthesizer:
             adapted_ing = ing.copy()
             # Простая логика: если количество больше 100g, считаем что это на 4 порции
             amount = ing.get("amount", 0)
-            if isinstance(amount, (int, float)) and amount > 100:
-                adapted_ing["amount"] = round(amount * target_servings / 4, 1)
+            if isinstance(amount, (int, float)) and amount > LARGE_AMOUNT_THRESHOLD:
+                adapted_ing["amount"] = round(
+                    amount * target_servings / DEFAULT_SERVINGS_FOR_LARGE_AMOUNT, 1
+                )
             adapted.append(adapted_ing)
         return adapted
 
@@ -529,19 +647,10 @@ class RecipeSynthesizer:
         return weekly_recipes
 
 
-# Глобальный экземпляр синтезатора
-_recipe_synthesizer = None
-
-
-def get_recipe_synthesizer() -> RecipeSynthesizer:
-    """Получает глобальный экземпляр синтезатора рецептов"""
-    global _recipe_synthesizer
-    if _recipe_synthesizer is None:
-        _recipe_synthesizer = RecipeSynthesizer()
-    return _recipe_synthesizer
-
-
 # Удобные функции для быстрого доступа
+_recipe_synthesizer: Optional[RecipeSynthesizer] = None
+
+
 def synthesize_recipe_from_ingredients(
     ingredients: List[Dict[str, Union[str, float]]],
     cuisine_preference: str = "international",
@@ -561,3 +670,11 @@ def synthesize_recipes_for_week(
     """Синтезирует рецепты для недельного плана"""
     synthesizer = get_recipe_synthesizer()
     return synthesizer.synthesize_recipes_for_week(week_plan, recipes_per_day)
+
+
+def get_recipe_synthesizer(templates_dir: str = "data/recipe_templates") -> RecipeSynthesizer:
+    """Return a module-level RecipeSynthesizer singleton (patchable in tests)."""
+    global _recipe_synthesizer
+    if _recipe_synthesizer is None:
+        _recipe_synthesizer = RecipeSynthesizer(templates_dir=templates_dir)
+    return _recipe_synthesizer

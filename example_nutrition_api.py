@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportMissingTypeStubs=false
 """
 Example usage of the Premium BMR/TDEE API
 
@@ -6,9 +7,9 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
-import requests
+import requests  # type: ignore
 
 
 def call_premium_bmr_api(
@@ -19,7 +20,7 @@ def call_premium_bmr_api(
     activity: str,
     bodyfat: Optional[float] = None,
     lang: str = "en",
-    api_key: str = "test_key",
+    api_key: str = "test_key",  # nosec B105  # Test key for example/demo purposes only
     base_url: str = "http://localhost:8000",
     timeout: float = 10.0,
 ) -> Dict[str, Any]:
@@ -43,6 +44,8 @@ def call_premium_bmr_api(
     Raises:
         requests.exceptions.Timeout: If server doesn't respond within the timeout
         requests.exceptions.HTTPError: If the API returns an error status code
+        requests.exceptions.ConnectionError: If a network/connection failure prevents reaching the server
+        requests.exceptions.RequestException: Base class for other request-related errors from requests
     """
     url = f"{base_url}/api/v1/premium/bmr"
 
@@ -63,7 +66,7 @@ def call_premium_bmr_api(
     response = requests.post(url, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
-    return response.json()
+    return cast(Dict[str, Any], response.json())
 
 
 def main():
@@ -94,9 +97,19 @@ def main():
         print(f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day")
         print()
 
+    except requests.exceptions.Timeout as e:
+        print(f"⏱️ Timeout: {e}")
+        print("Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness.\n")
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP error: {e}")
+        print("The API returned an error status code. Check server logs.\n")
+    except requests.exceptions.ConnectionError as e:
+        print(f"🔌 Connection error: {e}")
+        print("Make sure the API server is running on localhost:8000 and reachable.\n")
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Request error: {e}\n")
     except Exception as e:
-        print(f"❌ Error: {e}")
-        print("Make sure the API server is running on localhost:8000\n")
+        print(f"❌ Unexpected error: {e}\n")
 
     # Example 2: Female with body fat percentage
     print("📊 Example 2: 25-year-old female athlete with known body fat")
@@ -120,8 +133,16 @@ def main():
         print(f"Activity: {result['activity_description']}")
         print()
 
+    except requests.exceptions.Timeout as e:
+        print(f"⏱️ Timeout: {e}\n")
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP error: {e}\n")
+    except requests.exceptions.ConnectionError as e:
+        print(f"🔌 Connection error: {e}\n")
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Request error: {e}\n")
     except Exception as e:
-        print(f"❌ Error: {e}\n")
+        print(f"❌ Unexpected error: {e}\n")
 
     # Example 3: Russian language response
     print("📊 Example 3: Response in Russian")
@@ -142,11 +163,58 @@ def main():
         print(f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день")
         print()
 
+    except requests.exceptions.Timeout as e:
+        print(f"⏱️ Таймаут: {e}\n")
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP-ошибка: {e}\n")
+    except requests.exceptions.ConnectionError as e:
+        print(f"🔌 Ошибка соединения: {e}\n")
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Ошибка запроса: {e}\n")
     except Exception as e:
-        print(f"❌ Error: {e}\n")
+        print(f"❌ Непредвиденная ошибка: {e}\n")
 
-    # Example 4: Compare all activity levels
-    print("📊 Example 4: Activity level comparison")
+    # Example 4: Timeout handling demonstration
+    print("📊 Example 4: Timeout handling (timeout=5.0)")
+    print("-" * 45)
+
+    try:
+        # EN: Demonstrate passing a custom timeout for the request
+        # RU: Пример передачи пользовательского таймаута запроса
+        result = call_premium_bmr_api(
+            weight_kg=75,
+            height_cm=180,
+            age=30,
+            sex="male",
+            activity="active",
+            lang="en",
+            timeout=5.0,
+        )
+
+        print("Request completed within timeout.")
+        print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
+        print(f"TDEE (Mifflin): {result['tdee']['mifflin']} kcal/day\n")
+
+    except requests.exceptions.Timeout as e:
+        # EN: Friendly timeout/error message so users see how to handle it
+        # RU: Дружелюбное сообщение при таймауте/ошибке, чтобы показать обработку
+        print("⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).")
+        print(f"Details: {e}\n")
+    except requests.exceptions.HTTPError as e:
+        print("❌ HTTP error occurred. Check server response status.")
+        print(f"Details: {e}\n")
+    except requests.exceptions.ConnectionError as e:
+        print("🔌 Connection error. Is the server running and reachable?")
+        print(f"Details: {e}\n")
+    except requests.exceptions.RequestException as e:
+        print("⚠️ Request error occurred.")
+        print(f"Details: {e}\n")
+    except Exception as e:
+        print("❌ Unexpected error.")
+        print(f"Details: {e}\n")
+
+    # Example 5: Compare all activity levels
+    print("📊 Example 5: Activity level comparison")
     print("-" * 35)
 
     activities = ["sedentary", "light", "moderate", "active", "very_active"]
@@ -166,8 +234,16 @@ def main():
             result = call_premium_bmr_api(activity=activity, **base_params)
             tdee = result["tdee"]["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
+        except requests.exceptions.Timeout as e:
+            print(f"{activity:<15} | Timeout: {e}")
+        except requests.exceptions.HTTPError as e:
+            print(f"{activity:<15} | HTTP error: {e}")
+        except requests.exceptions.ConnectionError as e:
+            print(f"{activity:<15} | Connection error: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"{activity:<15} | Request error: {e}")
         except Exception as e:
-            print(f"{activity:<15} | Error: {e}")
+            print(f"{activity:<15} | Unexpected error: {e}")
 
     print("\n✨ Premium BMR/TDEE API provides comprehensive metabolic calculations!")
     print("💡 Use different formulas for different populations:")

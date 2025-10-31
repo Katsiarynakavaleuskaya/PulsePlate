@@ -6,7 +6,7 @@ import time
 import sys
 
 
-def run_coverage_check():
+def run_coverage_check() -> bool:
     """Run coverage on our new test files specifically."""
     print("🔍 Checking coverage progress...")
     start_time = time.time()

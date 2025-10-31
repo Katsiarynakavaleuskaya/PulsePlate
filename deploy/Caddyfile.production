@@ -1,10 +1,12 @@
-{$STAGING_DOMAIN} {
+{$PRODUCTION_DOMAIN} {
     encode gzip
     reverse_proxy app:8000
 
-    # RU: Базовые security headers (для staging)
-    # EN: Basic security headers (for staging)
+    # RU: Безопасные заголовки по умолчанию (дополняет Cloudflare)
+    # EN: Basic security headers (complements Cloudflare)
     header {
+        # HSTS уже настроен в Cloudflare, но дублируем на origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "no-referrer"

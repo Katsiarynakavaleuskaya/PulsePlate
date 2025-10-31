@@ -19,6 +19,21 @@ count_null_separated() {
     printf '%d\n' "$count"
 }
 
+# Helper: remove cache directories by name with emoji and write count to a variable
+remove_cache_dirs() {
+    local dir_name="$1"
+    local emoji="$2"
+    local counter_var_name="$3"
+    local removed_count=0
+
+    while IFS= read -r -d '' dir; do
+        rm -rf "$dir" && echo "  ${emoji} Removed: $dir" && ((removed_count++))
+    done < <(find . -path ./.git -prune -o -type d -name "$dir_name" -print0 2>/dev/null)
+
+    # Write back to the provided counter variable name (portable for older bash)
+    eval "$counter_var_name=$removed_count"
+}
+
 PYCACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null))
 PYC_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null))
 PYO_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null))
@@ -56,27 +71,19 @@ done < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/de
 
 # Remove .pytest_cache directories
 REMOVED_PYTEST=0
-while IFS= read -r -d '' dir; do
-    rm -rf "$dir" && echo "  🧪 Removed: $dir" && ((REMOVED_PYTEST++))
-done < <(find . -path ./.git -prune -o -type d -name ".pytest_cache" -print0 2>/dev/null)
+remove_cache_dirs ".pytest_cache" "🧪" REMOVED_PYTEST
 
 # Remove .mypy_cache directories
 REMOVED_MYPY=0
-while IFS= read -r -d '' dir; do
-    rm -rf "$dir" && echo "  🔎 Removed: $dir" && ((REMOVED_MYPY++))
-done < <(find . -path ./.git -prune -o -type d -name ".mypy_cache" -print0 2>/dev/null)
+remove_cache_dirs ".mypy_cache" "🔎" REMOVED_MYPY
 
 # Remove .ruff_cache directories
 REMOVED_RUFF=0
-while IFS= read -r -d '' dir; do
-    rm -rf "$dir" && echo "  🦊 Removed: $dir" && ((REMOVED_RUFF++))
-done < <(find . -path ./.git -prune -o -type d -name ".ruff_cache" -print0 2>/dev/null)
+remove_cache_dirs ".ruff_cache" "🦊" REMOVED_RUFF
 
 # Remove .hypothesis directories
 REMOVED_HYPOTHESIS=0
-while IFS= read -r -d '' dir; do
-    rm -rf "$dir" && echo "  🧬 Removed: $dir" && ((REMOVED_HYPOTHESIS++))
-done < <(find . -path ./.git -prune -o -type d -name ".hypothesis" -print0 2>/dev/null)
+remove_cache_dirs ".hypothesis" "🧬" REMOVED_HYPOTHESIS
 
 # Remove .pyc files (skip .git)
 REMOVED_PYC=0

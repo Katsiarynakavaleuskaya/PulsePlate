@@ -131,6 +131,12 @@ def path_score(p: Path) -> int:
 
 
 def main() -> int:
+    # Configure root logger before any logger usage
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--execute", action="store_true", help="remove safe backup twins")
     ap.add_argument("--include-tests", action="store_true", help="allow touching tests/")
@@ -141,7 +147,13 @@ def main() -> int:
         "--apply-identical", action="store_true", help="remove non-canonical in identical groups"
     )
     ap.add_argument("--prune-releases", action="store_true", help="allow deleting under releases/")
+    ap.add_argument("--debug", action="store_true", help="enable debug logging")
+    ap.add_argument("--verbose", action="store_true", help="enable verbose (debug) logging")
     args = ap.parse_args()
+
+    # Elevate to DEBUG if requested
+    if args.debug or args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     files = collect_files(include_tests=args.include_tests)
     backups, dup_groups = plan_removals(files)
@@ -198,8 +210,8 @@ def main() -> int:
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")
-        for p in removed + [str(p) for p in to_remove]:
-            print("  ", p)
+        for item in removed + [str(path) for path in to_remove]:
+            print("  ", item)
     else:
         print(
             "\n(dry-run) pass --execute to apply backup removals; --apply-identical to prune identical duplicates; --suggest to only show canonical picks"

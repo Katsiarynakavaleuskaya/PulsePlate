@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, TypedDict
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -6,7 +6,16 @@ from .recipe_db import parse_recipe_db
 from .targets import NutritionTargets
 
 
-def generate_weekly_plan(targets: NutritionTargets, diet_flags: Optional[Set[str]] = None) -> Dict:
+class WeeklyPlanResult(TypedDict):
+    days: List[Dict]
+    weekly_coverage: Dict[str, float]
+    shopping_list: Dict[str, int]
+    total_cost: float
+
+
+def generate_weekly_plan(
+    targets: NutritionTargets, diet_flags: Optional[Set[str]] = None
+) -> WeeklyPlanResult:
     """
     RU: Генерирует недельный план питания.
     EN: Generates weekly meal plan.

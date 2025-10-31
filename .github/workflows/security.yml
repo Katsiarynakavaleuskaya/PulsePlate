@@ -47,8 +47,7 @@ jobs:
         run: |
           bandit_exit_code=0
           bandit -q -r . \
-            -x node_modules,dist,build,test-results,tests,.venv,venv,cache \
-            -s B101 \
+            -c .bandit \
             -f json -o bandit-report.json || bandit_exit_code=$?
 
           if [ "$bandit_exit_code" -gt 1 ]; then
@@ -76,10 +75,14 @@ jobs:
             echo "✅ No HIGH severity issues found in Bandit report"
           fi
 
-      - name: Run Safety (dependency audit)
+      - name: Run Safety (dependency audit with policy)
         run: |
-          # Run Safety and capture exit code
-          safety check --full-report -r requirements.txt > safety-report.txt 2>&1
+          # Use shared policy and enforce high/critical severity only
+          # This ensures local and CI behavior are identical
+          safety check \
+            --policy-file safety-policy.toml \
+            --severity high,critical \
+            --full-report -r requirements.txt > safety-report.txt 2>&1
           safety_exit_code=$?
 
           # Display Safety report
@@ -88,14 +91,14 @@ jobs:
             cat safety-report.txt
           fi
 
-          # Analyze Safety exit code (more reliable than grep parsing)
+          # Exit non-zero on high/critical findings; bubble up tool failures
           case "$safety_exit_code" in
             0)
-              echo "✅ Safety check passed - no vulnerabilities found"
+              echo "✅ Safety check passed - no high/critical vulnerabilities found"
               ;;
             1)
-              echo "❌ Safety found vulnerabilities that must be addressed"
-              echo "::error::Safety found vulnerabilities - see report for details"
+              echo "❌ Safety found high/critical vulnerabilities"
+              echo "::error::Safety found high/critical vulnerabilities - see report for details"
               exit 1
               ;;
             *)

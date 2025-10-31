@@ -47,15 +47,17 @@ def set_version(v: str) -> None:
 
 
 def validate() -> int:
-    p = subprocess.run(  # nosec B603 - fixed arguments invoking local validation script
-        [sys.executable, "scripts/validate_data.py"],
-        capture_output=True,
-        text=True,
+    process_result = (
+        subprocess.run(  # nosec B603 - fixed arguments invoking local validation script
+            [sys.executable, "scripts/validate_data.py"],
+            capture_output=True,
+            text=True,
+        )
     )
-    sys.stdout.write(p.stdout)
-    sys.stderr.write(p.stderr)
+    sys.stdout.write(process_result.stdout)
+    sys.stderr.write(process_result.stderr)
     # 0 — OK, иначе деградировано
-    return 0 if "DATA:OK" in (p.stdout + p.stderr) else 1
+    return 0 if "DATA:OK" in (process_result.stdout + process_result.stderr) else 1
 
 
 def main() -> int:

@@ -57,6 +57,30 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 - Non‑blocking scanners run in CI (Bandit, CodeQL).
 - Address warnings when practical; don’t block urgent fixes.
 
+### Dependency Security Policy (Safety)
+
+- Policy file: `safety-policy.toml` at the repository root. It defines allow‑lists/ignores (currently none) and ensures a single source of truth for Safety configuration.
+- Severity threshold: builds and PRs are blocked on findings of severity **high** or **critical**.
+- CI enforcement: the Security workflow runs Safety against `requirements.txt` using the shared policy file and fails the job with a non‑zero exit code when high/critical vulnerabilities are present. This blocks merges.
+- Local usage:
+  - English / EN:
+    ```bash
+    pip install safety==2.3.5
+    safety check --policy-file safety-policy.toml \
+      --severity high,critical \
+      --full-report -r requirements.txt
+    ```
+  - Русский / RU:
+    ```bash
+    pip install safety==2.3.5
+    safety check --policy-file safety-policy.toml \
+      --severity high,critical \
+      --full-report -r requirements.txt
+    ```
+  - Notes / Примечания:
+    - The repo policy currently has `ignore = []` (no ignored findings). Update via PR if a temporary waiver is justified.
+    - Keep CI and local checks aligned by always using the same `safety-policy.toml` and severity filter.
+
 ## Getting Help
 
 - Open a Draft PR early for feedback.

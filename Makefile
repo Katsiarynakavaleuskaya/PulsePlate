@@ -236,9 +236,17 @@ ci: test cov-check lint security ## CI/CD pipeline commands
 	@echo "$(GREEN)✅ CI проверки завершены$(NC)"
 
 ## Full Bandit scan (used by pre-push hook)
+## In CI mode (CI=true), fails on MEDIUM/HIGH severity findings
+## In local mode, permissive (warnings only, doesn't fail)
 bandit-full:
 	@echo "$(YELLOW)🔒 Полное сканирование Bandit...$(NC)"
-	bandit -r . -x tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache -f json -o bandit-report.json || true
+	@if [ "$(CI)" = "true" ]; then \
+		echo "$(YELLOW)CI mode: строгий режим (fail on MEDIUM/HIGH)...$(NC)"; \
+		bandit -r . -x tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache --severity-level medium -f json -o bandit-report.json; \
+	else \
+		echo "$(YELLOW)Local mode: разрешающий режим (warnings only)...$(NC)"; \
+		bandit -r . -x tests,tests_strict,htmlcov,.git,.venv,venv,node_modules,.mypy_cache,.pytest_cache --severity-level medium -f json -o bandit-report.json || true; \
+	fi
 	@echo "$(GREEN)✅ Bandit отчет: bandit-report.json$(NC)"
 
 ## Smoke test (auto: 8000 then 8001)
