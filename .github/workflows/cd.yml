@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: https://dummy.pulseplate.dev
     concurrency:
       group: cd-build-${{ github.ref_name }}
       cancel-in-progress: true
