@@ -133,8 +133,8 @@ PRODUCTION_DOMAIN: pulseplate.xyz  # $1/год через Cloudflare
 
 **🔗 Ссылки для регистрации:**
 
-- **Cloudflare Registrar** (Production домен): https://dash.cloudflare.com/registrar/search
-- **DuckDNS** (Staging поддомен): https://www.duckdns.org (войти через GitHub)
+- **Cloudflare Registrar** (Production домен): <https://dash.cloudflare.com/registrar/search>
+- **DuckDNS** (Staging поддомен): <https://www.duckdns.org> (войти через GitHub)
 
 **📖 Подробная инструкция по секретам:** См. файл `GITHUB_SECRETS_SETUP.md`
 
@@ -144,10 +144,10 @@ PRODUCTION_DOMAIN: pulseplate.xyz  # $1/год через Cloudflare
 
 **🔗 Полезные ссылки:**
 
-- **TON Blockchain**: https://ton.org
-- **TON Developer Docs**: https://docs.ton.org
-- **TON Cloud** (если доступен): https://cloud.ton.org
-- **TON Developer Portal**: https://tondev.io
+- **TON Blockchain**: <https://ton.org>
+- **TON Developer Docs**: <https://docs.ton.org>
+- **TON Cloud** (если доступен): <https://cloud.ton.org>
+- **TON Developer Portal**: <https://tondev.io>
 
 **📝 Примечание:** Для веб-приложений (FastAPI) эта платформа может стать доступной позже. Следите за обновлениями на официальных каналах TON. Возможно, в будущем будет возможность деплоя на децентрализованную инфраструктуру TON, что может быть более экономичным решением.
 

@@ -7,6 +7,7 @@ Sprint 4: Recipe Synth под меню
 """
 
 import json
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -335,9 +336,10 @@ class RecipeSynthesizer:
         # Фильтруем шаблоны по предпочтениям
         suitable_templates = []
         for template in self.templates.values():
-            if template.cuisine_type == cuisine_preference or cuisine_preference == "international":
-                if template.difficulty == difficulty_preference:
-                    suitable_templates.append(template)
+            if (
+                template.cuisine_type == cuisine_preference or cuisine_preference == "international"
+            ) and template.difficulty == difficulty_preference:
+                suitable_templates.append(template)
 
         if not suitable_templates:
             # Если нет подходящих, берем любой
@@ -648,7 +650,10 @@ class RecipeSynthesizer:
 
 
 # Удобные функции для быстрого доступа
+# RU: Модуль-level singleton для синтезатора рецептов с thread-safe инициализацией
+# EN: Module-level singleton for recipe synthesizer with thread-safe initialization
 _recipe_synthesizer: Optional[RecipeSynthesizer] = None
+_synthesizer_lock = threading.Lock()
 
 
 def synthesize_recipe_from_ingredients(
@@ -673,8 +678,20 @@ def synthesize_recipes_for_week(
 
 
 def get_recipe_synthesizer(templates_dir: str = "data/recipe_templates") -> RecipeSynthesizer:
-    """Return a module-level RecipeSynthesizer singleton (patchable in tests)."""
+    """
+    Return a module-level RecipeSynthesizer singleton (patchable in tests).
+
+    Uses double-check locking pattern to ensure thread-safe initialization
+    under concurrent FastAPI requests.
+
+    RU: Возвращает модуль-level singleton синтезатора рецептов с thread-safe инициализацией.
+    EN: Returns module-level singleton recipe synthesizer with thread-safe initialization.
+    """
     global _recipe_synthesizer
+    # Double-check locking pattern for thread-safe singleton initialization
     if _recipe_synthesizer is None:
-        _recipe_synthesizer = RecipeSynthesizer(templates_dir=templates_dir)
+        with _synthesizer_lock:
+            # Check again after acquiring lock (another thread might have initialized it)
+            if _recipe_synthesizer is None:
+                _recipe_synthesizer = RecipeSynthesizer(templates_dir=templates_dir)
     return _recipe_synthesizer

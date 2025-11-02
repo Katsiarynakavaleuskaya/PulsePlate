@@ -9,7 +9,7 @@ EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settin
 from enum import Enum
 from typing import List, Literal, Optional, Set
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MicronutrientType(str, Enum):
@@ -229,8 +229,7 @@ class WeeklyPlanRequest(BaseModel):
 
         return self
 
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    model_config = ConfigDict(extra="allow")  # Allow additional fields for flexibility
 
 
 class WeeklyPlanResponse(BaseModel):

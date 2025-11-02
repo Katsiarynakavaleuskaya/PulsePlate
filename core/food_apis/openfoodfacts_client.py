@@ -13,7 +13,6 @@ Data License: Open Database License (ODbL)
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -95,15 +94,6 @@ class OFFFoodItem:
         return tags
 
 
-async def _maybe_await(value):
-    """Await the value if it is awaitable; otherwise return it as-is.
-
-    RU: Если значение ожидаемо (awaitable), подождать его; иначе вернуть как есть.
-    EN: Await the value if it is awaitable; otherwise return it as-is.
-    """
-    return await value if inspect.isawaitable(value) else value
-
-
 class OFFClient:
     """Client for Open Food Facts API.
 
@@ -177,9 +167,8 @@ class OFFClient:
             }
 
             response = await self.client.get(url, params=params)
-            # Support both sync and async mocks for tests
-            await _maybe_await(response.raise_for_status())
-            data = await _maybe_await(response.json())
+            response.raise_for_status()
+            data = response.json()
 
             products = []
             for product_data in data.get("products", []):
@@ -216,8 +205,8 @@ class OFFClient:
             }
 
             response = await self.client.get(url, params=params)
-            await _maybe_await(response.raise_for_status())
-            data = await _maybe_await(response.json())
+            response.raise_for_status()
+            data = response.json()
 
             if data.get("status") == 1:  # Product found
                 return self._parse_product_item(data.get("product", {}))
@@ -328,6 +317,8 @@ class OFFClient:
         """Close the HTTP client."""
         try:
             await self.client.aclose()
-        except RuntimeError:
+        except RuntimeError as e:
             # Event loop may already be closed in certain test shutdown paths
-            pass
+            logger.debug(
+                "RuntimeError suppressed during client close (expected in test teardown): %s", e
+            )

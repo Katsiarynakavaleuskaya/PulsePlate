@@ -5,7 +5,7 @@ RU: Тесты для клиента Open Food Facts.
 EN: Tests for Open Food Facts client.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -253,10 +253,10 @@ class TestOFFClient:
         """Test search products functionality with successful response."""
         # Mock the HTTP client
         with patch("httpx.AsyncClient.get") as mock_get:
-            # Mock response
-            mock_response = AsyncMock()
-            mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(
+            # Mock response (httpx.Response methods are synchronous)
+            mock_response = MagicMock()
+            mock_response.raise_for_status = MagicMock()
+            mock_response.json = MagicMock(
                 return_value={
                     "products": [
                         {
@@ -291,10 +291,10 @@ class TestOFFClient:
         """Test get product details functionality with successful response."""
         # Mock the HTTP client
         with patch("httpx.AsyncClient.get") as mock_get:
-            # Mock response
-            mock_response = AsyncMock()
-            mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(
+            # Mock response (httpx.Response methods are synchronous)
+            mock_response = MagicMock()
+            mock_response.raise_for_status = MagicMock()
+            mock_response.json = MagicMock(
                 return_value={
                     "status": 1,
                     "product": {
@@ -317,10 +317,10 @@ class TestOFFClient:
         """Test get product details when product not found."""
         # Mock the HTTP client
         with patch("httpx.AsyncClient.get") as mock_get:
-            # Mock response for not found
-            mock_response = AsyncMock()
-            mock_response.raise_for_status = AsyncMock()
-            mock_response.json = AsyncMock(return_value={"status": 0})  # Product not found
+            # Mock response for not found (httpx.Response methods are synchronous)
+            mock_response = MagicMock()
+            mock_response.raise_for_status = MagicMock()
+            mock_response.json = MagicMock(return_value={"status": 0})  # Product not found
             mock_get.return_value = mock_response
 
             # Test get product details

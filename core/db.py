@@ -203,7 +203,11 @@ if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker
             "future": True,
         }
 
-        # SQLite async doesn't support pooling; add pool config for other databases
+        # For sqlite+aiosqlite: pooling exists in SQLAlchemy/aiosqlite, but SQLite's
+        # locking/threading model makes typical multi-connection pools (e.g., QueuePool)
+        # inappropriate or counterproductive in many cases. We therefore intentionally
+        # skip applying the standard _POOL_CONFIG for SQLite and only add it for
+        # other backends.
         if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             async_kwargs.update(_POOL_CONFIG)
 
@@ -267,11 +271,14 @@ def session_scope() -> Generator[Session, None, None]:
 
 async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
+    # Fast-fail if async SQLAlchemy extras are not available
+    if create_async_engine is None or async_sessionmaker is None:
+        raise ImportError(
+            "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
+        )
+
+    # Check if async SQLAlchemy is configured
     if AsyncSessionLocal is None:
-        if create_async_engine is None or async_sessionmaker is None:
-            raise ImportError(
-                "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
-            )
         raise RuntimeError(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
         )

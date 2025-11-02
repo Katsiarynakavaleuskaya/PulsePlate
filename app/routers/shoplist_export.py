@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List
 from fastapi import APIRouter, Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.ttfonts import TTFont, TTFError
 from reportlab.pdfgen import canvas
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ def _register_font_if_available() -> str:
             if FONT_NAME not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(FONT_NAME, str(FONT_PATH)))
             return FONT_NAME
-        except Exception as exc:  # noqa: BLE001 - report and use fallback font
+        except (OSError, TTFError, ValueError) as exc:
             logger.warning("Font registration failed, falling back to Helvetica: %s", exc)
     return "Helvetica"
 

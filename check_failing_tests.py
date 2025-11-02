@@ -13,7 +13,7 @@ def run_test_file(test_file: str) -> Tuple[bool, str]:
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", test_file, "--tb=short", "-x", "--maxfail=1"],
+            [sys.executable, "-m", "pytest", test_file, "--tb=short", "--maxfail=1"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -65,12 +65,31 @@ def main() -> int:
         print("\n❌ Failing tests:")
         for test_file, output in failing_tests:
             print(f"  - {test_file}")
-            # Show first error line
+            # Show first error line - scan for various failure indicators
             lines = output.split("\n")
+            error_line = None
             for line in lines:
-                if "assert" in line and "==" in line:
-                    print(f"    Error: {line.strip()}")
+                stripped = line.strip()
+                # Prioritize specific error indicators (case-sensitive)
+                if (
+                    "AssertionError" in line
+                    or "FAILED" in line
+                    or line.startswith("ERROR")
+                    or "Traceback" in line
+                    or "assert " in line  # Note trailing space to avoid false matches
+                    or line.startswith("E ")  # pytest error marker
+                    or line.startswith("F ")  # pytest failure marker
+                ):
+                    error_line = stripped
                     break
+            if error_line:
+                print(f"    Error: {error_line}")
+            else:
+                # Fallback: show first non-empty line if no pattern matched
+                for line in lines:
+                    if line.strip():
+                        print(f"    Error: {line.strip()}")
+                        break
 
     if timeout_tests:
         print("\n⏰ Timeout tests:")

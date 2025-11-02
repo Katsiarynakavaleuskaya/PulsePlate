@@ -1,7 +1,10 @@
 import csv
+import logging
 import os
 import re
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
@@ -68,10 +71,16 @@ def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
             # If neither schema matches, silently return empty dict
     except FileNotFoundError:
         # Return empty table if file doesn't exist
-        pass
-    except (csv.Error, UnicodeDecodeError, OSError):
+        logger.debug("Alias file not found: %s", path, exc_info=True)
+    except (csv.Error, UnicodeDecodeError, OSError) as e:
         # Handle other CSV errors gracefully
-        pass
+        logger.debug(
+            "Error loading alias file %s: %s - %s",
+            path,
+            type(e).__name__,
+            str(e),
+            exc_info=True,
+        )
     return table
 
 

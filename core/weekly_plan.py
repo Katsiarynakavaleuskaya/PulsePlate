@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set, TypedDict
+from typing import Any, Dict, List, Optional, Set, TypedDict
 
 from .daily_plate import create_daily_plate
 from .food_db import parse_food_db
@@ -6,8 +6,19 @@ from .recipe_db import parse_recipe_db
 from .targets import NutritionTargets
 
 
+class DayPlanEntry(TypedDict):
+    """RU: Запись плана на один день. EN: Single day plan entry."""
+
+    day: int
+    kcal_target: int
+    meals: List[Dict[str, Any]]
+    micro_coverage: Dict[str, float]
+
+
 class WeeklyPlanResult(TypedDict):
-    days: List[Dict]
+    """RU: Результат генерации недельного плана. EN: Weekly plan generation result."""
+
+    days: List[DayPlanEntry]
     weekly_coverage: Dict[str, float]
     shopping_list: Dict[str, int]
     total_cost: float
@@ -35,7 +46,7 @@ def generate_weekly_plan(
     recipe_db = parse_recipe_db(food_db=food_db)
 
     # Generate 7 days of meal plans
-    days = []
+    days: List[DayPlanEntry] = []
     weekly_micro_coverage: Dict[str, List[float]] = {}
 
     for day_index in range(7):
@@ -51,7 +62,7 @@ def generate_weekly_plan(
             recipe_db=recipe_db,
         )
 
-        day_entry = {
+        day_entry: DayPlanEntry = {
             "day": day_index + 1,
             "kcal_target": kcal_target,
             "meals": day_plan["meals"],
@@ -67,7 +78,7 @@ def generate_weekly_plan(
             weekly_micro_coverage[micro].append(coverage)
 
     # Calculate weekly average coverage
-    weekly_coverage = {}
+    weekly_coverage: Dict[str, float] = {}
     for micro, coverages in weekly_micro_coverage.items():
         weekly_coverage[micro] = sum(coverages) / len(coverages)
 

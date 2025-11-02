@@ -31,11 +31,23 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\napple,Apple\nbanana,Banana\n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = [
-                    {"alias": "apple", "canonical": "Apple"},
-                    {"alias": "banana", "canonical": "Banana"},
-                ]
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__ = lambda self: iter(
+                    [
+                        {"alias": "apple", "canonical": "Apple"},
+                        {"alias": "banana", "canonical": "Banana"},
+                    ]
+                )
+                mock_reader.__next__ = lambda self: next(
+                    iter(
+                        [
+                            {"alias": "apple", "canonical": "Apple"},
+                            {"alias": "banana", "canonical": "Banana"},
+                        ]
+                    )
+                )
 
                 result = _load_aliases("test_file.csv")
                 assert result == {"apple": "Apple", "banana": "Banana"}
@@ -45,11 +57,15 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\n apple , Apple \n banana , Banana \n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = [
-                    {"alias": " apple ", "canonical": " Apple "},
-                    {"alias": " banana ", "canonical": " Banana "},
-                ]
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__ = lambda self: iter(
+                    [
+                        {"alias": " apple ", "canonical": " Apple "},
+                        {"alias": " banana ", "canonical": " Banana "},
+                    ]
+                )
 
                 result = _load_aliases("test_file.csv")
                 assert result == {"apple": "Apple", "banana": "Banana"}
@@ -59,8 +75,10 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = []
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__ = lambda self: iter([])
 
                 result = _load_aliases("test_file.csv")
                 assert result == {}

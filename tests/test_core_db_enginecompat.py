@@ -32,10 +32,10 @@ class _FakeConn:
 
 
 class _FakeEngine:
-    def __init__(self, conn: _FakeConn):
+    def __init__(self, conn: _FakeConn) -> None:
         self._conn = conn
 
-    def connect(self):
+    def connect(self) -> _FakeConn:
         return self._conn
 
 

@@ -147,12 +147,11 @@ def main() -> int:
         "--apply-identical", action="store_true", help="remove non-canonical in identical groups"
     )
     ap.add_argument("--prune-releases", action="store_true", help="allow deleting under releases/")
-    ap.add_argument("--debug", action="store_true", help="enable debug logging")
     ap.add_argument("--verbose", action="store_true", help="enable verbose (debug) logging")
     args = ap.parse_args()
 
     # Elevate to DEBUG if requested
-    if args.debug or args.verbose:
+    if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
     files = collect_files(include_tests=args.include_tests)
@@ -169,7 +168,7 @@ def main() -> int:
                     removed.append(str(backup))
             else:
                 print("  ", backup, "!=", base)
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, IsADirectoryError) as e:
             print("   ! error:", backup, e)
 
     print("\nFull duplicate groups (identical content):")
@@ -205,7 +204,7 @@ def main() -> int:
                 try:
                     p.unlink()
                     to_remove.append(p)
-                except Exception as e:
+                except (FileNotFoundError, PermissionError, OSError, IsADirectoryError) as e:
                     print("   ! error removing", p, e)
 
     if args.execute or args.apply_identical:
