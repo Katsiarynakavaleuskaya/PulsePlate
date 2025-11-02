@@ -297,7 +297,7 @@ class ShoplistGenerator:
 
         if strategy == "up":
             # Округляем вверх - берем упаковку с минимальным перерасходом
-            best_choice: Optional[Tuple[float, int]] = None
+            up_best_choice: Optional[Tuple[float, int]] = None
             best_overage = float("inf")
             for package_size in sorted_packages:
                 packages_needed = int(math.ceil(total_amount / package_size))
@@ -305,9 +305,9 @@ class ShoplistGenerator:
                     overage = packages_needed * package_size - total_amount
                     if overage < best_overage:
                         best_overage = overage
-                        best_choice = (package_size, packages_needed)
-            if best_choice is not None:
-                return best_choice
+                        up_best_choice = (package_size, packages_needed)
+            if up_best_choice is not None:
+                return up_best_choice
         elif strategy == "down":
             # Округляем вниз - берем максимальную упаковку, которая помещается
             for package_size in reversed(sorted_packages):

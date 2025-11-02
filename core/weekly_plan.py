@@ -20,7 +20,7 @@ class WeeklyPlanResult(TypedDict):
 
     days: List[DayPlanEntry]
     weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, int]
+    shopping_list: Dict[str, float]
     total_cost: float
 
 
