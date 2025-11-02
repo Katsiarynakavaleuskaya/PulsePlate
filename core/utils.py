@@ -81,8 +81,6 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
                 return getattr(module, name)
         except Exception as resolve_err:  # pragma: no cover - defensive guard
             logger.debug("resolve_attr ignored %s while inspecting %s", resolve_err, candidate)
-            skip_candidate = True
-        if skip_candidate:
             continue
     return local_default
 

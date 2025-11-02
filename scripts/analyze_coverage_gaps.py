@@ -3,10 +3,10 @@
 Анализ непокрытых строк для достижения 97% покрытия тестами.
 """
 
-from typing import List
 import os
 import subprocess  # nosec B404 - subprocess used with static arguments for pytest
 import sys
+from typing import List
 
 
 def run_coverage_analysis() -> bool:

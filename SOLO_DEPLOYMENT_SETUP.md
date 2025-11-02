@@ -41,7 +41,7 @@ cat ~/.ssh/pulseplate_deploy
 
 ### 3. GitHub PAT Token
 
-1. https://github.com/settings/tokens?type=beta → Generate new token (classic)
+1. https://github.com/settings/tokens → Generate new token (classic)
 2. Отметьте только: `read:packages`
 3. Скопируйте токен → добавьте как `GHCR_READ_TOKEN` в оба environment
 

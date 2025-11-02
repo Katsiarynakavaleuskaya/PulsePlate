@@ -490,22 +490,18 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
-            # Use consistent data source for both record_count and checksum
-            # Get the actual record count from the cache-backed database
+            # Fetch actual record count from cache-backed DB; fall back to len(unified_foods) if helper returns 0/None
             actual_record_count = await self._get_actual_record_count(source)
-            # Fall back to sample size if helper returns 0 or None
             if actual_record_count == 0:
                 actual_record_count = len(unified_foods)
 
-            # Calculate checksum from the same data used for record_count
-            # Use the cache-backed data if available, otherwise use unified_foods
+            # When actual_record_count equals len(unified_foods), use sample unified_foods for checksum (first ingestion or exact match)
+            # Otherwise, load full cache-backed data and compute checksum from that for consistency
             if actual_record_count == len(unified_foods):
-                # Use unified_foods for both count and checksum
                 checksum = self._calculate_checksum(
                     {name: self._food_to_dict(food) for name, food in unified_foods.items()}
                 )
             else:
-                # Use cache-backed data for both count and checksum
                 cache_data = await self._get_cache_data_for_checksum(source)
                 checksum = self._calculate_checksum(cache_data)
 

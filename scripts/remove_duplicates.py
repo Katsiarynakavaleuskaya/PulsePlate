@@ -83,7 +83,7 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
         # Full duplicates hash collection
         try:
             h = sha256_of(f)
-        except (OSError, ValueError) as hash_err:
+        except (FileNotFoundError, PermissionError, IsADirectoryError) as hash_err:
             logger.debug("Skipping %s due to hash error: %s", f, hash_err)
             continue
         by_hash.setdefault(h, []).append(f)
@@ -168,7 +168,7 @@ def main() -> int:
                     removed.append(str(backup))
             else:
                 print("  ", backup, "!=", base)
-        except (FileNotFoundError, PermissionError, OSError, IsADirectoryError) as e:
+        except OSError as e:
             print("   ! error:", backup, e)
 
     print("\nFull duplicate groups (identical content):")
@@ -204,7 +204,7 @@ def main() -> int:
                 try:
                     p.unlink()
                     to_remove.append(p)
-                except (FileNotFoundError, PermissionError, OSError, IsADirectoryError) as e:
+                except OSError as e:
                     print("   ! error removing", p, e)
 
     if args.execute or args.apply_identical:

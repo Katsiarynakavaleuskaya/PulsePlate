@@ -70,6 +70,7 @@ class TestEnhancedPlateAPI:
             "layout",
             "meals",
             "day_micros",
+            "meals_per_day",
         }
         assert data["kcal"] > 1000
         assert all(k in data["macros"] for k in ("protein_g", "fat_g", "carbs_g", "fiber_g"))
@@ -134,13 +135,12 @@ class TestEnhancedPlateAPI:
         data = response.json()
 
         portions = data["portions"]
-        # Check hand/cup portion fields
+        # Check hand/cup portion fields (meals_per_day is now metadata, not in portions)
         required_portion_keys = {
             "protein_palm",
             "fat_thumbs",
             "carb_cups",
             "veg_cups",
-            "meals_per_day",
         }
         assert required_portion_keys.issubset(set(portions.keys()))
 
@@ -149,7 +149,8 @@ class TestEnhancedPlateAPI:
         assert 0.3 <= portions["fat_thumbs"] <= 3.0  # Thumbs per meal
         assert 0.5 <= portions["carb_cups"] <= 3.0  # Cups per meal
         assert 0.5 <= portions["veg_cups"] <= 4.0  # Vegetable cups per meal
-        assert portions["meals_per_day"] == 3
+        # meals_per_day is now a top-level field in the response
+        assert data["meals_per_day"] == 3
 
     def test_plate_deficit_surplus_control(self):
         """Test precise deficit and surplus percentage control."""

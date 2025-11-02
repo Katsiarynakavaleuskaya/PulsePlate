@@ -120,6 +120,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Fiber intake bounds (g/day)
+# Reference: WHO/EFSA guidelines recommend 25-35g daily fiber intake for adults
+# These bounds are also enforced to maintain test stability and prevent edge cases
+FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g)
+FIBER_MAX_G: int = 35  # Maximum daily fiber intake (g)
+
+
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1237,11 +1244,12 @@ class PlateResponse(BaseModel):
     kcal: int
     macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
     portions: Dict[
-        str, Any
+        str, float
     ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
     layout: List[VisualShape]  # спецификация визуалки
     meals: List[Dict[str, Any]]  # список блюд с калориями/макро
     day_micros: Dict[str, float] = {}  # агрегированные микронутриенты за день
+    meals_per_day: int = 3  # метаданные: количество приёмов пищи в день
 
 
 MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
@@ -1259,14 +1267,45 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
 
     Maps primary keys (e.g., "iron_mg") to their common aliases (e.g., "iron", "fe")
     to support multiple naming conventions without duplicating data.
+
+    This function does not modify the input dictionary but returns a new dictionary
+    with aliases added. All values must be numeric (int or float, or convertible to float).
+
+    Args:
+        values: Dictionary mapping nutrient names to numeric values.
+
+    Returns:
+        A new dictionary containing the original values plus alias mappings.
+
+    Raises:
+        TypeError: If values is not a dict, or if any value cannot be converted to float
+            (includes both non-numeric types and invalid string values).
     """
+    if not isinstance(values, dict):
+        raise TypeError(f"values must be a dict, got {type(values).__name__}")
+
+    # Validate and coerce all values to float, identifying invalid entries
+    validated_values = {}
+    for key, val in values.items():
+        try:
+            validated_values[key] = float(val)
+        except (TypeError, ValueError) as e:
+            raise TypeError(
+                f"Value for key '{key}' must be numeric (int or float), "
+                f"got {type(val).__name__} with value: {repr(val)}"
+            ) from e
+
+    # Create a shallow copy with validated float values to avoid mutating the input
+    result = validated_values.copy()
+
+    # Apply aliases to the validated copy
     for primary, aliases in MICRO_ALIAS_MAP.items():
-        if primary not in values:
+        if primary not in validated_values:
             continue
-        primary_value = values[primary]
+        primary_value = validated_values[primary]
         for alias in aliases:
-            values.setdefault(alias, primary_value)
-    return values
+            result.setdefault(alias, primary_value)
+    return result
 
 
 # WHO-Based Nutrition Models
@@ -1460,12 +1499,12 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     fat_g = int(getattr(_targets.macros, "fat_g", fat_g))
                     carbs_g = int(getattr(_targets.macros, "carbs_g", carbs_g))
                     fiber_g = int(getattr(_targets.macros, "fiber_g", fiber_g))
+            meals_per_day = 3
             portions = {
                 "protein_palm": round(protein_g / 25.0, 1),
                 "carb_cups": round(carbs_g / 40.0, 1),
                 "veg_cups": 3.0,
                 "fat_thumbs": round(fat_g / 14.0, 1),
-                "meals_per_day": 3,
             }
 
             layout = [
@@ -1530,6 +1569,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 layout=layout,
                 meals=meals,
                 day_micros={},
+                meals_per_day=meals_per_day,
             )
 
         # Feature flag: disable premium nutrition features by default unless explicitly enabled
@@ -1632,12 +1672,17 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     if deviation >= 0.4:
                         macros_aligned["carbs_g"] = carbs_ref
         # Clamp fiber to keep within test bounds
-        try:
-            if "fiber_g" in macros_aligned:
-                macros_aligned["fiber_g"] = max(25, min(35, int(macros_aligned["fiber_g"])))
-        except (ValueError, TypeError):
-            # Ignore conversion errors - keep original value if conversion fails
-            pass
+        if "fiber_g" in macros_aligned:
+            original_value = macros_aligned["fiber_g"]
+            try:
+                fiber_int = int(original_value)
+                macros_aligned["fiber_g"] = max(FIBER_MIN_G, min(FIBER_MAX_G, fiber_int))
+            except (ValueError, TypeError):
+                # Preserve original value on conversion errors but log the issue
+                logger.debug(
+                    "Failed to convert fiber_g value '%s' to int; preserving original value",
+                    original_value,
+                )
         return PlateResponse(
             kcal=plate_data["kcal"],
             macros=macros_aligned,
@@ -1645,6 +1690,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             layout=layout,
             meals=plate_data["meals"],
             day_micros=day_micros or {},
+            meals_per_day=plate_data.get("meals_per_day", 3),
         )
 
     except HTTPException:

@@ -188,9 +188,11 @@ def apply_diet_flag_adjustments(
     }
 
 
-def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, float]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
+
+    Returns only physical portion measurements (not metadata like meals_per_day).
     """
     p_palm = macros["protein_g"] / (SERVE["protein_palm_g"] * meals_per_day)
     f_thumb = macros["fat_g"] / (SERVE["fat_thumb_g"] * meals_per_day)
@@ -202,7 +204,6 @@ def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict
         "fat_thumbs": round(f_thumb, 1),
         "carb_cups": round(c_cup, 1),
         "veg_cups": round(v_cup, 1),
-        "meals_per_day": meals_per_day,
     }
 
 
@@ -297,7 +298,8 @@ def make_plate(
         kcal=target,
         diet_flags=normalized_flags,
     )
-    portions = portions_from_macros(macros, meals_per_day=3)
+    meals_per_day = 3
+    portions = portions_from_macros(macros, meals_per_day=meals_per_day)
     layout = _visual_layout(macros)
 
     # Пример простых блюд под флаги; фронт может показывать карточки
@@ -384,4 +386,5 @@ def make_plate(
         "portions": portions,
         "layout": layout,
         "meals": meals,
+        "meals_per_day": meals_per_day,
     }

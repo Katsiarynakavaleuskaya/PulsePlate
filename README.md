@@ -273,8 +273,7 @@ The merged food database follows a standardized schema:
     "protein_palm": 1.3,
     "fat_thumbs": 1.4,
     "carb_cups": 1.9,
-    "veg_cups": 1.0,
-    "meals_per_day": 3
+    "veg_cups": 1.0
   },
   "layout": [
     {
@@ -336,7 +335,9 @@ The merged food database follows a standardized schema:
       "fat_g": 20,
       "carbs_g": 91
     }
-  ]
+  ],
+  "meals_per_day": 3,
+  "day_micros": {}
 }
 ```
 

@@ -40,14 +40,6 @@ class TestAliasesCoverage96:
                         {"alias": "banana", "canonical": "Banana"},
                     ]
                 )
-                mock_reader.__next__ = lambda self: next(
-                    iter(
-                        [
-                            {"alias": "apple", "canonical": "Apple"},
-                            {"alias": "banana", "canonical": "Banana"},
-                        ]
-                    )
-                )
 
                 result = _load_aliases("test_file.csv")
                 assert result == {"apple": "Apple", "banana": "Banana"}

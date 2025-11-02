@@ -14,7 +14,8 @@ from core.recipe_db import calculate_recipe_nutrients, parse_recipe_db, scale_re
 def test_parse_recipe_db():
     """Test that recipe database is parsed correctly."""
     # Parse the recipe database
-    recipe_db = parse_recipe_db()
+    food_db = parse_food_db()
+    recipe_db = parse_recipe_db(food_db=food_db)
 
     # Check that we have recipes
     assert isinstance(recipe_db, dict)

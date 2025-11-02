@@ -1,4 +1,6 @@
 import pytest
+from types import TracebackType
+from typing import Any
 
 from sqlalchemy import exc as sa_exc
 
@@ -6,29 +8,36 @@ from core.db import EngineCompat
 
 
 class _FakeConn:
-    def __init__(self, commit_raises: Exception | None = None, in_tx: bool = True):
+    def __init__(self, commit_raises: Exception | None = None, in_tx: bool = True) -> None:
         self._commit_raises = commit_raises
         self._in_tx = in_tx
 
-    def execute(self, stmt, *args, **kwargs):  # pragma: no cover - trivial pass-through
+    def execute(
+        self, stmt: Any, *args: Any, **kwargs: Any
+    ) -> str:  # pragma: no cover - trivial pass-through
         return "ok"
 
-    def get_transaction(self):  # emulate SQLAlchemy API
+    def get_transaction(self) -> object | None:  # emulate SQLAlchemy API
         return object() if self._in_tx else None
 
-    def commit(self):
+    def commit(self) -> None:
         if self._commit_raises is not None:
             raise self._commit_raises
 
-    def rollback(self):  # pragma: no cover - executed only on error path
+    def rollback(self) -> None:  # pragma: no cover - executed only on error path
         return None
 
     # context manager protocol
-    def __enter__(self):
+    def __enter__(self) -> "_FakeConn":
         return self
 
-    def __exit__(self, exc_type, exc, tb):  # pragma: no cover - no-op
-        return False
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:  # pragma: no cover - no-op
+        pass
 
 
 class _FakeEngine:

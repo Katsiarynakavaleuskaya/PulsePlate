@@ -186,8 +186,6 @@ volumes:
   # EN: app_data volume not used, as DB is mounted via bind mount
 EOF
 ```
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-read_file
 
 ### 6. Update Caddyfile for Production
 

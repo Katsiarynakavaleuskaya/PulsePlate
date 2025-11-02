@@ -10,7 +10,6 @@ describe("Premium Types", () => {
         fat_thumbs: 1.8,
         carb_cups: 3.2,
         veg_cups: 2.0,
-        meals_per_day: 3,
       };
       expect(validPortion).toBeDefined();
     });
@@ -21,7 +20,6 @@ describe("Premium Types", () => {
         fat_thumbs: 1.8,
         carb_cups: 3.2,
         veg_cups: 2.0,
-        meals_per_day: 3,
       };
       expectTypeOf(valid).toMatchTypeOf<Portion>();
     });
@@ -97,8 +95,8 @@ describe("Premium Types", () => {
           fat_thumbs: 1.3,
           carb_cups: 4.2,
           veg_cups: 3.0,
-          meals_per_day: 3,
         },
+        meals_per_day: 3,
         layout: [
           {
             kind: "plate_sector",
@@ -170,8 +168,8 @@ describe("Premium Types", () => {
           fat_thumbs: 1.3,
           carb_cups: 4.2,
           veg_cups: 3.0,
-          meals_per_day: 3,
         },
+        meals_per_day: 3,
         layout: [],
         meals: [],
       };

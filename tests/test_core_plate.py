@@ -111,7 +111,8 @@ class TestCorePlateLogic:
         assert portions["fat_thumbs"] == round(expected_fat_thumbs, 1)
         assert portions["carb_cups"] == round(expected_carb_cups, 1)
         assert portions["veg_cups"] == round(expected_veg_cups, 1)
-        assert portions["meals_per_day"] == 3
+        # meals_per_day is metadata, no longer included in portions dict
+        assert "meals_per_day" not in portions
 
     def test_visual_layout_structure(self):
         """Test visual layout generation."""
@@ -156,7 +157,7 @@ class TestCorePlateLogic:
         )
 
         # Check response structure
-        required_keys = {"kcal", "macros", "portions", "layout", "meals"}
+        required_keys = {"kcal", "macros", "portions", "layout", "meals", "meals_per_day"}
         assert set(plate.keys()) == required_keys
 
         # Check kcal
@@ -168,16 +169,18 @@ class TestCorePlateLogic:
         assert all(k in macros for k in ["protein_g", "fat_g", "carbs_g", "fiber_g"])
         assert all(isinstance(v, int) for v in macros.values())
 
-        # Check portions
+        # Check portions (meals_per_day is now metadata, not in portions)
         portions = plate["portions"]
         portion_keys = {
             "protein_palm",
             "fat_thumbs",
             "carb_cups",
             "veg_cups",
-            "meals_per_day",
         }
         assert portion_keys.issubset(set(portions.keys()))
+        # Check meals_per_day is at top level
+        assert "meals_per_day" in plate
+        assert plate["meals_per_day"] == 3
 
         # Check layout
         layout = plate["layout"]

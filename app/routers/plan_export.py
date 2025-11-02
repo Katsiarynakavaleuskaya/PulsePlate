@@ -27,9 +27,9 @@ from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
     Spacer,
-    Table,
     TableStyle,
 )
+from reportlab.platypus.tables import Table as RLTable
 
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
@@ -108,16 +108,18 @@ def _slogan(lang: Optional[str]) -> str:
     return SLOGAN.get(normalized, SLOGAN[DEFAULT_LANG])
 
 
-def _normalized_paragraph(text: str, style) -> Paragraph:
+class NormalizedParagraph(Paragraph):
+    """Paragraph subclass that returns NFC-normalized plain text."""
+
+    def getPlainText(self) -> str:
+        """Return NFC-normalized plain text for deterministic comparisons."""
+        plain_text = super().getPlainText()
+        return unicodedata.normalize("NFC", plain_text)
+
+
+def _normalized_paragraph(text: str, style: Any) -> Paragraph:
     """Return a paragraph whose plain text is NFC-normalized for deterministic comparisons."""
-    paragraph = Paragraph(text, style)
-    normalized = unicodedata.normalize("NFC", paragraph.getPlainText())
-
-    def _get_plain_text() -> str:
-        return normalized
-
-    paragraph.getPlainText = _get_plain_text
-    return paragraph
+    return NormalizedParagraph(text, style)
 
 
 def _find_logo_path() -> Optional[Path]:
@@ -155,10 +157,7 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
             SLOGAN.get(lang, plain_slogan),
             plain_slogan == SLOGAN.get(lang, plain_slogan),
         )
-        logger.debug("Table class id=%s repr=%s", id(Table), Table)
-
-    # Use a local import to avoid external monkeypatching of Table
-    from reportlab.platypus.tables import Table as RLTable
+        logger.debug("Table class id=%s repr=%s", id(RLTable), RLTable)
 
     header_table = RLTable(
         [
@@ -412,8 +411,6 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
                 ]
             )
 
-        from reportlab.platypus.tables import Table as RLTable
-
         table = RLTable(rows, colWidths=[210, 55, 35, 45, 30, 30, 30])
         table.setStyle(
             TableStyle(
@@ -494,8 +491,6 @@ def export_week_pdf(
     story.append(Spacer(1, 8))
 
     story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
-    from reportlab.platypus.tables import Table as RLTable
-
     totals_table = RLTable(
         [
             ["ккал", "Б", "У", "Ж"],

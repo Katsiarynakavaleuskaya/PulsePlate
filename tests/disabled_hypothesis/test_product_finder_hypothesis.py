@@ -18,7 +18,7 @@ class TestProductFinderHypothesis:
     def setup_method(self):
         """Set up test environment."""
         self.finder = ProductFinder()
-        self.recipes = parse_recipe_db("data/recipes_extended.csv")
+        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
 
     def test_find_missing_products_hypothesis(self):
         """Test finding missing products from recipe ingredients."""

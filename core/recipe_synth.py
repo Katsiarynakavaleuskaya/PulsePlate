@@ -180,120 +180,130 @@ class RecipeSynthesizer:
 
     def _create_default_templates(self):
         """Создает шаблоны рецептов по умолчанию"""
-        default_templates: List[RecipeTemplate] = [
-            RecipeTemplate(
-                template_id="stir_fry",
-                name="Stir Fry",
-                cuisine_type="asian",
-                base_ingredients=[
+        default_template_dicts = [
+            {
+                "template_id": "stir_fry",
+                "name": "Stir Fry",
+                "cuisine_type": "asian",
+                "base_ingredients": [
                     "vegetables",
                     "protein",
                     "oil",
                     "garlic",
                     "ginger",
                 ],
-                cooking_methods=["stir_frying", "sautéing"],
-                typical_prep_time=15,
-                typical_cook_time=10,
-                difficulty="easy",
-                instruction_template=(
+                "cooking_methods": ["stir_frying", "sautéing"],
+                "typical_prep_time": 15,
+                "typical_cook_time": 10,
+                "difficulty": "easy",
+                "instruction_template": (
                     "Heat oil in a wok or large pan. Add garlic and ginger, stir for 30 seconds. "
                     "Add protein and cook until done. Add vegetables and stir-fry for 3-5 minutes. "
                     "Season with soy sauce and serve."
                 ),
-                nutrition_profile={
+                "nutrition_profile": {
                     "calories": 300.0,
                     "protein": 25.0,
                     "carbs": 15.0,
                     "fat": 15.0,
                 },
-            ),
-            RecipeTemplate(
-                template_id="pasta",
-                name="Pasta Dish",
-                cuisine_type="italian",
-                base_ingredients=["pasta", "sauce", "cheese", "herbs"],
-                cooking_methods=["boiling", "simmering"],
-                typical_prep_time=10,
-                typical_cook_time=20,
-                difficulty="easy",
-                instruction_template=(
+            },
+            {
+                "template_id": "pasta",
+                "name": "Pasta Dish",
+                "cuisine_type": "italian",
+                "base_ingredients": ["pasta", "sauce", "cheese", "herbs"],
+                "cooking_methods": ["boiling", "simmering"],
+                "typical_prep_time": 10,
+                "typical_cook_time": 20,
+                "difficulty": "easy",
+                "instruction_template": (
                     "Boil pasta according to package instructions. Meanwhile, prepare sauce. "
                     "Drain pasta and combine with sauce. Add cheese and herbs. Serve immediately."
                 ),
-                nutrition_profile={
+                "nutrition_profile": {
                     "calories": 400.0,
                     "protein": 15.0,
                     "carbs": 60.0,
                     "fat": 12.0,
                 },
-            ),
-            RecipeTemplate(
-                template_id="salad",
-                name="Fresh Salad",
-                cuisine_type="mediterranean",
-                base_ingredients=["greens", "vegetables", "dressing", "nuts"],
-                cooking_methods=["chopping", "mixing"],
-                typical_prep_time=20,
-                typical_cook_time=0,
-                difficulty="easy",
-                instruction_template=(
+            },
+            {
+                "template_id": "salad",
+                "name": "Fresh Salad",
+                "cuisine_type": "mediterranean",
+                "base_ingredients": ["greens", "vegetables", "dressing", "nuts"],
+                "cooking_methods": ["chopping", "mixing"],
+                "typical_prep_time": 20,
+                "typical_cook_time": 0,
+                "difficulty": "easy",
+                "instruction_template": (
                     "Wash and chop all vegetables. Combine greens and vegetables in a large bowl. "
                     "Add dressing and toss gently. Top with nuts and serve."
                 ),
-                nutrition_profile={
+                "nutrition_profile": {
                     "calories": 200.0,
                     "protein": 8.0,
                     "carbs": 20.0,
                     "fat": 12.0,
                 },
-            ),
-            RecipeTemplate(
-                template_id="soup",
-                name="Hearty Soup",
-                cuisine_type="international",
-                base_ingredients=["broth", "vegetables", "protein", "herbs"],
-                cooking_methods=["simmering", "boiling"],
-                typical_prep_time=15,
-                typical_cook_time=30,
-                difficulty="medium",
-                instruction_template=(
+            },
+            {
+                "template_id": "soup",
+                "name": "Hearty Soup",
+                "cuisine_type": "international",
+                "base_ingredients": ["broth", "vegetables", "protein", "herbs"],
+                "cooking_methods": ["simmering", "boiling"],
+                "typical_prep_time": 15,
+                "typical_cook_time": 30,
+                "difficulty": "medium",
+                "instruction_template": (
                     "Heat broth in a large pot. Add vegetables and protein. "
                     "Simmer for 20-30 minutes until vegetables are tender. "
                     "Season with herbs and spices. Serve hot."
                 ),
-                nutrition_profile={
+                "nutrition_profile": {
                     "calories": 250.0,
                     "protein": 20.0,
                     "carbs": 25.0,
                     "fat": 8.0,
                 },
-            ),
-            RecipeTemplate(
-                template_id="grilled_protein",
-                name="Grilled Protein",
-                cuisine_type="american",
-                base_ingredients=["protein", "marinade", "vegetables"],
-                cooking_methods=["grilling", "marinating"],
-                typical_prep_time=30,
-                typical_cook_time=15,
-                difficulty="medium",
-                instruction_template=(
+            },
+            {
+                "template_id": "grilled_protein",
+                "name": "Grilled Protein",
+                "cuisine_type": "american",
+                "base_ingredients": ["protein", "marinade", "vegetables"],
+                "cooking_methods": ["grilling", "marinating"],
+                "typical_prep_time": 30,
+                "typical_cook_time": 15,
+                "difficulty": "medium",
+                "instruction_template": (
                     "Marinate protein for at least 30 minutes. Preheat grill. "
                     "Grill protein for 6-8 minutes per side. Grill vegetables alongside. "
                     "Rest protein before serving."
                 ),
-                nutrition_profile={
+                "nutrition_profile": {
                     "calories": 350.0,
                     "protein": 35.0,
                     "carbs": 10.0,
                     "fat": 18.0,
                 },
-            ),
+            },
         ]
 
-        for template in default_templates:
-            self.templates[template.template_id] = template
+        # Validate and create templates using Pydantic, matching file-loaded templates
+        for template_dict in default_template_dicts:
+            try:
+                # Validate with Pydantic before creating dataclass
+                validated = RecipeTemplateModel.model_validate(template_dict)
+                template = RecipeTemplate(**validated.model_dump())
+                self.templates[template.template_id] = template
+            except Exception as e:
+                # Default templates should always be valid - raise to stop startup on code bugs
+                raise ValueError(
+                    f"Validation error in default template '{template_dict.get('template_id', 'unknown')}': {e}"
+                ) from e
 
     def synthesize_recipe_from_ingredients(
         self,
@@ -684,14 +694,31 @@ def get_recipe_synthesizer(templates_dir: str = "data/recipe_templates") -> Reci
     Uses double-check locking pattern to ensure thread-safe initialization
     under concurrent FastAPI requests.
 
+    Validates that templates_dir parameter is consistent with the existing
+    singleton instance if it has already been initialized. Raises ValueError
+    if a different templates_dir is provided after initialization.
+
     RU: Возвращает модуль-level singleton синтезатора рецептов с thread-safe инициализацией.
     EN: Returns module-level singleton recipe synthesizer with thread-safe initialization.
     """
     global _recipe_synthesizer
+    requested_path = Path(templates_dir).resolve()
+
     # Double-check locking pattern for thread-safe singleton initialization
     if _recipe_synthesizer is None:
         with _synthesizer_lock:
             # Check again after acquiring lock (another thread might have initialized it)
             if _recipe_synthesizer is None:
                 _recipe_synthesizer = RecipeSynthesizer(templates_dir=templates_dir)
+    else:
+        # Validate consistency: ensure templates_dir matches existing instance
+        existing_path = _recipe_synthesizer.templates_dir.resolve()
+        if existing_path != requested_path:
+            raise ValueError(
+                f"RecipeSynthesizer singleton already initialized with templates_dir="
+                f"{_recipe_synthesizer.templates_dir}, but get_recipe_synthesizer() "
+                f"called with templates_dir={templates_dir}. Use consistent templates_dir "
+                f"or reset the singleton in tests."
+            )
+
     return _recipe_synthesizer

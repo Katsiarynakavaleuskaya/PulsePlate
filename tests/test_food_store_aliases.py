@@ -8,7 +8,7 @@ import pytest
 import app.services.food_store as fs
 
 
-def test_get_aliases_merges_defaults_and_csv(monkeypatch):
+def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) -> None:
     # Reset lazy cache
     monkeypatch.setattr(fs, "_ALIASES_CACHE", None, raising=False)
     # Provide fake CSV aliases
@@ -24,7 +24,7 @@ def test_get_aliases_merges_defaults_and_csv(monkeypatch):
     assert aliases.get("avocado") == ["avo"]
 
 
-def test_expand_query_uses_alias_mapping(monkeypatch):
+def test_expand_query_uses_alias_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(fs, "_ALIASES_CACHE", None, raising=False)
     monkeypatch.setattr(fs, "_load_aliases_csv", lambda p: {"масло оливковое": ["olive oil"]})
     terms = set(fs.expand_query("olive oil"))
@@ -32,7 +32,7 @@ def test_expand_query_uses_alias_mapping(monkeypatch):
     assert {"olive oil", "масло оливковое"}.issubset(terms)
 
 
-def test_load_aliases_csv_primary_aliases_schema():
+def test_load_aliases_csv_primary_aliases_schema() -> None:
     """Test _load_aliases_csv with primary,aliases schema (original format)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("primary,aliases\n")
@@ -50,7 +50,7 @@ def test_load_aliases_csv_primary_aliases_schema():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_alias_canonical_schema():
+def test_load_aliases_csv_alias_canonical_schema() -> None:
     """Test _load_aliases_csv with alias,canonical schema (core.aliases format)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("alias,canonical\n")
@@ -75,14 +75,14 @@ def test_load_aliases_csv_alias_canonical_schema():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_missing_file():
+def test_load_aliases_csv_missing_file() -> None:
     """Test _load_aliases_csv when file doesn't exist."""
     non_existent = Path("/non/existent/path.csv")
     result = fs._load_aliases_csv(non_existent)
     assert result == {}
 
 
-def test_load_aliases_csv_empty_file():
+def test_load_aliases_csv_empty_file() -> None:
     """Test _load_aliases_csv with empty CSV file."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("primary,aliases\n")
@@ -95,7 +95,7 @@ def test_load_aliases_csv_empty_file():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_primary_aliases_with_duplicates():
+def test_load_aliases_csv_primary_aliases_with_duplicates() -> None:
     """Test _load_aliases_csv with primary,aliases schema handling duplicate aliases."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("primary,aliases\n")
@@ -113,7 +113,7 @@ def test_load_aliases_csv_primary_aliases_with_duplicates():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_alias_canonical_with_whitespace():
+def test_load_aliases_csv_alias_canonical_with_whitespace() -> None:
     """Test _load_aliases_csv with alias,canonical schema handling whitespace."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("alias,canonical\n")
@@ -130,7 +130,7 @@ def test_load_aliases_csv_alias_canonical_with_whitespace():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_primary_aliases_case_insensitive():
+def test_load_aliases_csv_primary_aliases_case_insensitive() -> None:
     """Test _load_aliases_csv normalizes to lowercase for primary,aliases schema."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("primary,aliases\n")
@@ -149,7 +149,7 @@ def test_load_aliases_csv_primary_aliases_case_insensitive():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_alias_canonical_case_insensitive():
+def test_load_aliases_csv_alias_canonical_case_insensitive() -> None:
     """Test _load_aliases_csv normalizes to lowercase for alias,canonical schema."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("alias,canonical\n")
@@ -166,7 +166,7 @@ def test_load_aliases_csv_alias_canonical_case_insensitive():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_primary_aliases_empty_primary_skipped():
+def test_load_aliases_csv_primary_aliases_empty_primary_skipped() -> None:
     """Test _load_aliases_csv skips rows with empty primary in primary,aliases schema."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("primary,aliases\n")
@@ -184,7 +184,7 @@ def test_load_aliases_csv_primary_aliases_empty_primary_skipped():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_alias_canonical_empty_values_skipped():
+def test_load_aliases_csv_alias_canonical_empty_values_skipped() -> None:
     """Test _load_aliases_csv skips rows with empty alias or canonical."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("alias,canonical\n")
@@ -203,7 +203,7 @@ def test_load_aliases_csv_alias_canonical_empty_values_skipped():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_unknown_schema_returns_empty():
+def test_load_aliases_csv_unknown_schema_returns_empty() -> None:
     """Test _load_aliases_csv returns empty dict when schema doesn't match."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write("unknown,col1\n")
@@ -217,7 +217,7 @@ def test_load_aliases_csv_unknown_schema_returns_empty():
         temp_path.unlink()
 
 
-def test_load_aliases_csv_error_handling_production_mode(monkeypatch):
+def test_load_aliases_csv_error_handling_production_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test _load_aliases_csv error handling in production mode returns empty dict."""
     monkeypatch.setenv("ENVIRONMENT", "production")
     # Reload module to pick up env var
@@ -242,7 +242,9 @@ def test_load_aliases_csv_error_handling_production_mode(monkeypatch):
         importlib.reload(fs)
 
 
-def test_load_aliases_csv_error_handling_non_production_mode(monkeypatch):
+def test_load_aliases_csv_error_handling_non_production_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test _load_aliases_csv error handling in non-production mode raises exception."""
     monkeypatch.setenv("ENVIRONMENT", "development")
     # Reload module to pick up env var

@@ -5,6 +5,7 @@ RU: Планировщик обновления базы данных проду
 EN: Food database update scheduler.
 """
 
+import argparse
 import logging
 import os
 import random
@@ -56,14 +57,62 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Configuration constants
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_INITIAL_DELAY = 1.0  # seconds
-DEFAULT_BACKOFF_MULTIPLIER = 2.0
-DEFAULT_MAX_DELAY = 60.0  # seconds
-DEFAULT_JITTER_FACTOR = 0.1  # 10% jitter
-DEFAULT_TIMEOUT_PER_ATTEMPT = 300  # 5 minutes per attempt
-DEFAULT_OVERALL_TIMEOUT = 1200  # 20 minutes total budget
+def _get_env_int(env_var: str, default: int) -> int:
+    """Get integer value from environment variable or return default.
+
+    Args:
+        env_var: Environment variable name.
+        default: Default value if env var is not set or invalid.
+
+    Returns:
+        Integer value from environment variable or default.
+    """
+    env_value = os.getenv(env_var)
+    if env_value is not None:
+        try:
+            return int(env_value)
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid value for environment variable {env_var}: {env_value}. "
+                f"Using default: {default}"
+            )
+    return default
+
+
+def _get_env_float(env_var: str, default: float) -> float:
+    """Get float value from environment variable or return default.
+
+    Args:
+        env_var: Environment variable name.
+        default: Default value if env var is not set or invalid.
+
+    Returns:
+        Float value from environment variable or default.
+    """
+    env_value = os.getenv(env_var)
+    if env_value is not None:
+        try:
+            return float(env_value)
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid value for environment variable {env_var}: {env_value}. "
+                f"Using default: {default}"
+            )
+    return default
+
+
+# Configuration constants (configurable via environment variables)
+DEFAULT_MAX_RETRIES = _get_env_int("FOOD_DB_UPDATE_MAX_RETRIES", 3)
+DEFAULT_INITIAL_DELAY = _get_env_float("FOOD_DB_UPDATE_INITIAL_DELAY", 1.0)  # seconds
+DEFAULT_BACKOFF_MULTIPLIER = _get_env_float("FOOD_DB_UPDATE_BACKOFF_MULTIPLIER", 2.0)
+DEFAULT_MAX_DELAY = _get_env_float("FOOD_DB_UPDATE_MAX_DELAY", 60.0)  # seconds
+DEFAULT_JITTER_FACTOR = _get_env_float("FOOD_DB_UPDATE_JITTER_FACTOR", 0.1)  # 10% jitter
+DEFAULT_TIMEOUT_PER_ATTEMPT = _get_env_float(
+    "FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT", 300
+)  # 5 minutes per attempt
+DEFAULT_OVERALL_TIMEOUT = _get_env_float(
+    "FOOD_DB_UPDATE_OVERALL_TIMEOUT", 1200
+)  # 20 minutes total budget
 
 
 class OperationalMetrics:
@@ -202,6 +251,8 @@ def update_food_database(
     EN: Update food database with retry logic and operational resiliency.
 
     Args:
+
+    Args:
         max_retries: Maximum number of retry attempts (total attempts = max_retries + 1).
         initial_delay: Initial delay before first retry in seconds.
         backoff_multiplier: Multiplier for exponential backoff.
@@ -268,7 +319,25 @@ def update_food_database(
                     f"Food database update completed successfully on attempt {attempt + 1} "
                     f"(total_time={elapsed_total:.2f}s)"
                 )
-                logger.debug(f"Output: {result.stdout}")
+                # Log summary at INFO level for successful runs
+                stdout_summary = ""
+                if result.stdout:
+                    stdout_lines = result.stdout.strip().split("\n")
+                    if len(stdout_lines) <= 5:
+                        # If output is short, show all lines
+                        stdout_summary = " | ".join(stdout_lines)
+                    else:
+                        # Show last 3 lines as summary
+                        stdout_summary = " | ".join(stdout_lines[-3:])
+                    # Limit total summary length
+                    if len(stdout_summary) > 300:
+                        stdout_summary = f"{stdout_summary[:297]}..."
+                logger.info(
+                    f"Build script success summary: return_code={result.returncode}, "
+                    f"stdout_summary='{stdout_summary}'"
+                )
+                # Keep full stdout at DEBUG for detailed troubleshooting
+                logger.debug(f"Full output: {result.stdout}")
                 metrics.record_success()
                 emit_operational_signal(
                     "success", metrics, attempt=attempt, monitoring_hook=monitoring_hook
@@ -426,6 +495,137 @@ def update_food_database(
     return False
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments with environment variable fallbacks.
+
+    RU: Разобрать аргументы командной строки с резервными значениями из переменных окружения.
+    EN: Parse command-line arguments with environment variable fallbacks.
+
+    Returns:
+        Parsed arguments namespace.
+    """
+    parser = argparse.ArgumentParser(
+        description="Food Database Update Scheduler with retry and timeout configuration.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    # Helper function to get value from env or use default
+    def get_env_or_default(
+        env_var: str, default: int | float, type_func: type[int] | type[float] = int
+    ) -> int | float:
+        """Get value from environment variable or return default."""
+        env_value = os.getenv(env_var)
+        if env_value is not None:
+            try:
+                converted = type_func(env_value)
+                # Type checker can't infer the exact type, but we know it's int or float
+                return converted if isinstance(converted, (int, float)) else default
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Invalid value for environment variable {env_var}: {env_value}. "
+                    f"Using default: {default}"
+                )
+        return default
+
+    # Parse max_retries
+    default_max_retries = get_env_or_default("FOOD_DB_UPDATE_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=default_max_retries,
+        help=(
+            "Maximum number of retry attempts (total attempts = max_retries + 1). "
+            "Can be set via FOOD_DB_UPDATE_MAX_RETRIES environment variable."
+        ),
+    )
+
+    # Parse timeout_per_attempt (with --timeout as alias)
+    default_timeout_per_attempt = get_env_or_default(
+        "FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT", DEFAULT_TIMEOUT_PER_ATTEMPT, float
+    )
+    parser.add_argument(
+        "--timeout-per-attempt",
+        "--timeout",
+        dest="timeout_per_attempt",
+        type=float,
+        default=default_timeout_per_attempt,
+        help=(
+            "Timeout for each individual attempt in seconds. "
+            "Can be set via FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT environment variable."
+        ),
+    )
+
+    # Parse overall_timeout
+    default_overall_timeout = get_env_or_default(
+        "FOOD_DB_UPDATE_OVERALL_TIMEOUT", DEFAULT_OVERALL_TIMEOUT, float
+    )
+    parser.add_argument(
+        "--overall-timeout",
+        type=float,
+        default=default_overall_timeout,
+        help=(
+            "Overall timeout budget for all attempts in seconds. "
+            "Can be set via FOOD_DB_UPDATE_OVERALL_TIMEOUT environment variable."
+        ),
+    )
+
+    # Parse initial_delay
+    default_initial_delay = get_env_or_default(
+        "FOOD_DB_UPDATE_INITIAL_DELAY", DEFAULT_INITIAL_DELAY, float
+    )
+    parser.add_argument(
+        "--initial-delay",
+        type=float,
+        default=default_initial_delay,
+        help=(
+            "Initial delay before first retry in seconds. "
+            "Can be set via FOOD_DB_UPDATE_INITIAL_DELAY environment variable."
+        ),
+    )
+
+    # Parse backoff_multiplier
+    default_backoff_multiplier = get_env_or_default(
+        "FOOD_DB_UPDATE_BACKOFF_MULTIPLIER", DEFAULT_BACKOFF_MULTIPLIER, float
+    )
+    parser.add_argument(
+        "--backoff-multiplier",
+        type=float,
+        default=default_backoff_multiplier,
+        help=(
+            "Multiplier for exponential backoff. "
+            "Can be set via FOOD_DB_UPDATE_BACKOFF_MULTIPLIER environment variable."
+        ),
+    )
+
+    # Parse max_delay
+    default_max_delay = get_env_or_default("FOOD_DB_UPDATE_MAX_DELAY", DEFAULT_MAX_DELAY, float)
+    parser.add_argument(
+        "--max-delay",
+        type=float,
+        default=default_max_delay,
+        help=(
+            "Maximum delay between retries in seconds. "
+            "Can be set via FOOD_DB_UPDATE_MAX_DELAY environment variable."
+        ),
+    )
+
+    # Parse jitter_factor
+    default_jitter_factor = get_env_or_default(
+        "FOOD_DB_UPDATE_JITTER_FACTOR", DEFAULT_JITTER_FACTOR, float
+    )
+    parser.add_argument(
+        "--jitter-factor",
+        type=float,
+        default=default_jitter_factor,
+        help=(
+            "Jitter factor (0.0 to 1.0) for randomization. "
+            "Can be set via FOOD_DB_UPDATE_JITTER_FACTOR environment variable."
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def main() -> None:
     """Main scheduler function.
 
@@ -434,8 +634,30 @@ def main() -> None:
     """
     logger.info("Food database update scheduler started")
 
-    # Update the food database
-    success = update_food_database()
+    # Parse command-line arguments
+    args = parse_args()
+
+    # Log configuration being used
+    logger.info(
+        f"Configuration: max_retries={args.max_retries}, "
+        f"timeout_per_attempt={args.timeout_per_attempt}s, "
+        f"overall_timeout={args.overall_timeout}s, "
+        f"initial_delay={args.initial_delay}s, "
+        f"backoff_multiplier={args.backoff_multiplier}, "
+        f"max_delay={args.max_delay}s, "
+        f"jitter_factor={args.jitter_factor}"
+    )
+
+    # Update the food database with parsed arguments
+    success = update_food_database(
+        max_retries=args.max_retries,
+        initial_delay=args.initial_delay,
+        backoff_multiplier=args.backoff_multiplier,
+        max_delay=args.max_delay,
+        jitter_factor=args.jitter_factor,
+        timeout_per_attempt=args.timeout_per_attempt,
+        overall_timeout=args.overall_timeout,
+    )
 
     if success:
         logger.info("Food database update scheduler completed successfully")

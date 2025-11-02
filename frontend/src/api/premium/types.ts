@@ -54,7 +54,6 @@ export type Portion = {
   fat_thumbs: number;
   carb_cups: number;
   veg_cups: number;
-  meals_per_day: number;
 };
 
 export type LayoutItem = {
@@ -93,6 +92,7 @@ export type PlateApiResponse = {
   layout: LayoutItem[];
   meals: Meal[];
   day_micros?: Record<string, number>;
+  meals_per_day: number; // Metadata: number of meals per day
 };
 
 // OpenAPI generated types
