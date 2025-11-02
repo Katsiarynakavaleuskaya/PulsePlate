@@ -136,15 +136,17 @@ jobs:
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.filter.outputs.code == 'true'
         uses: actions/upload-artifact@6f51ac03b9356f8fe4d9a59af4d8637605335674
         with:
           name: pr-coverage-xml
           path: coverage.xml
+          if-no-files-found: ignore
 
       - name: JUnit report upload
-        if: always()
+        if: always() && (github.event_name != 'pull_request' || steps.filter.outputs.code == 'true')
         uses: actions/upload-artifact@6f51ac03b9356f8fe4d9a59af4d8637605335674
         with:
           name: junit-report
           path: junit.xml
+          if-no-files-found: ignore

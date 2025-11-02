@@ -251,8 +251,6 @@ def update_food_database(
     EN: Update food database with retry logic and operational resiliency.
 
     Args:
-
-    Args:
         max_retries: Maximum number of retry attempts (total attempts = max_retries + 1).
         initial_delay: Initial delay before first retry in seconds.
         backoff_multiplier: Multiplier for exponential backoff.

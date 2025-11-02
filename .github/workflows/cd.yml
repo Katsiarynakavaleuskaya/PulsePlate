@@ -29,8 +29,8 @@ jobs:
       # Staging domain (subdomain or free domain)
       # Options: staging.yourdomain.com, pulseplate-staging.duckdns.org, or free Freenom domain
       # Set STAGING_DOMAIN secret in GitHub Environment (e.g., "pulseplate-staging.duckdns.org")
-      # If secret not set, defaults to placeholder URL
-      url: ${{ secrets.STAGING_DOMAIN != '' && format('https://{0}', secrets.STAGING_DOMAIN) || 'https://staging.pulseplate.app' }}
+      # Note: environment.url cannot use secrets context, using static fallback
+      url: https://staging.pulseplate.app
     concurrency:
       group: cd-build-${{ github.ref_name }}
       cancel-in-progress: true
@@ -95,11 +95,15 @@ jobs:
       # For free tier: use Freenom (.tk, .ml, .ga, .cf) or DuckDNS subdomain
       # For budget: Namecheap .xyz ($1-2/year) or Cloudflare Registrar ($1.03/year for .xyz)
       # Set PRODUCTION_DOMAIN secret (e.g., "pulseplate.xyz")
-      url: ${{ secrets.PRODUCTION_DOMAIN != '' && format('https://{0}', secrets.PRODUCTION_DOMAIN) || 'https://pulseplate.app' }}
+      # Note: environment.url cannot use secrets context, using static fallback
+      url: https://pulseplate.app
     concurrency:
       group: cd-build-production-${{ github.ref_name }}
       cancel-in-progress: true
     steps:
+      - name: Display production domain info
+        run: echo "Deploying to ${{ secrets.PRODUCTION_DOMAIN || 'default production domain' }}"
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 

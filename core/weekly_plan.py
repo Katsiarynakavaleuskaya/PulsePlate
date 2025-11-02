@@ -83,7 +83,7 @@ def generate_weekly_plan(
         weekly_coverage[micro] = sum(coverages) / len(coverages)
 
     # Generate shopping list (simple implementation)
-    shopping_list: Dict[str, int] = {}
+    shopping_list: Dict[str, float] = {}
     for day in days:
         for meal in day["meals"]:
             if "ingredients" in meal:

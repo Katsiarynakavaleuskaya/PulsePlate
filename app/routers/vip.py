@@ -1144,7 +1144,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/recipes/templates")
-def get_recipe_templates(
+async def get_recipe_templates(
     synthesizer=Depends(get_recipe_synth_dep),
 ) -> Dict[str, Any]:
     """
