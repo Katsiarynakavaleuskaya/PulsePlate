@@ -80,17 +80,18 @@ def run_coverage_analysis() -> bool:
 
     # Parse coverage percentage from output
     coverage_pct = None
-    # Look for "TOTAL ... XX%" pattern in the output
-    coverage_pattern = r"TOTAL\s+\d+\s+\d+\s+\d+\s+(\d+)%"
+    # Look for "TOTAL ... XX%" or "TOTAL ... XX.X%" pattern in the output
+    # More robust regex that handles integer or decimal percentages
+    coverage_pattern = r"TOTAL\s+\d+\s+\d+\s+(?:\d+\s+)?(\d+(?:\.\d+)?)%"
     match = re.search(coverage_pattern, result.stdout)
     if match:
-        coverage_pct = int(match.group(1))
+        coverage_pct = float(match.group(1))
     else:
         # Try alternative pattern if the first one doesn't match
-        alt_pattern = r"TOTAL\s+.*?(\d+)%"
+        alt_pattern = r"TOTAL\s+.*?(\d+(?:\.\d+)?)%"
         alt_match = re.search(alt_pattern, result.stdout)
         if alt_match:
-            coverage_pct = int(alt_match.group(1))
+            coverage_pct = float(alt_match.group(1))
 
     if coverage_pct is not None:
         if coverage_pct < 97:
@@ -100,9 +101,10 @@ def run_coverage_analysis() -> bool:
             print(f"\n✅ Coverage is {coverage_pct}%, meeting the required 97% threshold.")
             return True
     else:
-        # If we can't parse coverage, assume success for now but warn
-        print("\n⚠️ Could not parse coverage percentage from output. Assuming success.")
-        return True
+        # If we can't parse coverage, fail to ensure coverage gate is not bypassed
+        print("\n❌ Could not parse coverage percentage from pytest output.")
+        print("Please check the output format or update the regex patterns.")
+        return False
 
 
 if __name__ == "__main__":

@@ -160,7 +160,8 @@ class EngineCompat:
                     raise
                 except Exception as unexpected:  # noqa: BLE001 - catch unexpected errors
                     logger.warning(
-                        "Commit failed with unexpected error; continuing: %s", unexpected
+                        "Commit failed with unexpected error; rolling back and re-raising: %s",
+                        unexpected,
                     )
                     self._safe_rollback(conn)
                     # Re-raise unexpected errors to ensure callers are aware

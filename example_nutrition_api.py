@@ -120,8 +120,8 @@ def call_premium_bmr_api(
         Validated BMRResponse model instance with BMR, TDEE, and recommendations
 
     Note:
-        The returned model supports both attribute access (result.bmr) and
-        dict-style access (result['bmr']) for backward compatibility.
+        The returned BMRResponse is a Pydantic BaseModel. Use attribute access
+        (result.bmr, result.tdee, result.activity_level) instead of dict-style indexing.
 
     Raises:
         requests.exceptions.Timeout: If all retry attempts timeout
@@ -253,12 +253,12 @@ def main():
             lang="en",
         )
 
-        print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
-        print(f"BMR (Harris): {result['bmr']['harris']} kcal/day")
-        print(f"TDEE (Mifflin): {result['tdee']['mifflin']} kcal/day")
-        print(f"Activity: {result['activity_level']}")
-        print(f"Maintenance calories: {result['recommended_intake']['maintenance']} kcal/day")
-        print(f"Weight loss calories: {result['recommended_intake']['weight_loss']} kcal/day")
+        print(f"BMR (Mifflin): {result.bmr['mifflin']} kcal/day")
+        print(f"BMR (Harris): {result.bmr['harris']} kcal/day")
+        print(f"TDEE (Mifflin): {result.tdee['mifflin']} kcal/day")
+        print(f"Activity: {result.activity_level}")
+        print(f"Maintenance calories: {result.recommended_intake['maintenance']} kcal/day")
+        print(f"Weight loss calories: {result.recommended_intake['weight_loss']} kcal/day")
         print()
 
     except Exception as e:
@@ -279,11 +279,11 @@ def main():
             lang="en",
         )
 
-        print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
-        print(f"BMR (Harris): {result['bmr']['harris']} kcal/day")
-        print(f"BMR (Katch): {result['bmr']['katch']} kcal/day")
-        print(f"TDEE (Katch): {result['tdee']['katch']} kcal/day")
-        print(f"Activity: {result['activity_level']}")
+        print(f"BMR (Mifflin): {result.bmr['mifflin']} kcal/day")
+        print(f"BMR (Harris): {result.bmr['harris']} kcal/day")
+        print(f"BMR (Katch): {result.bmr['katch']} kcal/day")
+        print(f"TDEE (Katch): {result.tdee['katch']} kcal/day")
+        print(f"Activity: {result.activity_level}")
         print()
 
     except Exception as e:
@@ -303,9 +303,9 @@ def main():
             lang="ru",
         )
 
-        print(f"Описание активности: {result['activity_level']}")
-        print(f"Поддержание веса: {result['recommended_intake']['maintenance']} ккал/день")
-        print(f"Похудение: {result['recommended_intake']['weight_loss']} ккал/день")
+        print(f"Описание активности: {result.activity_level}")
+        print(f"Поддержание веса: {result.recommended_intake['maintenance']} ккал/день")
+        print(f"Похудение: {result.recommended_intake['weight_loss']} ккал/день")
         print()
 
     except Exception as e:
@@ -329,8 +329,8 @@ def main():
         )
 
         print("Request completed within timeout.")
-        print(f"BMR (Mifflin): {result['bmr']['mifflin']} kcal/day")
-        print(f"TDEE (Mifflin): {result['tdee']['mifflin']} kcal/day\n")
+        print(f"BMR (Mifflin): {result.bmr['mifflin']} kcal/day")
+        print(f"TDEE (Mifflin): {result.tdee['mifflin']} kcal/day\n")
 
     except Exception as e:
         # EN: Friendly timeout/error message so users see how to handle it

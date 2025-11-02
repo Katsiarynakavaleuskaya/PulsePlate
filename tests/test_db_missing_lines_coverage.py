@@ -36,17 +36,15 @@ class TestDbMissingLinesCoverage:
             # Set up execute to work normally
             mock_conn.execute.return_value = mock_result
 
-            # Set up commit to raise an exception (lines 62-64)
+            # Set up commit to raise an exception (lines 148-160)
             mock_conn.commit.side_effect = SQLAlchemyError("Commit failed")
 
             # Create EngineCompat instance
             engine_compat = EngineCompat(mock_engine)
 
-            # Execute a statement - should handle commit exception gracefully
-            result = engine_compat.execute("SELECT 1")
-
-            # Should return the result despite commit failure
-            assert result == mock_result
+            # Execute a statement - should re-raise commit exception
+            with pytest.raises(SQLAlchemyError, match="Commit failed"):
+                engine_compat.execute("SELECT 1")
 
             # Verify the methods were called
             mock_engine.connect.assert_called_once()
@@ -115,9 +113,9 @@ class TestDbMissingLinesCoverage:
 
                 engine_compat = EngineCompat(mock_engine)
 
-                # Should handle any exception gracefully (line 63: except Exception)
-                result = engine_compat.execute("SELECT 1")
-                assert result == mock_result
+                # Should re-raise any commit exception (lines 161-165)
+                with pytest.raises(type(exception)):
+                    engine_compat.execute("SELECT 1")
 
         except ImportError:
             pass

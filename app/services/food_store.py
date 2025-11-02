@@ -68,27 +68,70 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
         True if CSV is valid, False otherwise
 
     Raises:
-        csv.Error: In non-production mode if CSV is malformed
+        FileNotFoundError: If the CSV file does not exist
+        csv.Error: In non-production mode if CSV is malformed (re-raised from parser)
+        Exception: In non-production mode for other I/O errors (re-raised)
     """
     # Use Python's csv module to properly detect malformed CSV
+    # Python's csv module is lenient, so we also check quote balance manually
     try:
+        # First, try to parse with csv module to catch most errors
+        # This handles proper CSV formatting including doubled quotes (CSV standard: "" escapes ")
         with open(csv_path, "r", encoding="utf-8") as validation_f:
-            # Try to parse the entire file - csv.reader will raise on malformed quotes
             reader = csv.reader(validation_f)
-            # Read all rows to detect any parsing errors
             list(reader)
+
+        # Try again with DictReader to catch schema/quote errors that reader might miss
+        with open(csv_path, "r", newline="", encoding="utf-8") as validation_f:
+            dict_reader = csv.DictReader(validation_f)
+            list(dict_reader)
+
+        # Additional check: verify quote balance for obvious unclosed quotes
+        # This catches cases where csv module is too lenient (e.g., unclosed quotes at end of line)
+        # We check by counting quotes, accounting for CSV doubled-quote escape sequences
+        with open(csv_path, "r", encoding="utf-8") as validation_f:
+            content = validation_f.read()
+            # Count quotes, treating "" as a single escaped quote (CSV standard)
+            quote_count = 0
+            i = 0
+            while i < len(content):
+                if content[i] == '"':
+                    # Check if this is a doubled quote (CSV escape sequence: "" represents one ")
+                    if i + 1 < len(content) and content[i + 1] == '"':
+                        quote_count += 1  # Doubled quotes count as one quote
+                        i += 2  # Skip both quote characters
+                        continue
+                    quote_count += 1
+                i += 1
+
+        # If odd number of quotes (after accounting for doubled quotes), CSV likely malformed
+        # However, we've already verified it parses correctly above, so this is just a sanity check
+        if quote_count % 2 != 0:
+            error_msg = "Unbalanced quotes in CSV file"
+            if not is_production:
+                raise csv.Error(error_msg)
+            logger.debug(
+                "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
+            )
+            return False
+
         return True
+    except FileNotFoundError:
+        # Let FileNotFoundError propagate to caller
+        raise
     except csv.Error as e:
         # CSV parsing error indicates malformed quotes or structure
         if not is_production:
-            raise csv.Error(f"Malformed CSV file: {e}") from e
+            # Re-raise the original csv.Error (don't wrap it)
+            raise
         # In production, log and return False
         logger.debug("Malformed CSV file %s (production mode, ignoring): %s", csv_path, e)
         return False
     except Exception as e:
         # Other I/O or unexpected errors
         if not is_production:
-            raise csv.Error(f"Error reading CSV file: {e}") from e
+            # Re-raise the original exception (don't wrap in csv.Error)
+            raise
         logger.debug("Error reading CSV file %s (production mode, ignoring): %s", csv_path, e)
         return False
 
