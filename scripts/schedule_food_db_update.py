@@ -137,9 +137,12 @@ class OperationalMetrics:
     def record_failure(self, error: str, return_code: int | None = None) -> None:
         """Record a failure."""
         self.failure_count += 1
-        self.retry_count += 1
         self.last_error = error
         self.last_return_code = return_code
+
+    def record_retry(self) -> None:
+        """Record a retry attempt."""
+        self.retry_count += 1
 
     def record_success(self) -> None:
         """Record success."""
@@ -359,6 +362,7 @@ def update_food_database(
                     logger.info(
                         f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} failed)"
                     )
+                    metrics.record_retry()
                     emit_operational_signal(
                         "retry",
                         metrics,
@@ -400,6 +404,7 @@ def update_food_database(
                         f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} timed out, "
                         f"remaining_budget={remaining_budget:.1f}s)"
                     )
+                    metrics.record_retry()
                     emit_operational_signal(
                         "retry",
                         metrics,
@@ -450,6 +455,7 @@ def update_food_database(
                             f"Retrying after {delay:.2f}s delay "
                             f"(attempt {attempt + 1}/{max_retries + 1} failed with exception)"
                         )
+                        metrics.record_retry()
                         emit_operational_signal(
                             "retry",
                             metrics,

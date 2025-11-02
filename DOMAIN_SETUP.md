@@ -59,7 +59,7 @@
 
 **Secrets для `staging` environment:**
 
-```
+```bash
 STAGING_DOMAIN=pulseplate-staging.duckdns.org
 # Или если используете Freenom:
 # STAGING_DOMAIN=staging-pulseplate.tk
@@ -69,7 +69,7 @@ STAGING_DOMAIN=pulseplate-staging.duckdns.org
 
 **Secrets для `production` environment:**
 
-```
+```bash
 PRODUCTION_DOMAIN=pulseplate.xyz
 # Или если используете .app:
 # PRODUCTION_DOMAIN=pulseplate.app

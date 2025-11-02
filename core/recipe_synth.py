@@ -688,11 +688,13 @@ def synthesize_recipes_for_week(
 
 
 def get_recipe_synthesizer(templates_dir: str = "data/recipe_templates") -> RecipeSynthesizer:
-    """
-    Return a module-level RecipeSynthesizer singleton (patchable in tests).
+    """Return a module-level RecipeSynthesizer singleton (patchable in tests).
 
     Uses double-check locking pattern to ensure thread-safe initialization
     under concurrent FastAPI requests.
+
+    Note: templates_dir is only used on first initialization. Subsequent calls
+    return the cached instance regardless of templates_dir parameter.
 
     Validates that templates_dir parameter is consistent with the existing
     singleton instance if it has already been initialized. Raises ValueError

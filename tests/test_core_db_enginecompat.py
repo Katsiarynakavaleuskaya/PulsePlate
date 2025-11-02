@@ -54,8 +54,9 @@ def test_execute_commits_only_when_in_transaction():
     assert engine.execute("SELECT 1") == "ok"
 
 
-def test_execute_handles_db_errors_on_commit_without_raise():
+def test_execute_handles_db_errors_on_commit_with_re_raise():
     fake_exc = sa_exc.IntegrityError("stmt", {}, Exception("detail"))
     engine = EngineCompat(_FakeEngine(_FakeConn(commit_raises=fake_exc, in_tx=True)))
-    # Legacy behavior: error is logged and rolled back but not raised
-    assert engine.execute("UPDATE t SET a=1") == "ok"
+    # Error is logged, rolled back, and re-raised to notify callers
+    with pytest.raises(sa_exc.IntegrityError):
+        engine.execute("UPDATE t SET a=1")

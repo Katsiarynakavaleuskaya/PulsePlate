@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@1d7c6f60b5dfe11f636e381f8ed5fe695c8ddef0
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -76,7 +76,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@1d7c6f60b5dfe11f636e381f8ed5fe695c8ddef0
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 

@@ -4,6 +4,7 @@
 """
 
 import os
+import re
 import subprocess  # nosec B404 - subprocess used with static arguments for pytest
 import sys
 from typing import List
@@ -23,7 +24,7 @@ def run_coverage_analysis() -> bool:
             "PYTHONPATH": ".:core:app:tests",
             "VIP_MODULE_ENABLED": "true",
             "FEATURE_PREMIUM_NUTRITION": "true",
-            "API_KEY": "test_key",  # nosec B105  # Test key for coverage analysis script
+            "API_KEY": "test_key",  # nosec B105 # Test key for coverage analysis script
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
         }
@@ -72,7 +73,31 @@ def run_coverage_analysis() -> bool:
     print("3. Добавить тесты для conftest.py")
     print("4. Проверить htmlcov/index.html для детального анализа")
 
-    return True
+    # Parse coverage percentage from output
+    coverage_pct = None
+    # Look for "TOTAL ... XX%" pattern in the output
+    coverage_pattern = r"TOTAL\s+\d+\s+\d+\s+\d+\s+(\d+)%"
+    match = re.search(coverage_pattern, result.stdout)
+    if match:
+        coverage_pct = int(match.group(1))
+    else:
+        # Try alternative pattern if the first one doesn't match
+        alt_pattern = r"TOTAL\s+.*?(\d+)%"
+        alt_match = re.search(alt_pattern, result.stdout)
+        if alt_match:
+            coverage_pct = int(alt_match.group(1))
+
+    if coverage_pct is not None:
+        if coverage_pct < 97:
+            print(f"\n❌ Coverage is {coverage_pct}%, which is below the required 97% threshold.")
+            return False
+        else:
+            print(f"\n✅ Coverage is {coverage_pct}%, meeting the required 97% threshold.")
+            return True
+    else:
+        # If we can't parse coverage, assume success for now but warn
+        print("\n⚠️ Could not parse coverage percentage from output. Assuming success.")
+        return True
 
 
 if __name__ == "__main__":

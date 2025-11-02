@@ -37,7 +37,7 @@
 
 **Rule name:** `API Rate Limit`
 **Rule expression:**
-```
+```text
 (http.request.uri.path contains "/api/v1/admin/" or http.request.uri.path contains "/api/v1/premium/")
 ```
 

@@ -1,6 +1,7 @@
 version: 1
-python_version: "3.13"
-exclude:
+rule_settings:
+  python_version: "3.13"
+ignore:
   - node_modules/**
   - releases/**
   - htmlcov/**
@@ -11,8 +12,3 @@ exclude:
   - tests_strict/**
   - "**/*.ipynb"
   - app.py
-include:
-  - app/**
-  - core/**
-  - scripts/**
-  - providers/**

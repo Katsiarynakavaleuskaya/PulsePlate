@@ -70,7 +70,7 @@
 
 ### Для первого деплоя:
 
-```
+```text
 1. DEPLOYMENT_FULL_GUIDE.md (главная инструкция)
    ↓
 2. DOMAIN_SETUP.md (регистрация доменов)
@@ -86,7 +86,7 @@
 
 ### Для быстрого старта (опытные):
 
-```
+```text
 1. SOLO_DEPLOYMENT_SETUP.md (обзор)
    ↓
 2. GITHUB_SECRETS_SETUP.md (секреты)

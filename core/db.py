@@ -156,13 +156,15 @@ class EngineCompat:
                     else:
                         logger.error("Commit failed (database error): %s", safe_message)
                     self._safe_rollback(conn)
-                    # Intentionally do not re-raise here to preserve legacy behavior expected by tests
-                except Exception as unexpected:  # noqa: BLE001 - legacy behavior: log and continue
+                    # Re-raise to ensure callers are aware of the failure
+                    raise
+                except Exception as unexpected:  # noqa: BLE001 - catch unexpected errors
                     logger.warning(
                         "Commit failed with unexpected error; continuing: %s", unexpected
                     )
                     self._safe_rollback(conn)
-                    # Preserve legacy behavior: do not re-raise unexpected commit errors
+                    # Re-raise unexpected errors to ensure callers are aware
+                    raise
             return result
 
 
