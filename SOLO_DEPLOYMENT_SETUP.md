@@ -11,7 +11,7 @@
 - `production` (для tags v*)
 
 **Secrets для `staging`:**
-```
+```bash
 STAGING_DOMAIN=pulseplate-staging.duckdns.org
 SSH_HOST_STAGING=ваш_ip_или_домен
 SSH_USER=ubuntu
@@ -20,7 +20,7 @@ GHCR_READ_TOKEN=github_pat_token
 ```
 
 **Secrets для `production`:**
-```
+```bash
 PRODUCTION_DOMAIN=pulseplate.app
 SSH_HOST_PRODUCTION=ваш_ip_или_домен
 SSH_USER=ubuntu
@@ -41,7 +41,7 @@ cat ~/.ssh/pulseplate_deploy
 
 ### 3. GitHub PAT Token
 
-1. https://github.com/settings/tokens → Generate new token (classic)
+1. [https://github.com/settings/tokens](https://github.com/settings/tokens) → Generate new token (classic)
 2. Отметьте только: `read:packages`
 3. Скопируйте токен → добавьте как `GHCR_READ_TOKEN` в оба environment
 

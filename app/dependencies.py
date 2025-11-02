@@ -1,17 +1,18 @@
 import os
-from functools import lru_cache
 
-from core.recipe_synth import RecipeSynthesizer
+from core.recipe_synth import get_recipe_synthesizer as get_synth
 
 # Read environment variable once at module load
 TEMPLATE_DIR = os.getenv("RECIPE_TEMPLATES_DIR", "data/recipe_templates")
 
 
-@lru_cache(maxsize=1)
-def get_recipe_synthesizer() -> RecipeSynthesizer:
+def get_recipe_synthesizer():
     """FastAPI-friendly provider for RecipeSynthesizer.
 
-    RU: Кэшируемый провайдер для инъекции зависимости в FastAPI.
-    EN: Cached provider for dependency injection in FastAPI.
+    RU: Делегирует в модуль-level singleton для консистентности состояния.
+    EN: Delegates to module-level singleton for consistent state.
+
+    Returns:
+        RecipeSynthesizer: Singleton instance from core.recipe_synth
     """
-    return RecipeSynthesizer(templates_dir=TEMPLATE_DIR)
+    return get_synth(templates_dir=TEMPLATE_DIR)

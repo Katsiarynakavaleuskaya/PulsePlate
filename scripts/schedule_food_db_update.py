@@ -12,7 +12,7 @@ import random
 import subprocess  # nosec B404 - controlled execution of internal script
 import sys
 import time
-from typing import Callable
+from typing import Callable, Type
 
 # Add project root to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -515,15 +515,13 @@ def parse_args() -> argparse.Namespace:
 
     # Helper function to get value from env or use default
     def get_env_or_default(
-        env_var: str, default: int | float, type_func: type[int] | type[float] = int
+        env_var: str, default: int | float, type_func: Type[int] | Type[float] = int
     ) -> int | float:
         """Get value from environment variable or return default."""
         env_value = os.getenv(env_var)
         if env_value is not None:
             try:
-                converted = type_func(env_value)
-                # Type checker can't infer the exact type, but we know it's int or float
-                return converted if isinstance(converted, (int, float)) else default
+                return type_func(env_value)
             except (ValueError, TypeError):
                 logger.warning(
                     f"Invalid value for environment variable {env_var}: {env_value}. "

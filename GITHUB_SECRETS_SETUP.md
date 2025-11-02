@@ -4,7 +4,7 @@
 
 ### Шаг 1: Создание Environments
 
-1. Откройте репозиторий на GitHub: `https://github.com/Katsiarynakavaleuskaya/PulsePlate`
+1. Откройте репозиторий на GitHub: [https://github.com/Katsiarynakavaleuskaya/PulsePlate](https://github.com/Katsiarynakavaleuskaya/PulsePlate)
 2. Перейдите: **Settings** → **Environments** (в левом меню)
 3. Создайте два environment:
    - `staging` (для main branch)
@@ -15,9 +15,9 @@
 ### 1. Cloudflare Registrar (Production домен ~$7/год)
 
 **Ссылки:**
-- Регистрация: https://dash.cloudflare.com/sign-up
-- Регистрация домена: https://dash.cloudflare.com/registrar/search
-- Документация: https://developers.cloudflare.com/registrar/get-started/register-domain/
+- Регистрация: [https://dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up)
+- Регистрация домена: [https://dash.cloudflare.com/registrar/search](https://dash.cloudflare.com/registrar/search)
+- Документация: [https://developers.cloudflare.com/registrar/get-started/register-domain/](https://developers.cloudflare.com/registrar/get-started/register-domain/)
 
 **Шаги:**
 1. Зарегистрируйтесь/войдите на Cloudflare
@@ -29,8 +29,8 @@
 ### 2. DuckDNS (Staging домен - бесплатно)
 
 **Ссылки:**
-- Главная: https://www.duckdns.org
-- Вход через GitHub: https://www.duckdns.org/login
+- Главная: [https://www.duckdns.org](https://www.duckdns.org)
+- Вход через GitHub: [https://www.duckdns.org/login](https://www.duckdns.org/login)
 
 **Шаги:**
 1. Нажмите **Sign in** и войдите через GitHub (или другой OAuth провайдер)
@@ -43,9 +43,9 @@
 ### 3. TON Cloud / Pavel Durov Platform (будущая платформа)
 
 **Полезные ссылки:**
-- TON Blockchain: https://ton.org
-- TON Developer Docs: https://docs.ton.org
-- TON Cloud (если доступен): https://cloud.ton.org
+- TON Blockchain: [https://ton.org](https://ton.org)
+- TON Developer Docs: [https://docs.ton.org](https://docs.ton.org)
+- TON Cloud (если доступен): [https://cloud.ton.org](https://cloud.ton.org)
 
 **Примечание:** На момент 2025 года Павел Дуров анонсировал развитие инфраструктуры TON для децентрализованных приложений. Для веб-приложений (FastAPI) эта платформа может быть доступна позже. Следите за обновлениями на официальных каналах TON.
 
@@ -119,7 +119,7 @@ Get-Content ~/.ssh/pulseplate_deploy
 
 ### Создание токена для GHCR (GitHub Container Registry)
 
-1. Перейдите: https://github.com/settings/tokens?type=beta
+1. Перейдите: [https://github.com/settings/tokens?type=beta](https://github.com/settings/tokens?type=beta)
 2. Нажмите **Generate new token** → **Generate new token (classic)**
 3. Настройки:
    - **Note**: `PulsePlate GHCR Read Token`
@@ -136,7 +136,7 @@ Get-Content ~/.ssh/pulseplate_deploy
 1. GitHub → **Settings** → **Environments** → нажмите `staging` (или создайте новый)
 2. В разделе **Environment secrets** нажмите **Add secret**
 3. Добавьте каждый секрет:
-   ```
+   ```text
    Name: STAGING_DOMAIN
    Value: pulseplate-staging.duckdns.org
    ```
@@ -147,7 +147,7 @@ Get-Content ~/.ssh/pulseplate_deploy
 1. GitHub → **Settings** → **Environments** → нажмите `production` (или создайте новый)
 2. В разделе **Environment secrets** нажмите **Add secret**
 3. Добавьте каждый секрет:
-   ```
+   ```text
    Name: PRODUCTION_DOMAIN
    Value: pulseplate.app
    ```
@@ -218,7 +218,7 @@ Get-Content ~/.ssh/pulseplate_deploy
 
 ## 📚 Дополнительные ресурсы
 
-- GitHub Environments: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
-- GitHub Secrets: https://docs.github.com/en/actions/security-guides/encrypted-secrets
-- Cloudflare Registrar: https://developers.cloudflare.com/registrar/
-- DuckDNS Setup: https://www.duckdns.org/install.jsp
+- GitHub Environments: [https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
+- GitHub Secrets: [https://docs.github.com/en/actions/security-guides/encrypted-secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets)
+- Cloudflare Registrar: [https://developers.cloudflare.com/registrar/](https://developers.cloudflare.com/registrar/)
+- DuckDNS Setup: [https://www.duckdns.org/install.jsp](https://www.duckdns.org/install.jsp)

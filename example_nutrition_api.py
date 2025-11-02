@@ -283,7 +283,7 @@ def main():
         print(f"BMR (Harris): {result['bmr']['harris']} kcal/day")
         print(f"BMR (Katch): {result['bmr']['katch']} kcal/day")
         print(f"TDEE (Katch): {result['tdee']['katch']} kcal/day")
-        print(f"Activity: {result['activity_description']}")
+        print(f"Activity: {result['activity_level']}")
         print()
 
     except Exception as e:

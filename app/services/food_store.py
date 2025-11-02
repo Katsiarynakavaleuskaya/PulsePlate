@@ -55,34 +55,42 @@ def _safe_float(value: Any) -> float:
 
 def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
     """
-    Validate CSV file for balanced quotes.
+    Validate CSV file for balanced quotes using proper parsing.
 
-    RU: Проверяет CSV файл на сбалансированные кавычки.
-    EN: Validates CSV file for balanced quotes.
+    RU: Проверяет CSV файл на сбалансированные кавычки используя парсер.
+    EN: Validates CSV file for balanced quotes using proper parser.
 
     Args:
         csv_path: Path to the CSV file to validate
         is_production: Whether running in production mode
 
     Returns:
-        True if quotes are balanced, False otherwise
+        True if CSV is valid, False otherwise
 
     Raises:
-        csv.Error: In non-production mode if quotes are unbalanced
+        csv.Error: In non-production mode if CSV is malformed
     """
-    # Python's csv module is lenient, so we check manually for common issues
-    with open(csv_path, "r", encoding="utf-8") as validation_f:
-        content = validation_f.read()
-        # Check for unbalanced quotes (simple heuristic)
-        quote_count = content.count('"')
-        if quote_count % 2 != 0:
-            # Unbalanced quotes - this is a parse error
-            if not is_production:
-                raise csv.Error("Unbalanced quotes in CSV file")
-            # In production, log and return False
-            logger.debug("Unbalanced quotes in CSV file %s (production mode, ignoring)", csv_path)
-            return False
-    return True
+    # Use Python's csv module to properly detect malformed CSV
+    try:
+        with open(csv_path, "r", encoding="utf-8") as validation_f:
+            # Try to parse the entire file - csv.reader will raise on malformed quotes
+            reader = csv.reader(validation_f)
+            # Read all rows to detect any parsing errors
+            list(reader)
+        return True
+    except csv.Error as e:
+        # CSV parsing error indicates malformed quotes or structure
+        if not is_production:
+            raise csv.Error(f"Malformed CSV file: {e}") from e
+        # In production, log and return False
+        logger.debug("Malformed CSV file %s (production mode, ignoring): %s", csv_path, e)
+        return False
+    except Exception as e:
+        # Other I/O or unexpected errors
+        if not is_production:
+            raise csv.Error(f"Error reading CSV file: {e}") from e
+        logger.debug("Error reading CSV file %s (production mode, ignoring): %s", csv_path, e)
+        return False
 
 
 def _parse_alias_canonical_schema(reader: csv.DictReader) -> Dict[str, List[str]]:

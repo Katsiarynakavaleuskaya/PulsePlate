@@ -32,20 +32,25 @@ def run_coverage_analysis() -> bool:
 
     # Запускаем pytest с детальным отчетом покрытия
 
-    result = subprocess.run(  # nosec B603 - command uses fixed arguments, no untrusted input
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--cov=.",
-            "--cov-report=term-missing",
-            "--cov-report=html",
-            "-q",
-            "--maxfail=5",
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(  # nosec B603
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--cov=.",
+                "--cov-report=term-missing",
+                "--cov-report=html",
+                "-q",
+                "--maxfail=5",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10 minute timeout for test execution
+        )
+    except subprocess.TimeoutExpired:
+        print("❌ pytest execution timed out after 10 minutes")
+        return False
 
     if result.returncode != 0:
         print(f"❌ pytest execution failed with return code {result.returncode}")

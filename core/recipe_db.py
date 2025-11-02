@@ -38,7 +38,8 @@ def parse_recipe_db(
 
     Args:
         csv_path: Path to the recipe database CSV file
-        food_db: Food database for nutrient calculations (will be loaded if None)
+        food_db: Food database for nutrient calculations. If None, defaults to empty dict
+                 (nutrient calculations via calculate_recipe_nutrients will return zeros)
 
     Returns:
         Dictionary mapping recipe names to Recipe objects
