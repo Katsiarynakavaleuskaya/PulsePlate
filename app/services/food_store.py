@@ -117,7 +117,7 @@ def _parse_alias_canonical_schema(reader: csv.DictReader) -> Dict[str, List[str]
     return canonical_to_aliases
 
 
-def _parse_primary_aliases_schema(reader: csv.DictReader) -> Dict[str, List[str]]:
+def _parse_primary_aliases_schema(reader: csv.reader) -> Dict[str, List[str]]:  # type: ignore[valid-type]
     """
     Parse primary/aliases schema CSV format.
 
