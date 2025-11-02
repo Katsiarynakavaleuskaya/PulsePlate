@@ -7,12 +7,14 @@ EN: Food database update scheduler.
 
 import argparse
 import logging
+import math
 import os
 import random
 import subprocess  # nosec B404 - controlled execution of internal script
 import sys
 import time
-from typing import Callable, Type
+from dataclasses import dataclass
+from typing import Callable, TypeVar
 
 # Add project root to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,12 +24,10 @@ sys.path.insert(0, project_root)
 # Configure logging
 # Ensure logs directory exists before configuring file handler
 logs_dir_path = os.path.join(project_root, "logs")
-logs_dir: str | None = None
 logs_dir_created = False
 
 try:
     os.makedirs(logs_dir_path, exist_ok=True)
-    logs_dir = logs_dir_path
     logs_dir_created = True
 except Exception as e:
     print(
@@ -38,9 +38,9 @@ except Exception as e:
 
 # Configure handlers - only add FileHandler if logs directory was created
 handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-if logs_dir_created and logs_dir:
+if logs_dir_created:
     try:
-        log_file_path = os.path.join(logs_dir, "food_db_update.log")
+        log_file_path = os.path.join(logs_dir_path, "food_db_update.log")
         handlers.append(logging.FileHandler(log_file_path))
     except Exception as e:
         print(
@@ -56,6 +56,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
+
+def _get_env_value(env_var: str, default: T, cast_func: Callable[[str], T]) -> T:
+    """Get value from environment variable with type casting or return default.
+
+    Generic helper function for parsing environment variables with type conversion.
+    Attempts to cast the environment variable value using the provided cast function.
+    If the value is missing or casting fails, returns the default value.
+
+    Args:
+        env_var: Environment variable name.
+        default: Default value if env var is not set or invalid.
+        cast_func: Function to cast the string value (e.g., int, float).
+
+    Returns:
+        Casted value from environment variable or default.
+    """
+    env_value = os.getenv(env_var)
+    if env_value is not None:
+        try:
+            return cast_func(env_value)
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid value for environment variable {env_var}: {env_value}. "
+                f"Using default: {default}"
+            )
+    return default
+
 
 def _get_env_int(env_var: str, default: int) -> int:
     """Get integer value from environment variable or return default.
@@ -67,16 +96,7 @@ def _get_env_int(env_var: str, default: int) -> int:
     Returns:
         Integer value from environment variable or default.
     """
-    env_value = os.getenv(env_var)
-    if env_value is not None:
-        try:
-            return int(env_value)
-        except (ValueError, TypeError):
-            logger.warning(
-                f"Invalid value for environment variable {env_var}: {env_value}. "
-                f"Using default: {default}"
-            )
-    return default
+    return _get_env_value(env_var, default, int)
 
 
 def _get_env_float(env_var: str, default: float) -> float:
@@ -89,16 +109,7 @@ def _get_env_float(env_var: str, default: float) -> float:
     Returns:
         Float value from environment variable or default.
     """
-    env_value = os.getenv(env_var)
-    if env_value is not None:
-        try:
-            return float(env_value)
-        except (ValueError, TypeError):
-            logger.warning(
-                f"Invalid value for environment variable {env_var}: {env_value}. "
-                f"Using default: {default}"
-            )
-    return default
+    return _get_env_value(env_var, default, float)
 
 
 # Configuration constants (configurable via environment variables)
@@ -115,6 +126,7 @@ DEFAULT_OVERALL_TIMEOUT = _get_env_float(
 )  # 20 minutes total budget
 
 
+@dataclass
 class OperationalMetrics:
     """Operational metrics tracker for retry operations.
 
@@ -122,13 +134,11 @@ class OperationalMetrics:
     EN: Operational metrics tracker for retry operations.
     """
 
-    def __init__(self) -> None:
-        """Initialize metrics."""
-        self.failure_count = 0
-        self.retry_count = 0
-        self.total_attempts = 0
-        self.last_error: str | None = None
-        self.last_return_code: int | None = None
+    failure_count: int = 0
+    retry_count: int = 0
+    total_attempts: int = 0
+    last_error: str | None = None
+    last_return_code: int | None = None
 
     def record_attempt(self) -> None:
         """Record an attempt."""
@@ -179,19 +189,67 @@ def calculate_backoff_delay(
 
     Returns:
         Delay in seconds.
-    """
-    # Exponential backoff: initial_delay * (multiplier ^ attempt)
-    delay = initial_delay * (multiplier**attempt)
 
-    # Cap at max_delay
+    Raises:
+        ValueError: If input parameters are invalid.
+        OverflowError: If the computed delay would overflow (should be caught internally).
+    """
+    # Input validation
+    if attempt < 0:
+        raise ValueError(f"attempt must be non-negative, got {attempt}")
+    if initial_delay < 0:
+        raise ValueError(f"initial_delay must be non-negative, got {initial_delay}")
+    if max_delay < 0:
+        raise ValueError(f"max_delay must be non-negative, got {max_delay}")
+    if multiplier <= 0:
+        raise ValueError(f"multiplier must be > 0, got {multiplier}")
+    if not (0.0 <= jitter_factor <= 1.0):
+        raise ValueError(f"jitter_factor must be between 0.0 and 1.0, got {jitter_factor}")
+
+    # Ensure max_delay >= initial_delay
+    if max_delay < initial_delay:
+        max_delay = initial_delay
+
+    # Handle degenerate multiplier == 0 (should be caught by validation above, but double-check)
+    if multiplier == 0:
+        # Treat as special case: attempt == 0 returns initial_delay, else 0
+        delay = initial_delay if attempt == 0 else 0.0
+    else:
+        # Compute exponential safely with overflow protection
+        try:
+            # Calculate safe cap before powering to avoid overflow
+            # If multiplier^attempt would exceed max_allowed, cap at max_delay directly
+            if initial_delay > 0:
+                max_allowed_power = max_delay / initial_delay
+                # Avoid taking log of 0 or negative, and handle very large values
+                if multiplier > 1 and max_allowed_power > 0:
+                    max_safe_attempt = math.log(max_allowed_power) / math.log(multiplier)
+                    if attempt > max_safe_attempt:
+                        delay = max_delay
+                    else:
+                        delay = initial_delay * math.pow(multiplier, attempt)
+                elif multiplier < 1:
+                    # For multiplier < 1, values decrease, so no overflow risk
+                    delay = initial_delay * math.pow(multiplier, attempt)
+                else:
+                    # multiplier == 1, so delay is constant
+                    delay = initial_delay
+            else:
+                # initial_delay is 0, so delay is 0
+                delay = 0.0
+        except OverflowError:
+            # If overflow occurs, cap at max_delay
+            delay = max_delay
+
+    # Cap at max_delay (safety check)
     delay = min(delay, max_delay)
 
     # Add jitter: random value between -jitter_factor and +jitter_factor
-    jitter = delay * jitter_factor * (2 * random.random() - 1)  # nosec B311 - not used for crypto
+    jitter = delay * jitter_factor * (2 * random.random() - 1)  # nosec B311
     delay_with_jitter = delay + jitter
 
-    # Ensure non-negative
-    return max(0.0, delay_with_jitter)
+    # Ensure non-negative and clamp between 0.0 and max_delay
+    return max(0.0, min(delay_with_jitter, max_delay))
 
 
 def emit_operational_signal(
@@ -236,6 +294,64 @@ def emit_operational_signal(
             monitoring_hook(signal_type, signal_data)
         except Exception as e:
             logger.warning(f"Monitoring hook failed: {e}", exc_info=True)
+
+
+def _should_retry_and_calculate_delay(
+    attempt: int,
+    max_retries: int,
+    start_time: float,
+    overall_timeout: float,
+    initial_delay: float,
+    backoff_multiplier: float,
+    max_delay: float,
+    jitter_factor: float,
+) -> tuple[bool, float]:
+    """Determine if retry should occur and calculate delay.
+
+    RU: Определить, должна ли произойти повторная попытка, и вычислить задержку.
+    EN: Determine if retry should occur and calculate delay.
+
+    Checks elapsed time against overall timeout budget, calculates exponential backoff delay,
+    and adjusts it to fit within remaining budget with a 1s buffer.
+
+    Args:
+        attempt: Current attempt number (0-indexed).
+        max_retries: Maximum number of retry attempts.
+        start_time: Start time of the operation (timestamp).
+        overall_timeout: Overall timeout budget for all attempts in seconds.
+        initial_delay: Initial delay before first retry in seconds.
+        backoff_multiplier: Multiplier for exponential backoff.
+        max_delay: Maximum delay between retries in seconds.
+        jitter_factor: Jitter factor (0.0 to 1.0) for randomization.
+
+    Returns:
+        Tuple of (should_retry: bool, delay: float). If should_retry is False, delay is 0.0.
+    """
+    # Check if we have retries left
+    if attempt >= max_retries:
+        return (False, 0.0)
+
+    # Calculate elapsed time and remaining budget
+    elapsed_time = time.time() - start_time
+    remaining_budget = overall_timeout - elapsed_time
+
+    # Need at least 1s buffer for the retry attempt itself
+    if remaining_budget <= 1.0:
+        return (False, 0.0)
+
+    # Calculate backoff delay
+    delay = calculate_backoff_delay(
+        attempt, initial_delay, backoff_multiplier, max_delay, jitter_factor
+    )
+
+    # Adjust delay to fit within remaining budget (leave 1s buffer)
+    delay = min(delay, remaining_budget - 1.0)
+
+    # If delay becomes non-positive, we cannot retry
+    if delay <= 0:
+        return (False, 0.0)
+
+    return (True, delay)
 
 
 def update_food_database(
@@ -306,7 +422,7 @@ def update_food_database(
 
         try:
             # Run the build script
-            result = subprocess.run(  # nosec B603 - static arguments invoke trusted build script
+            result = subprocess.run(  # nosec B603
                 [sys.executable, build_script],
                 cwd=project_root,
                 capture_output=True,
@@ -354,11 +470,19 @@ def update_food_database(
                 logger.debug(f"Error output: {result.stderr}")
                 metrics.record_failure(error_msg, return_code=result.returncode)
 
-                # Check if we have retries left
-                if attempt < max_retries:
-                    delay = calculate_backoff_delay(
-                        attempt, initial_delay, backoff_multiplier, max_delay, jitter_factor
-                    )
+                # Check if we should retry and calculate delay
+                should_retry, delay = _should_retry_and_calculate_delay(
+                    attempt,
+                    max_retries,
+                    start_time,
+                    overall_timeout,
+                    initial_delay,
+                    backoff_multiplier,
+                    max_delay,
+                    jitter_factor,
+                )
+
+                if should_retry:
                     logger.info(
                         f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} failed)"
                     )
@@ -374,7 +498,7 @@ def update_food_database(
                 else:
                     # Final failure
                     logger.error(
-                        f"Food database update failed after {max_retries + 1} attempts. "
+                        f"Food database update failed after {attempt + 1} attempts. "
                         f"Final return code: {result.returncode}"
                     )
                     emit_operational_signal(
@@ -388,45 +512,51 @@ def update_food_database(
             logger.warning(error_msg)
             metrics.record_failure(error_msg, return_code=None)
 
-            # Check if we have retries left and budget remaining
-            elapsed_time = time.time() - start_time
-            remaining_budget = overall_timeout - elapsed_time
+            # Check if we should retry and calculate delay
+            should_retry, delay = _should_retry_and_calculate_delay(
+                attempt,
+                max_retries,
+                start_time,
+                overall_timeout,
+                initial_delay,
+                backoff_multiplier,
+                max_delay,
+                jitter_factor,
+            )
 
-            if attempt < max_retries and remaining_budget > 0:
-                delay = calculate_backoff_delay(
-                    attempt, initial_delay, backoff_multiplier, max_delay, jitter_factor
+            if should_retry:
+                # Get remaining budget for logging
+                elapsed_time = time.time() - start_time
+                remaining_budget = overall_timeout - elapsed_time
+
+                logger.info(
+                    f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} timed out, "
+                    f"remaining_budget={remaining_budget:.1f}s)"
                 )
-                # Adjust delay to fit within remaining budget
-                delay = min(delay, remaining_budget - 1)  # Leave 1s buffer
-
-                if delay > 0:
-                    logger.info(
-                        f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} timed out, "
-                        f"remaining_budget={remaining_budget:.1f}s)"
-                    )
-                    metrics.record_retry()
-                    emit_operational_signal(
-                        "retry",
-                        metrics,
-                        attempt=attempt,
-                        delay=delay,
-                        monitoring_hook=monitoring_hook,
-                    )
-                    time.sleep(delay)
-                else:
-                    # No time left for retry
-                    logger.error("No time remaining in overall timeout budget for retry")
-                    emit_operational_signal(
-                        "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
-                    )
-                    return False
+                metrics.record_retry()
+                emit_operational_signal(
+                    "retry",
+                    metrics,
+                    attempt=attempt,
+                    delay=delay,
+                    monitoring_hook=monitoring_hook,
+                )
+                time.sleep(delay)
             else:
-                # Final failure - timeout
+                # Final failure - no time for retry or no retries left
                 elapsed_total = time.time() - start_time
-                logger.error(
-                    f"Food database update timed out after {attempt + 1} attempts "
-                    f"(total_time={elapsed_total:.2f}s)"
-                )
+                remaining_budget = overall_timeout - elapsed_total
+
+                if remaining_budget <= 1:
+                    logger.error(
+                        f"Food database update timed out - no time remaining for retry "
+                        f"(remaining_budget={remaining_budget:.1f}s, elapsed={elapsed_total:.2f}s)"
+                    )
+                else:
+                    logger.error(
+                        f"Food database update timed out after {attempt + 1} attempts "
+                        f"(total_time={elapsed_total:.2f}s)"
+                    )
                 emit_operational_signal(
                     "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
                 )
@@ -438,56 +568,47 @@ def update_food_database(
             logger.warning(error_msg, exc_info=True)
             metrics.record_failure(error_msg, return_code=None)
 
-            # Check if we have retries left
-            if attempt < max_retries:
-                elapsed_time = time.time() - start_time
-                remaining_budget = overall_timeout - elapsed_time
+            # Check if we should retry and calculate delay
+            should_retry, delay = _should_retry_and_calculate_delay(
+                attempt,
+                max_retries,
+                start_time,
+                overall_timeout,
+                initial_delay,
+                backoff_multiplier,
+                max_delay,
+                jitter_factor,
+            )
 
-                if remaining_budget > 0:
-                    delay = calculate_backoff_delay(
-                        attempt, initial_delay, backoff_multiplier, max_delay, jitter_factor
-                    )
-                    # Adjust delay to fit within remaining budget
-                    delay = min(delay, remaining_budget - 1)  # Leave 1s buffer
-
-                    if delay > 0:
-                        logger.info(
-                            f"Retrying after {delay:.2f}s delay "
-                            f"(attempt {attempt + 1}/{max_retries + 1} failed with exception)"
-                        )
-                        metrics.record_retry()
-                        emit_operational_signal(
-                            "retry",
-                            metrics,
-                            attempt=attempt,
-                            delay=delay,
-                            monitoring_hook=monitoring_hook,
-                        )
-                        time.sleep(delay)
-                    else:
-                        # No time left for retry
-                        logger.error("No time remaining in overall timeout budget for retry")
-                        emit_operational_signal(
-                            "final_failure",
-                            metrics,
-                            attempt=attempt,
-                            monitoring_hook=monitoring_hook,
-                        )
-                        return False
-                else:
-                    # Budget exhausted
-                    logger.error("Overall timeout budget exhausted")
-                    emit_operational_signal(
-                        "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
-                    )
-                    return False
+            if should_retry:
+                logger.info(
+                    f"Retrying after {delay:.2f}s delay "
+                    f"(attempt {attempt + 1}/{max_retries + 1} failed with exception)"
+                )
+                metrics.record_retry()
+                emit_operational_signal(
+                    "retry",
+                    metrics,
+                    attempt=attempt,
+                    delay=delay,
+                    monitoring_hook=monitoring_hook,
+                )
+                time.sleep(delay)
             else:
                 # Final failure - exception
                 elapsed_total = time.time() - start_time
-                logger.error(
-                    f"Food database update failed after {max_retries + 1} attempts "
-                    f"with exception (total_time={elapsed_total:.2f}s)"
-                )
+                remaining_budget = overall_timeout - elapsed_total
+
+                if remaining_budget <= 1:
+                    logger.error(
+                        f"Food database update failed with exception - no time remaining for retry "
+                        f"(remaining_budget={remaining_budget:.1f}s, elapsed={elapsed_total:.2f}s)"
+                    )
+                else:
+                    logger.error(
+                        f"Food database update failed after {attempt + 1} attempts "
+                        f"with exception (total_time={elapsed_total:.2f}s)"
+                    )
                 emit_operational_signal(
                     "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
                 )
@@ -513,24 +634,8 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # Helper function to get value from env or use default
-    def get_env_or_default(
-        env_var: str, default: int | float, type_func: Type[int] | Type[float] = int
-    ) -> int | float:
-        """Get value from environment variable or return default."""
-        env_value = os.getenv(env_var)
-        if env_value is not None:
-            try:
-                return type_func(env_value)
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"Invalid value for environment variable {env_var}: {env_value}. "
-                    f"Using default: {default}"
-                )
-        return default
-
     # Parse max_retries
-    default_max_retries = get_env_or_default("FOOD_DB_UPDATE_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+    default_max_retries = _get_env_int("FOOD_DB_UPDATE_MAX_RETRIES", DEFAULT_MAX_RETRIES)
     parser.add_argument(
         "--max-retries",
         type=int,
@@ -542,8 +647,8 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse timeout_per_attempt (with --timeout as alias)
-    default_timeout_per_attempt = get_env_or_default(
-        "FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT", DEFAULT_TIMEOUT_PER_ATTEMPT, float
+    default_timeout_per_attempt = _get_env_float(
+        "FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT", DEFAULT_TIMEOUT_PER_ATTEMPT
     )
     parser.add_argument(
         "--timeout-per-attempt",
@@ -558,8 +663,8 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse overall_timeout
-    default_overall_timeout = get_env_or_default(
-        "FOOD_DB_UPDATE_OVERALL_TIMEOUT", DEFAULT_OVERALL_TIMEOUT, float
+    default_overall_timeout = _get_env_float(
+        "FOOD_DB_UPDATE_OVERALL_TIMEOUT", DEFAULT_OVERALL_TIMEOUT
     )
     parser.add_argument(
         "--overall-timeout",
@@ -572,9 +677,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse initial_delay
-    default_initial_delay = get_env_or_default(
-        "FOOD_DB_UPDATE_INITIAL_DELAY", DEFAULT_INITIAL_DELAY, float
-    )
+    default_initial_delay = _get_env_float("FOOD_DB_UPDATE_INITIAL_DELAY", DEFAULT_INITIAL_DELAY)
     parser.add_argument(
         "--initial-delay",
         type=float,
@@ -586,8 +689,8 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse backoff_multiplier
-    default_backoff_multiplier = get_env_or_default(
-        "FOOD_DB_UPDATE_BACKOFF_MULTIPLIER", DEFAULT_BACKOFF_MULTIPLIER, float
+    default_backoff_multiplier = _get_env_float(
+        "FOOD_DB_UPDATE_BACKOFF_MULTIPLIER", DEFAULT_BACKOFF_MULTIPLIER
     )
     parser.add_argument(
         "--backoff-multiplier",
@@ -600,7 +703,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse max_delay
-    default_max_delay = get_env_or_default("FOOD_DB_UPDATE_MAX_DELAY", DEFAULT_MAX_DELAY, float)
+    default_max_delay = _get_env_float("FOOD_DB_UPDATE_MAX_DELAY", DEFAULT_MAX_DELAY)
     parser.add_argument(
         "--max-delay",
         type=float,
@@ -612,9 +715,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse jitter_factor
-    default_jitter_factor = get_env_or_default(
-        "FOOD_DB_UPDATE_JITTER_FACTOR", DEFAULT_JITTER_FACTOR, float
-    )
+    default_jitter_factor = _get_env_float("FOOD_DB_UPDATE_JITTER_FACTOR", DEFAULT_JITTER_FACTOR)
     parser.add_argument(
         "--jitter-factor",
         type=float,

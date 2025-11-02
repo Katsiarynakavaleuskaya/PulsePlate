@@ -4,7 +4,7 @@
 Скрипт для проверки покрытия тестов
 """
 
-import subprocess  # nosec B404 - command list is static and shell is disabled
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -16,7 +16,7 @@ def run_coverage_check():
 
     try:
         # Запуск тестов с покрытием
-        result = subprocess.run(  # nosec B603 - static args, shell=False
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
                 "-m",
@@ -62,7 +62,7 @@ def run_detailed_coverage():
 
     try:
         # Запуск с детальным отчетом
-        result = subprocess.run(  # nosec B603 - static args, shell=False
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
                 "-m",

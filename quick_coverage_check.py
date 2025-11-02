@@ -12,7 +12,7 @@ def main() -> None:
 
     try:
         # Запуск тестов с покрытием
-        result = subprocess.run(  # nosec B603 - controlled command arguments
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
                 "-m",

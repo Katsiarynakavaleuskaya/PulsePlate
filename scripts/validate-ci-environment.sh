@@ -42,6 +42,8 @@ echo "Checking required secrets..."
 # Initialize arrays for tracking warnings and errors
 WARNINGS=()
 ERRORS=()
+# Allow staging deployments to run in "dry mode" without SSH secrets while infrastructure is pending
+ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-true}
 
 # Check GHCR_READ_TOKEN
 if [ -z "$GHCR_READ_TOKEN" ]; then
@@ -68,9 +70,18 @@ validate_required_secret() {
 
     if [ "$current_env" = "$environment_name" ]; then
         if [ -z "${!secret_name}" ]; then
-            echo "::error::$secret_name secret is not configured for $environment_name."
+            if [ "$environment_name" = "staging" ] && [ "$ALLOW_MISSING_STAGING_SSH" = "true" ] && [[ "$secret_name" == SSH_* ]]; then
+                local warn_msg="$secret_name secret is not configured for $environment_name. Skipping validation because staging deploys are disabled."
+                echo "::warning::$warn_msg"
+                WARNINGS+=("$warn_msg")
+                return
+            fi
+
+            local err_msg="$secret_name secret is not configured for $environment_name."
+            echo "::error::$err_msg"
             echo "Please add $secret_name to your repository secrets."
-            exit 1
+            ERRORS+=("$err_msg")
+            return
         fi
         echo "✅ $secret_name is configured for $environment_name."
     else
@@ -84,11 +95,17 @@ validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
 # Check PULSEPLATE_OPENAI (only for production)
 validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
 
-# Check SSH secrets (required for both staging and production)
-validate_required_secret "SSH_USER" "staging" "$ENVIRONMENT"
-validate_required_secret "SSH_KEY" "staging" "$ENVIRONMENT"
-validate_required_secret "SSH_USER" "production" "$ENVIRONMENT"
-validate_required_secret "SSH_KEY" "production" "$ENVIRONMENT"
+# Check SSH secrets (required for both staging and production when deploying)
+# Only validate if DEPLOY_ENABLED is set to true or if we're explicitly deploying
+if [ "${DEPLOY_ENABLED:-false}" = "true" ] || [ -n "${DEPLOY_SSH}" ]; then
+    validate_required_secret "SSH_USER" "staging" "$ENVIRONMENT"
+    validate_required_secret "SSH_KEY" "staging" "$ENVIRONMENT"
+    validate_required_secret "SSH_USER" "production" "$ENVIRONMENT"
+    validate_required_secret "SSH_KEY" "production" "$ENVIRONMENT"
+else
+    echo "ℹ️  SSH secrets not required (DEPLOY_ENABLED is not set to true)."
+    echo "ℹ️  To enable deployment, set DEPLOY_ENABLED=true or configure SSH secrets."
+fi
 
 # Check environment files exist (only for local development)
 if [ "$ENVIRONMENT" = "local" ]; then

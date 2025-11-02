@@ -12,6 +12,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Mapping, Sequence, Tuple
 import threading
+from collections import defaultdict
 
 # Initialize logger early for setup-time logging
 logger = logging.getLogger(__name__)
@@ -73,10 +74,10 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
         Exception: In non-production mode for other I/O errors (re-raised)
     """
     # Use Python's csv module to properly detect malformed CSV
-    # Python's csv module is lenient, so we also check quote balance manually
+    # csv.reader and csv.DictReader catch most parsing errors, but can miss
+    # unclosed quotes at end of lines, so we do a simple quote count check
     try:
-        # First, try to parse with csv module to catch most errors
-        # This handles proper CSV formatting including doubled quotes (CSV standard: "" escapes ")
+        # Try to parse with csv.reader to catch parsing errors
         with open(csv_path, "r", encoding="utf-8") as validation_f:
             reader = csv.reader(validation_f)
             list(reader)
@@ -86,34 +87,19 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
             dict_reader = csv.DictReader(validation_f)
             list(dict_reader)
 
-        # Additional check: verify quote balance for obvious unclosed quotes
-        # This catches cases where csv module is too lenient (e.g., unclosed quotes at end of line)
-        # We check by counting quotes, accounting for CSV doubled-quote escape sequences
+        # Simple sanity check: count quotes to catch obvious unclosed quotes
+        # (csv module is lenient and may parse invalid CSV successfully)
         with open(csv_path, "r", encoding="utf-8") as validation_f:
             content = validation_f.read()
-            # Count quotes, treating "" as a single escaped quote (CSV standard)
-            quote_count = 0
-            i = 0
-            while i < len(content):
-                if content[i] == '"':
-                    # Check if this is a doubled quote (CSV escape sequence: "" represents one ")
-                    if i + 1 < len(content) and content[i + 1] == '"':
-                        quote_count += 1  # Doubled quotes count as one quote
-                        i += 2  # Skip both quote characters
-                        continue
-                    quote_count += 1
-                i += 1
-
-        # If odd number of quotes (after accounting for doubled quotes), CSV likely malformed
-        # However, we've already verified it parses correctly above, so this is just a sanity check
-        if quote_count % 2 != 0:
-            error_msg = "Unbalanced quotes in CSV file"
-            if not is_production:
-                raise csv.Error(error_msg)
-            logger.debug(
-                "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
-            )
-            return False
+            # Simple quote count - odd number indicates likely unclosed quote
+            if content.count('"') % 2 != 0:
+                error_msg = "Unbalanced quotes in CSV file"
+                if not is_production:
+                    raise csv.Error(error_msg)
+                logger.debug(
+                    "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
+                )
+                return False
 
         return True
     except FileNotFoundError:
@@ -275,6 +261,64 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
 _ALIASES_CACHE: Optional[Dict[str, List[str]]] = None
 _ALIASES_LOCK = threading.Lock()
 
+# Missing food counter/collector for periodic summary logging
+_MISSING_FOOD_COUNTER: Dict[str, int] = defaultdict(int)
+_MISSING_FOOD_LOCK = threading.Lock()
+_MISSING_FOOD_REPORT_THRESHOLD = int(os.getenv("MISSING_FOOD_REPORT_THRESHOLD", "100"))
+
+
+def _log_missing_food(food_id: str) -> None:
+    """
+    Track missing food and emit periodic summary logs.
+
+    RU: Отслеживает отсутствующие продукты и периодически выводит сводные логи.
+    EN: Tracks missing food and emits periodic summary logs.
+
+    Args:
+        food_id: The food ID that was not found
+    """
+    global _MISSING_FOOD_COUNTER
+
+    # Log individual missing food at DEBUG level to reduce noise
+    logger.debug("nutrients_for: food not found for food_id=%s; skipping", food_id)
+
+    # Track in counter for periodic summary
+    with _MISSING_FOOD_LOCK:
+        _MISSING_FOOD_COUNTER[food_id] += 1
+        total_missing = sum(_MISSING_FOOD_COUNTER.values())
+
+        # Emit summary log every N missing foods
+        if total_missing >= _MISSING_FOOD_REPORT_THRESHOLD:
+            unique_count = len(_MISSING_FOOD_COUNTER)
+            # Sort by count (descending) for most common first
+            top_missing = sorted(_MISSING_FOOD_COUNTER.items(), key=lambda x: x[1], reverse=True)[
+                :10
+            ]  # Top 10 most frequently missing
+
+            top_str = ", ".join([f"{fid}({count}x)" for fid, count in top_missing])
+            logger.info(
+                "nutrients_for: missing food summary - total=%d occurrences, "
+                "unique=%d food_ids. Top missing: %s. "
+                "Reset counter after reporting.",
+                total_missing,
+                unique_count,
+                top_str,
+            )
+            # Reset counter after reporting
+            _MISSING_FOOD_COUNTER.clear()
+
+
+def reset_missing_food_counter() -> None:
+    """
+    Reset the missing food counter (useful for testing or manual resets).
+
+    RU: Сброс счётчика отсутствующих продуктов (полезно для тестов).
+    EN: Reset the missing food counter (useful for testing or manual resets).
+    """
+    global _MISSING_FOOD_COUNTER
+    with _MISSING_FOOD_LOCK:
+        _MISSING_FOOD_COUNTER.clear()
+
 
 def get_aliases() -> Dict[str, List[str]]:
     """Return merged alias mapping (defaults + CSV), loading lazily on first use."""
@@ -326,7 +370,7 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
     terms = expand_query(query) if query else []
     params: List[Any] = []
     if terms:
-        # nosec B608: The query uses parameter placeholders for all user inputs;
+        # Query uses parameter placeholders for all user inputs;
         # only the number of placeholders is constructed dynamically.
         # Safe but consider phrase/prefix search (e.g., "term*" for prefix matching)
         # for better FTS behavior in future enhancements.
@@ -473,7 +517,7 @@ def nutrients_for(ings: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
 
         food = get_food(food_id)
         if not food:
-            logger.info("nutrients_for: food not found for food_id=%s; skipping", food_id)
+            _log_missing_food(food_id)
             continue
 
         per_g_raw = food.get("per_g", DEFAULT_PER_G)

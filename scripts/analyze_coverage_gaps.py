@@ -5,7 +5,7 @@
 
 import os
 import re
-import subprocess  # nosec B404 - subprocess used with static arguments for pytest
+import subprocess  # nosec B404
 import sys
 from typing import List
 
@@ -24,7 +24,7 @@ def run_coverage_analysis() -> bool:
             "PYTHONPATH": ".:core:app:tests",
             "VIP_MODULE_ENABLED": "true",
             "FEATURE_PREMIUM_NUTRITION": "true",
-            "API_KEY": "test_key",  # nosec B105 # Test key for coverage analysis script
+            "API_KEY": "test_key",  # nosec B105  # Coverage analysis only
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
         }

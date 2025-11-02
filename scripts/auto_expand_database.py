@@ -35,7 +35,7 @@ def main():
         logger.info("✅ Product finder initialized")
 
         # Загружаем рецепты (food_db not needed for ingredient parsing only)
-        recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
+        recipes = parse_recipe_db("data/recipes_extended.csv")
         logger.info(f"📚 Loaded {len(recipes)} recipes")
 
         # Получаем все ингредиенты из рецептов

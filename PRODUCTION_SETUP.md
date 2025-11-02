@@ -83,7 +83,15 @@ EOF
 # Test SSH config before restarting (IMPORTANT!)
 sudo sshd -t
 
-# If config is valid, restart SSH
+# ⚠️ SAFETY CHECK: Prevent SSH lockout before restarting sshd
+# - Keep this SSH session open until you verify a new connection works
+# - Open a NEW terminal/SSH session from your local machine
+# - Attempt to connect with your SSH key: ssh user@server
+# - Only if the NEW session connects successfully, proceed with restart below
+# - If new session fails, do NOT restart sshd (fix config first or restore from backup)
+# - Having this session open allows you to revert changes if needed
+
+# If config is valid AND new SSH session works, restart SSH
 sudo systemctl restart sshd
 
 # Enable automatic security updates

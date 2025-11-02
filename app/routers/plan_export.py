@@ -34,6 +34,9 @@ from reportlab.platypus.tables import Table as RLTable
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
 
+# Export Table for backward compatibility with tests
+Table = RLTable
+
 logger = logging.getLogger(__name__)
 
 plan_router = APIRouter(prefix="/api/v1/plan", tags=["plan"])
@@ -117,7 +120,7 @@ class NormalizedParagraph(Paragraph):
         return unicodedata.normalize("NFC", plain_text)
 
 
-def _normalized_paragraph(text: str, style: Any) -> Paragraph:
+def _normalized_paragraph(text: str, style: Any) -> NormalizedParagraph:
     """Return a paragraph whose plain text is NFC-normalized for deterministic comparisons."""
     return NormalizedParagraph(text, style)
 

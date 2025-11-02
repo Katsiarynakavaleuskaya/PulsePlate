@@ -273,9 +273,22 @@ def make_plate(
     deficit_pct: Optional[float],
     surplus_pct: Optional[float],
     diet_flags: Optional[Set[str]] = None,
+    meals_per_day: int = 3,
 ) -> Dict[str, Any]:
     """RU: Главная функция: целевые калории → макросы → порции → визуалка.
     EN: Main: target kcal → macros → portions → visual.
+
+    Args:
+        weight_kg: Body weight in kilograms.
+        tdee_val: Total Daily Energy Expenditure value.
+        goal: Nutrition goal: "loss", "maintain", or "gain".
+        deficit_pct: Calorie deficit percentage for weight loss (optional).
+        surplus_pct: Calorie surplus percentage for weight gain (optional).
+        diet_flags: Optional set of dietary flags (e.g., "VEGAN", "KETO", "GF").
+        meals_per_day: Number of meals per day for portion calculation (default: 3).
+
+    Returns:
+        Dictionary containing kcal, macros, portions, layout, meals, and meals_per_day.
     """
     target = target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
     normalized_flags: Optional[Set[str]] = None
@@ -298,7 +311,6 @@ def make_plate(
         kcal=target,
         diet_flags=normalized_flags,
     )
-    meals_per_day = 3
     portions = portions_from_macros(macros, meals_per_day=meals_per_day)
     layout = _visual_layout(macros)
 

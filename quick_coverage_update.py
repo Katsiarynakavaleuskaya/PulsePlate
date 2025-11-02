@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Quick coverage check for our progress."""
 
-import subprocess  # nosec B404 - executes controlled pytest command
+import subprocess  # nosec B404
 import time
 import sys
 

@@ -15,6 +15,7 @@ from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImport
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
+from core.recipe_synth import RecipeSynthesizer
 
 # -*- coding: utf-8 -*-
 """
@@ -58,6 +59,7 @@ try:
     )
     from core.menu_engine import analyze_nutrient_gaps, make_weekly_menu
     from core.recipe_synth import (
+        get_recipe_synthesizer,
         synthesize_recipe_from_ingredients,
         synthesize_recipes_for_week,
     )
@@ -87,6 +89,7 @@ except ImportError:
     get_price_comparison = None
     synthesize_recipe_from_ingredients = None
     synthesize_recipes_for_week = None
+    get_recipe_synthesizer = None  # Set to None only if core.recipe_synth import fails
     get_auto_repair_engine = None
     auto_repair_week_plan = None
     suggest_manual_fixes = None
@@ -239,7 +242,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             _log_api_key_event(
                 "VIP endpoint accessed without API key in development mode.", is_production, app_env
             )
-            return "test_key"  # nosec B105  # Test key for development mode only
+            return "test_key"  # nosec B105  # Development mode only
         error_msg = (
             "API key required in production environment" if is_production else "API key required"
         )
@@ -329,7 +332,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     is_production,
                     app_env,
                 )
-                return "test_key"  # nosec B105  # Test key for development mode only
+                return "test_key"  # nosec B105  # Development mode only
             error_msg = "API key required"
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 
@@ -1145,7 +1148,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
 
 @router.get("/recipes/templates", dependencies=[Depends(_require_api_key_strict)])
 async def get_recipe_templates(
-    synthesizer=Depends(get_recipe_synth_dep),
+    synthesizer: RecipeSynthesizer = Depends(get_recipe_synth_dep),
 ) -> Dict[str, Any]:
     """
     RU: Получить доступные шаблоны рецептов

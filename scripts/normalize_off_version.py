@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json
-import subprocess  # nosec B404 - used for controlled internal script invocation
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -17,6 +17,19 @@ CANDIDATES = [
 
 
 def set_version(v: str) -> None:
+    """Set or normalize the version string in the database versions file.
+
+    Sets the OpenFoodFacts version in the database_versions.json file to the
+    provided version string. If the file does not exist, creates it with default
+    metadata before updating the version.
+
+    Args:
+        v: Version string to set as the OpenFoodFacts database version.
+
+    Side Effects:
+        Creates cache/food_db/database_versions.json if it doesn't exist.
+        Updates or creates the openfoodfacts.version field in the JSON file.
+    """
     if not VERS.exists():
         print(f"WARNING: {VERS} missing, creating default", file=sys.stderr)
         # Create default database_versions.json if it doesn't exist
@@ -47,20 +60,85 @@ def set_version(v: str) -> None:
 
 
 def validate() -> int:
-    process_result = (
-        subprocess.run(  # nosec B603 - fixed arguments invoking local validation script
+    """Run data validation by executing the validation script.
+
+    Executes scripts/validate_data.py as a subprocess and checks the output
+    for successful validation. Success is indicated by the presence of "DATA:OK"
+    in either stdout or stderr output.
+
+    Returns:
+        0 on success (DATA:OK found in output), 1 on failure.
+
+    Side Effects:
+        Writes validation script output to stdout and stderr.
+    """
+    try:
+        process_result = subprocess.run(  # nosec B603
             [sys.executable, "scripts/validate_data.py"],
             capture_output=True,
             text=True,
+            timeout=30,
         )
-    )
-    sys.stdout.write(process_result.stdout)
-    sys.stderr.write(process_result.stderr)
-    # 0 — OK, иначе деградировано
-    return 0 if "DATA:OK" in (process_result.stdout + process_result.stderr) else 1
+        sys.stdout.write(process_result.stdout)
+        sys.stderr.write(process_result.stderr)
+
+        if process_result.returncode != 0:
+            error_msg = (
+                f"Validation script exited with code {process_result.returncode}. "
+                f"stdout: {process_result.stdout[:500]}, "
+                f"stderr: {process_result.stderr[:500]}"
+            )
+            print(f"ERROR: {error_msg}", file=sys.stderr)
+            return 1
+
+        # 0 — OK, иначе деградировано
+        return 0 if "DATA:OK" in (process_result.stdout + process_result.stderr) else 1
+    except subprocess.TimeoutExpired as e:
+        error_msg = f"Validation script timed out after 30 seconds: {e}"
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        # Try to kill the process if it's still running (process attribute available in Python 3.3+)
+        if hasattr(e, "process") and e.process:
+            try:
+                e.process.kill()
+                e.process.wait(timeout=5)
+            except Exception as cleanup_err:
+                # Process may have already terminated; ignore cleanup errors
+                # RU: Процесс может уже завершиться; игнорируем ошибки очистки
+                # EN: Process may have already terminated; ignore cleanup errors
+                print(
+                    f"Warning: Could not clean up process: {cleanup_err}", file=sys.stderr
+                )  # noqa: T201
+        return 1
+    except FileNotFoundError:
+        error_msg = "Validation script not found: scripts/validate_data.py"
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        error_msg = f"OS error while running validation script: {e}"
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        return 1
 
 
 def main() -> int:
+    """Program entrypoint that normalizes and validates database version.
+
+    Iterates through candidate version string formats, sets each version using
+    set_version(), and validates it using validate(). Returns successfully on
+    the first candidate that passes validation, otherwise returns error code
+    after trying all candidates.
+
+    Expected Arguments:
+        None (uses module-level CANDIDATES list).
+
+    Returns:
+        0 if a valid version format is found and accepted.
+        2 if none of the candidate versions pass validation.
+
+    Side Effects:
+        Calls set_version() and validate() for each candidate.
+        Prints validation results to stdout.
+        Modifies cache/food_db/database_versions.json file.
+    """
     for v in CANDIDATES:
         set_version(v)
         code = validate()

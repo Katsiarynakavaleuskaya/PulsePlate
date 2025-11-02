@@ -7,11 +7,11 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, TypeAlias, cast
+from pathlib import Path
+import sys
 
-import requests  # type: ignore
-
-from app import BMRResponse
+import requests  # type: ignore[import-untyped]
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -19,6 +19,19 @@ from tenacity import (
     wait_exponential,
     retry_if_exception,
 )
+
+# Import BMRResponse from app.py directly (it's defined there as a BaseModel)
+# Using sys.path to import from the app.py module at root level
+_root_path = Path(__file__).parent
+sys.path.insert(0, str(_root_path))
+import app as app_module  # noqa: E402
+
+if TYPE_CHECKING:
+    from app import BMRResponse as BMRResponseType
+else:
+    BMRResponseType = app_module.BMRResponse
+
+BMRResponse: TypeAlias = BMRResponseType
 
 
 def _should_retry_http_error(exception: BaseException) -> bool:
@@ -28,10 +41,10 @@ def _should_retry_http_error(exception: BaseException) -> bool:
     Retries on 5xx server errors (transient) but not 4xx client errors (permanent).
     """
     if isinstance(exception, requests.exceptions.HTTPError) and exception.response is not None:
-        status_code = exception.response.status_code
+        status_code: int = exception.response.status_code
         # Retry on 5xx server errors (transient failures)
         # Don't retry on 4xx client errors (bad request, auth issues, etc.)
-        return isinstance(status_code, int) and 500 <= status_code < 600
+        return 500 <= status_code < 600
     return False
 
 
@@ -90,7 +103,7 @@ def call_premium_bmr_api(
     activity: str,
     bodyfat: Optional[float] = None,
     lang: str = "en",
-    api_key: str = "test_key",  # nosec B105  # Test key for example/demo purposes only
+    api_key: str = "test_key",  # nosec B105  # Example/demo key only
     base_url: str = "http://localhost:8000",
     timeout: float = 10.0,
 ) -> BMRResponse:
@@ -233,7 +246,7 @@ def handle_request_errors_inline(exception: Exception, activity: str) -> None:
         print(f"{activity:<15} | Unexpected error: {exception}")
 
 
-def main():
+def main() -> None:
     """
     Example usage scenarios.
     """
@@ -342,9 +355,9 @@ def main():
     print("-" * 35)
 
     activities = ["sedentary", "light", "moderate", "active", "very_active"]
-    base_params = {
-        "weight_kg": 70,
-        "height_cm": 175,
+    base_params: Dict[str, Any] = {
+        "weight_kg": 70.0,
+        "height_cm": 175.0,
         "age": 30,
         "sex": "male",
         "lang": "en",
@@ -355,8 +368,15 @@ def main():
 
     for activity in activities:
         try:
-            result = call_premium_bmr_api(activity=activity, **base_params)
-            tdee = result["tdee"]["mifflin"]
+            result = call_premium_bmr_api(
+                activity=activity,
+                weight_kg=cast(float, base_params["weight_kg"]),
+                height_cm=cast(float, base_params["height_cm"]),
+                age=cast(int, base_params["age"]),
+                sex=cast(str, base_params["sex"]),
+                lang=cast(str, base_params["lang"]),
+            )
+            tdee = result.tdee["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
         except Exception as e:
             handle_request_errors_inline(e, activity)

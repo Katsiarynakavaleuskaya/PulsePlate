@@ -1,9 +1,9 @@
 from core.shoplist import ShoplistGenerator, PackagingRule
 
 
-def test_up_strategy_minimizes_overage_across_candidates():
+def test_up_strategy_minimizes_overage_across_candidates() -> None:
     """Test that 'up' packaging strategy minimizes overage across all candidates."""
-    gen = ShoplistGenerator()
+    gen: ShoplistGenerator = ShoplistGenerator()
     # 'up' strategy should minimize overage, not just pick first fit.
     # For total_grams=200 and packages [90, 120]:
     # - 90g: ceil(200/90) = 3 packs = 270g (overage: 70g)
@@ -11,10 +11,12 @@ def test_up_strategy_minimizes_overage_across_candidates():
     # Should pick 120g with 2 packs (minimal overage).
 
     # Test through public API: round_to_packages with custom rules
-    aggregated = {"test_product": 200.0}
-    custom_rules = {"default": PackagingRule("default", "g", [90, 120], "up")}
+    aggregated: dict[str, float] = {"test_product": 200.0}
+    custom_rules: dict[str, PackagingRule] = {
+        "default": PackagingRule("default", "g", [90, 120], "up")
+    }
 
-    shopping_list = gen.round_to_packages(aggregated, rules=custom_rules)
+    shopping_list: list = gen.round_to_packages(aggregated, rules=custom_rules)
 
     assert len(shopping_list) == 1
     item = shopping_list[0]

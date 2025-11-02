@@ -68,7 +68,14 @@ def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
                     primary_lower = primary.lower()
                     if primary_lower:
                         table[primary_lower] = primary
-            # If neither schema matches, silently return empty dict
+            else:
+                # If neither schema matches, log warning and return empty dict
+                logger.warning(
+                    "CSV headers do not match expected schemas. "
+                    "Detected headers: %s. "
+                    "Expected schemas: 'alias,canonical' or 'primary,aliases'",
+                    fieldnames,
+                )
     except FileNotFoundError:
         # Return empty table if file doesn't exist
         logger.debug("Alias file not found: %s", path, exc_info=True)

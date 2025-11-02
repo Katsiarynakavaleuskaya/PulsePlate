@@ -48,13 +48,13 @@ class _FakeEngine:
         return self._conn
 
 
-def test_execute_commits_only_when_in_transaction():
+def test_execute_commits_only_when_in_transaction() -> None:
     # in_tx=False should skip commit without raising
     engine = EngineCompat(_FakeEngine(_FakeConn(commit_raises=None, in_tx=False)))
     assert engine.execute("SELECT 1") == "ok"
 
 
-def test_execute_handles_db_errors_on_commit_with_re_raise():
+def test_execute_handles_db_errors_on_commit_with_re_raise() -> None:
     fake_exc = sa_exc.IntegrityError("stmt", {}, Exception("detail"))
     engine = EngineCompat(_FakeEngine(_FakeConn(commit_raises=fake_exc, in_tx=True)))
     # Error is logged, rolled back, and re-raised to notify callers

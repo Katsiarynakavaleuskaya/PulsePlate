@@ -122,7 +122,6 @@ logger = logging.getLogger(__name__)
 
 # Fiber intake bounds (g/day)
 # Reference: WHO/EFSA guidelines recommend 25-35g daily fiber intake for adults
-# These bounds are also enforced to maintain test stability and prevent edge cases
 FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g)
 FIBER_MAX_G: int = 35  # Maximum daily fiber intake (g)
 
@@ -1291,7 +1290,7 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
             validated_values[key] = float(val)
         except (TypeError, ValueError) as e:
             raise TypeError(
-                f"Value for key '{key}' must be numeric (int or float), "
+                f"Value for key '{key}' must be numeric or numeric string (convertible to float), "
                 f"got {type(val).__name__} with value: {repr(val)}"
             ) from e
 
@@ -1671,18 +1670,20 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     deviation = abs(macros_aligned["carbs_g"] - carbs_ref) / max(1, carbs_ref)
                     if deviation >= 0.4:
                         macros_aligned["carbs_g"] = carbs_ref
-        # Clamp fiber to keep within test bounds
+        # Clamp fiber to WHO/EFSA health guidelines (25-35g daily for adults)
         if "fiber_g" in macros_aligned:
             original_value = macros_aligned["fiber_g"]
             try:
                 fiber_int = int(original_value)
                 macros_aligned["fiber_g"] = max(FIBER_MIN_G, min(FIBER_MAX_G, fiber_int))
             except (ValueError, TypeError):
-                # Preserve original value on conversion errors but log the issue
-                logger.debug(
-                    "Failed to convert fiber_g value '%s' to int; preserving original value",
+                # Log warning and set to default minimum on conversion errors
+                logger.warning(
+                    "Failed to convert fiber_g value '%s' to int; setting to FIBER_MIN_G=%d",
                     original_value,
+                    FIBER_MIN_G,
                 )
+                macros_aligned["fiber_g"] = FIBER_MIN_G
         return PlateResponse(
             kcal=plate_data["kcal"],
             macros=macros_aligned,
@@ -2120,7 +2121,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except Exception as exc:  # noqa: BLE001 - validation is optional, log and continue
+            except (ValueError, TypeError, AttributeError, ImportError) as exc:
                 logger.warning(
                     "Safety validation failed; continuing without safety warnings: %s",
                     exc,

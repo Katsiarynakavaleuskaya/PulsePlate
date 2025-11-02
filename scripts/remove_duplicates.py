@@ -168,7 +168,7 @@ def main() -> int:
                     removed.append(str(backup))
             else:
                 print("  ", backup, "!=", base)
-        except OSError as e:
+        except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
             print("   ! error:", backup, e)
 
     print("\nFull duplicate groups (identical content):")
@@ -204,7 +204,7 @@ def main() -> int:
                 try:
                     p.unlink()
                     to_remove.append(p)
-                except OSError as e:
+                except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
                     print("   ! error removing", p, e)
 
     if args.execute or args.apply_identical:

@@ -37,6 +37,9 @@ else:
 
 logger = logging.getLogger(__name__)
 
+# Environment detection: check ENVIRONMENT, APP_ENV, or default to "production"
+ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
+
 
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
@@ -72,6 +75,10 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
         return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     if sync_url.startswith("postgres://"):
         return sync_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("postgresql+psycopg2://"):
+        return sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("postgresql+psycopg://"):
+        return sync_url.replace("postgresql+psycopg://", "postgresql+psycopg_async://", 1)
     if sync_url.startswith("mysql://"):
         return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
     if sync_url.startswith("mysql+pymysql://"):
@@ -147,9 +154,8 @@ class EngineCompat:
                     conn.commit()
                 except sa_exc.SQLAlchemyError as db_err:
                     # Avoid exposing sensitive details in production logs
-                    env = os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
                     safe_message = str(db_err).splitlines()[0]
-                    if logger.isEnabledFor(logging.DEBUG) or env.lower() != "production":
+                    if logger.isEnabledFor(logging.DEBUG) or ENVIRONMENT != "production":
                         logger.error(
                             "Commit failed (database error): %s", safe_message, exc_info=True
                         )
@@ -215,10 +221,6 @@ if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker
             async_kwargs.update(_POOL_CONFIG)
 
         _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
-        if async_sessionmaker is None:
-            raise RuntimeError(
-                "SQLAlchemy async extras are not available but async mode requested."
-            )
 
         AsyncSessionLocal = async_sessionmaker(
             bind=_ASYNC_ENGINE,

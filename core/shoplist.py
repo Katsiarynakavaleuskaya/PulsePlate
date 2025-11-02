@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 import logging
 
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass
 class PackagingRule:
@@ -87,9 +89,9 @@ class ShoplistGenerator:
             except (OSError, csv.Error, ValueError, KeyError) as load_err:
                 # Если не удалось загрузить, используем правила по умолчанию
                 # Логируем кратко и продолжаем с правилами по умолчанию
-                logging.getLogger(__name__).warning("Failed to load packaging rules: %s", load_err)
+                LOGGER.warning("Failed to load packaging rules: %s", load_err)
             except Exception as unexpected:  # noqa: BLE001 - continue with defaults
-                logging.getLogger(__name__).error(
+                LOGGER.error(
                     "Unhandled error loading packaging rules; falling back to defaults: %s",
                     unexpected,
                 )
@@ -194,7 +196,7 @@ class ShoplistGenerator:
 
             # Округляем до ближайшей упаковки
             package_size, packages_needed = self._find_best_package(
-                float(total_grams), list(rule.typical_packages), str(rule.rounding_strategy)
+                total_grams, rule.typical_packages, rule.rounding_strategy
             )
 
             # Конвертируем обратно в исходные единицы

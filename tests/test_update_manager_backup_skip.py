@@ -7,7 +7,8 @@ from core.food_apis.update_manager import DatabaseUpdateManager
 
 
 @pytest.mark.asyncio
-async def test_load_backup_skips_malformed(tmp_path: Path):
+async def test_load_backup_skips_malformed(tmp_path: Path) -> None:
+    """Verify that valid entries are loaded and malformed entries are skipped."""
     cache_dir = tmp_path
     mgr = DatabaseUpdateManager(cache_dir=cache_dir)
 

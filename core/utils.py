@@ -47,17 +47,13 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
         candidates = [sys.modules.get("app"), sys.modules.get("_app_top_module")]
     for candidate in candidates:
         module = candidate
-        skip_candidate = False
         try:
             if module is None:
-                skip_candidate = True
-            elif isinstance(module, str):
+                continue
+            if isinstance(module, str):
                 module = sys.modules.get(module)
                 if module is None:
-                    skip_candidate = True
-
-            if skip_candidate:
-                continue
+                    continue
 
             # Prefer explicit attributes to avoid Mock auto-created attrs.
             dct = getattr(module, "__dict__", None)
