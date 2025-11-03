@@ -55,7 +55,7 @@ jobs:
           set -e
           git fetch origin "${{ github.base_ref }}" --depth=1
           CHANGED=$(git diff --name-only --diff-filter=AMRT origin/${{ github.base_ref }}... | grep -E '\\.py$' || true)
-          echo "Changed Python files:\n$CHANGED"
+          printf "Changed Python files:\n%s\n" "$CHANGED"
           CHANGED_SP=${CHANGED//$'\n'/ }
           echo "files=$CHANGED_SP" >> $GITHUB_OUTPUT
 
@@ -63,7 +63,7 @@ jobs:
         if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            mypy ${{ steps.changed.outputs.files }}
+            mypy "${{ steps.changed.outputs.files }}"
           else
             # Check all Python packages and modules across the entire project
             # This replaces the previous "app core" limitation with comprehensive checking
@@ -75,7 +75,7 @@ jobs:
               fi
             done
             # Add root-level Python files (exclude those that conflict with packages)
-            ROOT_FILES=$(find . -maxdepth 1 -type f -name "*.py" ! -name "__init__.py" ! -name "app.py" 2>/dev/null | sed 's|^\./||' | tr '\n' ' ')
+            ROOT_FILES="$(find . -maxdepth 1 -type f -name "*.py" ! -name "__init__.py" ! -name "app.py" 2>/dev/null | sed 's|^\./||' | tr '\n' ' ')"
             if [ -n "$ROOT_FILES" ]; then
               TARGETS="$TARGETS $ROOT_FILES"
             fi
@@ -114,10 +114,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
-      # paths-filter outputs: code, docs (always set by dorny/paths-filter@v2)
+      # paths-filter outputs: code, docs (always set by dorny/paths-filter@v3.0.2)
       - name: Determine changes
         id: filter
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           filters: |

@@ -21,16 +21,13 @@ logger = logging.getLogger(__name__)
 _env_db_path = os.getenv("FOOD_DB_PATH")
 DB_PATH: Path = Path(_env_db_path) if _env_db_path else Path("data/food.sqlite")
 
-# Early validation: warn if FOOD_DB_PATH was provided but parent directory doesn't exist
-if _env_db_path and not DB_PATH.parent.exists():
-    logger.warning("FOOD_DB_PATH provided but parent directory does not exist: %s", DB_PATH.parent)
-
 # Ensure parent directory exists for the SQLite file (create parents as necessary)
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 except Exception as exc:  # pragma: no cover - extremely rare filesystem errors
-    # Non-fatal: log at debug to avoid noisy logs in production
-    logger.debug("Unable to create DB directory %s: %s", DB_PATH.parent, exc)
+    # Warn when directory creation actually fails
+    logger.warning("Unable to create DB directory %s: %s", DB_PATH.parent, exc)
+    logger.debug("Directory creation failed for %s: %s", DB_PATH.parent, exc)
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0

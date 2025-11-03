@@ -352,8 +352,14 @@ class RecipeSynthesizer:
                 suitable_templates.append(template)
 
         if not suitable_templates:
-            # Если нет подходящих, берем любой
-            suitable_templates = list(self.templates.values())
+            # If no template matches both cuisine and difficulty, prioritize difficulty
+            # Filter by difficulty first before falling back to all templates
+            suitable_templates = [
+                t for t in self.templates.values() if t.difficulty == difficulty_preference
+            ]
+            if not suitable_templates:
+                # Only fall back to all templates if no templates match difficulty
+                suitable_templates = list(self.templates.values())
 
         # Выбираем шаблон с наибольшим совпадением ингредиентов
         best_template = None

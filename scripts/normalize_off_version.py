@@ -91,7 +91,7 @@ def validate() -> int:
             print(f"ERROR: {error_msg}", file=sys.stderr)
             return 1
 
-        # 0 — OK, иначе деградировано
+        # Return 0 if validation passed, otherwise 1
         return 0 if "DATA:OK" in (process_result.stdout + process_result.stderr) else 1
     except subprocess.TimeoutExpired as e:
         error_msg = f"Validation script timed out after 30 seconds: {e}"
@@ -103,11 +103,7 @@ def validate() -> int:
                 e.process.wait(timeout=5)
             except Exception as cleanup_err:
                 # Process may have already terminated; ignore cleanup errors
-                # RU: Процесс может уже завершиться; игнорируем ошибки очистки
-                # EN: Process may have already terminated; ignore cleanup errors
-                print(
-                    f"Warning: Could not clean up process: {cleanup_err}", file=sys.stderr
-                )  # noqa: T201
+                print(f"Warning: Could not clean up process: {cleanup_err}", file=sys.stderr)
         return 1
     except FileNotFoundError:
         error_msg = "Validation script not found: scripts/validate_data.py"

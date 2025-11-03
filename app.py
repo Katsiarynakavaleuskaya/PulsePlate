@@ -36,6 +36,7 @@ from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
 from core.i18n import Language, t
+from core.targets import FIBER_MAX_G, FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
@@ -118,12 +119,6 @@ async def get_update_scheduler() -> Any:
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-# Fiber intake bounds (g/day)
-# Reference: WHO/EFSA guidelines recommend 25-35g daily fiber intake for adults
-FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g)
-FIBER_MAX_G: int = 35  # Maximum daily fiber intake (g)
 
 
 # Lifespan event handler

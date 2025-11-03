@@ -354,6 +354,11 @@ The merged food database follows a standardized schema:
 - `bodyfat` (optional): Body fat percentage (3-60%)
 - `diet_flags` (optional): Diet preferences (["VEG", "GF", "DAIRY_FREE", "LOW_COST"])
 
+**Response Fields:**
+
+- `meals_per_day` (int): Number of meals recommended per day
+- `day_micros` (dict): Daily micronutrient targets/limits (currently empty, reserved for future use)
+
 **Visual Plate Features:**
 
 - **4 Plate Sectors**: Vegetables (30%), Protein, Carbs, Healthy Fats (proportional to macros)
@@ -451,7 +456,7 @@ make lint
 
 ## 🧪 CI & Coverage Policy
 
-- GitHub Actions runs on Python 3.12 and 3.13 (matrix).
+- GitHub Actions runs on Python 3.13.5 with full coverage enforcement at 97%.
 - Coverage is enforced at 97% via `--cov-fail-under=97`.
 - Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
 - Bandit & Safety run as non-blocking checks (artifacts available in CI logs).

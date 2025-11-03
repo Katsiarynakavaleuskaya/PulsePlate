@@ -218,10 +218,10 @@
 
 ## 📚 Ресурсы
 
-- **TON Docs**: https://docs.ton.org
-- **TON Developer Portal**: https://tondev.io
-- **TON SDK Python**: https://github.com/toncenter/pytonlib
-- **TON Payments**: https://docs.ton.org/develop/dapps/ton-payments
+- **TON Docs**: <https://docs.ton.org>
+- **TON Developer Portal**: <https://tondev.io>
+- **TON SDK Python**: <https://github.com/toncenter/pytonlib>
+- **TON Payments**: <https://docs.ton.org/develop/dapps/ton-payments>
 
 ## 🚦 Risk-Adjusted Go/No-Go Decision Gate
 

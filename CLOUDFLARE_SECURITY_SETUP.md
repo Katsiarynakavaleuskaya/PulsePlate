@@ -4,7 +4,7 @@
 
 ### 1. SSL/TLS настройки
 
-1. Войдите в Cloudflare Dashboard: https://dash.cloudflare.com
+1. Войдите в Cloudflare Dashboard: [https://dash.cloudflare.com](https://dash.cloudflare.com)
 2. Выберите ваш домен `pulseplate.app`
 3. **SSL/TLS** → **Overview**:
    - Режим: **Full (strict)** ✅
@@ -38,7 +38,7 @@
 **Rule name:** `API Rate Limit`
 **Rule expression:**
 ```text
-(http.request.uri.path contains "/api/v1/admin/" or http.request.uri.path contains "/api/v1/premium/")
+((http.request.uri.path starts_with "/api/v1/admin/" or http.request.uri.path starts_with "/api/v1/premium/") and http.request.method == "POST" and http.host eq "pulseplate.app")
 ```
 
 **Threshold:**
@@ -113,6 +113,6 @@ for i in {1..15}; do curl -s -o /dev/null -w "%{http_code}\n" https://pulseplate
 
 ## 📚 Дополнительные ресурсы
 
-- Cloudflare Dashboard: https://dash.cloudflare.com
-- Cloudflare SSL Docs: https://developers.cloudflare.com/ssl/
-- Cloudflare WAF Docs: https://developers.cloudflare.com/waf/
+- Cloudflare Dashboard: [https://dash.cloudflare.com](https://dash.cloudflare.com)
+- Cloudflare SSL Docs: [https://developers.cloudflare.com/ssl/](https://developers.cloudflare.com/ssl/)
+- Cloudflare WAF Docs: [https://developers.cloudflare.com/waf/](https://developers.cloudflare.com/waf/)

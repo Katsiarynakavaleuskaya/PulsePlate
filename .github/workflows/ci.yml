@@ -129,7 +129,7 @@ jobs:
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.12 only)
+      - name: Upload coverage artifact (3.13.5 only)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

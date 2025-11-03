@@ -431,3 +431,9 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
         warnings.append({"code": "child", "message": M["child"].get(lang, M["child"]["en"])})
 
     return warnings
+
+
+# Fiber intake bounds (g/day)
+# Reference: WHO/EFSA guidelines recommend 25-35g daily fiber intake for adults
+FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g)
+FIBER_MAX_G: int = 35  # Maximum daily fiber intake (g)

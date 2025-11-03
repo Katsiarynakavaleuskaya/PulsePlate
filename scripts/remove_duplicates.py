@@ -169,7 +169,7 @@ def main() -> int:
             else:
                 print("  ", backup, "!=", base)
         except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
-            print("   ! error:", backup, e)
+            logger.debug("Error accessing backup file %s: %s", backup, e, exc_info=True)
 
     print("\nFull duplicate groups (identical content):")
     to_remove: List[Path] = []
@@ -205,7 +205,7 @@ def main() -> int:
                     p.unlink()
                     to_remove.append(p)
                 except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
-                    print("   ! error removing", p, e)
+                    logger.debug("Error removing file %s: %s", p, e, exc_info=True)
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")

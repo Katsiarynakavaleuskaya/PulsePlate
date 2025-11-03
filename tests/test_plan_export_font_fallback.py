@@ -18,7 +18,7 @@ def test_register_font_fallback_when_font_missing(
 ) -> None:
     # Force FONT_PATH to a non-existent path to hit the Helvetica fallback
     fake_path = Path("/__no_such__/DejaVuSans.ttf")
-    monkeypatch.setattr(pe, "FONT_PATH", fake_path, raising=False)
+    monkeypatch.setattr(pe, "FONT_PATH", fake_path)
 
     # Make exists() return True for the fake path so it attempts registration,
     # which will fail and trigger the warning when trying to register a non-existent font file

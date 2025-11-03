@@ -61,7 +61,7 @@
 
 **Что делать:**
 
-1. Откройте: https://dash.cloudflare.com/sign-up
+1. Откройте: [https://dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up)
 2. Зарегистрируйтесь (email + пароль)
 3. После входа нажмите **Registrar** → **Search**
 4. Найдите свободный домен: `pulseplate.app` (или другой, который вам нравится)
@@ -75,7 +75,7 @@
 
 **Что делать:**
 
-1. Откройте: https://www.duckdns.org
+1. Откройте: [https://www.duckdns.org](https://www.duckdns.org)
 2. Нажмите **Sign in** и войдите через **GitHub** (или Google)
 3. После входа вы увидите форму **Add Domain**
 4. Введите: `pulseplate-staging` (без `.duckdns.org`)
@@ -103,9 +103,9 @@ ssh ubuntu@YOUR_SERVER_IP
 **Если сервера нет:**
 
 Рекомендуемые провайдеры:
-- **DigitalOcean**: https://www.digitalocean.com (от $6/месяц)
-- **Hetzner**: https://www.hetzner.com (от €4/месяц)
-- **AWS Lightsail**: https://aws.amazon.com/lightsail (от $5/месяц)
+- **DigitalOcean**: [https://www.digitalocean.com](https://www.digitalocean.com) (от $6/месяц)
+- **Hetzner**: [https://www.hetzner.com](https://www.hetzner.com) (от €4/месяц)
+- **AWS Lightsail**: [https://aws.amazon.com/lightsail](https://aws.amazon.com/lightsail) (от $5/месяц)
 
 Создайте Ubuntu 22.04 или 24.04 сервер с минимум 2GB RAM.
 
@@ -209,7 +209,7 @@ sudo chown $USER:$USER /srv/pulseplate-production
 
 **Что делать:**
 
-1. Откройте: https://dash.cloudflare.com
+1. Откройте: [https://dash.cloudflare.com](https://dash.cloudflare.com)
 2. Выберите ваш домен `pulseplate.app`
 3. Перейдите в **DNS** → **Records**
 4. Нажмите **Add record**:
@@ -276,7 +276,7 @@ sudo chown $USER:$USER /srv/pulseplate-production
 3. Заполните:
    - **Rule name**: `API Rate Limit`
    - **Rule expression**:
-     ```
+     ```text
      (http.request.uri.path contains "/api/v1/admin/" or http.request.uri.path contains "/api/v1/premium/")
      ```
    - **Threshold**:
@@ -304,7 +304,7 @@ sudo chown $USER:$USER /srv/pulseplate-production
 
 **Что делать:**
 
-1. Откройте: https://www.duckdns.org
+1. Откройте: [https://www.duckdns.org](https://www.duckdns.org)
 2. Войдите в аккаунт
 3. Найдите ваш поддомен `pulseplate-staging`
 4. В поле **IPv4** введите IP вашего сервера
@@ -376,7 +376,7 @@ ssh -i ~/.ssh/pulseplate_deploy user@YOUR_SERVER_IP
 
 **Что делать:**
 
-1. Откройте: https://github.com/settings/tokens?type=beta
+1. Откройте: [https://github.com/settings/tokens?type=beta](https://github.com/settings/tokens?type=beta)
 2. Нажмите **Generate new token** → **Generate new token (classic)**
 3. Заполните:
    - **Note**: `PulsePlate GHCR Read Token`
@@ -391,7 +391,7 @@ ssh -i ~/.ssh/pulseplate_deploy user@YOUR_SERVER_IP
 
 **Что делать:**
 
-1. Откройте: https://github.com/Katsiarynakavaleuskaya/PulsePlate/settings/environments
+1. Откройте: [https://github.com/Katsiarynakavaleuskaya/PulsePlate/settings/environments](https://github.com/Katsiarynakavaleuskaya/PulsePlate/settings/environments)
 2. Если environments нет, создайте их:
    - Нажмите **New environment**
    - Введите `staging` → **Configure environment**
@@ -402,22 +402,22 @@ ssh -i ~/.ssh/pulseplate_deploy user@YOUR_SERVER_IP
    - Нажмите на `staging` → **Add secret**
    - Добавьте каждый секрет:
 
-     ```
+     ```text
      Name: STAGING_DOMAIN
      Value: pulseplate-staging.duckdns.org
      ```
 
-     ```
+     ```text
      Name: SSH_HOST_STAGING
      Value: YOUR_SERVER_IP (или домен, например staging.yourdomain.com)
      ```
 
-     ```
+     ```text
      Name: SSH_USER
      Value: ubuntu (или root, в зависимости от вашего сервера)
      ```
 
-     ```
+     ```text
      Name: SSH_KEY
      Value: [вставьте весь приватный ключ из ~/.ssh/pulseplate_deploy]
      ```
@@ -428,14 +428,14 @@ ssh -i ~/.ssh/pulseplate_deploy user@YOUR_SERVER_IP
      ```
      Скопируйте ВСЁ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`
 
-     ```
+     ```text
      Name: GHCR_READ_TOKEN
      Value: [вставьте GitHub токен, который вы создали]
      ```
 
 4. **Для `production` environment:**
    - Повторите те же шаги, но используйте:
-     ```
+     ```text
      Name: PRODUCTION_DOMAIN
      Value: pulseplate.app (или ваш домен)
 

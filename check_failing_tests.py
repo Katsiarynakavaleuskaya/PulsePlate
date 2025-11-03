@@ -2,10 +2,52 @@
 """Find and summarize failing tests quickly."""
 
 import glob
+import re
 from pathlib import Path
 import subprocess
 import sys
-from typing import Tuple
+from typing import Optional, Tuple
+
+
+def extract_error_line(output: str) -> Optional[str]:
+    """Extract the first error line from test output.
+
+    Scans for various failure indicators including assertion errors,
+    test failures, and error markers. Uses regex pattern to match
+    assertions more robustly (handles assert(value), assert\tvalue, etc.).
+
+    Args:
+        output: Complete test output string (stdout + stderr).
+
+    Returns:
+        First matched error line (stripped) or None if no error pattern found.
+    """
+    lines = output.split("\n")
+    # Regex pattern to match "assert" with word boundary, whitespace, paren, or tab
+    assert_pattern = re.compile(r"\bassert\s")
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Prioritize specific error indicators (case-sensitive)
+        if (
+            "AssertionError" in line
+            or "FAILED" in line
+            or line.startswith("ERROR")
+            or "Traceback" in line
+            or assert_pattern.search(line)  # Match assert with word boundary
+            or line.startswith("E ")  # pytest error marker
+            or line.startswith("F ")  # pytest failure marker
+        ):
+            return stripped
+
+    # Fallback: return first non-empty line if no pattern matched
+    for line in lines:
+        if line.strip():
+            return line.strip()
+
+    return None
 
 
 def run_test_file(test_file: str) -> Tuple[bool, str]:
@@ -65,31 +107,9 @@ def main() -> int:
         print("\n❌ Failing tests:")
         for test_file, output in failing_tests:
             print(f"  - {test_file}")
-            # Show first error line - scan for various failure indicators
-            lines = output.split("\n")
-            error_line = None
-            for line in lines:
-                stripped = line.strip()
-                # Prioritize specific error indicators (case-sensitive)
-                if (
-                    "AssertionError" in line
-                    or "FAILED" in line
-                    or line.startswith("ERROR")
-                    or "Traceback" in line
-                    or "assert " in line  # Note trailing space to avoid false matches
-                    or line.startswith("E ")  # pytest error marker
-                    or line.startswith("F ")  # pytest failure marker
-                ):
-                    error_line = stripped
-                    break
+            error_line = extract_error_line(output)
             if error_line:
                 print(f"    Error: {error_line}")
-            else:
-                # Fallback: show first non-empty line if no pattern matched
-                for line in lines:
-                    if line.strip():
-                        print(f"    Error: {line.strip()}")
-                        break
 
     if timeout_tests:
         print("\n⏰ Timeout tests:")

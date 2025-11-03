@@ -67,7 +67,7 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
                     or module.__class__.__name__ in {"Mock", "MagicMock", "AsyncMock"}
                     or getattr(module, "__module__", "").startswith("unittest.mock")
                 )
-            except Exception:  # pragma: no cover - extremely defensive
+            except (AttributeError, TypeError):  # pragma: no cover - extremely defensive
                 is_mock_like = False
 
             if is_mock_like:
@@ -75,7 +75,11 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
 
             if isinstance(module, types.ModuleType) and hasattr(module, name):
                 return getattr(module, name)
-        except Exception as resolve_err:  # pragma: no cover - defensive guard
+        except (
+            AttributeError,
+            TypeError,
+            ImportError,
+        ) as resolve_err:  # pragma: no cover - defensive guard
             logger.debug("resolve_attr ignored %s while inspecting %s", resolve_err, candidate)
             continue
     return local_default
