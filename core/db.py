@@ -79,7 +79,7 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
     if sync_url.startswith("postgresql+psycopg2://"):
         return sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
     if sync_url.startswith("postgresql+psycopg://"):
-        return sync_url.replace("postgresql+psycopg://", "postgresql+psycopg_async://", 1)
+        return sync_url  # psycopg dialect supports async via same URL
     if sync_url.startswith("mysql://"):
         return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
     if sync_url.startswith("mysql+pymysql://"):

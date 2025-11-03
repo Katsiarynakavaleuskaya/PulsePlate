@@ -48,13 +48,20 @@ jobs:
         run: |
           bandit_exit_code=0
           bandit -q -r . \
-            --skip B101 \
             --exclude "tests,tests_strict,cache,test_cache,frontend/build,htmlcov,releases,data,external,node_modules,dist,build,.venv" \
             -f json -o bandit-report.json || bandit_exit_code=$?
 
-          if [ "$bandit_exit_code" -gt 1 ]; then
-            echo "❌ Bandit failed to complete successfully (exit code: $bandit_exit_code)"
-            exit "$bandit_exit_code"
+          bandit_tests_exit=0
+          if [ -d tests ] || [ -d tests_strict ]; then
+            bandit_targets=()
+            [ -d tests ] && bandit_targets+=("tests")
+            [ -d tests_strict ] && bandit_targets+=("tests_strict")
+            bandit -q -r "${bandit_targets[@]}" --skip B101 || bandit_tests_exit=$?
+          fi
+
+          if [ "$bandit_exit_code" -gt 1 ] || [ "$bandit_tests_exit" -gt 1 ]; then
+            echo "❌ Bandit failed to complete successfully (exit code: $bandit_exit_code, tests exit: $bandit_tests_exit)"
+            exit 1
           fi
 
           if [ ! -f bandit-report.json ]; then
@@ -70,60 +77,138 @@ jobs:
             exit 1
           fi
 
-          if [ "$bandit_exit_code" -eq 1 ]; then
-            echo "⚠️  Bandit reported issues below HIGH severity (exit code: $bandit_exit_code)"
-            echo "::warning::Bandit reported issues below HIGH severity – review bandit-report.json"
+          if [ "$bandit_exit_code" -eq 1 ] || [ "$bandit_tests_exit" -eq 1 ]; then
+            echo "⚠️  Bandit reported issues below HIGH severity (exit codes: main=$bandit_exit_code, tests=$bandit_tests_exit)"
+            echo "::warning::Bandit reported issues below HIGH severity – review bandit-report.json and test scan output"
           else
             echo "✅ No HIGH severity issues found in Bandit report"
           fi
 
       - name: Run Safety (dependency audit with policy)
         run: |
-          # Ensure pip tooling is up-to-date (avoids some platform-related install issues)
+          set -eo pipefail
+
           python -m pip install --upgrade pip setuptools wheel
 
-          # Ensure we have a requirements file to audit
           if [ ! -f requirements.txt ]; then
             echo "⚠️ requirements.txt not found — creating from pip freeze"
             python -m pip freeze > requirements.txt || true
           fi
 
-          # Use shared policy if present; enforce only high/critical
+          extra_args=()
           if [ -f safety-policy.toml ]; then
-            safety check \
-              --policy-file safety-policy.toml \
-              --severity high,critical \
-              --full-report -r requirements.txt > safety-report.txt 2>&1
+            extra_args+=(--policy-file safety-policy.toml)
           else
             echo "⚠️ safety-policy.toml not found — running safety without a policy file"
-            safety check \
-              --severity high,critical \
-              --full-report -r requirements.txt > safety-report.txt 2>&1
-          fi
-          safety_exit_code=$?
-
-          # Display Safety report
-          if [ -f safety-report.txt ]; then
-            echo "=== Safety Report ==="
-            cat safety-report.txt
           fi
 
-          # Exit non-zero on high/critical findings; bubble up tool failures
-          case "$safety_exit_code" in
-            0)
-              echo "✅ Safety check passed - no high/critical vulnerabilities found"
-              ;;
-            1)
-              echo "❌ Safety found high/critical vulnerabilities"
-              echo "::error::Safety found high/critical vulnerabilities - see report for details"
-              exit 1
-              ;;
-            *)
-              echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
-              echo "::error::Safety execution failed with exit code $safety_exit_code"
-              exit "$safety_exit_code"
-              ;;
-          esac
+          echo "▶️  Running Safety audit (JSON output for post-processing)"
+          safety_exit_code=0
+          safety check \
+            "${extra_args[@]}" \
+            --json \
+            -r requirements.txt \
+            --save-json safety-report.json > safety-console.log 2>&1 || safety_exit_code=$?
+
+          if [ -s safety-console.log ]; then
+            echo "=== Raw Safety Output ==="
+            cat safety-console.log
+          fi
+
+          if [ "$safety_exit_code" -gt 1 ]; then
+            echo "❌ Safety failed to complete successfully (exit code: $safety_exit_code)"
+            echo "::error::Safety execution failed with exit code $safety_exit_code"
+            exit "$safety_exit_code"
+          fi
+
+          python3 <<'EOF'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path = Path("safety-report.json")
+          summary_path = Path("safety-report.txt")
+
+          if not report_path.exists():
+              summary_path.write_text("Safety report JSON was not generated.\n")
+              print("❌ Safety report JSON was not generated.")
+              sys.exit(99)
+
+          data = json.loads(report_path.read_text())
+          vulns = data.get("vulnerabilities", []) or []
+          ignored = data.get("ignored_vulnerabilities", []) or []
+
+          def base_severity(entry: dict) -> str:
+              severity = entry.get("severity") or {}
+              for key in ("cvssv3", "cvssv2"):
+                  info = severity.get(key)
+                  if isinstance(info, dict):
+                      base = info.get("base_severity")
+                      if base:
+                          return str(base).upper()
+              base = severity.get("max_severity") or severity.get("severity") or severity.get("level")
+              if isinstance(base, str):
+                  return base.upper()
+              return ""
+
+          def build_lines() -> list[str]:
+              lines = []
+              if not vulns:
+                  lines.append("No vulnerabilities reported by Safety.")
+              else:
+                  lines.append("Reported vulnerabilities:")
+                  for item in vulns:
+                      pkg = item.get("package_name") or "<unknown package>"
+                      version = item.get("analyzed_version") or ""
+                      vuln_id = item.get("vuln_id") or item.get("advisory_id") or ""
+                      severity = base_severity(item) or "UNKNOWN"
+                      advisory = (item.get("advisory") or "").strip()
+                      lines.append(f"- [{severity}] {pkg} {version} — {vuln_id}")
+                      if advisory:
+                          lines.append(f"    {advisory}")
+              if ignored:
+                  lines.append("")
+                  lines.append(f"Ignored vulnerabilities: {len(ignored)} (see JSON for details)")
+              return lines
+
+          lines = build_lines()
+          summary_path.write_text("\n".join(lines) + "\n")
+
+          high_or_critical = [
+              item for item in vulns if base_severity(item) in {"HIGH", "CRITICAL"}
+          ]
+          medium_or_low = [
+              item for item in vulns if base_severity(item) not in {"HIGH", "CRITICAL"}
+          ]
+
+          print("=== Safety Report Summary ===")
+          print("\n".join(lines))
+          print(f"\nHigh/Critical findings: {len(high_or_critical)}")
+          print(f"Other findings: {len(medium_or_low)}")
+
+          if high_or_critical:
+              sys.exit(10)
+          elif medium_or_low:
+              sys.exit(2)
+          else:
+              sys.exit(0)
+          EOF
+          analysis_status=$?
+
+          if [ "$analysis_status" -eq 10 ]; then
+            echo "❌ Safety found high/critical vulnerabilities"
+            echo "::error::Safety found high/critical vulnerabilities - see safety-report.txt"
+            exit 1
+          elif [ "$analysis_status" -eq 2 ]; then
+            echo "⚠️  Safety reported vulnerabilities below HIGH severity"
+            echo "::warning::Safety reported vulnerabilities below HIGH severity – review safety-report.txt"
+          elif [ "$analysis_status" -ne 0 ]; then
+            echo "❌ Failed to analyze Safety report (status $analysis_status)"
+            exit "$analysis_status"
+          else
+            echo "✅ Safety check passed - no high/critical vulnerabilities found"
+          fi
+
 
       - name: Upload security reports
         if: always()
@@ -132,5 +217,6 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
+            safety-report.json
             safety-report.txt
           if-no-files-found: ignore
