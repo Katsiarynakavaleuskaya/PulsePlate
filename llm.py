@@ -22,20 +22,26 @@ class GrokLiteProvider:  # lightweight fallback that never uses network
 
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
 try:
-    from providers.grok import GrokProvider  # xAI
+    from providers.grok import GrokProvider as _GrokProvider  # xAI
+
+    GrokProvider: type[_GrokProvider] | None = _GrokProvider
 except Exception:
-    GrokProvider = None  # type: ignore
+    GrokProvider = None
 
 
 try:
-    from providers.ollama import OllamaProvider  # локальные/совместимые
+    from providers.ollama import OllamaProvider as _OllamaProvider  # локальные/совместимые
+
+    OllamaProvider: type[_OllamaProvider] | None = _OllamaProvider
 except Exception:
-    OllamaProvider = None  # type: ignore
+    OllamaProvider = None
 
 try:
-    from providers.pico import PicoProvider  # если у тебя есть этот файл
+    from providers.pico import PicoProvider as _PicoProvider  # если у тебя есть этот файл
+
+    PicoProvider: type[_PicoProvider] | None = _PicoProvider
 except Exception:
-    PicoProvider = None  # type: ignore
+    PicoProvider = None
 
 
 class StubProvider(ProviderBase):
@@ -79,8 +85,9 @@ def get_provider():
                 except Exception:
                     # If both fail, return lite provider
                     return GrokLiteProvider()
-        # Fallback when real provider unavailable
-        return GrokLiteProvider()
+        else:
+            # Fallback when real provider unavailable
+            return GrokLiteProvider()
 
     if val == "ollama" and OllamaProvider is not None:
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
