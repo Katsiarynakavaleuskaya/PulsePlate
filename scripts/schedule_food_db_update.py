@@ -210,36 +210,32 @@ def calculate_backoff_delay(
     if max_delay < initial_delay:
         max_delay = initial_delay
 
-    # Handle degenerate multiplier == 0 (should be caught by validation above, but double-check)
-    if multiplier == 0:
-        # Treat as special case: attempt == 0 returns initial_delay, else 0
-        delay = initial_delay if attempt == 0 else 0.0
-    else:
-        # Compute exponential safely with overflow protection
-        try:
-            # Calculate safe cap before powering to avoid overflow
-            # If multiplier^attempt would exceed max_allowed, cap at max_delay directly
-            if initial_delay > 0:
-                max_allowed_power = max_delay / initial_delay
-                # Avoid taking log of 0 or negative, and handle very large values
-                if multiplier > 1 and max_allowed_power > 0:
-                    max_safe_attempt = math.log(max_allowed_power) / math.log(multiplier)
-                    if attempt > max_safe_attempt:
-                        delay = max_delay
-                    else:
-                        delay = initial_delay * math.pow(multiplier, attempt)
-                elif multiplier < 1:
-                    # For multiplier < 1, values decrease, so no overflow risk
-                    delay = initial_delay * math.pow(multiplier, attempt)
+    # Compute exponential safely with overflow protection
+    # multiplier > 0 is guaranteed by validation above
+    try:
+        # Calculate safe cap before powering to avoid overflow
+        # If multiplier^attempt would exceed max_allowed, cap at max_delay directly
+        if initial_delay > 0:
+            max_allowed_power = max_delay / initial_delay
+            # Avoid taking log of 0 or negative, and handle very large values
+            if multiplier > 1 and max_allowed_power > 0:
+                max_safe_attempt = math.log(max_allowed_power) / math.log(multiplier)
+                if attempt > max_safe_attempt:
+                    delay = max_delay
                 else:
-                    # multiplier == 1, so delay is constant
-                    delay = initial_delay
+                    delay = initial_delay * math.pow(multiplier, attempt)
+            elif multiplier < 1:
+                # For multiplier < 1, values decrease, so no overflow risk
+                delay = initial_delay * math.pow(multiplier, attempt)
             else:
-                # initial_delay is 0, so delay is 0
-                delay = 0.0
-        except OverflowError:
-            # If overflow occurs, cap at max_delay
-            delay = max_delay
+                # multiplier == 1, so delay is constant
+                delay = initial_delay
+        else:
+            # initial_delay is 0, so delay is 0
+            delay = 0.0
+    except OverflowError:
+        # If overflow occurs, cap at max_delay
+        delay = max_delay
 
     # Cap at max_delay (safety check)
     delay = min(delay, max_delay)

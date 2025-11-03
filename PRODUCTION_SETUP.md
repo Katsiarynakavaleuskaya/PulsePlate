@@ -100,6 +100,8 @@ sudo dpkg-reconfigure -plow unattended-upgrades
 
 **⚠️ ВАЖНО:** После настройки SSH вы сможете подключаться только по SSH ключу. Убедитесь, что ваш публичный ключ уже добавлен в `~/.ssh/authorized_keys` на сервере перед выполнением этих команд!
 
+**⚠️ IMPORTANT:** After SSH hardening, you can only connect using SSH keys. Ensure your public key is already added to `~/.ssh/authorized_keys` on the server before running these commands!
+
 ### 2. Create Production Directory
 
 ```bash

@@ -335,8 +335,10 @@ class ShoplistGenerator:
             if best_choice is not None:
                 return best_choice
 
-        # Fallback
-        return sorted_packages[0], 1
+        # Fallback: use smallest package and calculate needed quantity
+        fallback_size = sorted_packages[0]
+        fallback_qty = max(1, int(math.ceil(total_amount / fallback_size)))
+        return fallback_size, fallback_qty
 
     def format_export(
         self,

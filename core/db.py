@@ -89,6 +89,43 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
 DATABASE_URL = _build_engine_url()
 
 
+class _ResultWithConnectionCleanup:
+    """Wrapper for SQLAlchemy Result that closes connection when result is closed.
+
+    RU: Обёртка для Result, которая закрывает соединение при закрытии результата.
+    EN: Wrapper for Result that closes connection when result is closed.
+    """
+
+    def __init__(self, result: Any, connection: Any) -> None:
+        """Wrap a result and connection to manage cleanup."""
+        self._result = result
+        self._connection = connection
+        self._connection_closed = False
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate all attribute access to the wrapped result."""
+        attr = getattr(self._result, name)
+        # If result is being closed, also close connection
+        if name == "close" and callable(attr):
+            original_close = attr
+
+            def close_with_connection() -> None:
+                if not self._connection_closed:
+                    original_close()
+                    # Connection may already be closed, log but don't fail
+                    try:
+                        self._connection.close()
+                    except Exception as close_err:  # pragma: no cover - defensive
+                        # Connection pool may have already reclaimed the connection
+                        logger.debug(
+                            "Connection close failed (likely already closed): %s", close_err
+                        )
+                    self._connection_closed = True
+
+            return close_with_connection
+        return attr
+
+
 class EngineCompat:
     """Compatibility wrapper to expose Engine.execute for SQLAlchemy 2.x.
 
@@ -145,8 +182,10 @@ class EngineCompat:
         - Commits if the connection is in a transaction-capable context (SQLite autocommit).
         """
         stmt = text(statement) if isinstance(statement, str) else statement
-        # Use a short-lived connection to mimic Engine.execute behavior
-        with self._engine.connect() as conn:
+        # Keep connection open until result is consumed to avoid ResourceClosedError
+        conn = self._engine.connect()
+        result: Any | None = None
+        try:
             result = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
             if self._is_in_transaction(conn):
@@ -172,7 +211,13 @@ class EngineCompat:
                     self._safe_rollback(conn)
                     # Re-raise unexpected errors to ensure callers are aware
                     raise
-            return result
+            # Return a wrapper that closes connection when result is closed
+            # This ensures connection stays open until caller consumes the result
+            return _ResultWithConnectionCleanup(result, conn)
+        except BaseException:
+            self._safe_rollback(conn)
+            conn.close()
+            raise
 
 
 # Create the underlying SQLAlchemy Engine instance (2.x style)
