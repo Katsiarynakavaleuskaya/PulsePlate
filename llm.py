@@ -23,20 +23,26 @@ class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses ne
 
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
 try:
-    from providers.grok import GrokProvider  # xAI
+    from providers.grok import GrokProvider as _GrokProvider  # xAI
+
+    GrokProvider: type[_GrokProvider] | None = _GrokProvider
 except Exception:
-    GrokProvider = None  # type: ignore
+    GrokProvider = None
 
 
 try:
-    from providers.ollama import OllamaProvider  # локальные/совместимые
+    from providers.ollama import OllamaProvider as _OllamaProvider  # локальные/совместимые
+
+    OllamaProvider: type[_OllamaProvider] | None = _OllamaProvider
 except Exception:
-    OllamaProvider = None  # type: ignore
+    OllamaProvider = None
 
 try:
-    from providers.pico import PicoProvider  # если у тебя есть этот файл
+    from providers.pico import PicoProvider as _PicoProvider  # если у тебя есть этот файл
+
+    PicoProvider: type[_PicoProvider] | None = _PicoProvider
 except Exception:
-    PicoProvider = None  # type: ignore
+    PicoProvider = None
 
 
 class StubProvider(ProviderBase):
@@ -80,26 +86,24 @@ def get_provider():
                 except Exception:
                     # If both fail, return lite provider
                     return GrokLiteProvider()
-        # Fallback when real provider unavailable
-        return GrokLiteProvider()
+        else:
+            # Fallback when real provider unavailable
+            return GrokLiteProvider()
 
-    # RU: Проверяем значение провайдера, затем наличие класса провайдера
-    # EN: Check provider value first, then verify provider class is available
-    if val == "ollama":
-        if OllamaProvider is not None:
-            endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-            model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-            # малый таймаут, чтобы даже при misconfig не висеть
-            timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+    if val == "ollama" and OllamaProvider is not None:
+        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        # малый таймаут, чтобы даже при misconfig не висеть
+        timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+        try:
+            return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
+        except Exception:
+            # Fallback to positional args if keyword args fail
             try:
-                return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
+                return OllamaProvider(endpoint, model, timeout_s)
             except Exception:
-                # Fallback to positional args if keyword args fail
-                try:
-                    return OllamaProvider(endpoint, model, timeout_s)
-                except Exception:
-                    # If both fail, return None
-                    return None
+                # If both fail, return None
+                return None
 
     # неизвестное значение — считаем, что провайдера нет
     return None
