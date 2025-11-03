@@ -603,7 +603,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 ### Production Features
 
 - ✅ **Manual approval gates** for safety
-- ✅ **Automatic database backups** before deployment (keeps last 30 backups)
+- ✅ **Automatic database backups** before deployment (keeps last 30 backups for recovery flexibility)
 - ✅ **Health checks** with retry logic
 - ✅ **Rollback capability** via previous tags
 - ✅ **SSL/TLS** automatic via Caddy + Cloudflare Full Strict

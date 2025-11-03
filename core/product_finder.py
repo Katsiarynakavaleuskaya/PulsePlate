@@ -418,9 +418,7 @@ class ProductFinder:
 
         # Ensure the directory exists (if any)
         try:
-            path_obj = Path(csv_path)
-            if path_obj.parent and not path_obj.parent.exists():
-                path_obj.parent.mkdir(parents=True, exist_ok=True)
+            Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             # Best-effort; writing the file below will surface any errors
             logger.warning("Unable to prepare directory for %s: %s", csv_path, exc)
