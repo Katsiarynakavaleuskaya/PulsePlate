@@ -83,10 +83,11 @@ class TestLlmSimple96:
                 },
             ),
         ):
-            # Mock keyword args failure
+            # Mock keyword args failure, then positional args succeeds
+            mock_success_instance = Mock()
             mock_ollama_provider.side_effect = [
                 TypeError("Keyword args failed"),  # First call fails
-                Mock(),  # Second call succeeds
+                mock_success_instance,  # Second call succeeds
             ]
 
             result = get_provider()
@@ -94,6 +95,7 @@ class TestLlmSimple96:
             # Should try keyword args first, then positional args
             assert mock_ollama_provider.call_count == 2
             assert result is not None
+            assert result == mock_success_instance
 
     def test_get_provider_ollama_both_fail(self):
         """Test get_provider with OllamaProvider both calls fail - line 90-94."""
@@ -117,8 +119,9 @@ class TestLlmSimple96:
 
             result = get_provider()
 
-            # Should return None when both fail
-            assert result is None
+            # Should fallback to OllamaLiteProvider when both fail (консистентно с GrokProvider)
+            assert result is not None
+            assert result.name == "ollama"
 
     def test_get_provider_ollama_timeout_float_conversion(self):
         """Test get_provider with OllamaProvider timeout float conversion - line 85."""
@@ -233,8 +236,9 @@ class TestLlmSimple96:
         with patch("llm.OllamaProvider", None), patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}):
             result = get_provider()
 
-            # Should return None when OllamaProvider is None
-            assert result is None
+            # Should fallback to OllamaLiteProvider when OllamaProvider is None (консистентно с GrokProvider)
+            assert result is not None
+            assert result.name == "ollama"
 
     def test_get_provider_unknown_provider(self):
         """Test get_provider with unknown provider."""

@@ -17,8 +17,8 @@ class TestRecipesDatabaseExpansionHypothesis:
 
     def setup_method(self):
         """Set up test environment."""
-        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
         self.foods = parse_food_db("data/food_db.csv")
+        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db=self.foods)
 
     @given(
         min_calories=st.floats(min_value=100.0, max_value=800.0),

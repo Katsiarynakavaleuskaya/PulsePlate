@@ -1,53 +1,11 @@
 # Sourcery AI Configuration for PulsePlate
 # https://docs.sourcery.ai/
 
-# Rules configuration
-rules:
-  - id: all
-
-# Python version
-python_version: "3.13"
-
-# Review settings
+# GitHub integration
 github:
-  # Enable Sourcery reviews on pull requests
   request_review: always
-  # Post review comments
   sourcery_branch: main
 
-# Code quality rules
-refactor:
-  # Enable all refactoring suggestions
-  skip_default_rules: false
-
-# Metrics thresholds (aligned with project standards)
+# Metrics thresholds
 metrics:
-  quality_threshold: 25.0  # Minimum quality score (0-100)
-
-# Project-specific rules
-project:
-  # Health & nutrition domain focus
-  focus_areas:
-    - health_nutrition
-    - api_best_practices
-    - test_coverage
-
-  # Ignore patterns
-  ignore:
-    - "tests_strict/**"
-    - "**/__pycache__/**"
-    - "**/node_modules/**"
-    - "**/*.pyc"
-    - "example_*.py"
-    - "quick_coverage_*.py"
-
-# Custom instructions for PulsePlate project
-instructions:
-  - "Maintain 97% test coverage requirement"
-  - "Use FastAPI best practices for backend"
-  - "Follow PEP 8 with Black formatting (line length 100)"
-  - "Use Pydantic v2 APIs (model_dump(), model_validate())"
-  - "Add type hints for all functions"
-  - "Focus on health/nutrition domain accuracy"
-  - "Ensure WHO-based nutrition calculations are correct"
-  - "Maintain async/await patterns for API endpoints"
+  quality_threshold: 25.0

@@ -94,6 +94,11 @@ class _ResultWithConnectionCleanup:
 
     RU: Обёртка для Result, которая закрывает соединение при закрытии результата.
     EN: Wrapper for Result that closes connection when result is closed.
+
+    Supports context manager protocol for deterministic cleanup:
+    with engine.execute(...) as result:
+        # use result
+    # connection is automatically closed when exiting context
     """
 
     def __init__(self, result: Any, connection: Any) -> None:
@@ -102,25 +107,42 @@ class _ResultWithConnectionCleanup:
         self._connection = connection
         self._connection_closed = False
 
+    def __enter__(self) -> Any:
+        """Context manager entry - return self for with statement."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit - ensure connection is closed."""
+        self._close_connection()
+
+    def _close_connection(self) -> None:
+        """Close both result and connection, ensuring cleanup."""
+        if not self._connection_closed:
+            # Close result if it has a close method
+            if hasattr(self._result, "close"):
+                try:
+                    self._result.close()
+                except Exception as result_close_err:  # pragma: no cover - defensive
+                    # Result may already be closed, log but don't fail
+                    logger.debug(
+                        "Result close failed (likely already closed): %s", result_close_err
+                    )
+            # Close connection
+            try:
+                self._connection.close()
+            except Exception as close_err:  # pragma: no cover - defensive
+                # Connection pool may have already reclaimed the connection
+                logger.debug("Connection close failed (likely already closed): %s", close_err)
+            self._connection_closed = True
+
     def __getattr__(self, name: str) -> Any:
         """Delegate all attribute access to the wrapped result."""
         attr = getattr(self._result, name)
         # If result is being closed, also close connection
         if name == "close" and callable(attr):
-            original_close = attr
 
             def close_with_connection() -> None:
-                if not self._connection_closed:
-                    original_close()
-                    # Connection may already be closed, log but don't fail
-                    try:
-                        self._connection.close()
-                    except Exception as close_err:  # pragma: no cover - defensive
-                        # Connection pool may have already reclaimed the connection
-                        logger.debug(
-                            "Connection close failed (likely already closed): %s", close_err
-                        )
-                    self._connection_closed = True
+                self._close_connection()
 
             return close_with_connection
         return attr

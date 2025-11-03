@@ -254,12 +254,10 @@ class USDAClient:
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
         """
-        try:
-            # Debug: Check if food_data is actually a dict
-            if not isinstance(food_data, Mapping):
-                logger.error("Expected mapping, got %s: %s", type(food_data), food_data)
-                return None
+        if food_data is None:
+            return None
 
+        try:
             # Extract basic info
             fdc_id_raw = food_data.get("fdcId")
             # Guard and normalize fdc_id to int

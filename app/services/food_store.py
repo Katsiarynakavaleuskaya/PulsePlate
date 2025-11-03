@@ -24,10 +24,9 @@ DB_PATH: Path = Path(_env_db_path) if _env_db_path else Path("data/food.sqlite")
 # Ensure parent directory exists for the SQLite file (create parents as necessary)
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-except Exception as exc:  # pragma: no cover - extremely rare filesystem errors
+except OSError as exc:  # pragma: no cover - extremely rare filesystem errors
     # Warn when directory creation actually fails
-    logger.warning("Unable to create DB directory %s: %s", DB_PATH.parent, exc)
-    logger.debug("Directory creation failed for %s: %s", DB_PATH.parent, exc)
+    logger.warning("Unable to create DB directory %s: %s", DB_PATH.parent, exc, exc_info=True)
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0

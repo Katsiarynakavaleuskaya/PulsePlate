@@ -21,6 +21,16 @@ class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses ne
         return f"[grok-lite] {text}"
 
 
+class OllamaLiteProvider(ProviderBase):  # lightweight fallback that never uses network
+    name = "ollama"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    async def generate(self, text: str) -> str:
+        return f"[ollama-lite] {text}"
+
+
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
 try:
     from providers.grok import GrokProvider as _GrokProvider  # xAI
@@ -90,20 +100,24 @@ def get_provider():
             # Fallback when real provider unavailable
             return GrokLiteProvider()
 
-    if val == "ollama" and OllamaProvider is not None:
-        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-        # малый таймаут, чтобы даже при misconfig не висеть
-        timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
-        try:
-            return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
-        except Exception:
-            # Fallback to positional args if keyword args fail
+    if val == "ollama":
+        if OllamaProvider is not None:
+            endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+            model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+            # малый таймаут, чтобы даже при misconfig не висеть
+            timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
             try:
-                return OllamaProvider(endpoint, model, timeout_s)
+                return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
             except Exception:
-                # If both fail, return None
-                return None
+                # Fallback to positional args if keyword args fail (консистентно с GrokProvider)
+                try:
+                    return OllamaProvider(endpoint, model, timeout_s)
+                except Exception:
+                    # If both fail, return lite provider
+                    return OllamaLiteProvider()
+        else:
+            # Fallback when real provider unavailable
+            return OllamaLiteProvider()
 
     # неизвестное значение — считаем, что провайдера нет
     return None

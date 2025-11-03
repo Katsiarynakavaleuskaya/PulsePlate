@@ -249,11 +249,13 @@ class TestGetProviderOllama:
     """Тесты для Ollama провайдера"""
 
     def test_get_provider_ollama_none_when_unavailable(self):
-        """Тест возврата None когда OllamaProvider недоступен"""
+        """Тест возврата OllamaLiteProvider когда OllamaProvider недоступен"""
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             with patch.object(llm, "OllamaProvider", None):
                 provider = llm.get_provider()
-                assert provider is None
+                # When OllamaProvider is None, should fallback to OllamaLiteProvider (like GrokProvider)
+                assert provider is not None
+                assert provider.name == "ollama"
 
     @patch("llm.OllamaProvider")
     def test_get_provider_ollama_with_env_vars(self, mock_ollama_class):
@@ -305,8 +307,9 @@ class TestGetProviderOllama:
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             provider = llm.get_provider()
 
-            # При ошибках должен вернуться None
-            assert provider is None
+            # При ошибках должен вернуться OllamaLiteProvider (консистентно с GrokProvider)
+            assert provider is not None
+            assert provider.name == "ollama"
             assert mock_ollama_class.call_count == 2
 
 

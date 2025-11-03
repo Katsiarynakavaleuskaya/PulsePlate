@@ -126,6 +126,63 @@ DEFAULT_OVERALL_TIMEOUT = _get_env_float(
 )  # 20 minutes total budget
 
 
+def _validate_config(
+    max_retries: int,
+    timeout_per_attempt: float,
+    overall_timeout: float,
+    initial_delay: float,
+    max_delay: float,
+    jitter_factor: float,
+) -> None:
+    """Validate configuration parameters for consistency and range checks.
+
+    RU: Проверить параметры конфигурации на согласованность и диапазоны.
+    EN: Validate configuration parameters for consistency and range checks.
+
+    Args:
+        max_retries: Maximum number of retry attempts.
+        timeout_per_attempt: Timeout for each individual attempt in seconds.
+        overall_timeout: Overall timeout budget for all attempts in seconds.
+        initial_delay: Initial delay before first retry in seconds.
+        max_delay: Maximum delay between retries in seconds.
+        jitter_factor: Jitter factor for randomization (0.0 to 1.0).
+
+    Raises:
+        ValueError: If any parameter is out of valid range.
+    """
+    # Validate max_retries >= 0
+    if max_retries < 0:
+        raise ValueError(f"max_retries must be >= 0, got {max_retries}")
+
+    # Validate timeout_per_attempt > 0
+    if timeout_per_attempt <= 0:
+        raise ValueError(f"timeout_per_attempt must be > 0, got {timeout_per_attempt}")
+
+    # Validate overall_timeout > 0
+    if overall_timeout <= 0:
+        raise ValueError(f"overall_timeout must be > 0, got {overall_timeout}")
+
+    # Validate initial_delay >= 0
+    if initial_delay < 0:
+        raise ValueError(f"initial_delay must be >= 0, got {initial_delay}")
+
+    # Validate max_delay >= 0
+    if max_delay < 0:
+        raise ValueError(f"max_delay must be >= 0, got {max_delay}")
+
+    # Validate jitter_factor between 0.0 and 1.0
+    if not (0.0 <= jitter_factor <= 1.0):
+        raise ValueError(f"jitter_factor must be between 0.0 and 1.0, got {jitter_factor}")
+
+    # Warn if overall_timeout < timeout_per_attempt (makes multiple attempts unlikely)
+    if overall_timeout < timeout_per_attempt:
+        logger.warning(
+            f"overall_timeout ({overall_timeout}s) is less than "
+            f"timeout_per_attempt ({timeout_per_attempt}s). "
+            f"This makes multiple attempts unlikely."
+        )
+
+
 @dataclass
 class OperationalMetrics:
     """Operational metrics tracker for retry operations.
@@ -378,6 +435,16 @@ def update_food_database(
     Returns:
         True if update succeeded, False otherwise.
     """
+    # Validate configuration parameters early
+    _validate_config(
+        max_retries=max_retries,
+        timeout_per_attempt=timeout_per_attempt,
+        overall_timeout=overall_timeout,
+        initial_delay=initial_delay,
+        max_delay=max_delay,
+        jitter_factor=jitter_factor,
+    )
+
     logger.info("Starting food database update with operational resiliency...")
     logger.info(
         f"Retry configuration: max_retries={max_retries}, "
@@ -631,11 +698,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse max_retries
-    default_max_retries = _get_env_int("FOOD_DB_UPDATE_MAX_RETRIES", DEFAULT_MAX_RETRIES)
     parser.add_argument(
         "--max-retries",
         type=int,
-        default=default_max_retries,
+        default=DEFAULT_MAX_RETRIES,
         help=(
             "Maximum number of retry attempts (total attempts = max_retries + 1). "
             "Can be set via FOOD_DB_UPDATE_MAX_RETRIES environment variable."
@@ -643,15 +709,12 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse timeout_per_attempt (with --timeout as alias)
-    default_timeout_per_attempt = _get_env_float(
-        "FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT", DEFAULT_TIMEOUT_PER_ATTEMPT
-    )
     parser.add_argument(
         "--timeout-per-attempt",
         "--timeout",
         dest="timeout_per_attempt",
         type=float,
-        default=default_timeout_per_attempt,
+        default=DEFAULT_TIMEOUT_PER_ATTEMPT,
         help=(
             "Timeout for each individual attempt in seconds. "
             "Can be set via FOOD_DB_UPDATE_TIMEOUT_PER_ATTEMPT environment variable."
@@ -659,13 +722,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse overall_timeout
-    default_overall_timeout = _get_env_float(
-        "FOOD_DB_UPDATE_OVERALL_TIMEOUT", DEFAULT_OVERALL_TIMEOUT
-    )
     parser.add_argument(
         "--overall-timeout",
         type=float,
-        default=default_overall_timeout,
+        default=DEFAULT_OVERALL_TIMEOUT,
         help=(
             "Overall timeout budget for all attempts in seconds. "
             "Can be set via FOOD_DB_UPDATE_OVERALL_TIMEOUT environment variable."
@@ -673,11 +733,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse initial_delay
-    default_initial_delay = _get_env_float("FOOD_DB_UPDATE_INITIAL_DELAY", DEFAULT_INITIAL_DELAY)
     parser.add_argument(
         "--initial-delay",
         type=float,
-        default=default_initial_delay,
+        default=DEFAULT_INITIAL_DELAY,
         help=(
             "Initial delay before first retry in seconds. "
             "Can be set via FOOD_DB_UPDATE_INITIAL_DELAY environment variable."
@@ -685,13 +744,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse backoff_multiplier
-    default_backoff_multiplier = _get_env_float(
-        "FOOD_DB_UPDATE_BACKOFF_MULTIPLIER", DEFAULT_BACKOFF_MULTIPLIER
-    )
     parser.add_argument(
         "--backoff-multiplier",
         type=float,
-        default=default_backoff_multiplier,
+        default=DEFAULT_BACKOFF_MULTIPLIER,
         help=(
             "Multiplier for exponential backoff. "
             "Can be set via FOOD_DB_UPDATE_BACKOFF_MULTIPLIER environment variable."
@@ -699,11 +755,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse max_delay
-    default_max_delay = _get_env_float("FOOD_DB_UPDATE_MAX_DELAY", DEFAULT_MAX_DELAY)
     parser.add_argument(
         "--max-delay",
         type=float,
-        default=default_max_delay,
+        default=DEFAULT_MAX_DELAY,
         help=(
             "Maximum delay between retries in seconds. "
             "Can be set via FOOD_DB_UPDATE_MAX_DELAY environment variable."
@@ -711,18 +766,29 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Parse jitter_factor
-    default_jitter_factor = _get_env_float("FOOD_DB_UPDATE_JITTER_FACTOR", DEFAULT_JITTER_FACTOR)
     parser.add_argument(
         "--jitter-factor",
         type=float,
-        default=default_jitter_factor,
+        default=DEFAULT_JITTER_FACTOR,
         help=(
             "Jitter factor (0.0 to 1.0) for randomization. "
             "Can be set via FOOD_DB_UPDATE_JITTER_FACTOR environment variable."
         ),
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Validate parsed arguments
+    _validate_config(
+        max_retries=args.max_retries,
+        timeout_per_attempt=args.timeout_per_attempt,
+        overall_timeout=args.overall_timeout,
+        initial_delay=args.initial_delay,
+        max_delay=args.max_delay,
+        jitter_factor=args.jitter_factor,
+    )
+
+    return args
 
 
 def main() -> None:

@@ -92,8 +92,10 @@ class ShoplistGenerator:
                 LOGGER.warning("Failed to load packaging rules: %s", load_err)
             except Exception as unexpected:  # noqa: BLE001 - continue with defaults
                 LOGGER.error(
-                    "Unhandled error loading packaging rules; falling back to defaults: %s",
+                    "Unhandled error loading packaging rules from %s; falling back to defaults: %s",
+                    self.packaging_rules_file,
                     unexpected,
+                    exc_info=True,
                 )
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
@@ -319,7 +321,7 @@ class ShoplistGenerator:
         elif strategy == "down":
             # Округляем вниз - берем максимальную упаковку, которая помещается
             for package_size in reversed(sorted_packages):
-                packages_needed = int(math.floor(total_amount / package_size))
+                packages_needed = int(total_amount / package_size)
                 if packages_needed > 0:
                     return package_size, packages_needed
         else:  # 'nearest'
@@ -452,11 +454,22 @@ class ShoplistGenerator:
             raise ValueError(f"Unsupported format type: {format_type}")
 
 
+# Cached generator instance to avoid reloading packaging rules on each call
+_generator: Optional[ShoplistGenerator] = None
+
+
+def _get_generator() -> ShoplistGenerator:
+    """Get or create the cached generator instance."""
+    global _generator
+    if _generator is None:
+        _generator = ShoplistGenerator()
+    return _generator
+
+
 # Функции для удобного использования
 def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
     """Агрегирует ингредиенты из недельного плана."""
-    generator = ShoplistGenerator()
-    return generator.aggregate_ingredients(week_plan)
+    return _get_generator().aggregate_ingredients(week_plan)
 
 
 def round_to_packages(
@@ -465,16 +478,14 @@ def round_to_packages(
     rules: Optional[Dict] = None,
 ) -> List[ShoppingItem]:
     """Округляет агрегированные ингредиенты до упаковок."""
-    generator = ShoplistGenerator()
-    return generator.round_to_packages(aggregated, packaging_db, rules)
+    return _get_generator().round_to_packages(aggregated, packaging_db, rules)
 
 
 def format_export(
     shopping_list: List[ShoppingItem], locale: str = "ru", format_type: str = "json"
 ) -> Union[str, Dict]:
     """Форматирует список покупок для экспорта."""
-    generator = ShoplistGenerator()
-    return generator.format_export(shopping_list, locale, format_type)
+    return _get_generator().format_export(shopping_list, locale, format_type)
 
 
 def get_shoplist(

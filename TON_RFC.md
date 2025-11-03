@@ -8,9 +8,10 @@
 
 Оценить возможность интеграции с TON (The Open Network) платформой для:
 - Децентрализованного хостинга веб-приложений
-- Платежей через TON (подписки/премиум функции)
 - Хранилища данных (TON Storage)
 - Децентрализованных доменов (TON Sites/Domains)
+
+**⚠️ Scope Clarification:** TON Payments **не включены** в этот RFC. Интеграция ограничена только инфраструктурой (хостинг, хранилище, домены). Платежи будут обрабатываться через существующие платформы (App Store, Google Play).
 
 ## 🎯 Strategic Alignment
 
@@ -19,7 +20,7 @@
 **Primary Goals:**
 - **Cost Optimization:** Reduce infrastructure costs from ~$5-20/month to ~$0.1-1/month (90%+ savings), enabling longer runway for solo developer
 - **User Acquisition:** Access TON ecosystem (~500M+ users) as new distribution channel for health/nutrition features
-- **Payment Diversification:** Alternative payment method (TON) alongside existing subscription platforms to reduce platform dependency
+- **Infrastructure Decentralization:** Reduce dependency on single hosting provider through decentralized infrastructure
 
 **Mapped to User Outcomes:**
 - **Lower pricing potential:** Cost savings could enable lower subscription prices or extended free tiers
@@ -53,7 +54,7 @@
 
 **Stakeholder Sign-off Required:**
 - ✅ **Product Owner:** Approve deprioritization of health features listed above
-- ✅ **Legal/Compliance:** Review regulatory risks (crypto payments, KYC/AML requirements)
+- ✅ **Legal/Compliance:** Review regulatory risks (health data storage, GDPR/HIPAA compliance on decentralized infrastructure)
 - ✅ **Engineering:** Confirm 2-week timebox is acceptable given current sprint commitments
 
 ## 📊 Текущий статус (2025)
@@ -61,8 +62,7 @@
 ### Что доступно сейчас:
 
 1. **TON Blockchain** — стабильная сеть для смарт-контрактов
-2. **TON Payments** — интеграция платежей (SDK доступен)
-3. **TON Storage** — децентрализованное хранилище (в разработке)
+2. **TON Storage** — децентрализованное хранилище (в разработке)
 
 ### Что в разработке:
 
@@ -74,7 +74,6 @@
 
 - **TON Sites** (статика): бесплатно или минимальная плата (~$0.01-0.1/месяц)
 - **TON Storage** (данные): ~$0.01-0.05 за GB/месяц
-- **TON Payments**: комиссия ~0.5-1% от транзакции
 - **TON Domains**: регистрация ~$10-50 (единоразово)
 
 **Сравнение с текущим решением:**
@@ -90,71 +89,200 @@
 3. **Database:** SQLite/PostgreSQL может потребовать адаптацию для TON Storage
 4. **WebSockets:** Необходимо проверить поддержку для real-time функций
 
+### 🚫 Health Data Compliance (Phase 0 Blocker):
+
+**TON Storage is explicitly marked as a Phase 0 blocker for identifiable health data** due to fundamental privacy and compliance concerns that require comprehensive research before any Phase 1 scoping.
+
+**Critical Research Tasks (Required before Phase 1):**
+
+1. **End-to-End Encryption & Off-Chain Storage Evaluation**
+   - Evaluate feasibility and cost of implementing end-to-end encryption (E2EE) for all personal/health data flows using TON Storage
+   - Assess architecture options for off-chain storage of encrypted health data (user metrics, nutrition logs, BMI history, body fat data)
+   - Cost analysis: Compare E2EE + off-chain storage overhead vs. traditional encrypted database solutions
+   - Technical feasibility: Validate that TON Storage can support E2EE key management and encrypted blob storage patterns
+   - Deliverable: Technical feasibility report with cost estimates and architecture recommendations
+
+2. **Transactional Requirements Validation**
+   - Validate ACID transaction requirements (Atomicity, Consistency, Isolation, Durability) for health data operations
+   - Assess multi-row atomicity needs (e.g., logging meal entry with multiple nutrients must be atomic)
+   - Evaluate isolation levels required for concurrent user data updates
+   - Determine rollback capabilities for failed transactions (critical for data integrity)
+   - **Decision point:** Determine if a traditional DB layer (PostgreSQL/SQLite) is required alongside TON Storage for transactional health data
+   - Deliverable: Transactional requirements analysis with recommendation on hybrid architecture vs. TON Storage-only approach
+
+3. **GDPR Compliance Assessment**
+   - **Immutability vs. Right to Erasure:** Evaluate conflict between blockchain immutability and GDPR Article 17 (Right to Erasure). TON Storage immutability may prevent complete data deletion required by GDPR
+   - **Data Controller/Processor Roles:** Assess whether TON Storage architecture requires reclassification of data controller/processor roles under GDPR Article 24-28
+   - **Mandatory DPIA:** Conduct Data Protection Impact Assessment (DPIA) as required by GDPR Article 35 for high-risk processing of health data
+   - **Legal Review:** Mandate legal counsel review of TON Storage architecture from GDPR, CCPA, and HIPAA (if applicable) perspectives
+   - Deliverable: GDPR/Privacy compliance report with DPIA documentation and legal recommendations
+
+4. **Decision Gate Recommendation**
+   - Recommend a formal decision gate that **prevents Phase 1 scoping** until:
+     - All research findings from tasks 1-3 are documented and reviewed
+     - A mitigation plan is approved (which may include: hybrid architecture with traditional DB for health data, migration away from TON Storage for personal data, or explicit no-go decision)
+     - Legal/Compliance approval is obtained for the proposed architecture
+   - Define escalation path if research findings indicate TON Storage is unsuitable for health data
+   - Deliverable: Decision gate criteria document with approval checklist
+
+**Research Timeline:** These health data compliance research tasks are estimated at 5-7 additional person-days, extending Phase 0 timeline to **2.5-3 person-weeks**.
+
 ### Регуляторные:
 
-1. **Криптовалюты:** Могут быть ограничения в некоторых юрисдикциях
-2. **Платежи:** Нужны лицензии для приёма платежей в некоторых странах
-3. **KYC/AML:** Для приёма платежей может потребоваться compliance
+**⚠️ BLOCKING: Required decisions before Phase 0 research spike**
+
+The following regulatory decisions must be made and documented before Phase 0 can begin:
+
+#### 1. Health Data (PHI) Storage on TON Infrastructure
+
+**Decision Required:** Will the app store Protected Health Information (PHI) or health data on TON Storage?
+
+- **Option A: No PHI on TON Storage**
+  - Only non-identifiable, aggregated, or public data stored on TON Storage
+  - Health/nutrition data stored on traditional compliant infrastructure (HIPAA/GDPR compliant)
+  - TON Storage used only for static assets, public data, or encrypted backups without keys
+
+- **Option B: PHI Stored on TON Storage**
+  - Personal health/nutrition data stored on TON Storage (even if encrypted)
+  - Requires comprehensive compliance assessment for decentralized storage
+
+**Current Proposal:** **[DECISION PENDING]** — Recommended: **Option A (No PHI on TON Storage)** to minimize HIPAA/GDPR compliance risks and reduce regulatory complexity. TON Storage would be used only for non-health data (static assets, public content).
+
+#### 2. Target Jurisdictions
+
+**Decision Required:** List all jurisdictions where the app will operate and where data may be stored:
+
+- **Primary Markets:**
+  - **[DECISION PENDING]** United States (specify states: all 50 states, or exclude certain states?)
+  - **[DECISION PENDING]** European Union (all 27 member states, or specific countries?)
+  - **[DECISION PENDING]** Other jurisdictions (UK, Canada, Australia, etc.)
+
+- **Regulatory Impact by Jurisdiction:**
+  - **United States:**
+    - HIPAA compliance (if PHI collected/stored, regardless of storage location)
+    - State privacy laws (CCPA, VCDPA, etc.)
+    - Federal data protection requirements
+
+  - **European Union:**
+    - GDPR compliance (mandatory for EU data subjects)
+    - Data localization requirements (if applicable)
+    - Cross-border data transfer mechanisms
+
+  - **Other Jurisdictions:**
+    - **[DECISION PENDING]** Specific requirements for each target country (e.g., PIPEDA for Canada)
+
+**Current Proposal:** **[DECISION PENDING]** — Target jurisdictions must be finalized and legal review completed before Phase 0.
+
+#### 3. Required Regulatory Controls (Conditional on Decisions Above)
+
+**Based on data storage model and jurisdictions selected, the following controls may be required:**
+
+**Privacy & Health Data Compliance:**
+- [ ] **[IF PHI STORED + US]** HIPAA compliance program (Business Associate Agreements, security controls, breach notification procedures)
+- [ ] **[IF EU DATA SUBJECTS]** GDPR compliance (data processing agreements, privacy notices, data subject rights procedures)
+- [ ] **[IF US STATES]** State privacy law compliance (CCPA, VCDPA, etc.)
+- [ ] **[IF OTHER JURISDICTIONS]** Country-specific privacy law compliance
+
+**Data Security Controls:**
+- [ ] End-to-end encryption for all health data (if stored on TON)
+- [ ] Access controls and audit logging
+- [ ] Data retention and deletion policies
+- [ ] Breach notification procedures
+
+**Documentation & Procedures:**
+- [ ] Written privacy and data protection policies
+- [ ] Risk assessment documentation
+- [ ] Data processing impact assessments (if GDPR applies)
+- [ ] Training programs for relevant staff (if any)
+- [ ] Audit and monitoring procedures
+
+#### 4. Legal/Compliance Sign-off Required
+
+**Before Phase 0 Research Spike:**
+- [ ] Legal counsel review of data storage model decision (PHI on TON vs. traditional infrastructure)
+- [ ] Legal counsel review of target jurisdictions
+- [ ] Preliminary regulatory assessment (HIPAA/GDPR obligations for decentralized storage)
+- [ ] Estimated compliance costs and timeline
+
+**Failure to obtain these decisions before Phase 0 will result in research scope being limited to technical feasibility only, with health data storage excluded from testing until regulatory decisions are finalized.**
 
 ### Пользовательский опыт:
 
-1. **Онбординг:** Пользователям нужно будет создать TON кошелёк (дополнительный барьер)
-2. **Образовательный контент:** Нужны туториалы по TON кошелькам
-3. **Криптовалюта:** Не все пользователи знакомы с TON/crypto
+1. **Прозрачность:** Пользователи не заметят разницы — TON используется только для бэкенд-инфраструктуры
+2. **Доступность:** Децентрализованный хостинг может улучшить доступность в регионах с ограниченным доступом
+3. **Надежность:** Снижение зависимости от одного провайдера хостинга
 
 ## 📅 План исследования
 
-### Phase 0: Research Spike (Timeboxed: 2 person-weeks)
+### Phase 0: Research Spike (Timeboxed: 2.5-3 person-weeks)
 
-**Scope:** Validate technical feasibility before committing to full Phase 1.
+**Scope:** Validate technical feasibility before committing to full Phase 1. **Health data compliance research is mandatory and blocks Phase 1 scoping until completion.**
 
 **Tasks:**
 - [ ] Review TON Developer Docs (2 days)
 - [ ] Evaluate TON SDK for Python/FastAPI compatibility (3 days)
 - [ ] Assess TON Sites/Cloud deployment capabilities (2 days)
-- [ ] Test TON Payments SDK integration (2 days)
+- [ ] Test TON Storage integration (if applicable) (2 days)
 - [ ] Legal/compliance preliminary review (1 day)
+- [ ] **Health Data Compliance Research (5-7 days - Phase 0 Blocker):**
+  - [ ] Task 1: End-to-End Encryption & Off-Chain Storage Evaluation (2 days)
+  - [ ] Task 2: Transactional Requirements Validation (ACID, multi-row atomicity, isolation, rollback) (2 days)
+  - [ ] Task 3: GDPR Compliance Assessment (DPIA, immutability vs. erasure, controller/processor roles) (2 days)
+  - [ ] Task 4: Decision Gate Documentation (preventing Phase 1 until mitigation plan approved) (1 day)
 
 **Success Criteria (Go):**
 - ✅ TON SDK supports Python/FastAPI deployment architecture
 - ✅ TON Sites/Cloud can host FastAPI backend (or clear migration path exists)
-- ✅ TON Payments SDK has stable API for subscription payments
+- ✅ TON Storage integration is feasible (if applicable) and meets requirements
+- ✅ **Health Data Compliance: All 4 research tasks completed with documented findings**
+- ✅ **Health Data Compliance: Mitigation plan approved (hybrid DB architecture or migration plan)**
+- ✅ **Health Data Compliance: Legal/Compliance approval obtained for proposed architecture**
+- ✅ **Health Data Compliance: DPIA completed and reviewed**
 - ✅ No blocking legal/compliance issues identified
 - ✅ Estimated engineering effort for Phase 1 < 4 person-weeks
 
 **Failure Criteria (No-Go):**
 - ❌ FastAPI deployment not supported (static sites only)
-- ❌ TON Payments incompatible with subscription model
-- ❌ Legal/compliance blockers (crypto payment restrictions)
+- ❌ TON Storage integration not feasible or incompatible with requirements
+- ❌ Legal/compliance blockers (data storage/privacy restrictions)
+- ❌ **Health Data Compliance: TON Storage determined unsuitable for health data with no viable mitigation**
+- ❌ **Health Data Compliance: GDPR/Privacy compliance cannot be achieved with proposed architecture**
+- ❌ **Health Data Compliance: Legal review rejects TON Storage for personal/health data**
 - ❌ Estimated Phase 1 effort > 6 person-weeks
 
 **Deliverable:** Research spike report with go/no-go recommendation and effort estimates.
 
-### Фаза 1: Исследование (Q1 2025) - **Conditional on Phase 0 Go Decision**
+### Фаза 1: Исследование (Q1 2025) - **Conditional on Phase 0 Go Decision + Health Data Compliance Approval**
+
+**⚠️ Phase 1 cannot proceed until:**
+- All Phase 0 health data compliance research tasks (1-4) are completed
+- Mitigation plan is documented and approved (hybrid DB architecture or migration away from TON Storage for health data)
+- Legal/Compliance approval obtained for proposed architecture
+- DPIA completed and reviewed
 
 **Estimated Effort:** 3-4 person-weeks
 
 - [ ] Setup TON development environment (2 days)
 - [ ] Deploy minimal FastAPI app to TON infrastructure (5 days)
-- [ ] Implement TON Payments integration prototype (5 days)
-- [ ] End-to-end testing: payment → subscription activation (3 days)
+- [ ] Test TON Storage integration (if applicable) (5 days)
+- [ ] End-to-end testing: infrastructure deployment and data flow (3 days)
 - [ ] Performance benchmarking vs. current Cloudflare solution (2 days)
 
 **Success Criteria:**
 - ✅ Базовый FastAPI endpoint работает на TON инфраструктуре с <200ms response time (p95)
-- ✅ TON Payments успешно обрабатывает тестовую подписку (success rate >99%)
-- ✅ Subscription activation происходит автоматически после payment confirmation
+- ✅ TON Storage (если используется) интегрирован и работает стабильно
+- ✅ Инфраструктура развернута и функционирует корректно
 - ✅ Uptime >99.5% в течение 1 недели тестирования
 - ✅ Engineering effort не превысил 4 person-weeks
 
 **Failure Criteria:**
 - ❌ Response time >500ms (p95) или downtime >1%
-- ❌ Payment failure rate >5% или subscription activation delays >30s
+- ❌ Storage/infrastructure failure rate >5% или frequent service interruptions
 - ❌ Engineering effort превысил 6 person-weeks
 - ❌ Critical bugs, требующие архитектурных изменений
 
 **Go/No-Go Decision Gate:** После Phase 1 требуется review с оценкой:
-- Product KPIs: пользовательская конверсия в платежах, onboarding success rate
+- Technical KPIs: инфраструктурная стабильность, performance metrics
 - Legal: финальный compliance review для production deployment
 - Engineering: техническая готовность к Phase 2 (production-grade stability)
 
@@ -163,44 +291,44 @@
 **Estimated Effort:** 4-6 person-weeks
 
 - [ ] Production-grade staging deployment на TON (5 days)
-- [ ] Полная интеграция TON Payments для premium функций (7 days)
-- [ ] User onboarding flow с TON wallet creation guide (5 days)
+- [ ] Полная интеграция TON Storage (если применимо) (7 days)
+- [ ] Monitoring и alerting setup (5 days)
 - [ ] Beta testing с ограниченной группой пользователей (2 weeks monitoring)
-- [ ] Analytics dashboard для отслеживания TON metrics (3 days)
+- [ ] Analytics dashboard для отслеживания TON infrastructure metrics (3 days)
 
 **Success Criteria:**
 - ✅ Staging deployment работает стабильно (uptime >99.9%, response time <200ms p95)
-- ✅ TON Payments обрабатываются без ошибок (failure rate <1%)
-- ✅ Пользователи успешно проходят онбординг (конверсия >50%, completion time <5 min)
+- ✅ TON инфраструктура функционирует без ошибок (failure rate <1%)
+- ✅ Пользователи не испытывают проблем с доступностью (no user complaints about downtime)
 - ✅ Beta users дают положительную обратную связь (NPS >40)
-- ✅ Product KPIs: >10% пользователей выбирают TON payment option
+- ✅ Infrastructure KPIs: uptime и performance соответствуют или превышают текущую инфраструктуру
 
 **Failure Criteria:**
 - ❌ Uptime <99% или критичные performance issues
-- ❌ Payment failure rate >3% или frequent transaction delays
-- ❌ Onboarding конверсия <30% или user complaints >20%
+- ❌ Infrastructure failure rate >3% или frequent service interruptions
+- ❌ User complaints >20% или significant service degradation
 - ❌ Legal/compliance issues обнаружены в production
-- ❌ Adoption rate TON payments <5% (insufficient ROI)
+- ❌ Cost savings <50% или insufficient ROI vs. engineering investment
 
 **Product KPI Thresholds for Go:**
-- User acquisition: +15% new users from TON ecosystem
-- Payment conversion: TON payments adoption rate >10% of total payments
+- Infrastructure stability: uptime и performance соответствуют или превышают baseline
 - User satisfaction: NPS не снижается vs. baseline
 - Cost savings: инфраструктурные расходы снижены на >70%
+- No user-facing degradation: все функции работают как прежде
 
 ### Фаза 3: Production (Q3 2025+, если Phase 2 успешна)
 
 **Estimated Effort:** 6-8 person-weeks
 
 - [ ] Миграция production на TON (или гибрид TON + Cloudflare) (10 days)
-- [ ] Полный переход на TON Payments (или dual payment system) (7 days)
-- [ ] Маркетинг в TON комьюнити (ongoing)
+- [ ] Полная интеграция TON Storage (если применимо) (7 days)
 - [ ] Monitoring, alerting, incident response setup (5 days)
+- [ ] Documentation и runbooks для operations (3 days)
 
 **Success Criteria:**
 - ✅ Production migration завершена без downtime
 - ✅ All critical metrics meet or exceed Phase 2 baselines
-- ✅ Positive ROI: cost savings + user acquisition gains > engineering investment
+- ✅ Positive ROI: cost savings > engineering investment
 
 ## 🎯 Ожидаемые выгоды
 
@@ -208,8 +336,8 @@
 
 1. **Экономия:** Значительно дешевле традиционного хостинга
 2. **Децентрализация:** Независимость от одного провайдера
-3. **Новая аудитория:** TON комьюнити (миллионы пользователей)
-4. **Инновации:** Первые в health/nutrition на TON
+3. **Надежность:** Улучшенная доступность за счет децентрализованной инфраструктуры
+4. **Инновации:** Опыт работы с децентрализованной инфраструктурой
 
 ### Если не успешно:
 
@@ -221,7 +349,7 @@
 - **TON Docs**: <https://docs.ton.org>
 - **TON Developer Portal**: <https://tondev.io>
 - **TON SDK Python**: <https://github.com/toncenter/pytonlib>
-- **TON Payments**: <https://docs.ton.org/develop/dapps/ton-payments>
+- **TON Storage**: <https://docs.ton.org/develop/dapps/ton-storage>
 
 ## 🚦 Risk-Adjusted Go/No-Go Decision Gate
 
@@ -243,6 +371,9 @@
 - Engineering effort must be within budgeted person-weeks
 
 **No-Go Triggers:**
+- **Health Data Compliance:** TON Storage determined unsuitable for health data with no viable mitigation plan
+- **Health Data Compliance:** GDPR/Privacy compliance cannot be achieved with proposed architecture
+- **Health Data Compliance:** Legal review rejects TON Storage for personal/health data
 - Any critical blocker (legal, technical, or compliance)
 - Product KPIs fail to meet thresholds (Phase 1+)
 - Engineering effort exceeds budget by >25%
@@ -250,20 +381,31 @@
 
 ### Legal/Compliance Review Checklist
 
-**Required before Phase 1:**
-- [ ] **Regulatory Assessment:** Crypto payment acceptance legality in target markets (US, EU, etc.)
-- [ ] **KYC/AML Requirements:** Determine if TON payments require KYC/AML compliance
-- [ ] **Tax Implications:** Crypto payment reporting requirements
-- [ ] **Platform Policies:** Review App Store/Google Play policies on crypto payments
-- [ ] **Data Privacy:** TON Storage compliance with GDPR/CCPA
+**🚫 REQUIRED BEFORE PHASE 1 (Phase 0 Blocker - Health Data Compliance):**
+- [ ] **Health Data Compliance Research Tasks Completed (See Phase 0 tasks):**
+  - [ ] Task 1: End-to-End Encryption & Off-Chain Storage Evaluation completed
+  - [ ] Task 2: Transactional Requirements Validation completed
+  - [ ] Task 3: GDPR Compliance Assessment completed (including DPIA)
+  - [ ] Task 4: Decision Gate Documentation completed
+- [ ] **GDPR/Privacy Compliance:**
+  - [ ] **DPIA (Data Protection Impact Assessment):** Conducted and reviewed as required by GDPR Article 35 for health data processing
+  - [ ] **Right to Erasure:** Mitigation plan approved for GDPR Article 17 compliance (TON Storage immutability conflict resolved)
+  - [ ] **Data Controller/Processor Roles:** Assessment completed per GDPR Articles 24-28
+  - [ ] **Legal Review:** Legal counsel review of TON Storage architecture from GDPR, CCPA, and HIPAA perspectives completed
+- [ ] **Mitigation Plan Approved:** Architecture decision documented (hybrid DB for health data OR migration away from TON Storage for personal data)
+- [ ] **Health Data Architecture Approval:** Legal/Compliance sign-off obtained for proposed health data storage architecture
+
+**Required before Phase 1 (General Compliance):**
+- [ ] **Regulatory Assessment:** Data storage and infrastructure legality in target markets (US, EU, etc.)
+- [ ] **Data Privacy (General):** TON Storage compliance with GDPR/CCPA for non-health data
+- [ ] **Infrastructure Compliance:** Review of decentralized infrastructure compliance requirements
 
 **Required before Phase 2 (Production):**
 - [ ] **Legal Opinion:** Written assessment from legal counsel
-- [ ] **Compliance Framework:** KYC/AML procedures documented (if required)
-- [ ] **Terms of Service:** Updated TOS to include TON payment terms
-- [ ] **Privacy Policy:** Updated to reflect TON storage/decentralized infrastructure
+- [ ] **Terms of Service:** Updated TOS to reflect TON infrastructure and health data handling
+- [ ] **Privacy Policy:** Updated to reflect TON storage/decentralized infrastructure and health data architecture
 
-**Legal Sign-off Required:** Legal/compliance owner must approve before proceeding to Phase 2.
+**Legal Sign-off Required:** Legal/compliance owner must approve **health data compliance research findings and mitigation plan** before proceeding to Phase 1. Legal/compliance owner must also approve before proceeding to Phase 2.
 
 ### Product KPI Thresholds
 
@@ -272,16 +414,16 @@
 - No product KPIs (research phase)
 
 **Phase 2 (Pilot):**
-- User onboarding conversion: **>50%** (vs. baseline)
-- TON payment adoption: **>10%** of total payments
+- Infrastructure stability: uptime и performance соответствуют или превышают baseline
 - User satisfaction (NPS): **>40** (no decline vs. baseline)
 - Infrastructure cost savings: **>70%**
+- No user-facing degradation: все функции работают как прежде
 
 **Phase 3 (Production):**
-- User acquisition: **+15%** new users from TON ecosystem
-- Payment conversion: **>15%** TON payments adoption
-- ROI: Cost savings + acquisition gains > total engineering investment
+- Infrastructure stability: uptime и performance соответствуют или превышают Phase 2 baselines
+- ROI: Cost savings > total engineering investment
 - User satisfaction: NPS maintained or improved
+- No service degradation: все функции работают как прежде
 
 ### Escalation Path
 

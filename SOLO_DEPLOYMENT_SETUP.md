@@ -53,11 +53,11 @@ cat ~/.ssh/pulseplate_deploy
 2. **Cloudflare:** SSL Full (strict) + HSTS включён
 3. **GitHub:** Branch protection на `main` (можно без reviewers, но с require status checks)
 4. **Secrets:** Используйте GitHub Environments, не коммитьте в код
+5. **Rate limiting на admin endpoints** — обязательно
 
 ### Опционально (но рекомендуется):
 
 - Cloudflare WAF (базовые правила)
-- Rate limiting на admin endpoints
 - Healthcheck после деплоя (автооткат при падении)
 
 ## ⚡ Упрощённый workflow
