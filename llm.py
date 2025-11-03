@@ -62,7 +62,7 @@ def get_provider():
         return StubProvider()
 
     if val == "grok":
-        if GrokProvider:
+        if GrokProvider is not None:
             # пример: можно пробросить ключ и модель через env
             api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
             model = os.getenv("GROK_MODEL", "grok-4-latest")
@@ -82,7 +82,7 @@ def get_provider():
         # Fallback when real provider unavailable
         return GrokLiteProvider()
 
-    if val == "ollama" and OllamaProvider:
+    if val == "ollama" and OllamaProvider is not None:
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
