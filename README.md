@@ -591,6 +591,9 @@ Production deployments are automated via GitHub Actions with manual approval gat
    - Check GitHub Actions logs
    - Verify health endpoint: `https://yourdomain.com/health`
 
+## PulsePlate Copilot Agent
+
+Интеграция кастомного Copilot‑агента для проекта PulsePlate. Файл спецификации агента находится по пути [.github/agents/my-agent.md](.github/agents/my-agent.md). В нём описаны роли, миссия, режимы отчётов, технические и маркетинговые требования. Добавьте этот файл в репозиторий, чтобы активировать агента Copilot для разработки и аналитики.
 ### Production Features
 
 - ✅ **Manual approval gates** for safety
