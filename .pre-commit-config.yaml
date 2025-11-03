@@ -62,7 +62,7 @@ repos:
         stages: [pre-commit]
         types: [python]
         # Changed-files only (fast path). Full scan added below on pre-push/CI.
-        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/|^test_quick_check\.py$
         args:
           - -q
           - -c

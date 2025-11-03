@@ -10,7 +10,7 @@ import importlib
 import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
-from types import ModuleType
+from types import ModuleType, TracebackType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
 
 from sqlalchemy import create_engine, text
@@ -18,6 +18,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
+    from sqlalchemy.engine import Connection, Result
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
@@ -101,17 +102,27 @@ class _ResultWithConnectionCleanup:
     # connection is automatically closed when exiting context
     """
 
-    def __init__(self, result: Any, connection: Any) -> None:
+    if TYPE_CHECKING:  # pragma: no cover - type check only
+        _result: Result[Any]
+        _connection: Connection
+        _connection_closed: bool
+
+    def __init__(self, result: Result[Any], connection: Connection) -> None:
         """Wrap a result and connection to manage cleanup."""
         self._result = result
         self._connection = connection
         self._connection_closed = False
 
-    def __enter__(self) -> Any:
+    def __enter__(self) -> _ResultWithConnectionCleanup:
         """Context manager entry - return self for with statement."""
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Context manager exit - ensure connection is closed."""
         self._close_connection()
 
@@ -237,7 +248,7 @@ class EngineCompat:
             # Re-raise unexpected errors to ensure callers are aware
             raise
 
-    def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
+    def execute(self, statement: Any, *args: Any, **kwargs: Any) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.
 
         - Accepts both SQL strings and SQLAlchemy expressions.
@@ -246,15 +257,17 @@ class EngineCompat:
         stmt = text(statement) if isinstance(statement, str) else statement
         # Keep connection open until result is consumed to avoid ResourceClosedError
         conn = self._engine.connect()
-        result: Any | None = None
+        result: Result[Any] | None = None
         try:
             result = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
             self._finalize_transaction(conn)
             # Return a wrapper that closes connection when result is closed
             # This ensures connection stays open until caller consumes the result
+            if result is None:
+                raise RuntimeError("result should be assigned if execute succeeded")
             return _ResultWithConnectionCleanup(result, conn)
-        except BaseException:
+        except Exception:
             self._safe_rollback(conn)
             conn.close()
             raise

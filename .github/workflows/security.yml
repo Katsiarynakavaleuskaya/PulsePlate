@@ -79,12 +79,27 @@ jobs:
 
       - name: Run Safety (dependency audit with policy)
         run: |
-          # Use shared policy and enforce high/critical severity only
-          # This ensures local and CI behavior are identical
-          safety check \
-            --policy-file safety-policy.toml \
-            --severity high,critical \
-            --full-report -r requirements.txt > safety-report.txt 2>&1
+          # Ensure pip tooling is up-to-date (avoids some platform-related install issues)
+          python -m pip install --upgrade pip setuptools wheel
+
+          # Ensure we have a requirements file to audit
+          if [ ! -f requirements.txt ]; then
+            echo "⚠️ requirements.txt not found — creating from pip freeze"
+            python -m pip freeze > requirements.txt || true
+          fi
+
+          # Use shared policy if present; enforce only high/critical
+          if [ -f safety-policy.toml ]; then
+            safety check \
+              --policy-file safety-policy.toml \
+              --severity high,critical \
+              --full-report -r requirements.txt > safety-report.txt 2>&1
+          else
+            echo "⚠️ safety-policy.toml not found — running safety without a policy file"
+            safety check \
+              --severity high,critical \
+              --full-report -r requirements.txt > safety-report.txt 2>&1
+          fi
           safety_exit_code=$?
 
           # Display Safety report

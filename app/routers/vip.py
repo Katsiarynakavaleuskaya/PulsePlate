@@ -1208,15 +1208,7 @@ async def get_recipe_templates(
         Список шаблонов рецептов
     """
     # Validate synthesizer dependency: check if it's None, falsy, or missing expected attributes
-    if not synthesizer:
-        return {
-            "status": "error",
-            "message": "Recipe synthesizer not available",
-            "templates": [],
-        }
-
-    # Check if synthesizer has the expected templates attribute
-    if not hasattr(synthesizer, "templates"):
+    if not synthesizer or not hasattr(synthesizer, "templates"):
         return {
             "status": "error",
             "message": "Recipe synthesizer not available",
@@ -1247,20 +1239,12 @@ async def get_recipe_templates(
             "total_templates": len(templates),
             "message": f"Retrieved {len(templates)} recipe templates",
         }
-    except AttributeError:
-        # Handle missing attributes on synthesizer or templates
-        logging.exception("Recipe synthesizer missing expected attributes")
+    except Exception as e:
+        # Handle any exceptions from recipe synthesizer or template access
+        logging.exception("Error retrieving recipe templates: %s", e)
         return {
             "status": "error",
-            "message": "Recipe synthesizer not available",
-            "templates": [],
-        }
-    except Exception:
-        # Catch any other exceptions from template access
-        logging.exception("Error retrieving recipe templates")
-        return {
-            "status": "error",
-            "message": "Recipe synthesizer not available",
+            "message": f"Error retrieving recipe templates: {str(e)}",
             "templates": [],
         }
 
