@@ -19,49 +19,111 @@ count_null_separated() {
     printf '%d\n' "$count"
 }
 
+# Helper: safely run find and count, capturing errors and exit status
+# Usage: safe_find_count "description" "find_args..."
+# Returns count via stdout, logs warnings to stderr if find fails
+safe_find_count() {
+    local description="$1"
+    shift
+    local find_args=("$@")
+    local temp_stderr
+    local find_exit
+    local count
+    local captured_stderr
+
+    # Create temp file for stderr capture
+    temp_stderr=$(mktemp)
+
+    # Run find, redirecting stderr to temp file, pipe stdout to counter
+    count=$(find "${find_args[@]}" -print0 2>"$temp_stderr" | count_null_separated)
+    find_exit=${PIPESTATUS[0]}
+
+    # Capture stderr content
+    captured_stderr=$(cat "$temp_stderr")
+    rm -f "$temp_stderr"
+
+    # If find failed, log warning but continue with count
+    if [ "$find_exit" -ne 0 ]; then
+        echo "⚠️  Warning: find command failed for '$description' (exit code: $find_exit)" >&2
+        if [ -n "$captured_stderr" ]; then
+            echo "   Error output: $captured_stderr" >&2
+        fi
+    fi
+
+    printf '%d\n' "$count"
+}
+
 # Helper: remove cache directories by name with emoji and write count to a variable
 remove_cache_dirs() {
     local dir_name="$1"
     local emoji="$2"
     local counter_var_name="$3"
+    local failed_counter_var_name="${4:-}"
     local removed_count=0
+    local failed_count=0
 
     while IFS= read -r -d '' dir; do
-        rm -rf "$dir" && echo "  ${emoji} Removed: $dir" && ((removed_count++))
-    done < <(find . -path ./.git -prune -o -type d -name "$dir_name" -print0 2>/dev/null)
+        rm -rf "$dir" 2>/dev/null
+        local rm_exit_code=$?
+        if [ $rm_exit_code -eq 0 ]; then
+            echo "  ${emoji} Removed: $dir"
+            ((removed_count++))
+        else
+            echo "  ❌ Failed to remove: $dir (exit code: $rm_exit_code)" >&2
+            ((failed_count++))
+        fi
+    done < <(find . -path "./.git" -prune -o -type d -name "$dir_name" -print0 2>/dev/null)
 
     # Write back to the provided counter variable name using nameref (type-safe, requires bash 4.3+)
     declare -n counter="$counter_var_name"
     counter=$removed_count
+    if [ -n "$failed_counter_var_name" ]; then
+        declare -n failed_counter="$failed_counter_var_name"
+        failed_counter=$failed_count
+    fi
 }
 
 # Helper: remove cache files by pattern with emoji and write count to a variable
+# Requires bash 4.3+ for nameref support
 remove_cache_files() {
     local pattern="$1"
     local emoji="$2"
     local counter_var_name="$3"
+    local failed_counter_var_name="${4:-}"
     local removed_count=0
+    local failed_count=0
 
     while IFS= read -r -d '' file; do
         if [ -f "$file" ]; then
-            rm -f "$file"
-            echo "  ${emoji} Removed: $file"
-            ((removed_count++))
+            rm -f "$file" 2>/dev/null
+            local rm_exit_code=$?
+            if [ $rm_exit_code -eq 0 ]; then
+                echo "  ${emoji} Removed: $file"
+                ((removed_count++))
+            else
+                echo "  ❌ Failed to remove: $file (exit code: $rm_exit_code)" >&2
+                ((failed_count++))
+            fi
         fi
-    done < <(find . -path ./.git -prune -o -type f -name "$pattern" -print0 2>/dev/null)
+    done < <(find . -path "./.git" -prune -o -type f -name "$pattern" -print0 2>/dev/null)
 
-    # Write back to the provided counter variable name (portable for older bash)
-    eval "$counter_var_name=$removed_count"
+    # Write back to the provided counter variable name using nameref (type-safe, requires bash 4.3+)
+    declare -n counter="$counter_var_name"
+    counter=$removed_count
+    if [ -n "$failed_counter_var_name" ]; then
+        declare -n failed_counter="$failed_counter_var_name"
+        failed_counter=$failed_count
+    fi
 }
 
-PYCACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name "__pycache__" -print0 2>/dev/null))
-PYC_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null))
-PYO_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null))
-PYD_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null))
-PYTEST_CACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name ".pytest_cache" -print0 2>/dev/null))
-MYPY_CACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name ".mypy_cache" -print0 2>/dev/null))
-RUFF_CACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name ".ruff_cache" -print0 2>/dev/null))
-HYPOTHESIS_CACHE_COUNT=$(count_null_separated < <(find . -path ./.git -prune -o -type d -name ".hypothesis" -print0 2>/dev/null))
+PYCACHE_COUNT=$(safe_find_count "__pycache__ directories" . -path "./.git" -prune -o -type d -name "__pycache__" -print0)
+PYC_COUNT=$(safe_find_count "*.pyc files" . -path "./.git" -prune -o -type f -name "*.pyc" -print0)
+PYO_COUNT=$(safe_find_count "*.pyo files" . -path "./.git" -prune -o -type f -name "*.pyo" -print0)
+PYD_COUNT=$(safe_find_count "*.pyd files" . -path "./.git" -prune -o -type f -name "*.pyd" -print0)
+PYTEST_CACHE_COUNT=$(safe_find_count ".pytest_cache directories" . -path "./.git" -prune -o -type d -name ".pytest_cache" -print0)
+MYPY_CACHE_COUNT=$(safe_find_count ".mypy_cache directories" . -path "./.git" -prune -o -type d -name ".mypy_cache" -print0)
+RUFF_CACHE_COUNT=$(safe_find_count ".ruff_cache directories" . -path "./.git" -prune -o -type d -name ".ruff_cache" -print0)
+HYPOTHESIS_CACHE_COUNT=$(safe_find_count ".hypothesis directories" . -path "./.git" -prune -o -type d -name ".hypothesis" -print0)
 
 echo "Found:"
 echo "  📁 __pycache__ directories: $PYCACHE_COUNT"
@@ -73,9 +135,11 @@ echo "  🔎 .mypy_cache directories: $MYPY_CACHE_COUNT"
 echo "  🦊 .ruff_cache directories: $RUFF_CACHE_COUNT"
 echo "  🧬 .hypothesis directories: $HYPOTHESIS_CACHE_COUNT"
 
-if [ "$PYCACHE_COUNT" -eq 0 ] && [ "$PYC_COUNT" -eq 0 ] && [ "$PYO_COUNT" -eq 0 ] && [ "$PYD_COUNT" -eq 0 ] \
-   && [ "$PYTEST_CACHE_COUNT" -eq 0 ] && [ "$MYPY_CACHE_COUNT" -eq 0 ] \
-   && [ "$RUFF_CACHE_COUNT" -eq 0 ] && [ "$HYPOTHESIS_CACHE_COUNT" -eq 0 ]; then
+# Compute total count of all cache items
+TOTAL_COUNT=$((PYCACHE_COUNT + PYC_COUNT + PYO_COUNT + PYD_COUNT + \
+               PYTEST_CACHE_COUNT + MYPY_CACHE_COUNT + RUFF_CACHE_COUNT + HYPOTHESIS_CACHE_COUNT))
+
+if [ "$TOTAL_COUNT" -eq 0 ]; then
     echo "✅ No cache files found - repository is clean!"
     exit 0
 fi

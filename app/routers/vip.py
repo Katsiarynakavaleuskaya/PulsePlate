@@ -1,5 +1,6 @@
 import logging
 import os
+import inspect
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
@@ -8,6 +9,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     Depends,
     Header,
     HTTPException,
+    Request,
     status,
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
@@ -1179,7 +1181,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def _get_recipe_synthesizer_safe() -> Optional[RecipeSynthesizer]:
+async def _get_recipe_synthesizer_safe(request: Request) -> Optional[RecipeSynthesizer]:
     """Safe wrapper for recipe synthesizer dependency that catches exceptions.
 
     RU: Безопасная обёртка для зависимости синтезатора рецептов, обрабатывающая исключения.
@@ -1189,7 +1191,21 @@ def _get_recipe_synthesizer_safe() -> Optional[RecipeSynthesizer]:
         Optional[RecipeSynthesizer]: Recipe synthesizer instance or None if unavailable.
     """
     try:
-        return get_recipe_synth_dep()
+        dependency = get_recipe_synth_dep
+
+        # Respect FastAPI dependency overrides applied during testing or runtime
+        override = request.app.dependency_overrides.get(get_recipe_synth_dep)
+        if override is None:
+            # Fallback: handle cases where original function object is used as key elsewhere
+            from app.dependencies import get_recipe_synthesizer as original_dependency
+
+            override = request.app.dependency_overrides.get(original_dependency)
+
+        resolved_callable = override or dependency
+        result = resolved_callable()
+        if inspect.isawaitable(result):
+            result = await result
+        return cast(Optional[RecipeSynthesizer], result)
     except Exception:
         # Log the exception internally but don't expose details to clients
         logging.exception("Failed to get recipe synthesizer dependency")
