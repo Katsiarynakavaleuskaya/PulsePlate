@@ -22,20 +22,26 @@ class GrokLiteProvider:  # lightweight fallback that never uses network
 
 # Опциональные импорты — модуль должен грузиться даже без внешних либ
 try:
-    from providers.grok import GrokProvider  # xAI
+    from providers.grok import GrokProvider as _GrokProvider  # xAI
+
+    GrokProvider: type[_GrokProvider] | None = _GrokProvider
 except Exception:
-    GrokProvider = None  # type: ignore
+    GrokProvider = None
 
 
 try:
-    from providers.ollama import OllamaProvider  # локальные/совместимые
+    from providers.ollama import OllamaProvider as _OllamaProvider  # локальные/совместимые
+
+    OllamaProvider: type[_OllamaProvider] | None = _OllamaProvider
 except Exception:
-    OllamaProvider = None  # type: ignore
+    OllamaProvider = None
 
 try:
-    from providers.pico import PicoProvider  # если у тебя есть этот файл
+    from providers.pico import PicoProvider as _PicoProvider  # если у тебя есть этот файл
+
+    PicoProvider: type[_PicoProvider] | None = _PicoProvider
 except Exception:
-    PicoProvider = None  # type: ignore
+    PicoProvider = None
 
 
 class StubProvider(ProviderBase):
@@ -62,7 +68,7 @@ def get_provider():
         return StubProvider()
 
     if val == "grok":
-        if GrokProvider:
+        if GrokProvider is not None:
             # пример: можно пробросить ключ и модель через env
             api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
             model = os.getenv("GROK_MODEL", "grok-4-latest")
@@ -79,10 +85,11 @@ def get_provider():
                 except Exception:
                     # If both fail, return lite provider
                     return GrokLiteProvider()
-        # Fallback when real provider unavailable
-        return GrokLiteProvider()
+        else:
+            # Fallback when real provider unavailable
+            return GrokLiteProvider()
 
-    if val == "ollama" and OllamaProvider:
+    if val == "ollama" and OllamaProvider is not None:
         endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         # малый таймаут, чтобы даже при misconfig не висеть
