@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -361,20 +361,31 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
+    # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
-        sex=profile_data.get("sex", "male"),
-        age=profile_data.get("age", 30),
-        height_cm=profile_data.get("height_cm", 175.0),
-        weight_kg=profile_data.get("weight_kg", 70.0),
-        activity=profile_data.get("activity", "moderate"),
-        goal=profile_data.get("goal", "maintain"),
+        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
+        age=profile_data.get("age") if profile_data.get("age") is not None else 30,
+        height_cm=(
+            profile_data.get("height_cm") if profile_data.get("height_cm") is not None else 175.0
+        ),
+        weight_kg=(
+            profile_data.get("weight_kg") if profile_data.get("weight_kg") is not None else 70.0
+        ),
+        activity=cast(
+            Literal["sedentary", "light", "moderate", "active", "very_active"],
+            profile_data.get("activity") or "moderate",
+        ),
+        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
         deficit_pct=profile_data.get("deficit_pct"),
         surplus_pct=profile_data.get("surplus_pct"),
         bodyfat=profile_data.get("bodyfat"),
-        region=profile_data.get("region", "BY"),
-        timezone=profile_data.get("timezone", "UTC"),
+        region=profile_data.get("region") or "BY",
+        timezone=profile_data.get("timezone") or "UTC",
         diet_flags=diet_flags,
-        life_stage=profile_data.get("life_stage", "adult"),
+        life_stage=cast(
+            Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
+            profile_data.get("life_stage") or "adult",
+        ),
         medical_conditions=medical_conditions,
     )
 
