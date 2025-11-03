@@ -33,6 +33,8 @@ from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.services import recipe_store
+from app.services.food_store import get_food
 from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
@@ -1233,6 +1235,205 @@ MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
 }
 
 
+# Mapping from DB nutrient keys (from foods table) to alias format (expected by _alias_micros)
+DB_TO_ALIAS_NUTRIENT_MAP: Dict[str, str] = {
+    "Fe_mg": "iron_mg",
+    "Ca_mg": "calcium_mg",
+    "Mg_mg": "magnesium_mg",
+    "K_mg": "potassium_mg",
+    "VitD_IU": "vitamin_d_iu",
+    "B12_ug": "b12_ug",
+    "Folate_ug": "folate_ug",
+    "Iodine_ug": "iodine_ug",
+}
+
+
+def _convert_db_nutrients_to_alias_format(db_nutrients: Dict[str, float]) -> Dict[str, float]:
+    """Convert nutrient keys from DB format (Fe_mg, Ca_mg, etc.) to alias format (iron_mg, calcium_mg, etc.).
+
+    RU: Конвертирует ключи нутриентов из формата БД в формат алиасов.
+    EN: Converts nutrient keys from DB format to alias format.
+
+    Args:
+        db_nutrients: Dictionary with DB-format nutrient keys (e.g., {"Fe_mg": 2.5, "Ca_mg": 150.0})
+
+    Returns:
+        Dictionary with alias-format keys (e.g., {"iron_mg": 2.5, "calcium_mg": 150.0})
+    """
+    alias_nutrients: Dict[str, float] = {}
+    for db_key, value in db_nutrients.items():
+        alias_key = DB_TO_ALIAS_NUTRIENT_MAP.get(db_key)
+        if alias_key:
+            alias_nutrients[alias_key] = float(value) if value is not None else 0.0
+        else:
+            # Keep unmapped keys as-is (e.g., vitamin_c_mg if it exists)
+            alias_nutrients[db_key] = float(value) if value is not None else 0.0
+    return alias_nutrients
+
+
+def _aggregate_meal_micronutrients(
+    ingredients: List[Dict[str, Any]], meal_title: str = ""
+) -> Dict[str, float]:
+    """Aggregate micronutrients from meal ingredients.
+
+    RU: Агрегирует микронутриенты из ингредиентов блюда.
+    EN: Aggregates micronutrients from meal ingredients.
+
+    Args:
+        ingredients: List of ingredient dicts, each with "food_id" and "grams" keys.
+        meal_title: Optional meal title for logging purposes.
+
+    Returns:
+        Dictionary of micronutrients in alias format (iron_mg, calcium_mg, etc.)
+    """
+    meal_micros: Dict[str, float] = {}
+    DEFAULT_PER_G = 100.0
+
+    for ing in ingredients:
+        # Validate ingredient structure
+        food_id = ing.get("food_id")
+        grams_raw = ing.get("grams")
+
+        if not food_id or not isinstance(food_id, str):
+            logger.debug(f"Skipping ingredient with missing/invalid food_id in meal '{meal_title}'")
+            continue
+
+        try:
+            grams = float(grams_raw) if grams_raw is not None else 0.0
+        except (TypeError, ValueError):
+            logger.debug(
+                f"Skipping ingredient '{food_id}' with invalid grams value '{grams_raw}' in meal '{meal_title}'"
+            )
+            continue
+
+        if grams <= 0:
+            logger.debug(
+                f"Skipping ingredient '{food_id}' with non-positive grams ({grams}) in meal '{meal_title}'"
+            )
+            continue
+
+        # Fetch food from DB
+        try:
+            food = get_food(food_id)
+            if not food:
+                logger.warning(
+                    f"Food '{food_id}' not found in DB for meal '{meal_title}', skipping"
+                )
+                continue
+
+            # Get per_g reference (default to 100.0 if missing/invalid)
+            per_g_raw = food.get("per_g")
+            try:
+                per_g = float(per_g_raw) if per_g_raw is not None else DEFAULT_PER_G
+            except (TypeError, ValueError):
+                logger.warning(
+                    f"Invalid per_g value '{per_g_raw}' for food '{food_id}' in meal '{meal_title}', using default {DEFAULT_PER_G}"
+                )
+                per_g = DEFAULT_PER_G
+
+            if per_g <= 0:
+                logger.warning(
+                    f"Non-positive per_g ({per_g}) for food '{food_id}' in meal '{meal_title}', using default {DEFAULT_PER_G}"
+                )
+                per_g = DEFAULT_PER_G
+
+            # Calculate ratio for this ingredient
+            ratio = grams / per_g
+
+            # Aggregate micronutrients from DB format
+            db_micro_keys = [
+                "Fe_mg",
+                "Ca_mg",
+                "K_mg",
+                "Mg_mg",
+                "VitD_IU",
+                "B12_ug",
+                "Folate_ug",
+                "Iodine_ug",
+            ]
+            for db_key in db_micro_keys:
+                nutrient_value = food.get(db_key, 0.0)
+                try:
+                    nutrient_float = float(nutrient_value) if nutrient_value is not None else 0.0
+                except (TypeError, ValueError):
+                    nutrient_float = 0.0
+
+                # Convert to alias format and accumulate
+                alias_key = DB_TO_ALIAS_NUTRIENT_MAP.get(db_key)
+                if alias_key:
+                    meal_micros[alias_key] = meal_micros.get(alias_key, 0.0) + (
+                        nutrient_float * ratio
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching food '{food_id}' for meal '{meal_title}': {e}",
+                exc_info=True,
+            )
+            continue
+
+    return meal_micros
+
+
+def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
+    """Try to get ingredients for a meal by looking up recipes.
+
+    RU: Пытается получить ингредиенты блюда через поиск рецептов.
+    EN: Tries to get meal ingredients by looking up recipes.
+
+    Args:
+        meal_title: Meal title to search for.
+
+    Returns:
+        List of ingredient dicts with "food_id" and "grams" keys, or empty list if not found.
+    """
+    try:
+        import json
+
+        # Try to find a matching recipe
+        recipes = recipe_store.search_recipes(meal_title, limit=1)
+        if not recipes:
+            logger.debug(f"No recipe found for meal '{meal_title}'")
+            return []
+
+        recipe_id = recipes[0].get("recipe_id")
+        if not recipe_id:
+            return []
+
+        # Get full recipe details
+        recipe = recipe_store.get_recipe(recipe_id)
+        if not recipe:
+            return []
+
+        # Extract ingredients from JSON
+        ingredients_json = recipe.get("ingredients_json")
+        if not ingredients_json:
+            return []
+
+        ingredients = json.loads(ingredients_json)
+        if not isinstance(ingredients, list):
+            return []
+
+        # Validate and normalize ingredient structure
+        normalized_ingredients = []
+        for ing in ingredients:
+            if isinstance(ing, dict):
+                # Check for both possible formats: {"food_id": ..., "grams": ...} or {"id": ..., "grams": ...}
+                food_id = ing.get("food_id") or ing.get("id")
+                grams = ing.get("grams")
+                if food_id and grams is not None:
+                    normalized_ingredients.append({"food_id": str(food_id), "grams": grams})
+            elif isinstance(ing, (list, tuple)) and len(ing) >= 2:
+                # Handle tuple/list format: [food_id, grams]
+                normalized_ingredients.append({"food_id": str(ing[0]), "grams": ing[1]})
+
+        return normalized_ingredients
+
+    except Exception as e:
+        logger.debug(f"Error looking up recipe for meal '{meal_title}': {e}")
+        return []
+
+
 def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
     """Expose micronutrients under common aliases for downstream consumers.
 
@@ -1240,13 +1441,16 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
     to support multiple naming conventions without duplicating data.
 
     This function does not modify the input dictionary but returns a new dictionary
-    with aliases added. All values must be numeric (int or float, or convertible to float).
+    with aliases added. All values (including aliases) are converted to float before
+    being returned. Original input types are normalized to float in the returned dict.
 
     Args:
         values: Dictionary mapping nutrient names to numeric values.
 
     Returns:
-        A new dictionary containing the original values plus alias mappings.
+        Dict[str, float]: A new dictionary mapping strings to float values, containing
+        the original values plus alias mappings. All values in the returned dictionary
+        are of type float, regardless of the original input types.
 
     Raises:
         TypeError: If values is not a dict, or if any value cannot be converted to float
@@ -1261,10 +1465,12 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
         try:
             validated_values[key] = float(val)
         except (TypeError, ValueError) as e:
-            raise TypeError(
-                f"Value for key '{key}' must be numeric or numeric string (convertible to float), "
-                f"got {type(val).__name__} with value: {repr(val)}"
-            ) from e
+            error_msg = (
+                f"Value for key '{key}' must be numeric or numeric string "
+                f"(convertible to float), got {type(val).__name__} "
+                f"with value: {repr(val)}"
+            )
+            raise TypeError(error_msg) from e
 
     # Create a shallow copy with validated float values to avoid mutating the input
     result = validated_values.copy()
@@ -1558,26 +1764,40 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
         layout = [VisualShape(**item) for item in plate_data["layout"]]
 
+        # Aggregate micronutrients from meal ingredients
         day_micros: Dict[str, float] = {}
-        # NOTE: These micronutrient values are MOCK/TEMPORARY for MVP/testing only.
-        # TODO: Replace with proper micronutrient calculation from ingredients/DB sources
-        #       and per-meal composition once the nutrition pipeline is finalized.
-        #       (Tracking: TODO-PLATE-MICROS-IMPLEMENTATION)
-        mock_micros_per_meal = {
-            "iron_mg": 2.5,
-            "calcium_mg": 150.0,
-            "magnesium_mg": 45.0,
-            "potassium_mg": 300.0,
-            "vitamin_c_mg": 25.0,
-            "folate_ug": 50.0,
-            "vitamin_d_iu": 100.0,
-            "b12_ug": 1.2,
-        }
         for meal in plate_data["meals"]:
-            meal["micros"] = _alias_micros(mock_micros_per_meal.copy())
-            for nutrient, amount in mock_micros_per_meal.items():
-                day_micros[nutrient] = day_micros.get(nutrient, 0.0) + amount
-        day_micros = _alias_micros(day_micros)
+            meal_title = meal.get("title", "")
+
+            # Check if meal already has micros (e.g., from build_plate_day)
+            meal_micros_existing = meal.get("micros")
+            if meal_micros_existing and isinstance(meal_micros_existing, dict):
+                # Use existing micros directly
+                meal_micros_raw = dict(meal_micros_existing)
+            else:
+                # Get ingredients for this meal
+                # First, check if meal already has ingredients
+                ingredients = meal.get("ingredients") or []
+
+                # If no ingredients in meal, try to look them up from recipes
+                if not ingredients:
+                    ingredients = _get_recipe_ingredients_for_meal(meal_title)
+
+                # Aggregate micronutrients from ingredients
+                meal_micros_raw = _aggregate_meal_micronutrients(ingredients, meal_title=meal_title)
+
+                # Apply aliases and assign to meal (clone to avoid mutation)
+                meal["micros"] = _alias_micros(dict(meal_micros_raw))
+
+            # Accumulate numeric values into day_micros (initialize missing keys to 0.0)
+            # Only accumulate if meal_micros_raw has values (not empty)
+            if meal_micros_raw:
+                for nutrient_key, amount in meal_micros_raw.items():
+                    if isinstance(amount, (int, float)) and float(amount) > 0:
+                        day_micros[nutrient_key] = day_micros.get(nutrient_key, 0.0) + float(amount)
+
+        # Apply aliases to day totals
+        day_micros = _alias_micros(dict(day_micros))
 
         # Align macros with WHO targets when available to keep deviation thresholds in tests
         # Otherwise, use a simple heuristic fallback for carbs.
@@ -1635,12 +1855,12 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         if "fiber_g" in macros_aligned:
             original_value = macros_aligned["fiber_g"]
             try:
-                fiber_int = int(original_value)
-                macros_aligned["fiber_g"] = max(FIBER_MIN_G, min(FIBER_MAX_G, fiber_int))
+                fiber_float = float(original_value)
+                macros_aligned["fiber_g"] = max(FIBER_MIN_G, min(FIBER_MAX_G, fiber_float))
             except (ValueError, TypeError):
                 # Log warning and set to default minimum on conversion errors
                 logger.warning(
-                    "Failed to convert fiber_g value '%s' to int; setting to FIBER_MIN_G=%d",
+                    "Failed to convert fiber_g value '%s' to float; setting to FIBER_MIN_G=%d",
                     original_value,
                     FIBER_MIN_G,
                 )
@@ -2082,11 +2302,18 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except (ValueError, TypeError, AttributeError, ImportError) as exc:
+            except (ValueError, TypeError, ImportError, AttributeError) as exc:
                 logger.warning(
                     "Safety validation failed; continuing without safety warnings: %s",
                     exc,
                 )
+            except Exception as exc:
+                logger.error(
+                    "Unexpected error during safety validation; re-raising: %s",
+                    exc,
+                    exc_info=True,
+                )
+                raise
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
