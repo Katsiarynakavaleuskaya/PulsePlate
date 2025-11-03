@@ -59,6 +59,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 junit.xml
+pytest_report.xml
 test_results.xml
 frontend/tests/*.xml
 frontend/test-results/
@@ -169,7 +170,6 @@ bayesian_analysis_results.json
 bayesian_analysis_results_updated.json
 # uv package manager binary (executable file)
 uv
-pytest_report.xml
 test_execution_history.json
 
 *.log

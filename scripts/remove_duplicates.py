@@ -84,7 +84,7 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
         try:
             h = sha256_of(f)
         except (FileNotFoundError, PermissionError, IsADirectoryError) as hash_err:
-            logger.debug("Skipping %s due to hash error: %s", f, hash_err)
+            logger.debug("Skipping %s due to hash error: %s", f, hash_err, exc_info=True)
             continue
         by_hash.setdefault(h, []).append(f)
 

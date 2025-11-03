@@ -1,5 +1,6 @@
 # Minimal FastAPI app entrypoint for legacy tests
 import app as app_module
-from typing import Any
+from fastapi import FastAPI
+from typing import cast
 
-app: Any = app_module.app  # noqa: F401
+app: FastAPI = cast(FastAPI, app_module.app)  # noqa: F401

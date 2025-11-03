@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from core.recipe_synth import RecipeSynthesizer
 from tests.conftest_app import assert_vip_response
 
 
@@ -217,13 +218,21 @@ class TestVIPCoverageWorkingExtended:
     def test_vip_recipe_templates_error_coverage(self):
         """Test VIP recipe templates error coverage."""
         import app
+        from app.dependencies import get_recipe_synthesizer
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Mock get_recipe_synthesizer to raise exception
-        with patch(
-            "app.routers.vip.get_recipe_synthesizer", side_effect=Exception("Templates error")
-        ):
+        # Create a mock synthesizer that raises exception when templates is accessed
+        mock_synthesizer = MagicMock()
+        mock_synthesizer.templates.values.side_effect = Exception("Templates error")
+
+        def mock_get_synthesizer() -> RecipeSynthesizer:
+            return cast(RecipeSynthesizer, mock_synthesizer)
+
+        # Override the dependency to return our mock that will raise exception
+        app.app.dependency_overrides[get_recipe_synthesizer] = mock_get_synthesizer
+
+        try:
             response = client.get(
                 "/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"}
             )
@@ -232,6 +241,9 @@ class TestVIPCoverageWorkingExtended:
                 data = response.json()
                 assert data["status"] == "error"
                 assert "Templates error" in data["message"]
+        finally:
+            # Clean up the override
+            app.app.dependency_overrides.pop(get_recipe_synthesizer, None)
 
     def test_vip_auto_repair_strategies_success_coverage(self):
         """Test VIP auto repair strategies success coverage."""

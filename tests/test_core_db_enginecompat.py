@@ -6,6 +6,12 @@ from sqlalchemy import exc as sa_exc
 
 from core.db import EngineCompat
 
+"""Tests for EngineCompat behavior and exception handling.
+
+This module contains tests for the EngineCompat class, focusing on transaction
+handling, commit behavior, and error propagation in database operations.
+"""
+
 
 class _FakeConn:
     def __init__(self, commit_raises: Exception | None = None, in_tx: bool = True) -> None:
@@ -25,6 +31,9 @@ class _FakeConn:
             raise self._commit_raises
 
     def rollback(self) -> None:  # pragma: no cover - executed only on error path
+        return None
+
+    def close(self) -> None:  # pragma: no cover - executed only on error path
         return None
 
     # context manager protocol
@@ -51,7 +60,10 @@ class _FakeEngine:
 def test_execute_commits_only_when_in_transaction() -> None:
     # in_tx=False should skip commit without raising
     engine = EngineCompat(_FakeEngine(_FakeConn(commit_raises=None, in_tx=False)))
-    assert engine.execute("SELECT 1") == "ok"
+    result = engine.execute("SELECT 1")
+    # Result is wrapped, but underlying result should be accessible
+    assert hasattr(result, "_result")
+    assert result._result == "ok"
 
 
 def test_execute_handles_db_errors_on_commit_with_re_raise() -> None:

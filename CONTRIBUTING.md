@@ -15,7 +15,7 @@ This repo uses a simple branch model designed to keep `main` always green.
 
 - Keep PRs small and focused. Prefer squash merge.
 - Ensure CI is green:
-  - Tests pass on Python 3.12 and 3.13
+  - Tests pass on Python 3.13.5
   - Coverage ≥ 96% (repo currently ~99%)
 - Run locally before pushing:
 

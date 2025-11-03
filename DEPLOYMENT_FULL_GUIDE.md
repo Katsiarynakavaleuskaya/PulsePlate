@@ -330,6 +330,20 @@ ssh-keygen -t ed25519 -C "pulseplate-deploy" -f ~/.ssh/pulseplate_deploy
 # Нажмите Enter на всех вопросах (можно установить пароль, но не обязательно)
 ```
 
+> **🔒 Security Note: SSH Key Passphrase Best Practices**
+>
+> **For interactive/production access:**
+> - **Recommended:** Use a passphrase to protect your SSH key. This prevents unauthorized access if the private key is compromised.
+> - Store the passphrase securely using a password manager or SSH agent.
+> - Use `ssh-agent` or a credential manager (e.g., macOS Keychain via `ssh-add --apple-use-keychain`) to avoid repeatedly entering the passphrase.
+> - **Always prefer passphrase-protected keys for any human-accessible servers.**
+>
+> **For fully automated CI/CD:**
+> - You may omit the passphrase for automation purposes, but this increases security risk.
+> - **Must do:** Restrict key permissions (`chmod 600 ~/.ssh/pulseplate_deploy`) and store the private key in a secrets manager (e.g., GitHub Secrets, AWS Secrets Manager, HashiCorp Vault).
+> - Never commit private keys to version control, even without passphrases.
+> - Consider using deploy keys with limited permissions instead of full user keys.
+
 **Результат:** Созданы два файла:
 - `~/.ssh/pulseplate_deploy` (приватный ключ — НИКОГДА никому не показывайте!)
 - `~/.ssh/pulseplate_deploy.pub` (публичный ключ — можно показывать)

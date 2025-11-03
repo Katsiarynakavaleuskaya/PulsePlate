@@ -123,7 +123,7 @@ Get-Content ~/.ssh/pulseplate_deploy
 2. Нажмите **Generate new token** → **Generate new token (classic)**
 3. Настройки:
    - **Note**: `PulsePlate GHCR Read Token`
-   - **Expiration**: Выберите срок действия (или `No expiration` для production)
+   - **Expiration**: Выберите срок действия (рекомендуется 90 дней для production, не используйте `No expiration`). Для staging можно использовать 30 дней.
    - **Scopes**: Отметьте `read:packages`
 4. Нажмите **Generate token**
 5. **ВАЖНО:** Скопируйте токен сразу (он больше не будет показан!)
@@ -206,7 +206,16 @@ Get-Content ~/.ssh/pulseplate_deploy
 
 ### Ротация токенов и хранение секретов
 
-- **Токены:** Ротируйте GitHub PAT токены каждые 90 дней для production (30 дней для staging)
+- **Токены:** Ротируйте GitHub PAT токены каждые 90 дней для production (30 дней для staging). Используйте конечные сроки действия (90 дней), не устанавливайте `No expiration` для production токенов.
+- **Процесс ротации:**
+  1. **Планирование:** Установите календарное напоминание за 7 дней до истечения токена (для production — каждые 83 дня, для staging — каждые 23 дня)
+  2. **Автоматизация:** Настройте CI/CD workflow или скрипт для проверки истечения токенов (например, GitHub Actions workflow с проверкой через GitHub API)
+  3. **Резервный план:** Документируйте шаги экстренной ротации и отзыва токенов на случай компрометации:
+     - Отзовите токен немедленно: GitHub → Settings → Developer settings → Personal access tokens → Revoke
+     - Создайте новый токен с теми же правами
+     - Обновите секреты в GitHub Environments (staging/production)
+     - Проверьте логи для подозрительной активности
+  4. **Ресурсы:** См. [GitHub PAT Rotation Best Practices](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) и [Token Rotation Guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/token-expiration-and-rotation)
 - **Secrets Manager:** Для production используйте менеджер секретов (HashiCorp Vault, AWS Secrets Manager) вместо прямого хранения в GitHub Secrets
 - **Доступ:** Минимизируйте количество людей с доступом к секретам, используйте принцип наименьших привилегий
 

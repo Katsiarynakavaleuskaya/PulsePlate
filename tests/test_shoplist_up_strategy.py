@@ -1,4 +1,4 @@
-from core.shoplist import ShoplistGenerator, PackagingRule
+from core.shoplist import ShoplistGenerator, PackagingRule, ShoppingItem
 
 
 def test_up_strategy_minimizes_overage_across_candidates() -> None:
@@ -16,7 +16,7 @@ def test_up_strategy_minimizes_overage_across_candidates() -> None:
         "default": PackagingRule("default", "g", [90, 120], "up")
     }
 
-    shopping_list: list = gen.round_to_packages(aggregated, rules=custom_rules)
+    shopping_list: list[ShoppingItem] = gen.round_to_packages(aggregated, rules=custom_rules)
 
     assert len(shopping_list) == 1
     item = shopping_list[0]

@@ -24,6 +24,7 @@ def main() -> None:
             ],
             capture_output=True,
             text=True,
+            timeout=300,
         )
 
         print("📊 Результат:")
@@ -38,6 +39,9 @@ def main() -> None:
         else:
             print("❌ Есть ошибки в тестах")
 
+    except subprocess.TimeoutExpired:
+        print("⏳ Таймаут при запуске проверки покрытия (300s). CI остановлен.")
+        sys.exit(1)
     except Exception as e:
         print(f"❌ Ошибка: {e}")
 

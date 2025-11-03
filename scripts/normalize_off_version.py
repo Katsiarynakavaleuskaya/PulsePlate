@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
+import copy
 import json
+import logging
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stderr,
+    format="%(levelname)s: %(message)s",
+)
+
+logger = logging.getLogger(__name__)
 
 VERS = Path("cache/food_db/database_versions.json")
 
@@ -14,6 +24,21 @@ CANDIDATES = [
     "v20250924-180009",  # v + YYYYMMDD-HHMMSS
     "2025.09.24+180009",  # dotted date + HHMMSS
 ]
+
+DEFAULT_DATABASE_METADATA = {
+    "openfoodfacts": {
+        "source": "openfoodfacts",
+        "version": "0.0.1",
+        "last_updated": "1970-01-01T00:00:00.000000+00:00",
+        "record_count": 0,
+        "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "metadata": {
+            "update_type": "default",
+            "api_source": "Open Food Facts",
+            "sample_size": 0,
+        },
+    }
+}
 
 
 def set_version(v: str) -> None:
@@ -31,25 +56,11 @@ def set_version(v: str) -> None:
         Updates or creates the openfoodfacts.version field in the JSON file.
     """
     if not VERS.exists():
-        print(f"WARNING: {VERS} missing, creating default", file=sys.stderr)
+        logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         VERS.parent.mkdir(parents=True, exist_ok=True)
-        default_meta = {
-            "openfoodfacts": {
-                "source": "openfoodfacts",
-                "version": "0.0.1",
-                "last_updated": "1970-01-01T00:00:00.000000+00:00",
-                "record_count": 0,
-                "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-                "metadata": {
-                    "update_type": "default",
-                    "api_source": "Open Food Facts",
-                    "sample_size": 0,
-                },
-            }
-        }
-        VERS.write_text(json.dumps(default_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        meta = default_meta
+        meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
+        VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
 
@@ -88,30 +99,29 @@ def validate() -> int:
                 f"stdout: {process_result.stdout[:500]}, "
                 f"stderr: {process_result.stderr[:500]}"
             )
-            print(f"ERROR: {error_msg}", file=sys.stderr)
+            logger.error(error_msg)
             return 1
 
         # Return 0 if validation passed, otherwise 1
         return 0 if "DATA:OK" in (process_result.stdout + process_result.stderr) else 1
     except subprocess.TimeoutExpired as e:
         error_msg = f"Validation script timed out after 30 seconds: {e}"
-        print(f"ERROR: {error_msg}", file=sys.stderr)
+        logger.error(error_msg)
         # Try to kill the process if it's still running (process attribute available in Python 3.3+)
-        if hasattr(e, "process") and e.process:
-            try:
-                e.process.kill()
-                e.process.wait(timeout=5)
-            except Exception as cleanup_err:
-                # Process may have already terminated; ignore cleanup errors
-                print(f"Warning: Could not clean up process: {cleanup_err}", file=sys.stderr)
+        try:
+            e.process.kill()  # type: ignore[attr-defined]
+            e.process.wait(timeout=5)  # type: ignore[attr-defined]
+        except Exception as cleanup_err:
+            # Process may have already terminated; ignore cleanup errors
+            logger.warning(f"Could not clean up process: {cleanup_err}")
         return 1
     except FileNotFoundError:
         error_msg = "Validation script not found: scripts/validate_data.py"
-        print(f"ERROR: {error_msg}", file=sys.stderr)
+        logger.error(error_msg)
         return 1
     except OSError as e:
         error_msg = f"OS error while running validation script: {e}"
-        print(f"ERROR: {error_msg}", file=sys.stderr)
+        logger.error(error_msg)
         return 1
 
 
@@ -139,11 +149,11 @@ def main() -> int:
         set_version(v)
         code = validate()
         if code == 0:
-            print(f"✅ version accepted: {v}")
+            logger.info(f"✅ version accepted: {v}")
             return 0
         else:
-            print(f"… version rejected: {v}")
-    print("❌ none of the candidates passed; keep last tried value")
+            logger.info(f"… version rejected: {v}")
+    logger.error("❌ none of the candidates passed; keep last tried value")
     return 2
 
 

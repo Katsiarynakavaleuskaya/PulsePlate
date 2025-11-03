@@ -175,6 +175,46 @@ class EngineCompat:
             except Exception as rollback_err:  # pragma: no cover - defensive log
                 logger.debug("Rollback after commit failure also failed: %s", rollback_err)
 
+    def _finalize_transaction(self, conn: Any) -> None:
+        """Finalize transaction by committing if active, with error handling.
+
+        RU: Завершает транзакцию коммитом при необходимости, с обработкой ошибок.
+        EN: Finalize transaction by committing if active, with comprehensive error handling.
+
+        This method checks if the connection is in a transaction, attempts to commit,
+        and handles both SQLAlchemy errors and unexpected exceptions by logging,
+        rolling back, and re-raising.
+
+        Args:
+            conn: The database connection to finalize.
+
+        Raises:
+            sa_exc.SQLAlchemyError: Re-raised after logging and rollback.
+            Exception: Re-raised for unexpected errors after logging and rollback.
+        """
+        if not self._is_in_transaction(conn):
+            return
+
+        try:
+            conn.commit()
+        except sa_exc.SQLAlchemyError as db_err:
+            # Avoid exposing sensitive details in production logs
+            safe_message = str(db_err).splitlines()[0]
+            if logger.isEnabledFor(logging.DEBUG) or ENVIRONMENT != "production":
+                logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
+            else:
+                logger.error("Commit failed (database error): %s", safe_message)
+            self._safe_rollback(conn)
+            # Re-raise to ensure callers are aware of the failure
+            raise
+        except Exception as unexpected:  # noqa: BLE001 - catch unexpected errors
+            logger.warning(
+                "Commit failed with unexpected error; rolling back and re-raising: %s", unexpected
+            )
+            self._safe_rollback(conn)
+            # Re-raise unexpected errors to ensure callers are aware
+            raise
+
     def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
         """Execute a statement using a temporary connection.
 
@@ -188,29 +228,7 @@ class EngineCompat:
         try:
             result = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
-            if self._is_in_transaction(conn):
-                try:
-                    conn.commit()
-                except sa_exc.SQLAlchemyError as db_err:
-                    # Avoid exposing sensitive details in production logs
-                    safe_message = str(db_err).splitlines()[0]
-                    if logger.isEnabledFor(logging.DEBUG) or ENVIRONMENT != "production":
-                        logger.error(
-                            "Commit failed (database error): %s", safe_message, exc_info=True
-                        )
-                    else:
-                        logger.error("Commit failed (database error): %s", safe_message)
-                    self._safe_rollback(conn)
-                    # Re-raise to ensure callers are aware of the failure
-                    raise
-                except Exception as unexpected:  # noqa: BLE001 - catch unexpected errors
-                    logger.warning(
-                        "Commit failed with unexpected error; rolling back and re-raising: %s",
-                        unexpected,
-                    )
-                    self._safe_rollback(conn)
-                    # Re-raise unexpected errors to ensure callers are aware
-                    raise
+            self._finalize_transaction(conn)
             # Return a wrapper that closes connection when result is closed
             # This ensures connection stays open until caller consumes the result
             return _ResultWithConnectionCleanup(result, conn)

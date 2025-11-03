@@ -5,16 +5,17 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
 
 
-class GrokLiteProvider:  # lightweight fallback that never uses network
+class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses network
     name = "grok"
 
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
 
     async def generate(self, text: str) -> str:
         return f"[grok-lite] {text}"
@@ -82,20 +83,23 @@ def get_provider():
         # Fallback when real provider unavailable
         return GrokLiteProvider()
 
-    if val == "ollama" and OllamaProvider is not None:
-        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-        model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-        # малый таймаут, чтобы даже при misconfig не висеть
-        timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
-        try:
-            return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
-        except Exception:
-            # Fallback to positional args if keyword args fail
+    # RU: Проверяем значение провайдера, затем наличие класса провайдера
+    # EN: Check provider value first, then verify provider class is available
+    if val == "ollama":
+        if OllamaProvider is not None:
+            endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+            model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+            # малый таймаут, чтобы даже при misconfig не висеть
+            timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
             try:
-                return OllamaProvider(endpoint, model, timeout_s)
+                return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
             except Exception:
-                # If both fail, return None
-                return None
+                # Fallback to positional args if keyword args fail
+                try:
+                    return OllamaProvider(endpoint, model, timeout_s)
+                except Exception:
+                    # If both fail, return None
+                    return None
 
     # неизвестное значение — считаем, что провайдера нет
     return None

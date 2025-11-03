@@ -50,7 +50,17 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
         try:
             if module is None:
                 continue
-            if isinstance(module, str):
+            # Check if module is string, handling exceptions during type checking
+            try:
+                is_string = isinstance(module, str)
+            except (
+                Exception
+            ):  # noqa: BLE001 - defensive guard for __getattribute__ hooks  # pragma: no cover
+                # If type checking itself raises (e.g., custom __getattribute__),
+                # skip this candidate
+                continue  # nosec B112 - intentional: skip problematic candidate
+
+            if is_string:
                 module = sys.modules.get(module)
                 if module is None:
                     continue
@@ -62,10 +72,23 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
 
             # Avoid triggering unittest.mock auto-creation of attributes
             try:
+                # Check for mock attributes, handling any exceptions from __getattr__
+                try:
+                    mock_children = getattr(module, "_mock_children", None)
+                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
+                    mock_children = None
+                try:
+                    module_name = getattr(module, "__module__", "")
+                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
+                    module_name = ""
+                try:
+                    class_name = module.__class__.__name__
+                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
+                    class_name = ""
                 is_mock_like = (
-                    getattr(module, "_mock_children", None) is not None
-                    or module.__class__.__name__ in {"Mock", "MagicMock", "AsyncMock"}
-                    or getattr(module, "__module__", "").startswith("unittest.mock")
+                    mock_children is not None
+                    or class_name in {"Mock", "MagicMock", "AsyncMock"}
+                    or module_name.startswith("unittest.mock")
                 )
             except (AttributeError, TypeError):  # pragma: no cover - extremely defensive
                 is_mock_like = False

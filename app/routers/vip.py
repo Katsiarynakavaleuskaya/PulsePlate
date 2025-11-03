@@ -271,8 +271,9 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                             if is_production
                             else "API key required"
                         )
+                        mode_str = "production" if is_production else "development"
                         _log_api_key_event(
-                            f"VIP endpoint accessed without API key in {'production' if is_production else 'development'} mode.",
+                            f"VIP endpoint accessed without API key in {mode_str} mode.",
                             is_production,
                             app_env,
                         )
@@ -282,7 +283,10 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     else:
                         # Anonymous access is explicitly allowed (non-production only)
                         _log_api_key_event(
-                            "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                            (
+                                "VIP endpoint accessed with anonymous API key. "
+                                "ALLOW_ANONYMOUS_API_KEYS: true"
+                            ),
                             is_production,
                             app_env,
                         )
@@ -469,7 +473,10 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
     }
 
     if func_name not in adapters:
-        error_msg = f"No adapter found for function '{func_name}'. Available adapters: {list(adapters.keys())}"
+        available = list(adapters.keys())
+        error_msg = (
+            f"No adapter found for function '{func_name}'. " f"Available adapters: {available}"
+        )
         logging.error(error_msg)
         return {"status": "error", "message": error_msg}
 
@@ -1172,9 +1179,26 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
+def _get_recipe_synthesizer_safe() -> Optional[RecipeSynthesizer]:
+    """Safe wrapper for recipe synthesizer dependency that catches exceptions.
+
+    RU: Безопасная обёртка для зависимости синтезатора рецептов, обрабатывающая исключения.
+    EN: Safe wrapper for recipe synthesizer dependency that handles exceptions.
+
+    Returns:
+        Optional[RecipeSynthesizer]: Recipe synthesizer instance or None if unavailable.
+    """
+    try:
+        return get_recipe_synth_dep()
+    except Exception:
+        # Log the exception internally but don't expose details to clients
+        logging.exception("Failed to get recipe synthesizer dependency")
+        return None
+
+
 @router.get("/recipes/templates", dependencies=[Depends(_require_api_key_strict)])
 async def get_recipe_templates(
-    synthesizer: RecipeSynthesizer = Depends(get_recipe_synth_dep),
+    synthesizer: Optional[RecipeSynthesizer] = Depends(_get_recipe_synthesizer_safe),
 ) -> Dict[str, Any]:
     """
     RU: Получить доступные шаблоны рецептов
@@ -1183,9 +1207,26 @@ async def get_recipe_templates(
     Returns:
         Список шаблонов рецептов
     """
+    # Validate synthesizer dependency: check if it's None, falsy, or missing expected attributes
+    if not synthesizer:
+        return {
+            "status": "error",
+            "message": "Recipe synthesizer not available",
+            "templates": [],
+        }
+
+    # Check if synthesizer has the expected templates attribute
+    if not hasattr(synthesizer, "templates"):
+        return {
+            "status": "error",
+            "message": "Recipe synthesizer not available",
+            "templates": [],
+        }
+
     try:
         templates = []
 
+        # Only proceed if synthesizer is valid and has templates attribute
         for template in synthesizer.templates.values():
             template_data = {
                 "template_id": template.template_id,
@@ -1206,10 +1247,20 @@ async def get_recipe_templates(
             "total_templates": len(templates),
             "message": f"Retrieved {len(templates)} recipe templates",
         }
-    except Exception as e:
+    except AttributeError:
+        # Handle missing attributes on synthesizer or templates
+        logging.exception("Recipe synthesizer missing expected attributes")
         return {
             "status": "error",
-            "message": f"Error retrieving templates: {str(e)}",
+            "message": "Recipe synthesizer not available",
+            "templates": [],
+        }
+    except Exception:
+        # Catch any other exceptions from template access
+        logging.exception("Error retrieving recipe templates")
+        return {
+            "status": "error",
+            "message": "Recipe synthesizer not available",
             "templates": [],
         }
 

@@ -16,10 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.13.5
         uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@v4

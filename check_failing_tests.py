@@ -23,8 +23,8 @@ def extract_error_line(output: str) -> Optional[str]:
         First matched error line (stripped) or None if no error pattern found.
     """
     lines = output.split("\n")
-    # Regex pattern to match "assert" with word boundary, whitespace, paren, or tab
-    assert_pattern = re.compile(r"\bassert\s")
+    # Regex pattern to match "assert" with word boundary, followed by whitespace, paren, or tab
+    assert_pattern = re.compile(r"\bassert\s|\bassert\(")
 
     for line in lines:
         stripped = line.strip()
@@ -36,7 +36,7 @@ def extract_error_line(output: str) -> Optional[str]:
             or "FAILED" in line
             or line.startswith("ERROR")
             or "Traceback" in line
-            or assert_pattern.search(line)  # Match assert with word boundary
+            or assert_pattern.search(line)  # Match assert with word boundary, space, or paren
             or line.startswith("E ")  # pytest error marker
             or line.startswith("F ")  # pytest failure marker
         ):

@@ -4,13 +4,61 @@ Focus on error handling and edge cases.
 """
 
 import os
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 from faker import Faker
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import SQLAlchemyError
 
 fake = Faker()
+
+
+class FakeConnection:
+    """Fake connection class for testing EngineCompat.execute."""
+
+    def __init__(
+        self,
+        execute_result: Any = None,
+        commit_raises: Exception | None = None,
+        in_tx: bool = True,
+    ) -> None:
+        self._execute_result = execute_result
+        self._commit_raises = commit_raises
+        self._in_tx = in_tx
+        self._execute_called = False
+        self._commit_called = False
+        self._rollback_called = False
+        self._close_called = False
+
+    def execute(self, stmt: Any, *args: Any, **kwargs: Any) -> Any:
+        self._execute_called = True
+        return self._execute_result
+
+    def get_transaction(self) -> object | None:
+        return object() if self._in_tx else None
+
+    def commit(self) -> None:
+        self._commit_called = True
+        if self._commit_raises is not None:
+            raise self._commit_raises
+
+    def rollback(self) -> None:
+        self._rollback_called = True
+
+    def close(self) -> None:
+        self._close_called = True
+
+
+class FakeEngine:
+    """Fake engine class for testing EngineCompat."""
+
+    def __init__(self, conn: FakeConnection) -> None:
+        self._conn = conn
+
+    def connect(self) -> FakeConnection:
+        return self._conn
 
 
 class TestDbMissingLinesCoverage:
@@ -24,32 +72,26 @@ class TestDbMissingLinesCoverage:
         try:
             from core.db import EngineCompat
 
-            # Create a mock engine with a mock connection
-            mock_engine = Mock()
-            mock_conn = Mock()
-            mock_result = Mock()
-
-            # Set up the context manager behavior
-            mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-            mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
-
-            # Set up execute to work normally
-            mock_conn.execute.return_value = mock_result
-
-            # Set up commit to raise an exception (lines 148-160)
-            mock_conn.commit.side_effect = SQLAlchemyError("Commit failed")
+            # Create fake connection and engine using classes
+            fake_result = object()  # Real object for result comparison
+            fake_conn = FakeConnection(
+                execute_result=fake_result,
+                commit_raises=SQLAlchemyError("Commit failed"),
+                in_tx=True,
+            )
+            fake_engine = FakeEngine(fake_conn)
 
             # Create EngineCompat instance
-            engine_compat = EngineCompat(mock_engine)
+            engine_compat = EngineCompat(fake_engine)
 
             # Execute a statement - should re-raise commit exception
             with pytest.raises(SQLAlchemyError, match="Commit failed"):
                 engine_compat.execute("SELECT 1")
 
             # Verify the methods were called
-            mock_engine.connect.assert_called_once()
-            mock_conn.execute.assert_called_once()
-            mock_conn.commit.assert_called_once()
+            assert fake_conn._execute_called
+            assert fake_conn._commit_called
+            assert fake_conn._rollback_called  # Rollback should be called on error
 
         except ImportError:
             pass
@@ -59,30 +101,29 @@ class TestDbMissingLinesCoverage:
         try:
             from core.db import EngineCompat
 
-            # Create a mock engine
-            mock_engine = Mock()
-            mock_conn = Mock()
-            mock_result = Mock()
-
-            # Set up context manager
-            mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-            mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
-
-            mock_conn.execute.return_value = mock_result
-            mock_conn.commit.return_value = None  # Successful commit
+            # Create fake connection and engine using classes
+            fake_result = object()  # Real object for result comparison
+            fake_conn = FakeConnection(
+                execute_result=fake_result,
+                commit_raises=None,
+                in_tx=False,  # No transaction, skip commit
+            )
+            fake_engine = FakeEngine(fake_conn)
 
             # Create EngineCompat instance
-            engine_compat = EngineCompat(mock_engine)
+            engine_compat = EngineCompat(fake_engine)
 
             # Test with string statement (should convert to text())
             result = engine_compat.execute("SELECT * FROM users")
 
-            assert result == mock_result
+            # Result is wrapped, check underlying result
+            assert hasattr(result, "_result")
+            assert result._result is fake_result  # Use 'is' for object identity
 
-            # Verify text() conversion happened
-            call_args = mock_conn.execute.call_args[0]
-            assert len(call_args) > 0
-            # The statement should be converted to a text() object
+            # Verify execute was called
+            assert fake_conn._execute_called
+            # Verify commit was NOT called (no transaction)
+            assert not fake_conn._commit_called
 
         except ImportError:
             pass
@@ -100,22 +141,23 @@ class TestDbMissingLinesCoverage:
             ]
 
             for exception in exception_types:
-                # Create fresh mocks for each test
-                mock_engine = Mock()
-                mock_conn = Mock()
-                mock_result = Mock()
+                # Create fresh fake connection for each test using classes
+                fake_result = object()
+                fake_conn = FakeConnection(
+                    execute_result=fake_result,
+                    commit_raises=exception,  # Different exception each time
+                    in_tx=True,  # Transaction active, commit will be called
+                )
+                fake_engine = FakeEngine(fake_conn)
 
-                mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-                mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
+                engine_compat = EngineCompat(fake_engine)
 
-                mock_conn.execute.return_value = mock_result
-                mock_conn.commit.side_effect = exception  # Different exception each time
-
-                engine_compat = EngineCompat(mock_engine)
-
-                # Should re-raise any commit exception (lines 161-165)
+                # Should re-raise any commit exception
                 with pytest.raises(type(exception)):
                     engine_compat.execute("SELECT 1")
+
+                # Verify rollback was called for all exception types
+                assert fake_conn._rollback_called
 
         except ImportError:
             pass
@@ -353,17 +395,30 @@ class TestDbMissingLinesCoverage:
         try:
             from core.db import EngineCompat
 
-            mock_engine = Mock()
-            mock_conn = Mock()
-            mock_result = Mock()
+            # Create fake connection that tracks execute calls with args/kwargs
+            fake_result = object()
 
-            mock_engine.connect.return_value.__enter__ = Mock(return_value=mock_conn)
-            mock_engine.connect.return_value.__exit__ = Mock(return_value=None)
+            class TrackingFakeConnection(FakeConnection):
+                """Fake connection that tracks execute call arguments."""
 
-            mock_conn.execute.return_value = mock_result
-            mock_conn.commit.return_value = None
+                def __init__(self, *args, **kwargs) -> None:
+                    super().__init__(*args, **kwargs)
+                    self._execute_args = None
+                    self._execute_kwargs = None
 
-            engine_compat = EngineCompat(mock_engine)
+                def execute(self, stmt: Any, *args: Any, **kwargs: Any) -> Any:
+                    self._execute_args = args
+                    self._execute_kwargs = kwargs
+                    return super().execute(stmt, *args, **kwargs)
+
+            fake_conn = TrackingFakeConnection(
+                execute_result=fake_result,
+                commit_raises=None,
+                in_tx=False,  # No transaction, skip commit
+            )
+            fake_engine = FakeEngine(fake_conn)
+
+            engine_compat = EngineCompat(fake_engine)
 
             # Test with args and kwargs
             test_args = (fake.random_int(), fake.word())
@@ -371,12 +426,13 @@ class TestDbMissingLinesCoverage:
 
             result = engine_compat.execute("SELECT ?", *test_args, **test_kwargs)
 
-            assert result == mock_result
+            # Result is wrapped, check underlying result
+            assert hasattr(result, "_result")
+            assert result._result is fake_result  # Use 'is' for object identity
 
             # Verify args and kwargs were passed through
-            call_args, call_kwargs = mock_conn.execute.call_args
-            assert len(call_args) == 1 + len(test_args)  # statement + args
-            assert call_kwargs == test_kwargs
+            assert fake_conn._execute_args == test_args
+            assert fake_conn._execute_kwargs == test_kwargs
 
         except ImportError:
             pass

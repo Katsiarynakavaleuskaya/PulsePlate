@@ -534,7 +534,7 @@ def export_week_pdf(
         logger.debug(
             "Story components count=%d tables=%d paragraphs=%d",
             len(story),
-            sum(1 for node in story if node.__class__.__name__ == "Table"),
+            sum(1 for node in story if isinstance(node, RLTable)),
             sum(1 for node in story if isinstance(node, Paragraph)),
         )
     doc.build(

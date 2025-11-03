@@ -32,6 +32,7 @@ from app.routers.premium_week import router as premium_week_router
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
+from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.db import get_session, init_db
@@ -569,30 +570,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
             "error": "Visualization not available - matplotlib not installed",
             "available": False,
         }
-
-
-# BMR Request and Response models
-class BMRRequest(BaseModel):
-    """Request model for BMR calculation"""
-
-    weight_kg: float = Field(..., gt=0)
-    height_cm: float = Field(..., gt=0)
-    age: int = Field(..., ge=0, le=120)
-    sex: str = Field(..., pattern="^(male|female)$")
-    activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
-    bodyfat: Optional[float] = Field(None, ge=0, le=60)
-    lang: Language = "en"
-
-
-class BMRResponse(BaseModel):
-    """Response model for BMR calculation"""
-
-    bmr: Dict[str, float]
-    tdee: Dict[str, float]
-    activity_level: str
-    recommended_intake: Dict[str, float]
-    formulas_used: List[str]
-    notes: List[str]
 
 
 # ---------- Core logic ----------
@@ -1337,17 +1314,6 @@ class WHOTargetsRequest(BaseModel):
             elif g in {"gain", "weight_gain"}:
                 values["goal"] = "gain"
         return values
-
-
-# Lenient legacy request model to allow testing error paths without 422
-class BMRRequestLegacy(BaseModel):
-    weight_kg: float
-    height_cm: float
-    age: int
-    sex: str
-    activity: str
-    bodyfat: Optional[float] = None
-    lang: Language = "en"
 
 
 class WHOTargetsResponse(BaseModel):

@@ -30,6 +30,26 @@ remove_cache_dirs() {
         rm -rf "$dir" && echo "  ${emoji} Removed: $dir" && ((removed_count++))
     done < <(find . -path ./.git -prune -o -type d -name "$dir_name" -print0 2>/dev/null)
 
+    # Write back to the provided counter variable name using nameref (type-safe, requires bash 4.3+)
+    declare -n counter="$counter_var_name"
+    counter=$removed_count
+}
+
+# Helper: remove cache files by pattern with emoji and write count to a variable
+remove_cache_files() {
+    local pattern="$1"
+    local emoji="$2"
+    local counter_var_name="$3"
+    local removed_count=0
+
+    while IFS= read -r -d '' file; do
+        if [ -f "$file" ]; then
+            rm -f "$file"
+            echo "  ${emoji} Removed: $file"
+            ((removed_count++))
+        fi
+    done < <(find . -path ./.git -prune -o -type f -name "$pattern" -print0 2>/dev/null)
+
     # Write back to the provided counter variable name (portable for older bash)
     eval "$counter_var_name=$removed_count"
 }
@@ -83,35 +103,17 @@ remove_cache_dirs ".ruff_cache" "🦊" REMOVED_RUFF
 REMOVED_HYPOTHESIS=0
 remove_cache_dirs ".hypothesis" "🧬" REMOVED_HYPOTHESIS
 
-# Remove .pyc files (skip .git)
+# Remove .pyc files
 REMOVED_PYC=0
-while IFS= read -r -d '' file; do
-    if [ -f "$file" ]; then
-        rm -f "$file"
-        echo "  🐍 Removed: $file"
-        ((REMOVED_PYC++))
-    fi
-done < <(find . -path ./.git -prune -o -type f -name "*.pyc" -print0 2>/dev/null)
+remove_cache_files "*.pyc" "🐍" REMOVED_PYC
 
-# Remove .pyo files (skip .git)
+# Remove .pyo files
 REMOVED_PYO=0
-while IFS= read -r -d '' file; do
-    if [ -f "$file" ]; then
-        rm -f "$file"
-        echo "  🐍 Removed: $file"
-        ((REMOVED_PYO++))
-    fi
-done < <(find . -path ./.git -prune -o -type f -name "*.pyo" -print0 2>/dev/null)
+remove_cache_files "*.pyo" "🐍" REMOVED_PYO
 
-# Remove .pyd files (Windows) (skip .git)
+# Remove .pyd files (Windows)
 REMOVED_PYD=0
-while IFS= read -r -d '' file; do
-    if [ -f "$file" ]; then
-        rm -f "$file"
-        echo "  🐍 Removed: $file"
-        ((REMOVED_PYD++))
-    fi
-done < <(find . -path ./.git -prune -o -type f -name "*.pyd" -print0 2>/dev/null)
+remove_cache_files "*.pyd" "🐍" REMOVED_PYD
 
 echo ""
 echo "📊 Cleanup Summary:"

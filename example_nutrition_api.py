@@ -7,9 +7,7 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, TypeAlias, cast
-from pathlib import Path
-import sys
+from typing import Any, Dict, Optional, cast
 
 import requests  # type: ignore[import-untyped]
 from tenacity import (
@@ -20,18 +18,7 @@ from tenacity import (
     retry_if_exception,
 )
 
-# Import BMRResponse from app.py directly (it's defined there as a BaseModel)
-# Using sys.path to import from the app.py module at root level
-_root_path = Path(__file__).parent
-sys.path.insert(0, str(_root_path))
-import app as app_module  # noqa: E402
-
-if TYPE_CHECKING:
-    from app import BMRResponse as BMRResponseType
-else:
-    BMRResponseType = app_module.BMRResponse
-
-BMRResponse: TypeAlias = BMRResponseType
+from app.schemas.bmr import BMRResponse
 
 
 def _should_retry_http_error(exception: BaseException) -> bool:

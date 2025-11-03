@@ -292,6 +292,15 @@ if docker exec "$APP_CONTAINER" test -f /app/cache/app.db 2>/dev/null; then
   # RU: Храним 30 последних бэкапов для production
   # EN: Keep last 30 backups for production
   ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
+  # RU: Примечание о использовании диска: для оценки размера одного бэкапа выполните
+  #      `du -sh "$backup_dir"/app.db.backup-* | head -1`. Пример: если один бэкап ≈ 500MB,
+  #      то 30 бэкапов ≈ 15GB. Рекомендуется проверить свободное место (`df -h`) перед
+  #      включением retention и настроить мониторинг/алерты или автоматическую очистку при
+  #      снижении свободного места ниже порога (например, <20% свободного места).
+  # EN: Disk usage note: estimate size per backup with `du -sh "$backup_dir"/app.db.backup-* | head -1`.
+  #      Example: if one backup ≈ 500MB, then 30 backups ≈ 15GB. Verify available disk space
+  #      (`df -h`) before enabling retention, and consider setting up monitoring/alerts or
+  #      automated pruning when free space falls below a threshold (e.g., <20% free).
   echo "Database backup completed"
 else
   echo "No existing database found, skipping backup"

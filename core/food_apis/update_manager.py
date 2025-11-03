@@ -315,7 +315,7 @@ class DatabaseUpdateManager:
                 )
 
             # Validate new data
-            validation_errors = await _maybe_await(self._validate_food_data(updated_foods))
+            validation_errors = await self._validate_food_data(updated_foods)
             if validation_errors:
                 return UpdateResult(
                     success=False,
@@ -333,9 +333,7 @@ class DatabaseUpdateManager:
             old_foods = {}
             if current_version:
                 try:
-                    old_foods = await _maybe_await(
-                        self._load_backup(source, current_version.version)
-                    )
+                    old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
                     logger.warning(f"Could not load old data for comparison: {e}")
 
@@ -462,7 +460,7 @@ class DatabaseUpdateManager:
                 )
 
             # Validate new data
-            validation_errors = await _maybe_await(self._validate_food_data(unified_foods))
+            validation_errors = await self._validate_food_data(unified_foods)
             if validation_errors:
                 return UpdateResult(
                     success=False,
@@ -480,9 +478,7 @@ class DatabaseUpdateManager:
             old_foods = {}
             if current_version:
                 try:
-                    old_foods = await _maybe_await(
-                        self._load_backup(source, current_version.version)
-                    )
+                    old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
                     logger.warning(f"Could not load old data for comparison: {e}")
 
@@ -786,7 +782,7 @@ class DatabaseUpdateManager:
     async def _create_backup(self, source: str, version: str):
         """Create backup of current database version."""
         try:
-            current_data = await _maybe_await(self.unified_db.get_common_foods_database())
+            current_data = await self.unified_db.get_common_foods_database()
             backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
             with open(backup_file, "w", encoding="utf-8") as f:
@@ -901,7 +897,7 @@ class DatabaseUpdateManager:
         """
         try:
             # Load backup data
-            backup_data = await _maybe_await(self._load_backup(source, target_version))
+            backup_data = await self._load_backup(source, target_version)
 
             # Restore the data (implementation depends on storage method)
             # For now, just update the version tracking
