@@ -36,9 +36,15 @@ jobs:
 
       - name: Run tests with coverage (xml)
         env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
           PYTHONWARNINGS: default
         run: |
-          pytest -q --maxfail=1 --disable-warnings --cov=. --cov-report=xml
+          pytest -q --disable-warnings --cov=. --cov-report=xml
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
