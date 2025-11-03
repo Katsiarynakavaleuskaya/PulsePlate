@@ -361,16 +361,31 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
+    # Use explicit conversions with safe fallbacks so typing is precise
+    age_raw = profile_data.get("age")
+    try:
+        age_val: int = 30 if age_raw is None else int(age_raw)
+    except (TypeError, ValueError):
+        age_val = 30
+
+    height_raw = profile_data.get("height_cm")
+    try:
+        height_val: float = 175.0 if height_raw is None else float(height_raw)
+    except (TypeError, ValueError):
+        height_val = 175.0
+
+    weight_raw = profile_data.get("weight_kg")
+    try:
+        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
+    except (TypeError, ValueError):
+        weight_val = 70.0
+
     # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
         sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
-        age=profile_data.get("age") if profile_data.get("age") is not None else 30,
-        height_cm=(
-            profile_data.get("height_cm") if profile_data.get("height_cm") is not None else 175.0
-        ),
-        weight_kg=(
-            profile_data.get("weight_kg") if profile_data.get("weight_kg") is not None else 70.0
-        ),
+        age=age_val,
+        height_cm=height_val,
+        weight_kg=weight_val,
         activity=cast(
             Literal["sedentary", "light", "moderate", "active", "very_active"],
             profile_data.get("activity") or "moderate",
