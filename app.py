@@ -1787,14 +1787,16 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 meal_micros_raw = _aggregate_meal_micronutrients(ingredients, meal_title=meal_title)
 
                 # Apply aliases and assign to meal (clone to avoid mutation)
-                meal["micros"] = _alias_micros(dict(meal_micros_raw))
+                meal_micros_aliased = _alias_micros(dict(meal_micros_raw))
+                meal["micros"] = meal_micros_aliased
+                # Use aliased version for aggregation to ensure consistency
+                meal_micros_raw = meal_micros_aliased
 
             # Accumulate numeric values into day_micros (initialize missing keys to 0.0)
-            # Only accumulate if meal_micros_raw has values (not empty)
-            if meal_micros_raw:
-                for nutrient_key, amount in meal_micros_raw.items():
-                    if isinstance(amount, (int, float)) and float(amount) > 0:
-                        day_micros[nutrient_key] = day_micros.get(nutrient_key, 0.0) + float(amount)
+            # Always accumulate if meal_micros_raw exists (even if some values are zero)
+            for nutrient_key, amount in meal_micros_raw.items():
+                if isinstance(amount, (int, float)):
+                    day_micros[nutrient_key] = day_micros.get(nutrient_key, 0.0) + float(amount)
 
         # Apply aliases to day totals
         day_micros = _alias_micros(dict(day_micros))
