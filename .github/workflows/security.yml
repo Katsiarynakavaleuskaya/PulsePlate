@@ -47,16 +47,19 @@ jobs:
       - name: Run Bandit (security lint)
         run: |
           bandit_exit_code=0
+          # Main repository scan (production code) - no B101 skip
           bandit -q -r . \
-            --exclude "tests,tests_strict,cache,test_cache,frontend/build,htmlcov,releases,data,external,node_modules,dist,build,.venv" \
+            --exclude "tests,test_cache,cache,frontend/build,htmlcov,releases,data,external,node_modules,dist,build,.venv" \
             -f json -o bandit-report.json || bandit_exit_code=$?
 
+          # Tests directory scan with B101 skip (asserts are acceptable in tests)
           bandit_tests_exit=0
-          if [ -d tests ] || [ -d tests_strict ]; then
-            bandit_targets=()
-            [ -d tests ] && bandit_targets+=("tests")
-            [ -d tests_strict ] && bandit_targets+=("tests_strict")
-            bandit -q -r "${bandit_targets[@]}" --skip B101 || bandit_tests_exit=$?
+          if [ -d tests ]; then
+            bandit -q -r tests --skip B101 || bandit_tests_exit=$?
+          fi
+          # Also scan tests_strict if it exists
+          if [ -d tests_strict ]; then
+            bandit -q -r tests_strict --skip B101 || bandit_tests_exit=$?
           fi
 
           if [ "$bandit_exit_code" -gt 1 ] || [ "$bandit_tests_exit" -gt 1 ]; then
