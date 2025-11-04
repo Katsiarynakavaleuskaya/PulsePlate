@@ -125,14 +125,6 @@ async def get_update_scheduler() -> Any:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure DB initialized for tests that import the app module without running lifespan.
-if os.getenv("PYTEST_CURRENT_TEST") is not None:
-    try:
-        init_db()
-        logger.info("Database schema initialized at import (test mode)")
-    except Exception as e:
-        logger.exception("init_db during import failed: %s", e)
-
 
 # Lifespan event handler
 @asynccontextmanager
@@ -853,7 +845,7 @@ async def root(request: Request):
             function changeLanguage() {
                 const lang = document.getElementById('language').value;
                 // Set cookie
-                document.cookie = `lang=${{lang}}; path=/`;
+                document.cookie = `lang=${lang}; path=/`;
                 // Update UI
                 updateUILanguage(lang);
             }
@@ -881,9 +873,9 @@ async def root(request: Request):
                     });
                     const result = await response.json();
                     document.getElementById('result').innerHTML = `
-                        <h2>BMI: ${{result.bmi}}</h2>
-                        <p>Category: ${{result.category}}</p>
-                        <p>Note: ${{result.note}}</p>
+                        <h2>BMI: ${result.bmi}</h2>
+                        <p>Category: ${result.category}</p>
+                        <p>Note: ${result.note}</p>
                     `;
                     document.getElementById('result').style.display = 'block';
                 } catch (error) {
@@ -1513,7 +1505,7 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
     Returns:
         Dictionary of aggregated micronutrients in alias format (iron_mg, calcium_mg, etc.)
     """
-    day_micros: Dict[str, float] = {}
+    day_micros: Dict[str, float] = Field(default_factory=dict)
 
     for meal in meals:
         meal_title = meal.get("title", "")
@@ -1652,7 +1644,9 @@ class WHOTargetsResponse(BaseModel):
     priority_micros: Dict[str, float]  # Key micronutrients
     activity_weekly: Dict[str, int]  # Weekly activity targets
     calculation_date: str
-    warnings: List[Dict[str, str]] = []  # Life stage warnings with codes and messages
+    warnings: List[Dict[str, str]] = Field(
+        default_factory=list
+    )  # Life stage warnings with codes and messages
 
 
 class NutrientGapsRequest(BaseModel):

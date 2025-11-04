@@ -22,22 +22,20 @@ _env_db_path = os.getenv("FOOD_DB_PATH")
 DB_PATH: Path = Path(_env_db_path) if _env_db_path else Path("data/food.sqlite")
 
 # Ensure parent directory exists for the SQLite file (create parents as necessary)
+# Directory creation rarely fails, but if it does, the original OSError provides sufficient context
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 except OSError as exc:  # pragma: no cover - extremely rare filesystem errors
-    # Fail fast: directory creation is critical for module initialization
     logger.error(
         "CRITICAL: Unable to create DB directory %s: %s",
         DB_PATH.parent,
         exc,
         exc_info=True,
     )
-    # Re-raise wrapped in RuntimeError for clear error message while preserving original exception
-    error_msg = (
+    raise RuntimeError(
         f"Failed to create database directory '{DB_PATH.parent}'. "
         f"This is required for module initialization. Original error: {exc}"
-    )
-    raise RuntimeError(error_msg) from exc
+    ) from exc
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
@@ -396,13 +394,17 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
         # only the number of placeholders is constructed dynamically.
         # Safe but consider phrase/prefix search (e.g., "term*" for prefix matching)
         # for better FTS behavior in future enhancements.
+        # Dynamic SQL construction: only clause count is dynamic, all values use placeholders
+        # This is safe because we only construct the number of OR clauses, not the actual values
         sql = (
             """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE """
-            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))  # nosec B608
+            + " OR ".join(
+                ["ff.canonical_name MATCH ?"] * len(terms)
+            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]
