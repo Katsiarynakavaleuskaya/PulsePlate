@@ -25,8 +25,18 @@ DB_PATH: Path = Path(_env_db_path) if _env_db_path else Path("data/food.sqlite")
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 except OSError as exc:  # pragma: no cover - extremely rare filesystem errors
-    # Warn when directory creation actually fails
-    logger.warning("Unable to create DB directory %s: %s", DB_PATH.parent, exc, exc_info=True)
+    # Fail fast: directory creation is critical for module initialization
+    logger.error(
+        "CRITICAL: Unable to create DB directory %s: %s",
+        DB_PATH.parent,
+        exc,
+        exc_info=True,
+    )
+    # Re-raise wrapped in RuntimeError for clear error message while preserving original exception
+    raise RuntimeError(
+        f"Failed to create database directory '{DB_PATH.parent}'. "
+        f"This is required for module initialization. Original error: {exc}"
+    ) from exc
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
