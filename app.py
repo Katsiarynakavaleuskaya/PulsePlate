@@ -1505,7 +1505,7 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
     Returns:
         Dictionary of aggregated micronutrients in alias format (iron_mg, calcium_mg, etc.)
     """
-    day_micros: Dict[str, float] = Field(default_factory=dict)
+    day_micros: Dict[str, float] = {}
 
     for meal in meals:
         meal_title = meal.get("title", "")
