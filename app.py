@@ -1644,11 +1644,16 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             fiber_g = 25
 
             # Align with WHO targets if backend is available to keep macro deviation low
-            # Re-resolve build_nutrition_targets to get patched version from tests
-            # This ensures test patches are properly applied
-            _build_targets_resolved = resolve_attr(
-                "build_nutrition_targets", build_nutrition_targets, _candidates
-            )
+            # Check app module directly for patched build_nutrition_targets (tests patch this)
+            _app_pkg = _sys.modules.get("app")
+            _build_targets_resolved = None
+            if _app_pkg is not None:
+                _build_targets_resolved = getattr(_app_pkg, "build_nutrition_targets", None)
+            # Fallback to resolved value if not found in app module
+            if _build_targets_resolved is None:
+                _build_targets_resolved = resolve_attr(
+                    "build_nutrition_targets", build_nutrition_targets, _candidates
+                )
             if _build_targets_resolved is not None:
                 try:
                     from core.targets import UserProfile  # local import to avoid hard dependency
