@@ -267,7 +267,7 @@ class TestDbMissingLinesCoverage:
                 # Simulate an exception by throwing into the generator
                 try:
                     session_gen.throw(Exception("Test exception"))
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for generator error handling
                     pass
 
                 # Session should still be closed
