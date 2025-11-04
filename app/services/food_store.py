@@ -63,10 +63,10 @@ def _safe_float(value: Any) -> float:
 
 def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
     """
-    Validate CSV file for balanced quotes using proper parsing.
+    Validate CSV file using the csv module to detect structural issues.
 
-    RU: Проверяет CSV файл на сбалансированные кавычки используя парсер.
-    EN: Validates CSV file for balanced quotes using proper parser.
+    RU: Проверяет CSV файл на валидность, используя модуль csv.
+    EN: Validates CSV structure using the stdlib csv parser.
 
     Args:
         csv_path: Path to the CSV file to validate
@@ -77,42 +77,22 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
 
     Raises:
         FileNotFoundError: If the CSV file does not exist
-        csv.Error: In non-production mode if CSV is malformed (re-raised from parser)
+        csv.Error: In non-production mode if CSV is malformed (re-raised)
         Exception: In non-production mode for other I/O errors (re-raised)
-
-    Note: Reads file once to avoid TOCTOU race condition and improve efficiency.
     """
-    # Use Python's csv module to properly detect malformed CSV
-    # csv.reader and csv.DictReader catch most parsing errors, but can miss
-    # unclosed quotes at end of lines, so we do a simple quote count check
     try:
-        # Read file once to avoid TOCTOU race condition
         with open(csv_path, "r", encoding="utf-8", newline="") as validation_f:
-            content = validation_f.read()
-            # Rewind to beginning for csv readers
-            validation_f.seek(0)
-
-            # Try to parse with csv.reader to catch parsing errors
-            reader = csv.reader(validation_f)
-            list(reader)
-
-            # Rewind again for DictReader
-            validation_f.seek(0)
-            dict_reader = csv.DictReader(validation_f)
-            list(dict_reader)
-
-        # Simple sanity check: count quotes to catch obvious unclosed quotes
-        # (csv module is lenient and may parse invalid CSV successfully)
-        # Use already-read content to avoid re-reading file
-        if content.count('"') % 2 != 0:
-            error_msg = "Unbalanced quotes in CSV file"
-            if not is_production:
-                raise csv.Error(error_msg)
-            logger.debug(
-                "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
-            )
-            return False
-
+            # Use csv.reader to validate CSV structure
+            # strict=True is only available in Python 3.12+, so we use a try-except
+            # to handle both old and new Python versions
+            try:
+                reader = csv.reader(validation_f, strict=True)
+            except TypeError:
+                # Python < 3.12 doesn't support strict parameter
+                validation_f.seek(0)
+                reader = csv.reader(validation_f)
+            for _ in reader:
+                continue
         return True
     except FileNotFoundError:
         # Let FileNotFoundError propagate to caller
