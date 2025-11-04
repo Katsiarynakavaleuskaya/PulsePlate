@@ -34,10 +34,9 @@ class _FakeConn:
         """
         self._commit_raises = commit_raises
         self._in_tx = in_tx
+        self._rollback_called = False
 
-    def execute(
-        self, stmt: Any, *args: Any, **kwargs: Any
-    ) -> str:  # pragma: no cover - trivial pass-through
+    def execute(self, stmt: Any, *args: Any, **kwargs: Any) -> str:
         """Execute a statement, returning a dummy result string."""
         return "ok"
 
@@ -50,8 +49,9 @@ class _FakeConn:
         if self._commit_raises is not None:
             raise self._commit_raises
 
-    def rollback(self) -> None:  # pragma: no cover - executed only on error path
+    def rollback(self) -> None:
         """Rollback the transaction (no-op for fake connection)."""
+        self._rollback_called = True
         return None
 
     def close(self) -> None:  # pragma: no cover - executed only on error path
@@ -102,11 +102,15 @@ def test_execute_commits_only_when_in_transaction() -> None:
 
 def test_execute_handles_db_errors_on_commit_with_re_raise() -> None:
     """Verify an IntegrityError during commit is logged, rolled back, and re-raised."""
-    fake_exc = sa_exc.IntegrityError("stmt", {}, Exception("detail"))
-    engine = EngineCompat(_FakeEngine(_FakeConn(commit_raises=fake_exc, in_tx=True)))
+    fake_conn = _FakeConn(
+        commit_raises=sa_exc.IntegrityError("stmt", {}, Exception("detail")), in_tx=True
+    )
+    engine = EngineCompat(_FakeEngine(fake_conn))
     # Error is logged, rolled back, and re-raised to notify callers
     with pytest.raises(sa_exc.IntegrityError):
         engine.execute("UPDATE t SET a=1")
+    # Verify rollback was called after the exception
+    assert fake_conn._rollback_called
 
 
 def test_execute_propagates_unexpected_errors() -> None:
@@ -154,8 +158,9 @@ def test_result_wrapper_closes_connection() -> None:
 def test_derive_async_url_variants() -> None:
     """Ensure _derive_async_url maps common sync URLs to their async counterparts."""
     assert _derive_async_url("sqlite:///test.db") == "sqlite+aiosqlite:///test.db"
-    assert _derive_async_url("postgresql://user:pass@localhost/db").startswith(
-        "postgresql+asyncpg://"
+    assert (
+        _derive_async_url("postgresql://user:pass@localhost/db")
+        == "postgresql+asyncpg://user:pass@localhost/db"
     )
     # psycopg dialect reuses the same URL
     assert (

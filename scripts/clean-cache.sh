@@ -3,6 +3,28 @@ set -euo pipefail
 
 # Enhanced Python cache cleanup script
 # Cleans all Python cache files and provides detailed reporting
+#
+# Requirements:
+#   - Bash 4.3+ (required for nameref support via 'declare -n')
+#   - On macOS, you may need to install a newer bash via Homebrew:
+#     brew install bash
+#     Then use: /opt/homebrew/bin/bash or /usr/local/bin/bash
+
+# Bash version check: require 4.3+ for nameref support
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || \
+   ([ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]); then
+    echo "❌ Error: This script requires Bash 4.3 or higher" >&2
+    echo "   Current version: ${BASH_VERSION}" >&2
+    echo "   Required: 4.3+" >&2
+    echo "" >&2
+    echo "   On macOS, install a newer bash:" >&2
+    echo "     brew install bash" >&2
+    echo "   Then run the script with:" >&2
+    echo "     /opt/homebrew/bin/bash $0" >&2
+    echo "   or" >&2
+    echo "     /usr/local/bin/bash $0" >&2
+    exit 1
+fi
 
 echo "🧹 Enhanced Python Cache Cleanup"
 echo "================================="
@@ -35,6 +57,7 @@ safe_find_count() {
     temp_stderr=$(mktemp)
 
     # Run find, redirecting stderr to temp file, pipe stdout to counter
+    # Add -print0 internally to ensure null-separated output for counting
     count=$(find "${find_args[@]}" -print0 2>"$temp_stderr" | count_null_separated)
     find_exit=${PIPESTATUS[0]}
 
@@ -116,14 +139,14 @@ remove_cache_files() {
     fi
 }
 
-PYCACHE_COUNT=$(safe_find_count "__pycache__ directories" . -path "./.git" -prune -o -type d -name "__pycache__" -print0)
-PYC_COUNT=$(safe_find_count "*.pyc files" . -path "./.git" -prune -o -type f -name "*.pyc" -print0)
-PYO_COUNT=$(safe_find_count "*.pyo files" . -path "./.git" -prune -o -type f -name "*.pyo" -print0)
-PYD_COUNT=$(safe_find_count "*.pyd files" . -path "./.git" -prune -o -type f -name "*.pyd" -print0)
-PYTEST_CACHE_COUNT=$(safe_find_count ".pytest_cache directories" . -path "./.git" -prune -o -type d -name ".pytest_cache" -print0)
-MYPY_CACHE_COUNT=$(safe_find_count ".mypy_cache directories" . -path "./.git" -prune -o -type d -name ".mypy_cache" -print0)
-RUFF_CACHE_COUNT=$(safe_find_count ".ruff_cache directories" . -path "./.git" -prune -o -type d -name ".ruff_cache" -print0)
-HYPOTHESIS_CACHE_COUNT=$(safe_find_count ".hypothesis directories" . -path "./.git" -prune -o -type d -name ".hypothesis" -print0)
+PYCACHE_COUNT=$(safe_find_count "__pycache__ directories" . -path "./.git" -prune -o -type d -name "__pycache__")
+PYC_COUNT=$(safe_find_count "*.pyc files" . -path "./.git" -prune -o -type f -name "*.pyc")
+PYO_COUNT=$(safe_find_count "*.pyo files" . -path "./.git" -prune -o -type f -name "*.pyo")
+PYD_COUNT=$(safe_find_count "*.pyd files" . -path "./.git" -prune -o -type f -name "*.pyd")
+PYTEST_CACHE_COUNT=$(safe_find_count ".pytest_cache directories" . -path "./.git" -prune -o -type d -name ".pytest_cache")
+MYPY_CACHE_COUNT=$(safe_find_count ".mypy_cache directories" . -path "./.git" -prune -o -type d -name ".mypy_cache")
+RUFF_CACHE_COUNT=$(safe_find_count ".ruff_cache directories" . -path "./.git" -prune -o -type d -name ".ruff_cache")
+HYPOTHESIS_CACHE_COUNT=$(safe_find_count ".hypothesis directories" . -path "./.git" -prune -o -type d -name ".hypothesis")
 
 echo "Found:"
 echo "  📁 __pycache__ directories: $PYCACHE_COUNT"

@@ -7,7 +7,7 @@ from core.food_apis import update_manager
 
 
 @pytest.mark.asyncio
-async def test_maybe_await_handles_coroutine():
+async def test_maybe_await_handles_coroutine() -> None:
     async def coro():
         return 42
 
@@ -15,7 +15,7 @@ async def test_maybe_await_handles_coroutine():
     assert await update_manager._maybe_await(7) == 7
 
 
-def test_food_to_dict_variants(monkeypatch):
+def test_food_to_dict_variants() -> None:
     @dataclass
     class Foo:
         name: str
@@ -49,7 +49,7 @@ def test_food_to_dict_variants(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_load_backup_foods_filters_entries(tmp_path):
+async def test_load_backup_foods_filters_entries(tmp_path: Path) -> None:
     manager = object.__new__(update_manager.DatabaseUpdateManager)
     manager.cache_dir = update_manager._PatchablePathWrapper(tmp_path)
     backup = tmp_path / "usda_backup_backup.json"

@@ -128,7 +128,7 @@ Decision Log:
   Next Step: "Проверить RTL и Dark Mode в storybook."
 ```
 
-## 🤮 Next Actions
+## 🚀 Next Actions
 - [ ] Проверить корректность формата `.github/agents/pulseplate-agent.md`.
 - [ ] Подключить Copilot Agents в репозитории PulsePlate.
 - [ ] Протестировать режимы `[[REPORT:daily]]` и `[[DEV]]`.

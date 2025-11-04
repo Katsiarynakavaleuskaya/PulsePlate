@@ -3,9 +3,12 @@
 Фокус: достижение 97% покрытия через тестирование недостающих веток
 """
 
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 class TestQuickCoverageBoost:
@@ -314,8 +317,8 @@ class TestQuickCoverageBoost:
                 mock_update.side_effect = Exception("Update failed")
                 try:
                     await manager.update_database("usda")
-                except Exception:
-                    pass  # Ожидаем ошибку
+                except Exception as exc:  # pragma: no cover - depends on async extras
+                    logger.warning("update_database raised during quick coverage test: %s", exc)
 
         except ImportError:
             pytest.skip("update_manager module not available")

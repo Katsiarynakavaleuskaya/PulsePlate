@@ -5,9 +5,13 @@ RU: Hypothesis тесты для системы автоматического �
 EN: Hypothesis tests for automatic product search system.
 """
 
+import asyncio
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from core.food_apis.unified_db import get_unified_food_db
+from core.food_db import FoodItem
 from core.product_finder import ProductFinder, ProductSearchResult
 from core.recipe_db import parse_recipe_db
 
@@ -18,7 +22,55 @@ class TestProductFinderHypothesis:
     def setup_method(self):
         """Set up test environment."""
         self.finder = ProductFinder()
-        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
+        # Get unified food database and convert to FoodItem format
+        try:
+            # Check if we're in an event loop (e.g., async test)
+            # get_running_loop() raises RuntimeError if there's NO running loop
+            try:
+                asyncio.get_running_loop()
+                # If we get here, we're in an async context - fallback to empty dict
+                food_db = {}
+            except RuntimeError:
+                # No running loop - safe to create temporary event loop
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    unified_db = loop.run_until_complete(get_unified_food_db())
+                    common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
+
+                    # Convert UnifiedFoodItem to FoodItem format
+                    food_db: dict[str, FoodItem] = {}
+                    for key, unified_item in common_foods.items():
+                        nutrients = unified_item.nutrients_per_100g
+                        food_db[key] = FoodItem(
+                            name=unified_item.name,
+                            unit_per=100,
+                            unit="g",
+                            protein_g=nutrients.get("protein_g", 0.0),
+                            fat_g=nutrients.get("fat_g", 0.0),
+                            carbs_g=nutrients.get("carbs_g", 0.0),
+                            fiber_g=nutrients.get("fiber_g", 0.0),
+                            Fe_mg=nutrients.get("iron_mg", 0.0),
+                            Ca_mg=nutrients.get("calcium_mg", 0.0),
+                            VitD_IU=nutrients.get("vitamin_d_iu", 0.0),
+                            B12_ug=nutrients.get("b12_ug", 0.0),
+                            Folate_ug=nutrients.get("folate_ug", 0.0),
+                            Iodine_ug=nutrients.get("iodine_ug", 0.0),
+                            K_mg=nutrients.get("potassium_mg", 0.0),
+                            Mg_mg=nutrients.get("magnesium_mg", 0.0),
+                            price_per_unit=unified_item.cost_per_100g,
+                            flags=set(unified_item.tags),
+                        )
+                finally:
+                    try:
+                        loop.close()
+                    except Exception:
+                        pass
+        except Exception:
+            # Fallback to empty dict if anything goes wrong
+            food_db = {}
+
+        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db=food_db)
 
     def test_find_missing_products_hypothesis(self):
         """Test finding missing products from recipe ingredients."""

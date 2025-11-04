@@ -248,7 +248,7 @@ class TestGetProviderGrok:
 class TestGetProviderOllama:
     """Тесты для Ollama провайдера"""
 
-    def test_get_provider_ollama_none_when_unavailable(self):
+    def test_get_provider_ollama_none_when_unavailable(self) -> None:
         """Тест возврата OllamaLiteProvider когда OllamaProvider недоступен"""
         with patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}, clear=False):
             with patch.object(llm, "OllamaProvider", None):

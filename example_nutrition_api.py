@@ -7,7 +7,8 @@ This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
-from typing import Any, Dict, Optional, cast
+import logging
+from typing import Any, Dict, Optional, TypedDict
 
 import requests  # type: ignore[import-untyped]
 from tenacity import (
@@ -19,6 +20,91 @@ from tenacity import (
 )
 
 from app.schemas.bmr import BMRResponse
+
+logger = logging.getLogger(__name__)
+
+
+class BMRParams(TypedDict):
+    """Type-safe parameters for BMR calculations"""
+
+    weight_kg: float
+    height_cm: float
+    age: int
+    sex: str
+    lang: str
+
+
+def validate_bmr_params(params: Dict[str, Any]) -> BMRParams:
+    """
+    Validate and convert BMR parameters with runtime type checking.
+
+    Args:
+        params: Dictionary containing BMR parameters
+
+    Returns:
+        Validated BMRParams TypedDict instance
+
+    Raises:
+        ValueError: If any required field is missing or has invalid type/value
+        TypeError: If type conversion fails
+    """
+    # Validate weight_kg
+    if "weight_kg" not in params:
+        raise ValueError("Missing required field: weight_kg")
+    weight_kg = params["weight_kg"]
+    if not isinstance(weight_kg, (int, float)):
+        raise TypeError(f"weight_kg must be float, got {type(weight_kg).__name__}")
+    weight_kg_float = float(weight_kg)
+    if weight_kg_float <= 0:
+        raise ValueError(f"weight_kg must be positive, got {weight_kg_float}")
+
+    # Validate height_cm
+    if "height_cm" not in params:
+        raise ValueError("Missing required field: height_cm")
+    height_cm = params["height_cm"]
+    if not isinstance(height_cm, (int, float)):
+        raise TypeError(f"height_cm must be float, got {type(height_cm).__name__}")
+    height_cm_float = float(height_cm)
+    if height_cm_float <= 0:
+        raise ValueError(f"height_cm must be positive, got {height_cm_float}")
+
+    # Validate age
+    if "age" not in params:
+        raise ValueError("Missing required field: age")
+    age = params["age"]
+    if not isinstance(age, int):
+        if isinstance(age, float) and age.is_integer():
+            age = int(age)
+        else:
+            raise TypeError(f"age must be int, got {type(age).__name__}")
+    if age < 0 or age > 120:
+        raise ValueError(f"age must be between 0 and 120, got {age}")
+
+    # Validate sex
+    if "sex" not in params:
+        raise ValueError("Missing required field: sex")
+    sex = params["sex"]
+    if not isinstance(sex, str):
+        raise TypeError(f"sex must be str, got {type(sex).__name__}")
+    if sex not in ("male", "female"):
+        raise ValueError(f"sex must be 'male' or 'female', got {sex}")
+
+    # Validate lang
+    if "lang" not in params:
+        raise ValueError("Missing required field: lang")
+    lang = params["lang"]
+    if not isinstance(lang, str):
+        raise TypeError(f"lang must be str, got {type(lang).__name__}")
+    if lang not in ("en", "ru"):
+        raise ValueError(f"lang must be 'en' or 'ru', got {lang}")
+
+    return BMRParams(
+        weight_kg=weight_kg_float,
+        height_cm=height_cm_float,
+        age=age,
+        sex=sex,
+        lang=lang,
+    )
 
 
 def _should_retry_http_error(exception: BaseException) -> bool:
@@ -153,7 +239,7 @@ def call_premium_bmr_api(
 
 def handle_request_errors(exception: Exception, lang: str = "en") -> None:
     """
-    Handle and print error messages for API request exceptions.
+    Handle and log error messages for API request exceptions.
 
     Args:
         exception: The exception that was raised
@@ -161,76 +247,80 @@ def handle_request_errors(exception: Exception, lang: str = "en") -> None:
     """
     if isinstance(exception, requests.exceptions.Timeout):
         if lang == "ru":
-            print(f"⏱️ Таймаут: {exception}\n")
+            logger.error("⏱️ Таймаут: %s", exception, exc_info=True)
         else:
-            print(f"⏱️ Timeout: {exception}")
-            print("Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness.\n")
+            logger.error("⏱️ Timeout: %s", exception, exc_info=True)
+            logger.info(
+                "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness."
+            )
     elif isinstance(exception, requests.exceptions.HTTPError):
         if lang == "ru":
-            print(f"❌ HTTP-ошибка: {exception}\n")
+            logger.error("❌ HTTP-ошибка: %s", exception, exc_info=True)
         else:
-            print(f"❌ HTTP error: {exception}")
-            print("The API returned an error status code. Check server logs.\n")
+            logger.error("❌ HTTP error: %s", exception, exc_info=True)
+            logger.info("The API returned an error status code. Check server logs.")
     elif isinstance(exception, requests.exceptions.ConnectionError):
         if lang == "ru":
-            print(f"🔌 Ошибка соединения: {exception}\n")
+            logger.error("🔌 Ошибка соединения: %s", exception, exc_info=True)
         else:
-            print(f"🔌 Connection error: {exception}")
-            print("Make sure the API server is running on localhost:8000 and reachable.\n")
+            logger.error("🔌 Connection error: %s", exception, exc_info=True)
+            logger.info("Make sure the API server is running on localhost:8000 and reachable.")
     elif isinstance(exception, requests.exceptions.RequestException):
         if lang == "ru":
-            print(f"⚠️ Ошибка запроса: {exception}\n")
+            logger.warning("⚠️ Ошибка запроса: %s", exception, exc_info=True)
         else:
-            print(f"⚠️ Request error: {exception}\n")
+            logger.warning("⚠️ Request error: %s", exception, exc_info=True)
     else:
         if lang == "ru":
-            print(f"❌ Непредвиденная ошибка: {exception}\n")
+            logger.error("❌ Непредвиденная ошибка: %s", exception, exc_info=True)
         else:
-            print(f"❌ Unexpected error: {exception}\n")
+            logger.error("❌ Unexpected error: %s", exception, exc_info=True)
 
 
 def handle_request_errors_detailed(exception: Exception) -> None:
     """
-    Handle and print detailed error messages for API request exceptions.
+    Handle and log detailed error messages for API request exceptions.
 
     Args:
         exception: The exception that was raised
     """
     if isinstance(exception, requests.exceptions.Timeout):
-        print("⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).")
-        print(f"Details: {exception}\n")
+        logger.error(
+            "⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).", exc_info=True
+        )
+        logger.info("Details: %s", exception)
     elif isinstance(exception, requests.exceptions.HTTPError):
-        print("❌ HTTP error occurred. Check server response status.")
-        print(f"Details: {exception}\n")
+        logger.error("❌ HTTP error occurred. Check server response status.", exc_info=True)
+        logger.info("Details: %s", exception)
     elif isinstance(exception, requests.exceptions.ConnectionError):
-        print("🔌 Connection error. Is the server running and reachable?")
-        print(f"Details: {exception}\n")
+        logger.error("🔌 Connection error. Is the server running and reachable?", exc_info=True)
+        logger.info("Details: %s", exception)
     elif isinstance(exception, requests.exceptions.RequestException):
-        print("⚠️ Request error occurred.")
-        print(f"Details: {exception}\n")
+        logger.warning("⚠️ Request error occurred.", exc_info=True)
+        logger.info("Details: %s", exception)
     else:
-        print("❌ Unexpected error.")
-        print(f"Details: {exception}\n")
+        logger.error("❌ Unexpected error.", exc_info=True)
+        logger.info("Details: %s", exception)
 
 
 def handle_request_errors_inline(exception: Exception, activity: str) -> None:
     """
-    Handle and print inline error messages for API request exceptions.
+    Handle and log inline error messages for API request exceptions.
 
     Args:
         exception: The exception that was raised
         activity: Activity level string for display
     """
     if isinstance(exception, requests.exceptions.Timeout):
-        print(f"{activity:<15} | Timeout: {exception}")
+        logger.error("%s | Timeout: %s", f"{activity:<15}", exception, exc_info=True)
     elif isinstance(exception, requests.exceptions.HTTPError):
-        print(f"{activity:<15} | HTTP error: {exception}")
+        logger.error("%s | HTTP error: %s", f"{activity:<15}", exception, exc_info=True)
     elif isinstance(exception, requests.exceptions.ConnectionError):
-        print(f"{activity:<15} | Connection error: {exception}")
+        logger.error("%s | Connection error: %s", f"{activity:<15}", exception, exc_info=True)
     elif isinstance(exception, requests.exceptions.RequestException):
-        print(f"{activity:<15} | Request error: {exception}")
+        logger.warning("%s | Request error: %s", f"{activity:<15}", exception, exc_info=True)
     else:
-        print(f"{activity:<15} | Unexpected error: {exception}")
+        logger.error("%s | Unexpected error: %s", f"{activity:<15}", exception, exc_info=True)
 
 
 def main() -> None:
@@ -342,13 +432,15 @@ def main() -> None:
     print("-" * 35)
 
     activities = ["sedentary", "light", "moderate", "active", "very_active"]
-    base_params: Dict[str, Any] = {
+    # Validate base parameters once before the loop
+    base_params_raw: Dict[str, Any] = {
         "weight_kg": 70.0,
         "height_cm": 175.0,
         "age": 30,
         "sex": "male",
         "lang": "en",
     }
+    base_params = validate_bmr_params(base_params_raw)
 
     print("Activity Level    | TDEE (Mifflin)")
     print("-" * 35)
@@ -357,11 +449,11 @@ def main() -> None:
         try:
             result = call_premium_bmr_api(
                 activity=activity,
-                weight_kg=cast(float, base_params["weight_kg"]),
-                height_cm=cast(float, base_params["height_cm"]),
-                age=cast(int, base_params["age"]),
-                sex=cast(str, base_params["sex"]),
-                lang=cast(str, base_params["lang"]),
+                weight_kg=base_params["weight_kg"],
+                height_cm=base_params["height_cm"],
+                age=base_params["age"],
+                sex=base_params["sex"],
+                lang=base_params["lang"],
             )
             tdee = result.tdee["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")

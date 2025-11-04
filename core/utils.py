@@ -30,6 +30,104 @@ def get_activity_factor(activity: str) -> float:
     return mapping.get(str(activity), 1.55)
 
 
+def _resolve_module_candidate(candidate: Any) -> Optional[Any]:
+    """Resolve a candidate to a module/object, handling string names and None values.
+
+    Safely converts string module names to actual module objects from sys.modules.
+    For non-string candidates, returns the candidate as-is (preserving original behavior
+    that allows any object type, not just ModuleType).
+    Handles defensive guards for __getattribute__ hooks that may raise exceptions
+    during type checking.
+
+    Args:
+        candidate: Module object, any object, string module name, or None
+
+    Returns:
+        Resolved module/object, or None if candidate is None, is a string that cannot
+        be resolved, or raises exception during type checking
+    """
+    if candidate is None:
+        return None
+
+    # Check if candidate is string, handling exceptions during type checking
+    try:
+        is_string = isinstance(candidate, str)
+    except (TypeError, AttributeError):
+        # If type checking itself raises (e.g., custom __getattribute__),
+        # skip this candidate
+        return None  # nosec B112 - intentional: skip problematic candidate
+    except Exception as unexpected_err:  # noqa: BLE001 - defensive guard for unexpected errors
+        # Log unexpected exceptions at debug level before returning None
+        # to avoid masking unrelated errors while maintaining defensive behavior
+        logger.debug(
+            "Unexpected exception during isinstance check in _resolve_module_candidate: %s",
+            unexpected_err,
+            exc_info=True,
+        )
+        return None  # nosec B112 - intentional: skip problematic candidate
+
+    if is_string:
+        return sys.modules.get(candidate)
+
+    # Return candidate as-is (could be any object type, not just ModuleType)
+    return candidate
+
+
+def _is_mock_like(module: Any) -> bool:
+    """Check if a module/object appears to be a unittest.mock object.
+
+    Uses safe attribute access to avoid triggering mock auto-creation.
+    Catches all exceptions defensively to avoid breaking the resolution flow.
+
+    Args:
+        module: Module or object to check
+
+    Returns:
+        True if the object appears mock-like, False otherwise (or on any exception)
+    """
+    try:
+        mock_children = getattr(module, "_mock_children", None)
+        module_name = getattr(module, "__module__", "")
+        class_name = getattr(module.__class__, "__name__", "")
+        return (
+            mock_children is not None
+            or class_name in {"Mock", "MagicMock", "AsyncMock"}
+            or module_name.startswith("unittest.mock")
+        )
+    except Exception:  # noqa: BLE001 - catch all for defensive behavior
+        return False
+
+
+def _get_attr_from_module(module: Any, name: str) -> tuple[bool, Any]:
+    """Get attribute from module/object, preferring explicit __dict__ entries.
+
+    Prefers explicit attributes in __dict__ to avoid Mock auto-created attributes.
+    Falls back to getattr if not found in __dict__ and module is a ModuleType.
+
+    Args:
+        module: Module object or any object to search
+        name: Attribute name to retrieve
+
+    Returns:
+        Tuple of (found: bool, value: Any). found is True if attribute exists,
+        False otherwise. value is the attribute value if found, None otherwise.
+    """
+    # Prefer explicit attributes to avoid Mock auto-created attrs.
+    dct = getattr(module, "__dict__", None)
+    if isinstance(dct, dict) and name in dct:
+        return (True, dct[name])
+
+    # Avoid triggering unittest.mock auto-creation of attributes
+    if _is_mock_like(module):
+        return (False, None)
+
+    # Only use getattr for ModuleType objects (preserves original behavior)
+    if isinstance(module, types.ModuleType) and hasattr(module, name):
+        return (True, getattr(module, name))
+
+    return (False, None)
+
+
 def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[Any]] = None) -> Any:
     """Resolve attribute by searching candidate modules before falling back.
 
@@ -46,68 +144,23 @@ def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[An
     if candidates is None:
         candidates = [sys.modules.get("app"), sys.modules.get("_app_top_module")]
     for candidate in candidates:
-        module = candidate
         try:
+            module = _resolve_module_candidate(candidate)
             if module is None:
                 continue
-            # Check if module is string, handling exceptions during type checking
-            try:
-                is_string = isinstance(module, str)
-            except (
-                Exception
-            ):  # noqa: BLE001 - defensive guard for __getattribute__ hooks  # pragma: no cover
-                # If type checking itself raises (e.g., custom __getattribute__),
-                # skip this candidate
-                continue  # nosec B112 - intentional: skip problematic candidate
 
-            if is_string:
-                module = sys.modules.get(module)
-                if module is None:
-                    continue
-
-            # Prefer explicit attributes to avoid Mock auto-created attrs.
-            dct = getattr(module, "__dict__", None)
-            if isinstance(dct, dict) and name in dct:
-                return dct[name]
-
-            # Avoid triggering unittest.mock auto-creation of attributes
-            try:
-                # Check for mock attributes, handling any exceptions from __getattr__
-                try:
-                    mock_children = getattr(module, "_mock_children", None)
-                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
-                    mock_children = None
-                try:
-                    module_name = getattr(module, "__module__", "")
-                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
-                    module_name = ""
-                try:
-                    class_name = module.__class__.__name__
-                except Exception:  # pragma: no cover - defensive guard for custom __getattr__
-                    class_name = ""
-                is_mock_like = (
-                    mock_children is not None
-                    or class_name in {"Mock", "MagicMock", "AsyncMock"}
-                    or module_name.startswith("unittest.mock")
-                )
-            except (AttributeError, TypeError):  # pragma: no cover - extremely defensive
-                is_mock_like = False
-
-            if is_mock_like:
-                continue
-
-            if isinstance(module, types.ModuleType) and hasattr(module, name):
-                return getattr(module, name)
+            found, value = _get_attr_from_module(module, name)
+            if found:
+                return value
         except (
             AttributeError,
             TypeError,
             ImportError,
-        ) as resolve_err:  # pragma: no cover - defensive guard
+        ) as resolve_err:
             logger.debug("resolve_attr ignored %s while inspecting %s", resolve_err, candidate)
             continue
     return local_default
 
 
-# Constant for marking untestable edge cases in coverage reports
 # Usage: add comment "# pragma: no cover" after lines that are difficult to test
-UNTESTABLE_EDGE_CASE = None
+# when marking untestable edge cases in coverage reports

@@ -434,6 +434,7 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
 
 
 # Fiber intake bounds (g/day)
-# Reference: WHO/EFSA guidelines recommend 25-35g daily fiber intake for adults
-FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g)
-FIBER_MAX_G: int = 35  # Maximum daily fiber intake (g)
+# Reference: WHO/EFSA guidelines recommend at least 25g daily fiber intake for adults
+# Note: WHO/EFSA do not set an upper intake limit for fiber. Only minimum values
+# are used in this codebase based on authoritative guidelines.
+FIBER_MIN_G: int = 25  # Minimum daily fiber intake (g), per WHO/EFSA guidelines

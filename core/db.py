@@ -2,6 +2,20 @@
 
 RU: Базовая интеграция SQLAlchemy с приложением FastAPI.
 EN: Basic SQLAlchemy integration for the FastAPI app.
+
+SQLite Pooling Configuration:
+    For sqlite+aiosqlite: pooling exists in SQLAlchemy/aiosqlite, but SQLite's
+    locking/threading model makes typical multi-connection pools (e.g., QueuePool)
+    inappropriate or counterproductive in many cases. We therefore intentionally
+    skip applying the standard pool configuration for SQLite and only add it for
+    other backends.
+
+    Limited exceptions where pooling may still be useful:
+    - File-backed SQLite with WAL/journal_mode tuned for concurrency
+    - In-memory databases when using shared-cache or URI flags that allow
+      multiple connections (e.g., "sqlite+aiosqlite:///:memory:?cache=shared")
+    - Explicit single-connection pool (size=1) to centralize reconnect logic
+      and connection management
 """
 
 from __future__ import annotations
@@ -119,9 +133,9 @@ class _ResultWithConnectionCleanup:
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
     ) -> None:
         """Context manager exit - ensure connection is closed."""
         self._close_connection()
@@ -310,11 +324,7 @@ if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker
             "future": True,
         }
 
-        # For sqlite+aiosqlite: pooling exists in SQLAlchemy/aiosqlite, but SQLite's
-        # locking/threading model makes typical multi-connection pools (e.g., QueuePool)
-        # inappropriate or counterproductive in many cases. We therefore intentionally
-        # skip applying the standard _POOL_CONFIG for SQLite and only add it for
-        # other backends.
+        # Skip standard pool config for sqlite+aiosqlite due to SQLite's locking/threading model—see module docstring for details
         if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
             async_kwargs.update(_POOL_CONFIG)
 

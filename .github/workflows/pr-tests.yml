@@ -65,20 +65,8 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             mypy "${{ steps.changed.outputs.files }}"
           else
-            # Check all Python packages and modules across the entire project
-            # This replaces the previous "app core" limitation with comprehensive checking
-            TARGETS="app core providers"
-            # Add additional directories if they exist and contain Python files
-            for dir in scripts tools alembic; do
-              if [ -d "$dir" ] && find "$dir" -maxdepth 1 -name "*.py" -print -quit 2>/dev/null | grep -q .; then
-                TARGETS="$TARGETS $dir"
-              fi
-            done
-            # Add root-level Python files (exclude those that conflict with packages)
-            ROOT_FILES="$(find . -maxdepth 1 -type f -name "*.py" ! -name "__init__.py" ! -name "app.py" 2>/dev/null | sed 's|^\./||' | tr '\n' ' ')"
-            if [ -n "$ROOT_FILES" ]; then
-              TARGETS="$TARGETS $ROOT_FILES"
-            fi
+            # Discover mypy targets using dedicated script
+            TARGETS="$(scripts/discover_mypy_targets.sh)"
             # Run mypy on all collected targets
             mypy $TARGETS
           fi
@@ -114,6 +102,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
+      - name: Initialize test database
+        env:
+          APP_ENV: test
+          ENVIRONMENT: test
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+        run: |
+          # Ensure database directory exists
+          mkdir -p cache
+
+          # Initialize database schema (create tables)
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          import core.models  # noqa: F401 - ensure models are registered
+          from core.db import init_db
+          init_db()
+          print('✅ Database initialized successfully')
+          "
+          # Verify tables were created
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from core.db import session_scope
+          from sqlalchemy import inspect
+          with session_scope() as session:
+              inspector = inspect(session.bind)
+              tables = inspector.get_table_names()
+              print(f'✅ Found {len(tables)} tables: {', '.join(tables)}')
+              assert 'users' in tables, 'users table not found'
+          "
+
       # paths-filter outputs: code, docs (always set by dorny/paths-filter@v3.0.2)
       - name: Determine changes
         id: filter
@@ -143,6 +162,9 @@ jobs:
           MC_SEED: '2025'
           MC_SAMPLES: '5'
           MC_SAMPLES_FEW: '3'
+          FEATURE_PREMIUM_NUTRITION: 'true'
+          APP_ENV: test
+          ENVIRONMENT: test
         run: |
           pytest -c pyproject.toml -m "not slow and not monte_carlo and not demo" \
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests

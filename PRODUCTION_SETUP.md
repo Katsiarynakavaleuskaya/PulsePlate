@@ -43,7 +43,10 @@ EN: Basic security hardening for production server.**
 sudo apt install -y ufw fail2ban unattended-upgrades
 
 # UFW Firewall configuration
-sudo ufw allow ssh
+# Verify SSH port first (default is 22 if not set in /etc/ssh/sshd_config)
+SSH_PORT=$(grep -E "^Port " /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' || echo "22")
+echo "SSH port detected: $SSH_PORT"
+sudo ufw allow ${SSH_PORT}/tcp   # Allow SSH on detected port
 sudo ufw allow 80/tcp   # HTTP
 sudo ufw allow 443/tcp  # HTTPS
 sudo ufw --force enable
@@ -292,15 +295,7 @@ if docker exec "$APP_CONTAINER" test -f /app/cache/app.db 2>/dev/null; then
   # RU: Храним 30 последних бэкапов для production
   # EN: Keep last 30 backups for production
   ls -t "$backup_dir"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
-  # RU: Примечание о использовании диска: для оценки размера одного бэкапа выполните
-  #      `du -sh "$backup_dir"/app.db.backup-* | head -1`. Пример: если один бэкап ≈ 500MB,
-  #      то 30 бэкапов ≈ 15GB. Рекомендуется проверить свободное место (`df -h`) перед
-  #      включением retention и настроить мониторинг/алерты или автоматическую очистку при
-  #      снижении свободного места ниже порога (например, <20% свободного места).
-  # EN: Disk usage note: estimate size per backup with `du -sh "$backup_dir"/app.db.backup-* | head -1`.
-  #      Example: if one backup ≈ 500MB, then 30 backups ≈ 15GB. Verify available disk space
-  #      (`df -h`) before enabling retention, and consider setting up monitoring/alerts or
-  #      automated pruning when free space falls below a threshold (e.g., <20% free).
+  # See section 7.2 for detailed disk usage and compression guidance
   echo "Database backup completed"
 else
   echo "No existing database found, skipping backup"
@@ -371,6 +366,178 @@ EOF
 sudo chmod +x /srv/pulseplate-production/deploy.sh
 ```
 
+### 7.1. Set Up Disk Space Monitoring and Alerts
+
+To prevent disk space issues from backups and logs, set up automated alerts when free space drops below a threshold.
+
+**Recommended Threshold**: Alert when free disk space falls below **20%** of total capacity.
+
+**Monitoring Options**:
+
+1. **Prometheus + node_exporter + Alertmanager** (recommended for self-hosted):
+
+   ```bash
+   # Install node_exporter on the server
+   # Configure Prometheus to scrape disk metrics
+   # Set up alert rule in Alertmanager:
+   # - alert: LowDiskSpace
+   #   expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+   ```
+
+2. **Cloud Provider Monitoring** (DigitalOcean, AWS, etc.):
+   - Enable disk space monitoring in your cloud provider's dashboard
+   - Configure alerts via their native alerting system
+   - Set threshold to 20% free space
+
+3. **Simple Cron-based Script** (quick setup):
+
+   ```bash
+   # Create monitoring script
+   sudo tee /usr/local/bin/check-disk-space.sh > /dev/null << 'EOF'
+   #!/usr/bin/env bash
+   set -euo pipefail
+   THRESHOLD=20  # Alert when free space < 20%
+   MOUNTPOINT="/"
+
+   # Extract used percentage and validate it's numeric
+   USED_PERCENT=$(df "$MOUNTPOINT" | awk 'NR==2 {print $5}' | sed 's/%//')
+
+   # Validate USED_PERCENT is non-empty and numeric
+   if [ -z "$USED_PERCENT" ] || ! [[ "$USED_PERCENT" =~ ^[0-9]+$ ]]; then
+       echo "ERROR: Failed to extract valid disk usage percentage. Got: '$USED_PERCENT'" >&2
+       exit 1
+   fi
+
+   FREE_PERCENT=$((100 - USED_PERCENT))
+
+   if [ "$USED_PERCENT" -gt $((100 - THRESHOLD)) ]; then
+       echo "ALERT: Disk space on $MOUNTPOINT is ${USED_PERCENT}% used (threshold: $((100 - THRESHOLD))%)"
+       # Send notification (see notification channels below)
+   fi
+   EOF
+
+   sudo chmod +x /usr/local/bin/check-disk-space.sh
+
+   # Add to crontab (check every 5 minutes)
+   (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/check-disk-space.sh") | crontab -
+   ```
+
+**Check Frequency**:
+
+- **Every 5-15 minutes** for production environments
+- Use retention-aware alerting to suppress flapping (require alert to persist for 2-3 consecutive checks before firing)
+
+**Notification Channels**:
+
+- **Email**: Send alerts to operations team email
+- **Slack**: Configure webhook for Slack channel notifications
+- **PagerDuty**: For critical production environments requiring on-call escalation
+
+**Example Alert Suppression** (for cron script):
+
+```bash
+# Add state tracking to prevent alert flapping
+STATE_FILE="/var/run/disk-alert-state"
+CONSECUTIVE_THRESHOLD=3  # Require 3 consecutive checks
+
+if [ "$USED_PERCENT" -gt $((100 - THRESHOLD)) ]; then
+    if [ -f "$STATE_FILE" ]; then
+        COUNT=$(cat "$STATE_FILE")
+        COUNT=$((COUNT + 1))
+    else
+        COUNT=1
+    fi
+    echo "$COUNT" > "$STATE_FILE"
+
+    if [ "$COUNT" -ge "$CONSECUTIVE_THRESHOLD" ]; then
+        # Fire alert and reset counter
+        echo "ALERT: Disk space critical..."
+        # Send notification
+        echo "0" > "$STATE_FILE"
+    fi
+else
+    # Reset counter when disk space is healthy
+    echo "0" > "$STATE_FILE"
+fi
+```
+
+### 7.2. Backup Retention: Disk Usage and Compression Guidance
+
+This section provides detailed guidance on managing disk space for database backups and optional compression strategies.
+
+#### Disk Usage Estimation
+
+**RU: Примечание о использовании диска**
+**EN: Disk usage note**
+
+To estimate the size of a single backup, use:
+
+```bash
+du -sh "$backup_dir"/app.db.backup-* | head -1
+```
+
+**Example Calculation**:
+
+- If one backup ≈ 500MB, then 30 backups ≈ 15GB
+- Monitor disk usage regularly: `df -h`
+- Verify available disk space before enabling retention
+- Set up monitoring/alerts or automated pruning when free space falls below a threshold (e.g., <20% free)
+
+#### Backup Compression (Optional)
+
+**RU: Опционально: сжатие бэкапов для экономии места**
+**EN: Optional: backup compression to reduce disk usage**
+
+To reduce disk usage, consider compressing backups. Common approaches:
+
+1. **gzip compression**:
+
+   ```bash
+   gzip "$backup_path"
+   # Creates: app.db.backup-YYYYMMDD_HHMMSS.gz
+   ```
+
+2. **SQLite dump with compression**:
+
+   ```bash
+   sqlite3 app.db .dump | gzip > "$backup_dir/backup-$timestamp.sql.gz"
+   ```
+
+**Compression Ratios**:
+
+- Typical SQLite compression: **2-5x** for common databases
+- Example: if uncompressed backup ≈ 500MB, after compression ≈ 100-250MB
+- 30 compressed backups ≈ 3-7.5GB (vs 15GB uncompressed)
+
+**Important Considerations**:
+
+- **Always test restores** after implementing compression:
+
+  ```bash
+  # Test decompression and restore
+  gunzip backup.sql.gz
+  sqlite3 restored.db < backup.sql
+  ```
+
+- Monitor compressed backup sizes when setting retention thresholds
+- Sizes may vary depending on data content and compression algorithm
+- Update retention policies to account for compressed file sizes
+
+**Modified Backup Script with Compression** (example):
+
+```bash
+# Create compressed backup
+timestamp=$(date +"%Y%m%d_%H%M%S")
+backup_dir="/srv/pulseplate-production/backups"
+mkdir -p "$backup_dir"
+backup_path="$backup_dir/app.db.backup-$timestamp"
+docker cp "$APP_CONTAINER:/app/cache/app.db" "$backup_path"
+gzip "$backup_path"  # Compress immediately after creation
+
+# Retention: keep last 30 compressed backups
+ls -t "$backup_dir"/app.db.backup-*.gz 2>/dev/null | tail -n +31 | xargs -r rm -f
+```
+
 ## 🔑 GitHub Environment Setup
 
 ### 1. Create Production Environment
@@ -436,6 +603,86 @@ git push origin v1.0.0
 2. **Logs**: Available via `docker logs` commands
 3. **Backups**: Automatic database backups before deployments
 4. **Rollback**: Previous image tags available for quick rollback
+
+### Disk Space Monitoring and Alerts
+
+**RU:** Для предотвращения проблем с нехваткой места на диске рекомендуется настроить мониторинг и автоматическую очистку.
+
+**EN:** To prevent disk space issues, it's recommended to set up monitoring and automated cleanup.
+
+#### Existing Cleanup Scripts
+
+The project includes cleanup scripts that can be scheduled via cron:
+
+- **Cache cleanup:** `scripts/clean-cache.sh` - Removes Python cache files and temporary data
+- **Food DB update:** `scripts/schedule_food_db_update.py` - Automated database updates (see `CRON_SETUP.md`)
+
+#### Setting Up Disk Space Alerts
+
+**RU:** Пример настройки cron-задачи для проверки дискового пространства и автоматической очистки при падении свободного места ниже 20%:
+
+**EN:** Example cron setup for disk space checking and automatic cleanup when free space falls below 20%:
+
+```bash
+# Create dedicated cleanup script
+sudo tee /usr/local/bin/pulseplate-backup-cleanup.sh > /dev/null << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+BACKUP_DIR="/srv/pulseplate-production/backups"
+THRESHOLD=80
+
+# Compute disk usage percentage
+USED=$(df "$BACKUP_DIR" | tail -1 | awk '{print $5}' | sed 's/%//')
+
+# Check if usage exceeds threshold
+if [ "$USED" -gt "$THRESHOLD" ]; then
+    # Remove older backups while retaining the last 30
+    ls -t "$BACKUP_DIR"/app.db.backup-* 2>/dev/null | tail -n +31 | xargs -r rm -f
+    echo "$(date): Cleaned up old backups (disk usage was ${USED}%)"
+fi
+EOF
+
+sudo chmod +x /usr/local/bin/pulseplate-backup-cleanup.sh
+
+# Add to crontab: crontab -e
+# Check disk space every hour and clean backups if >80% used (i.e., <20% free)
+0 * * * * /usr/local/bin/pulseplate-backup-cleanup.sh >> /var/log/pulseplate-disk-cleanup.log 2>&1
+
+# Run cache cleanup weekly (Sunday at 3 AM)
+0 3 * * 0 /path/to/PulsePlate/scripts/clean-cache.sh >> /var/log/pulseplate-cache-cleanup.log 2>&1
+```
+
+#### Alternative: External Monitoring Solutions
+
+**RU:** Для более продвинутого мониторинга можно использовать:
+
+- **Prometheus + Alertmanager** - для метрик и алертов
+- **Grafana** - для визуализации использования диска
+- **Cloud provider monitoring** - встроенные алерты DigitalOcean/AWS/etc. при <20% свободного места
+
+**EN:** For advanced monitoring, consider:
+
+- **Prometheus + Alertmanager** - for metrics and alerts
+- **Grafana** - for disk usage visualization
+- **Cloud provider monitoring** - built-in alerts from DigitalOcean/AWS/etc. when free space <20%
+
+#### Quick Disk Space Check
+
+```bash
+# Check backup directory size
+du -sh /srv/pulseplate-production/backups
+
+# Check overall disk usage
+df -h
+
+# Estimate backup retention impact
+du -sh /srv/pulseplate-production/backups/app.db.backup-* | head -1
+```
+
+**RU:** Рекомендуется регулярно проверять использование диска и корректировать retention-политики в зависимости от размера бэкапов и доступного места.
+
+**EN:** Regularly check disk usage and adjust retention policies based on backup sizes and available space.
 
 ## 🧪 Testing Production Setup
 

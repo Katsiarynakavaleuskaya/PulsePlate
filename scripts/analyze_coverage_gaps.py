@@ -7,7 +7,38 @@ import os
 import re
 import subprocess  # nosec B404
 import sys
+import warnings
 from typing import List
+
+
+def parse_timeout_env(env_var: str, default: int = 180) -> int:
+    """Parse timeout value from environment variable with fallback.
+
+    Args:
+        env_var: Environment variable name to read.
+        default: Default timeout value in seconds if parsing fails.
+
+    Returns:
+        int: Parsed timeout value or default if parsing fails.
+    """
+    value = os.environ.get(env_var)
+    if value is None:
+        return default
+
+    # Strip whitespace before parsing
+    value = value.strip()
+    if not value:
+        return default
+
+    try:
+        return int(value)
+    except ValueError:
+        warnings.warn(
+            f"Invalid value '{value}' for {env_var}. "
+            f"Expected integer, falling back to default {default} seconds.",
+            UserWarning,
+        )
+        return default
 
 
 def run_coverage_analysis() -> bool:
@@ -31,6 +62,8 @@ def run_coverage_analysis() -> bool:
     )
 
     # Запускаем pytest с детальным отчетом покрытия
+    # Timeout configurable via COVERAGE_TEST_TIMEOUT env var, default 180 seconds
+    test_timeout = parse_timeout_env("COVERAGE_TEST_TIMEOUT", default=180)
 
     try:
         result = subprocess.run(  # nosec B603
@@ -46,10 +79,10 @@ def run_coverage_analysis() -> bool:
             ],
             capture_output=True,
             text=True,
-            timeout=600,  # 10 minute timeout for test execution
+            timeout=test_timeout,
         )
     except subprocess.TimeoutExpired:
-        print("❌ pytest execution timed out after 10 minutes")
+        print(f"❌ pytest execution timed out after {test_timeout} seconds")
         return False
 
     if result.returncode != 0:

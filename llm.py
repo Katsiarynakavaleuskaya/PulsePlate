@@ -4,28 +4,51 @@
 
 from __future__ import annotations
 
+import logging
 import os
-from typing import Any
+from typing import Optional
 
 from core.time_utils import isoformat_utc
 from providers import ProviderBase
+
+logger = logging.getLogger(__name__)
 
 
 class GrokLiteProvider(ProviderBase):  # lightweight fallback that never uses network
     name = "grok"
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        endpoint: str = "",
+        model: str = "",
+        api_key: str = "",
+        timeout: Optional[float] = None,
+    ) -> None:
+        # RU: Параметры игнорируются, так как это легковесный fallback без сети
+        # EN: Parameters are ignored as this is a lightweight fallback without network
+        pass
 
     async def generate(self, text: str) -> str:
         return f"[grok-lite] {text}"
 
 
-class OllamaLiteProvider(ProviderBase):  # lightweight fallback that never uses network
+class OllamaLiteProvider(ProviderBase):
+    """Lightweight fallback implementation that never uses the network.
+
+    Returns local/placeholder responses instead of making actual API calls.
+    """
+
     name = "ollama"
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        endpoint: str = "http://localhost:11434",
+        model: str = "llama3.1:8b",
+        timeout_s: Optional[float] = None,
+    ) -> None:
+        # RU: Параметры игнорируются, так как это легковесный fallback без сети
+        # EN: Parameters are ignored as this is a lightweight fallback without network
+        pass
 
     async def generate(self, text: str) -> str:
         return f"[ollama-lite] {text}"
@@ -105,7 +128,20 @@ def get_provider():
             endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
             model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
             # малый таймаут, чтобы даже при misconfig не висеть
-            timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+            # EN: Parse timeout with error handling for invalid env var values
+            # RU: Парсим таймаут с обработкой ошибок для невалидных значений env var
+            try:
+                timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+            except (ValueError, TypeError) as e:
+                # EN: Invalid OLLAMA_TIMEOUT value, using safe default
+                # RU: Невалидное значение OLLAMA_TIMEOUT, используем безопасное значение по умолчанию
+                timeout_s = 5.0
+                logger.warning(
+                    "Invalid OLLAMA_TIMEOUT value '%s', using default timeout 5.0 seconds. "
+                    "Error: %s",
+                    os.getenv("OLLAMA_TIMEOUT"),
+                    e,
+                )
             try:
                 return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
             except Exception:

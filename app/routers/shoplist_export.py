@@ -151,6 +151,9 @@ def _register_font_if_available() -> str:
             return FONT_NAME
         except (OSError, TTFError, ValueError) as exc:
             logger.warning("Font registration failed, falling back to Helvetica: %s", exc)
+            return "Helvetica"
+    else:
+        logger.debug("Bundled font file not found at %s, using Helvetica fallback", FONT_PATH)
     return "Helvetica"
 
 

@@ -4,7 +4,8 @@ import llm
 
 
 @pytest.mark.asyncio
-async def test_lite_providers_generate_text():
+async def test_lite_providers_generate_text() -> None:
+    """Validate that lite providers generate expected text output and integration behavior."""
     grok = llm.GrokLiteProvider()
     ollama = llm.OllamaLiteProvider()
 

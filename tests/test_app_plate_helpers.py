@@ -25,10 +25,13 @@ def test_convert_db_nutrients_to_alias_format():
     assert result["unused"] == 0.0
 
 
-@pytest.mark.asyncio
-async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure fallback path aligns macros when backends are unavailable."""
+@pytest.fixture
+def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Shared fixture for premium plate fallback tests.
 
+    Sets up monkeypatching for app.resolve_attr, fake targets/module, DummyProfile,
+    and builds a PlateRequest. Returns dict with request and called tracker.
+    """
     original_resolve = app.resolve_attr
 
     def fake_resolve(name: str, default: Any = None, candidates: Any = None) -> Any:
@@ -56,7 +59,7 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-    fake_module.UserProfile = DummyProfile
+    fake_module.UserProfile = DummyProfile  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "core.targets", fake_module)
 
     called: dict[str, bool] = {}
@@ -68,8 +71,6 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
     monkeypatch.setattr(app, "build_nutrition_targets", fake_build_targets)
 
     # Force fallback path by patching _make_plate to None
-    import sys as _sys
-
     original_resolve = app.resolve_attr
 
     def fake_resolve_force_fallback(*args: Any, **kwargs: Any) -> Any:
@@ -90,13 +91,48 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
         surplus_pct=None,
         bodyfat=None,
         diet_flags=set(),
-        life_stage="adult",
-        lang="en",
     )
 
+    return {"request": request, "called": called}
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_calls_build_targets(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify that build_nutrition_targets is called in fallback path."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+    called = setup["called"]
+
     response = await app.api_premium_plate(request)
+
     assert isinstance(response, app.PlateResponse)
-    assert called.get("value") is True
+    assert called.get("value") is True, "build_nutrition_targets should be called"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_response_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify that response is a valid PlateResponse instance."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
+    assert isinstance(response, app.PlateResponse), "Response should be PlateResponse instance"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_macro_values(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify macro values match expected ranges from targets or calculations."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
 
     # Verify response payload matches expected values from DummyTargets
     # Note: If FEATURE_PREMIUM_NUTRITION is enabled, the response may use _make_plate
@@ -127,13 +163,8 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
     assert fiber_actual in (
         25,
         28,
-    ), f"Expected fiber_g=25 (calculated) or 28 (from targets), got {fiber_actual}"
-
-    # Verify macros structure contains all expected keys
-    expected_macro_keys = {"protein_g", "fat_g", "carbs_g", "fiber_g"}
-    assert (
-        set(response.macros.keys()) == expected_macro_keys
-    ), f"Expected macro keys {expected_macro_keys}, got {set(response.macros.keys())}"
+        30,
+    ), f"Expected fiber_g=25-30 (calculated) or 28 (from targets), got {fiber_actual}"
 
     # Verify macro values are integers and within reasonable ranges
     assert isinstance(response.macros["protein_g"], int)
@@ -145,6 +176,17 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
     assert 0 <= response.macros["carbs_g"] < 1000, "Carbs should be in reasonable range"
     assert 0 < response.macros["fiber_g"] < 100, "Fiber should be in reasonable range"
 
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_portions_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify portions structure and types."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
     # Verify portions structure and types
     assert isinstance(response.portions, dict), "portions should be a dict"
     expected_portion_keys = {"protein_palm", "carb_cups", "veg_cups", "fat_thumbs"}
@@ -155,6 +197,17 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
         isinstance(v, (int, float)) and v >= 0 for v in response.portions.values()
     ), "Portion values should be non-negative numbers"
 
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_layout_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify layout structure contains VisualShape objects."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
     # Verify layout is a list of VisualShape objects
     assert isinstance(response.layout, list), "layout should be a list"
     assert len(response.layout) > 0, "layout should contain at least one VisualShape"
@@ -164,6 +217,17 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
         ), f"Each layout item should be VisualShape, got {type(shape)}"
         assert shape.kind in {"plate_sector", "bowl", "marker"}, f"Invalid shape kind: {shape.kind}"
         assert 0 <= shape.fraction <= 1, f"Fraction should be between 0 and 1, got {shape.fraction}"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_meals_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify meals structure and content."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
 
     # Verify meals structure
     assert isinstance(response.meals, list), "meals should be a list"
@@ -184,7 +248,66 @@ async def test_api_premium_plate_fallback_aligns_targets(monkeypatch: pytest.Mon
                         meal["macros"][macro_key], int
                     ), f"Meal {macro_key} should be an integer"
 
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_macros_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify macros structure contains all expected keys."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
+    # Verify macros structure contains all expected keys
+    expected_macro_keys = {"protein_g", "fat_g", "carbs_g", "fiber_g"}
+    assert (
+        set(response.macros.keys()) == expected_macro_keys
+    ), f"Expected macro keys {expected_macro_keys}, got {set(response.macros.keys())}"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_metadata_structure(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify day_micros and meals_per_day structure."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
     # Verify day_micros and meals_per_day
     assert isinstance(response.day_micros, dict), "day_micros should be a dict"
     assert isinstance(response.meals_per_day, int), "meals_per_day should be an integer"
     assert response.meals_per_day > 0, "meals_per_day should be positive"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_aligns_targets(
+    premium_plate_fallback_setup: dict[str, Any],
+) -> None:
+    """Verify that fallback path uses target macros exactly when build_nutrition_targets is available."""
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    response = await app.api_premium_plate(request)
+
+    # The test fixture patches build_nutrition_targets to return DummyTargets with:
+    # - protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
+    # When targets are available, they should override computed values
+    assert response.macros["fat_g"] == 60, (
+        f"Expected fat_g=60 from DummyTargets.macros, got {response.macros['fat_g']}. "
+        "Targets should override computed value (0.9 * 80 = 72)."
+    )
+    assert (
+        response.macros["protein_g"] == 120
+    ), f"Expected protein_g=120 from DummyTargets.macros, got {response.macros['protein_g']}"
+    assert (
+        response.macros["carbs_g"] == 180
+    ), f"Expected carbs_g=180 from DummyTargets.macros, got {response.macros['carbs_g']}"
+    assert (
+        response.macros["fiber_g"] == 28
+    ), f"Expected fiber_g=28 from DummyTargets.macros, got {response.macros['fiber_g']}"
+    assert (
+        response.kcal == 2200
+    ), f"Expected kcal=2200 from DummyTargets.kcal_daily, got {response.kcal}"

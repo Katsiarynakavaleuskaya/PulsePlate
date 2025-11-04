@@ -99,7 +99,9 @@ def get_or_create_encryption_key() -> bytes:
         if temp_file.exists():
             try:
                 temp_file.unlink()
-            except Exception as cleanup_err:  # pragma: no cover - best effort log
+            except OSError as cleanup_err:  # pragma: no cover - best effort log
+                # Path.unlink() only raises OSError (e.g., FileNotFoundError, PermissionError)
+                # This is best-effort cleanup; log and continue
                 logger.debug(
                     "Failed to remove temporary key file %s during cleanup: %s",
                     temp_file,

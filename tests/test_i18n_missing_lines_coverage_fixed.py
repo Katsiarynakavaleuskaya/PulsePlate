@@ -36,7 +36,17 @@ class TestI18nMissingLines:
                 try:
                     result = normalize_lang(locale)
                     # Line 420: if region in config["exceptions"]: return base
-                    assert result in ["zh", "en", "es", "pt", "fr"]
+                    # Validate exact expected output per test case
+                    if locale.startswith("zh"):
+                        assert result == "zh", f"Expected 'zh' for {locale}, got {result}"
+                    elif locale.startswith("en"):
+                        assert result == "en", f"Expected 'en' for {locale}, got {result}"
+                    elif locale.startswith("es"):
+                        assert result == "es", f"Expected 'es' for {locale}, got {result}"
+                    elif locale.startswith("pt"):
+                        assert result == "pt", f"Expected 'pt' for {locale}, got {result}"
+                    elif locale.startswith("fr"):
+                        assert result == "fr", f"Expected 'fr' for {locale}, got {result}"
                 except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
@@ -63,7 +73,17 @@ class TestI18nMissingLines:
                 try:
                     result = normalize_lang(locale)
                     # Should return configured default (line 423)
-                    assert result in ["zh", "en", "es", "pt", "fr"]
+                    # Validate exact expected output per test case
+                    if locale.startswith("zh"):
+                        assert result == "zh", f"Expected 'zh' for {locale}, got {result}"
+                    elif locale.startswith("en"):
+                        assert result == "en", f"Expected 'en' for {locale}, got {result}"
+                    elif locale.startswith("es"):
+                        assert result == "es", f"Expected 'es' for {locale}, got {result}"
+                    elif locale.startswith("pt"):
+                        assert result == "pt", f"Expected 'pt' for {locale}, got {result}"
+                    elif locale.startswith("fr"):
+                        assert result == "fr", f"Expected 'fr' for {locale}, got {result}"
                 except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
@@ -82,7 +102,9 @@ class TestI18nMissingLines:
                 try:
                     result = normalize_lang(lang)
                     # Should return the same language (line 427)
-                    assert result == lang
+                    assert (
+                        result == lang
+                    ), f"Expected '{lang}' for base language '{lang}', got '{result}'"
                 except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
@@ -110,7 +132,9 @@ class TestI18nMissingLines:
                 try:
                     result = normalize_lang(lang)
                     # Should fallback to "en" (line 430)
-                    assert result == "en"
+                    assert (
+                        result == "en"
+                    ), f"Expected 'en' fallback for unknown language '{lang}', got '{result}'"
                 except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
@@ -173,7 +197,9 @@ class TestI18nMissingLines:
                 try:
                     result = normalize_lang(input_locale)
                     # Should normalize and process correctly
-                    assert isinstance(result, str)
+                    assert (
+                        result == expected_result
+                    ), f"Expected '{expected_result}' for '{input_locale}', got '{result}'"
                 except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 

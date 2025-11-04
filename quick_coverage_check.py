@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Быстрая проверка покрытия тестов."""
+"""Quick test coverage check. / Быстрая проверка покрытия тестов."""
 
-import subprocess  # nosec B404 - running internal pytest helper
+import subprocess  # nosec B404 - importing subprocess to invoke pytest for coverage checks; safe because we control the command and arguments
 import sys
 
 
 def main() -> None:
     """Run a quick single-file coverage check and print results."""
-    print("🚀 Быстрая проверка покрытия")
+    print("🚀 Quick coverage check / Быстрая проверка покрытия")
     print("=" * 40)
 
     try:
-        # Запуск тестов с покрытием
+        # Run tests with coverage / Запуск тестов с покрытием
         result = subprocess.run(  # nosec B603
             [
                 sys.executable,
@@ -27,23 +27,27 @@ def main() -> None:
             timeout=300,
         )
 
-        print("📊 Результат:")
+        print("📊 Results / Результат:")
         print(result.stdout)
 
         if result.stderr:
-            print("⚠️ Ошибки:")
+            print("⚠️ Errors / Ошибки:")
             print(result.stderr)
 
         if result.returncode == 0:
-            print("✅ Тесты прошли успешно!")
+            print("✅ Tests passed successfully! / Тесты прошли успешно!")
         else:
-            print("❌ Есть ошибки в тестах")
+            print("❌ Tests have errors / Есть ошибки в тестах")
 
     except subprocess.TimeoutExpired:
-        print("⏳ Таймаут при запуске проверки покрытия (300s). CI остановлен.")
+        print(
+            "⏳ Coverage check timeout (300s). CI stopped. / "
+            "Таймаут при запуске проверки покрытия (300s). CI остановлен."
+        )
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"❌ Error / Ошибка: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

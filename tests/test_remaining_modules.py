@@ -6,9 +6,12 @@ RU: Тесты для оставшихся модулей с низким пок
 EN: Tests for remaining modules with low coverage
 """
 
+import logging
 from unittest.mock import patch
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 class TestShoplistModule:
@@ -110,9 +113,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
-            # Function may fail due to missing dependencies
-            pass
+        except Exception as exc:
+            logger.warning("generate_weekly_plan raised during test: %s", exc)
 
     def test_weekly_plan_with_diet_flags(self):
         """Test weekly plan with dietary restrictions."""
@@ -134,8 +136,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan module not available")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("generate_weekly_plan with diet flags raised: %s", exc)
 
     def test_daily_plan_functions(self):
         """Test daily plan helper functions."""
@@ -167,8 +169,8 @@ class TestWeeklyPlanModule:
 
         except ImportError:
             pytest.skip("weekly_plan helper functions not available")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("weekly_plan helper functions raised: %s", exc)
 
 
 class TestUtilsModule:

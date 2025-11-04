@@ -249,6 +249,29 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
+    def _validate_fdc_id(self, fdc_id_raw: Any) -> Optional[int]:
+        """
+        RU: Валидирует и нормализует FDC ID.
+        EN: Validates and normalizes FDC ID.
+
+        Args:
+            fdc_id_raw: Raw FDC ID value from API (can be int, str, or other)
+
+        Returns:
+            Validated FDC ID as int, or None if invalid
+        """
+        if isinstance(fdc_id_raw, str):
+            try:
+                return int(fdc_id_raw)
+            except ValueError:
+                logger.error(f"Invalid fdcId string: {fdc_id_raw}")
+                return None
+        elif isinstance(fdc_id_raw, int):
+            return fdc_id_raw
+        else:
+            logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+            return None
+
     def _parse_food_item(self, food_data: Mapping[str, Any] | None) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
@@ -260,17 +283,8 @@ class USDAClient:
         try:
             # Extract basic info
             fdc_id_raw = food_data.get("fdcId")
-            # Guard and normalize fdc_id to int
-            if isinstance(fdc_id_raw, str):
-                try:
-                    fdc_id = int(fdc_id_raw)
-                except ValueError:
-                    logger.error(f"Invalid fdcId string: {fdc_id_raw}")
-                    return None
-            elif isinstance(fdc_id_raw, int):
-                fdc_id = fdc_id_raw
-            else:
-                logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+            fdc_id = self._validate_fdc_id(fdc_id_raw)
+            if fdc_id is None:
                 return None
             description = food_data.get("description", "Unknown Food")
             data_type = food_data.get("dataType", "Unknown")

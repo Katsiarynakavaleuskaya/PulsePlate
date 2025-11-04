@@ -236,7 +236,7 @@ class TestLlmSimple96:
         with patch("llm.OllamaProvider", None), patch.dict(os.environ, {"LLM_PROVIDER": "ollama"}):
             result = get_provider()
 
-            # Should fallback to OllamaLiteProvider when OllamaProvider is None (консистентно с GrokProvider)
+            # Should fallback to OllamaLiteProvider when OllamaProvider is None (consistent with GrokProvider)
             assert result is not None
             assert result.name == "ollama"
 

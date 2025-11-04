@@ -9,8 +9,13 @@
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
-        Referrer-Policy "no-referrer"
-        # Минимальная CSP: разрешаем всё с того же источника
-        Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # CSP is now set by application middleware with nonce-based security
+        # Remove CSP from Caddyfile to allow application to control it
+        # Expanded CSP: nonce-based approach (set by app.py csp_nonce_middleware)
+        # Application generates per-request nonces and sets CSP header dynamically
+        # Permissions-Policy: отключаем неиспользуемые браузерные функции для снижения поверхности атаки
+        # Permissions-Policy: disable unused browser features to reduce attack surface
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(), encrypted-media=(), fullscreen=(self), picture-in-picture=()"
     }
 }

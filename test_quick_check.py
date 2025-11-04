@@ -15,7 +15,7 @@ import os
 def test_quick_placeholder() -> None:
     """Always-pass placeholder so CI invocation succeeds instantly."""
     # Guarantee deterministic env for any downstream imports if added later.
-    os.environ.setdefault("LLM_PROVIDER", "none")
+    os.environ["LLM_PROVIDER"] = "none"
     # Verify environment variable is set (replaces assert True to avoid B101)
     assert os.environ.get("LLM_PROVIDER") == "none"
 

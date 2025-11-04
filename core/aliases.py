@@ -2,12 +2,12 @@ import csv
 import logging
 import os
 import re
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
+def _load_aliases(path: Optional[str] = None) -> dict[str, str]:
     """
     RU: Загрузить таблицу синонимов с поддержкой двух схем CSV.
     EN: Load alias table with support for two CSV schemas.
@@ -30,7 +30,7 @@ def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
         # Default path relative to project root
         path = os.path.join(os.path.dirname(__file__), "..", "data", "food_aliases.csv")
 
-    table: Dict[str, str] = {}
+    table: dict[str, str] = {}
     try:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -53,12 +53,9 @@ def _load_aliases(path: Optional[str] = None) -> Dict[str, str]:
                     aliases_str = (row.get("aliases") or "").strip()
                     if not primary:
                         continue
-                    # Split by either ; or , - handle both delimiters by splitting
-                    # first by semicolon, then each part by comma
-                    alias_parts: List[str] = []
-                    for semicolon_part in aliases_str.split(";"):
-                        alias_parts.extend(semicolon_part.split(","))
-                    # Process each alias part
+                    # Split by either ; or , using regex to handle both delimiters uniformly
+                    alias_parts = re.split(r"[;,]", aliases_str)
+                    # Process each alias part: strip, lower, and add non-empty aliases
                     for alias_raw in alias_parts:
                         alias = alias_raw.strip().lower()
                         if alias:
@@ -128,6 +125,11 @@ def add_alias(alias: str, canonical: str, path: Optional[str] = None) -> None:
         alias: Alias name
         canonical: Canonical name
         path: Path to aliases CSV file
+
+    Note:
+        This function only writes rows in Schema 1 format (alias,canonical).
+        For Schema 2 format (primary,aliases), edit the CSV manually or use
+        a separate helper function.
     """
     if path is None:
         path = os.path.join(os.path.dirname(__file__), "..", "data", "food_aliases.csv")

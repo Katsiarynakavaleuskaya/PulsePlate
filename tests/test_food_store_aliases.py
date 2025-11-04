@@ -217,12 +217,6 @@ def test_load_aliases_csv_unknown_schema_returns_empty() -> None:
 
 def test_load_aliases_csv_error_handling_production_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test _load_aliases_csv error handling in production mode returns empty dict."""
-    monkeypatch.setenv("ENVIRONMENT", "production")
-    # Reload module to pick up env var
-    import importlib
-
-    importlib.reload(fs)
-
     # Create a file that will cause a parse error
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         # Write invalid CSV that will cause parsing error
@@ -232,24 +226,16 @@ def test_load_aliases_csv_error_handling_production_mode(monkeypatch: pytest.Mon
 
     try:
         # In production, should return empty dict on error
-        result = fs._load_aliases_csv(temp_path)
+        result = fs._load_aliases_csv(temp_path, is_production=True)
         assert result == {}
     finally:
         temp_path.unlink()
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        importlib.reload(fs)
 
 
 def test_load_aliases_csv_error_handling_non_production_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test _load_aliases_csv error handling in non-production mode raises exception."""
-    monkeypatch.setenv("ENVIRONMENT", "development")
-    # Reload module to pick up env var
-    import importlib
-
-    importlib.reload(fs)
-
     # Create a file that will cause a parse error
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         # Write invalid CSV that will cause parsing error
@@ -262,8 +248,6 @@ def test_load_aliases_csv_error_handling_non_production_mode(
         import csv
 
         with pytest.raises((csv.Error, OSError)):
-            fs._load_aliases_csv(temp_path)
+            fs._load_aliases_csv(temp_path, is_production=False)
     finally:
         temp_path.unlink()
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        importlib.reload(fs)

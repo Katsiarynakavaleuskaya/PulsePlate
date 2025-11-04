@@ -28,12 +28,30 @@ class BMRRequest(BaseModel):
 class BMRResponse(BaseModel):
     """Response model for BMR calculation"""
 
-    bmr: Dict[str, float]
-    tdee: Dict[str, float]
-    activity_level: str
-    recommended_intake: Dict[str, float]
-    formulas_used: List[str]
-    notes: List[str]
+    bmr: Dict[str, float] = Field(
+        ...,
+        description="BMR values calculated by different formulas. Keys are formula names (e.g., 'mifflin', 'harris', 'katch'), values are BMR in kcal/day.",
+    )
+    tdee: Dict[str, float] = Field(
+        ...,
+        description="TDEE (Total Daily Energy Expenditure) values for different formulas and activity levels. Keys are formula names, values are TDEE in kcal/day.",
+    )
+    activity_level: str = Field(
+        ...,
+        description="Localized description of the activity level used in calculations (e.g., 'sedentary', 'light', 'moderate', 'active', 'very_active').",
+    )
+    recommended_intake: Dict[str, float] = Field(
+        ...,
+        description="Recommended daily calorie intake for different goals. Keys: 'maintenance', 'weight_loss' (20% deficit), 'weight_gain' (20% surplus); values are calories in kcal/day.",
+    )
+    formulas_used: List[str] = Field(
+        ...,
+        description="List of BMR formula names that were used in the calculation (e.g., ['mifflin', 'harris', 'katch']).",
+    )
+    notes: List[str] = Field(
+        ...,
+        description="Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).",
+    )
 
 
 class BMRRequestLegacy(BaseModel):

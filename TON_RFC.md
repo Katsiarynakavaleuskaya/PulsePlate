@@ -93,39 +93,41 @@
 
 **TON Storage is explicitly marked as a Phase 0 blocker for identifiable health data** due to fundamental privacy and compliance concerns that require comprehensive research before any Phase 1 scoping.
 
-**Critical Research Tasks (Required before Phase 1):**
+#### Health Data Compliance Requirements
 
-1. **End-to-End Encryption & Off-Chain Storage Evaluation**
-   - Evaluate feasibility and cost of implementing end-to-end encryption (E2EE) for all personal/health data flows using TON Storage
-   - Assess architecture options for off-chain storage of encrypted health data (user metrics, nutrition logs, BMI history, body fat data)
-   - Cost analysis: Compare E2EE + off-chain storage overhead vs. traditional encrypted database solutions
-   - Technical feasibility: Validate that TON Storage can support E2EE key management and encrypted blob storage patterns
-   - Deliverable: Technical feasibility report with cost estimates and architecture recommendations
+**All health data compliance requirements must be completed before Phase 1 scoping can proceed.**
 
-2. **Transactional Requirements Validation**
-   - Validate ACID transaction requirements (Atomicity, Consistency, Isolation, Durability) for health data operations
-   - Assess multi-row atomicity needs (e.g., logging meal entry with multiple nutrients must be atomic)
-   - Evaluate isolation levels required for concurrent user data updates
-   - Determine rollback capabilities for failed transactions (critical for data integrity)
-   - **Decision point:** Determine if a traditional DB layer (PostgreSQL/SQLite) is required alongside TON Storage for transactional health data
-   - Deliverable: Transactional requirements analysis with recommendation on hybrid architecture vs. TON Storage-only approach
+- **HDC-1: End-to-End Encryption & Off-Chain Storage Evaluation**
+  - Evaluate feasibility and cost of implementing end-to-end encryption (E2EE) for all personal/health data flows using TON Storage
+  - Assess architecture options for off-chain storage of encrypted health data (user metrics, nutrition logs, BMI history, body fat data)
+  - Cost analysis: Compare E2EE + off-chain storage overhead vs. traditional encrypted database solutions
+  - Technical feasibility: Validate that TON Storage can support E2EE key management and encrypted blob storage patterns
+  - Deliverable: Technical feasibility report with cost estimates and architecture recommendations
 
-3. **GDPR Compliance Assessment**
-   - **Immutability vs. Right to Erasure:** Evaluate conflict between blockchain immutability and GDPR Article 17 (Right to Erasure). TON Storage immutability may prevent complete data deletion required by GDPR
-   - **Data Controller/Processor Roles:** Assess whether TON Storage architecture requires reclassification of data controller/processor roles under GDPR Article 24-28
-   - **Mandatory DPIA:** Conduct Data Protection Impact Assessment (DPIA) as required by GDPR Article 35 for high-risk processing of health data
-   - **Legal Review:** Mandate legal counsel review of TON Storage architecture from GDPR, CCPA, and HIPAA (if applicable) perspectives
-   - Deliverable: GDPR/Privacy compliance report with DPIA documentation and legal recommendations
+- **HDC-2: Transactional Requirements Validation**
+  - Validate ACID transaction requirements (Atomicity, Consistency, Isolation, Durability) for health data operations
+  - Assess multi-row atomicity needs (e.g., logging meal entry with multiple nutrients must be atomic)
+  - Evaluate isolation levels required for concurrent user data updates
+  - Determine rollback capabilities for failed transactions (critical for data integrity)
+  - **Decision point:** Determine if a traditional DB layer (PostgreSQL/SQLite) is required alongside TON Storage for transactional health data
+  - Deliverable: Transactional requirements analysis with recommendation on hybrid architecture vs. TON Storage-only approach
 
-4. **Decision Gate Recommendation**
-   - Recommend a formal decision gate that **prevents Phase 1 scoping** until:
-     - All research findings from tasks 1-3 are documented and reviewed
-     - A mitigation plan is approved (which may include: hybrid architecture with traditional DB for health data, migration away from TON Storage for personal data, or explicit no-go decision)
-     - Legal/Compliance approval is obtained for the proposed architecture
-   - Define escalation path if research findings indicate TON Storage is unsuitable for health data
-   - Deliverable: Decision gate criteria document with approval checklist
+- **HDC-3: GDPR Compliance Assessment**
+  - **Immutability vs. Right to Erasure:** Evaluate conflict between blockchain immutability and GDPR Article 17 (Right to Erasure). TON Storage immutability may prevent complete data deletion required by GDPR
+  - **Data Controller/Processor Roles:** Assess whether TON Storage architecture requires reclassification of data controller/processor roles under GDPR Article 24-28
+  - **Mandatory DPIA:** Conduct Data Protection Impact Assessment (DPIA) as required by GDPR Article 35 for high-risk processing of health data
+  - **Legal Review:** Mandate legal counsel review of TON Storage architecture from GDPR, CCPA, and HIPAA (if applicable) perspectives
+  - Deliverable: GDPR/Privacy compliance report with DPIA documentation and legal recommendations
 
-**Research Timeline:** These health data compliance research tasks are estimated at 5-7 additional person-days, extending Phase 0 timeline to **2.5-3 person-weeks**.
+- **HDC-4: Decision Gate Documentation**
+  - Recommend a formal decision gate that **prevents Phase 1 scoping** until:
+    - All research findings from HDC-1, HDC-2, and HDC-3 are documented and reviewed
+    - A mitigation plan is approved (which may include: hybrid architecture with traditional DB for health data, migration away from TON Storage for personal data, or explicit no-go decision)
+    - Legal/Compliance approval is obtained for the proposed architecture
+  - Define escalation path if research findings indicate TON Storage is unsuitable for health data
+  - Deliverable: Decision gate criteria document with approval checklist
+
+**Research Timeline:** Health data compliance requirements (HDC-1 through HDC-4) are estimated at 5-7 additional person-days, extending Phase 0 timeline to **2.5-3 person-weeks**.
 
 ### Регуляторные:
 
@@ -225,19 +227,19 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 - [ ] Test TON Storage integration (if applicable) (2 days)
 - [ ] Legal/compliance preliminary review (1 day)
 - [ ] **Health Data Compliance Research (5-7 days - Phase 0 Blocker):**
-  - [ ] Task 1: End-to-End Encryption & Off-Chain Storage Evaluation (2 days)
-  - [ ] Task 2: Transactional Requirements Validation (ACID, multi-row atomicity, isolation, rollback) (2 days)
-  - [ ] Task 3: GDPR Compliance Assessment (DPIA, immutability vs. erasure, controller/processor roles) (2 days)
-  - [ ] Task 4: Decision Gate Documentation (preventing Phase 1 until mitigation plan approved) (1 day)
+  - [ ] HDC-1: End-to-End Encryption & Off-Chain Storage Evaluation (2 days)
+  - [ ] HDC-2: Transactional Requirements Validation (ACID, multi-row atomicity, isolation, rollback) (2 days)
+  - [ ] HDC-3: GDPR Compliance Assessment (DPIA, immutability vs. erasure, controller/processor roles) (2 days)
+  - [ ] HDC-4: Decision Gate Documentation (preventing Phase 1 until mitigation plan approved) (1 day)
 
 **Success Criteria (Go):**
 - ✅ TON SDK supports Python/FastAPI deployment architecture
 - ✅ TON Sites/Cloud can host FastAPI backend (or clear migration path exists)
 - ✅ TON Storage integration is feasible (if applicable) and meets requirements
-- ✅ **Health Data Compliance: All 4 research tasks completed with documented findings**
-- ✅ **Health Data Compliance: Mitigation plan approved (hybrid DB architecture or migration plan)**
-- ✅ **Health Data Compliance: Legal/Compliance approval obtained for proposed architecture**
-- ✅ **Health Data Compliance: DPIA completed and reviewed**
+- ✅ **Health Data Compliance: All requirements (HDC-1 through HDC-4) completed with documented findings**
+- ✅ **Health Data Compliance: Mitigation plan approved per HDC-4 (hybrid DB architecture or migration plan)**
+- ✅ **Health Data Compliance: Legal/Compliance approval obtained for proposed architecture (HDC-3, HDC-4)**
+- ✅ **Health Data Compliance: DPIA completed and reviewed (HDC-3)**
 - ✅ No blocking legal/compliance issues identified
 - ✅ Estimated engineering effort for Phase 1 < 4 person-weeks
 
@@ -245,9 +247,9 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 - ❌ FastAPI deployment not supported (static sites only)
 - ❌ TON Storage integration not feasible or incompatible with requirements
 - ❌ Legal/compliance blockers (data storage/privacy restrictions)
-- ❌ **Health Data Compliance: TON Storage determined unsuitable for health data with no viable mitigation**
-- ❌ **Health Data Compliance: GDPR/Privacy compliance cannot be achieved with proposed architecture**
-- ❌ **Health Data Compliance: Legal review rejects TON Storage for personal/health data**
+- ❌ **Health Data Compliance: TON Storage determined unsuitable for health data with no viable mitigation (HDC-1, HDC-2, HDC-4)**
+- ❌ **Health Data Compliance: GDPR/Privacy compliance cannot be achieved with proposed architecture (HDC-3)**
+- ❌ **Health Data Compliance: Legal review rejects TON Storage for personal/health data (HDC-3)**
 - ❌ Estimated Phase 1 effort > 6 person-weeks
 
 **Deliverable:** Research spike report with go/no-go recommendation and effort estimates.
@@ -255,10 +257,10 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 ### Фаза 1: Исследование (Q1 2025) - **Conditional on Phase 0 Go Decision + Health Data Compliance Approval**
 
 **⚠️ Phase 1 cannot proceed until:**
-- All Phase 0 health data compliance research tasks (1-4) are completed
-- Mitigation plan is documented and approved (hybrid DB architecture or migration away from TON Storage for health data)
-- Legal/Compliance approval obtained for proposed architecture
-- DPIA completed and reviewed
+- All health data compliance requirements (HDC-1 through HDC-4) are completed
+- Mitigation plan is documented and approved per HDC-4 (hybrid DB architecture or migration away from TON Storage for health data)
+- Legal/Compliance approval obtained for proposed architecture (HDC-3, HDC-4)
+- DPIA completed and reviewed (HDC-3)
 
 **Estimated Effort:** 3-4 person-weeks
 
@@ -371,9 +373,9 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 - Engineering effort must be within budgeted person-weeks
 
 **No-Go Triggers:**
-- **Health Data Compliance:** TON Storage determined unsuitable for health data with no viable mitigation plan
-- **Health Data Compliance:** GDPR/Privacy compliance cannot be achieved with proposed architecture
-- **Health Data Compliance:** Legal review rejects TON Storage for personal/health data
+- **Health Data Compliance:** TON Storage determined unsuitable for health data with no viable mitigation plan (HDC-1, HDC-2, HDC-4)
+- **Health Data Compliance:** GDPR/Privacy compliance cannot be achieved with proposed architecture (HDC-3)
+- **Health Data Compliance:** Legal review rejects TON Storage for personal/health data (HDC-3)
 - Any critical blocker (legal, technical, or compliance)
 - Product KPIs fail to meet thresholds (Phase 1+)
 - Engineering effort exceeds budget by >25%
@@ -382,18 +384,10 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 ### Legal/Compliance Review Checklist
 
 **🚫 REQUIRED BEFORE PHASE 1 (Phase 0 Blocker - Health Data Compliance):**
-- [ ] **Health Data Compliance Research Tasks Completed (See Phase 0 tasks):**
-  - [ ] Task 1: End-to-End Encryption & Off-Chain Storage Evaluation completed
-  - [ ] Task 2: Transactional Requirements Validation completed
-  - [ ] Task 3: GDPR Compliance Assessment completed (including DPIA)
-  - [ ] Task 4: Decision Gate Documentation completed
-- [ ] **GDPR/Privacy Compliance:**
-  - [ ] **DPIA (Data Protection Impact Assessment):** Conducted and reviewed as required by GDPR Article 35 for health data processing
-  - [ ] **Right to Erasure:** Mitigation plan approved for GDPR Article 17 compliance (TON Storage immutability conflict resolved)
-  - [ ] **Data Controller/Processor Roles:** Assessment completed per GDPR Articles 24-28
-  - [ ] **Legal Review:** Legal counsel review of TON Storage architecture from GDPR, CCPA, and HIPAA perspectives completed
-- [ ] **Mitigation Plan Approved:** Architecture decision documented (hybrid DB for health data OR migration away from TON Storage for personal data)
-- [ ] **Health Data Architecture Approval:** Legal/Compliance sign-off obtained for proposed health data storage architecture
+- [ ] **HDC-1:** End-to-End Encryption & Off-Chain Storage Evaluation completed
+- [ ] **HDC-2:** Transactional Requirements Validation completed
+- [ ] **HDC-3:** GDPR Compliance Assessment completed (includes DPIA, Right to Erasure mitigation, Data Controller/Processor Roles assessment, and Legal Review from GDPR/CCPA/HIPAA perspectives)
+- [ ] **HDC-4:** Decision Gate Documentation completed (includes mitigation plan approval and health data architecture approval)
 
 **Required before Phase 1 (General Compliance):**
 - [ ] **Regulatory Assessment:** Data storage and infrastructure legality in target markets (US, EU, etc.)
@@ -405,7 +399,7 @@ The following regulatory decisions must be made and documented before Phase 0 ca
 - [ ] **Terms of Service:** Updated TOS to reflect TON infrastructure and health data handling
 - [ ] **Privacy Policy:** Updated to reflect TON storage/decentralized infrastructure and health data architecture
 
-**Legal Sign-off Required:** Legal/compliance owner must approve **health data compliance research findings and mitigation plan** before proceeding to Phase 1. Legal/compliance owner must also approve before proceeding to Phase 2.
+**Legal Sign-off Required:** Legal/compliance owner must approve **all health data compliance requirements (HDC-1 through HDC-4)** before proceeding to Phase 1. Legal/compliance owner must also approve before proceeding to Phase 2.
 
 ### Product KPI Thresholds
 

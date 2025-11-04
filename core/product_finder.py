@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .food_db import FoodItem, parse_food_db
-from .food_sources.base import FoodRecord
+from .food_sources.base import BaseAdapter, FoodRecord
 from .food_sources.off import OFFAdapter
 from .food_sources.usda import USDAAdapter
 
@@ -66,8 +66,17 @@ class ProductFinder:
     EN: Class for finding missing products in various sources.
     """
 
-    def __init__(self):
-        """Initialize the product finder."""
+    DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
+
+    def __init__(self, min_confidence_threshold: float = 0.3):
+        """
+        Initialize the product finder.
+
+        Args:
+            min_confidence_threshold: Minimum confidence threshold for product matching
+                (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3)
+        """
+        self.min_confidence_threshold = min_confidence_threshold
         self.usda_adapter = USDAAdapter()
         self.off_adapter = OFFAdapter()
         self.food_db = parse_food_db("data/food_db.csv")
@@ -165,6 +174,53 @@ class ProductFinder:
             error_message="Product not found in any source",
         )
 
+    def _search_in_source(
+        self, product_name: str, adapter: BaseAdapter, source_name: str
+    ) -> ProductSearchResult:
+        """
+        RU: Поиск продукта в указанном источнике данных.
+        EN: Search for product in specified data source.
+
+        Args:
+            product_name: Название продукта для поиска
+            adapter: Адаптер источника данных (USDA или OFF)
+            source_name: Имя источника для логирования и результата
+
+        Returns:
+            Результат поиска
+        """
+        try:
+            # Получаем все продукты из источника
+            foods = adapter.normalize()
+
+            # Ищем наиболее подходящий продукт
+            best_match = None
+            best_confidence = 0.0
+
+            for food in foods:
+                confidence = self._calculate_confidence(product_name, food.name)
+                if confidence > best_confidence and confidence > self.min_confidence_threshold:
+                    best_match = food
+                    best_confidence = confidence
+
+            if best_match:
+                return ProductSearchResult(
+                    product_name=product_name,
+                    found=True,
+                    source=source_name,
+                    food_record=best_match,
+                    confidence=best_confidence,
+                )
+
+        except Exception as e:
+            logger.error(f"Error searching in {source_name}: {e}")
+
+        return ProductSearchResult(
+            product_name=product_name,
+            found=False,
+            error_message=f"{source_name} search failed",
+        )
+
     def _search_in_usda(self, product_name: str) -> ProductSearchResult:
         """
         RU: Поиск продукта в USDA базе данных.
@@ -176,35 +232,7 @@ class ProductFinder:
         Returns:
             Результат поиска
         """
-        try:
-            # Получаем все продукты из USDA
-            usda_foods = self.usda_adapter.normalize()
-
-            # Ищем наиболее подходящий продукт
-            best_match = None
-            best_confidence = 0.0
-
-            for food in usda_foods:
-                confidence = self._calculate_confidence(product_name, food.name)
-                if confidence > best_confidence and confidence > 0.3:
-                    best_match = food
-                    best_confidence = confidence
-
-            if best_match:
-                return ProductSearchResult(
-                    product_name=product_name,
-                    found=True,
-                    source="USDA",
-                    food_record=best_match,
-                    confidence=best_confidence,
-                )
-
-        except Exception as e:
-            logger.error(f"Error searching in USDA: {e}")
-
-        return ProductSearchResult(
-            product_name=product_name, found=False, error_message="USDA search failed"
-        )
+        return self._search_in_source(product_name, self.usda_adapter, "USDA")
 
     def _search_in_off(self, product_name: str) -> ProductSearchResult:
         """
@@ -217,35 +245,7 @@ class ProductFinder:
         Returns:
             Результат поиска
         """
-        try:
-            # Получаем все продукты из OFF
-            off_foods = self.off_adapter.normalize()
-
-            # Ищем наиболее подходящий продукт
-            best_match = None
-            best_confidence = 0.0
-
-            for food in off_foods:
-                confidence = self._calculate_confidence(product_name, food.name)
-                if confidence > best_confidence and confidence > 0.3:
-                    best_match = food
-                    best_confidence = confidence
-
-            if best_match:
-                return ProductSearchResult(
-                    product_name=product_name,
-                    found=True,
-                    source="OFF",
-                    food_record=best_match,
-                    confidence=best_confidence,
-                )
-
-        except Exception as e:
-            logger.error(f"Error searching in OFF: {e}")
-
-        return ProductSearchResult(
-            product_name=product_name, found=False, error_message="OFF search failed"
-        )
+        return self._search_in_source(product_name, self.off_adapter, "OFF")
 
     def _calculate_confidence(self, search_name: str, found_name: str) -> float:
         """

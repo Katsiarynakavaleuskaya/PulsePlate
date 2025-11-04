@@ -4,7 +4,7 @@ Focus on error handling and edge cases.
 """
 
 import os
-from typing import Any
+from typing import Any, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -24,6 +24,7 @@ class FakeConnection:
         commit_raises: Exception | None = None,
         in_tx: bool = True,
     ) -> None:
+        """Initialize fake connection with configurable execute result, commit exception, and transaction state."""
         self._execute_result = execute_result
         self._commit_raises = commit_raises
         self._in_tx = in_tx
@@ -33,21 +34,26 @@ class FakeConnection:
         self._close_called = False
 
     def execute(self, stmt: Any, *args: Any, **kwargs: Any) -> Any:
+        """Execute statement and return configured result, tracking call status."""
         self._execute_called = True
         return self._execute_result
 
     def get_transaction(self) -> object | None:
+        """Return transaction object if in transaction, else None."""
         return object() if self._in_tx else None
 
     def commit(self) -> None:
+        """Commit transaction, tracking call status and optionally raising configured exception."""
         self._commit_called = True
         if self._commit_raises is not None:
             raise self._commit_raises
 
     def rollback(self) -> None:
+        """Rollback transaction and track call status."""
         self._rollback_called = True
 
     def close(self) -> None:
+        """Close connection and track call status."""
         self._close_called = True
 
 
@@ -55,9 +61,11 @@ class FakeEngine:
     """Fake engine class for testing EngineCompat."""
 
     def __init__(self, conn: FakeConnection) -> None:
+        """Initialize fake engine with provided fake connection."""
         self._conn = conn
 
     def connect(self) -> FakeConnection:
+        """Return the configured fake connection instance."""
         return self._conn
 
 
@@ -403,8 +411,8 @@ class TestDbMissingLinesCoverage:
 
                 def __init__(self, *args, **kwargs) -> None:
                     super().__init__(*args, **kwargs)
-                    self._execute_args = None
-                    self._execute_kwargs = None
+                    self._execute_args: Tuple[Any, ...] | None = None
+                    self._execute_kwargs: dict[str, Any] | None = None
 
                 def execute(self, stmt: Any, *args: Any, **kwargs: Any) -> Any:
                     self._execute_args = args

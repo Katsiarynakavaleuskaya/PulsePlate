@@ -20,7 +20,7 @@ import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -29,8 +29,10 @@ from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
-async def _maybe_await(value: Any) -> Any:
+
+async def _maybe_await(value: Union[T, Awaitable[T]]) -> T:
     """Return awaited value if awaitable, otherwise the value itself."""
     if inspect.isawaitable(value):
         return await value
@@ -163,7 +165,7 @@ class DatabaseUpdateManager:
             }
 
         except Exception as e:
-            logger.error(f"Error loading versions: {e}")
+            logger.error("Error loading versions: %s", e)
             return {}
 
     def _save_versions(self):
@@ -175,7 +177,7 @@ class DatabaseUpdateManager:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
-            logger.error(f"Error saving versions: {e}")
+            logger.error("Error saving versions: %s", e, exc_info=True)
 
     def _calculate_checksum(self, data: Dict[str, Any]) -> str:
         """Calculate checksum for data integrity."""
@@ -198,7 +200,7 @@ class DatabaseUpdateManager:
             usda_available = await self._check_usda_updates()
             updates_available["usda"] = usda_available
         except Exception as e:
-            logger.error(f"Error checking USDA updates: {e}")
+            logger.error("Error checking USDA updates: %s", e)
             updates_available["usda"] = False
 
         # Check Open Food Facts updates
@@ -207,7 +209,7 @@ class DatabaseUpdateManager:
                 off_available = await self._check_off_updates()
                 updates_available["openfoodfacts"] = off_available
             except Exception as e:
-                logger.error(f"Error checking Open Food Facts updates: {e}")
+                logger.error("Error checking Open Food Facts updates: %s", e)
                 updates_available["openfoodfacts"] = False
 
         return updates_available
@@ -275,7 +277,7 @@ class DatabaseUpdateManager:
             try:
                 callback(result)
             except Exception as e:
-                logger.error(f"Error in update callback: {e}")
+                logger.error("Error in update callback: %s", e)
 
         return result
 
@@ -335,7 +337,7 @@ class DatabaseUpdateManager:
                 try:
                     old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
-                    logger.warning(f"Could not load old data for comparison: {e}")
+                    logger.warning("Could not load old data for comparison: %s", e)
 
             records_added = len(updated_foods) - len(old_foods)
             records_updated = len(set(updated_foods.keys()) & set(old_foods.keys()))
@@ -360,7 +362,7 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(updated_foods)} foods")
+            logger.info("Successfully updated %s database: %d foods", source, len(updated_foods))
 
             return UpdateResult(
                 success=True,
@@ -375,7 +377,7 @@ class DatabaseUpdateManager:
             )
 
         except Exception as e:
-            logger.error(f"Error updating {source} database: {e}")
+            logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
                 source=source,
@@ -424,7 +426,7 @@ class DatabaseUpdateManager:
                         # Small delay to respect API limits
                         await asyncio.sleep(0.1)
                     except Exception as e:
-                        logger.warning(f"Error searching for {search_term}: {e}")
+                        logger.warning("Error searching for %s: %s", search_term, e)
 
             # Convert to unified format
             unified_foods = {}
@@ -435,7 +437,7 @@ class DatabaseUpdateManager:
                     key = self._generate_food_key(unified_item.name)
                     unified_foods[key] = unified_item
                 except Exception as e:
-                    logger.warning(f"Error converting OFF item to unified format: {e}")
+                    logger.warning("Error converting OFF item to unified format: %s", e)
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
@@ -480,7 +482,7 @@ class DatabaseUpdateManager:
                 try:
                     old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
-                    logger.warning(f"Could not load old data for comparison: {e}")
+                    logger.warning("Could not load old data for comparison: %s", e)
 
             records_added = len(unified_foods) - len(old_foods)
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
@@ -491,14 +493,15 @@ class DatabaseUpdateManager:
             if actual_record_count == 0:
                 actual_record_count = len(unified_foods)
 
-            # When actual_record_count equals len(unified_foods), use sample unified_foods for checksum (first ingestion or exact match)
-            # Otherwise, load full cache-backed data and compute checksum from that for consistency
-            if actual_record_count == len(unified_foods):
+            # Always prefer cache-backed data for checksum calculation to ensure consistency
+            # Fallback to in-memory unified_foods only if cache data is unavailable/empty
+            cache_data = await self._get_cache_data_for_checksum(source)
+            if not cache_data:
+                # Fallback to unified_foods if cache data is empty/None
                 checksum = self._calculate_checksum(
                     {name: self._food_to_dict(food) for name, food in unified_foods.items()}
                 )
             else:
-                cache_data = await self._get_cache_data_for_checksum(source)
                 checksum = self._calculate_checksum(cache_data)
 
             # Validation: ensure record_count > 0 for non-empty ingestions
@@ -528,7 +531,7 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(unified_foods)} foods")
+            logger.info("Successfully updated %s database: %d foods", source, len(unified_foods))
 
             return UpdateResult(
                 success=True,
@@ -543,7 +546,7 @@ class DatabaseUpdateManager:
             )
 
         except Exception as e:
-            logger.error(f"Error updating {source} database: {e}")
+            logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
                 source=source,
@@ -604,17 +607,17 @@ class DatabaseUpdateManager:
                                 return int(count)
 
             # If no database files found, return 0
-            logger.warning(f"No database files found for {source}")
+            logger.warning("No database files found for %s", source)
             return 0
 
         except Exception as e:
-            logger.error(f"Error getting record count for {source}: {e}")
+            logger.error("Error getting record count for %s: %s", source, e)
             return 0
 
-    async def _get_cache_data_for_checksum(self, source: str) -> dict:
+    async def _get_cache_data_for_checksum(self, source: str) -> Dict[str, Any]:
         """Get cache data for checksum calculation."""
         try:
-            cache_dir = Path(self.cache_dir)
+            cache_dir = self.cache_dir
             if source == "openfoodfacts":
                 # Try to get data from SQLite cache
                 sqlite_file = cache_dir / "off.sqlite"
@@ -690,7 +693,7 @@ class DatabaseUpdateManager:
                                     cache_data[row["name"]] = row
                         return cache_data
         except Exception as e:
-            logger.warning(f"Could not get cache data for checksum for {source}: {e}")
+            logger.warning("Could not get cache data for checksum for %s: %s", source, e)
 
         return {}
 
@@ -794,16 +797,29 @@ class DatabaseUpdateManager:
 
             logger.info("Created backup for %s version %s", source, version)
         except (OSError, TypeError, ValueError) as exc:
-            logger.error("Error creating backup for %s: %s", source, exc, exc_info=True)
+            logger.error("Error creating backup for %s: %s", source, str(exc), exc_info=True)
         except Exception as exc:
-            logger.error("Unexpected error creating backup for %s: %s", source, exc, exc_info=True)
+            logger.error(
+                "Unexpected error creating backup for %s: %s", source, str(exc), exc_info=True
+            )
 
     async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(backup_file, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if not content:
+                    logger.debug("Backup file %s is empty", backup_file)
+                    return {}
+                data = json.loads(content)
+        except json.JSONDecodeError as json_err:
+            logger.debug("Failed to parse backup file %s: %s", backup_file, str(json_err))
+            return {}
+        except FileNotFoundError:
+            logger.debug("Backup file %s not found", backup_file)
+            return {}
 
         # Basic schema validation: ensure minimal keys exist
         required = {
@@ -816,6 +832,10 @@ class DatabaseUpdateManager:
             "source_id",
         }
         foods: Dict[str, UnifiedFoodItem] = {}
+        if not isinstance(data, dict):
+            logger.debug("Backup file %s does not contain a dict", backup_file)
+            return {}
+
         for name, food_data in data.items():
             try:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
@@ -881,7 +901,7 @@ class DatabaseUpdateManager:
                 logger.info("Removed old backup: %s", old_backup.name)
 
         except Exception as exc:
-            logger.error("Error cleaning up backups for %s: %s", source, exc, exc_info=True)
+            logger.error("Error cleaning up backups for %s: %s", source, str(exc), exc_info=True)
 
     async def rollback_database(self, source: str, target_version: str) -> bool:
         """
@@ -928,7 +948,7 @@ class DatabaseUpdateManager:
 
         except Exception as exc:
             logger.error(
-                "Error rolling back %s to %s: %s", source, target_version, exc, exc_info=True
+                "Error rolling back %s to %s: %s", source, target_version, str(exc), exc_info=True
             )
 
         return False
@@ -983,11 +1003,11 @@ async def run_scheduled_update(
 
     for source, has_updates in available_updates.items():
         if has_updates:
-            logger.info(f"Running scheduled update for {source}")
+            logger.info("Running scheduled update for %s", source)
             result = await update_manager.update_database(source)
             results[source] = result
         else:
-            logger.info(f"No updates available for {source}")
+            logger.info("No updates available for %s", source)
 
     return results
 

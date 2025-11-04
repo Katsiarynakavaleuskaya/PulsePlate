@@ -357,27 +357,7 @@ The merged food database follows a standardized schema:
 **Response Fields:**
 
 - `meals_per_day` (int): Number of meals recommended per day
-- `day_micros` (Dict[str, float]): Daily aggregated micronutrient totals from all meals, mapping nutrient keys to daily amounts in their respective units. Currently empty `{}` in responses, but will be populated when micronutrient tracking is enabled (expected in v2.0+). The structure uses standardized nutrient keys with unit suffixes (e.g., `iron_mg`, `calcium_mg`, `vitamin_d_iu`, `b12_ug`) where values represent total daily amounts aggregated across all meals.
-
-  **Example structure:**
-
-  ```json
-  {
-    "iron_mg": 15.2,
-    "calcium_mg": 850.0,
-    "magnesium_mg": 380.5,
-    "potassium_mg": 3200.0,
-    "zinc_mg": 11.5,
-    "vitamin_d_iu": 750.0,
-    "vitamin_c_mg": 95.0,
-    "folate_ug": 420.0,
-    "b12_ug": 2.8,
-    "iodine_ug": 155.0,
-    "selenium_ug": 58.0
-  }
-  ```
-
-  Frontend developers should handle this field as a dictionary mapping string keys (nutrient identifiers) to float values (daily totals). Keys follow the pattern `{nutrient_name}_{unit}` where units are `mg` (milligrams), `ug` (micrograms), or `iu` (International Units).
+- `day_micros` (Dict[str, float]): Daily micronutrient totals. Keys follow pattern `{nutrient}_{unit}` (e.g., `iron_mg`, `vitamin_d_iu`, `b12_ug`) with units `mg`, `ug`, or `iu`. Currently returns `{}`; will be populated in v2.0+. Frontend: map string keys to float values.
 
 **Visual Plate Features:**
 
@@ -630,6 +610,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 - ✅ **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
 - ✅ **Server hardening** (UFW, fail2ban, SSH key-only access)
 - ✅ **Resource limits** and monitoring
+- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md#monitoring)
 
 For detailed setup instructions, see:
 - **[НАЧНИТЕ_ОТСЮДА.md](НАЧНИТЕ_ОТСЮДА.md)** - Главная точка входа для новичков

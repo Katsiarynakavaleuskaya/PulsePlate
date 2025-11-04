@@ -49,7 +49,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image (staging, using production target)
+      - name: Build & Push image (staging)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
@@ -57,10 +57,9 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:staging-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Intentionally build from the "production" stage for staging to ensure parity
-          # between staging and production runtime images. If a dedicated staging stage
-          # is added to the Dockerfile later, update this to `target: staging`.
-          target: production
+          # Use dedicated staging target which extends production but allows
+          # staging-specific customizations (e.g., debug logging, extended health checks)
+          target: staging
 
       # SSH deployment for staging (commented out until servers are available)
       # - name: Prepare known_hosts (staging)

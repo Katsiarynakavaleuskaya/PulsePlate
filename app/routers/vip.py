@@ -1195,11 +1195,6 @@ async def _get_recipe_synthesizer_safe(request: Request) -> Optional[RecipeSynth
 
         # Respect FastAPI dependency overrides applied during testing or runtime
         override = request.app.dependency_overrides.get(get_recipe_synth_dep)
-        if override is None:
-            # Fallback: handle cases where original function object is used as key elsewhere
-            from app.dependencies import get_recipe_synthesizer as original_dependency
-
-            override = request.app.dependency_overrides.get(original_dependency)
 
         resolved_callable = override or dependency
         result = resolved_callable()

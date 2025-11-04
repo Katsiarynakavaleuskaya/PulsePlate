@@ -367,6 +367,58 @@ class TestCorePlateLogic:
         except ZeroDivisionError:
             pytest.fail("Visual layout should handle zero macros gracefully")
 
+    def test_meals_per_day_validation(self) -> None:
+        """Test meals_per_day parameter validation."""
+        base_params = {
+            "weight_kg": 70,
+            "tdee_val": 2000,
+            "goal": "maintain",
+            "deficit_pct": None,
+            "surplus_pct": None,
+            "diet_flags": None,
+        }
+
+        # Test valid values at boundaries
+        plate_min = make_plate(**base_params, meals_per_day=1)
+        assert plate_min["meals_per_day"] == 1
+
+        plate_max = make_plate(**base_params, meals_per_day=12)
+        assert plate_max["meals_per_day"] == 12
+
+        plate_default = make_plate(**base_params)  # Should default to 3
+        assert plate_default["meals_per_day"] == 3
+
+        # Test invalid type - should raise ValueError
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day="3")  # type: ignore
+
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day=3.5)  # type: ignore
+
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day=None)  # type: ignore
+
+        # Test invalid range - should raise ValueError
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=0)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=-1)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=13)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=100)
+
+        # Test that valid meals_per_day affects portion calculations
+        plate_1_meal = make_plate(**base_params, meals_per_day=1)
+        plate_6_meals = make_plate(**base_params, meals_per_day=6)
+
+        # With 1 meal per day, portions should be larger
+        assert plate_1_meal["portions"]["protein_palm"] > plate_6_meals["portions"]["protein_palm"]
+        assert plate_1_meal["portions"]["carb_cups"] > plate_6_meals["portions"]["carb_cups"]
+
     def test_multiple_diet_flags(self):
         """Test combining multiple diet flags."""
         plate = make_plate(

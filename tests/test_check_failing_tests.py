@@ -30,6 +30,7 @@ def test_extract_error_line_traceback() -> None:
     """Test extraction when Traceback is present."""
     output = "Output\nTraceback (most recent call last):\n  File test.py"
     result = extract_error_line(output)
+    assert result is not None, "Expected result to be a string, not None"
     assert "Traceback" in result
 
 
@@ -44,6 +45,7 @@ def test_extract_error_line_assert_with_paren() -> None:
     """Test extraction when assert statement uses parentheses."""
     output = "Code here\n    assert(value == expected)\nMore code"
     result = extract_error_line(output)
+    assert result is not None, "Expected result to be a string, not None"
     assert "assert" in result.lower()
 
 
@@ -51,7 +53,7 @@ def test_extract_error_line_assert_with_tab() -> None:
     """Test extraction when assert statement has tab separator."""
     output = "Code\n    assert\tvalue\nMore"
     result = extract_error_line(output)
-    assert "assert" in result.lower()
+    assert result == "assert\tvalue"
 
 
 def test_extract_error_line_pytest_error_marker() -> None:
@@ -93,5 +95,6 @@ def test_extract_error_line_assertionerror_takes_priority() -> None:
     """Test that AssertionError is found before fallback."""
     output = "First line\nAssertionError: failed\nassert value"
     result = extract_error_line(output)
+    assert result is not None, "Expected result to be a string, not None"
     assert "AssertionError" in result
     assert result != "First line"

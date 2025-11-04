@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Set up Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c
         with:
           python-version-file: .python-version
           cache: pip
@@ -37,7 +37,7 @@ jobs:
       - name: Install security tooling
         run: |
           python -m pip install --upgrade pip
-          pip install bandit==1.7.9 safety==2.3.5
+          pip install bandit==1.8.6 safety==3.6.2
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq
@@ -52,15 +52,15 @@ jobs:
             --exclude "tests,test_cache,cache,frontend/build,htmlcov,releases,data,external,node_modules,dist,build,.venv" \
             -f json -o bandit-report.json || bandit_exit_code=$?
 
-          # Tests directory scan with B101 skip (asserts are acceptable in tests)
+          # Tests directory scan with B101 and B112 skip (asserts and Exception handling are acceptable in tests)
           bandit_tests_exit=0
           if [ -d tests ]; then
-            bandit -q -r tests --skip B101 || bandit_tests_exit=$?
+            bandit -q -r tests --skip B101,B112 || bandit_tests_exit=$?
           fi
           # Also scan tests_strict if it exists
           bandit_tests_strict_exit=0
           if [ -d tests_strict ]; then
-            bandit -q -r tests_strict --skip B101 || bandit_tests_strict_exit=$?
+            bandit -q -r tests_strict --skip B101,B112 || bandit_tests_strict_exit=$?
           fi
 
           if [ "$bandit_exit_code" -gt 1 ] || [ "$bandit_tests_exit" -gt 1 ] || [ "$bandit_tests_strict_exit" -gt 1 ]; then
@@ -100,10 +100,13 @@ jobs:
           fi
 
           extra_args=()
-          if [ -f safety-policy.toml ]; then
+          if [ -f safety-policy.yaml ]; then
+            extra_args+=(--policy-file safety-policy.yaml)
+          elif [ -f safety-policy.toml ]; then
+            # Fallback to TOML if YAML not found (legacy support)
             extra_args+=(--policy-file safety-policy.toml)
           else
-            echo "⚠️ safety-policy.toml not found — running safety without a policy file"
+            echo "⚠️ safety-policy.yaml not found — running safety without a policy file"
           fi
 
           echo "▶️  Running Safety audit (JSON output for post-processing)"
@@ -125,78 +128,7 @@ jobs:
             exit "$safety_exit_code"
           fi
 
-          python3 <<'EOF'
-          import json
-          import sys
-          from pathlib import Path
-
-          report_path = Path("safety-report.json")
-          summary_path = Path("safety-report.txt")
-
-          if not report_path.exists():
-              summary_path.write_text("Safety report JSON was not generated.\n")
-              print("❌ Safety report JSON was not generated.")
-              sys.exit(99)
-
-          data = json.loads(report_path.read_text())
-          vulns = data.get("vulnerabilities", []) or []
-          ignored = data.get("ignored_vulnerabilities", []) or []
-
-          def base_severity(entry: dict) -> str:
-              severity = entry.get("severity") or {}
-              for key in ("cvssv3", "cvssv2"):
-                  info = severity.get(key)
-                  if isinstance(info, dict):
-                      base = info.get("base_severity")
-                      if base:
-                          return str(base).upper()
-              base = severity.get("max_severity") or severity.get("severity") or severity.get("level")
-              if isinstance(base, str):
-                  return base.upper()
-              return ""
-
-          def build_lines() -> list[str]:
-              lines = []
-              if not vulns:
-                  lines.append("No vulnerabilities reported by Safety.")
-              else:
-                  lines.append("Reported vulnerabilities:")
-                  for item in vulns:
-                      pkg = item.get("package_name") or "<unknown package>"
-                      version = item.get("analyzed_version") or ""
-                      vuln_id = item.get("vuln_id") or item.get("advisory_id") or ""
-                      severity = base_severity(item) or "UNKNOWN"
-                      advisory = (item.get("advisory") or "").strip()
-                      lines.append(f"- [{severity}] {pkg} {version} — {vuln_id}")
-                      if advisory:
-                          lines.append(f"    {advisory}")
-              if ignored:
-                  lines.append("")
-                  lines.append(f"Ignored vulnerabilities: {len(ignored)} (see JSON for details)")
-              return lines
-
-          lines = build_lines()
-          summary_path.write_text("\n".join(lines) + "\n")
-
-          high_or_critical = [
-              item for item in vulns if base_severity(item) in {"HIGH", "CRITICAL"}
-          ]
-          medium_or_low = [
-              item for item in vulns if base_severity(item) not in {"HIGH", "CRITICAL"}
-          ]
-
-          print("=== Safety Report Summary ===")
-          print("\n".join(lines))
-          print(f"\nHigh/Critical findings: {len(high_or_critical)}")
-          print(f"Other findings: {len(medium_or_low)}")
-
-          if high_or_critical:
-              sys.exit(10)
-          elif medium_or_low:
-              sys.exit(2)
-          else:
-              sys.exit(0)
-          EOF
+          python3 .github/scripts/parse-safety-report.py
           analysis_status=$?
 
           if [ "$analysis_status" -eq 10 ]; then

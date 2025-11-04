@@ -289,7 +289,20 @@ def make_plate(
 
     Returns:
         Dictionary containing kcal, macros, portions, layout, meals, and meals_per_day.
+
+    Raises:
+        ValueError: If meals_per_day is not an integer or is outside the valid range [1, 12].
     """
+    # Validate meals_per_day parameter
+    # RU: Проверяем, что meals_per_day - целое число в разумном диапазоне
+    # EN: Validate that meals_per_day is an integer within reasonable range
+    if not isinstance(meals_per_day, int):
+        raise ValueError(
+            f"meals_per_day must be an integer, got {type(meals_per_day).__name__}: {meals_per_day}"
+        )
+    if not (1 <= meals_per_day <= 12):
+        raise ValueError(f"meals_per_day must be between 1 and 12 (inclusive), got {meals_per_day}")
+
     target = target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
     normalized_flags: Optional[Set[str]] = None
     if diet_flags:

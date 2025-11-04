@@ -1,0 +1,6 @@
+# Safety policy file for ignoring known vulnerabilities
+# Format: YAML (required by Safety 3.6.2)
+# Documentation: https://docs.safetycli.com/
+
+security:
+  ignore-vulnerabilities: []

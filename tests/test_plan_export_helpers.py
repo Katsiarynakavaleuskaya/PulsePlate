@@ -8,7 +8,7 @@ from starlette.requests import Request
 from app.routers import plan_export
 
 
-def test_branded_header_constructs_table(monkeypatch):
+def test_branded_header_constructs_table(monkeypatch: pytest.MonkeyPatch) -> None:
     story: List[Any] = []
     styles = getSampleStyleSheet()
     styles["Heading1"].fontName = "Helvetica"
@@ -21,7 +21,7 @@ def test_branded_header_constructs_table(monkeypatch):
     assert isinstance(header_table, plan_export.RLTable)
 
 
-def test_export_week_pdf_uses_custom_doc(monkeypatch):
+def test_export_week_pdf_uses_custom_doc(monkeypatch: pytest.MonkeyPatch) -> None:
     week_plan = {
         "days": [
             {

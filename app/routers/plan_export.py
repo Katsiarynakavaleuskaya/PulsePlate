@@ -102,6 +102,26 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
 
 
 def _slogan(lang: Optional[str]) -> str:
+    """Normalize language code and return corresponding slogan.
+
+    Parsing rules:
+    1. Split input on ',' or ';' and take the first token
+    2. Extract primary subtag by splitting on '-' or '_' and taking leftmost part
+    3. Fallback to DEFAULT_LANG ("en") if input is None or normalized code not found
+
+    Args:
+        lang: Optional language code (e.g., "en-US", "ru,en", "de_DE", None)
+
+    Returns:
+        Slogan string for the normalized language code, or DEFAULT_LANG slogan if not found
+
+    Examples:
+        >>> _slogan("en-US")  # -> "Always on your Pulse"
+        >>> _slogan("ru,en")  # -> "Всегда на твоём пульсе"
+        >>> _slogan("de_DE")  # -> "Immer am Puls von dir"
+        >>> _slogan(None)     # -> "Always on your Pulse" (DEFAULT_LANG)
+        >>> _slogan("fr")     # -> "Always on your Pulse" (fallback to DEFAULT_LANG)
+    """
     if not lang:
         return SLOGAN[DEFAULT_LANG]
     # Extract first language token by splitting on ',' or ';'
@@ -120,7 +140,7 @@ class NormalizedParagraph(Paragraph):
         return unicodedata.normalize("NFC", plain_text)
 
 
-def _normalized_paragraph(text: str, style: Any) -> NormalizedParagraph:
+def _normalized_paragraph(text: str, style: ParagraphStyle) -> NormalizedParagraph:
     """Return a paragraph whose plain text is NFC-normalized for deterministic comparisons."""
     return NormalizedParagraph(text, style)
 
@@ -150,17 +170,6 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
         f'<font color="{BRAND_GREEN_HEX}">{_slogan(lang)}</font>',
         styles["Heading3"],
     )
-
-    if logger.isEnabledFor(logging.DEBUG):
-        plain_slogan = subtitle.getPlainText()
-        logger.debug(
-            "Slogan comparison lang=%s plain=%r dict=%r equal=%s",
-            lang,
-            plain_slogan,
-            SLOGAN.get(lang, plain_slogan),
-            plain_slogan == SLOGAN.get(lang, plain_slogan),
-        )
-        logger.debug("Table class id=%s repr=%s", id(RLTable), RLTable)
 
     header_table = RLTable(
         [
@@ -440,8 +449,6 @@ def export_week_pdf(
 ) -> Response:
     week = _get_week_plan()
     font = _register_font()
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("export_week_pdf lang=%s slogan=%s", lang, _slogan(lang))
     totals = sum_week_macros(week)
 
     buf = BytesIO()

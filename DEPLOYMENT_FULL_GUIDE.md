@@ -217,14 +217,34 @@ sudo systemctl enable --now fail2ban
 > **Если вы пропустите эти шаги, вы ЗАБЛОКИРОВАНЫ и не сможете вернуться на сервер!**
 
 # 5. Жёсткая настройка SSH (отключение паролей, только ключи)
-sudo tee -a /etc/ssh/sshd_config > /dev/null << 'EOF'
+# Предпочтительный метод: использование drop-in файла (idempotent)
+# Это предотвращает дублирование директив при повторных запусках
 
-# Security hardening
+# Создаём drop-in файл в /etc/ssh/sshd_config.d/
+sudo tee /etc/ssh/sshd_config.d/99-pulseplate-hardening.conf > /dev/null <<EOF
+# PulsePlate SSH Hardening Configuration
+# This file is idempotent: safe to run multiple times
+
 PermitRootLogin no
 PasswordAuthentication no
 PubkeyAuthentication yes
 X11Forwarding no
 EOF
+
+# Устанавливаем правильные права доступа
+sudo chmod 644 /etc/ssh/sshd_config.d/99-pulseplate-hardening.conf
+sudo chown root:root /etc/ssh/sshd_config.d/99-pulseplate-hardening.conf
+
+# ⚠️ ВАЖНО: Проверка на дубликаты директив
+# Убедитесь, что в /etc/ssh/sshd_config нет конфликтующих директив
+echo "Проверка на дубликаты в /etc/ssh/sshd_config..."
+for directive in PermitRootLogin PasswordAuthentication PubkeyAuthentication X11Forwarding; do
+    count=$(grep -c "^[[:space:]]*${directive}[[:space:]]" /etc/ssh/sshd_config 2>/dev/null || echo "0")
+    if [ "$count" -gt 0 ]; then
+        echo "⚠️  ВНИМАНИЕ: Найдено $count вхождений '$directive' в /etc/ssh/sshd_config"
+        echo "   Директивы в sshd_config.d имеют приоритет, но рекомендуется удалить дубликаты из основного файла"
+    fi
+done
 
 # Проверка конфигурации SSH перед перезапуском
 sudo sshd -t && sudo systemctl restart sshd

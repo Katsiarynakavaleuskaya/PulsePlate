@@ -67,24 +67,38 @@ def collect_files(include_tests: bool) -> List[Path]:
     return out
 
 
-def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List[Path]]]:
-    """Return (backup_twins, full_duplicates).
+def plan_removals(
+    files: List[Path],
+) -> Tuple[List[Tuple[Path, Path]], List[List[Path]], int]:
+    """Return (backup_twins, full_duplicates, skipped_count).
 
     backup_twins: list of (backup_file, base_file) to remove backup_file when hash equal
     full_duplicates: list of groups (>=2) of identical files (different paths)
+    skipped_count: number of files skipped due to errors during processing
+
+    Args:
+        files: List of file paths to process
+
+    Returns:
+        Tuple containing:
+        - List of (backup_file, base_file) tuples
+        - List of duplicate file groups
+        - Integer count of skipped files
     """
     # Map base -> backups with safe suffixes
     backups: List[Tuple[Path, Path]] = []
     # Hash map for full duplicates
     by_hash: Dict[str, List[Path]] = {}
+    skipped_count = 0
 
     # Prepare lookup for base twins
     for f in files:
         # Full duplicates hash collection
         try:
             h = sha256_of(f)
-        except (FileNotFoundError, PermissionError, IsADirectoryError) as hash_err:
+        except OSError as hash_err:
             logger.debug("Skipping %s due to hash error: %s", f, hash_err, exc_info=True)
+            skipped_count += 1
             continue
         by_hash.setdefault(h, []).append(f)
 
@@ -98,7 +112,7 @@ def plan_removals(files: List[Path]) -> Tuple[List[Tuple[Path, Path]], List[List
 
     # Full duplicate groups (same hash) > 1
     dup_groups = [paths for paths in by_hash.values() if len(paths) > 1]
-    return backups, dup_groups
+    return backups, dup_groups, skipped_count
 
 
 def path_score(p: Path) -> int:
@@ -137,6 +151,8 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+    skipped_files = 0
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--execute", action="store_true", help="remove safe backup twins")
     ap.add_argument("--include-tests", action="store_true", help="allow touching tests/")
@@ -155,7 +171,8 @@ def main() -> int:
         logging.getLogger().setLevel(logging.DEBUG)
 
     files = collect_files(include_tests=args.include_tests)
-    backups, dup_groups = plan_removals(files)
+    backups, dup_groups, skipped_count = plan_removals(files)
+    skipped_files = skipped_count
 
     print("Backup twins (candidate for removal if identical):")
     removed = []
@@ -168,8 +185,9 @@ def main() -> int:
                     removed.append(str(backup))
             else:
                 print("  ", backup, "!=", base)
-        except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
-            logger.debug("Error accessing backup file %s: %s", backup, e, exc_info=True)
+        except OSError as e:
+            logger.warning("Failed to remove backup file %s: %s", backup, e, exc_info=True)
+            skipped_files += 1
 
     print("\nFull duplicate groups (identical content):")
     to_remove: List[Path] = []
@@ -204,8 +222,9 @@ def main() -> int:
                 try:
                     p.unlink()
                     to_remove.append(p)
-                except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
+                except OSError as e:
                     logger.debug("Error removing file %s: %s", p, e, exc_info=True)
+                    skipped_files += 1
 
     if args.execute or args.apply_identical:
         print("\nRemoved:")
@@ -215,6 +234,9 @@ def main() -> int:
         print(
             "\n(dry-run) pass --execute to apply backup removals; --apply-identical to prune identical duplicates; --suggest to only show canonical picks"
         )
+
+    if skipped_files > 0:
+        logger.info("Skipped %d files due to errors; use --verbose for details.", skipped_files)
 
     return 0
 

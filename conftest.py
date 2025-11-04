@@ -19,15 +19,46 @@ class AppLoadError(ImportError):
 
 @pytest.fixture(scope="session", autouse=True)
 def init_test_database():
-    """Initialize test database tables before running tests."""
+    """Initialize test database tables before running tests.
+
+    This fixture ensures the database schema is created before any tests run.
+    It imports models to ensure they're registered with SQLAlchemy Base metadata,
+    then calls init_db() to create all tables.
+    """
+    import os
+    import logging
+
+    # Ensure test environment variables are set
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+
     try:
+        # Import models first to ensure they're registered with Base.metadata
+        import core.models  # noqa: F401
+
+        # Import init_db after models are loaded
         from core.db import init_db
 
+        # Initialize database - this creates all tables
         init_db()
+
+        # Verify initialization succeeded by checking if tables exist
+        from core.db import session_scope
+        from sqlalchemy import inspect
+
+        with session_scope() as session:
+            inspector = inspect(session.bind)
+            tables = inspector.get_table_names()
+            if not tables:
+                raise RuntimeError("Database initialized but no tables found")
+            logging.info(f"Database initialized with {len(tables)} tables: {', '.join(tables)}")
     except Exception as e:
-        # If DB initialization fails (e.g., DB not configured), tests should still run
-        # but may fail if they require DB access
-        print(f"Warning: Could not initialize test database: {e}")
+        # Log the error but don't fail the test session immediately
+        # Individual tests that require DB will fail with clear error messages
+        logging.error(f"Failed to initialize test database: {e}", exc_info=True)
+        print(f"ERROR: Could not initialize test database: {e}")
+        print("Tests that require database access will fail.")
+        raise  # Re-raise to fail fast in CI
 
 
 @pytest.fixture(scope="session")

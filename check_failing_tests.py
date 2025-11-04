@@ -32,13 +32,13 @@ def extract_error_line(output: str) -> Optional[str]:
             continue
         # Prioritize specific error indicators (case-sensitive)
         if (
-            "AssertionError" in line
-            or "FAILED" in line
-            or line.startswith("ERROR")
-            or "Traceback" in line
-            or assert_pattern.search(line)  # Match assert with word boundary, space, or paren
-            or line.startswith("E ")  # pytest error marker
-            or line.startswith("F ")  # pytest failure marker
+            "AssertionError" in stripped
+            or "FAILED" in stripped
+            or stripped.startswith("ERROR")
+            or "Traceback" in stripped
+            or assert_pattern.search(stripped)  # Match assert with word boundary, space, or paren
+            or stripped.startswith("E ")  # pytest error marker
+            or stripped.startswith("F ")  # pytest failure marker
         ):
             return stripped
 

@@ -22,7 +22,8 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-# Availability flag expected by callers/tests
+# Availability flag for OpenFoodFacts API. Can be toggled in tests via mock.patch() to
+# skip network calls. Callers should use fallback/mock implementations when False.
 OFF_AVAILABLE: bool = True
 
 
@@ -318,7 +319,41 @@ class OFFClient:
         try:
             await self.client.aclose()
         except RuntimeError as e:
-            # Event loop may already be closed in certain test shutdown paths
-            logger.debug(
-                "RuntimeError suppressed during client close (expected in test teardown): %s", e
-            )
+            # Only suppress RuntimeError if event loop is closed or error indicates loop closure.
+            # This allows real errors to surface while gracefully handling test teardown scenarios.
+            should_suppress = False
+
+            # Check if we can determine loop state safely
+            try:
+                # Try to get the running loop first (safest in async context)
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_closed():
+                        should_suppress = True
+                except RuntimeError:
+                    # No running loop - try to get the event loop
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            should_suppress = True
+                    except RuntimeError:
+                        # No event loop available - check error message for loop closure hints
+                        error_msg = str(e).lower()
+                        if any(
+                            hint in error_msg
+                            for hint in ["loop", "event loop", "closed", "is closed"]
+                        ):
+                            should_suppress = True
+            except Exception:
+                # If checking loop state itself fails, inspect error message as fallback
+                error_msg = str(e).lower()
+                if any(hint in error_msg for hint in ["loop", "event loop", "closed"]):
+                    should_suppress = True
+
+            if should_suppress:
+                logger.debug(
+                    "RuntimeError suppressed during client close (event loop closed): %s", e
+                )
+            else:
+                # Re-raise: this is a real error that should surface
+                raise

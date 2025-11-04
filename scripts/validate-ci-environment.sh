@@ -43,7 +43,13 @@ echo "Checking required secrets..."
 WARNINGS=()
 ERRORS=()
 # Allow staging deployments to run in "dry mode" without SSH secrets while infrastructure is pending
-ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-true}
+# This was relaxed during initial staging infrastructure setup. Set to false once staging is stable
+# to ensure CI fails early when SSH secrets are missing.
+# TODO: Remove this temporary allowance once staging infrastructure is stable
+# Tracking: [JIRA/TICKET-XXXX] or [GitHub Issue #XXXX]
+# Target review date: 2025-XX-XX (or Q2 2025)
+# Owner/Team: [DevOps/Infrastructure Team]
+ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-false}
 
 # Check GHCR_READ_TOKEN
 if [ -z "$GHCR_READ_TOKEN" ]; then
@@ -71,7 +77,7 @@ validate_required_secret() {
     if [ "$current_env" = "$environment_name" ]; then
         if [ -z "${!secret_name}" ]; then
             if [ "$environment_name" = "staging" ] && [ "$ALLOW_MISSING_STAGING_SSH" = "true" ] && [[ "$secret_name" == SSH_* ]]; then
-                local warn_msg="$secret_name secret is not configured for $environment_name. Skipping validation because staging deploys are disabled."
+                local warn_msg="$secret_name secret is not configured for $environment_name. Allowing missing SSH secrets during staging infrastructure transition."
                 echo "::warning::$warn_msg"
                 WARNINGS+=("$warn_msg")
                 return

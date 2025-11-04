@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """Main function for automatic database expansion."""
     logger.info("🚀 Starting automatic database expansion")
 
@@ -39,7 +39,7 @@ def main():
         logger.info(f"📚 Loaded {len(recipes)} recipes")
 
         # Получаем все ингредиенты из рецептов
-        all_ingredients = []
+        all_ingredients: list[str] = []
         for recipe in recipes.values():
             all_ingredients.extend(recipe.ingredients.keys())
 

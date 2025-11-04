@@ -69,7 +69,16 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Default command
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# Stage 3: Development stage
+# Stage 3: Staging stage
+# Extends production with staging-specific configurations
+# Can be customized for staging needs (e.g., debug logging, extended health checks)
+FROM production AS staging
+
+# Staging-specific environment variables (if needed)
+# ENV LOG_LEVEL=DEBUG
+# ENV ENABLE_DEBUG_FEATURES=true
+
+# Stage 4: Development stage
 FROM production AS development
 
 # Switch back to root for development tools

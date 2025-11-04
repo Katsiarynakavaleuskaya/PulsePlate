@@ -14,6 +14,7 @@ import subprocess  # nosec B404 - controlled execution of internal script
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, TypeVar
 
 # Add project root to Python path
@@ -21,17 +22,20 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.join(script_dir, "..")
 sys.path.insert(0, project_root)
 
+# Convert project_root to Path for pathlib operations
+project_root_path = Path(project_root)
+
 # Configure logging
 # Ensure logs directory exists before configuring file handler
-logs_dir_path = os.path.join(project_root, "logs")
+logs_dir = project_root_path / "logs"
 logs_dir_created = False
 
 try:
-    os.makedirs(logs_dir_path, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
     logs_dir_created = True
 except Exception as e:
     print(
-        f"Warning: Failed to create logs directory '{logs_dir_path}': {e}\n"
+        f"Warning: Failed to create logs directory '{logs_dir}': {e}\n"
         "Continuing without file logging.",
         file=sys.stderr,
     )
@@ -40,8 +44,8 @@ except Exception as e:
 handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 if logs_dir_created:
     try:
-        log_file_path = os.path.join(logs_dir_path, "food_db_update.log")
-        handlers.append(logging.FileHandler(log_file_path))
+        log_file_path = logs_dir / "food_db_update.log"
+        handlers.append(logging.FileHandler(str(log_file_path)))
     except Exception as e:
         print(
             f"Warning: Failed to create file handler for '{log_file_path}': {e}\n"
@@ -241,7 +245,8 @@ def calculate_backoff_delay(
         attempt: Current attempt number (0-indexed).
         initial_delay: Initial delay in seconds.
         multiplier: Backoff multiplier.
-        max_delay: Maximum delay in seconds.
+        max_delay: Maximum delay in seconds. If max_delay < initial_delay,
+            it will be clamped to initial_delay and a warning will be logged.
         jitter_factor: Jitter factor (0.0 to 1.0).
 
     Returns:
@@ -265,6 +270,11 @@ def calculate_backoff_delay(
 
     # Ensure max_delay >= initial_delay
     if max_delay < initial_delay:
+        original_max_delay = max_delay
+        logger.warning(
+            f"max_delay ({original_max_delay}) < initial_delay ({initial_delay}); "
+            f"adjusting max_delay to {initial_delay}"
+        )
         max_delay = initial_delay
 
     # Compute exponential safely with overflow protection
@@ -407,6 +417,77 @@ def _should_retry_and_calculate_delay(
     return (True, delay)
 
 
+def _handle_retry_or_fail(
+    error_msg: str,
+    metrics: "OperationalMetrics",
+    attempt: int,
+    max_retries: int,
+    start_time: float,
+    overall_timeout: float,
+    initial_delay: float,
+    backoff_multiplier: float,
+    max_delay: float,
+    jitter_factor: float,
+    monitoring_hook: Callable[[str, dict], None] | None,
+    return_code: int | None = None,
+) -> tuple[bool, float]:
+    """Handle retry decision and execution logic.
+
+    RU: Обработать логику принятия решения о повторной попытке и выполнение.
+    EN: Handle retry decision and execution logic.
+
+    Records the failure, checks if retry should occur, and emits appropriate
+    operational signals. Returns whether to retry and the delay to wait.
+
+    Args:
+        error_msg: Error message to record.
+        metrics: Operational metrics instance to record failure/retry.
+        attempt: Current attempt number (0-indexed).
+        max_retries: Maximum number of retry attempts.
+        start_time: Start time of the operation (timestamp).
+        overall_timeout: Overall timeout budget for all attempts in seconds.
+        initial_delay: Initial delay before first retry in seconds.
+        backoff_multiplier: Multiplier for exponential backoff.
+        max_delay: Maximum delay between retries in seconds.
+        jitter_factor: Jitter factor (0.0 to 1.0) for randomization.
+        monitoring_hook: Optional callable(signal_type: str, data: dict) for monitoring/alerting.
+        return_code: Return code from subprocess (None if not applicable).
+
+    Returns:
+        Tuple of (should_retry: bool, delay: float). If should_retry is False, delay is 0.0.
+    """
+    # Record the failure
+    metrics.record_failure(error_msg, return_code=return_code)
+
+    # Check if we should retry and calculate delay
+    should_retry, delay = _should_retry_and_calculate_delay(
+        attempt,
+        max_retries,
+        start_time,
+        overall_timeout,
+        initial_delay,
+        backoff_multiplier,
+        max_delay,
+        jitter_factor,
+    )
+
+    if should_retry:
+        metrics.record_retry()
+        emit_operational_signal(
+            "retry",
+            metrics,
+            attempt=attempt,
+            delay=delay,
+            monitoring_hook=monitoring_hook,
+        )
+        return (True, delay)
+    else:
+        emit_operational_signal(
+            "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
+        )
+        return (False, 0.0)
+
+
 def update_food_database(
     max_retries: int = DEFAULT_MAX_RETRIES,
     initial_delay: float = DEFAULT_INITIAL_DELAY,
@@ -455,6 +536,15 @@ def update_food_database(
     build_script = os.path.join(project_root, "scripts", "build_food_db.py")
     start_time = time.time()
 
+    # Fast-fail check: validate build script exists before entering retry loop
+    if not os.path.isfile(build_script):
+        error_msg = (
+            f"Build script not found: {build_script}. " f"Cannot proceed with food database update."
+        )
+        logger.error(error_msg)
+        metrics.record_failure(error_msg, return_code=None)
+        return False
+
     for attempt in range(max_retries + 1):
         # Check overall timeout budget
         elapsed_time = time.time() - start_time
@@ -502,16 +592,21 @@ def update_food_database(
                 # Log summary at INFO level for successful runs
                 stdout_summary = ""
                 if result.stdout:
-                    stdout_lines = result.stdout.strip().split("\n")
-                    if len(stdout_lines) <= 5:
-                        # If output is short, show all lines
-                        stdout_summary = " | ".join(stdout_lines)
-                    else:
-                        # Show last 3 lines as summary
-                        stdout_summary = " | ".join(stdout_lines[-3:])
-                    # Limit total summary length
-                    if len(stdout_summary) > 300:
-                        stdout_summary = f"{stdout_summary[:297]}..."
+                    stdout_lines = [line for line in result.stdout.strip().split("\n") if line]
+
+                    if stdout_lines:
+                        summary_lines = [stdout_lines[0]]
+                        # Append last three lines that are not already in summary_lines
+                        for line in stdout_lines[-3:]:
+                            if line not in summary_lines:
+                                summary_lines.append(line)
+
+                        # Join up to 4 lines with " | "
+                        stdout_summary = " | ".join(summary_lines[:4])
+
+                        # Truncate to 300 characters adding "..." if trimmed
+                        if len(stdout_summary) > 300:
+                            stdout_summary = f"{stdout_summary[:297]}..."
                 logger.info(
                     f"Build script success summary: return_code={result.returncode}, "
                     f"stdout_summary='{stdout_summary}'"
@@ -531,41 +626,35 @@ def update_food_database(
                 )
                 logger.warning(error_msg)
                 logger.debug(f"Error output: {result.stderr}")
-                metrics.record_failure(error_msg, return_code=result.returncode)
 
-                # Check if we should retry and calculate delay
-                should_retry, delay = _should_retry_and_calculate_delay(
-                    attempt,
-                    max_retries,
-                    start_time,
-                    overall_timeout,
-                    initial_delay,
-                    backoff_multiplier,
-                    max_delay,
-                    jitter_factor,
+                should_retry, delay = _handle_retry_or_fail(
+                    error_msg=error_msg,
+                    metrics=metrics,
+                    attempt=attempt,
+                    max_retries=max_retries,
+                    start_time=start_time,
+                    overall_timeout=overall_timeout,
+                    initial_delay=initial_delay,
+                    backoff_multiplier=backoff_multiplier,
+                    max_delay=max_delay,
+                    jitter_factor=jitter_factor,
+                    monitoring_hook=monitoring_hook,
+                    return_code=result.returncode,
                 )
 
                 if should_retry:
+                    elapsed_time = time.time() - start_time
+                    remaining_budget = overall_timeout - elapsed_time
                     logger.info(
-                        f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} failed)"
-                    )
-                    metrics.record_retry()
-                    emit_operational_signal(
-                        "retry",
-                        metrics,
-                        attempt=attempt,
-                        delay=delay,
-                        monitoring_hook=monitoring_hook,
+                        f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} failed, "
+                        f"remaining_budget={remaining_budget:.1f}s)"
                     )
                     time.sleep(delay)
                 else:
-                    # Final failure
+                    elapsed_total = time.time() - start_time
                     logger.error(
                         f"Food database update failed after {attempt + 1} attempts. "
                         f"Final return code: {result.returncode}"
-                    )
-                    emit_operational_signal(
-                        "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
                     )
                     return False
 
@@ -573,43 +662,33 @@ def update_food_database(
             # Timeout on this attempt
             error_msg = f"Food database update timed out on attempt {attempt + 1} (timeout={attempt_timeout:.1f}s)"
             logger.warning(error_msg)
-            metrics.record_failure(error_msg, return_code=None)
 
-            # Check if we should retry and calculate delay
-            should_retry, delay = _should_retry_and_calculate_delay(
-                attempt,
-                max_retries,
-                start_time,
-                overall_timeout,
-                initial_delay,
-                backoff_multiplier,
-                max_delay,
-                jitter_factor,
+            should_retry, delay = _handle_retry_or_fail(
+                error_msg=error_msg,
+                metrics=metrics,
+                attempt=attempt,
+                max_retries=max_retries,
+                start_time=start_time,
+                overall_timeout=overall_timeout,
+                initial_delay=initial_delay,
+                backoff_multiplier=backoff_multiplier,
+                max_delay=max_delay,
+                jitter_factor=jitter_factor,
+                monitoring_hook=monitoring_hook,
+                return_code=None,
             )
 
             if should_retry:
-                # Get remaining budget for logging
                 elapsed_time = time.time() - start_time
                 remaining_budget = overall_timeout - elapsed_time
-
                 logger.info(
                     f"Retrying after {delay:.2f}s delay (attempt {attempt + 1}/{max_retries + 1} timed out, "
                     f"remaining_budget={remaining_budget:.1f}s)"
                 )
-                metrics.record_retry()
-                emit_operational_signal(
-                    "retry",
-                    metrics,
-                    attempt=attempt,
-                    delay=delay,
-                    monitoring_hook=monitoring_hook,
-                )
                 time.sleep(delay)
             else:
-                # Final failure - no time for retry or no retries left
                 elapsed_total = time.time() - start_time
                 remaining_budget = overall_timeout - elapsed_total
-
                 if remaining_budget <= 1:
                     logger.error(
                         f"Food database update timed out - no time remaining for retry "
@@ -620,27 +699,26 @@ def update_food_database(
                         f"Food database update timed out after {attempt + 1} attempts "
                         f"(total_time={elapsed_total:.2f}s)"
                     )
-                emit_operational_signal(
-                    "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
-                )
                 return False
 
         except Exception as e:
             # Unexpected exception - transient failure possible
             error_msg = f"Food database update failed with exception on attempt {attempt + 1}: {e}"
             logger.warning(error_msg, exc_info=True)
-            metrics.record_failure(error_msg, return_code=None)
 
-            # Check if we should retry and calculate delay
-            should_retry, delay = _should_retry_and_calculate_delay(
-                attempt,
-                max_retries,
-                start_time,
-                overall_timeout,
-                initial_delay,
-                backoff_multiplier,
-                max_delay,
-                jitter_factor,
+            should_retry, delay = _handle_retry_or_fail(
+                error_msg=error_msg,
+                metrics=metrics,
+                attempt=attempt,
+                max_retries=max_retries,
+                start_time=start_time,
+                overall_timeout=overall_timeout,
+                initial_delay=initial_delay,
+                backoff_multiplier=backoff_multiplier,
+                max_delay=max_delay,
+                jitter_factor=jitter_factor,
+                monitoring_hook=monitoring_hook,
+                return_code=None,
             )
 
             if should_retry:
@@ -648,20 +726,10 @@ def update_food_database(
                     f"Retrying after {delay:.2f}s delay "
                     f"(attempt {attempt + 1}/{max_retries + 1} failed with exception)"
                 )
-                metrics.record_retry()
-                emit_operational_signal(
-                    "retry",
-                    metrics,
-                    attempt=attempt,
-                    delay=delay,
-                    monitoring_hook=monitoring_hook,
-                )
                 time.sleep(delay)
             else:
-                # Final failure - exception
                 elapsed_total = time.time() - start_time
                 remaining_budget = overall_timeout - elapsed_total
-
                 if remaining_budget <= 1:
                     logger.error(
                         f"Food database update failed with exception - no time remaining for retry "
@@ -672,9 +740,6 @@ def update_food_database(
                         f"Food database update failed after {attempt + 1} attempts "
                         f"with exception (total_time={elapsed_total:.2f}s)"
                     )
-                emit_operational_signal(
-                    "final_failure", metrics, attempt=attempt, monitoring_hook=monitoring_hook
-                )
                 return False
 
     # Should not reach here, but handle edge case

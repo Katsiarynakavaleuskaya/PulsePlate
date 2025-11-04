@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from app.dependencies import get_recipe_synthesizer
 from core.recipe_synth import RecipeSynthesizer
 from tests.conftest_app import assert_vip_response
 
@@ -218,7 +219,6 @@ class TestVIPCoverageWorkingExtended:
     def test_vip_recipe_templates_error_coverage(self):
         """Test VIP recipe templates error coverage."""
         import app
-        from app.dependencies import get_recipe_synthesizer
 
         client = TestClient(cast(ASGIApp, app.app))
 

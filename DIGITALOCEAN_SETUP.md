@@ -77,6 +77,17 @@
 
 ---
 
+## 👤 Выбор пользователя для работы
+
+**Рекомендация по умолчанию:**
+
+- **Для быстрого старта и staging:** Используйте пользователя `root` (создаётся автоматически). Это быстрее и проще для первоначальной настройки.
+- **Для production и лучших практик безопасности:** Рекомендуется создать непривилегированного пользователя `ubuntu` (см. раздел ниже "Optional — recommended for production").
+
+**Важно:** Все команды в этом руководстве работают с обоими пользователями. Если вы видите `sudo` в команде, это означает, что команда должна выполняться от имени обычного пользователя (ubuntu). Для `root` пользователя `sudo` не требуется, но команды будут работать и без него.
+
+---
+
 ## Шаг 2: Получение IP адреса
 
 1. В панели DigitalOcean найдите ваш Droplet `pulseplate-staging`
@@ -91,9 +102,10 @@
 
 ```bash
 # Замените IP на ваш публичный IP из DigitalOcean
+# Для пользователя root (по умолчанию, рекомендуется для staging):
 ssh -i ~/.ssh/pulseplate_deploy root@YOUR_PUBLIC_IP
 
-# Если при создании выбрали другой пользователь, используйте:
+# Для пользователя ubuntu (если создали, рекомендуется для production):
 ssh -i ~/.ssh/pulseplate_deploy ubuntu@YOUR_PUBLIC_IP
 ```
 
@@ -103,17 +115,22 @@ ssh -i ~/.ssh/pulseplate_deploy ubuntu@YOUR_PUBLIC_IP
 
 ```bash
 # Обновление системы
+# (для root: команда работает без sudo; для ubuntu: требуется sudo)
 sudo apt update && sudo apt upgrade -y
 
 # Установка Docker
 sudo apt install -y docker.io docker-compose-plugin
 
-# Проверка Docker (root пользователь может использовать docker напрямую)
+# Проверка Docker
+# (root пользователь может использовать docker напрямую;
+#  ubuntu пользователь должен быть в группе docker)
 docker --version
 docker compose version
 ```
 
-Если хотите использовать пользователя `ubuntu` вместо `root`:
+### 3.2.1 Optional — recommended for production: Создание пользователя ubuntu
+
+Если хотите использовать пользователя `ubuntu` вместо `root` (рекомендуется для production):
 
 ```bash
 # Создание пользователя ubuntu
@@ -135,8 +152,9 @@ exit
 Подключитесь как ubuntu:
 
 ```bash
+# Для пользователя ubuntu (после создания):
 ssh -i ~/.ssh/pulseplate_deploy ubuntu@YOUR_PUBLIC_IP
-newgrp docker  # Применяем группу docker
+newgrp docker  # Применяем группу docker (только для ubuntu)
 ```
 
 ### 3.3 Проверка Docker
@@ -167,8 +185,9 @@ docker compose version
 С локальной машины попробуйте подключиться:
 
 ```bash
+# Для пользователя root (по умолчанию):
 ssh -i ~/.ssh/pulseplate_deploy root@YOUR_PUBLIC_IP
-# или
+# Для пользователя ubuntu (если создали):
 ssh -i ~/.ssh/pulseplate_deploy ubuntu@YOUR_PUBLIC_IP
 ```
 
@@ -189,7 +208,7 @@ ssh -i ~/.ssh/pulseplate_deploy ubuntu@YOUR_PUBLIC_IP
 |------------|-------|
 | `STAGING_DOMAIN` | `pulseplate-staging.duckdns.org` |
 | `SSH_HOST_STAGING` | `ВАШ_ПУБЛИЧНЫЙ_IP_ИЗ_DIGITALOCEAN` |
-| `SSH_USER` | `root` (или `ubuntu`, если создали) |
+| `SSH_USER` | `root` (рекомендуется для staging) или `ubuntu` (рекомендуется для production) |
 | `SSH_KEY` | Весь приватный ключ из `~/.ssh/pulseplate_deploy` |
 | `GHCR_READ_TOKEN` | GitHub PAT token (см. `GITHUB_SECRETS_SETUP.md`) |
 
@@ -241,7 +260,9 @@ sudo ufw status
 
 1. Проверьте, что SSH ключ выбран при создании Droplet
 2. Проверьте права на ключ: `chmod 600 ~/.ssh/pulseplate_deploy`
-3. Убедитесь, что используете правильного пользователя (`root` по умолчанию)
+3. Убедитесь, что используете правильного пользователя:
+   - `root` — по умолчанию (рекомендуется для staging)
+   - `ubuntu` — если создали (рекомендуется для production)
 
 ### Как проверить баланс кредитов
 

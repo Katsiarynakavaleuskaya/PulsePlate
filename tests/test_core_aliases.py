@@ -30,4 +30,5 @@ def test_load_aliases_handles_missing_file(tmp_path: Path) -> None:
 def test_map_to_canonical_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(aliases, "_load_aliases", lambda path=None: {"leche": "Milk"})
     assert aliases.map_to_canonical("leche") == "Milk"
+    # Normalization: trim whitespace, lowercase, and replace spaces with underscores
     assert aliases.map_to_canonical(" Fresh Apple ") == "fresh_apple"

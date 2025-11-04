@@ -181,7 +181,7 @@ def test_db_directory_creation_error(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
     original_mkdir = Path.mkdir
 
-    def boom(self, *args, **kwargs):  # type: ignore[unused-argument]
+    def boom(self: Path, *args: Any, **kwargs: Any) -> None:
         raise OSError("nope")
 
     monkeypatch.setattr(Path, "mkdir", boom, raising=False)

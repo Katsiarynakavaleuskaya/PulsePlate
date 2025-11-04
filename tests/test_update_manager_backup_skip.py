@@ -32,3 +32,31 @@ async def test_load_backup_skips_malformed(tmp_path: Path) -> None:
     foods = await mgr._load_backup("usda", "1")
     assert "chicken" in foods
     assert "broken" not in foods
+
+
+@pytest.mark.asyncio
+async def test_load_backup_handles_corrupt_json(tmp_path: Path) -> None:
+    """Verify that _load_backup handles corrupt JSON files without raising."""
+    cache_dir = tmp_path
+    mgr = DatabaseUpdateManager(cache_dir=cache_dir)
+
+    backup_file = cache_dir / "usda_backup_1.json"
+    backup_file.write_text("}{ invalid", encoding="utf-8")
+
+    foods = await mgr._load_backup("usda", "1")
+    assert isinstance(foods, dict)
+    assert len(foods) == 0
+
+
+@pytest.mark.asyncio
+async def test_load_backup_handles_empty_file(tmp_path: Path) -> None:
+    """Verify that _load_backup handles empty files without raising."""
+    cache_dir = tmp_path
+    mgr = DatabaseUpdateManager(cache_dir=cache_dir)
+
+    backup_file = cache_dir / "usda_backup_1.json"
+    backup_file.write_text("", encoding="utf-8")
+
+    foods = await mgr._load_backup("usda", "1")
+    assert isinstance(foods, dict)
+    assert len(foods) == 0

@@ -12,10 +12,60 @@ import math
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Union, Tuple
 import logging
 
 LOGGER = logging.getLogger(__name__)
+
+# Module-level constant for ingredient categorization keywords
+# Используем Tuple для неизменяемости значений
+CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
+    "meat": (
+        "мясо",
+        "говядина",
+        "свинина",
+        "курица",
+        "meat",
+        "beef",
+        "pork",
+        "chicken",
+    ),
+    "fish": ("рыба", "лосось", "тунец", "fish", "salmon", "tuna"),
+    "dairy": ("молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"),
+    "vegetables": (
+        "овощ",
+        "помидор",
+        "огурец",
+        "морковь",
+        "vegetable",
+        "tomato",
+        "cucumber",
+        "carrot",
+    ),
+    "fruits": (
+        "фрукт",
+        "яблоко",
+        "банан",
+        "апельсин",
+        "fruit",
+        "apple",
+        "banana",
+        "orange",
+    ),
+    "grains": (
+        "крупа",
+        "рис",
+        "гречка",
+        "овес",
+        "grain",
+        "rice",
+        "buckwheat",
+        "oats",
+    ),
+    "nuts": ("орех", "миндаль", "nut", "almond"),
+    "oils": ("масло", "оливковое", "oil", "olive"),
+    "spices": ("специя", "соль", "перец", "spice", "salt", "pepper"),
+}
 
 
 @dataclass
@@ -91,9 +141,13 @@ class ShoplistGenerator:
                 # Логируем кратко и продолжаем с правилами по умолчанию
                 LOGGER.warning("Failed to load packaging rules: %s", load_err)
             except Exception as unexpected:  # noqa: BLE001 - continue with defaults
+                # Log unexpected exceptions with full details
+                exception_type = type(unexpected).__name__
                 LOGGER.error(
-                    "Unhandled error loading packaging rules from %s; falling back to defaults: %s",
+                    "Unhandled error loading packaging rules from %s; falling back to defaults: "
+                    "%s: %s",
                     self.packaging_rules_file,
+                    exception_type,
                     unexpected,
                     exc_info=True,
                 )
@@ -168,8 +222,8 @@ class ShoplistGenerator:
     def round_to_packages(
         self,
         aggregated: Dict[str, float],
-        packaging_db: Optional[Dict] = None,
-        rules: Optional[Dict] = None,
+        packaging_db: Optional[Dict[str, Any]] = None,
+        rules: Optional[Mapping[str, Any]] = None,
     ) -> List[ShoppingItem]:
         """Округляет агрегированные ингредиенты до упаковок.
 
@@ -230,56 +284,8 @@ class ShoplistGenerator:
         """Определяет категорию ингредиента по названию."""
         name_lower = ingredient_name.lower()
 
-        # Простая категоризация по ключевым словам через словарь ключевых слов
-        category_keywords: Dict[str, List[str]] = {
-            "meat": [
-                "мясо",
-                "говядина",
-                "свинина",
-                "курица",
-                "meat",
-                "beef",
-                "pork",
-                "chicken",
-            ],
-            "fish": ["рыба", "лосось", "тунец", "fish", "salmon", "tuna"],
-            "dairy": ["молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"],
-            "vegetables": [
-                "овощ",
-                "помидор",
-                "огурец",
-                "морковь",
-                "vegetable",
-                "tomato",
-                "cucumber",
-                "carrot",
-            ],
-            "fruits": [
-                "фрукт",
-                "яблоко",
-                "банан",
-                "апельсин",
-                "fruit",
-                "apple",
-                "banana",
-                "orange",
-            ],
-            "grains": [
-                "крупа",
-                "рис",
-                "гречка",
-                "овес",
-                "grain",
-                "rice",
-                "buckwheat",
-                "oats",
-            ],
-            "nuts": ["орех", "миндаль", "nut", "almond"],
-            "oils": ["масло", "оливковое", "oil", "olive"],
-            "spices": ["специя", "соль", "перец", "spice", "salt", "pepper"],
-        }
-
-        for category, keywords in category_keywords.items():
+        # Используем модульный константный словарь ключевых слов
+        for category, keywords in CATEGORY_KEYWORDS.items():
             if any(keyword in name_lower for keyword in keywords):
                 return category
 
@@ -455,11 +461,25 @@ class ShoplistGenerator:
 
 
 # Cached generator instance to avoid reloading packaging rules on each call
+#
+# Thread-safety: Lazy initialization has a race where multiple threads may
+# construct ShoplistGenerator concurrently. This is acceptable because:
+# - Initialization is idempotent (loads static packaging rules from CSV/defaults)
+# - Multiple instances contain identical data and are functionally equivalent
+# - Worst case: minor wasted memory/CPU from duplicate instantiation
+#
+# For stricter guarantees, consider:
+# - Initialize at module import time (if eager loading is acceptable)
+# - Wrap creation with threading.Lock in _get_generator()
+# - Use double-checked locking pattern with Lock
 _generator: Optional[ShoplistGenerator] = None
 
 
 def _get_generator() -> ShoplistGenerator:
-    """Get or create the cached generator instance."""
+    """Get or create the cached generator instance.
+
+    Note: See thread-safety comment above _generator for race condition details.
+    """
     global _generator
     if _generator is None:
         _generator = ShoplistGenerator()
@@ -474,8 +494,8 @@ def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
 
 def round_to_packages(
     aggregated: Dict[str, float],
-    packaging_db: Optional[Dict] = None,
-    rules: Optional[Dict] = None,
+    packaging_db: Optional[Dict[str, Any]] = None,
+    rules: Optional[Mapping[str, Any]] = None,
 ) -> List[ShoppingItem]:
     """Округляет агрегированные ингредиенты до упаковок."""
     return _get_generator().round_to_packages(aggregated, packaging_db, rules)
@@ -492,8 +512,8 @@ def get_shoplist(
     week_plan: Dict,
     format_type: str = "json",
     locale: str = "ru",
-    packaging_db: Optional[Dict] = None,
-    rules: Optional[Dict] = None,
+    packaging_db: Optional[Dict[str, Any]] = None,
+    rules: Optional[Mapping[str, Any]] = None,
 ) -> Union[str, Dict]:
     """Собирает и форматирует список покупок из недельного плана.
 

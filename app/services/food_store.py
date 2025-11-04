@@ -33,10 +33,11 @@ except OSError as exc:  # pragma: no cover - extremely rare filesystem errors
         exc_info=True,
     )
     # Re-raise wrapped in RuntimeError for clear error message while preserving original exception
-    raise RuntimeError(
+    error_msg = (
         f"Failed to create database directory '{DB_PATH.parent}'. "
         f"This is required for module initialization. Original error: {exc}"
-    ) from exc
+    )
+    raise RuntimeError(error_msg) from exc
 ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.csv"))
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
@@ -128,7 +129,7 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
         return False
 
 
-def _parse_alias_canonical_schema(reader: csv.DictReader) -> Dict[str, List[str]]:
+def _parse_alias_canonical_schema(reader: csv.DictReader) -> dict[str, list[str]]:
     """
     Parse alias/canonical schema CSV format.
 
@@ -141,7 +142,7 @@ def _parse_alias_canonical_schema(reader: csv.DictReader) -> Dict[str, List[str]
     Returns:
         Dictionary mapping canonical (lowercased) to list of aliases
     """
-    canonical_to_aliases: Dict[str, List[str]] = {}
+    canonical_to_aliases: dict[str, list[str]] = {}
     # Schema: alias,canonical (core/aliases format)
     # Transform: from {alias -> canonical} to {canonical -> [aliases]}
     for row in reader:
@@ -160,7 +161,7 @@ def _parse_alias_canonical_schema(reader: csv.DictReader) -> Dict[str, List[str]
     return canonical_to_aliases
 
 
-def _parse_primary_aliases_schema(reader: csv.reader) -> Dict[str, List[str]]:  # type: ignore[valid-type]
+def _parse_primary_aliases_schema(reader: Any) -> dict[str, list[str]]:
     """
     Parse primary/aliases schema CSV format.
 
@@ -173,7 +174,7 @@ def _parse_primary_aliases_schema(reader: csv.reader) -> Dict[str, List[str]]:  
     Returns:
         Dictionary mapping primary (lowercased) to list of aliases
     """
-    canonical_to_aliases: Dict[str, List[str]] = {}
+    canonical_to_aliases: dict[str, list[str]] = {}
     # Schema: primary,aliases (original format)
     # Handle CSV where aliases may contain unquoted commas, requiring special parsing
     header = next(reader, None)
@@ -190,7 +191,7 @@ def _parse_primary_aliases_schema(reader: csv.reader) -> Dict[str, List[str]]:  
             if primary_lower not in canonical_to_aliases:
                 canonical_to_aliases[primary_lower] = []
             # Collect all values after primary as aliases (handles unquoted commas)
-            alias_parts: List[str] = []
+            alias_parts: list[str] = []
             for val in row_values[primary_idx + 1 :]:
                 # Split each value by semicolon first, then by comma
                 for semicolon_part in val.split(";"):
@@ -205,7 +206,7 @@ def _parse_primary_aliases_schema(reader: csv.reader) -> Dict[str, List[str]]:  
     return canonical_to_aliases
 
 
-def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
+def _load_aliases_csv(csv_path: Path, is_production: Optional[bool] = None) -> Dict[str, List[str]]:
     """
     Load aliases from CSV file with support for two schemas.
 
@@ -213,14 +214,22 @@ def _load_aliases_csv(csv_path: Path) -> Dict[str, List[str]]:
     - alias,canonical: maps each alias to canonical (core/aliases format)
     - primary,aliases: splits aliases and maps each to primary (original format)
 
-    Returns Dict[str, List[str]] mapping canonical/primary (lowercased) to list of aliases.
-    Preserves error handling: returns empty dict on missing file or parse errors.
+    Args:
+        csv_path: Path to the CSV file containing aliases.
+        is_production: Whether to run in production mode. If None, derives from
+            os.getenv("ENVIRONMENT") == "production". In production mode, errors
+            are logged and an empty dict is returned instead of raising exceptions.
+
+    Returns:
+        Dict[str, List[str]] mapping canonical/primary (lowercased) to list of aliases.
+        Returns empty dict on missing file or parse errors in production mode.
 
     RU: Загружает алиасы из CSV с автоматическим определением схемы заголовков.
     Поддерживает оба формата: alias/canonical и primary/aliases.
     """
     canonical_to_aliases: Dict[str, List[str]] = {}
-    is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
+    if is_production is None:
+        is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
 
     try:
         # Validate CSV file for balanced quotes before parsing
