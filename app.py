@@ -1616,6 +1616,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         _make_plate = resolve_attr("make_plate", make_plate, _candidates)
         _calc_bmr = resolve_attr("calculate_all_bmr", calculate_all_bmr, _candidates)
         _calc_tdee = resolve_attr("calculate_all_tdee", calculate_all_tdee, _candidates)
+        _build_targets = resolve_attr(
+            "build_nutrition_targets", build_nutrition_targets, _candidates
+        )
 
         # If backends are unavailable (e.g., patched to None in tests), return a safe fallback
         if _make_plate is None or _calc_bmr is None or _calc_tdee is None:
@@ -1641,8 +1644,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             fiber_g = 25
 
             # Align with WHO targets if backend is available to keep macro deviation low
-            with suppress(Exception):
-                if build_nutrition_targets is not None:
+            # Re-resolve build_nutrition_targets to get patched version from tests
+            # This ensures test patches are properly applied
+            _build_targets_resolved = resolve_attr(
+                "build_nutrition_targets", build_nutrition_targets, _candidates
+            )
+            if _build_targets_resolved is not None:
+                try:
                     from core.targets import UserProfile  # local import to avoid hard dependency
 
                     profile = UserProfile(
@@ -1658,13 +1666,16 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                         diet_flags=set(req.diet_flags or []),
                         life_stage="adult",
                     )
-                    _targets = build_nutrition_targets(profile)
+                    _targets = _build_targets_resolved(profile)
                     # Use target macros/kcal to keep endpoints consistent
                     target_kcal = int(getattr(_targets, "kcal_daily", target_kcal))
                     protein_g = int(getattr(_targets.macros, "protein_g", protein_g))
                     fat_g = int(getattr(_targets.macros, "fat_g", fat_g))
                     carbs_g = int(getattr(_targets.macros, "carbs_g", carbs_g))
                     fiber_g = int(getattr(_targets.macros, "fiber_g", fiber_g))
+                except Exception:
+                    # If UserProfile import or target building fails, use calculated values
+                    logger.debug("Failed to align with WHO targets, using calculated macros")
             meals_per_day = 3
             portions = {
                 "protein_palm": round(protein_g / 25.0, 1),
@@ -2306,18 +2317,16 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
-            except (ValueError, TypeError, ImportError, AttributeError) as exc:
+            except (ImportError, AttributeError) as exc:
+                logger.debug(
+                    "Safety validation unavailable; continuing without safety warnings: %s",
+                    exc,
+                )
+            except (ValueError, TypeError) as exc:
                 logger.warning(
-                    "Safety validation failed; continuing without safety warnings: %s",
+                    "Safety validation failed with invalid data; continuing without safety warnings: %s",
                     exc,
                 )
-            except Exception as exc:
-                logger.error(
-                    "Unexpected error during safety validation; re-raising: %s",
-                    exc,
-                    exc_info=True,
-                )
-                raise
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,
