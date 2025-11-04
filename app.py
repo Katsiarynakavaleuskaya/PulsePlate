@@ -1271,7 +1271,7 @@ def _convert_db_nutrients_to_alias_format(db_nutrients: Dict[str, float]) -> Dic
     return alias_nutrients
 
 
-def _aggregate_meal_micronutrients(
+async def _aggregate_meal_micronutrients(
     ingredients: List[Dict[str, Any]], meal_title: str = ""
 ) -> Dict[str, float]:
     """Aggregate micronutrients from meal ingredients.
@@ -1312,9 +1312,9 @@ def _aggregate_meal_micronutrients(
             )
             continue
 
-        # Fetch food from DB
+        # Fetch food from DB (run sync I/O in thread pool to avoid blocking async context)
         try:
-            food = get_food(food_id)
+            food = await asyncio.to_thread(get_food, food_id)
             if not food:
                 logger.warning(
                     f"Food '{food_id}' not found in DB for meal '{meal_title}', skipping"
@@ -1784,7 +1784,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     ingredients = _get_recipe_ingredients_for_meal(meal_title)
 
                 # Aggregate micronutrients from ingredients
-                meal_micros_raw = _aggregate_meal_micronutrients(ingredients, meal_title=meal_title)
+                meal_micros_raw = await _aggregate_meal_micronutrients(
+                    ingredients, meal_title=meal_title
+                )
 
                 # Apply aliases and assign to meal (clone to avoid mutation)
                 meal_micros_aliased = _alias_micros(dict(meal_micros_raw))
