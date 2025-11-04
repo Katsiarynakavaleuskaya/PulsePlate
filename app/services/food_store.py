@@ -10,7 +10,7 @@ import sqlite3
 from pathlib import Path
 import logging
 import os
-from typing import Any, Dict, List, Optional, Mapping, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Mapping, Sequence, Tuple
 import threading
 from collections import defaultdict
 
@@ -79,34 +79,39 @@ def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
         FileNotFoundError: If the CSV file does not exist
         csv.Error: In non-production mode if CSV is malformed (re-raised from parser)
         Exception: In non-production mode for other I/O errors (re-raised)
+
+    Note: Reads file once to avoid TOCTOU race condition and improve efficiency.
     """
     # Use Python's csv module to properly detect malformed CSV
     # csv.reader and csv.DictReader catch most parsing errors, but can miss
     # unclosed quotes at end of lines, so we do a simple quote count check
     try:
-        # Try to parse with csv.reader to catch parsing errors
-        with open(csv_path, "r", encoding="utf-8") as validation_f:
+        # Read file once to avoid TOCTOU race condition
+        with open(csv_path, "r", encoding="utf-8", newline="") as validation_f:
+            content = validation_f.read()
+            # Rewind to beginning for csv readers
+            validation_f.seek(0)
+
+            # Try to parse with csv.reader to catch parsing errors
             reader = csv.reader(validation_f)
             list(reader)
 
-        # Try again with DictReader to catch schema/quote errors that reader might miss
-        with open(csv_path, "r", newline="", encoding="utf-8") as validation_f:
+            # Rewind again for DictReader
+            validation_f.seek(0)
             dict_reader = csv.DictReader(validation_f)
             list(dict_reader)
 
         # Simple sanity check: count quotes to catch obvious unclosed quotes
         # (csv module is lenient and may parse invalid CSV successfully)
-        with open(csv_path, "r", encoding="utf-8") as validation_f:
-            content = validation_f.read()
-            # Simple quote count - odd number indicates likely unclosed quote
-            if content.count('"') % 2 != 0:
-                error_msg = "Unbalanced quotes in CSV file"
-                if not is_production:
-                    raise csv.Error(error_msg)
-                logger.debug(
-                    "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
-                )
-                return False
+        # Use already-read content to avoid re-reading file
+        if content.count('"') % 2 != 0:
+            error_msg = "Unbalanced quotes in CSV file"
+            if not is_production:
+                raise csv.Error(error_msg)
+            logger.debug(
+                "Malformed CSV file %s (production mode, ignoring): %s", csv_path, error_msg
+            )
+            return False
 
         return True
     except FileNotFoundError:
@@ -161,7 +166,7 @@ def _parse_alias_canonical_schema(reader: csv.DictReader) -> dict[str, list[str]
     return canonical_to_aliases
 
 
-def _parse_primary_aliases_schema(reader: Any) -> dict[str, list[str]]:
+def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, list[str]]:
     """
     Parse primary/aliases schema CSV format.
 
@@ -364,8 +369,23 @@ def _connect() -> sqlite3.Connection:
     return con
 
 
-def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> List[Dict[str, Any]]:
-    """Search foods via FTS; parameters are safely bound using placeholders."""
+def _validate_pagination_params(limit: int | str, offset: int | str) -> tuple[int, int]:
+    """
+    Validate and normalize pagination parameters.
+
+    RU: Валидирует и нормализует параметры пагинации.
+    EN: Validates and normalizes pagination parameters.
+
+    Args:
+        limit: Maximum number of results to return
+        offset: Number of results to skip
+
+    Returns:
+        Tuple of (normalized_limit, normalized_offset)
+
+    Raises:
+        ValueError: If limit or offset are invalid
+    """
     # Defensive bounds and type validation for pagination
     if not isinstance(limit, int):
         try:
@@ -382,6 +402,13 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
     limit = min(limit, MAX_LIMIT)
     if offset < 0:
         raise ValueError("offset must be >= 0")
+    return limit, offset
+
+
+def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> List[Dict[str, Any]]:
+    """Search foods via FTS; parameters are safely bound using placeholders."""
+    # Validate and normalize pagination parameters
+    limit, offset = _validate_pagination_params(limit, offset)
     terms = expand_query(query) if query else []
     params: List[Any] = []
     if terms:
