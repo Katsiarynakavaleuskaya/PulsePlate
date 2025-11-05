@@ -206,6 +206,10 @@ def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> N
         pytest.skip("sqlalchemy.asyncio not available")
 
     import importlib
+    import os
+
+    original_db_url = os.environ.get("DATABASE_URL")
+    original_use_async = os.environ.get("DATABASE_USE_ASYNC")
 
     monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp_async_reload.db")
     monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
@@ -216,7 +220,17 @@ def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> N
         if async_url:
             assert async_url.startswith("sqlite+aiosqlite")
     finally:
-        importlib.reload(reloaded)
+        if original_db_url is None:
+            monkeypatch.delenv("DATABASE_URL", raising=False)
+        else:
+            monkeypatch.setenv("DATABASE_URL", original_db_url)
+        if original_use_async is None:
+            monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
+        else:
+            monkeypatch.setenv("DATABASE_USE_ASYNC", original_use_async)
+
+        restored = importlib.reload(db)
+        restored.init_db()
 
 
 def test_finalize_transaction_debug_logging_production(monkeypatch: pytest.MonkeyPatch) -> None:

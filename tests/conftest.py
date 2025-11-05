@@ -2,6 +2,7 @@
 Shared pytest fixtures for the PulsePlate test suite.
 """
 
+import importlib
 import importlib.util
 import os
 import sys
@@ -12,6 +13,42 @@ from typing import Any, Generator, cast
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+    """Configure and initialize a per-worker SQLite database for the test session."""
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+
+    worker_info = getattr(request.config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "master")
+
+    base_path = Path(os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite"))
+    if worker_id != "master":
+        base_path = base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
+
+    if not base_path.is_absolute():
+        base_path = Path.cwd() / base_path
+
+    base_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path = base_path.resolve()
+
+    os.environ["TEST_DB_PATH"] = str(resolved_path)
+    os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
+
+    db_module = importlib.import_module("core.db")
+    db_module = importlib.reload(db_module)
+
+    models_module = importlib.import_module("core.models")
+    importlib.reload(models_module)
+
+    db_module.init_db()
+
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
+
+    yield
 
 
 @pytest.fixture(scope="session", autouse=True)

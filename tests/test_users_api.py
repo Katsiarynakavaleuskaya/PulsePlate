@@ -7,6 +7,7 @@ from typing import Generator, cast
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from starlette.types import ASGIApp
 
 import app
@@ -20,9 +21,20 @@ def _cleanup_users() -> Generator[None, None, None]:
     EN: Ensure users table is cleared between tests.
     """
 
+    def _truncate() -> None:
+        with db_module.session_scope() as session:
+            session.execute(text("DELETE FROM users"))
+
+    try:
+        _truncate()
+    except OperationalError:
+        db_module.init_db()
+        _truncate()
+
+    yield
+
     with db_module.session_scope() as session:
         session.execute(text("DELETE FROM users"))
-    yield
 
 
 def _client() -> TestClient:
