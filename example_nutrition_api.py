@@ -87,7 +87,13 @@ def _should_retry_http_error(exception: BaseException) -> bool:
         status_code: int = exception.response.status_code
         # Retry on 5xx server errors (transient failures)
         # Don't retry on 4xx client errors (bad request, auth issues, etc.)
-        return 500 <= status_code < 600
+        should_retry = 500 <= status_code < 600
+        logger.debug(
+            "HTTP error %d: %s",
+            status_code,
+            "retrying transient 5xx" if should_retry else "not retrying 4xx/other",
+        )
+        return should_retry
     return False
 
 

@@ -121,6 +121,6 @@ def generate_weekly_plan(
     return {
         "days": days,
         "weekly_coverage": weekly_coverage,
-        "shopping_list": shopping_list,
+        "shopping_list": dict(shopping_list),
         "total_cost": round(total_cost, 2),
     }

@@ -1,4 +1,5 @@
 import csv
+import functools
 import logging
 import os
 import re
@@ -7,6 +8,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+@functools.lru_cache(maxsize=1)
 def _load_aliases(path: Optional[str] = None) -> dict[str, str]:
     """
     RU: Загрузить таблицу синонимов с поддержкой двух схем CSV.
@@ -116,6 +118,11 @@ def map_to_canonical(raw_name: str, locale: str = "en") -> str:
     return canonical or "unknown"
 
 
+def clear_alias_cache() -> None:
+    """Clear the aliases cache to force reload on next access."""
+    _load_aliases.cache_clear()
+
+
 def add_alias(alias: str, canonical: str, path: Optional[str] = None) -> None:
     """
     RU: Добавить новую пару синоним-каноническое имя.
@@ -142,3 +149,5 @@ def add_alias(alias: str, canonical: str, path: Optional[str] = None) -> None:
         if not file_exists:
             writer.writerow(["alias", "canonical"])
         writer.writerow([alias.strip().lower(), canonical.strip()])
+    # Invalidate cache after adding new alias
+    clear_alias_cache()

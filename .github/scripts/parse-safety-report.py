@@ -47,7 +47,7 @@ def base_severity(entry: Dict[str, Any]) -> str:
     return "UNKNOWN"
 
 
-def build_lines() -> list[str]:
+def build_lines(vulns: list[dict], ignored: list[dict]) -> list[str]:
     """Build summary lines from vulnerability data."""
     lines = []
     if not vulns:
@@ -69,7 +69,7 @@ def build_lines() -> list[str]:
     return lines
 
 
-lines = build_lines()
+lines = build_lines(vulns, ignored)
 summary_path.write_text("\n".join(lines) + "\n")
 
 high_or_critical = [

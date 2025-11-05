@@ -17,7 +17,9 @@ def validate_template_dir() -> None:
 
     Raises:
         RuntimeError: If TEMPLATE_DIR does not exist or is not a directory.
-        SystemExit: If validation fails (exits with code 1).
+
+    Note:
+        Callers may convert RuntimeError to SystemExit if process exit behavior is desired.
 
     Note:
         This function should be called during FastAPI startup lifecycle to fail fast

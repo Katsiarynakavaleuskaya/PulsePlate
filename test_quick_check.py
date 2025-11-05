@@ -2,7 +2,7 @@
 
 This file restores the historical path `test_quick_check.py` that some CI / pre-commit
 steps still invoke directly (pytest test_quick_check.py). The real quick tests now
-live in `tests/quick/test_quick_check.py`.
+live in `tests/quick/test_llm_quick_check.py`.
 
 Keep this extremely fast and side‑effect free.
 """

@@ -43,6 +43,10 @@ def test_openai_pro_access(api_key: str) -> Dict[str, Any]:
         }
 
 
+# Prevent pytest from auto-collecting this helper as a real test.
+test_openai_pro_access.__test__ = False  # type: ignore[attr-defined]
+
+
 def main() -> None:
     """Main function to test OpenAI Pro access"""
     print("🔍 Testing OpenAI Pro Access...")

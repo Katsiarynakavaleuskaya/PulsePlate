@@ -130,18 +130,12 @@ def get_provider():
             # малый таймаут, чтобы даже при misconfig не висеть
             # EN: Parse timeout with error handling for invalid env var values
             # RU: Парсим таймаут с обработкой ошибок для невалидных значений env var
+            raw_timeout = os.getenv("OLLAMA_TIMEOUT", "5")
             try:
-                timeout_s = float(os.getenv("OLLAMA_TIMEOUT", "5"))
+                timeout_s = float(raw_timeout)
             except (ValueError, TypeError) as e:
-                # EN: Invalid OLLAMA_TIMEOUT value, using safe default
-                # RU: Невалидное значение OLLAMA_TIMEOUT, используем безопасное значение по умолчанию
                 timeout_s = 5.0
-                logger.warning(
-                    "Invalid OLLAMA_TIMEOUT value '%s', using default timeout 5.0 seconds. "
-                    "Error: %s",
-                    os.getenv("OLLAMA_TIMEOUT"),
-                    e,
-                )
+                logger.warning("Invalid OLLAMA_TIMEOUT '%s', defaulting to 5.0: %s", raw_timeout, e)
             try:
                 return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
             except Exception:

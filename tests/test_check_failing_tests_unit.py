@@ -9,9 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List
 
-import builtins
 import check_failing_tests as cft
 
 
@@ -81,8 +79,20 @@ def test_main_mixed_pass_fail_timeout(monkeypatch, capsys):
     monkeypatch.setattr(Path, "is_file", lambda self: True)
 
     # Provide subprocess.run behavior by filename
-    def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001
-        test_path = cmd[-3]  # [python, -m, pytest, test_file, ...]
+    def fake_run(
+        cmd: list[str], capture_output: bool, text: bool, timeout: int | None
+    ) -> SimpleNamespace:  # noqa: ARG001
+        # Find test path by searching for element ending with expected test filename
+        test_path = next(
+            (
+                arg
+                for arg in cmd
+                if arg.endswith("t_ok.py") or arg.endswith("t_fail.py") or arg.endswith("t_to.py")
+            ),
+            None,
+        )
+        if test_path is None:
+            return SimpleNamespace(returncode=0, stdout="ok", stderr="")
         if test_path.endswith("t_ok.py"):
             return SimpleNamespace(returncode=0, stdout="ok", stderr="")
         if test_path.endswith("t_fail.py"):

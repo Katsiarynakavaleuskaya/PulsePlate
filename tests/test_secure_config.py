@@ -415,7 +415,8 @@ class TestSecureConfig:
         def _tracking_unlink(self):
             nonlocal unlink_called
             unlink_called = True
-            raise RuntimeError("unlink boom")
+            # Raise OSError to match what secure_config.py catches (line 102)
+            raise OSError("unlink boom")
 
         with (
             patch("secure_config.Path.home", return_value=tmp_path),

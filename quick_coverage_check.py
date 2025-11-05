@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Quick test coverage check. / Быстрая проверка покрытия тестов."""
 
+import os
 import subprocess  # nosec B404 - importing subprocess to invoke pytest for coverage checks; safe because we control the command and arguments
 import sys
+
+COVERAGE_CHECK_TIMEOUT = int(os.getenv("COVERAGE_CHECK_TIMEOUT", "300"))
 
 
 def main() -> None:
@@ -18,13 +21,18 @@ def main() -> None:
                 "-m",
                 "pytest",
                 "tests/test_missing_coverage.py",
+                "tests/test_food_store_additional_coverage.py",
+                "tests/test_app_dependencies_additional.py",
+                "tests/test_foods_router_additional.py",
+                "tests/test_recipe_store_additional.py",
+                "tests/test_weekly_plan_additional.py",
                 "--cov=app",
                 "--cov-report=term-missing",
                 "-v",
             ],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=COVERAGE_CHECK_TIMEOUT,
         )
 
         print("📊 Results / Результат:")
@@ -41,8 +49,8 @@ def main() -> None:
 
     except subprocess.TimeoutExpired:
         print(
-            "⏳ Coverage check timeout (300s). CI stopped. / "
-            "Таймаут при запуске проверки покрытия (300s). CI остановлен."
+            f"⏳ Coverage check timeout ({COVERAGE_CHECK_TIMEOUT}s). CI stopped. / "
+            f"Таймаут при запуске проверки покрытия ({COVERAGE_CHECK_TIMEOUT}s). CI остановлен."
         )
         sys.exit(1)
     except Exception as e:

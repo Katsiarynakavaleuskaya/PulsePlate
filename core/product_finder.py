@@ -68,13 +68,13 @@ class ProductFinder:
 
     DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
 
-    def __init__(self, min_confidence_threshold: float = 0.3) -> None:
+    def __init__(self, min_confidence_threshold: float = DEFAULT_MIN_CONFIDENCE_THRESHOLD) -> None:
         """
         Initialize the product finder.
 
         Args:
             min_confidence_threshold: Minimum confidence threshold for product matching
-                (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3)
+                (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD)
         """
         self.min_confidence_threshold = min_confidence_threshold
         self.usda_adapter = USDAAdapter()

@@ -49,7 +49,7 @@ def run_coverage_check():
 
     except subprocess.TimeoutExpired:
         print("⏳ Таймаут при запуске проверки покрытия (300s). CI остановлен.")
-        raise
+        return False
     except Exception as e:
         print(f"❌ Ошибка при запуске проверки покрытия: {e}")
         return False

@@ -730,3 +730,20 @@ def get_recipe_synthesizer(templates_dir: str = "data/recipe_templates") -> Reci
             )
 
     return _recipe_synthesizer
+
+
+def reset_recipe_synthesizer() -> None:
+    """Reset the module-level singleton for testing purposes only.
+
+    RU: Сбрасывает модуль-level singleton синтезатора рецептов (только для тестов).
+    EN: Resets the module-level recipe synthesizer singleton (for testing only).
+
+    This function clears the cached singleton instance, allowing tests to
+    create a fresh instance with different templates_dir or configuration.
+
+    Note: This function is intended for testing only. Use with caution in
+    production code as it may cause issues with concurrent requests.
+    """
+    global _recipe_synthesizer
+    with _synthesizer_lock:
+        _recipe_synthesizer = None

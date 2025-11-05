@@ -16,7 +16,7 @@ for dir in scripts tools alembic; do
 done
 
 # Add root-level Python files (exclude those that conflict with packages)
-ROOT_FILES="$(find . -maxdepth 1 -type f -name "*.py" ! -name "__init__.py" ! -name "app.py" 2>/dev/null | sed 's|^\./||' | tr '\n' ' ')"
+ROOT_FILES="$(find . -maxdepth 1 -type f -name "*.py" ! -name "__init__.py" ! -name "app.py" 2>/dev/null | sed 's|^\./||' | paste -sd' ' -)"
 
 if [ -n "$ROOT_FILES" ]; then
   TARGETS="$TARGETS $ROOT_FILES"

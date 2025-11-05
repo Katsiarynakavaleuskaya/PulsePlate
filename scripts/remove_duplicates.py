@@ -223,7 +223,7 @@ def main() -> int:
                     p.unlink()
                     to_remove.append(p)
                 except OSError as e:
-                    logger.debug("Error removing file %s: %s", p, e, exc_info=True)
+                    logger.warning("Error removing file %s: %s", p, e, exc_info=True)
                     skipped_files += 1
 
     if args.execute or args.apply_identical:

@@ -25,7 +25,6 @@ CANDIDATES: list[str] = [
     "20250924_180009",  # YYYYMMDD_HHMMSS
     "20250924-180009",  # YYYYMMDD-HHMMSS
     "20250924180009",  # YYYYMMDDHHMMSS
-    "2025-09-24T18:00:09Z",  # ISO-like in version (some validators prefer this)
     "v20250924-180009",  # v + YYYYMMDD-HHMMSS
     "2025.09.24+180009",  # dotted date + HHMMSS
 ]

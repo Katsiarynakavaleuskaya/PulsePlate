@@ -27,6 +27,9 @@ RU: Роутер для VIP функций - микронутриентные ц
 EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping lists
 """
 
+# Test key constant for development mode only
+TEST_KEY = "test_key"  # nosec B105  # Development mode only
+
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
@@ -244,7 +247,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             _log_api_key_event(
                 "VIP endpoint accessed without API key in development mode.", is_production, app_env
             )
-            return "test_key"  # nosec B105  # Development mode only
+            return TEST_KEY
         error_msg = (
             "API key required in production environment" if is_production else "API key required"
         )
@@ -338,7 +341,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     is_production,
                     app_env,
                 )
-                return "test_key"  # nosec B105  # Development mode only
+                return TEST_KEY
             error_msg = "API key required"
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 

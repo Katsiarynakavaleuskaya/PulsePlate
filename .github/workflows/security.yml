@@ -95,8 +95,9 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
 
           if [ ! -f requirements.txt ]; then
-            echo "⚠️ requirements.txt not found — creating from pip freeze"
-            python -m pip freeze > requirements.txt || true
+            echo "❌ ERROR: requirements.txt not found. Safety scan requires requirements.txt to be present."
+            echo "Please ensure requirements.txt exists in the repository root."
+            exit 1
           fi
 
           extra_args=()

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import secrets
+import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import (
@@ -124,6 +125,11 @@ async def get_update_scheduler() -> Any:
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Circuit breaker for safety validation failures
+_MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
+_safety_failure_count = 0
+_safety_failure_lock = threading.Lock()
 
 
 # Lifespan event handler
@@ -1309,18 +1315,33 @@ def _convert_db_nutrients_to_alias_format(db_nutrients: Dict[str, float]) -> Dic
     alias_nutrients: Dict[str, float] = {}
     for db_key, value in db_nutrients.items():
         alias_key = DB_TO_ALIAS_NUTRIENT_MAP.get(db_key)
+        if value is None:
+            logger.warning(
+                "Invalid nutrient value (None) for key '%s': db_key=%s, value=%r, type=%s",
+                alias_key or db_key,
+                db_key,
+                value,
+                type(value).__name__,
+            )
+            raise ValueError(
+                f"Nutrient value for key '{db_key}' cannot be None; "
+                "data integrity requires valid numeric values"
+            )
         try:
-            if value is not None:
-                converted_value = float(value)
-            else:
-                converted_value = 0.0
+            converted_value = float(value)
         except (ValueError, TypeError) as e:
             logger.warning(
-                f"Failed to convert nutrient value for key '{db_key}': "
-                f"value={value!r}, type={type(value).__name__}, error={e}. "
-                f"Falling back to 0.0"
+                "Failed to convert nutrient value for key '%s': db_key=%s, value=%r, type=%s, error=%s",
+                alias_key or db_key,
+                db_key,
+                value,
+                type(value).__name__,
+                e,
             )
-            converted_value = 0.0
+            raise ValueError(
+                f"Nutrient value for key '{db_key}' must be numeric or convertible to float, "
+                f"got {type(value).__name__} with value: {repr(value)}"
+            ) from e
 
         if alias_key:
             alias_nutrients[alias_key] = converted_value
@@ -1564,7 +1585,8 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
         are of type float, regardless of the original input types.
 
     Raises:
-        TypeError: If values is not a dict, or if any value cannot be converted to float
+        TypeError: If values is not a dict
+        ValueError: If any value cannot be converted to float
             (includes both non-numeric types and invalid string values).
     """
     if not isinstance(values, dict):
@@ -1581,7 +1603,7 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
                 f"(convertible to float), got {type(val).__name__} "
                 f"with value: {repr(val)}"
             )
-            raise TypeError(error_msg) from e
+            raise ValueError(error_msg) from e
 
     # Create a shallow copy with validated float values to avoid mutating the input
     result = validated_values.copy()
@@ -2488,6 +2510,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
         # that patch __import__ or manipulate sys.modules.
         _rec_mod = _sys.modules.get("core.recommendations")
         if _rec_mod is not None and hasattr(_rec_mod, "validate_targets_safety"):
+            global _safety_failure_count
             try:
                 safety_warnings = _rec_mod.validate_targets_safety(targets)
                 # Convert safety warnings to the new format if needed
@@ -2495,16 +2518,34 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     for warning in safety_warnings:
                         if isinstance(warning, str):
                             life_stage_warnings.append({"code": "safety", "message": warning})
+                # Reset counter on successful validation
+                with _safety_failure_lock:
+                    if _safety_failure_count > 0:
+                        _safety_failure_count = 0
             except (ImportError, AttributeError) as exc:
                 logger.debug(
                     "Safety validation unavailable; continuing without safety warnings: %s",
                     exc,
                 )
+                with _safety_failure_lock:
+                    _safety_failure_count += 1
+                    if _safety_failure_count >= _MAX_SAFETY_FAILURES:
+                        logger.error(
+                            "Safety validation failed %d consecutive times; module may be unavailable or misconfigured",
+                            _safety_failure_count,
+                        )
             except (ValueError, TypeError) as exc:
                 logger.warning(
                     "Safety validation failed with invalid data; continuing without safety warnings: %s",
                     exc,
                 )
+                with _safety_failure_lock:
+                    _safety_failure_count += 1
+                    if _safety_failure_count >= _MAX_SAFETY_FAILURES:
+                        logger.error(
+                            "Safety validation failed %d consecutive times; check input data quality",
+                            _safety_failure_count,
+                        )
 
         return WHOTargetsResponse(
             kcal_daily=targets.kcal_daily,

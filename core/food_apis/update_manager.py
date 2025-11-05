@@ -655,7 +655,7 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                json_export = self._find_off_export_file(cache_dir, ("jsonl",))
+                json_export = self._find_off_export_file(Path(str(cache_dir)), ("jsonl",))
                 if json_export:
                     cache_data = {}
                     with json_export.open("r", encoding="utf-8") as f:
@@ -668,7 +668,7 @@ class DatabaseUpdateManager:
                                 cache_data[data["name"]] = data
                     return cache_data
 
-                csv_export = self._find_off_export_file(cache_dir, ("csv",))
+                csv_export = self._find_off_export_file(Path(str(cache_dir)), ("csv",))
                 if csv_export:
                     cache_data = {}
                     with csv_export.open("r", encoding="utf-8") as f:
@@ -888,6 +888,15 @@ class DatabaseUpdateManager:
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values
+        food_id = getattr(food, "id", None)
+        food_name = getattr(food, "name", None)
+        food_identifier = (
+            food_id if food_id is not None else (food_name if food_name is not None else "unknown")
+        )
+        logger.warning(
+            "Using fallback placeholder serialization for food item '%s' (dataclass conversion and method-based transforms failed)",
+            food_identifier,
+        )
         return {
             "name": getattr(food, "name", "unknown"),
             "nutrients_per_100g": getattr(food, "nutrients_per_100g", {}),

@@ -635,6 +635,13 @@ THRESHOLD=80
 # Compute disk usage percentage
 USED=$(df "$BACKUP_DIR" | tail -1 | awk '{print $5}' | sed 's/%//')
 
+# Validate USED is non-empty and numeric (0-100)
+if [ -z "$USED" ] || ! [[ "$USED" =~ ^[0-9]+$ ]] || [ "$USED" -lt 0 ] || [ "$USED" -gt 100 ]; then
+    echo "ERROR: Failed to extract valid disk usage percentage. Got: '$USED'" >&2
+    echo "Skipping backup cleanup to avoid acting on invalid value." >&2
+    exit 1
+fi
+
 # Check if usage exceeds threshold
 if [ "$USED" -gt "$THRESHOLD" ]; then
     # Remove older backups while retaining the last 30

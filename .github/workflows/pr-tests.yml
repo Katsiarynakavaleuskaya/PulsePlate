@@ -63,7 +63,15 @@ jobs:
         if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            mypy "${{ steps.changed.outputs.files }}"
+            # Safely split changed files output into array and quote each element
+            # to handle newlines and special characters in filenames
+            CHANGED_FILES="${{ steps.changed.outputs.files }}"
+            if [ -z "$CHANGED_FILES" ]; then
+              echo "No changed files to check"
+              exit 0
+            fi
+            # Use null-delimited input for safety with special characters
+            echo "$CHANGED_FILES" | tr '\n' '\0' | xargs -0 -n1 sh -c 'mypy "$@"' _
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
@@ -166,7 +174,7 @@ jobs:
           APP_ENV: test
           ENVIRONMENT: test
         run: |
-          pytest -c pyproject.toml -m "not slow and not monte_carlo and not demo" \
+          pytest -m "not slow and not monte_carlo and not demo" \
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Diff coverage on changed lines (PR)

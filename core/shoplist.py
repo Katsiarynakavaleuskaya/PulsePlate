@@ -29,9 +29,23 @@ CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
         "beef",
         "pork",
         "chicken",
+        "carne",
+        "res",
+        "cerdo",
+        "pollo",
     ),
-    "fish": ("рыба", "лосось", "тунец", "fish", "salmon", "tuna"),
-    "dairy": ("молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"),
+    "fish": ("рыба", "лосось", "тунец", "fish", "salmon", "tuna", "pescado", "salmón", "atún"),
+    "dairy": (
+        "молоко",
+        "йогурт",
+        "сыр",
+        "milk",
+        "yogurt",
+        "cheese",
+        "leche",
+        "yogur",
+        "queso",
+    ),
     "vegetables": (
         "овощ",
         "помидор",
@@ -41,6 +55,10 @@ CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
         "tomato",
         "cucumber",
         "carrot",
+        "vegetal",
+        "tomate",
+        "pepino",
+        "zanahoria",
     ),
     "fruits": (
         "фрукт",
@@ -51,6 +69,10 @@ CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
         "apple",
         "banana",
         "orange",
+        "fruta",
+        "manzana",
+        "plátano",
+        "naranja",
     ),
     "grains": (
         "крупа",
@@ -61,10 +83,24 @@ CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
         "rice",
         "buckwheat",
         "oats",
+        "cereal",
+        "arroz",
+        "trigo",
+        "avena",
     ),
-    "nuts": ("орех", "миндаль", "nut", "almond"),
-    "oils": ("масло", "оливковое", "oil", "olive"),
-    "spices": ("специя", "соль", "перец", "spice", "salt", "pepper"),
+    "nuts": ("орех", "миндаль", "nut", "almond", "nuez", "almendra"),
+    "oils": ("масло", "оливковое", "oil", "olive", "aceite", "oliva"),
+    "spices": (
+        "специя",
+        "соль",
+        "перец",
+        "spice",
+        "salt",
+        "pepper",
+        "especia",
+        "sal",
+        "pimienta",
+    ),
 }
 
 
@@ -460,29 +496,13 @@ class ShoplistGenerator:
             raise ValueError(f"Unsupported format type: {format_type}")
 
 
-# Cached generator instance to avoid reloading packaging rules on each call
-#
-# Thread-safety: Lazy initialization has a race where multiple threads may
-# construct ShoplistGenerator concurrently. This is acceptable because:
-# - Initialization is idempotent (loads static packaging rules from CSV/defaults)
-# - Multiple instances contain identical data and are functionally equivalent
-# - Worst case: minor wasted memory/CPU from duplicate instantiation
-#
-# For stricter guarantees, consider:
-# - Initialize at module import time (if eager loading is acceptable)
-# - Wrap creation with threading.Lock in _get_generator()
-# - Use double-checked locking pattern with Lock
-_generator: Optional[ShoplistGenerator] = None
+# Generator instance initialized at module load to avoid repeated CSV I/O
+# on first concurrent calls
+_generator = ShoplistGenerator()
 
 
 def _get_generator() -> ShoplistGenerator:
-    """Get or create the cached generator instance.
-
-    Note: See thread-safety comment above _generator for race condition details.
-    """
-    global _generator
-    if _generator is None:
-        _generator = ShoplistGenerator()
+    """Get the generator instance."""
     return _generator
 
 

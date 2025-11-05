@@ -314,46 +314,46 @@ class OFFClient:
 
         return valid_results
 
+    def _is_event_loop_closed(self, error: RuntimeError) -> bool:
+        """Detect if RuntimeError indicates event loop closure.
+
+        Checks multiple signals: tries asyncio.get_running_loop(), falls back to
+        asyncio.get_event_loop(), and finally inspects the error message for
+        loop/closed hints.
+
+        Args:
+            error: RuntimeError to inspect
+
+        Returns:
+            True if any check indicates loop closure, False otherwise
+        """
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_closed():
+                    return True
+            except RuntimeError:
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_closed():
+                        return True
+                except RuntimeError:
+                    pass
+        except Exception:  # nosec B110 - intentional broad catch for error handling
+            pass
+
+        # Final fallback: inspect error message for loop closure hints
+        error_msg = str(error).lower()
+        return any(hint in error_msg for hint in ["loop", "event loop", "closed", "is closed"])
+
     async def close(self):
         """Close the HTTP client."""
         try:
             await self.client.aclose()
         except RuntimeError as e:
-            # Only suppress RuntimeError if event loop is closed or error indicates loop closure.
-            # This allows real errors to surface while gracefully handling test teardown scenarios.
-            should_suppress = False
-
-            # Check if we can determine loop state safely
-            try:
-                # Try to get the running loop first (safest in async context)
-                try:
-                    loop = asyncio.get_running_loop()
-                    if loop.is_closed():
-                        should_suppress = True
-                except RuntimeError:
-                    # No running loop - try to get the event loop
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_closed():
-                            should_suppress = True
-                    except RuntimeError:
-                        # No event loop available - check error message for loop closure hints
-                        error_msg = str(e).lower()
-                        if any(
-                            hint in error_msg
-                            for hint in ["loop", "event loop", "closed", "is closed"]
-                        ):
-                            should_suppress = True
-            except Exception:
-                # If checking loop state itself fails, inspect error message as fallback
-                error_msg = str(e).lower()
-                if any(hint in error_msg for hint in ["loop", "event loop", "closed"]):
-                    should_suppress = True
-
-            if should_suppress:
+            if self._is_event_loop_closed(e):
                 logger.debug(
                     "RuntimeError suppressed during client close (event loop closed): %s", e
                 )
             else:
-                # Re-raise: this is a real error that should surface
                 raise

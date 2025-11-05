@@ -215,7 +215,7 @@ class TestApplicationStartupPaths:
             # Симулируем добавление middleware
             test_app.add_middleware(type("TestMiddleware", (), {}))
             middleware_added = True
-        except Exception as exc:
+        except (RuntimeError, TypeError) as exc:
             logger.warning("Middleware injection failed during test: %s", exc)
 
         # Middleware мог быть добавлен или нет, оба варианта валидны
