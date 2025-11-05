@@ -69,22 +69,30 @@ def test_build_pdf_week_debug_branch(
     monkeypatch.setattr(plan_export, "_require_valid_token", lambda: None)
 
     # Build a minimal ASGI scope for Request
-    scope = {"type": "http", "method": "GET", "path": "/api/v1/plan/week/export.pdf", "headers": []}
-    request = Request(scope)  # type: ignore[arg-type]
+    scope: dict[str, Any] = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/plan/week/export.pdf",
+        "headers": [],
+    }
+    request = Request(scope)
 
-    logger = logging.getLogger(plan_export.__name__)
-    prev_level = logger.level
-    logger.setLevel(logging.DEBUG)
+    # Patch logger.isEnabledFor to return True to ensure line 541 is executed
+    original_logger = plan_export.logger
+    original_is_enabled = original_logger.isEnabledFor
+
+    def mock_is_enabled_for(level: int) -> bool:
+        return True if level == logging.DEBUG else original_is_enabled(level)
+
+    monkeypatch.setattr(original_logger, "isEnabledFor", mock_is_enabled_for)
 
     with caplog.at_level(logging.DEBUG, logger=plan_export.__name__):
-        response = plan_export.export_week_pdf(request, lang="en")  # type: ignore[call-arg]
+        response = plan_export.export_week_pdf(request, lang="en")
         # Ensure PDF bytes returned
         assert response.status_code == 200
         assert response.media_type == "application/pdf"
         body = response.body
         assert isinstance(body, (bytes, bytearray)) and len(body) > 0
-
-    logger.setLevel(prev_level)
 
     # Assert that the debug message about story components was emitted
     assert any(
