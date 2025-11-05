@@ -101,6 +101,37 @@ def test_get_recipe_ingredients_for_meal_no_recipe(monkeypatch: pytest.MonkeyPat
     assert app._get_recipe_ingredients_for_meal("None") == []
 
 
+def test_get_recipe_ingredients_missing_recipe_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app.recipe_store, "search_recipes", lambda *args, **kwargs: [{}])
+    assert app._get_recipe_ingredients_for_meal("Soup") == []
+
+
+def test_get_recipe_ingredients_recipe_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+    )
+    monkeypatch.setattr(app.recipe_store, "get_recipe", lambda recipe_id: None)
+    assert app._get_recipe_ingredients_for_meal("Soup") == []
+
+
+def test_get_recipe_ingredients_missing_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+    )
+    monkeypatch.setattr(app.recipe_store, "get_recipe", lambda recipe_id: {})
+    assert app._get_recipe_ingredients_for_meal("Soup") == []
+
+
+def test_get_recipe_ingredients_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+    )
+    monkeypatch.setattr(
+        app.recipe_store, "get_recipe", lambda recipe_id: {"ingredients_json": "{}"}
+    )
+    assert app._get_recipe_ingredients_for_meal("Soup") == []
+
+
 @pytest.mark.asyncio
 async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_aggregate(

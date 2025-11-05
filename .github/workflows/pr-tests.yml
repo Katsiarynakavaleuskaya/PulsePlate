@@ -173,6 +173,7 @@ jobs:
           FEATURE_PREMIUM_NUTRITION: 'true'
           APP_ENV: test
           ENVIRONMENT: test
+          TEST_DB_PATH: cache/test_pr.sqlite
         run: |
           pytest -m "not slow and not monte_carlo and not demo" \
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests

@@ -348,3 +348,57 @@ async def test_api_premium_plate_fallback_aligns_targets(
     assert (
         response.kcal == 2200
     ), f"Expected kcal=2200 from DummyTargets.kcal_daily, got {response.kcal}"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_handles_target_error(
+    premium_plate_fallback_setup: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    def failing_targets(profile: Any) -> None:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(app, "build_nutrition_targets", failing_targets, raising=False)
+    if getattr(app, "app_module", None) is not None:
+        monkeypatch.setattr(
+            app.app_module, "build_nutrition_targets", failing_targets, raising=False
+        )
+
+    response = await app.api_premium_plate(request)
+
+    assert response.kcal == 2976
+    assert response.macros["protein_g"] == 128
+    assert response.macros["fat_g"] == 72
+    assert response.macros["carbs_g"] == 454
+    assert response.macros["fiber_g"] == 25
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(
+    premium_plate_fallback_setup: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    class TargetMacros:
+        protein_g = 120
+        fat_g = 60
+        carbs_g = 180
+        fiber_g = "oops"
+
+    class TargetWithInvalidFiber:
+        kcal_daily = 2400
+        macros = TargetMacros()
+
+    def bad_targets(profile: Any) -> TargetWithInvalidFiber:
+        return TargetWithInvalidFiber()
+
+    monkeypatch.setattr(app, "build_nutrition_targets", bad_targets, raising=False)
+    if getattr(app, "app_module", None) is not None:
+        monkeypatch.setattr(app.app_module, "build_nutrition_targets", bad_targets, raising=False)
+
+    response = await app.api_premium_plate(request)
+
+    assert response.macros["fiber_g"] == app.FIBER_MIN_G

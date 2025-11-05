@@ -4,17 +4,6 @@ from sqlalchemy import create_engine, text
 from core.db import EngineCompat, _derive_async_url, create_async_engine
 
 
-def test_create_async_engine_unavailable() -> None:
-    """Cover lines 49-50: create_async_engine = None when sqlalchemy.asyncio unavailable."""
-    # This is already covered by import-time behavior, but ensure it's tested
-    from core.db import create_async_engine, async_sessionmaker
-
-    # These should be None if sqlalchemy.asyncio is not available
-    # The actual value depends on SQLAlchemy version, so we just check it's defined
-    assert create_async_engine is not None or create_async_engine is None
-    assert async_sessionmaker is not None or async_sessionmaker is None
-
-
 def test_derive_async_url_postgresql_psycopg2() -> None:
     """Cover line 94: postgresql+psycopg2:// replacement."""
     sync_url = "postgresql+psycopg2://user:pass@host/db"
@@ -145,25 +134,89 @@ def test_finalize_transaction_debug_logging(monkeypatch: pytest.MonkeyPatch) -> 
         logger.setLevel(prev_level)
 
 
+def test_finalize_transaction_error_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover line 255: logging branch when not in debug and production."""
+    from core import db
+    from sqlalchemy import exc as sa_exc
+    import logging
+
+    engine = db.EngineCompat(object())
+
+    class FakeConn:
+        rollback_called = False
+
+        def get_transaction(self):
+            return object()
+
+        def commit(self):
+            raise sa_exc.SQLAlchemyError("db fail")
+
+        def rollback(self):
+            self.rollback_called = True
+
+    fake_conn = FakeConn()
+    monkeypatch.setattr(db, "ENVIRONMENT", "production", raising=False)
+    logger = logging.getLogger("core.db")
+    prev_level = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        with pytest.raises(sa_exc.SQLAlchemyError):
+            engine._finalize_transaction(fake_conn)
+    finally:
+        logger.setLevel(prev_level)
+    assert fake_conn.rollback_called is True
+
+
+def test_finalize_transaction_unexpected_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover line 259: unexpected exception branch."""
+    from core import db
+    import logging
+
+    engine = db.EngineCompat(object())
+
+    class FakeConn:
+        rollback_called = False
+
+        def get_transaction(self):
+            return object()
+
+        def commit(self):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            self.rollback_called = True
+
+    fake_conn = FakeConn()
+    logger = logging.getLogger("core.db")
+    prev_level = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        with pytest.raises(RuntimeError):
+            engine._finalize_transaction(fake_conn)
+    finally:
+        logger.setLevel(prev_level)
+    assert fake_conn.rollback_called is True
+
+
 def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 328: skip pool config for sqlite+aiosqlite."""
-    from core.db import create_async_engine
-    import os
+    from core import db
 
-    if create_async_engine is None:
+    if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    # Set async URL to sqlite+aiosqlite
-    monkeypatch.setenv("ASYNC_DATABASE_URL", "sqlite+aiosqlite:///test.db")
+    import importlib
 
-    # This should not crash and should skip pool config
-    # The actual function that uses line 328 is internal to create_async_engine call path
-    # We test that the URL derivation works correctly
-    from core.db import _derive_async_url
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp_async_reload.db")
+    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
 
-    async_url = _derive_async_url("sqlite:///test.db")
-    if async_url:
-        assert async_url.startswith("sqlite+aiosqlite")
+    reloaded = importlib.reload(db)
+    try:
+        async_url = reloaded.ASYNC_DATABASE_URL
+        if async_url:
+            assert async_url.startswith("sqlite+aiosqlite")
+    finally:
+        importlib.reload(reloaded)
 
 
 def test_finalize_transaction_debug_logging_production(monkeypatch: pytest.MonkeyPatch) -> None:

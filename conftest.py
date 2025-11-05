@@ -6,6 +6,7 @@ import os
 import sys
 import pytest
 import importlib.util
+from pathlib import Path
 from fastapi.testclient import TestClient
 from typing import cast
 from starlette.types import ASGIApp
@@ -33,6 +34,14 @@ def init_test_database():
     os.environ.setdefault("ENVIRONMENT", "test")
 
     try:
+        # Configure SQLite database path for tests
+        db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+        db_path = Path(db_path_env)
+        if not db_path.is_absolute():
+            db_path = Path.cwd() / db_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
+
         # Import models first to ensure they're registered with Base.metadata
         import core.models  # noqa: F401
 
