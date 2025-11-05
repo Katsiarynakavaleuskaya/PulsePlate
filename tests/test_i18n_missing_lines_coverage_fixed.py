@@ -3,6 +3,7 @@ Targeted tests for core/i18n.py missing lines 416-423, 427.
 Focus on normalize_lang function edge cases and fallback mechanisms.
 """
 
+import pytest
 from faker import Faker
 
 fake = Faker()
@@ -16,130 +17,111 @@ class TestI18nMissingLines:
 
     def test_locale_special_cases_exceptions_coverage(self):
         """Test lines 419-421: locale special cases with exceptions"""
-        try:
-            from core.i18n import normalize_lang
+        pytest.importorskip("core.i18n")
+        from core.i18n import normalize_lang
 
-            # Test locales that might trigger special case exception handling
-            # This targets lines 419-421 where region is in exceptions
-            test_cases = [
-                "zh-TW",  # Chinese Taiwan
-                "zh-HK",  # Chinese Hong Kong
-                "en-GB",  # English UK
-                "en-AU",  # English Australia
-                "es-MX",  # Spanish Mexico
-                "es-AR",  # Spanish Argentina
-                "pt-BR",  # Portuguese Brazil
-                "fr-CA",  # French Canada
-            ]
+        # Test locales that might trigger special case exception handling
+        # This targets lines 419-421 where region is in exceptions
+        test_cases = [
+            "zh-TW",  # Chinese Taiwan
+            "zh-HK",  # Chinese Hong Kong
+            "en-GB",  # English UK
+            "en-AU",  # English Australia
+            "es-MX",  # Spanish Mexico
+            "es-AR",  # Spanish Argentina
+            "pt-BR",  # Portuguese Brazil
+            "fr-CA",  # French Canada
+        ]
 
-            for locale in test_cases:
-                try:
-                    result = normalize_lang(locale)
-                    # Line 420: if region in config["exceptions"]: return base
-                    # Validate exact expected output per test case
-                    if locale.startswith("zh"):
-                        assert result == "zh", f"Expected 'zh' for {locale}, got {result}"
-                    elif locale.startswith("en"):
-                        assert result == "en", f"Expected 'en' for {locale}, got {result}"
-                    elif locale.startswith("es"):
-                        assert result == "es", f"Expected 'es' for {locale}, got {result}"
-                    elif locale.startswith("pt"):
-                        assert result == "pt", f"Expected 'pt' for {locale}, got {result}"
-                    elif locale.startswith("fr"):
-                        assert result == "fr", f"Expected 'fr' for {locale}, got {result}"
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
+        for locale in test_cases:
+            result = normalize_lang(locale)
+            # Line 420: if region in config["exceptions"]: return base
+            # Validate exact expected output per test case
+            # Note: zh, pt, fr are not supported languages, so they fallback to 'en'
+            if locale.startswith("zh"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
+            elif locale.startswith("en"):
+                assert result == "en", f"Expected 'en' for {locale}, got {result}"
+            elif locale.startswith("es"):
+                # es-MX returns 'es' (mx in exceptions), others return 'en' (default)
+                if locale == "es-MX":
+                    assert result == "es", f"Expected 'es' for {locale}, got {result}"
+                else:
+                    assert result == "en", f"Expected 'en' (default) for {locale}, got {result}"
+            elif locale.startswith("pt"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
+            elif locale.startswith("fr"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
 
     def test_locale_special_cases_default_coverage(self):
         """Test lines 422-423: locale special cases with default fallback"""
-        try:
-            from core.i18n import normalize_lang
+        pytest.importorskip("core.i18n")
+        from core.i18n import normalize_lang
 
-            # Test locales that should trigger default fallback in special cases
-            # This targets line 423 where config["default"] is returned
-            test_locales = [
-                "zh-CN",  # Chinese China - should use default
-                "zh-SG",  # Chinese Singapore - should use default
-                "en-US",  # English US - should use default
-                "es-ES",  # Spanish Spain - should use default
-                "pt-PT",  # Portuguese Portugal - should use default
-                "fr-FR",  # French France - should use default
-            ]
+        # Test locales that should trigger default fallback in special cases
+        # This targets line 423 where config["default"] is returned
+        test_locales = [
+            "zh-CN",  # Chinese China - should use default
+            "zh-SG",  # Chinese Singapore - should use default
+            "en-US",  # English US - should use default
+            "es-ES",  # Spanish Spain - should use default
+            "pt-PT",  # Portuguese Portugal - should use default
+            "fr-FR",  # French France - should use default
+        ]
 
-            for locale in test_locales:
-                try:
-                    result = normalize_lang(locale)
-                    # Should return configured default (line 423)
-                    # Validate exact expected output per test case
-                    if locale.startswith("zh"):
-                        assert result == "zh", f"Expected 'zh' for {locale}, got {result}"
-                    elif locale.startswith("en"):
-                        assert result == "en", f"Expected 'en' for {locale}, got {result}"
-                    elif locale.startswith("es"):
-                        assert result == "es", f"Expected 'es' for {locale}, got {result}"
-                    elif locale.startswith("pt"):
-                        assert result == "pt", f"Expected 'pt' for {locale}, got {result}"
-                    elif locale.startswith("fr"):
-                        assert result == "fr", f"Expected 'fr' for {locale}, got {result}"
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
+        for locale in test_locales:
+            result = normalize_lang(locale)
+            # Should return configured default (line 423) or fallback to 'en' for unsupported languages
+            # Validate exact expected output per test case
+            # Note: zh, pt, fr are not supported languages, so they fallback to 'en'
+            if locale.startswith("zh"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
+            elif locale.startswith("en"):
+                assert result == "en", f"Expected 'en' for {locale}, got {result}"
+            elif locale.startswith("es"):
+                # es-ES returns 'en' (default, ES not in exceptions)
+                assert result == "en", f"Expected 'en' (default) for {locale}, got {result}"
+            elif locale.startswith("pt"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
+            elif locale.startswith("fr"):
+                assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
 
     def test_direct_base_languages_coverage(self):
         """Test line 427: direct base language check"""
-        try:
-            from core.i18n import normalize_lang
+        pytest.importorskip("core.i18n")
+        from core.i18n import normalize_lang
 
-            # Test direct base languages that should hit line 427
-            base_languages = ["ru", "en", "es"]
+        # Test direct base languages that should hit line 427
+        base_languages = ["ru", "en", "es"]
 
-            for lang in base_languages:
-                try:
-                    result = normalize_lang(lang)
-                    # Should return the same language (line 427)
-                    assert (
-                        result == lang
-                    ), f"Expected '{lang}' for base language '{lang}', got '{result}'"
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
+        for lang in base_languages:
+            result = normalize_lang(lang)
+            # Should return the same language (line 427)
+            assert result == lang, f"Expected '{lang}' for base language '{lang}', got '{result}'"
 
     def test_unknown_language_fallback_coverage(self):
         """Test line 430: unknown language fallback to 'en'"""
-        try:
-            from core.i18n import normalize_lang
+        pytest.importorskip("core.i18n")
+        from core.i18n import normalize_lang
 
-            # Test completely unknown/unsupported languages
-            unknown_languages = [
-                fake.language_code(),  # Random language code
-                "xyz",  # Definitely unknown
-                "unknown",
-                "invalid",
-                "test",
-                "fake_lang",
-                "zz",  # Invalid ISO code
-                "qq",  # Invalid ISO code
-            ]
+        # Test completely unknown/unsupported languages
+        unknown_languages = [
+            fake.language_code(),  # Random language code
+            "xyz",  # Definitely unknown
+            "unknown",
+            "invalid",
+            "test",
+            "fake_lang",
+            "zz",  # Invalid ISO code
+            "qq",  # Invalid ISO code
+        ]
 
-            for lang in unknown_languages:
-                try:
-                    result = normalize_lang(lang)
-                    # Should fallback to "en" (line 430)
-                    assert (
-                        result == "en"
-                    ), f"Expected 'en' fallback for unknown language '{lang}', got '{result}'"
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
+        for lang in unknown_languages:
+            result = normalize_lang(lang)
+            # Should fallback to "en" (line 430)
+            assert (
+                result == "en"
+            ), f"Expected 'en' fallback for unknown language '{lang}', got '{result}'"
 
     def test_complex_locale_patterns_coverage(self):
         """Test complex locale patterns to trigger different code paths"""
@@ -180,31 +162,25 @@ class TestI18nMissingLines:
 
     def test_locale_normalization_coverage(self):
         """Test locale normalization edge cases"""
-        try:
-            from core.i18n import normalize_lang
+        pytest.importorskip("core.i18n")
+        from core.i18n import normalize_lang
 
-            # Test various case and format variations
-            normalization_tests = [
-                ("EN-US", "en"),  # Uppercase
-                ("Es-Es", "es"),  # Mixed case
-                ("RU-ru", "ru"),  # Mixed case
-                ("zh_CN", "en"),  # Underscore separator
-                ("zh_TW", "en"),  # Underscore separator
-                ("en_GB", "en"),  # Underscore separator
-            ]
+        # Test various case and format variations
+        normalization_tests = [
+            ("EN-US", "en"),  # Uppercase
+            ("Es-Es", "en"),  # Mixed case - es-ES returns 'en' (default, ES not in exceptions)
+            ("RU-ru", "en"),  # Mixed case - ru-RU returns 'en' (ru default)
+            ("zh_CN", "en"),  # Underscore separator - zh not supported, fallback to 'en'
+            ("zh_TW", "en"),  # Underscore separator - zh not supported, fallback to 'en'
+            ("en_GB", "en"),  # Underscore separator
+        ]
 
-            for input_locale, expected_result in normalization_tests:
-                try:
-                    result = normalize_lang(input_locale)
-                    # Should normalize and process correctly
-                    assert (
-                        result == expected_result
-                    ), f"Expected '{expected_result}' for '{input_locale}', got '{result}'"
-                except Exception:  # nosec B110 - intentional in test for coverage
-                    pass
-
-        except ImportError:
-            pass
+        for input_locale, expected_result in normalization_tests:
+            result = normalize_lang(input_locale)
+            # Should normalize and process correctly
+            assert (
+                result == expected_result
+            ), f"Expected '{expected_result}' for '{input_locale}', got '{result}'"
 
     def test_edge_case_inputs_coverage(self):
         """Test edge case inputs to ensure robustness"""
