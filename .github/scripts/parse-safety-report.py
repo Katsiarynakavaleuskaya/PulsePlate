@@ -6,15 +6,16 @@ Reads safety-report.json, writes safety-report.txt, prints summary,
 and exits with appropriate status codes:
 - 0: No vulnerabilities found
 - 2: Medium/Low severity vulnerabilities found
-- 10: High/Critical severity vulnerabilities found
-- 99: Safety report JSON was not generated
+- 10: High/Critical/Unknown severity vulnerabilities found (unknown treated as high risk)
+- 99: Safety report JSON was not generated or could not be parsed
 """
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
-report_path = Path("safety-report.json")
-summary_path = Path("safety-report.txt")
+report_path: Path = Path("safety-report.json")
+summary_path: Path = Path("safety-report.txt")
 
 if not report_path.exists():
     summary_path.write_text("Safety report JSON was not generated.\n")
@@ -31,7 +32,7 @@ vulns = data.get("vulnerabilities", []) or []
 ignored = data.get("ignored_vulnerabilities", []) or []
 
 
-def base_severity(entry: dict) -> str:
+def base_severity(entry: Dict[str, Any]) -> str:
     """Extract base severity from a vulnerability entry."""
     severity = entry.get("severity") or {}
     for key in ("cvssv3", "cvssv2"):
@@ -43,7 +44,7 @@ def base_severity(entry: dict) -> str:
     base = severity.get("max_severity") or severity.get("severity") or severity.get("level")
     if isinstance(base, str):
         return base.upper()
-    return ""
+    return "UNKNOWN"
 
 
 def build_lines() -> list[str]:
@@ -71,12 +72,16 @@ def build_lines() -> list[str]:
 lines = build_lines()
 summary_path.write_text("\n".join(lines) + "\n")
 
-high_or_critical = [item for item in vulns if base_severity(item) in {"HIGH", "CRITICAL"}]
-medium_or_low = [item for item in vulns if base_severity(item) not in {"HIGH", "CRITICAL"}]
+high_or_critical = [
+    item for item in vulns if base_severity(item) in {"HIGH", "CRITICAL", "UNKNOWN"}
+]
+medium_or_low = [
+    item for item in vulns if base_severity(item) not in {"HIGH", "CRITICAL", "UNKNOWN"}
+]
 
 print("=== Safety Report Summary ===")
 print("\n".join(lines))
-print(f"\nHigh/Critical findings: {len(high_or_critical)}")
+print(f"\nHigh/Critical/Unknown findings: {len(high_or_critical)}")
 print(f"Other findings: {len(medium_or_low)}")
 
 if high_or_critical:

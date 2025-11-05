@@ -1,0 +1,41 @@
+name: 'Initialize Test Database'
+description: 'Initialize test database schema and verify tables'
+inputs:
+  pythonpath:
+    description: 'PYTHONPATH environment variable value'
+    required: false
+    default: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+runs:
+  using: 'composite'
+  steps:
+    - name: Initialize test database
+      shell: bash
+      env:
+        APP_ENV: test
+        ENVIRONMENT: test
+        PYTHONPATH: ${{ inputs.pythonpath }}
+      run: |
+        # Ensure database directory exists
+        mkdir -p cache
+
+        # Initialize database schema (create tables)
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        import core.models  # noqa: F401 - ensure models are registered
+        from core.db import init_db
+        init_db()
+        print('✅ Database initialized successfully')
+        "
+        # Verify tables were created
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        from core.db import session_scope
+        from sqlalchemy import inspect
+        with session_scope() as session:
+            inspector = inspect(session.bind)
+            tables = inspector.get_table_names()
+            print(f'✅ Found {len(tables)} tables: {', '.join(tables)}')
+            assert 'users' in tables, 'users table not found'
+        "

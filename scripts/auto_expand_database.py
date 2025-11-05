@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RU: Скрипт для автоматического расширения базы данных продуктов.
-EN: Script for automatic expansion of product database.
+Script to automatically expand the product database.
 
-Этот скрипт анализирует рецепты, находит недостающие продукты
-и автоматически добавляет их в базу данных из бесплатных источников.
+This utility analyzes recipes, finds missing products, and automatically adds
+them to the database from free/open sources.
 """
 
 import logging
 import sys
 from pathlib import Path
 
-# Добавляем корневую директорию в путь
+# Add the project root to the import path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.product_finder import ProductFinder
 from core.recipe_db import parse_recipe_db
 
-# Настройка логирования
+# Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -30,22 +29,22 @@ def main() -> None:
     logger.info("🚀 Starting automatic database expansion")
 
     try:
-        # Инициализируем поисковик продуктов
+        # Initialize the product finder
         finder = ProductFinder()
         logger.info("✅ Product finder initialized")
 
-        # Загружаем рецепты (food_db not needed for ingredient parsing only)
+        # Load recipes (food_db not required when only parsing ingredients)
         recipes = parse_recipe_db("data/recipes_extended.csv")
         logger.info(f"📚 Loaded {len(recipes)} recipes")
 
-        # Получаем все ингредиенты из рецептов
+        # Collect all ingredients from recipes
         all_ingredients: list[str] = []
         for recipe in recipes.values():
             all_ingredients.extend(recipe.ingredients.keys())
 
         logger.info(f"🥘 Found {len(all_ingredients)} unique ingredients")
 
-        # Находим недостающие продукты
+        # Find missing products
         missing_products = finder.find_missing_products(all_ingredients)
         logger.info(f"❌ Found {len(missing_products)} missing products")
 
@@ -53,16 +52,16 @@ def main() -> None:
             logger.info("🎉 All products are already in the database!")
             return
 
-        # Показываем недостающие продукты
+        # Display missing products
         logger.info("📋 Missing products:")
         for i, product in enumerate(missing_products, 1):
             logger.info(f"  {i}. {product}")
 
-        # Запускаем автоматическое расширение
-        logger.info("🔍 Starting product search and addition...")
+        # Start automatic expansion
+        logger.info("🔍 Starting product search and addition…")
         results = finder.auto_expand_database(all_ingredients)
 
-        # Показываем результаты
+        # Display results
         logger.info("📊 Expansion results:")
         successful = 0
         failed = 0
@@ -77,7 +76,7 @@ def main() -> None:
 
         logger.info(f"📈 Summary: {successful} successful, {failed} failed")
 
-        # Показываем статистику базы данных
+        # Show database statistics
         updated_food_db = finder.food_db
         logger.info(f"📊 Database now contains {len(updated_food_db)} products")
 

@@ -68,7 +68,7 @@ class ProductFinder:
 
     DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
 
-    def __init__(self, min_confidence_threshold: float = 0.3):
+    def __init__(self, min_confidence_threshold: float = 0.3) -> None:
         """
         Initialize the product finder.
 

@@ -21,7 +21,7 @@ class BMRRequest(BaseModel):
     age: int = Field(..., ge=0, le=120)
     sex: str = Field(..., pattern="^(male|female)$")
     activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
-    bodyfat: Optional[float] = Field(None, ge=0, le=60)
+    bodyfat: Optional[float] = Field(None, gt=0, le=60)
     lang: Language = "en"
 
 

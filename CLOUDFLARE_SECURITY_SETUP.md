@@ -25,6 +25,7 @@
 ### 2. HSTS (HTTP Strict Transport Security)
 
 **SSL/TLS** → **Edge Certificates** → **HTTP Strict Transport Security (HSTS)**:
+
 - ✅ Enable HSTS
 - Max Age: **6 months** (минимум для начала)
 - ✅ Include SubDomains
@@ -33,6 +34,7 @@
 ### 3. WAF (Web Application Firewall)
 
 **Security** → **WAF**:
+
 - ✅ Enable WAF
 - Выберите **Managed Rules**:
   - Cloudflare Managed Ruleset (базовые правила) ✅
@@ -44,11 +46,13 @@
 
 **Rule name:** `API Rate Limit`
 **Rule expression:**
+
 ```text
 ((http.request.uri.path starts_with "/api/v1/admin/" or http.request.uri.path starts_with "/api/v1/premium/") and http.request.method == "POST" and http.host eq "pulseplate.app")
 ```
 
 **Threshold:**
+
 - Requests: `10`
 - Period: `1 minute`
 
@@ -81,12 +85,14 @@
 ### 5. Bot Fight Mode
 
 **Security** → **Bots**:
+
 - **Bot Fight Mode**: ON (soft mode, не блокирует полностью)
 - Это защитит от простых ботов без блокировки реальных пользователей
 
 ### 6. DNS настройки
 
 **DNS** → **Records**:
+
 - Добавьте A-запись: `@` → `your-server-ip` → **Proxied** (оранжевое облако) ✅
 - Добавьте A-запись: `www` → `your-server-ip` → **Proxied** ✅
 
@@ -129,8 +135,14 @@ curl -I https://pulseplate.app/health
 # HSTS заголовок
 curl -I https://pulseplate.app/health | grep -i strict-transport
 
-# Rate limit (должен блокировать после 10 запросов)
-for i in {1..15}; do curl -s -o /dev/null -w "%{http_code}\n" https://pulseplate.app/api/v1/admin/status; done
+# Rate limit (правило выше применимо к POST – проверяем POST)
+# Если эндпоинт требует тело/заголовки, добавьте минимальные:
+#   -X POST -H 'Content-Type: application/json' -d '{}'
+for i in {1..15}; do \
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    -X POST -H 'Content-Type: application/json' -d '{}' \
+    https://pulseplate.app/api/v1/admin/status; \
+done
 ```
 
 ## ⚠️ Важно для соло-разработки

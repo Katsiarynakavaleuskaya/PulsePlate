@@ -8,9 +8,10 @@ for calculating BMR and TDEE using multiple formulas.
 """
 
 import logging
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Dict, Optional
 
 import requests  # type: ignore[import-untyped]
+from pydantic import BaseModel, Field, field_validator
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -24,87 +25,56 @@ from app.schemas.bmr import BMRResponse
 logger = logging.getLogger(__name__)
 
 
-class BMRParams(TypedDict):
-    """Type-safe parameters for BMR calculations"""
+class BMRParams(BaseModel):
+    """Pydantic model for BMR calculation parameters with validation."""
 
-    weight_kg: float
-    height_cm: float
-    age: int
-    sex: str
-    lang: str
+    weight_kg: float = Field(gt=0, description="Weight in kilograms")
+    height_cm: float = Field(gt=0, description="Height in centimeters")
+    age: int = Field(ge=0, le=120, description="Age in years")
+    sex: str = Field(description="Biological sex")
+    activity: str = Field(description="Activity level")
+    lang: str = Field(default="en", description="Language code")
+
+    @field_validator("sex")
+    @classmethod
+    def validate_sex(cls, v: str) -> str:
+        """Validate sex field."""
+        if v not in ("male", "female"):
+            raise ValueError(f"sex must be 'male' or 'female', got {v}")
+        return v
+
+    @field_validator("activity")
+    @classmethod
+    def validate_activity(cls, v: str) -> str:
+        """Validate activity field."""
+        valid_activities = ("sedentary", "light", "moderate", "active", "very_active")
+        if v not in valid_activities:
+            raise ValueError(f"activity must be one of {valid_activities}, got {v}")
+        return v
+
+    @field_validator("lang")
+    @classmethod
+    def validate_lang(cls, v: str) -> str:
+        """Validate lang field."""
+        if v not in ("en", "ru"):
+            raise ValueError(f"lang must be 'en' or 'ru', got {v}")
+        return v
 
 
 def validate_bmr_params(params: Dict[str, Any]) -> BMRParams:
     """
-    Validate and convert BMR parameters with runtime type checking.
+    Validate and convert BMR parameters using Pydantic model.
 
     Args:
         params: Dictionary containing BMR parameters
 
     Returns:
-        Validated BMRParams TypedDict instance
+        Validated BMRParams instance
 
     Raises:
-        ValueError: If any required field is missing or has invalid type/value
-        TypeError: If type conversion fails
+        pydantic.ValidationError: If validation fails
     """
-    # Validate weight_kg
-    if "weight_kg" not in params:
-        raise ValueError("Missing required field: weight_kg")
-    weight_kg = params["weight_kg"]
-    if not isinstance(weight_kg, (int, float)):
-        raise TypeError(f"weight_kg must be float, got {type(weight_kg).__name__}")
-    weight_kg_float = float(weight_kg)
-    if weight_kg_float <= 0:
-        raise ValueError(f"weight_kg must be positive, got {weight_kg_float}")
-
-    # Validate height_cm
-    if "height_cm" not in params:
-        raise ValueError("Missing required field: height_cm")
-    height_cm = params["height_cm"]
-    if not isinstance(height_cm, (int, float)):
-        raise TypeError(f"height_cm must be float, got {type(height_cm).__name__}")
-    height_cm_float = float(height_cm)
-    if height_cm_float <= 0:
-        raise ValueError(f"height_cm must be positive, got {height_cm_float}")
-
-    # Validate age
-    if "age" not in params:
-        raise ValueError("Missing required field: age")
-    age = params["age"]
-    if not isinstance(age, int):
-        if isinstance(age, float) and age.is_integer():
-            age = int(age)
-        else:
-            raise TypeError(f"age must be int, got {type(age).__name__}")
-    if age < 0 or age > 120:
-        raise ValueError(f"age must be between 0 and 120, got {age}")
-
-    # Validate sex
-    if "sex" not in params:
-        raise ValueError("Missing required field: sex")
-    sex = params["sex"]
-    if not isinstance(sex, str):
-        raise TypeError(f"sex must be str, got {type(sex).__name__}")
-    if sex not in ("male", "female"):
-        raise ValueError(f"sex must be 'male' or 'female', got {sex}")
-
-    # Validate lang
-    if "lang" not in params:
-        raise ValueError("Missing required field: lang")
-    lang = params["lang"]
-    if not isinstance(lang, str):
-        raise TypeError(f"lang must be str, got {type(lang).__name__}")
-    if lang not in ("en", "ru"):
-        raise ValueError(f"lang must be 'en' or 'ru', got {lang}")
-
-    return BMRParams(
-        weight_kg=weight_kg_float,
-        height_cm=height_cm_float,
-        age=age,
-        sex=sex,
-        lang=lang,
-    )
+    return BMRParams.model_validate(params)
 
 
 def _should_retry_http_error(exception: BaseException) -> bool:
@@ -206,8 +176,10 @@ def call_premium_bmr_api(
         Validated BMRResponse model instance with BMR, TDEE, and recommendations
 
     Note:
-        The returned BMRResponse is a Pydantic BaseModel. Use attribute access
-        (result.bmr, result.tdee, result.activity_level) instead of dict-style indexing.
+        The returned BMRResponse is a Pydantic BaseModel. Use attribute access for
+        top-level fields (e.g., result.bmr, result.tdee, result.activity_level).
+        Nested fields like bmr/tdee/recommended_intake are dictionaries, so access
+        their items via keys (e.g., result.bmr["mifflin"], result.tdee["mifflin"]).
 
     Raises:
         requests.exceptions.Timeout: If all retry attempts timeout
@@ -432,7 +404,7 @@ def main() -> None:
     print("-" * 35)
 
     activities = ["sedentary", "light", "moderate", "active", "very_active"]
-    # Validate base parameters once before the loop
+    # Base parameters without activity (will be added per iteration)
     base_params_raw: Dict[str, Any] = {
         "weight_kg": 70.0,
         "height_cm": 175.0,
@@ -440,20 +412,23 @@ def main() -> None:
         "sex": "male",
         "lang": "en",
     }
-    base_params = validate_bmr_params(base_params_raw)
 
     print("Activity Level    | TDEE (Mifflin)")
     print("-" * 35)
 
     for activity in activities:
         try:
+            # Include activity in params and validate
+            params_with_activity = {**base_params_raw, "activity": activity}
+            validated_params = validate_bmr_params(params_with_activity)
+            # Call API by unpacking validated params (Pydantic model supports dict-style access)
             result = call_premium_bmr_api(
-                activity=activity,
-                weight_kg=base_params["weight_kg"],
-                height_cm=base_params["height_cm"],
-                age=base_params["age"],
-                sex=base_params["sex"],
-                lang=base_params["lang"],
+                weight_kg=validated_params.weight_kg,
+                height_cm=validated_params.height_cm,
+                age=validated_params.age,
+                sex=validated_params.sex,
+                activity=validated_params.activity,
+                lang=validated_params.lang,
             )
             tdee = result.tdee["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")

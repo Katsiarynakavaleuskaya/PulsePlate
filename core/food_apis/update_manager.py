@@ -20,7 +20,18 @@ import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -124,6 +135,24 @@ class DatabaseUpdateManager:
     - Notification system for update events
     """
 
+    _OFF_SQLITE_FILENAME: ClassVar[str] = "off.sqlite"
+    _OFF_JSONL_PATTERNS: ClassVar[List[str]] = [
+        "*.openfoodfacts.org.products.jsonl",
+        "*.openfoodfacts.org.products.ndjson",
+        "*off*.jsonl",
+        "*off*.ndjson",
+        "*products*.jsonl",
+        "*products*.ndjson",
+    ]
+    _OFF_CSV_PATTERNS: ClassVar[List[str]] = [
+        "*.openfoodfacts.org.products.csv",
+        "*.csv",
+        "*.tsv",
+        "*_export.csv",
+        "*off*.csv",
+        "*products*.csv",
+    ]
+
     def __init__(
         self,
         cache_dir: str | Path = "cache/food_db",
@@ -184,6 +213,27 @@ class DatabaseUpdateManager:
         # Convert to sorted JSON string for consistent hashing
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
+
+    def _find_off_export_file(self, cache_dir: Path, file_types: Sequence[str]) -> Optional[Path]:
+        """Return a deterministically selected OFF export file for the given types.
+
+        Selection strategy:
+        - Collect matches for each pattern
+        - Sort by modification time (newest first) to prefer the most recent export
+        - Return the single chosen Path for stable, repeatable behavior
+        """
+        pattern_map: dict[str, List[str]] = {
+            "jsonl": self._OFF_JSONL_PATTERNS,
+            "csv": self._OFF_CSV_PATTERNS,
+        }
+        for file_type in file_types:
+            for pattern in pattern_map.get(file_type, []):
+                matches = list(cache_dir.glob(pattern))
+                if matches:
+                    # Deterministic selection: newest by modification time
+                    matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    return matches[0]
+        return None
 
     async def check_for_updates(self) -> Dict[str, bool]:
         """
@@ -488,28 +538,9 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
-            # Fetch actual record count from cache-backed DB; fall back to len(unified_foods) if helper returns 0/None
-            actual_record_count = await self._get_actual_record_count(source)
-            if actual_record_count == 0:
-                actual_record_count = len(unified_foods)
-
-            # Always prefer cache-backed data for checksum calculation to ensure consistency
-            # Fallback to in-memory unified_foods only if cache data is unavailable/empty
-            cache_data = await self._get_cache_data_for_checksum(source)
-            if not cache_data:
-                # Fallback to unified_foods if cache data is empty/None
-                checksum = self._calculate_checksum(
-                    {name: self._food_to_dict(food) for name, food in unified_foods.items()}
-                )
-            else:
-                checksum = self._calculate_checksum(cache_data)
-
-            # Validation: ensure record_count > 0 for non-empty ingestions
-            if actual_record_count == 0:
-                logger.warning(
-                    f"No records found in {source} database. This may indicate an empty cache."
-                )
-                logger.warning("Consider running the ingestion pipeline to populate the database.")
+            actual_record_count, checksum = await self._get_validated_record_count_and_checksum(
+                source, unified_foods
+            )
 
             # Update version tracking
             new_db_version = DatabaseVersion(
@@ -566,7 +597,7 @@ class DatabaseUpdateManager:
             cache_dir = Path(self.cache_dir)
             if source == "openfoodfacts":
                 # Check for SQLite database first
-                sqlite_file = cache_dir / "off.sqlite"
+                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
                 if sqlite_file.exists():
                     import sqlite3
 
@@ -578,33 +609,16 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                # Check for OFF export files using glob patterns
-                patterns = [
-                    "*.openfoodfacts.org.products.csv",
-                    "*.openfoodfacts.org.products.jsonl",
-                    "*.openfoodfacts.org.products.ndjson",
-                    "*off*.jsonl",
-                    "*off*.ndjson",
-                    "*products*.csv",
-                    "*products*.jsonl",
-                    "*products*.ndjson",
-                ]
-
-                for pattern in patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        # Use the first matching file
-                        file_path = matching_files[0]
-                        if file_path.suffix == ".csv":
-                            # For CSV, subtract header
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                count = sum(1 for _ in f)
-                                return int(max(0, count - 1))
-                        else:
-                            # For JSONL/NDJSON, count lines
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                count = sum(1 for _ in f)
-                                return int(count)
+                export_file = self._find_off_export_file(cache_dir, ("jsonl", "csv"))
+                if export_file:
+                    if export_file.suffix in {".csv", ".tsv"}:
+                        with export_file.open("r", encoding="utf-8") as f:
+                            count = sum(1 for _ in f)
+                            return int(max(0, count - 1))
+                    else:
+                        with export_file.open("r", encoding="utf-8") as f:
+                            count = sum(1 for _ in f)
+                            return int(count)
 
             # If no database files found, return 0
             logger.warning("No database files found for %s", source)
@@ -620,7 +634,7 @@ class DatabaseUpdateManager:
             cache_dir = self.cache_dir
             if source == "openfoodfacts":
                 # Try to get data from SQLite cache
-                sqlite_file = cache_dir / "off.sqlite"
+                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
                 if sqlite_file.exists():
                     import sqlite3
 
@@ -641,61 +655,58 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                # Fallback to JSON/CSV files
+                json_export = self._find_off_export_file(cache_dir, ("jsonl",))
+                if json_export:
+                    cache_data = {}
+                    with json_export.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                data = json.loads(line.strip())
+                            except json.JSONDecodeError:
+                                continue
+                            if isinstance(data, dict) and "name" in data:
+                                cache_data[data["name"]] = data
+                    return cache_data
 
-                # Check for JSONL/NDJSON files first
-                jsonl_patterns = [
-                    "*.openfoodfacts.org.products.jsonl",
-                    "*.openfoodfacts.org.products.ndjson",
-                    "*off*.jsonl",
-                    "*off*.ndjson",
-                    "*products*.jsonl",
-                    "*products*.ndjson",
-                ]
+                csv_export = self._find_off_export_file(cache_dir, ("csv",))
+                if csv_export:
+                    cache_data = {}
+                    with csv_export.open("r", encoding="utf-8") as f:
+                        import csv
 
-                # Check for CSV files
-                csv_patterns = [
-                    "*.csv",
-                    "*.tsv",
-                    "*_export.csv",
-                    "*off*.csv",
-                    "*products*.csv",
-                ]
-
-                # Try JSONL/NDJSON files first
-                for pattern in jsonl_patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        file_path = matching_files[0]
-                        cache_data = {}
-                        with file_path.open("r", encoding="utf-8") as f:
-                            for line in f:
-                                try:
-                                    data = json.loads(line.strip())
-                                    if "name" in data:
-                                        cache_data[data["name"]] = data
-                                except json.JSONDecodeError:
-                                    continue
-                        return cache_data
-
-                # Try CSV files
-                for pattern in csv_patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        file_path = matching_files[0]
-                        cache_data = {}
-                        with file_path.open("r", encoding="utf-8") as f:
-                            import csv
-
-                            reader = csv.DictReader(f)
-                            for row in reader:
-                                if "name" in row:
-                                    cache_data[row["name"]] = row
-                        return cache_data
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            if isinstance(row, dict) and "name" in row:
+                                cache_data[row["name"]] = row
+                    return cache_data
         except Exception as e:
             logger.warning("Could not get cache data for checksum for %s: %s", source, e)
 
         return {}
+
+    async def _get_validated_record_count_and_checksum(
+        self, source: str, unified_foods: Dict[str, UnifiedFoodItem]
+    ) -> tuple[int, str]:
+        """Return record count and checksum with cache-aware fallbacks."""
+        record_count = await self._get_actual_record_count(source)
+        if record_count == 0:
+            record_count = len(unified_foods)
+
+        cache_data = await self._get_cache_data_for_checksum(source)
+        if cache_data:
+            checksum = self._calculate_checksum(cache_data)
+        else:
+            checksum = self._calculate_checksum(
+                {name: self._food_to_dict(food) for name, food in unified_foods.items()}
+            )
+
+        if record_count == 0:
+            logger.warning(
+                "No records found in %s database. This may indicate an empty cache.", source
+            )
+            logger.warning("Consider running the ingestion pipeline to populate the database.")
+
+        return record_count, checksum
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""

@@ -4,7 +4,11 @@
 
 (Free-form description of changes, e.g., "Fix crash in BMI calculation when height is zero")
 
-- [ ] Change type: bug fix / feature / refactor / docs
+- [ ] Select one change type:
+  - [ ] Bug fix
+  - [ ] Feature
+  - [ ] Refactor
+  - [ ] Docs
 - [ ] Linked issues/PRs: #
 
 ## Risk & Impact
@@ -35,7 +39,21 @@
 
 ### For Simple Changes
 
-- How to roll back / feature flag (if needed)
+Use this checklist to confirm the PR is truly simple:
+
+- [ ] No database/schema/migration changes
+- [ ] No public API contract changes (endpoints, request/response, events)
+- [ ] Covered by existing tests (or adds ≤ 1-2 focused unit tests)
+- [ ] < 50 LOC changed (excluding tests/docs)
+- [ ] No performance or security impact
+
+Example: Copy change in docs, minor log level tweak, small refactor of a pure function.
+
+Rollback / Feature flag (brief):
+
+- How to revert: describe the commit to revert or config to change
+- Feature flag/toggle (if any): name and how to disable
+- Owner for emergency contact: @username
 
 ### For Complex/High-Risk Changes
 

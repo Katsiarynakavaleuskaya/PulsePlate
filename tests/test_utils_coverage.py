@@ -19,7 +19,7 @@ class TestUtilsCoverage:
         class BadCandidate:
             def __getattribute__(self, name):
                 if name == "__class__":
-                    raise Exception("Simulated exception during mock detection")
+                    raise TypeError("Simulated exception during mock detection")
                 return super().__getattribute__(name)
 
         bad_candidate = BadCandidate()
@@ -120,7 +120,7 @@ class TestUtilsCoverage:
             def __getattribute__(self, name: str):
                 # Raise when Python tries to check isinstance by accessing __class__
                 if name == "__class__":
-                    raise Exception("Custom __getattribute__ raises")
+                    raise AttributeError("Custom __getattribute__ raises")
                 return super().__getattribute__(name)
 
         bad_candidate = CustomGetAttribute()

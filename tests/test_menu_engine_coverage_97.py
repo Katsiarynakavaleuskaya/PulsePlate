@@ -98,7 +98,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_383_393(self):
         """Test make_weekly_menu error handling coverage for lines 383-393."""
         # Test with invalid activity level
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             make_weekly_menu(
                 weight_kg=70, height_cm=175, age=30, sex="male", activity="invalid_activity"
             )
@@ -106,7 +106,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_472_471(self):
         """Test make_weekly_menu error handling coverage for lines 472-471."""
         # Test with invalid sex
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             make_weekly_menu(
                 weight_kg=70, height_cm=175, age=30, sex="invalid_sex", activity="moderate"
             )
