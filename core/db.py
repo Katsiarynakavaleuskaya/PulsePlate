@@ -246,7 +246,9 @@ class EngineCompat:
             conn.commit()
         except sa_exc.SQLAlchemyError as db_err:
             # Avoid exposing sensitive details in production logs
-            safe_message = str(db_err).splitlines()[0]
+            msg = str(db_err) or ""
+            lines = msg.splitlines()
+            safe_message = lines[0] if lines else msg or "<no error message>"
             if logger.isEnabledFor(logging.DEBUG) or ENVIRONMENT != "production":
                 logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
             else:
@@ -278,8 +280,6 @@ class EngineCompat:
             self._finalize_transaction(conn)
             # Return a wrapper that closes connection when result is closed
             # This ensures connection stays open until caller consumes the result
-            if result is None:
-                raise RuntimeError("result should be assigned if execute succeeded")
             return _ResultWithConnectionCleanup(result, conn)
         except Exception:
             self._safe_rollback(conn)

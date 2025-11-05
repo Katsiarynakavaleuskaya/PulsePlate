@@ -6,7 +6,7 @@ import subprocess  # nosec B404
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict, cast
+from typing import Any, Dict, Optional, TypedDict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,12 +16,12 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-VERS = Path("cache/food_db/database_versions.json")
+VERS: Path = Path("cache/food_db/database_versions.json")
 
 # Console preview limit for stdout/stderr (increased from 500)
-CONSOLE_PREVIEW_LIMIT = 1000
+CONSOLE_PREVIEW_LIMIT: int = 1000
 
-CANDIDATES = [
+CANDIDATES: list[str] = [
     "20250924_180009",  # YYYYMMDD_HHMMSS
     "20250924-180009",  # YYYYMMDD-HHMMSS
     "20250924180009",  # YYYYMMDDHHMMSS
@@ -64,6 +64,51 @@ DEFAULT_DATABASE_METADATA: DatabaseVersionsDict = {
 }
 
 
+def _log_validation_error(
+    error_type: str,
+    error_details: str,
+    stdout: str,
+    stderr: str,
+    *,
+    prefix: str,
+) -> None:
+    """Compose, persist, and log a standardized validation error message.
+
+    Builds a full output blob, writes it to a timestamped log file using the provided
+    prefix, creates truncated previews for console readability, and logs a consolidated
+    error message including truncation indicators and the path to the saved log file.
+    """
+    full_output = (
+        f"=== {error_type} ===\n\n"
+        f"{error_details}\n\n"
+        f"=== STDOUT ===\n{stdout}\n\n"
+        f"=== STDERR ===\n{stderr}\n"
+    )
+    log_file = write_log_file(full_output, prefix=prefix)
+
+    stdout_preview = (
+        stdout[:CONSOLE_PREVIEW_LIMIT] if len(stdout) > CONSOLE_PREVIEW_LIMIT else stdout
+    )
+    stderr_preview = (
+        stderr[:CONSOLE_PREVIEW_LIMIT] if len(stderr) > CONSOLE_PREVIEW_LIMIT else stderr
+    )
+
+    msg = f"{error_type}. {error_details} " f"stdout ({len(stdout)} chars): {stdout_preview}"
+    if len(stdout) > CONSOLE_PREVIEW_LIMIT:
+        msg += "... (truncated, see full log)"
+    if stderr:
+        msg += f", stderr ({len(stderr)} chars): {stderr_preview}"
+        if len(stderr) > CONSOLE_PREVIEW_LIMIT:
+            msg += "... (truncated, see full log)"
+
+    if log_file:
+        msg += f"\nFull output saved to: {log_file}"
+    else:
+        msg += "\n(Note: Failed to save full output to log file)"
+
+    logger.error(msg)
+
+
 def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optional[Path]:
     """Write content to a timestamped log file in the logs directory.
 
@@ -89,8 +134,7 @@ def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optio
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = logs_dir / f"{prefix}_{timestamp}.log"
 
-        # Write content using text mode with UTF-8 encoding
-        # Handle large content by writing directly without loading into memory
+        # Write content to file using UTF-8 encoding
         log_file.write_text(content, encoding="utf-8")
 
         return log_file
@@ -117,7 +161,7 @@ def set_version(v: str) -> None:
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         VERS.parent.mkdir(parents=True, exist_ok=True)
-        meta: Dict[str, Any] = cast(Dict[str, Any], copy.deepcopy(DEFAULT_DATABASE_METADATA))
+        meta: Dict[str, Any] = copy.deepcopy(DEFAULT_DATABASE_METADATA)  # type: ignore[arg-type]
         VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
@@ -165,49 +209,13 @@ def validate() -> int:
 
         # First verify returncode is zero
         if process_result.returncode != 0:
-            # Write full output to timestamped log file
-            full_output = (
-                f"=== Validation Error (exit code: {process_result.returncode}) ===\n\n"
-                f"=== STDOUT ===\n{process_result.stdout}\n\n"
-                f"=== STDERR ===\n{process_result.stderr}\n"
+            _log_validation_error(
+                error_type=f"Validation Error (exit code: {process_result.returncode})",
+                error_details="Subprocess returned non-zero exit status",
+                stdout=process_result.stdout,
+                stderr=process_result.stderr,
+                prefix="normalize_off_version_validation_error",
             )
-            log_file = write_log_file(full_output, prefix="normalize_off_version_validation_error")
-
-            # Create console message with truncated preview and log file path
-            stdout_preview = (
-                process_result.stdout[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stdout
-            )
-            stderr_preview = (
-                process_result.stderr[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stderr) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stderr
-            )
-
-            error_msg = (
-                f"Validation script exited with code {process_result.returncode}. "
-                f"stdout ({len(process_result.stdout)} chars): {stdout_preview}"
-                + (
-                    "... (truncated, see full log)"
-                    if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT
-                    else ""
-                )
-                + ", "
-                + f"stderr ({len(process_result.stderr)} chars): {stderr_preview}"
-                + (
-                    "... (truncated, see full log)"
-                    if len(process_result.stderr) > CONSOLE_PREVIEW_LIMIT
-                    else ""
-                )
-            )
-
-            if log_file:
-                error_msg += f"\nFull output saved to: {log_file}"
-            else:
-                error_msg += "\n(Note: Failed to save full output to log file)"
-
-            logger.error(error_msg)
             return 1
 
         # Parse JSON output (canonical success detection method)
@@ -217,110 +225,31 @@ def validate() -> int:
             if isinstance(result_data, dict) and result_data.get("success") is True:
                 return 0
             # JSON parsed but success field is not True
-            # Write full output to timestamped log file
-            full_output = (
-                "=== Validation JSON Parsed But Success Not True ===\n\n"
-                f"result_data: {result_data}\n\n"
-                f"=== STDOUT ===\n{process_result.stdout}\n\n"
-                f"=== STDERR ===\n{process_result.stderr}\n"
+            _log_validation_error(
+                error_type="Validation JSON Parsed But Success Not True",
+                error_details=f"result_data: {result_data}",
+                stdout=process_result.stdout,
+                stderr=process_result.stderr,
+                prefix="normalize_off_version_success_not_true",
             )
-            log_file = write_log_file(full_output, prefix="normalize_off_version_success_not_true")
-
-            # Create console message with truncated preview and log file path
-            stdout_preview = (
-                process_result.stdout[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stdout
-            )
-
-            error_msg = (
-                f"Validation JSON parsed but success is not True. "
-                f"result_data: {result_data}, "
-                f"stdout ({len(process_result.stdout)} chars): {stdout_preview}"
-            )
-            if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT:
-                error_msg += "... (truncated, see full log)"
-
-            if log_file:
-                error_msg += f"\nFull output saved to: {log_file}"
-            else:
-                error_msg += "\n(Note: Failed to save full output to log file)"
-
-            logger.error(error_msg)
             return 1
         except json.JSONDecodeError as e:
-            # JSON parsing failed - log detailed error for debugging
-            # Write full output to timestamped log file
-            full_output = (
-                f"=== Validation JSON Parse Error ===\n\n"
-                f"JSONDecodeError: {e}\n\n"
-                f"=== STDOUT ===\n{process_result.stdout}\n\n"
-                f"=== STDERR ===\n{process_result.stderr}\n"
+            _log_validation_error(
+                error_type="Validation JSON Parse Error",
+                error_details=f"JSONDecodeError: {e}",
+                stdout=process_result.stdout,
+                stderr=process_result.stderr,
+                prefix="normalize_off_version_json_error",
             )
-            log_file = write_log_file(full_output, prefix="normalize_off_version_json_error")
-
-            # Create console message with truncated preview and log file path
-            stdout_preview = (
-                process_result.stdout[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stdout
-            )
-            stderr_preview = (
-                process_result.stderr[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stderr) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stderr
-            )
-
-            error_msg = (
-                f"Failed to parse validation JSON output. "
-                f"JSONDecodeError: {e}, "
-                f"stdout ({len(process_result.stdout)} chars): {stdout_preview}"
-            )
-            if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT:
-                error_msg += "... (truncated, see full log)"
-            error_msg += f", stderr ({len(process_result.stderr)} chars): {stderr_preview}"
-            if len(process_result.stderr) > CONSOLE_PREVIEW_LIMIT:
-                error_msg += "... (truncated, see full log)"
-
-            if log_file:
-                error_msg += f"\nFull output saved to: {log_file}"
-            else:
-                error_msg += "\n(Note: Failed to save full output to log file)"
-
-            logger.error(error_msg)
             return 1
         except AttributeError as e:
-            # Unexpected structure in parsed JSON
-            # Write full output to timestamped log file
-            full_output = (
-                f"=== Validation JSON Structure Error ===\n\n"
-                f"AttributeError: {e}\n\n"
-                f"=== STDOUT ===\n{process_result.stdout}\n\n"
-                f"=== STDERR ===\n{process_result.stderr}\n"
+            _log_validation_error(
+                error_type="Validation JSON Structure Error",
+                error_details=f"AttributeError: {e}",
+                stdout=process_result.stdout,
+                stderr=process_result.stderr,
+                prefix="normalize_off_version_structure_error",
             )
-            log_file = write_log_file(full_output, prefix="normalize_off_version_structure_error")
-
-            # Create console message with truncated preview and log file path
-            stdout_preview = (
-                process_result.stdout[:CONSOLE_PREVIEW_LIMIT]
-                if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT
-                else process_result.stdout
-            )
-
-            error_msg = (
-                f"Unexpected JSON structure from validation script. "
-                f"Error: {e}, "
-                f"stdout ({len(process_result.stdout)} chars): {stdout_preview}"
-            )
-            if len(process_result.stdout) > CONSOLE_PREVIEW_LIMIT:
-                error_msg += "... (truncated, see full log)"
-
-            if log_file:
-                error_msg += f"\nFull output saved to: {log_file}"
-            else:
-                error_msg += "\n(Note: Failed to save full output to log file)"
-
-            logger.error(error_msg)
             return 1
     except subprocess.TimeoutExpired as e:
         error_msg = f"Validation script timed out after 30 seconds: {e}"
@@ -363,6 +292,13 @@ def main() -> int:
         Prints validation results to stdout.
         Modifies cache/food_db/database_versions.json file.
     """
+    if not CANDIDATES:
+        logger.error(
+            "no candidates provided: CANDIDATES list is empty, "
+            "cannot normalize database version. "
+            "Context: expected non-empty list of version string candidates to test."
+        )
+        return 2
     for v in CANDIDATES:
         set_version(v)
         code = validate()

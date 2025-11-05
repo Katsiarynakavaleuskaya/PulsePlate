@@ -22,7 +22,11 @@ class TestMenuEngineCoverage97:
             result = _get_default_food_db()
             # Result should be None or a valid food database
             assert result is None or hasattr(result, "__getitem__")
-        except Exception as exc:  # pragma: no cover - depends on environment
+        except (
+            FileNotFoundError,
+            ValueError,
+            OSError,
+        ) as exc:  # pragma: no cover - depends on environment
             logger.warning("_get_default_food_db raised during test: %s", exc)
 
     def test_get_default_recipe_db_coverage_line_184(self):
@@ -34,7 +38,11 @@ class TestMenuEngineCoverage97:
             result = _get_default_recipe_db()
             # Result should be None or a valid recipe database
             assert result is None or hasattr(result, "__getitem__")
-        except Exception as exc:  # pragma: no cover - depends on environment
+        except (
+            FileNotFoundError,
+            ValueError,
+            OSError,
+        ) as exc:  # pragma: no cover - depends on environment
             logger.warning("_get_default_recipe_db raised during test: %s", exc)
 
     def test_make_weekly_menu_with_none_databases_coverage_lines_183_184(self):
@@ -60,7 +68,7 @@ class TestMenuEngineCoverage97:
                 )
                 # Should return a list of daily menus
                 assert isinstance(result, list)
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.warning("make_weekly_menu raised during optional path test: %s", exc)
 
     def test_make_weekly_menu_error_handling_coverage_lines_250_253(self):

@@ -55,16 +55,7 @@ def _resolve_module_candidate(candidate: Any) -> Optional[Any]:
     except (TypeError, AttributeError):
         # If type checking itself raises (e.g., custom __getattribute__),
         # skip this candidate
-        return None  # nosec B112 - intentional: skip problematic candidate
-    except Exception as unexpected_err:  # noqa: BLE001 - defensive guard for unexpected errors
-        # Log unexpected exceptions at debug level before returning None
-        # to avoid masking unrelated errors while maintaining defensive behavior
-        logger.debug(
-            "Unexpected exception during isinstance check in _resolve_module_candidate: %s",
-            unexpected_err,
-            exc_info=True,
-        )
-        return None  # nosec B112 - intentional: skip problematic candidate
+        return None
 
     if is_string:
         return sys.modules.get(candidate)
