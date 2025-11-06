@@ -295,7 +295,7 @@ class TestGetProviderOllama:
             assert provider is not None
 
             mock_ollama_class.assert_called_once_with(
-                endpoint="http://localhost:11434", model="llama3.1:8b", timeout_s=5.0
+                endpoint="http://localhost:11434", model="llama3.1:8b", timeout_s=1.5
             )
 
     @patch("llm.OllamaProvider")

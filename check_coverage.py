@@ -92,7 +92,7 @@ def run_detailed_coverage() -> bool:
 
     except subprocess.TimeoutExpired:
         print("⏳ Таймаут при создании детального отчета (300s). CI остановлен.")
-        raise
+        return False
     except Exception as e:
         print(f"❌ Ошибка при создании детального отчета: {e}")
         return False
@@ -107,19 +107,25 @@ def main() -> bool:
     coverage_ok = run_coverage_check()
 
     # Детальный отчет
+    detailed_ok = True
     if coverage_ok:
-        run_detailed_coverage()
+        detailed_ok = run_detailed_coverage()
+        if not detailed_ok:
+            print("❌ Не удалось создать детальный отчет (таймаут или ошибка)")
 
     print("\n📋 Рекомендации:")
     if not coverage_ok:
         print("1. Проверьте файлы с низким покрытием")
         print("2. Добавьте тесты для недостающих частей")
         print("3. Запустите: python check_coverage.py")
+    elif not detailed_ok:
+        print("1. Проверьте логи для деталей таймаута/ошибки")
+        print("2. Увеличьте таймаут если необходимо")
     else:
         print("✅ Покрытие в норме!")
         print("📁 Откройте htmlcov/index.html для детального просмотра")
 
-    return coverage_ok
+    return coverage_ok and detailed_ok
 
 
 if __name__ == "__main__":

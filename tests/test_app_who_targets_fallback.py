@@ -40,6 +40,12 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
     def failing_builder(_profile: object) -> object:
         raise ValueError("invalid profile")
 
+    # Patch in all module candidates that _resolve_build_targets_callable checks
+    # This ensures the patch works regardless of which module is found first
+    for module_name in ("app", "app_module", "__main__"):
+        if module_name in sys.modules:
+            monkeypatch.setattr(sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False)
+    # Also patch the local app module reference
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
 
     request = app.WHOTargetsRequest(
@@ -70,6 +76,12 @@ async def test_api_who_targets_fallback_gain_branch(monkeypatch: pytest.MonkeyPa
     def failing_builder(_profile: object) -> object:
         raise RuntimeError("backend unavailable")
 
+    # Patch in all module candidates that _resolve_build_targets_callable checks
+    # This ensures the patch works regardless of which module is found first
+    for module_name in ("app", "app_module", "__main__"):
+        if module_name in sys.modules:
+            monkeypatch.setattr(sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False)
+    # Also patch the local app module reference
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
 
     request = app.WHOTargetsRequest(

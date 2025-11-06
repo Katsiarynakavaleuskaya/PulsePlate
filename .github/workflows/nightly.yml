@@ -49,20 +49,21 @@ jobs:
       - name: Run type checking
         run: |
           echo "Running type checking..."
-          mypy . --config-file pyproject.toml || true
+          mypy . --config-file pyproject.toml
 
       - name: Run security checks
         run: |
           echo "Running security checks..."
-          bandit -r . -f json -o bandit-report.json || true
-          safety check --json || true
+          bandit -r . -f json -o bandit-report.json
+          safety check --json > safety-report.json
 
       - name: Run tests with coverage
         env:
           PYTHONPATH: .
           PYTEST_TIMEOUT: 300
         run: |
-          export START_TIME=$(date +%s)
+          START_TIME=$(date +%s)
+          export START_TIME
           echo "Running test suite..."
           pytest tests/ \
             --cov=. \
@@ -113,6 +114,7 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
+            safety-report.json
           retention-days: 30
 
   performance-test:
@@ -191,6 +193,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
         run: |
+          START_TIME=$(date +%s)
+          export START_TIME
+          echo "START_TIME=$START_TIME" >> $GITHUB_ENV
           echo "Running integration tests..."
           pytest tests/ \
             -m integration \
