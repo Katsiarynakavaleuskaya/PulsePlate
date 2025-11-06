@@ -30,6 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          echo "image_name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Validate environment
         run: |
           echo "🔍 Validating staging environment..."
@@ -42,13 +47,13 @@ jobs:
         run: |
           echo "🐳 Testing Docker image pull..."
           echo ${{ secrets.GHCR_READ_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker pull ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
+          docker pull ghcr.io/${{ steps.image-name.outputs.image_name }}:${{ github.sha }}
           echo "✅ Docker image pull successful"
 
       - name: Test health endpoint locally
         run: |
           echo "🏥 Testing health endpoint locally..."
-          docker run --rm -d --name pulseplate-test -p 8000:8000 ghcr.io/${{ github.repository }}/pulseplate:${{ github.sha }}
+          docker run --rm -d --name pulseplate-test -p 8000:8000 ghcr.io/${{ steps.image-name.outputs.image_name }}:${{ github.sha }}
           sleep 10
           curl -f http://localhost:8000/health || echo "⚠️ Health check failed (expected without frontend)"
           docker stop pulseplate-test
