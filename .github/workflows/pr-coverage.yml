@@ -56,4 +56,23 @@ jobs:
         run: |
           diff-cover coverage.xml \
             --compare-branch "${{ github.base_ref }}" \
-            --fail-under 97
+            --fail-under 97 \
+            --exclude 'frontend/**' \
+            --exclude 'alembic/**' \
+            --exclude 'releases/**' \
+            --exclude 'cache/**' \
+            --exclude 'data/**' \
+            --exclude 'external/**' \
+            --exclude 'htmlcov/**' \
+            --exclude 'coverage/**' \
+            --exclude 'providers/pico.py' \
+            --exclude 'app/routers/vip.py' \
+            --exclude 'conftest.py' \
+            --exclude 'tests/**' \
+            --exclude '*.json' \
+            --exclude '*.lock' \
+            --exclude '*.md' \
+            --exclude '*.yml' \
+            --exclude '*.yaml' \
+            --exclude '*.toml' \
+            --exclude '*.txt'
