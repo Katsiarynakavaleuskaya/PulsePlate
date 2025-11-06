@@ -53,7 +53,9 @@ def test_get_shoplist_uses_generator(monkeypatch: pytest.MonkeyPatch) -> None:
             assert format_type == "csv"
             return {"ok": True}
 
-    monkeypatch.setattr(shoplist, "ShoplistGenerator", DummyGenerator)
+    # Patch the singleton instance, not the class
+    dummy_instance = DummyGenerator()
+    monkeypatch.setattr(shoplist, "_generator", dummy_instance)
     result = shoplist.get_shoplist(
         {"week": True},
         format_type="csv",
