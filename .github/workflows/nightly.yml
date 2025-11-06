@@ -195,6 +195,7 @@ jobs:
         run: |
           START_TIME=$(date +%s)
           export START_TIME
+          echo "START_TIME=$START_TIME" >> $GITHUB_ENV
           echo "Running integration tests..."
           pytest tests/ \
             -m integration \

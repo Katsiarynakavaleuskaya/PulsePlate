@@ -70,8 +70,8 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except (OSError, UnicodeDecodeError) as read_err:
-            # Anticipated file I/O or decoding errors; skip and continue.
+        except Exception as read_err:
+            # Handle any read errors (OSError, UnicodeDecodeError, RuntimeError, etc.)
             logger.debug("Skipping %s during index build: %s", path, read_err)
             continue
         for ch in _chunk(text):

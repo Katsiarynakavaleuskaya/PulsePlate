@@ -167,9 +167,9 @@ class TestLlmSimple96:
 
             result = get_provider()
 
-            # Should use default timeout of 5
+            # Should use default timeout of 1.5
             mock_ollama_provider.assert_called_once_with(
-                endpoint="http://test", model="test_model", timeout_s=5.0
+                endpoint="http://test", model="test_model", timeout_s=1.5
             )
             assert result == mock_provider
 
@@ -190,7 +190,7 @@ class TestLlmSimple96:
 
             # Should use default endpoint
             mock_ollama_provider.assert_called_once_with(
-                endpoint="http://localhost:11434", model="test_model", timeout_s=5.0
+                endpoint="http://localhost:11434", model="test_model", timeout_s=1.5
             )
             assert result == mock_provider
 
@@ -211,7 +211,7 @@ class TestLlmSimple96:
 
             # Should use default model
             mock_ollama_provider.assert_called_once_with(
-                endpoint="http://test", model="llama3.1:8b", timeout_s=5.0
+                endpoint="http://test", model="llama3.1:8b", timeout_s=1.5
             )
             assert result == mock_provider
 
