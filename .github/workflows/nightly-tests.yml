@@ -51,6 +51,16 @@ jobs:
           pytest -c pyproject.toml -m "not demo" -n auto \
             --cov=. --cov-report=term-missing --cov-report=xml --cov-report=html \
             --cov-fail-under=97 -ra
+      - name: Generate Bayesian quality report
+        if: always()
+        run: |
+          python scripts/bayesian_quality_report.py || true
+      - name: Upload Bayesian quality report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bayesian-quality-report
+          path: bayesian_quality_report.json
 
       - name: Upload coverage artifact
         if: always()
