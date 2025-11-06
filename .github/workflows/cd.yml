@@ -49,12 +49,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image name
+        run: |
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_STAGING=ghcr.io/${repo_lower}:staging-latest" >> $GITHUB_ENV
+        shell: bash
+
       - name: Build & Push image (staging)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:staging-latest
+          tags: ${{ env.IMAGE_STAGING }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Use dedicated staging target which extends production but allows
@@ -117,13 +123,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-<<<<<<< HEAD
+      - name: Set lowercase image names
+        run: |
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_LATEST=ghcr.io/${repo_lower}:latest" >> $GITHUB_ENV
+          echo "IMAGE_PROD=ghcr.io/${repo_lower}:prod-${{ github.ref_name }}" >> $GITHUB_ENV
+        shell: bash
+
       - name: Build & Push image (production)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:prod-${{ github.ref_name }}
+          tags: |
+            ${{ env.IMAGE_LATEST }}
+            ${{ env.IMAGE_PROD }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: production
