@@ -178,9 +178,7 @@ def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optio
         return None
 
 
-def _atomic_write_json(
-    target_path: Path, data: Dict[str, Any] | DatabaseVersionsDict
-) -> None:
+def _atomic_write_json(target_path: Path, data: Dict[str, Any] | DatabaseVersionsDict) -> None:
     """Atomically write JSON to target_path.
 
     RU: Атомарная запись JSON в файл: во временный файл в той же директории,

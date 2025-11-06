@@ -117,6 +117,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+<<<<<<< HEAD
       - name: Build & Push image (production)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
