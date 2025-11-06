@@ -1,20 +1,112 @@
 # -*- coding: utf-8 -*-
-"""
+"""Shopping list generation and export utilities.
+
 RU: Модуль для создания списков покупок из недельных планов питания.
 EN: Module for creating shopping lists from weekly meal plans.
 
-Sprint 2: Shoplist с округлением до упаковок
+Sprint 2: Shoplist с округлением до упаковок.
 """
+
+import math
 
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union, Tuple
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
+# Module-level constant for ingredient categorization keywords
+# Используем Tuple для неизменяемости значений
+CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
+    "meat": (
+        "мясо",
+        "говядина",
+        "свинина",
+        "курица",
+        "meat",
+        "beef",
+        "pork",
+        "chicken",
+        "carne",
+        "res",
+        "cerdo",
+        "pollo",
+    ),
+    "fish": ("рыба", "лосось", "тунец", "fish", "salmon", "tuna", "pescado", "salmón", "atún"),
+    "dairy": (
+        "молоко",
+        "йогурт",
+        "сыр",
+        "milk",
+        "yogurt",
+        "cheese",
+        "leche",
+        "yogur",
+        "queso",
+    ),
+    "vegetables": (
+        "овощ",
+        "помидор",
+        "огурец",
+        "морковь",
+        "vegetable",
+        "tomato",
+        "cucumber",
+        "carrot",
+        "vegetal",
+        "tomate",
+        "pepino",
+        "zanahoria",
+    ),
+    "fruits": (
+        "фрукт",
+        "яблоко",
+        "банан",
+        "апельсин",
+        "fruit",
+        "apple",
+        "banana",
+        "orange",
+        "fruta",
+        "manzana",
+        "plátano",
+        "naranja",
+    ),
+    "grains": (
+        "крупа",
+        "рис",
+        "гречка",
+        "овес",
+        "grain",
+        "rice",
+        "buckwheat",
+        "oats",
+        "cereal",
+        "arroz",
+        "trigo",
+        "avena",
+    ),
+    "nuts": ("орех", "миндаль", "nut", "almond", "nuez", "almendra"),
+    "oils": ("масло", "оливковое", "oil", "olive", "aceite", "oliva"),
+    "spices": (
+        "специя",
+        "соль",
+        "перец",
+        "spice",
+        "salt",
+        "pepper",
+        "especia",
+        "sal",
+        "pimienta",
+    ),
+}
 
 
 @dataclass
 class PackagingRule:
-    """Правило упаковки для категории продуктов"""
+    """Правило упаковки для категории продуктов."""
 
     category: str
     unit: str  # 'g', 'ml', 'pcs', 'kg', 'l'
@@ -24,7 +116,7 @@ class PackagingRule:
 
 @dataclass
 class ShoppingItem:
-    """Элемент списка покупок"""
+    """Элемент списка покупок."""
 
     name: str
     quantity: float
@@ -36,14 +128,19 @@ class ShoppingItem:
 
 
 class ShoplistGenerator:
-    """Генератор списков покупок"""
+    """Генератор списков покупок."""
 
-    def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv"):
+    def __init__(self, packaging_rules_file: str = "data/packaging_defaults.csv") -> None:
+        """Инициализирует генератор и загружает правила упаковки.
+
+        Args:
+            packaging_rules_file: Путь к CSV с правилами упаковки по умолчанию.
+        """
         self.packaging_rules_file = packaging_rules_file
         self.packaging_rules = self._load_packaging_rules()
 
     def _load_packaging_rules(self) -> Dict[str, PackagingRule]:
-        """Загружает правила упаковки из CSV файла"""
+        """Загружает правила упаковки из CSV файла."""
         rules = {}
 
         # Базовые правила по умолчанию
@@ -75,9 +172,21 @@ class ShoplistGenerator:
                         strategy = row.get("rounding_strategy", "up")
 
                         rules[category] = PackagingRule(category, unit, packages, strategy)
-            except Exception:
+            except (OSError, csv.Error, ValueError, KeyError) as load_err:
                 # Если не удалось загрузить, используем правила по умолчанию
-                pass
+                # Логируем кратко и продолжаем с правилами по умолчанию
+                LOGGER.warning("Failed to load packaging rules: %s", load_err)
+            except Exception as unexpected:  # noqa: BLE001 - continue with defaults
+                # Log unexpected exceptions with full details
+                exception_type = type(unexpected).__name__
+                LOGGER.error(
+                    "Unhandled error loading packaging rules from %s; falling back to defaults: "
+                    "%s: %s",
+                    self.packaging_rules_file,
+                    exception_type,
+                    unexpected,
+                    exc_info=True,
+                )
 
         # Если файл не существует или не загрузился, используем правила по умолчанию
         if not rules:
@@ -86,14 +195,13 @@ class ShoplistGenerator:
         return rules
 
     def aggregate_ingredients(self, week_plan: Dict) -> Dict[str, float]:
-        """
-        Агрегирует ингредиенты из недельного плана
+        """Агрегирует ингредиенты из недельного плана.
 
         Args:
-            week_plan: Словарь с недельным планом питания
+            week_plan: Словарь с недельным планом питания.
 
         Returns:
-            Словарь {ingredient_name: total_grams}
+            Словарь вида {ingredient_name: total_grams}.
         """
         aggregated: Dict[str, float] = {}
 
@@ -133,7 +241,7 @@ class ShoplistGenerator:
         return aggregated
 
     def _convert_to_grams(self, amount: float, unit: str) -> float:
-        """Конвертирует количество в граммы"""
+        """Конвертирует количество в граммы."""
         conversion_factors = {
             "g": 1.0,
             "kg": 1000.0,
@@ -147,22 +255,39 @@ class ShoplistGenerator:
 
         return amount * conversion_factors.get(unit.lower(), 1.0)
 
+    def _convert_unit_if_large(
+        self, unit: str, total_grams: float, package_size: float
+    ) -> tuple[str, float, float]:
+        """Convert unit to kg/l if total >= 1000g/ml and scale package_size accordingly.
+
+        Args:
+            unit: Original unit (g, ml, etc.)
+            total_grams: Total amount in grams/milliliters
+            package_size: Package size in original unit
+
+        Returns:
+            Tuple of (converted_unit, total_weight, package_display_size)
+        """
+        if (unit == "g" or unit == "ml") and total_grams >= 1000:
+            new_unit = "kg" if unit == "g" else "l"
+            return new_unit, total_grams / 1000, package_size / 1000
+        return unit, total_grams, package_size
+
     def round_to_packages(
         self,
         aggregated: Dict[str, float],
-        packaging_db: Optional[Dict] = None,
-        rules: Optional[Dict] = None,
+        packaging_db: Optional[Dict[str, Any]] = None,
+        rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
     ) -> List[ShoppingItem]:
-        """
-        Округляет агрегированные ингредиенты до упаковок
+        """Округляет агрегированные ингредиенты до упаковок.
 
         Args:
-            aggregated: Словарь {ingredient_name: total_grams}
-            packaging_db: База данных упаковок (опционально)
-            rules: Правила округления (опционально)
+            aggregated: Словарь {ingredient_name: total_grams}.
+            packaging_db: База данных упаковок (опционально).
+            rules: Правила округления (опционально).
 
         Returns:
-            Список ShoppingItem с округленными количествами
+            Список ShoppingItem с округленными количествами.
         """
         if rules is None:
             rules = self.packaging_rules
@@ -181,26 +306,20 @@ class ShoplistGenerator:
 
             # Округляем до ближайшей упаковки
             package_size, packages_needed = self._find_best_package(
-                float(total_grams), list(rule.typical_packages), str(rule.rounding_strategy)
+                total_grams, rule.typical_packages, rule.rounding_strategy
             )
 
             # Конвертируем обратно в исходные единицы
-            unit = rule.unit
-            if unit == "g" and total_grams >= 1000:
-                unit = "kg"
-                total_weight = total_grams / 1000
-            elif unit == "ml" and total_grams >= 1000:
-                unit = "l"
-                total_weight = total_grams / 1000
-            else:
-                total_weight = total_grams
+            unit, total_weight, package_display_size = self._convert_unit_if_large(
+                rule.unit, total_grams, package_size
+            )
 
             shopping_item = ShoppingItem(
                 name=ingredient_name,
                 quantity=packages_needed,
                 unit=unit,
                 category=category,
-                package_size=package_size,
+                package_size=package_display_size,
                 packages_needed=packages_needed,
                 total_weight=total_weight,
             )
@@ -210,120 +329,87 @@ class ShoplistGenerator:
         return shopping_list
 
     def _categorize_ingredient(self, ingredient_name: str) -> str:
-        """Определяет категорию ингредиента по названию"""
+        """Определяет категорию ингредиента по названию."""
         name_lower = ingredient_name.lower()
 
-        # Простая категоризация по ключевым словам
-        if any(
-            word in name_lower
-            for word in [
-                "мясо",
-                "говядина",
-                "свинина",
-                "курица",
-                "meat",
-                "beef",
-                "pork",
-                "chicken",
-            ]
-        ):
-            return "meat"
-        elif any(
-            word in name_lower for word in ["рыба", "лосось", "тунец", "fish", "salmon", "tuna"]
-        ):
-            return "fish"
-        elif any(
-            word in name_lower for word in ["молоко", "йогурт", "сыр", "milk", "yogurt", "cheese"]
-        ):
-            return "dairy"
-        elif any(
-            word in name_lower
-            for word in [
-                "овощ",
-                "помидор",
-                "огурец",
-                "морковь",
-                "vegetable",
-                "tomato",
-                "cucumber",
-                "carrot",
-            ]
-        ):
-            return "vegetables"
-        elif any(
-            word in name_lower
-            for word in [
-                "фрукт",
-                "яблоко",
-                "банан",
-                "апельсин",
-                "fruit",
-                "apple",
-                "banana",
-                "orange",
-            ]
-        ):
-            return "fruits"
-        elif any(
-            word in name_lower
-            for word in [
-                "крупа",
-                "рис",
-                "гречка",
-                "овес",
-                "grain",
-                "rice",
-                "buckwheat",
-                "oats",
-            ]
-        ):
-            return "grains"
-        elif any(word in name_lower for word in ["орех", "миндаль", "nut", "almond"]):
-            return "nuts"
-        elif any(word in name_lower for word in ["масло", "оливковое", "oil", "olive"]):
-            return "oils"
-        elif any(
-            word in name_lower for word in ["специя", "соль", "перец", "spice", "salt", "pepper"]
-        ):
-            return "spices"
-        else:
-            return "default"
+        # Используем модульный константный словарь ключевых слов
+        for category, keywords in CATEGORY_KEYWORDS.items():
+            if any(keyword in name_lower for keyword in keywords):
+                return category
+
+        return "default"
 
     def _find_best_package(
         self, total_amount: float, typical_packages: List[float], strategy: str
-    ) -> tuple[float, int]:
-        """Находит оптимальный размер упаковки и количество"""
+    ) -> Tuple[float, int]:
+        """Находит оптимальный размер упаковки и количество."""
         if not typical_packages:
             return total_amount, 1
 
         # Сортируем упаковки по размеру
         sorted_packages = sorted(typical_packages)
+        # Фильтруем некорректные значения (<= 0), чтобы избежать деления на ноль и нелепых результатов
+        sorted_packages = [p for p in sorted_packages if p > 0]
+        if not sorted_packages:
+            return total_amount, 1
 
         if strategy == "up":
-            # Округляем вверх - берем упаковку, которая покроет все количество
+            # Округляем вверх - берем упаковку с минимальным перерасходом
+            # RU: При одинаковом перерасходе предпочитаем меньшее количество упаковок
+            # EN: On equal overage, prefer fewer packages
+            up_best_choice: Optional[Tuple[float, int]] = None
+            best_overage = float("inf")
             for package_size in sorted_packages:
-                packages_needed = int((total_amount + package_size - 1) // package_size)
+                packages_needed = math.ceil(total_amount / package_size)
                 if packages_needed > 0:
-                    return package_size, packages_needed
+                    overage = packages_needed * package_size - total_amount
+                    if overage < best_overage or (
+                        overage == best_overage
+                        and up_best_choice is not None
+                        and packages_needed < up_best_choice[1]
+                    ):
+                        best_overage = overage
+                        up_best_choice = (package_size, packages_needed)
+            if up_best_choice is not None:
+                return up_best_choice
         elif strategy == "down":
             # Округляем вниз - берем максимальную упаковку, которая помещается
             for package_size in reversed(sorted_packages):
-                packages_needed = int(total_amount // package_size)
+                packages_needed = int(total_amount / package_size)
                 if packages_needed > 0:
                     return package_size, packages_needed
         else:  # 'nearest'
-            # Ближайшее округление
-            best_package = min(
-                sorted_packages,
-                key=lambda x: abs(total_amount - x * int(total_amount // x)),
-            )
-            packages_needed = int(total_amount // best_package)
-            if packages_needed == 0:
-                packages_needed = 1
-            return best_package, packages_needed
+            # Ближайшее округление: оцениваем и floor, и ceil для каждой упаковки
+            best_choice: Optional[Tuple[float, int]] = None
+            best_error = float("inf")
+            for package_size in sorted_packages:
+                if package_size <= 0:
+                    continue
+                # Вариант округления вниз (если даёт >=1 упаковки)
+                n_floor = int(total_amount / package_size)
+                # Вариант округления вверх (хотя бы 1 упаковка)
+                n_ceil = max(1, math.ceil(total_amount / package_size))
 
-        # Fallback
-        return sorted_packages[0], 1
+                candidates: List[Tuple[int, float]] = []
+                if n_floor >= 1:
+                    candidates.append((n_floor, abs(total_amount - n_floor * package_size)))
+                candidates.append((n_ceil, abs(total_amount - n_ceil * package_size)))
+
+                for n_packages, error in candidates:
+                    if error < best_error or (
+                        error == best_error
+                        and best_choice is not None
+                        and n_packages < best_choice[1]
+                    ):
+                        best_error = error
+                        best_choice = (package_size, n_packages)
+            if best_choice is not None:
+                return best_choice
+
+        # Fallback: use smallest package and calculate needed quantity
+        fallback_size = sorted_packages[0]
+        fallback_qty = max(1, int(math.ceil(total_amount / fallback_size)))
+        return fallback_size, fallback_qty
 
     def format_export(
         self,
@@ -331,13 +417,12 @@ class ShoplistGenerator:
         locale: str = "ru",
         format_type: str = "json",
     ) -> Union[str, Dict]:
-        """
-        Форматирует список покупок для экспорта
+        """Форматирует список покупок для экспорта.
 
         Args:
-            shopping_list: Список ShoppingItem
-            locale: Локаль (ru, en, es)
-            format_type: Тип формата (json, csv, text)
+            shopping_list: Список ShoppingItem.
+            locale: Локаль (ru, en, es).
+            format_type: Тип формата (json, csv, text).
 
         Returns:
             Отформатированный список покупок
@@ -438,53 +523,60 @@ class ShoplistGenerator:
             raise ValueError(f"Unsupported format type: {format_type}")
 
 
+# Generator instance initialized at module load to avoid repeated CSV I/O
+# on first concurrent calls
+_generator = ShoplistGenerator()
+
+
+def _get_generator() -> ShoplistGenerator:
+    """Get the generator instance."""
+    return _generator
+
+
 # Функции для удобного использования
 def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
-    """Агрегирует ингредиенты из недельного плана"""
-    generator = ShoplistGenerator()
-    return generator.aggregate_ingredients(week_plan)
+    """Агрегирует ингредиенты из недельного плана."""
+    return _get_generator().aggregate_ingredients(week_plan)
 
 
 def round_to_packages(
     aggregated: Dict[str, float],
-    packaging_db: Optional[Dict] = None,
-    rules: Optional[Dict] = None,
+    packaging_db: Optional[Dict[str, Any]] = None,
+    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
 ) -> List[ShoppingItem]:
-    """Округляет агрегированные ингредиенты до упаковок"""
-    generator = ShoplistGenerator()
-    return generator.round_to_packages(aggregated, packaging_db, rules)
+    """Округляет агрегированные ингредиенты до упаковок."""
+    return _get_generator().round_to_packages(aggregated, packaging_db, rules)
 
 
 def format_export(
     shopping_list: List[ShoppingItem], locale: str = "ru", format_type: str = "json"
 ) -> Union[str, Dict]:
-    """Форматирует список покупок для экспорта"""
-    generator = ShoplistGenerator()
-    return generator.format_export(shopping_list, locale, format_type)
+    """Форматирует список покупок для экспорта."""
+    return _get_generator().format_export(shopping_list, locale, format_type)
 
 
 def get_shoplist(
     week_plan: Dict,
     format_type: str = "json",
     locale: str = "ru",
-    packaging_db: Optional[Dict] = None,
-    rules: Optional[Dict] = None,
+    packaging_db: Optional[Dict[str, Any]] = None,
+    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
 ) -> Union[str, Dict]:
-    """
+    """Собирает и форматирует список покупок из недельного плана.
+
     Backward-compatible wrapper expected by the application.
-    Builds a shopping list from week_plan and returns it in the requested format.
-    
+
     Args:
-        week_plan: Словарь с недельным планом питания
-        format_type: Тип формата (json, csv, text)
-        locale: Локаль (ru, en, es)
-        packaging_db: База данных упаковок (опционально)
-        rules: Правила округления (опционально)
-    
+        week_plan: Словарь с недельным планом питания.
+        format_type: Тип формата (json, csv, text).
+        locale: Локаль (ru, en, es).
+        packaging_db: База данных упаковок (опционально).
+        rules: Правила округления (опционально).
+
     Returns:
-        Отформатированный список покупок
+        Отформатированный список покупок.
     """
-    generator = ShoplistGenerator()
+    generator = _get_generator()
     # Aggregate ingredients from week_plan
     aggregated = generator.aggregate_ingredients(week_plan)
     # Round to packages using provided rules / packaging_db (falls back to defaults)

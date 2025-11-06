@@ -1,77 +1,94 @@
 # Pull Request
 
-## 📋 Checklist
+## Summary
 
-### Code Quality
+(Free-form description of changes, e.g., "Fix crash in BMI calculation when height is zero")
 
-- [ ] **ESLint Clean**: lint script passes with 0 warnings
-- [ ] **TypeScript Clean**: type-check script passes with 0 errors
-- [ ] **Tests Pass**: All tests pass and coverage is maintained or improved
-- [ ] **Security/Secrets**: No secrets/PII committed; dependency audit passes
-- [ ] **Privacy/Compliance**: User-data handling unchanged or documented
-- [ ] **Accessibility (a11y)**: Keyboard/focus/ARIA validated; screenshots include alt text
-- [ ] **i18n/l10n**: User-facing strings externalized; formats (date/number/currency) correct
-- [ ] **Performance**: No obvious regressions; heavy UI paths profiled if changed
-- [ ] **Docs/Changelog**: Relevant docs/README/ADR/CHANGELOG updated
-- [ ] **CI**: All workflows green for this PR
+- [ ] Select one change type:
+  - [ ] Bug fix
+  - [ ] Feature
+  - [ ] Refactor
+  - [ ] Docs
+- [ ] Linked issues/PRs: #
 
-### Duplication Prevention
+## Risk & Impact
 
-- [ ] **No Duplication**: I have checked for and removed any duplicate code, imports, or logic
-- [ ] **Static Analysis**: ESLint rules for duplication are satisfied
-- [ ] **Shared Components**: Common UI patterns are extracted to reusable components
-- [ ] **Business Logic**: Repeated logic is moved to custom hooks or services
-- [ ] **No exact duplicate tests in the same test suite** (tests that cover the same functionality in different contexts (unit vs integration) or distinct edge cases are allowed)
+(User-facing change? Data model/migration? Security- or Performance-sensitive?)
 
-### Testing Checklist
+- [ ] User-facing change
+- [ ] Data model/migration
+- [ ] Security-sensitive
+- [ ] Performance-sensitive
 
-- [ ] **Unit Tests**: New functionality has unit tests
-- [ ] **Integration Tests**: Critical paths are covered
-- [ ] **Snapshot Tests**: UI changes have snapshot tests where appropriate
-- [ ] **E2E/Smoke**: Key flows covered by E2E or smoke tests (if applicable)
-- [ ] **Visual Regression**: Visual checks run for changed UI (if applicable)
+## Test Plan
 
-### Additional Considerations
+(Unit: small isolated functions; Integration: endpoints/DB; Manual: steps to verify)
 
-- [ ] **Breaking Changes**: Any breaking changes are documented and migration path provided
+- [ ] Unit tests updated/added
+- [ ] Integration/slow tests (if applicable)
+- [ ] Manual verification steps
 
-## 🎯 Description
+## CI Gates
 
-<!-- Describe what this PR does -->
+(PR tests must pass; Diff coverage means tests cover changed lines ≥ threshold)
 
-## 🚦 Rollout / Feature Flags
+- [ ] PR tests green (lint, type, unit)
+- [ ] Diff coverage ≥ 97% on changed lines
 
-<!-- List flags introduced/changed and rollout details -->
-- Flag keys and default values:
-- Exposure/targeting plan (e.g., % rollout, cohorts):
-- Kill switch and monitoring:
-- Telemetry/analytics events added:
-- Cleanup plan/timeline:
+## Notes
 
-## 🔍 Duplication Check
+### For Simple Changes
 
-<!-- List any potential duplications you found and how you addressed them -->
+Use this checklist to confirm the PR is truly simple:
 
-## 🧪 Testing Details
+- [ ] No database/schema/migration changes
+- [ ] No public API contract changes (endpoints, request/response, events)
+- [ ] Covered by existing tests (or adds ≤ 1-2 focused unit tests)
+- [ ] < 50 LOC changed (excluding tests/docs)
+- [ ] No performance or security impact
 
-<!-- How was this tested? Include test coverage information -->
+Example: Copy change in docs, minor log level tweak, small refactor of a pure function.
 
-## ⚠️ Breaking Changes / Migrations
+Rollback / Feature flag (brief):
 
-<!-- Note any breaking API/route/schema changes and required migrations or client updates -->
+- How to revert: describe the commit to revert or config to change
+- Feature flag/toggle (if any): name and how to disable
+- Owner for emergency contact: @username
 
-## 📸 Screenshots (if applicable)
+### For Complex/High-Risk Changes
 
-<!-- Add screenshots for UI changes -->
+Please fill out the following sections if applicable:
 
-## 🔗 Related Issues
+#### Deployment Strategy
 
-<!-- Link to related issues -->
+- [ ] Deployment order for multi-service changes (if services depend on each other)
+- [ ] Feature flag configuration (enable/disable without redeploy)
+- [ ] Blue-green / canary deployment plan (if applicable)
 
-## 📋 Project-Specific Requirements
+#### Database & Data Changes
 
-- [ ] **If applicable**: API types are generated from OpenAPI schema
+- [ ] Database migrations required (Alembic version, backwards compatibility)
+- [ ] Data migration/backfill steps (scripts, rollback procedures)
+- [ ] Data cleanup steps (if removing deprecated data)
+- [ ] Backwards compatibility guarantees (old clients still work)
 
----
+#### Monitoring & Observability
 
-**Note**: This PR template helps maintain code quality and prevents duplication. Please check all relevant boxes before requesting review.
+- [ ] New monitoring/alerting rules to add (metrics, thresholds, SLOs)
+- [ ] Dashboards to create/update (Grafana, DataDog, etc.)
+- [ ] Logging changes (new log levels, structured logs, correlation IDs)
+- [ ] Health check endpoints affected
+
+#### Post-Deploy Verification
+
+- [ ] Manual verification checklist (specific endpoints, user flows)
+- [ ] Smoke tests to run (automated or manual)
+- [ ] Performance benchmarks to verify (latency, throughput)
+- [ ] Rollback triggers (what conditions require immediate rollback)
+
+#### Additional Context
+
+- [ ] Breaking changes (API contracts, response formats)
+- [ ] Dependencies updated (requirements.txt, package versions)
+- [ ] Configuration changes (env vars, secrets, feature toggles)
+- [ ] Documentation updates needed (README, API docs, runbooks)

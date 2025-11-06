@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -25,12 +27,15 @@ from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
     Spacer,
-    Table,
     TableStyle,
 )
+from reportlab.platypus.tables import Table as RLTable
 
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED
 from signed_links import sign, verify
+
+# Export Table for backward compatibility with tests
+Table = RLTable
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +102,47 @@ def sum_week_macros(week: Dict[str, Any]) -> Dict[str, float]:
 
 
 def _slogan(lang: Optional[str]) -> str:
+    """Normalize language code and return corresponding slogan.
+
+    Parsing rules:
+    1. Split input on ',' or ';' and take the first token
+    2. Extract primary subtag by splitting on '-' or '_' and taking leftmost part
+    3. Fallback to DEFAULT_LANG ("en") if input is None or normalized code not found
+
+    Args:
+        lang: Optional language code (e.g., "en-US", "ru,en", "de_DE", None)
+
+    Returns:
+        Slogan string for the normalized language code, or DEFAULT_LANG slogan if not found
+
+    Examples:
+        >>> _slogan("en-US")  # -> "Always on your Pulse"
+        >>> _slogan("ru,en")  # -> "Всегда на твоём пульсе"
+        >>> _slogan("de_DE")  # -> "Immer am Puls von dir"
+        >>> _slogan(None)     # -> "Always on your Pulse" (DEFAULT_LANG)
+        >>> _slogan("fr")     # -> "Always on your Pulse" (fallback to DEFAULT_LANG)
+    """
     if not lang:
         return SLOGAN[DEFAULT_LANG]
-    return SLOGAN.get(lang.lower(), SLOGAN[DEFAULT_LANG])
+    # Extract first language token by splitting on ',' or ';'
+    first_token = re.split(r"[,;]", lang, maxsplit=1)[0].strip().lower()
+    # Split once on '-' or '_' and take leftmost subtag
+    normalized = re.split(r"[-_]", first_token, maxsplit=1)[0] or DEFAULT_LANG
+    return SLOGAN.get(normalized, SLOGAN[DEFAULT_LANG])
+
+
+class NormalizedParagraph(Paragraph):
+    """Paragraph subclass that returns NFC-normalized plain text."""
+
+    def getPlainText(self) -> str:
+        """Return NFC-normalized plain text for deterministic comparisons."""
+        plain_text = super().getPlainText()
+        return unicodedata.normalize("NFC", plain_text)
+
+
+def _normalized_paragraph(text: str, style: ParagraphStyle) -> NormalizedParagraph:
+    """Return a paragraph whose plain text is NFC-normalized for deterministic comparisons."""
+    return NormalizedParagraph(text, style)
 
 
 def _find_logo_path() -> Optional[Path]:
@@ -123,12 +166,12 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
         f'<font color="{BRAND_BLUE_HEX}"><b>PulsePlate — Weekly Plan</b></font>',
         styles["Heading1"],
     )
-    subtitle = Paragraph(
+    subtitle = _normalized_paragraph(
         f'<font color="{BRAND_GREEN_HEX}">{_slogan(lang)}</font>',
         styles["Heading3"],
     )
 
-    header_table = Table(
+    header_table = RLTable(
         [
             [image_flowable, title],
             ["", subtitle],
@@ -151,7 +194,7 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
     story.append(header_table)
     story.append(Spacer(1, 8))
 
-    divider = Table([[""]], colWidths=[doc_width], rowHeights=[4])
+    divider = RLTable([[""]], colWidths=[doc_width], rowHeights=[4])
     divider.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), BRAND_NAVY)]))
     story.append(divider)
     story.append(Spacer(1, 10))
@@ -380,7 +423,7 @@ def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
                 ]
             )
 
-        table = Table(rows, colWidths=[210, 55, 35, 45, 30, 30, 30])
+        table = RLTable(rows, colWidths=[210, 55, 35, 45, 30, 30, 30])
         table.setStyle(
             TableStyle(
                 [
@@ -458,7 +501,7 @@ def export_week_pdf(
     story.append(Spacer(1, 8))
 
     story.append(Paragraph("<b>Итого за неделю</b>", styles["Heading3"]))
-    totals_table = Table(
+    totals_table = RLTable(
         [
             ["ккал", "Б", "У", "Ж"],
             [
@@ -494,6 +537,13 @@ def export_week_pdf(
             story.append(PageBreak())
 
     footer_text = f"PulsePlate · week of {_week_start(week)}"
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "Story components count=%d tables=%d paragraphs=%d",
+            len(story),
+            sum(1 for node in story if isinstance(node, RLTable)),
+            sum(1 for node in story if isinstance(node, Paragraph)),
+        )
     doc.build(
         story,
         onFirstPage=lambda can, d: _draw_footer(can, d, footer_text),

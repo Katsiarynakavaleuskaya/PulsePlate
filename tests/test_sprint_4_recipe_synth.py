@@ -9,12 +9,16 @@ EN: Tests for recipe synthesis functionality
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import pytest
+
+import core.recipe_synth
 from core.recipe_synth import (
     Recipe,
     RecipeStep,
     RecipeSynthesizer,
     RecipeTemplate,
     get_recipe_synthesizer,
+    reset_recipe_synthesizer,
     synthesize_recipe_from_ingredients,
     synthesize_recipes_for_week,
 )
@@ -430,15 +434,77 @@ class TestRecipeSynthesizer:
 class TestConvenienceFunctions:
     """Тесты для удобных функций"""
 
-    @patch("core.recipe_synth._recipe_synthesizer")
-    def test_get_recipe_synthesizer(self, mock_synthesizer):
+    def test_get_recipe_synthesizer(self) -> None:
         """Тест получения глобального синтезатора"""
-        mock_synthesizer_instance = RecipeSynthesizer()
-        mock_synthesizer.return_value = mock_synthesizer_instance
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
 
         synthesizer = get_recipe_synthesizer()
 
         assert synthesizer is not None
+        assert isinstance(synthesizer, RecipeSynthesizer)
+
+    def test_get_recipe_synthesizer_initialization_with_default_dir(self) -> None:
+        """Test that get_recipe_synthesizer initializes with default templates_dir"""
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
+
+        synthesizer = get_recipe_synthesizer()
+
+        assert synthesizer is not None
+        # Compare resolved paths since validation uses resolve()
+        assert synthesizer.templates_dir.resolve() == Path("data/recipe_templates").resolve()
+
+    def test_get_recipe_synthesizer_initialization_with_custom_dir(self) -> None:
+        """Test that get_recipe_synthesizer initializes with custom templates_dir"""
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
+
+        custom_dir = "custom/templates"
+        synthesizer = get_recipe_synthesizer(templates_dir=custom_dir)
+
+        assert synthesizer is not None
+        # Compare resolved paths since validation uses resolve()
+        assert synthesizer.templates_dir.resolve() == Path(custom_dir).resolve()
+
+    def test_get_recipe_synthesizer_consistent_initialization(self) -> None:
+        """Test that get_recipe_synthesizer accepts same templates_dir after initialization"""
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
+
+        # First call initializes
+        synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
+        assert synthesizer1 is not None
+
+        # Second call with same templates_dir should return same instance
+        synthesizer2 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
+        assert synthesizer2 is synthesizer1
+
+    def test_get_recipe_synthesizer_mismatch_raises_error(self) -> None:
+        """Test that get_recipe_synthesizer raises ValueError when templates_dir differs"""
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
+
+        # First call initializes with default
+        synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
+        assert synthesizer1 is not None
+
+        # Second call with different templates_dir should raise ValueError
+        with pytest.raises(ValueError, match="already initialized with templates_dir"):
+            get_recipe_synthesizer(templates_dir="different/templates")
+
+    def test_get_recipe_synthesizer_path_normalization(self) -> None:
+        """Test that path normalization works (e.g., ./data/recipe_templates == data/recipe_templates)"""
+        # Reset singleton to ensure fresh start
+        reset_recipe_synthesizer()
+
+        # Initialize with one path format
+        synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
+        assert synthesizer1 is not None
+
+        # Call with equivalent path format should work
+        synthesizer2 = get_recipe_synthesizer(templates_dir="./data/recipe_templates")
+        assert synthesizer2 is synthesizer1
 
     @patch("core.recipe_synth.get_recipe_synthesizer")
     def test_synthesize_recipe_from_ingredients_function(self, mock_get_synthesizer):

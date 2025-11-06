@@ -1,6 +1,7 @@
 import logging
 import os
-from typing import Any, Callable, Dict, Optional, Type, Union
+import inspect
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -8,12 +9,15 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     Depends,
     Header,
     HTTPException,
+    Request,
     status,
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.utils import resolve_attr
+from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
+from core.recipe_synth import RecipeSynthesizer
 
 # -*- coding: utf-8 -*-
 """
@@ -22,6 +26,9 @@ VIP Module Router
 RU: Роутер для VIP функций - микронутриентные цели, авто-ремонт меню, списки покупок
 EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping lists
 """
+
+# Test key constant for development mode only
+TEST_KEY = "test_key"  # nosec B105  # Development mode only
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
@@ -85,9 +92,9 @@ except ImportError:
     search_products = None
     get_available_regions = None
     get_price_comparison = None
-    get_recipe_synthesizer = None
     synthesize_recipe_from_ingredients = None
     synthesize_recipes_for_week = None
+    get_recipe_synthesizer = None  # Set to None only if core.recipe_synth import fails
     get_auto_repair_engine = None
     auto_repair_week_plan = None
     suggest_manual_fixes = None
@@ -240,7 +247,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             _log_api_key_event(
                 "VIP endpoint accessed without API key in development mode.", is_production, app_env
             )
-            return "test_key"
+            return TEST_KEY
         error_msg = (
             "API key required in production environment" if is_production else "API key required"
         )
@@ -269,8 +276,9 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                             if is_production
                             else "API key required"
                         )
+                        mode_str = "production" if is_production else "development"
                         _log_api_key_event(
-                            f"VIP endpoint accessed without API key in {'production' if is_production else 'development'} mode.",
+                            f"VIP endpoint accessed without API key in {mode_str} mode.",
                             is_production,
                             app_env,
                         )
@@ -280,7 +288,10 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     else:
                         # Anonymous access is explicitly allowed (non-production only)
                         _log_api_key_event(
-                            "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
+                            (
+                                "VIP endpoint accessed with anonymous API key. "
+                                "ALLOW_ANONYMOUS_API_KEYS: true"
+                            ),
                             is_production,
                             app_env,
                         )
@@ -330,7 +341,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                     is_production,
                     app_env,
                 )
-                return "test_key"
+                return TEST_KEY
             error_msg = "API key required"
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
 
@@ -359,20 +370,46 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
+    # Use explicit conversions with safe fallbacks so typing is precise
+    age_raw = profile_data.get("age")
+    try:
+        age_val: int = 30 if age_raw is None else int(age_raw)
+    except (TypeError, ValueError):
+        age_val = 30
+
+    height_raw = profile_data.get("height_cm")
+    try:
+        height_val: float = 175.0 if height_raw is None else float(height_raw)
+    except (TypeError, ValueError):
+        height_val = 175.0
+
+    weight_raw = profile_data.get("weight_kg")
+    try:
+        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
+    except (TypeError, ValueError):
+        weight_val = 70.0
+
+    # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
-        sex=profile_data.get("sex", "male"),
-        age=profile_data.get("age", 30),
-        height_cm=profile_data.get("height_cm", 175.0),
-        weight_kg=profile_data.get("weight_kg", 70.0),
-        activity=profile_data.get("activity", "moderate"),
-        goal=profile_data.get("goal", "maintain"),
+        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
+        age=age_val,
+        height_cm=height_val,
+        weight_kg=weight_val,
+        activity=cast(
+            Literal["sedentary", "light", "moderate", "active", "very_active"],
+            profile_data.get("activity") or "moderate",
+        ),
+        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
         deficit_pct=profile_data.get("deficit_pct"),
         surplus_pct=profile_data.get("surplus_pct"),
         bodyfat=profile_data.get("bodyfat"),
-        region=profile_data.get("region", "BY"),
-        timezone=profile_data.get("timezone", "UTC"),
+        region=profile_data.get("region") or "BY",
+        timezone=profile_data.get("timezone") or "UTC",
         diet_flags=diet_flags,
-        life_stage=profile_data.get("life_stage", "adult"),
+        life_stage=cast(
+            Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
+            profile_data.get("life_stage") or "adult",
+        ),
         medical_conditions=medical_conditions,
     )
 
@@ -441,7 +478,10 @@ def _safe_call_with_adapter(func_name: str, *args, **kwargs):
     }
 
     if func_name not in adapters:
-        error_msg = f"No adapter found for function '{func_name}'. Available adapters: {list(adapters.keys())}"
+        available = list(adapters.keys())
+        error_msg = (
+            f"No adapter found for function '{func_name}'. " f"Available adapters: {available}"
+        )
         logging.error(error_msg)
         return {"status": "error", "message": error_msg}
 
@@ -1144,8 +1184,36 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@router.get("/recipes/templates")
-def get_recipe_templates() -> Dict[str, Any]:
+async def _get_recipe_synthesizer_safe(request: Request) -> Optional[RecipeSynthesizer]:
+    """Safe wrapper for recipe synthesizer dependency that catches exceptions.
+
+    RU: Безопасная обёртка для зависимости синтезатора рецептов, обрабатывающая исключения.
+    EN: Safe wrapper for recipe synthesizer dependency that handles exceptions.
+
+    Returns:
+        Optional[RecipeSynthesizer]: Recipe synthesizer instance or None if unavailable.
+    """
+    try:
+        dependency = get_recipe_synth_dep
+
+        # Respect FastAPI dependency overrides applied during testing or runtime
+        override = request.app.dependency_overrides.get(get_recipe_synth_dep)
+
+        resolved_callable = override or dependency
+        result = resolved_callable()
+        if inspect.isawaitable(result):
+            result = await result
+        return cast(Optional[RecipeSynthesizer], result)
+    except Exception:
+        # Log the exception internally but don't expose details to clients
+        logging.exception("Failed to get recipe synthesizer dependency")
+        return None
+
+
+@router.get("/recipes/templates", dependencies=[Depends(_require_api_key_strict)])
+async def get_recipe_templates(
+    synthesizer: Optional[RecipeSynthesizer] = Depends(_get_recipe_synthesizer_safe),
+) -> Dict[str, Any]:
     """
     RU: Получить доступные шаблоны рецептов
     EN: Get available recipe templates
@@ -1153,17 +1221,18 @@ def get_recipe_templates() -> Dict[str, Any]:
     Returns:
         Список шаблонов рецептов
     """
-    if get_recipe_synthesizer is None:
+    # Validate synthesizer dependency: check if it's None, falsy, or missing expected attributes
+    if not synthesizer or not hasattr(synthesizer, "templates"):
         return {
             "status": "error",
-            "message": "Recipe synthesis module not available",
+            "message": "Recipe synthesizer not available",
             "templates": [],
         }
 
     try:
-        synthesizer = get_recipe_synthesizer()
         templates = []
 
+        # Only proceed if synthesizer is valid and has templates attribute
         for template in synthesizer.templates.values():
             template_data = {
                 "template_id": template.template_id,
@@ -1185,9 +1254,11 @@ def get_recipe_templates() -> Dict[str, Any]:
             "message": f"Retrieved {len(templates)} recipe templates",
         }
     except Exception as e:
+        # Handle any exceptions from recipe synthesizer or template access
+        logging.exception("Error retrieving recipe templates: %s", e)
         return {
             "status": "error",
-            "message": f"Error retrieving templates: {str(e)}",
+            "message": f"Error retrieving recipe templates: {str(e)}",
             "templates": [],
         }
 

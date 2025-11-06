@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import httpx
 
@@ -112,7 +112,9 @@ class USDAClient:
         Args:
             api_key: Optional API key. If None, will use demo key with limitations.
         """
-        self.api_key = api_key or "DEMO_KEY"  # USDA provides demo access
+        self.api_key = (
+            api_key or "DEMO_KEY"
+        )  # nosec B105  # USDA provides demo access with DEMO_KEY
         self.client = httpx.AsyncClient()
 
         # Common nutrient mappings (USDA nutrient IDs to our standard names)
@@ -247,30 +249,42 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _parse_food_item(self, food_data: Dict) -> Optional[USDAFoodItem]:
+    def _validate_fdc_id(self, fdc_id_raw: Any) -> Optional[int]:
+        """
+        RU: Валидирует и нормализует FDC ID.
+        EN: Validates and normalizes FDC ID.
+
+        Args:
+            fdc_id_raw: Raw FDC ID value from API (can be int, str, or other)
+
+        Returns:
+            Validated FDC ID as int, or None if invalid
+        """
+        if isinstance(fdc_id_raw, str):
+            try:
+                return int(fdc_id_raw)
+            except ValueError:
+                logger.error(f"Invalid fdcId string: {fdc_id_raw}")
+                return None
+        elif isinstance(fdc_id_raw, int):
+            return fdc_id_raw
+        else:
+            logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+            return None
+
+    def _parse_food_item(self, food_data: Mapping[str, Any] | None) -> Optional[USDAFoodItem]:
         """
         RU: Парсит данные продукта из API ответа.
         EN: Parse food item from API response.
         """
-        try:
-            # Debug: Check if food_data is actually a dict
-            if not isinstance(food_data, dict):
-                logger.error(f"Expected dict, got {type(food_data)}: {food_data}")
-                return None
+        if food_data is None:
+            return None
 
+        try:
             # Extract basic info
             fdc_id_raw = food_data.get("fdcId")
-            # Guard and normalize fdc_id to int
-            if isinstance(fdc_id_raw, str):
-                try:
-                    fdc_id = int(fdc_id_raw)
-                except ValueError:
-                    logger.error(f"Invalid fdcId string: {fdc_id_raw}")
-                    return None
-            elif isinstance(fdc_id_raw, int):
-                fdc_id = fdc_id_raw
-            else:
-                logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+            fdc_id = self._validate_fdc_id(fdc_id_raw)
+            if fdc_id is None:
                 return None
             description = food_data.get("description", "Unknown Food")
             data_type = food_data.get("dataType", "Unknown")

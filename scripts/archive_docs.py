@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 from datetime import date
 from pathlib import Path
-from typing import List
 
 CANDIDATES = [
     "AUTOMATION_ERRORS_REPORT.md",
@@ -41,8 +40,8 @@ def main() -> int:
     dest_dir = root / "docs" / "archive" / today
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    planned: List[str] = []
-    moved: List[str] = []
+    planned: list[str] = []
+    moved: list[str] = []
     for name in CANDIDATES:
         src = root / name
         if not src.exists():

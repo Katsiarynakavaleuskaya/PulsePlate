@@ -1,4 +1,14 @@
 {$STAGING_DOMAIN} {
     encode gzip
     reverse_proxy app:8000
+
+    # RU: Базовые security headers (для staging)
+    # EN: Basic security headers (for staging)
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        # Минимальная CSP: разрешаем всё с того же источника
+        Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+    }
 }

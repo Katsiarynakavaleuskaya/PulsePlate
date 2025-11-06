@@ -39,7 +39,7 @@ class TestAutoProductExpansionDemo:
         """Focused unit test for automatic product expansion functionality."""
         # Setup
         finder = ProductFinder()
-        recipes = parse_recipe_db("data/recipes_extended.csv")
+        recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
         unique_ingredients = sorted(self._collect_all_ingredients(recipes))
 
         # Test missing products detection
@@ -77,7 +77,7 @@ class TestAutoProductExpansionDemo:
         finder = ProductFinder()
 
         # Загружаем рецепты
-        recipes = parse_recipe_db("data/recipes_extended.csv")
+        recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
 
         # Получаем все ингредиенты (сортированные для детерминистичности)
         unique_ingredients = sorted(self._collect_all_ingredients(recipes))
@@ -135,7 +135,7 @@ class TestAutoProductExpansionDemo:
     def test_missing_products_detection_accuracy(self) -> None:
         """Test accuracy of missing products detection."""
         finder = ProductFinder()
-        recipes = parse_recipe_db("data/recipes_extended.csv")
+        recipes = parse_recipe_db("data/recipes_extended.csv", food_db={})
 
         # Получаем все ингредиенты (сортированные для детерминистичности)
         unique_ingredients = sorted(self._collect_all_ingredients(recipes))

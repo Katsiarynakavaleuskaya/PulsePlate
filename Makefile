@@ -235,16 +235,30 @@ fix-all: fmt lint ## Fix all auto-fixable issues
 ci: test cov-check lint security ## CI/CD pipeline commands
 	@echo "$(GREEN)✅ CI проверки завершены$(NC)"
 
+## Full Bandit scan (used by pre-push hook)
+## In CI mode (CI=true), fails on MEDIUM/HIGH severity findings
+## In local mode, permissive (warnings only, doesn't fail)
+bandit-full:
+	@echo "$(YELLOW)🔒 Полное сканирование Bandit...$(NC)"
+	@if [ "$(CI)" = "true" ]; then \
+		echo "$(YELLOW)CI mode: строгий режим (fail on MEDIUM/HIGH)...$(NC)"; \
+		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json; \
+	else \
+		echo "$(YELLOW)Local mode: разрешающий режим (warnings only)...$(NC)"; \
+		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json || true; \
+	fi
+	@echo "$(GREEN)✅ Bandit отчет: bandit-report.json$(NC)"
+
 ## Smoke test (auto: 8000 then 8001)
 smoke-auto: ## Try health+bmi on 8000 then 8001
 	@if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8000"; \
+		echo "$(YELLOW)Using 8000$(NC)"; \
 		bash ./scripts/smoke.sh http://127.0.0.1:8000; \
 	elif curl -fsS http://127.0.0.1:8001/api/v1/health >/dev/null 2>&1; then \
-		echo "Using 8001"; \
+		echo "$(YELLOW)Using 8001$(NC)"; \
 		bash ./scripts/smoke.sh http://127.0.0.1:8001; \
 	else \
-		echo "No server found on 8000/8001"; exit 1; \
+		echo "$(RED)No server found on 8000/8001$(NC)"; exit 1; \
 	fi
 
 ## Smoke test on :8000
@@ -255,4 +269,4 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full

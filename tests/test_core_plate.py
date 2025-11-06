@@ -111,7 +111,8 @@ class TestCorePlateLogic:
         assert portions["fat_thumbs"] == round(expected_fat_thumbs, 1)
         assert portions["carb_cups"] == round(expected_carb_cups, 1)
         assert portions["veg_cups"] == round(expected_veg_cups, 1)
-        assert portions["meals_per_day"] == 3
+        # meals_per_day is metadata, no longer included in portions dict
+        assert "meals_per_day" not in portions
 
     def test_visual_layout_structure(self):
         """Test visual layout generation."""
@@ -156,7 +157,7 @@ class TestCorePlateLogic:
         )
 
         # Check response structure
-        required_keys = {"kcal", "macros", "portions", "layout", "meals"}
+        required_keys = {"kcal", "macros", "portions", "layout", "meals", "meals_per_day"}
         assert set(plate.keys()) == required_keys
 
         # Check kcal
@@ -168,16 +169,18 @@ class TestCorePlateLogic:
         assert all(k in macros for k in ["protein_g", "fat_g", "carbs_g", "fiber_g"])
         assert all(isinstance(v, int) for v in macros.values())
 
-        # Check portions
+        # Check portions (meals_per_day is now metadata, not in portions)
         portions = plate["portions"]
         portion_keys = {
             "protein_palm",
             "fat_thumbs",
             "carb_cups",
             "veg_cups",
-            "meals_per_day",
         }
         assert portion_keys.issubset(set(portions.keys()))
+        # Check meals_per_day is at top level
+        assert "meals_per_day" in plate
+        assert plate["meals_per_day"] == 3
 
         # Check layout
         layout = plate["layout"]
@@ -363,6 +366,58 @@ class TestCorePlateLogic:
             assert len(layout) == 6  # Should still return proper layout
         except ZeroDivisionError:
             pytest.fail("Visual layout should handle zero macros gracefully")
+
+    def test_meals_per_day_validation(self) -> None:
+        """Test meals_per_day parameter validation."""
+        base_params = {
+            "weight_kg": 70,
+            "tdee_val": 2000,
+            "goal": "maintain",
+            "deficit_pct": None,
+            "surplus_pct": None,
+            "diet_flags": None,
+        }
+
+        # Test valid values at boundaries
+        plate_min = make_plate(**base_params, meals_per_day=1)
+        assert plate_min["meals_per_day"] == 1
+
+        plate_max = make_plate(**base_params, meals_per_day=12)
+        assert plate_max["meals_per_day"] == 12
+
+        plate_default = make_plate(**base_params)  # Should default to 3
+        assert plate_default["meals_per_day"] == 3
+
+        # Test invalid type - should raise ValueError
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day="3")  # type: ignore
+
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day=3.5)  # type: ignore
+
+        with pytest.raises(ValueError, match="must be an integer"):
+            make_plate(**base_params, meals_per_day=None)  # type: ignore
+
+        # Test invalid range - should raise ValueError
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=0)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=-1)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=13)
+
+        with pytest.raises(ValueError, match="must be between 1 and 12"):
+            make_plate(**base_params, meals_per_day=100)
+
+        # Test that valid meals_per_day affects portion calculations
+        plate_1_meal = make_plate(**base_params, meals_per_day=1)
+        plate_6_meals = make_plate(**base_params, meals_per_day=6)
+
+        # With 1 meal per day, portions should be larger
+        assert plate_1_meal["portions"]["protein_palm"] > plate_6_meals["portions"]["protein_palm"]
+        assert plate_1_meal["portions"]["carb_cups"] > plate_6_meals["portions"]["carb_cups"]
 
     def test_multiple_diet_flags(self):
         """Test combining multiple diet flags."""

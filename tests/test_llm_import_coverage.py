@@ -148,7 +148,9 @@ class TestGetProviderEdgeCases:
                 mock_ollama.side_effect = [TypeError("keyword error"), Exception("creation failed")]
 
                 provider = llm.get_provider()
-                assert provider is None
+                # При ошибках должен вернуться OllamaLiteProvider (консистентно с GrokProvider)
+                assert provider is not None
+                assert provider.name == "ollama"
                 assert mock_ollama.call_count == 2
 
     @patch("llm.GrokProvider")

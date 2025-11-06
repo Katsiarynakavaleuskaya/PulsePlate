@@ -9,7 +9,7 @@ us from reaching 96% coverage.
 
 from unittest.mock import mock_open, patch
 
-from core.aliases import _load_aliases, add_alias, map_to_canonical
+from core.aliases import _load_aliases, add_alias, clear_alias_cache, map_to_canonical
 
 
 class TestAliasesCoverage96:
@@ -19,6 +19,11 @@ class TestAliasesCoverage96:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+        clear_alias_cache()
+
+    def teardown_method(self):
+        """Ensure alias cache is cleared between tests."""
+        clear_alias_cache()
 
     def test_load_aliases_file_not_found(self):
         """Test _load_aliases when file doesn't exist - lines 29-31."""
@@ -31,11 +36,15 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\napple,Apple\nbanana,Banana\n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = [
-                    {"alias": "apple", "canonical": "Apple"},
-                    {"alias": "banana", "canonical": "Banana"},
-                ]
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__.return_value = iter(
+                    [
+                        {"alias": "apple", "canonical": "Apple"},
+                        {"alias": "banana", "canonical": "Banana"},
+                    ]
+                )
 
                 result = _load_aliases("test_file.csv")
                 assert result == {"apple": "Apple", "banana": "Banana"}
@@ -45,11 +54,15 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\n apple , Apple \n banana , Banana \n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = [
-                    {"alias": " apple ", "canonical": " Apple "},
-                    {"alias": " banana ", "canonical": " Banana "},
-                ]
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__.return_value = iter(
+                    [
+                        {"alias": " apple ", "canonical": " Apple "},
+                        {"alias": " banana ", "canonical": " Banana "},
+                    ]
+                )
 
                 result = _load_aliases("test_file.csv")
                 assert result == {"apple": "Apple", "banana": "Banana"}
@@ -59,8 +72,10 @@ class TestAliasesCoverage96:
         csv_content = "alias,canonical\n"
 
         with patch("builtins.open", mock_open(read_data=csv_content)):
-            with patch("csv.DictReader") as mock_reader:
-                mock_reader.return_value = []
+            with patch("csv.DictReader") as mock_reader_class:
+                mock_reader = mock_reader_class.return_value
+                mock_reader.fieldnames = ["alias", "canonical"]
+                mock_reader.__iter__.return_value = iter([])
 
                 result = _load_aliases("test_file.csv")
                 assert result == {}

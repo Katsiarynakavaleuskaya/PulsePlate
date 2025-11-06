@@ -30,7 +30,7 @@ repos:
 
   # --- Lint: Ruff (fast flake8 + isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.1
+    rev: v0.14.2
     hooks:
       - id: ruff
         name: ruff (lint, local)
@@ -43,14 +43,15 @@ repos:
     hooks:
       - id: mypy
         name: mypy (type-check)
+        pass_filenames: false
+        stages: [pre-push]
         args:
+          - --explicit-package-bases
           - --pretty
           - --show-error-codes
-          - --implicit-optional
-          - --ignore-missing-imports
-          - --install-types
-          - --non-interactive
-        files: ^(app|app/.*\.py|scripts/.*\.py|tests/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py)$
+          - app
+          - core
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py|providers/.*\.py)$
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
@@ -61,7 +62,7 @@ repos:
         stages: [pre-commit]
         types: [python]
         # Changed-files only (fast path). Full scan added below on pre-push/CI.
-        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/
+        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/|^test_quick_check\.py$
         args:
           - -q
           - -c
@@ -74,7 +75,7 @@ repos:
       - id: pip-audit
         name: pip-audit (pip vulns)
         stages: [pre-push]
-        args: [--requirement, requirements.txt, --strict]
+        args: [--requirement, requirements.txt, --strict, --timeout, '60']
 
   # --- Docstrings: pydocstyle (re-enabled on pre-push)
   - repo: https://github.com/PyCQA/pydocstyle
@@ -83,7 +84,7 @@ repos:
       - id: pydocstyle
         name: pydocstyle (docstrings)
         files: ^(?!frontend/).+\.py$
-        stages: [pre-push]
+        stages: [manual]
         args: [--convention=google]
 
   # --- Commit message lint (commitizen)

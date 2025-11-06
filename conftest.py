@@ -6,6 +6,7 @@ import os
 import sys
 import pytest
 import importlib.util
+from pathlib import Path
 from fastapi.testclient import TestClient
 from typing import cast
 from starlette.types import ASGIApp
@@ -18,16 +19,61 @@ class AppLoadError(ImportError):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_test_database():
-    """Initialize test database tables before running tests."""
-    try:
-        from core.db import init_db
+def init_test_database() -> None:
+    """Initialize test database tables before running tests.
 
-        init_db()
+    This fixture ensures the database schema is created before any tests run.
+    It imports models to ensure they're registered with SQLAlchemy Base metadata,
+    then calls init_db() to create all tables.
+    """
+    import os
+    import logging
+
+    # Ensure test environment variables are set
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+
+    try:
+        # Configure SQLite database path for tests
+        db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+        db_path = Path(db_path_env)
+        if not db_path.is_absolute():
+            db_path = Path.cwd() / db_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
+
+        # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
+        import importlib
+
+        if "core.db" in sys.modules:
+            core_db = importlib.reload(sys.modules["core.db"])  # type: ignore[assignment]
+        else:
+            import core.db as core_db  # type: ignore[assignment]
+
+        # Reload or import models to ensure they're registered
+        if "core.models" in sys.modules:
+            importlib.reload(sys.modules["core.models"])  # noqa: F401
+        else:
+            import core.models  # noqa: F401
+
+        # Initialize database - this creates all tables
+        core_db.init_db()
+
+        # Verify initialization succeeded by checking if tables exist
+        session_scope = core_db.session_scope
+        from sqlalchemy import inspect
+
+        with session_scope() as session:
+            inspector = inspect(session.get_bind())
+            tables = inspector.get_table_names()
+            if not tables:
+                raise RuntimeError("Database initialized but no tables found")
+            logging.info(f"Database initialized with {len(tables)} tables: {', '.join(tables)}")
     except Exception as e:
-        # If DB initialization fails (e.g., DB not configured), tests should still run
-        # but may fail if they require DB access
-        print(f"Warning: Could not initialize test database: {e}")
+        # Log error and re-raise to fail fast in CI; tests requiring DB will not run
+        logging.error(f"Failed to initialize test database: {e}", exc_info=True)
+        print(f"ERROR: Could not initialize test database: {e}")
+        raise
 
 
 @pytest.fixture(scope="session")

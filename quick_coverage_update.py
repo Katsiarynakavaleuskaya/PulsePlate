@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """Quick coverage check for our progress."""
 
-import subprocess
+# nosec B404 - subprocess is safe: args are static (hardcoded test file paths),
+# shell=False (default), sys.executable (not user-controlled), no user input,
+# args passed as list
+import subprocess  # nosec B404
 import time
+import sys
 
 
-def run_coverage_check():
+def run_coverage_check() -> bool:
     """Run coverage on our new test files specifically."""
     print("🔍 Checking coverage progress...")
     start_time = time.time()
 
     # Run only our new tests with overall coverage
     cmd = [
-        "python",
+        sys.executable,
         "-m",
         "pytest",
         "tests/test_product_varieties.py",
@@ -25,7 +29,14 @@ def run_coverage_check():
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # Timeout aligned with analyze_coverage_gaps.py (600s) for consistency
+        # Note: This script runs a subset of tests, so typically completes faster
+        # nosec B603: Safe subprocess invocation - cmd (defined lines 15-26) is a static
+        # list built from sys.executable and hardcoded pytest arguments only; no user
+        # input or external data is used. Timeout (600s) prevents hangs, and
+        # capture_output/text are used intentionally to safely capture stdout/stderr
+        # without shell injection risks.
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)  # nosec B603
         elapsed = time.time() - start_time
 
         lines = result.stdout.split("\n")

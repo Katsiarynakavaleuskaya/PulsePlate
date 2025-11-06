@@ -15,10 +15,10 @@ from core.recipe_db import Recipe, parse_recipe_db
 class TestRecipesDatabaseExpansionHypothesis:
     """Test expanded recipes database with Hypothesis."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
-        self.recipes = parse_recipe_db("data/recipes_extended.csv")
         self.foods = parse_food_db("data/food_db.csv")
+        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db=self.foods)
 
     @given(
         min_calories=st.floats(min_value=100.0, max_value=800.0),

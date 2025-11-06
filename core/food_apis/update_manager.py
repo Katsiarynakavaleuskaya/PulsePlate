@@ -11,6 +11,7 @@ information becomes available, with version tracking, validation, and rollback.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import hashlib
 import json
 import logging
@@ -19,7 +20,18 @@ import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -27,6 +39,15 @@ from .usda_client import USDAClient
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+async def _maybe_await(value: Union[T, Awaitable[T]]) -> T:
+    """Return awaited value if awaitable, otherwise the value itself."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 class _PatchablePathWrapper:
@@ -114,6 +135,24 @@ class DatabaseUpdateManager:
     - Notification system for update events
     """
 
+    _OFF_SQLITE_FILENAME: ClassVar[str] = "off.sqlite"
+    _OFF_JSONL_PATTERNS: ClassVar[List[str]] = [
+        "*.openfoodfacts.org.products.jsonl",
+        "*.openfoodfacts.org.products.ndjson",
+        "*off*.jsonl",
+        "*off*.ndjson",
+        "*products*.jsonl",
+        "*products*.ndjson",
+    ]
+    _OFF_CSV_PATTERNS: ClassVar[List[str]] = [
+        "*.openfoodfacts.org.products.csv",
+        "*.csv",
+        "*.tsv",
+        "*_export.csv",
+        "*off*.csv",
+        "*products*.csv",
+    ]
+
     def __init__(
         self,
         cache_dir: str | Path = "cache/food_db",
@@ -147,7 +186,7 @@ class DatabaseUpdateManager:
             return {}
 
         try:
-            with open(self.versions_file, "r") as f:
+            with open(self.versions_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             return {
@@ -155,7 +194,7 @@ class DatabaseUpdateManager:
             }
 
         except Exception as e:
-            logger.error(f"Error loading versions: {e}")
+            logger.error("Error loading versions: %s", e)
             return {}
 
     def _save_versions(self):
@@ -163,17 +202,38 @@ class DatabaseUpdateManager:
         try:
             data = {source: asdict(version) for source, version in self.versions.items()}
 
-            with open(self.versions_file, "w") as f:
+            with open(self.versions_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
-            logger.error(f"Error saving versions: {e}")
+            logger.error("Error saving versions: %s", e, exc_info=True)
 
     def _calculate_checksum(self, data: Dict[str, Any]) -> str:
         """Calculate checksum for data integrity."""
         # Convert to sorted JSON string for consistent hashing
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
+
+    def _find_off_export_file(self, cache_dir: Path, file_types: Sequence[str]) -> Optional[Path]:
+        """Return a deterministically selected OFF export file for the given types.
+
+        Selection strategy:
+        - Collect matches for each pattern
+        - Sort by modification time (newest first) to prefer the most recent export
+        - Return the single chosen Path for stable, repeatable behavior
+        """
+        pattern_map: dict[str, List[str]] = {
+            "jsonl": self._OFF_JSONL_PATTERNS,
+            "csv": self._OFF_CSV_PATTERNS,
+        }
+        for file_type in file_types:
+            for pattern in pattern_map.get(file_type, []):
+                matches = list(cache_dir.glob(pattern))
+                if matches:
+                    # Deterministic selection: newest by modification time
+                    matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    return matches[0]
+        return None
 
     async def check_for_updates(self) -> Dict[str, bool]:
         """
@@ -190,7 +250,7 @@ class DatabaseUpdateManager:
             usda_available = await self._check_usda_updates()
             updates_available["usda"] = usda_available
         except Exception as e:
-            logger.error(f"Error checking USDA updates: {e}")
+            logger.error("Error checking USDA updates: %s", e)
             updates_available["usda"] = False
 
         # Check Open Food Facts updates
@@ -199,7 +259,7 @@ class DatabaseUpdateManager:
                 off_available = await self._check_off_updates()
                 updates_available["openfoodfacts"] = off_available
             except Exception as e:
-                logger.error(f"Error checking Open Food Facts updates: {e}")
+                logger.error("Error checking Open Food Facts updates: %s", e)
                 updates_available["openfoodfacts"] = False
 
         return updates_available
@@ -267,7 +327,7 @@ class DatabaseUpdateManager:
             try:
                 callback(result)
             except Exception as e:
-                logger.error(f"Error in update callback: {e}")
+                logger.error("Error in update callback: %s", e)
 
         return result
 
@@ -327,7 +387,7 @@ class DatabaseUpdateManager:
                 try:
                     old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
-                    logger.warning(f"Could not load old data for comparison: {e}")
+                    logger.warning("Could not load old data for comparison: %s", e)
 
             records_added = len(updated_foods) - len(old_foods)
             records_updated = len(set(updated_foods.keys()) & set(old_foods.keys()))
@@ -352,7 +412,7 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(updated_foods)} foods")
+            logger.info("Successfully updated %s database: %d foods", source, len(updated_foods))
 
             return UpdateResult(
                 success=True,
@@ -367,7 +427,7 @@ class DatabaseUpdateManager:
             )
 
         except Exception as e:
-            logger.error(f"Error updating {source} database: {e}")
+            logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
                 source=source,
@@ -416,7 +476,7 @@ class DatabaseUpdateManager:
                         # Small delay to respect API limits
                         await asyncio.sleep(0.1)
                     except Exception as e:
-                        logger.warning(f"Error searching for {search_term}: {e}")
+                        logger.warning("Error searching for %s: %s", search_term, e)
 
             # Convert to unified format
             unified_foods = {}
@@ -427,7 +487,7 @@ class DatabaseUpdateManager:
                     key = self._generate_food_key(unified_item.name)
                     unified_foods[key] = unified_item
                 except Exception as e:
-                    logger.warning(f"Error converting OFF item to unified format: {e}")
+                    logger.warning("Error converting OFF item to unified format: %s", e)
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
@@ -472,37 +532,15 @@ class DatabaseUpdateManager:
                 try:
                     old_foods = await self._load_backup(source, current_version.version)
                 except Exception as e:
-                    logger.warning(f"Could not load old data for comparison: {e}")
+                    logger.warning("Could not load old data for comparison: %s", e)
 
             records_added = len(unified_foods) - len(old_foods)
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
-            # Use consistent data source for both record_count and checksum
-            # Get the actual record count from the cache-backed database
-            actual_record_count = await self._get_actual_record_count(source)
-            # Fall back to sample size if helper returns 0 or None
-            if actual_record_count == 0:
-                actual_record_count = len(unified_foods)
-
-            # Calculate checksum from the same data used for record_count
-            # Use the cache-backed data if available, otherwise use unified_foods
-            if actual_record_count == len(unified_foods):
-                # Use unified_foods for both count and checksum
-                checksum = self._calculate_checksum(
-                    {name: self._food_to_dict(food) for name, food in unified_foods.items()}
-                )
-            else:
-                # Use cache-backed data for both count and checksum
-                cache_data = await self._get_cache_data_for_checksum(source)
-                checksum = self._calculate_checksum(cache_data)
-
-            # Validation: ensure record_count > 0 for non-empty ingestions
-            if actual_record_count == 0:
-                logger.warning(
-                    f"No records found in {source} database. This may indicate an empty cache."
-                )
-                logger.warning("Consider running the ingestion pipeline to populate the database.")
+            actual_record_count, checksum = await self._get_validated_record_count_and_checksum(
+                source, unified_foods
+            )
 
             # Update version tracking
             new_db_version = DatabaseVersion(
@@ -524,7 +562,7 @@ class DatabaseUpdateManager:
             # Clean up old backups
             await self._cleanup_old_backups(source)
 
-            logger.info(f"Successfully updated {source} database: {len(unified_foods)} foods")
+            logger.info("Successfully updated %s database: %d foods", source, len(unified_foods))
 
             return UpdateResult(
                 success=True,
@@ -539,7 +577,7 @@ class DatabaseUpdateManager:
             )
 
         except Exception as e:
-            logger.error(f"Error updating {source} database: {e}")
+            logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
                 source=source,
@@ -559,7 +597,7 @@ class DatabaseUpdateManager:
             cache_dir = Path(self.cache_dir)
             if source == "openfoodfacts":
                 # Check for SQLite database first
-                sqlite_file = cache_dir / "off.sqlite"
+                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
                 if sqlite_file.exists():
                     import sqlite3
 
@@ -571,49 +609,32 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                # Check for OFF export files using glob patterns
-                patterns = [
-                    "*.openfoodfacts.org.products.csv",
-                    "*.openfoodfacts.org.products.jsonl",
-                    "*.openfoodfacts.org.products.ndjson",
-                    "*off*.jsonl",
-                    "*off*.ndjson",
-                    "*products*.csv",
-                    "*products*.jsonl",
-                    "*products*.ndjson",
-                ]
-
-                for pattern in patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        # Use the first matching file
-                        file_path = matching_files[0]
-                        if file_path.suffix == ".csv":
-                            # For CSV, subtract header
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                count = sum(1 for _ in f)
-                                return int(max(0, count - 1))
-                        else:
-                            # For JSONL/NDJSON, count lines
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                count = sum(1 for _ in f)
-                                return int(count)
+                export_file = self._find_off_export_file(cache_dir, ("jsonl", "csv"))
+                if export_file:
+                    if export_file.suffix in {".csv", ".tsv"}:
+                        with export_file.open("r", encoding="utf-8") as f:
+                            count = sum(1 for _ in f)
+                            return int(max(0, count - 1))
+                    else:
+                        with export_file.open("r", encoding="utf-8") as f:
+                            count = sum(1 for _ in f)
+                            return int(count)
 
             # If no database files found, return 0
-            logger.warning(f"No database files found for {source}")
+            logger.warning("No database files found for %s", source)
             return 0
 
         except Exception as e:
-            logger.error(f"Error getting record count for {source}: {e}")
+            logger.error("Error getting record count for %s: %s", source, e)
             return 0
 
-    async def _get_cache_data_for_checksum(self, source: str) -> dict:
+    async def _get_cache_data_for_checksum(self, source: str) -> Dict[str, Any]:
         """Get cache data for checksum calculation."""
         try:
-            cache_dir = Path(self.cache_dir)
+            cache_dir = self.cache_dir
             if source == "openfoodfacts":
                 # Try to get data from SQLite cache
-                sqlite_file = cache_dir / "off.sqlite"
+                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
                 if sqlite_file.exists():
                     import sqlite3
 
@@ -634,61 +655,58 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                # Fallback to JSON/CSV files
+                json_export = self._find_off_export_file(Path(str(cache_dir)), ("jsonl",))
+                if json_export:
+                    cache_data = {}
+                    with json_export.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                data = json.loads(line.strip())
+                            except json.JSONDecodeError:
+                                continue
+                            if isinstance(data, dict) and "name" in data:
+                                cache_data[data["name"]] = data
+                    return cache_data
 
-                # Check for JSONL/NDJSON files first
-                jsonl_patterns = [
-                    "*.openfoodfacts.org.products.jsonl",
-                    "*.openfoodfacts.org.products.ndjson",
-                    "*off*.jsonl",
-                    "*off*.ndjson",
-                    "*products*.jsonl",
-                    "*products*.ndjson",
-                ]
+                csv_export = self._find_off_export_file(Path(str(cache_dir)), ("csv",))
+                if csv_export:
+                    cache_data = {}
+                    with csv_export.open("r", encoding="utf-8") as f:
+                        import csv
 
-                # Check for CSV files
-                csv_patterns = [
-                    "*.csv",
-                    "*.tsv",
-                    "*_export.csv",
-                    "*off*.csv",
-                    "*products*.csv",
-                ]
-
-                # Try JSONL/NDJSON files first
-                for pattern in jsonl_patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        file_path = matching_files[0]
-                        cache_data = {}
-                        with file_path.open("r", encoding="utf-8") as f:
-                            for line in f:
-                                try:
-                                    data = json.loads(line.strip())
-                                    if "name" in data:
-                                        cache_data[data["name"]] = data
-                                except json.JSONDecodeError:
-                                    continue
-                        return cache_data
-
-                # Try CSV files
-                for pattern in csv_patterns:
-                    matching_files = list(cache_dir.glob(pattern))
-                    if matching_files:
-                        file_path = matching_files[0]
-                        cache_data = {}
-                        with file_path.open("r", encoding="utf-8") as f:
-                            import csv
-
-                            reader = csv.DictReader(f)
-                            for row in reader:
-                                if "name" in row:
-                                    cache_data[row["name"]] = row
-                        return cache_data
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            if isinstance(row, dict) and "name" in row:
+                                cache_data[row["name"]] = row
+                    return cache_data
         except Exception as e:
-            logger.warning(f"Could not get cache data for checksum for {source}: {e}")
+            logger.warning("Could not get cache data for checksum for %s: %s", source, e)
 
         return {}
+
+    async def _get_validated_record_count_and_checksum(
+        self, source: str, unified_foods: Dict[str, UnifiedFoodItem]
+    ) -> tuple[int, str]:
+        """Return record count and checksum with cache-aware fallbacks."""
+        record_count = await self._get_actual_record_count(source)
+        if record_count == 0:
+            record_count = len(unified_foods)
+
+        cache_data = await self._get_cache_data_for_checksum(source)
+        if cache_data:
+            checksum = self._calculate_checksum(cache_data)
+        else:
+            checksum = self._calculate_checksum(
+                {name: self._food_to_dict(food) for name, food in unified_foods.items()}
+            )
+
+        if record_count == 0:
+            logger.warning(
+                "No records found in %s database. This may indicate an empty cache.", source
+            )
+            logger.warning("Consider running the ingestion pipeline to populate the database.")
+
+        return record_count, checksum
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""
@@ -781,24 +799,38 @@ class DatabaseUpdateManager:
             current_data = await self.unified_db.get_common_foods_database()
             backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-            with open(backup_file, "w") as f:
+            with open(backup_file, "w", encoding="utf-8") as f:
                 json.dump(
                     {name: self._food_to_dict(food) for name, food in current_data.items()},
                     f,
                     indent=2,
                 )
 
-            logger.info(f"Created backup for {source} version {version}")
-
-        except Exception as e:
-            logger.error(f"Error creating backup: {e}")
+            logger.info("Created backup for %s version %s", source, version)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error("Error creating backup for %s: %s", source, str(exc), exc_info=True)
+        except Exception as exc:
+            logger.error(
+                "Unexpected error creating backup for %s: %s", source, str(exc), exc_info=True
+            )
 
     async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
 
-        with open(backup_file, "r") as f:
-            data = json.load(f)
+        try:
+            with open(backup_file, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if not content:
+                    logger.debug("Backup file %s is empty", backup_file)
+                    return {}
+                data = json.loads(content)
+        except json.JSONDecodeError as json_err:
+            logger.debug("Failed to parse backup file %s: %s", backup_file, str(json_err))
+            return {}
+        except FileNotFoundError:
+            logger.debug("Backup file %s not found", backup_file)
+            return {}
 
         # Basic schema validation: ensure minimal keys exist
         required = {
@@ -811,13 +843,17 @@ class DatabaseUpdateManager:
             "source_id",
         }
         foods: Dict[str, UnifiedFoodItem] = {}
+        if not isinstance(data, dict):
+            logger.debug("Backup file %s does not contain a dict", backup_file)
+            return {}
+
         for name, food_data in data.items():
             try:
                 if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
                     continue
                 foods[name] = UnifiedFoodItem(**food_data)
-            except Exception:
-                # Skip malformed entries
+            except (TypeError, ValueError) as parse_err:
+                logger.debug("Skipping malformed backup entry %s: %s", name, parse_err)
                 continue
 
         return foods
@@ -832,10 +868,10 @@ class DatabaseUpdateManager:
         """
         try:
             # Only call asdict on dataclass instances, not types
-            if is_dataclass(type(food)):
+            if is_dataclass(food) and not isinstance(food, type):
                 return asdict(food)
-        except Exception:
-            pass
+        except (TypeError, ValueError) as dataclass_err:
+            logger.debug("Failed dataclass conversion for %s: %s", food, dataclass_err)
 
         if isinstance(food, dict):
             return food
@@ -845,10 +881,22 @@ class DatabaseUpdateManager:
                 try:
                     result = getattr(food, method_name)()
                     return dict(result) if not isinstance(result, dict) else result
-                except Exception:
+                except (TypeError, ValueError, AttributeError) as transform_err:
+                    logger.debug(
+                        "Conversion method %s failed for %s: %s", method_name, food, transform_err
+                    )
                     continue
 
         # Fallback: return a dict with all required keys and placeholder values
+        food_id = getattr(food, "id", None)
+        food_name = getattr(food, "name", None)
+        food_identifier = (
+            food_id if food_id is not None else (food_name if food_name is not None else "unknown")
+        )
+        logger.warning(
+            "Using fallback placeholder serialization for food item '%s' (dataclass conversion and method-based transforms failed)",
+            food_identifier,
+        )
         return {
             "name": getattr(food, "name", "unknown"),
             "nutrients_per_100g": getattr(food, "nutrients_per_100g", {}),
@@ -870,10 +918,10 @@ class DatabaseUpdateManager:
             # Remove old backups beyond the limit
             for old_backup in backup_files[self.max_rollback_versions :]:
                 old_backup.unlink()
-                logger.info(f"Removed old backup: {old_backup.name}")
+                logger.info("Removed old backup: %s", old_backup.name)
 
-        except Exception as e:
-            logger.error(f"Error cleaning up backups: {e}")
+        except Exception as exc:
+            logger.error("Error cleaning up backups for %s: %s", source, str(exc), exc_info=True)
 
     async def rollback_database(self, source: str, target_version: str) -> bool:
         """
@@ -915,11 +963,13 @@ class DatabaseUpdateManager:
                 self.versions[source] = rollback_version
                 self._save_versions()
 
-                logger.info(f"Successfully rolled back {source} to version {target_version}")
+                logger.info("Successfully rolled back %s to version %s", source, target_version)
                 return True
 
-        except Exception as e:
-            logger.error(f"Error rolling back {source} to {target_version}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Error rolling back %s to %s: %s", source, target_version, str(exc), exc_info=True
+            )
 
         return False
 
@@ -973,11 +1023,11 @@ async def run_scheduled_update(
 
     for source, has_updates in available_updates.items():
         if has_updates:
-            logger.info(f"Running scheduled update for {source}")
+            logger.info("Running scheduled update for %s", source)
             result = await update_manager.update_database(source)
             results[source] = result
         else:
-            logger.info(f"No updates available for {source}")
+            logger.info("No updates available for %s", source)
 
     return results
 

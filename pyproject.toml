@@ -8,7 +8,7 @@ profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = false
 warn_unused_ignores = true
 warn_redundant_casts = true
@@ -38,11 +38,11 @@ exclude = '''
 
 [tool.black]
 line-length = 100
-target-version = ["py312"]
+target-version = ["py313"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "W", "F"]
@@ -60,7 +60,7 @@ ignore = [
 "releases/**/*.py" = ["E402"]
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 reportMissingImports = false
 pythonPath = "."
 

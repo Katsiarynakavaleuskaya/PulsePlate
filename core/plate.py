@@ -188,9 +188,11 @@ def apply_diet_flag_adjustments(
     }
 
 
-def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, Any]:
+def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict[str, float]:
     """RU: Переводим макросы в «ладони/чашки» для интерфейса.
     EN: Convert macros to palms/cups portions for UI.
+
+    Returns only physical portion measurements (not metadata like meals_per_day).
     """
     p_palm = macros["protein_g"] / (SERVE["protein_palm_g"] * meals_per_day)
     f_thumb = macros["fat_g"] / (SERVE["fat_thumb_g"] * meals_per_day)
@@ -202,7 +204,6 @@ def portions_from_macros(macros: Dict[str, int], meals_per_day: int = 3) -> Dict
         "fat_thumbs": round(f_thumb, 1),
         "carb_cups": round(c_cup, 1),
         "veg_cups": round(v_cup, 1),
-        "meals_per_day": meals_per_day,
     }
 
 
@@ -272,10 +273,36 @@ def make_plate(
     deficit_pct: Optional[float],
     surplus_pct: Optional[float],
     diet_flags: Optional[Set[str]] = None,
+    meals_per_day: int = 3,
 ) -> Dict[str, Any]:
     """RU: Главная функция: целевые калории → макросы → порции → визуалка.
     EN: Main: target kcal → macros → portions → visual.
+
+    Args:
+        weight_kg: Body weight in kilograms.
+        tdee_val: Total Daily Energy Expenditure value.
+        goal: Nutrition goal: "loss", "maintain", or "gain".
+        deficit_pct: Calorie deficit percentage for weight loss (optional).
+        surplus_pct: Calorie surplus percentage for weight gain (optional).
+        diet_flags: Optional set of dietary flags (e.g., "VEGAN", "KETO", "GF").
+        meals_per_day: Number of meals per day for portion calculation (default: 3).
+
+    Returns:
+        Dictionary containing kcal, macros, portions, layout, meals, and meals_per_day.
+
+    Raises:
+        ValueError: If meals_per_day is not an integer or is outside the valid range [1, 12].
     """
+    # Validate meals_per_day parameter
+    # RU: Проверяем, что meals_per_day - целое число в разумном диапазоне
+    # EN: Validate that meals_per_day is an integer within reasonable range
+    if not isinstance(meals_per_day, int):
+        raise ValueError(
+            f"meals_per_day must be an integer, got {type(meals_per_day).__name__}: {meals_per_day}"
+        )
+    if not (1 <= meals_per_day <= 12):
+        raise ValueError(f"meals_per_day must be between 1 and 12 (inclusive), got {meals_per_day}")
+
     target = target_kcal(tdee_val, goal, deficit_pct, surplus_pct)
     normalized_flags: Optional[Set[str]] = None
     if diet_flags:
@@ -297,7 +324,7 @@ def make_plate(
         kcal=target,
         diet_flags=normalized_flags,
     )
-    portions = portions_from_macros(macros, meals_per_day=3)
+    portions = portions_from_macros(macros, meals_per_day=meals_per_day)
     layout = _visual_layout(macros)
 
     # Пример простых блюд под флаги; фронт может показывать карточки
@@ -384,4 +411,5 @@ def make_plate(
         "portions": portions,
         "layout": layout,
         "meals": meals,
+        "meals_per_day": meals_per_day,
     }

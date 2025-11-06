@@ -11,10 +11,11 @@ from core.food_db import parse_food_db
 from core.recipe_db import calculate_recipe_nutrients, parse_recipe_db, scale_recipe_to_kcal
 
 
-def test_parse_recipe_db():
+def test_parse_recipe_db() -> None:
     """Test that recipe database is parsed correctly."""
     # Parse the recipe database
-    recipe_db = parse_recipe_db()
+    food_db = parse_food_db()
+    recipe_db = parse_recipe_db(food_db=food_db)
 
     # Check that we have recipes
     assert isinstance(recipe_db, dict)
@@ -34,7 +35,7 @@ def test_parse_recipe_db():
     assert len(recipe.ingredients) > 0
 
 
-def test_calculate_recipe_nutrients():
+def test_calculate_recipe_nutrients() -> None:
     """Test nutrient calculation for recipes."""
     # Parse databases
     food_db = parse_food_db()
@@ -56,7 +57,7 @@ def test_calculate_recipe_nutrients():
     assert "carbs_g" in nutrients
 
 
-def test_scale_recipe_to_kcal():
+def test_scale_recipe_to_kcal() -> None:
     """Test recipe scaling to target calories."""
     # Parse databases
     food_db = parse_food_db()

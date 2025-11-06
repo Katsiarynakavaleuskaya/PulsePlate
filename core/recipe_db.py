@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 
-from .food_db import FoodItem, parse_food_db
+from .food_db import FoodItem
 
 
 @dataclass
@@ -30,7 +30,7 @@ class Recipe:
 
 
 def parse_recipe_db(
-    csv_path: str = "data/recipes.csv", food_db: Dict[str, FoodItem] = None
+    csv_path: str = "data/recipes.csv", food_db: Optional[Dict[str, FoodItem]] = None
 ) -> Dict[str, Recipe]:
     """
     RU: Парсит CSV файл базы данных рецептов.
@@ -38,13 +38,16 @@ def parse_recipe_db(
 
     Args:
         csv_path: Path to the recipe database CSV file
-        food_db: Food database for nutrient calculations (will be loaded if None)
+        food_db: Food database for nutrient calculations. If None, defaults to empty dict
+                 (nutrient calculations via calculate_recipe_nutrients will return zeros)
 
     Returns:
         Dictionary mapping recipe names to Recipe objects
     """
     if food_db is None:
-        food_db = parse_food_db()
+        # RU: Fallback to empty dict; caller should provide food_db if needed.
+        # EN: Fallback to empty dict; caller should provide food_db if needed.
+        food_db = {}
 
     recipe_db = {}
 

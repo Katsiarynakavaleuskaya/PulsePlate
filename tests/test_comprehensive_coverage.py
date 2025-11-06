@@ -397,7 +397,7 @@ class TestComprehensiveCoverage:
                 assert "water_ml" in data
 
     def test_who_targets_endpoint_value_error(self):
-        """Test WHO targets endpoint with ValueError."""
+        """Test WHO targets endpoint with ValueError returns fallback (200)."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = ValueError("Invalid input")
@@ -415,11 +415,14 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
-            assert response.status_code == 400
+            # Endpoint now returns 200 with fallback targets when build_nutrition_targets fails
+            assert response.status_code == 200
+            data = response.json()
+            assert "macros" in data
+            assert "kcal_daily" in data
 
     def test_who_targets_endpoint_general_exception(self):
-        """Test WHO targets endpoint with general exception."""
+        """Test WHO targets endpoint with general exception returns fallback (200)."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = Exception("Test error")
@@ -437,7 +440,11 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code == 500
+            # Endpoint now returns 200 with fallback targets when build_nutrition_targets fails
+            assert response.status_code == 200
+            data = response.json()
+            assert "macros" in data
+            assert "kcal_daily" in data
 
     def test_weekly_menu_endpoint_success(self):
         """Test weekly menu endpoint success case."""

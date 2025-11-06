@@ -1,5 +1,4 @@
-"""
-Open Food Facts API Client
+"""Open Food Facts API Client.
 
 RU: Клиент для работы с API Open Food Facts.
 EN: Client for Open Food Facts API integration.
@@ -14,40 +13,44 @@ Data License: Open Database License (ODbL)
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
+import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# Flag to indicate if Open Food Facts client is available
-OFF_AVAILABLE = True
+
+# Availability flag for OpenFoodFacts API. Can be toggled in tests via mock.patch() to
+# skip network calls. Callers should use fallback/mock implementations when False.
+OFF_AVAILABLE: bool = True
 
 
 @dataclass
 class OFFFoodItem:
-    """
+    """Open Food Facts food item with complete information.
+
     RU: Элемент из базы данных Open Food Facts с полной информацией.
     EN: Open Food Facts food item with complete information.
     """
 
     code: str  # Barcode
     product_name: str
-    categories: List[str]
-    nutrients_per_100g: Dict[str, float]
-    ingredients_text: Optional[str]
-    brands: Optional[str]
-    labels: List[str]
-    countries: List[str]
-    packaging: List[str]
-    image_url: Optional[str]
+    categories: list[str]
+    nutrients_per_100g: dict[str, float]
+    ingredients_text: str | None
+    brands: str | None
+    labels: list[str]
+    countries: list[str]
+    packaging: list[str]
+    image_url: str | None
     last_modified_t: int  # Unix timestamp
 
-    def to_menu_engine_format(self) -> Dict[str, Any]:
-        """
+    def to_menu_engine_format(self) -> dict[str, Any]:
+        """Convert to menu_engine format.
+
         RU: Конвертирует в формат для menu_engine.
         EN: Converts to menu_engine format.
         """
@@ -61,7 +64,7 @@ class OFFFoodItem:
             "source_id": self.code,
         }
 
-    def _generate_tags(self) -> List[str]:
+    def _generate_tags(self) -> list[str]:
         """Generate diet tags based on labels and categories."""
         tags = []
 
@@ -94,7 +97,8 @@ class OFFFoodItem:
 
 
 class OFFClient:
-    """
+    """Client for Open Food Facts API.
+
     RU: Клиент для работы с Open Food Facts API.
     EN: Client for Open Food Facts API.
 
@@ -105,9 +109,7 @@ class OFFClient:
     BASE_URL = "https://world.openfoodfacts.org/api/v2"
 
     def __init__(self):
-        """
-        Initialize Open Food Facts client.
-        """
+        """Initialize Open Food Facts client."""
         # Underlying async HTTP client
         self.client = httpx.AsyncClient()
 
@@ -141,8 +143,9 @@ class OFFClient:
             "vitamin-b6_100g": "b6_mg",
         }
 
-    async def search_products(self, query: str, page_size: int = 25) -> List[OFFFoodItem]:
-        """
+    async def search_products(self, query: str, page_size: int = 25) -> list[OFFFoodItem]:
+        """Search products by name.
+
         RU: Поиск продуктов по названию.
         EN: Search products by name.
 
@@ -155,7 +158,7 @@ class OFFClient:
         """
         try:
             url = f"{self.BASE_URL}/search"
-            params = {
+            params: dict[str, int | str] = {
                 "search_terms": query,
                 "page_size": min(page_size, 100),
                 "json": "true",
@@ -166,12 +169,8 @@ class OFFClient:
             }
 
             response = await self.client.get(url, params=params)
-            # Support both sync and async mocks for tests
-            maybe = response.raise_for_status()
-            if inspect.isawaitable(maybe):
-                await maybe
-            res = response.json()
-            data = await res if inspect.isawaitable(res) else res
+            response.raise_for_status()
+            data = response.json()
 
             products = []
             for product_data in data.get("products", []):
@@ -186,8 +185,9 @@ class OFFClient:
             logger.error(f"Error searching Open Food Facts products for '{query}': {e}")
             return []
 
-    async def get_product_details(self, barcode: str) -> Optional[OFFFoodItem]:
-        """
+    async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
+        """Get detailed product information by barcode.
+
         RU: Получить детальную информацию о продукте по штрихкоду.
         EN: Get detailed product information by barcode.
 
@@ -207,11 +207,8 @@ class OFFClient:
             }
 
             response = await self.client.get(url, params=params)
-            maybe = response.raise_for_status()
-            if inspect.isawaitable(maybe):
-                await maybe
-            res = response.json()
-            data = await res if inspect.isawaitable(res) else res
+            response.raise_for_status()
+            data = response.json()
 
             if data.get("status") == 1:  # Product found
                 return self._parse_product_item(data.get("product", {}))
@@ -225,8 +222,9 @@ class OFFClient:
         # Explicitly return None when product is not found
         return None
 
-    def _parse_product_item(self, product_data: Dict[str, Any]) -> Optional[OFFFoodItem]:
-        """
+    def _parse_product_item(self, product_data: dict[str, Any]) -> OFFFoodItem | None:
+        """Parse product data from Open Food Facts format.
+
         RU: Парсит данные продукта из формата Open Food Facts.
         EN: Parses product data from Open Food Facts format.
         """
@@ -298,8 +296,9 @@ class OFFClient:
             logger.error(f"Error parsing Open Food Facts product data: {e}")
             return None
 
-    async def get_multiple_products(self, barcodes: List[str]) -> List[OFFFoodItem]:
-        """
+    async def get_multiple_products(self, barcodes: list[str]) -> list[OFFFoodItem]:
+        """Get information for multiple products by barcodes.
+
         RU: Получить информацию о нескольких продуктах по штрихкодам.
         EN: Get information for multiple products by barcodes.
         """
@@ -307,7 +306,7 @@ class OFFClient:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and None values
-        valid_results: List[OFFFoodItem] = []
+        valid_results: list[OFFFoodItem] = []
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Error fetching product: {result}")
@@ -316,6 +315,44 @@ class OFFClient:
 
         return valid_results
 
+    def _is_event_loop_closed(self, error: RuntimeError) -> bool:
+        """Detect if RuntimeError indicates event loop closure.
+
+        Checks multiple signals: tries asyncio.get_running_loop(), falls back to
+        asyncio.get_event_loop(), and finally inspects the error message for
+        loop/closed hints.
+
+        Args:
+            error: RuntimeError to inspect
+
+        Returns:
+            True if any check indicates loop closure, False otherwise
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_closed():
+                return True
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    return True
+            except RuntimeError:
+                pass
+
+        # Final fallback: stricter pattern matching for event loop closure
+        error_msg = str(error).lower()
+        # Match exact phrases: "event loop is closed" or "event loop" followed by "closed"
+        event_loop_closed_pattern = re.compile(r"event\s+loop\s+(is\s+)?closed")
+        return bool(event_loop_closed_pattern.search(error_msg))
+
     async def close(self):
         """Close the HTTP client."""
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+        except RuntimeError as e:
+            # Only suppress if it's an event loop closure error
+            if self._is_event_loop_closed(e):
+                logger.debug("RuntimeError during client close (event loop closed): %s", e)
+            else:
+                raise

@@ -273,8 +273,7 @@ The merged food database follows a standardized schema:
     "protein_palm": 1.3,
     "fat_thumbs": 1.4,
     "carb_cups": 1.9,
-    "veg_cups": 1.0,
-    "meals_per_day": 3
+    "veg_cups": 1.0
   },
   "layout": [
     {
@@ -336,7 +335,9 @@ The merged food database follows a standardized schema:
       "fat_g": 20,
       "carbs_g": 91
     }
-  ]
+  ],
+  "meals_per_day": 3,
+  "day_micros": {}
 }
 ```
 
@@ -352,6 +353,11 @@ The merged food database follows a standardized schema:
 - `surplus_pct` (optional): Calorie surplus percentage for gain goal (5-20%)
 - `bodyfat` (optional): Body fat percentage (3-60%)
 - `diet_flags` (optional): Diet preferences (["VEG", "GF", "DAIRY_FREE", "LOW_COST"])
+
+**Response Fields:**
+
+- `meals_per_day` (int): Number of meals recommended per day
+- `day_micros` (Dict[str, float]): Daily micronutrient totals. Keys follow pattern `{nutrient}_{unit}` (e.g., `iron_mg`, `vitamin_d_iu`, `b12_ug`) with units `mg`, `ug`, or `iu`. Currently returns `{}`; will be populated in v2.0+. Frontend: map string keys to float values.
 
 **Visual Plate Features:**
 
@@ -450,7 +456,7 @@ make lint
 
 ## 🧪 CI & Coverage Policy
 
-- GitHub Actions runs on Python 3.12 and 3.13 (matrix).
+- GitHub Actions runs on Python 3.13.5 with full coverage enforcement at 97%.
 - Coverage is enforced at 97% via `--cov-fail-under=97`.
 - Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
 - Bandit & Safety run as non-blocking checks (artifacts available in CI logs).
@@ -597,13 +603,19 @@ Production deployments are automated via GitHub Actions with manual approval gat
 ### Production Features
 
 - ✅ **Manual approval gates** for safety
-- ✅ **Automatic database backups** before deployment
+- ✅ **Automatic database backups** before deployment (keeps last 30 backups for recovery flexibility)
 - ✅ **Health checks** with retry logic
 - ✅ **Rollback capability** via previous tags
-- ✅ **SSL/TLS** automatic via Caddy
+- ✅ **SSL/TLS** automatic via Caddy + Cloudflare Full Strict
+- ✅ **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
+- ✅ **Server hardening** (UFW, fail2ban, SSH key-only access)
 - ✅ **Resource limits** and monitoring
+- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md#monitoring)
 
-For detailed setup instructions, see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md).
+For detailed setup instructions, see:
+- **[НАЧНИТЕ_ОТСЮДА.md](НАЧНИТЕ_ОТСЮДА.md)** - Главная точка входа для новичков
+- [DEPLOYMENT_FULL_GUIDE.md](DEPLOYMENT_FULL_GUIDE.md) - Полная пошаговая инструкция
+- [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) - Детальная настройка production
 
 ## License
 

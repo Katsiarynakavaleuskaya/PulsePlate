@@ -75,13 +75,13 @@ class TestDbRealisticCoverage:
             with patch("os.path.exists", return_value=False):
                 try:
                     init_db()
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
             # Test table creation
             try:
                 create_tables()
-            except Exception:
+            except Exception:  # nosec B110 - intentional in test for coverage
                 pass
 
         except ImportError:
@@ -127,14 +127,14 @@ class TestDbRealisticCoverage:
                 try:
                     conn = get_db_connection()
                     # Should handle error gracefully
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
             # Simulate permission errors
             with patch("sqlite3.connect", side_effect=PermissionError("Access denied")):
                 try:
                     conn = get_db_connection()
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
         except ImportError:
@@ -157,7 +157,7 @@ class TestDbRealisticCoverage:
                 try:
                     with patch("core.db.get_schema_version", return_value=version):
                         migrate_db()
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
         except ImportError:
@@ -179,7 +179,7 @@ class TestDbRealisticCoverage:
                 try:
                     backup_db(path)
                     restore_db(path)
-                except Exception:
+                except Exception:  # nosec B110 - intentional in test for coverage
                     pass
 
         except ImportError:

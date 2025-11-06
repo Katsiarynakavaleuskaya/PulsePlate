@@ -144,5 +144,192 @@ def test_add_alias_default_path(monkeypatch, tmp_path):
     assert "test_alias,test_canonical" in content
 
 
+def test_load_aliases_schema_alias_canonical(tmp_path):
+    """
+    Test _load_aliases with alias,canonical schema.
+
+    RU: Тест загрузки алиасов с схемой alias,canonical.
+    EN: Test alias loading with alias,canonical schema.
+
+    Verifies that lowercase alias maps to canonical as provided.
+    """
+    temp_file = tmp_path / "aliases.csv"
+    temp_file.write_text(
+        "alias,canonical\n"
+        "leche,Milk\n"
+        "POLLO,Chicken\n"
+        "  yogurt  ,  Greek Yogurt  \n"
+        "Manzana,Apple\n",
+        encoding="utf-8",
+    )
+
+    table = _load_aliases(str(temp_file))
+
+    # Verify lowercase alias maps to canonical as provided (not lowercased)
+    assert table["leche"] == "Milk"
+    assert table["pollo"] == "Chicken"  # Original was POLLO, should be lowercased
+    assert table["yogurt"] == "Greek Yogurt"  # Whitespace trimmed
+    assert table["manzana"] == "Apple"
+    assert len(table) == 4
+
+
+def test_load_aliases_schema_primary_aliases_mixed_delimiters(tmp_path):
+    """
+    Test _load_aliases with primary,aliases schema and mixed delimiters.
+
+    RU: Тест загрузки алиасов с схемой primary,aliases и смешанными разделителями.
+    EN: Test alias loading with primary,aliases schema and mixed delimiters.
+
+    Verifies that:
+    - Each trimmed/lowercased alias maps to primary
+    - primary.lower() maps to primary
+    - Mixed ';' and ',' delimiters are handled correctly
+    """
+    temp_file = tmp_path / "aliases.csv"
+    temp_file.write_text(
+        "primary,aliases\n"
+        "Milk,leche;lait;молоко\n"
+        "Chicken,pollo;chicken breast;курица\n"
+        'Apple,"manzana,яблоко;apple"\n'
+        "Greek Yogurt,yogurt;yoghurt;йогурт\n",
+        encoding="utf-8",
+    )
+
+    table = _load_aliases(str(temp_file))
+
+    # Verify each alias maps to primary
+    assert table["leche"] == "Milk"
+    assert table["lait"] == "Milk"
+    assert table["молоко"] == "Milk"
+    assert table["pollo"] == "Chicken"
+    assert table["chicken breast"] == "Chicken"
+    assert table["курица"] == "Chicken"
+    assert table["manzana"] == "Apple"
+    assert table["яблоко"] == "Apple"
+    assert table["apple"] == "Apple"
+    assert table["yogurt"] == "Greek Yogurt"
+    assert table["yoghurt"] == "Greek Yogurt"
+    assert table["йогурт"] == "Greek Yogurt"
+
+    # Verify primary.lower() maps to primary (as provided)
+    assert table["milk"] == "Milk"
+    assert table["chicken"] == "Chicken"
+    assert table["apple"] == "Apple"
+    assert table["greek yogurt"] == "Greek Yogurt"
+
+
+def test_load_aliases_handles_missing_empty_fields(tmp_path):
+    """
+    Test _load_aliases gracefully handles missing/empty fields.
+
+    RU: Тест обработки отсутствующих/пустых полей.
+    EN: Test graceful handling of missing/empty fields.
+
+    Verifies that missing/empty fields are ignored.
+    """
+    # Test with alias,canonical schema
+    temp_file1 = tmp_path / "aliases1.csv"
+    temp_file1.write_text(
+        "alias,canonical\n"
+        "valid_alias,Valid Canonical\n"
+        ",Empty Alias\n"  # Missing alias
+        "empty_canonical,\n"  # Missing canonical
+        ",,\n"  # Both empty
+        "  ,  \n"  # Both whitespace only
+        "another_valid,Another Valid\n",
+        encoding="utf-8",
+    )
+
+    table1 = _load_aliases(str(temp_file1))
+    # Only valid entries should be in the table
+    assert table1["valid_alias"] == "Valid Canonical"
+    assert table1["another_valid"] == "Another Valid"
+    assert len(table1) == 2
+
+    # Test with primary,aliases schema
+    temp_file2 = tmp_path / "aliases2.csv"
+    temp_file2.write_text(
+        "primary,aliases\n"
+        "Valid Primary,alias1;alias2\n"
+        ",Empty Primary\n"  # Missing primary (should be skipped)
+        "Another Primary,\n"  # Missing aliases (only primary should be mapped)
+        "  ,  \n"  # Both empty
+        "Final Primary,alias3;alias4\n",
+        encoding="utf-8",
+    )
+
+    table2 = _load_aliases(str(temp_file2))
+    # Verify valid entries
+    assert table2["alias1"] == "Valid Primary"
+    assert table2["alias2"] == "Valid Primary"
+    assert table2["valid primary"] == "Valid Primary"  # primary.lower() mapping
+    assert table2["another primary"] == "Another Primary"  # primary.lower() mapping
+    assert table2["alias3"] == "Final Primary"
+    assert table2["alias4"] == "Final Primary"
+    assert table2["final primary"] == "Final Primary"
+    # Empty primary row should be skipped entirely
+    assert len(table2) == 7
+
+
+def test_load_aliases_none_or_non_existent_path(tmp_path, monkeypatch):
+    """
+    Test _load_aliases with None or non-existent path returns empty dict.
+
+    RU: Тест _load_aliases с None или несуществующим путем возвращает пустой словарь.
+    EN: Test _load_aliases with None or non-existent path returns empty dict.
+    """
+    # Test with non-existent path explicitly
+    result = _load_aliases("/non/existent/path/aliases.csv")
+    assert result == {}
+
+    # Test with None - mock the default path to point to non-existent file
+    from core import aliases as aliases_mod
+
+    non_existent_path = str(tmp_path / "non_existent.csv")
+    original_join = aliases_mod.os.path.join
+
+    def mock_join(*args):
+        if len(args) >= 3 and "food_aliases.csv" in args:
+            return non_existent_path
+        return original_join(*args)
+
+    monkeypatch.setattr(aliases_mod.os.path, "join", mock_join)
+    result2 = _load_aliases(None)
+    assert result2 == {}
+
+
+def test_load_aliases_schema_primary_aliases_whitespace_trimming(tmp_path):
+    """
+    Test _load_aliases with primary,aliases schema handles whitespace correctly.
+
+    RU: Тест обработки пробелов в схеме primary,aliases.
+    EN: Test whitespace handling in primary,aliases schema.
+    """
+    temp_file = tmp_path / "aliases.csv"
+    temp_file.write_text(
+        "primary,aliases\n"
+        "  Milk  ,  leche  ;  lait  \n"
+        "Chicken,pollo ; chicken ; курица\n"
+        "  Apple  ,manzana; яблоко \n",
+        encoding="utf-8",
+    )
+
+    table = _load_aliases(str(temp_file))
+
+    # Verify whitespace is trimmed from aliases and they're lowercased
+    assert table["leche"] == "Milk"
+    assert table["lait"] == "Milk"
+    assert table["pollo"] == "Chicken"
+    assert table["chicken"] == "Chicken"
+    assert table["курица"] == "Chicken"
+    assert table["manzana"] == "Apple"
+    assert table["яблоко"] == "Apple"
+
+    # Verify primary.lower() maps to primary (with trimmed primary)
+    assert table["milk"] == "Milk"
+    assert table["chicken"] == "Chicken"
+    assert table["apple"] == "Apple"
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

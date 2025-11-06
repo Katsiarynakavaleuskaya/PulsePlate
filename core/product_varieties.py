@@ -222,7 +222,10 @@ class ProductVarietiesManager:
             return varieties[0]  # Возвращаем первый доступный
 
     def search_varieties(
-        self, product_name: str, variety_name: str = None, brand: str = None
+        self,
+        product_name: str,
+        variety_name: Optional[str] = None,
+        brand: Optional[str] = None,
     ) -> List[ProductVariety]:
         """
         RU: Поиск сортов продукта по критериям.

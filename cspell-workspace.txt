@@ -73,6 +73,7 @@
 акценты
 Алгоритм
 алгоритма
+алерты
 Алиас
 алиаса
 алиасами
@@ -221,6 +222,7 @@
 брендов
 брокколи
 Брокколи
+брутфорса
 будет
 Булево
 булевы
@@ -1627,6 +1629,7 @@
 Мониторинг
 МОНИТОРИНГ
 мониторинга
+мониторить
 морковь
 Морковь
 морская
@@ -3941,6 +3944,7 @@ Análisis
 androide
 años
 Años
+apfel
 appicon
 appiconset
 apppkg
@@ -4052,9 +4056,11 @@ dataclasses
 davinci
 debe
 Deberías
+deepcopy
 dejavu
 delattr
 delenv
+delitem
 deriat
 desarrollar
 desarrollo
@@ -4161,6 +4167,7 @@ healthcheck
 healthz
 hexdigest
 hierro
+HSTS
 htmlcov
 httpx
 IFPA
@@ -4272,6 +4279,8 @@ Monitorea
 monkeypatch
 monkeypatched
 monkeypatching
+mountpoint
+MOUNTPOINT
 MPLCONFIGDIR
 mujer
 Mujer
@@ -4280,6 +4289,7 @@ mypy
 mysql
 nтекст
 NASM
+ndjson
 necesidades
 Necesitas
 newgrp
@@ -4338,6 +4348,7 @@ phytonutrients
 pico
 Pico
 pipefail
+platano
 plátano
 Plátano
 pmem
@@ -4509,6 +4520,7 @@ usefixtures
 usermod
 utcnow
 Utilice
+uuid
 uvicorn
 Uvicorn
 validkey

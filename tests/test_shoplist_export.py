@@ -1,10 +1,13 @@
 """Tests for the public shoplist export endpoints."""
 
+import logging
+from pathlib import Path
 from typing import List
 
 import pytest
 
 from app.routers import shoplist_export as export
+from reportlab.pdfbase.ttfonts import TTFError
 
 
 def test_shoplist_json_structure(client):
@@ -112,3 +115,90 @@ def test_render_pdf_uses_groups_when_items_missing(monkeypatch) -> None:
     assert pdf_bytes.startswith(b"%PDF")
     # Multi-page output contains multiple /Type /Page markers; ensure at least two.
     assert pdf_bytes.count(b"/Type /Page") >= 2
+
+
+def test_register_font_fallback_when_font_file_missing(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that missing font file logs debug message and falls back to Helvetica."""
+    fake_path = Path("/__no_such__/DejaVuSans.ttf")
+    monkeypatch.setattr(export, "FONT_PATH", fake_path)
+    # Do NOT mock Path.exists - let it naturally return False
+
+    with caplog.at_level(logging.DEBUG):
+        result = export._register_font_if_available()  # type: ignore[access-private-member]
+
+    assert result == "Helvetica"
+    assert "Bundled font file not found" in caplog.text
+    assert str(fake_path) in caplog.text
+    assert "using Helvetica fallback" in caplog.text
+
+
+def test_register_font_fallback_on_ttfont_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Test that TTFont error triggers warning log and falls back to Helvetica."""
+    font_file = tmp_path / "dummy.ttf"
+    font_file.write_bytes(b"fake-font")
+    monkeypatch.setattr(export, "FONT_PATH", font_file)
+
+    # Mock TTFont to raise TTFError
+    def raise_ttf_error(name: str, path: str) -> None:
+        raise TTFError("Invalid font file")
+
+    monkeypatch.setattr(export, "TTFont", raise_ttf_error)
+    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
+
+    with caplog.at_level(logging.WARNING):
+        result = export._register_font_if_available()  # type: ignore[access-private-member]
+
+    assert result == "Helvetica"
+    assert "Font registration failed" in caplog.text
+    assert "falling back to Helvetica" in caplog.text
+
+
+def test_register_font_fallback_on_oserror(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Test that OSError during font registration triggers warning and fallback."""
+    font_file = tmp_path / "dummy.ttf"
+    font_file.write_bytes(b"fake-font")
+    monkeypatch.setattr(export, "FONT_PATH", font_file)
+
+    # Mock TTFont to raise OSError
+    def raise_os_error(name: str, path: str) -> None:
+        raise OSError("Font file cannot be opened")
+
+    monkeypatch.setattr(export, "TTFont", raise_os_error)
+    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
+
+    with caplog.at_level(logging.WARNING):
+        result = export._register_font_if_available()  # type: ignore[access-private-member]
+
+    assert result == "Helvetica"
+    assert "Font registration failed" in caplog.text
+    assert "falling back to Helvetica" in caplog.text
+
+
+def test_register_font_fallback_on_valueerror(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Test that ValueError during font registration triggers warning and fallback."""
+    font_file = tmp_path / "dummy.ttf"
+    font_file.write_bytes(b"fake-font")
+    monkeypatch.setattr(export, "FONT_PATH", font_file)
+
+    # Mock pdfmetrics.registerFont to raise ValueError
+    def raise_value_error(tt_font: object) -> None:
+        raise ValueError("Font registration failed")
+
+    monkeypatch.setattr(export.pdfmetrics, "getRegisteredFontNames", lambda: [])
+    monkeypatch.setattr(export.pdfmetrics, "registerFont", raise_value_error)
+    monkeypatch.setattr(export, "TTFont", lambda name, path: object())
+
+    with caplog.at_level(logging.WARNING):
+        result = export._register_font_if_available()  # type: ignore[access-private-member]
+
+    assert result == "Helvetica"
+    assert "Font registration failed" in caplog.text
+    assert "falling back to Helvetica" in caplog.text

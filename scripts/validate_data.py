@@ -8,6 +8,7 @@ EN: Fast CI checks for local data consistency (CSV/JSON) without network calls.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import re
@@ -121,11 +122,37 @@ def validate_cache_versions(file_path: Path) -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate data files (CSV/JSON)")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON result instead of text messages",
+    )
+    args = parser.parse_args()
+
     repo_root = Path(__file__).resolve().parents[1]
     issues: list[str] = []
     issues += validate_food_aliases(repo_root / "data" / "food_aliases.csv")
-    issues += validate_cache_versions(repo_root / "cache" / "food_db" / "database_versions.json")
+    try:
+        issues += validate_cache_versions(
+            repo_root / "cache" / "food_db" / "database_versions.json"
+        )
+    except ValueError as e:
+        # Preserve JSON contract: collect error instead of exiting
+        issues.append(str(e))
+    except Exception as e:  # pragma: no cover
+        issues.append(str(e))
 
+    if args.json:
+        # Structured JSON output (to stdout only)
+        result = {
+            "success": len(issues) == 0,
+            "issues": issues,
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["success"] else 1
+
+    # Legacy text output (backward compatible)
     if issues:
         print("DATA VALIDATION: DEGRADED", file=sys.stderr)
         for msg in issues:

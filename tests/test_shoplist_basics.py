@@ -354,18 +354,21 @@ class TestShoplistGeneratorPackaging:
         return ShoplistGenerator()
 
     def test_find_best_package_up_strategy(self, generator):
-        """Test finding best package with 'up' strategy."""
+        """Test finding best package with 'up' strategy (minimizes overage)."""
         packages = [100, 250, 500, 1000]
 
-        # Test exact match
+        # Test exact match: 250g should pick 250g package (0g overage)
         size, count = generator._find_best_package(250, packages, "up")
-        assert size == 100  # Takes smallest package
-        assert count == 3  # 3 packages of 100 to cover 250
+        assert size == 250  # Picks 250g package (minimal overage: 0g vs 50g for 100g)
+        assert count == 1  # 1 package of 250 to cover 250
 
-        # Test larger amount
+        # Test larger amount: 350g
+        # - 100g: ceil(350/100) = 4 packs = 400g (overage: 50g)
+        # - 250g: ceil(350/250) = 2 packs = 500g (overage: 150g)
+        # Should pick 100g (minimal overage: 50g)
         size, count = generator._find_best_package(350, packages, "up")
         assert size == 100
-        assert count == 4  # 4 packages of 100 to cover 350
+        assert count == 4  # 4 packages of 100 to cover 350 (minimal overage)
 
     def test_find_best_package_down_strategy(self, generator):
         """Test finding best package with 'down' strategy."""

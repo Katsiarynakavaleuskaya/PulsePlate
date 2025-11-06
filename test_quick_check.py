@@ -2,7 +2,7 @@
 
 This file restores the historical path `test_quick_check.py` that some CI / pre-commit
 steps still invoke directly (pytest test_quick_check.py). The real quick tests now
-live in `tests/quick/test_quick_check.py`.
+live in `tests/quick/test_llm_quick_check.py`.
 
 Keep this extremely fast and side‑effect free.
 """
@@ -15,8 +15,7 @@ import os
 def test_quick_placeholder() -> None:
     """Always-pass placeholder so CI invocation succeeds instantly."""
     # Guarantee deterministic env for any downstream imports if added later.
-    os.environ.setdefault("LLM_PROVIDER", "none")
-    assert True
+    os.environ["LLM_PROVIDER"] = "none"
 
 
 def test_quick_llm_import_smoke() -> None:

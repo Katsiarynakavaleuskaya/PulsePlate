@@ -1,0 +1,208 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: PR Tests (Fast)
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+concurrency:
+  group: pr-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: '3.13.5'
+
+      - name: Cache pip
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'constraints.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Ruff Lint
+        run: ruff check . --output-format=github
+
+      - name: Black Check
+        run: black --check --diff .
+
+      - name: Determine changed files (PR)
+        if: github.event_name == 'pull_request'
+        id: changed
+        run: |
+          set -e
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          CHANGED=$(git diff --name-only --diff-filter=AMRT "origin/${{ github.base_ref }}"... | grep -E '\\.py$' || true)
+          printf "Changed Python files:\n%s\n" "$CHANGED"
+          {
+            echo "files<<EOF"
+            printf '%s\n' "$CHANGED"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mypy (changed files only)
+        if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Safely split changed files output into array and quote each element
+            # to handle newlines and special characters in filenames
+            CHANGED_FILES="${{ steps.changed.outputs.files }}"
+            if [ -z "$CHANGED_FILES" ]; then
+              echo "No changed files to check"
+              exit 0
+            fi
+            # Iterate newline-delimited paths safely
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              mypy "$file"
+            done <<-'EOF'
+			${{ steps.changed.outputs.files }}
+			EOF
+          else
+            # Discover mypy targets using dedicated script
+            TARGETS="$(scripts/discover_mypy_targets.sh)"
+            # Run mypy on all collected targets
+            mypy $TARGETS
+          fi
+
+  tests:
+    needs: [lint]
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: '3.13.5'
+
+      - name: Cache pip
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'constraints.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Initialize test database
+        env:
+          APP_ENV: test
+          ENVIRONMENT: test
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+        run: |
+          # Ensure database directory exists
+          mkdir -p cache
+
+          # Initialize database schema (create tables)
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          import core.models  # noqa: F401 - ensure models are registered
+          from core.db import init_db
+          init_db()
+          print('✅ Database initialized successfully')
+          "
+          # Verify tables were created
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from core.db import session_scope
+          from sqlalchemy import inspect
+          with session_scope() as session:
+              inspector = inspect(session.bind)
+              tables = inspector.get_table_names()
+              print(f"✅ Found {len(tables)} tables: {', '.join(tables)}")
+              assert 'users' in tables, 'users table not found'
+          "
+
+      # paths-filter outputs: code, docs (always set by dorny/paths-filter@v3.0.2)
+      - name: Determine changes
+        id: filter
+        uses: dorny/paths-filter@v3.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            code:
+              - 'app/**'
+              - 'core/**'
+              - 'providers/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'pytest.ini'
+              - '.coveragerc'
+            docs:
+              - 'README.md'
+              - 'docs/**'
+              - '**/*.md'
+
+      - name: Run fast test suite with coverage (no slow/MC/demo)
+        if: (steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true') || github.event_name != 'pull_request'
+        env:
+          PYTHONUNBUFFERED: '1'
+          BAYESIAN_PERSIST: '0'
+          MC_SEED: '2025'
+          MC_SAMPLES: '5'
+          MC_SAMPLES_FEW: '3'
+          FEATURE_PREMIUM_NUTRITION: 'true'
+          APP_ENV: test
+          ENVIRONMENT: test
+          TEST_DB_PATH: cache/test_pr.sqlite
+        run: |
+          pytest -m "not slow and not monte_carlo and not demo" \
+            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+
+      - name: Diff coverage on changed lines (PR)
+        if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
+        run: |
+          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
+
+      - name: Upload coverage.xml (PR diagnostics)
+        if: always() && github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr-coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+      - name: JUnit report upload
+        if: always() && (github.event_name != 'pull_request' || (steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'))
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-report
+          path: junit.xml
+          if-no-files-found: ignore
