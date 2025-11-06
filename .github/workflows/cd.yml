@@ -21,6 +21,10 @@ permissions:
   packages: write
   id-token: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
@@ -42,6 +46,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          echo "image_name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Log in to Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
@@ -49,15 +58,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute lowercase image repository
-        run: echo "IMAGE_REPO=$(echo \"${GITHUB_REPOSITORY}\" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
       - name: Build & Push image (staging)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ env.IMAGE_REPO }}:staging-latest
+          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Use dedicated staging target which extends production but allows
@@ -113,6 +119,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          echo "image_name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Log in to Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
@@ -120,15 +131,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute lowercase image repository
-        run: echo "IMAGE_REPO=$(echo \"${GITHUB_REPOSITORY}\" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
       - name: Build & Push image (production)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ env.IMAGE_REPO }}:latest,ghcr.io/${{ env.IMAGE_REPO }}:prod-${{ github.ref_name }}
+          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:latest,${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: production
