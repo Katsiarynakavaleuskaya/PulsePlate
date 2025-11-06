@@ -8,10 +8,10 @@ FROM python:3.13-slim AS builder
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-# Install system dependencies for building
+# Install system dependencies for building (curl removed - not needed)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -34,9 +34,9 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app"
 
-# Install runtime dependencies only
+# Install runtime dependencies only (curl removed - using Python for healthcheck)
 RUN apt-get update && apt-get install -y \
-    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -62,9 +62,9 @@ USER pulseplate
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check (using Python instead of curl to avoid CVE vulnerabilities)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 
 # Default command
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
