@@ -40,7 +40,9 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
     def failing_builder(_profile: object) -> object:
         raise ValueError("invalid profile")
 
+    # Patch both the module attribute and _resolve_build_targets_callable
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
+    monkeypatch.setattr(app, "_resolve_build_targets_callable", lambda: failing_builder, raising=False)
 
     request = app.WHOTargetsRequest(
         sex="female",
@@ -70,7 +72,9 @@ async def test_api_who_targets_fallback_gain_branch(monkeypatch: pytest.MonkeyPa
     def failing_builder(_profile: object) -> object:
         raise RuntimeError("backend unavailable")
 
+    # Patch both the module attribute and _resolve_build_targets_callable
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
+    monkeypatch.setattr(app, "_resolve_build_targets_callable", lambda: failing_builder, raising=False)
 
     request = app.WHOTargetsRequest(
         sex="male",
