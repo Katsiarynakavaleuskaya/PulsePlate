@@ -199,6 +199,10 @@ class TestFinalCoveragePush:
     )
     def test_vip_comprehensive_coverage(self):
         """Test VIP endpoints comprehensively."""
+        # Ensure VIP module and API key are enabled for this test run
+        os.environ["VIP_MODULE_ENABLED"] = "true"
+        os.environ["API_KEY"] = "test-key"
+        os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -217,7 +221,7 @@ class TestFinalCoveragePush:
             else:
                 response = client.post(endpoint, json={}, headers=headers)
 
-            # Should not be 404 or 500
+            # Should not be 404 or 500; forbidden may occur if feature flag toggles mid-run
             assert response.status_code in [200, 422]
 
     def test_error_middleware_paths(self):

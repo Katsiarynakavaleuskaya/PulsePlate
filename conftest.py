@@ -43,7 +43,11 @@ def init_test_database() -> None:
         if not db_path.is_absolute():
             db_path = Path.cwd() / db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        db_path.unlink(missing_ok=True)
+        # Defensive unlink: ignore errors if file is in use; init_db will recreate schema
+        try:
+            db_path.unlink(missing_ok=True)
+        except OSError:
+            pass
         os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
 
         # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
