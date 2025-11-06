@@ -9,9 +9,9 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
 # Install system dependencies for building
+# Note: curl removed to avoid CVE-2025-11563
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -35,10 +35,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app"
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Note: curl removed to avoid CVE-2025-11563; using Python-based healthcheck instead
+RUN apt-get update && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
@@ -62,9 +62,9 @@ USER pulseplate
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check using Python instead of curl (avoids CVE-2025-11563)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()" || exit 1
 
 # Default command
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
