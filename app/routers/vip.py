@@ -1262,9 +1262,8 @@ async def get_recipe_templates(
             "templates": [],
         }
         # Expose technical detail only outside production to keep tests/dev observable
-        if (
-            os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production"
-        ).lower() != "production":
+        is_production, _ = _is_production_environment()
+        if not is_production:
             payload["detail"] = str(e)
         return payload
 

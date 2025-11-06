@@ -240,7 +240,14 @@ class TestVIPCoverageWorkingExtended:
             if response.status_code == 200:
                 data = response.json()
                 assert data["status"] == "error"
-                assert "Templates error" in data["message"]
+                # Production-safe message should not expose internal error details
+                assert (
+                    "An internal error occurred while retrieving recipe templates."
+                    in data["message"]
+                )
+                # In non-production, implementation may include technical detail for diagnostics
+                if "detail" in data:
+                    assert "Templates error" in data["detail"]
         finally:
             # Clean up the override
             app.app.dependency_overrides.pop(get_recipe_synthesizer, None)

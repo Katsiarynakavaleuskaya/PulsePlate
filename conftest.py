@@ -39,15 +39,29 @@ def init_test_database() -> None:
         db_path = Path(db_path_env)
         worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
         if worker_id:
-            db_path = db_path.with_name(f"{db_path.stem}_{worker_id}{db_path.suffix}")
+            # Sanitize worker id to avoid path traversal / special characters
+            # Allow only [A-Za-z0-9_-]; if empty after sanitization, fall back to "worker"
+            import re
+
+            safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id)
+            if not safe_worker:
+                safe_worker = "worker"
+            db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
         if not db_path.is_absolute():
             db_path = Path.cwd() / db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        # Defensive unlink: ignore errors if file is in use; init_db will recreate schema
+        # Remove stale test DB file before init; missing_ok handles FileNotFoundError.
+        # Narrow exception handling: surface real FS issues instead of masking them.
         try:
-            db_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+            db_path.unlink(missing_ok=True)  # ignores FileNotFoundError by design
+        except PermissionError as e:
+            logging.error("Permission error unlinking test DB '%s': %s", db_path, e, exc_info=True)
+            # Optionally, init_db can implement schema cleanup (DROP TABLE IF EXISTS ...) as a fallback.
+            raise
+        except OSError as e:
+            logging.error("Failed to unlink test DB '%s': %s", db_path, e, exc_info=True)
+            # Explicitly surface unexpected FS problems to fail fast in CI/setup.
+            raise
         os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
 
         # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
