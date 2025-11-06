@@ -78,8 +78,8 @@ jobs:
               [ -z "$file" ] && continue
               mypy "$file"
             done <<-'EOF'
-			${{ steps.changed.outputs.files }}
-			EOF
+            ${{ steps.changed.outputs.files }}
+            EOF
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
