@@ -194,7 +194,7 @@ class ShoplistGenerator:
 
         return rules
 
-    def aggregate_ingredients(self, week_plan: Dict) -> Dict[str, float]:
+    def aggregate_ingredients(self, week_plan: Dict[str, Any]) -> Dict[str, float]:
         """Агрегирует ингредиенты из недельного плана.
 
         Args:
@@ -257,7 +257,7 @@ class ShoplistGenerator:
 
     def _convert_unit_if_large(
         self, unit: str, total_grams: float, package_size: float
-    ) -> tuple[str, float, float]:
+    ) -> Tuple[str, float, float]:
         """Convert unit to kg/l if total >= 1000g/ml and scale package_size accordingly.
 
         Args:
@@ -534,7 +534,7 @@ def _get_generator() -> ShoplistGenerator:
 
 
 # Функции для удобного использования
-def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
+def aggregate_ingredients(week_plan: Dict[str, Any]) -> Dict[str, float]:
     """Агрегирует ингредиенты из недельного плана."""
     return _get_generator().aggregate_ingredients(week_plan)
 
@@ -556,12 +556,12 @@ def format_export(
 
 
 def get_shoplist(
-    week_plan: Dict,
+    week_plan: Dict[str, Any],
     format_type: str = "json",
     locale: str = "ru",
     packaging_db: Optional[Dict[str, Any]] = None,
     rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
-) -> Union[str, Dict]:
+) -> Union[str, Dict[str, Any]]:
     """Собирает и форматирует список покупок из недельного плана.
 
     Backward-compatible wrapper expected by the application.

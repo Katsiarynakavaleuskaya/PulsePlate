@@ -20,6 +20,7 @@ SQLite Pooling Configuration:
 
 from __future__ import annotations
 
+import functools
 import importlib
 import logging
 import os
@@ -186,6 +187,20 @@ class _ResultWithConnectionCleanup:
                 return result
 
             return close_with_connection
+
+        # Wrap all other callable methods to check if result was closed after execution
+        # This handles methods like all(), first(), scalar() that implicitly close the result
+        if callable(attr):
+            @functools.wraps(attr)
+            def wrapped(*args: Any, **kwargs: Any) -> Any:
+                value = attr(*args, **kwargs)
+                # Check if the result was implicitly closed by the method
+                if getattr(self._result, "closed", False):
+                    self._close_connection()
+                return value
+
+            return wrapped
+
         return attr
 
 

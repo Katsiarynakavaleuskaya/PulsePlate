@@ -71,7 +71,7 @@ def _build_index() -> List[Tuple[str, str]]:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception as read_err:
-            # Handle any read errors (OSError, UnicodeDecodeError, RuntimeError, etc.)
+            # Handle any read errors (OSError, PermissionError, RuntimeError, etc.)
             logger.debug("Skipping %s during index build: %s", path, read_err)
             continue
         for ch in _chunk(text):
