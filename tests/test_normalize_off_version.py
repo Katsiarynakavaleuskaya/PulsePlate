@@ -1,4 +1,5 @@
 """Tests for scripts/normalize_off_version.py"""
+
 import json
 import subprocess
 import sys
