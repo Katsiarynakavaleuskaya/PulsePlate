@@ -64,9 +64,9 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
-    "vite": "^5.4.20",
+    "vite": "^7.2.1",
     "vitest": "^3.2.4",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.12"
   },
   "msw": {
     "workerDirectory": [
