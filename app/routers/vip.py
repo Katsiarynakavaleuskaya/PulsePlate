@@ -1256,11 +1256,16 @@ async def get_recipe_templates(
     except Exception as e:
         # Handle any exceptions from recipe synthesizer or template access
         logging.exception("Error retrieving recipe templates: %s", e)
-        return {
+        payload = {
             "status": "error",
             "message": "An internal error occurred while retrieving recipe templates.",
             "templates": [],
         }
+        # Expose technical detail only outside production to keep tests/dev observable
+        is_production, _ = _is_production_environment()
+        if not is_production:
+            payload["detail"] = str(e)
+        return payload
 
 
 @router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key_strict)])
