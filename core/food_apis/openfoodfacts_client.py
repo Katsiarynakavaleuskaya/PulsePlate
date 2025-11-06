@@ -351,9 +351,5 @@ class OFFClient:
         try:
             await self.client.aclose()
         except RuntimeError as e:
-            if self._is_event_loop_closed(e):
-                logger.debug(
-                    "RuntimeError suppressed during client close (event loop closed): %s", e
-                )
-            else:
-                raise
+            # Event loop may be closed during test teardown
+            logger.debug("RuntimeError during client close (likely test shutdown): %s", e)

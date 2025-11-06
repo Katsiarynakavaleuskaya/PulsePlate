@@ -9,6 +9,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.test_helpers import skip_if_no_plate_micros
 
 try:
     import app as app_mod
@@ -115,11 +116,7 @@ class TestPlateTargetsMicroCoverage:
         plate_micros = plate_data["day_micros"]
 
         # Skip if plate_micros is empty (recipe lookup may have failed)
-        if len(plate_micros) == 0:
-            pytest.skip(
-                "Plate day_micros is empty (likely due to missing recipe ingredients). "
-                "This is acceptable when recipe lookup fails."
-            )
+        skip_if_no_plate_micros(plate_micros)
 
         # Verify micronutrients that are present in both endpoints
         common_micros = set(target_micros.keys()) & set(plate_micros.keys())
@@ -497,12 +494,7 @@ class TestPlateTargetsMicroCoverage:
 
             # Note: They may not be exactly the same due to different implementations
             assert target_micros, f"Targets should have micronutrients for profile {profile}"
-            if len(plate_micros) == 0:
-                pytest.skip(
-                    f"Plate day_micros is empty for profile {profile} "
-                    "(likely due to missing recipe ingredients). "
-                    "This is acceptable when recipe lookup fails."
-                )
+            skip_if_no_plate_micros(plate_micros)
             assert plate_micros, f"Plate should have micronutrients for profile {profile}"
 
             # Verify all micronutrients are non-negative

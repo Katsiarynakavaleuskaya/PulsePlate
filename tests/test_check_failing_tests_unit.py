@@ -62,7 +62,9 @@ def test_run_test_file_generic_exception(monkeypatch: pytest.MonkeyPatch) -> Non
     assert out.startswith("ERROR: boom")
 
 
-def test_main_mixed_pass_fail_timeout(monkeypatch, capsys):
+def test_main_mixed_pass_fail_timeout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Main prints a correct summary and returns 1 when any failures/timeouts exist."""
 
     # Limit discovered files to a controlled set
@@ -117,7 +119,9 @@ def test_main_mixed_pass_fail_timeout(monkeypatch, capsys):
     assert "tests/t_fail.py" in captured.out
 
 
-def test_main_all_passing(monkeypatch, capsys):
+def test_main_all_passing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Main returns 0 and summary shows all passing when no failures/timeouts."""
 
     monkeypatch.setattr(

@@ -11,6 +11,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
+from tests.test_helpers import skip_if_no_plate_micros
 
 
 @pytest.mark.slow
@@ -83,11 +84,7 @@ class TestPlateTargetsMicrosHypothesis:
 
         # Both should have micronutrient data
         # Plate day_micros may be empty if ingredients/recipes are not found (acceptable)
-        if len(plate_micros) == 0:
-            pytest.skip(
-                "Plate day_micros is empty (likely due to missing recipe ingredients). "
-                "This is acceptable when recipe lookup fails."
-            )
+        skip_if_no_plate_micros(plate_micros)
 
         # Check for common micronutrients
         common_micros = set(plate_micros.keys()) & set(target_micros.keys())
@@ -148,11 +145,7 @@ class TestPlateTargetsMicrosHypothesis:
         target_micros = targets_data["priority_micros"]
 
         # Skip if plate_micros is empty (recipe lookup may have failed)
-        if len(plate_micros) == 0:
-            pytest.skip(
-                "Plate day_micros is empty (likely due to missing recipe ingredients). "
-                "This is acceptable when recipe lookup fails."
-            )
+        skip_if_no_plate_micros(plate_micros)
 
         # Key micronutrients to check
         key_micros = ["iron", "calcium", "magnesium", "potassium"]
@@ -222,11 +215,7 @@ class TestPlateTargetsMicrosHypothesis:
         # Should be a dictionary
         assert isinstance(day_micros, dict)
         # Skip if day_micros is empty (recipe lookup may have failed)
-        if len(day_micros) == 0:
-            pytest.skip(
-                "Plate day_micros is empty (likely due to missing recipe ingredients). "
-                "This is acceptable when recipe lookup fails."
-            )
+        skip_if_no_plate_micros(day_micros)
 
         # Check that values are numeric and positive
         for micro_name, micro_value in day_micros.items():
@@ -454,12 +443,7 @@ class TestPlateTargetsMicrosHypothesis:
             target_micros = targets_data["priority_micros"]
 
             # Skip if plate_micros is empty (recipe lookup may have failed)
-            if len(plate_micros) == 0:
-                pytest.skip(
-                    f"Plate day_micros is empty for profile {profile} "
-                    "(likely due to missing recipe ingredients). "
-                    "This is acceptable when recipe lookup fails."
-                )
+            skip_if_no_plate_micros(plate_micros)
 
             # Should have substantial micros data
             assert (

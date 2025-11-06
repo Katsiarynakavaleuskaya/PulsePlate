@@ -46,6 +46,7 @@ def main() -> None:
             print("✅ Tests passed successfully! / Тесты прошли успешно!")
         else:
             print("❌ Tests have errors / Есть ошибки в тестах")
+            sys.exit(result.returncode)
 
     except subprocess.TimeoutExpired:
         print(

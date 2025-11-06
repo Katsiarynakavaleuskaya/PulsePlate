@@ -62,12 +62,10 @@ def init_test_database() -> None:
                 raise RuntimeError("Database initialized but no tables found")
             logging.info(f"Database initialized with {len(tables)} tables: {', '.join(tables)}")
     except Exception as e:
-        # Log the error but don't fail the test session immediately
-        # Individual tests that require DB will fail with clear error messages
+        # Log error and re-raise to fail fast in CI; tests requiring DB will not run
         logging.error(f"Failed to initialize test database: {e}", exc_info=True)
         print(f"ERROR: Could not initialize test database: {e}")
-        print("Tests that require database access will fail.")
-        raise  # Re-raise to fail fast in CI
+        raise
 
 
 @pytest.fixture(scope="session")

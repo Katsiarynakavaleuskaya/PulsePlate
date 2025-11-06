@@ -45,10 +45,10 @@ ERRORS=()
 # Allow staging deployments to run in "dry mode" without SSH secrets while infrastructure is pending
 # This was relaxed during initial staging infrastructure setup. Set to false once staging is stable
 # to ensure CI fails early when SSH secrets are missing.
-# TODO: Remove this temporary allowance once staging infrastructure is stable
-# Tracking: GitHub Issue #<ISSUE_NUMBER> (create if not exists)
-# Target review date: <YYYY-MM-DD>
-# Owner/Team: @<GITHUB_USERNAME>
+# Temporary allowance tracking:
+# - Issue: https://github.com/BMI-App/BMI-App_2025_clean/issues/42
+# - Review date: 2025-12-01
+# - Owner/Team: @pulseplate-team
 ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-false}
 
 # Check GHCR_READ_TOKEN

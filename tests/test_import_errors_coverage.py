@@ -7,6 +7,8 @@ import os
 import sys
 from unittest.mock import patch
 
+logger = logging.getLogger(__name__)
+
 
 class TestImportErrorPaths:
     """Тестирование import error путей"""
@@ -180,9 +182,6 @@ class TestEnvironmentVariablePaths:
                     os.environ[var] = value
                 elif var in os.environ:
                     del os.environ[var]
-
-
-logger = logging.getLogger(__name__)
 
 
 class TestApplicationStartupPaths:

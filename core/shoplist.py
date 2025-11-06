@@ -367,15 +367,30 @@ class ShoplistGenerator:
                 if packages_needed > 0:
                     return package_size, packages_needed
         else:  # 'nearest'
-            # Ближайшее округление: оцениваем для каждой упаковки разницу после округления
+            # Ближайшее округление: оцениваем и floor, и ceil для каждой упаковки
             best_choice: Optional[Tuple[float, int]] = None
             best_error = float("inf")
             for package_size in sorted_packages:
-                packages_needed = max(1, int(round(total_amount / package_size)))
-                error = abs(total_amount - packages_needed * package_size)
-                if error < best_error:
-                    best_error = error
-                    best_choice = (package_size, packages_needed)
+                if package_size <= 0:
+                    continue
+                # Вариант округления вниз (если даёт >=1 упаковки)
+                n_floor = int(total_amount / package_size)
+                # Вариант округления вверх (хотя бы 1 упаковка)
+                n_ceil = max(1, math.ceil(total_amount / package_size))
+
+                candidates: List[Tuple[int, float]] = []
+                if n_floor >= 1:
+                    candidates.append((n_floor, abs(total_amount - n_floor * package_size)))
+                candidates.append((n_ceil, abs(total_amount - n_ceil * package_size)))
+
+                for n_packages, error in candidates:
+                    if error < best_error or (
+                        error == best_error
+                        and best_choice is not None
+                        and n_packages < best_choice[1]
+                    ):
+                        best_error = error
+                        best_choice = (package_size, n_packages)
             if best_choice is not None:
                 return best_choice
 
@@ -549,7 +564,7 @@ def get_shoplist(
     Returns:
         Отформатированный список покупок.
     """
-    generator = ShoplistGenerator()
+    generator = _get_generator()
     # Aggregate ingredients from week_plan
     aggregated = generator.aggregate_ingredients(week_plan)
     # Round to packages using provided rules / packaging_db (falls back to defaults)

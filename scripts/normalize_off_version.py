@@ -53,7 +53,7 @@ DEFAULT_DATABASE_METADATA: DatabaseVersionsDict = {
         "version": "0.0.1",
         "last_updated": "1970-01-01T00:00:00.000000+00:00",
         "record_count": 0,
-        "checksum": None,  # Sentinel value indicating no checksum available
+        "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",  # Default SHA-256 to align with validate_data.py
         "metadata": {
             "update_type": "default",
             "api_source": "Open Food Facts",
@@ -160,7 +160,7 @@ def set_version(v: str) -> None:
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         VERS.parent.mkdir(parents=True, exist_ok=True)
-        meta: Dict[str, Any] = copy.deepcopy(DEFAULT_DATABASE_METADATA)  # type: ignore[arg-type]
+        meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
         VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))

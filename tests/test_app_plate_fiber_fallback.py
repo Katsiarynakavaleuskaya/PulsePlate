@@ -45,7 +45,7 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(monkeypatch: 
         return {"mifflin": 2000.0}
 
     async def fake_aggregate_day_micronutrients(
-        _meals: list[dict[str, object]]
+        _meals: list[dict[str, object]],
     ) -> dict[str, float]:
         return {"fiber_g": 18.0}
 

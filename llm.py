@@ -141,7 +141,7 @@ def get_provider():
             except Exception:
                 # Fallback to positional args if keyword args fail (консистентно с GrokProvider)
                 try:
-                    return OllamaProvider(endpoint, model, timeout_s)
+                    return OllamaProvider(endpoint, model)
                 except Exception:
                     # If both fail, return lite provider
                     return OllamaLiteProvider()

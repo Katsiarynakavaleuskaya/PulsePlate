@@ -868,7 +868,7 @@ class DatabaseUpdateManager:
         """
         try:
             # Only call asdict on dataclass instances, not types
-            if is_dataclass(type(food)):
+            if is_dataclass(food) and not isinstance(food, type):
                 return asdict(food)
         except (TypeError, ValueError) as dataclass_err:
             logger.debug("Failed dataclass conversion for %s: %s", food, dataclass_err)

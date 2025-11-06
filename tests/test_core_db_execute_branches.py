@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -83,7 +83,7 @@ def test_execute_error_cleanup_rolls_back_and_closes() -> None:
     engine = EngineWithFail(conn)
     compat = core_db.EngineCompat(engine)
 
-    def failing_execute(stmt: Any, *args: Any, **kwargs: Any):  # type: ignore[no-untyped-def]
+    def failing_execute(stmt: Any, *args: Any, **kwargs: Any) -> NoReturn:  # type: ignore[no-untyped-def]
         raise RuntimeError("exec fail")
 
     # Monkeypatch connection to inject execute
@@ -108,7 +108,7 @@ def test_execute_returns_wrapper_that_closes_connection() -> None:
 
     result = FakeResult()
 
-    def ok_execute(stmt: Any, *args: Any, **kwargs: Any):  # type: ignore[no-untyped-def]
+    def ok_execute(stmt: Any, *args: Any, **kwargs: Any) -> Any:  # type: ignore[no-untyped-def]
         return result
 
     setattr(conn, "execute", ok_execute)

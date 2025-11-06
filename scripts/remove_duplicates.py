@@ -151,8 +151,6 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    skipped_files = 0
-
     ap = argparse.ArgumentParser()
     ap.add_argument("--execute", action="store_true", help="remove safe backup twins")
     ap.add_argument("--include-tests", action="store_true", help="allow touching tests/")

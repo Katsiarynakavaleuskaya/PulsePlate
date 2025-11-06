@@ -6,6 +6,8 @@ EN: Hypothesis tests for automatic product search system.
 """
 
 import asyncio
+import json
+import logging
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -19,60 +21,46 @@ from core.recipe_db import parse_recipe_db
 class TestProductFinderHypothesis:
     """Test automatic product finder with Hypothesis."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         self.finder = ProductFinder()
-        # Get unified food database and convert to FoodItem format
-        try:
-            # Check if we're in an event loop (e.g., async test)
-            # get_running_loop() raises RuntimeError if there's NO running loop
-            try:
-                asyncio.get_running_loop()
-                # If we get here, we're in an async context - fallback to empty dict
-                food_db = {}
-            except RuntimeError:
-                # No running loop - safe to create temporary event loop
-                loop = asyncio.new_event_loop()
-                try:
-                    asyncio.set_event_loop(loop)
-                    unified_db = loop.run_until_complete(get_unified_food_db())
-                    common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
 
-                    # Convert UnifiedFoodItem to FoodItem format
-                    food_db: dict[str, FoodItem] = {}
-                    for key, unified_item in common_foods.items():
-                        nutrients = unified_item.nutrients_per_100g
-                        food_db[key] = FoodItem(
-                            name=unified_item.name,
-                            unit_per=100,
-                            unit="g",
-                            protein_g=nutrients.get("protein_g", 0.0),
-                            fat_g=nutrients.get("fat_g", 0.0),
-                            carbs_g=nutrients.get("carbs_g", 0.0),
-                            fiber_g=nutrients.get("fiber_g", 0.0),
-                            Fe_mg=nutrients.get("iron_mg", 0.0),
-                            Ca_mg=nutrients.get("calcium_mg", 0.0),
-                            VitD_IU=nutrients.get("vitamin_d_iu", 0.0),
-                            B12_ug=nutrients.get("b12_ug", 0.0),
-                            Folate_ug=nutrients.get("folate_ug", 0.0),
-                            Iodine_ug=nutrients.get("iodine_ug", 0.0),
-                            K_mg=nutrients.get("potassium_mg", 0.0),
-                            Mg_mg=nutrients.get("magnesium_mg", 0.0),
-                            price_per_unit=unified_item.cost_per_100g,
-                            flags=set(unified_item.tags),
-                        )
-                finally:
-                    try:
-                        loop.close()
-                    except Exception:
-                        pass
-        except Exception:
-            # Fallback to empty dict if anything goes wrong
-            food_db = {}
+        async def _build_food_db() -> dict[str, FoodItem]:
+            unified_db = await get_unified_food_db()
+            common_foods = await unified_db.get_common_foods_database()
+            food_db_local: dict[str, FoodItem] = {}
+            for key, unified_item in common_foods.items():
+                nutrients = unified_item.nutrients_per_100g
+                food_db_local[key] = FoodItem(
+                    name=unified_item.name,
+                    unit_per=100,
+                    unit="g",
+                    protein_g=nutrients.get("protein_g", 0.0),
+                    fat_g=nutrients.get("fat_g", 0.0),
+                    carbs_g=nutrients.get("carbs_g", 0.0),
+                    fiber_g=nutrients.get("fiber_g", 0.0),
+                    Fe_mg=nutrients.get("iron_mg", 0.0),
+                    Ca_mg=nutrients.get("calcium_mg", 0.0),
+                    VitD_IU=nutrients.get("vitamin_d_iu", 0.0),
+                    B12_ug=nutrients.get("b12_ug", 0.0),
+                    Folate_ug=nutrients.get("folate_ug", 0.0),
+                    Iodine_ug=nutrients.get("iodine_ug", 0.0),
+                    K_mg=nutrients.get("potassium_mg", 0.0),
+                    Mg_mg=nutrients.get("magnesium_mg", 0.0),
+                    price_per_unit=unified_item.cost_per_100g,
+                    flags=set(unified_item.tags),
+                )
+            return food_db_local
+
+        try:
+            food_db = asyncio.run(_build_food_db())
+        except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+            logging.exception("Failed to build food DB for tests: %s", exc)
+            raise
 
         self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db=food_db)
 
-    def test_find_missing_products_hypothesis(self):
+    def test_find_missing_products_hypothesis(self) -> None:
         """Test finding missing products from recipe ingredients."""
         # Получаем все ингредиенты из рецептов
         all_ingredients = []
@@ -102,7 +90,7 @@ class TestProductFinderHypothesis:
         )
     )
     @settings(deadline=None)
-    def test_similar_names_hypothesis(self, product_name: str):
+    def test_similar_names_hypothesis(self, product_name: str) -> None:
         """Test similar name detection with Hypothesis."""
         if not product_name:
             return
@@ -138,7 +126,7 @@ class TestProductFinderHypothesis:
         )
     )
     @settings(deadline=None)
-    def test_search_product_hypothesis(self, search_name: str):
+    def test_search_product_hypothesis(self, search_name: str) -> None:
         """Test product search with Hypothesis."""
         result = self.finder.search_product(search_name)
 
@@ -159,7 +147,9 @@ class TestProductFinderHypothesis:
         confidence2=st.floats(min_value=0.0, max_value=1.0),
     )
     @settings(deadline=None)
-    def test_confidence_calculation_hypothesis(self, confidence1: float, confidence2: float):
+    def test_confidence_calculation_hypothesis(
+        self, confidence1: float, confidence2: float
+    ) -> None:
         """Test confidence calculation with Hypothesis."""
         # Тестируем с различными названиями
         test_cases = [
@@ -175,7 +165,7 @@ class TestProductFinderHypothesis:
             assert isinstance(confidence, float)
             assert 0.0 <= confidence <= 1.0
 
-    def test_auto_expand_database_integration(self):
+    def test_auto_expand_database_integration(self) -> None:
         """Test automatic database expansion integration."""
         # Получаем все ингредиенты из рецептов
         all_ingredients = []
@@ -194,7 +184,7 @@ class TestProductFinderHypothesis:
             assert isinstance(product, str)
             assert isinstance(success, bool)
 
-    def test_product_finder_initialization(self):
+    def test_product_finder_initialization(self) -> None:
         """Test product finder initialization."""
         finder = ProductFinder()
 
@@ -204,7 +194,7 @@ class TestProductFinderHypothesis:
         assert finder.food_db is not None
         assert len(finder.food_db) > 0
 
-    def test_missing_products_detection(self):
+    def test_missing_products_detection(self) -> None:
         """Test missing products detection accuracy."""
         # Тестируем с известными недостающими продуктами
         test_ingredients = [
@@ -229,7 +219,7 @@ class TestProductFinderHypothesis:
         for product in missing_products:
             assert product in test_ingredients
 
-    def test_search_result_structure(self):
+    def test_search_result_structure(self) -> None:
         """Test search result data structure."""
         # Тестируем с реальным продуктом
         result = self.finder.search_product("Молоко")
@@ -263,7 +253,7 @@ class TestProductFinderHypothesis:
         if result.error_message is not None:
             assert isinstance(result.error_message, str)
 
-    def test_database_expansion_workflow(self):
+    def test_database_expansion_workflow(self) -> None:
         """Test complete database expansion workflow."""
         # Получаем небольшой набор ингредиентов для тестирования
         test_ingredients = ["Молоко", "Яйца", "Сыр"]
