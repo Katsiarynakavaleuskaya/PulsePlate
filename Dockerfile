@@ -52,6 +52,9 @@ WORKDIR /app
 # Copy application code
 COPY --chown=pulseplate:pulseplate . .
 
+# Make healthcheck script executable
+RUN chmod +x /app/healthcheck.py
+
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/cache /app/data /app/logs && \
     chown -R pulseplate:pulseplate /app/cache /app/data /app/logs
@@ -62,9 +65,9 @@ USER pulseplate
 # Expose port
 EXPOSE 8000
 
-# Health check using Python instead of curl (avoids CVE-2025-11563)
+# Health check using Python script instead of curl (avoids CVE-2025-11563)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()" || exit 1
+    CMD ["python", "/app/healthcheck.py"]
 
 # Default command
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
