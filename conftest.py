@@ -19,7 +19,7 @@ class AppLoadError(ImportError):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_test_database():
+def init_test_database() -> None:
     """Initialize test database tables before running tests.
 
     This fixture ensures the database schema is created before any tests run.
@@ -56,7 +56,7 @@ def init_test_database():
         from sqlalchemy import inspect
 
         with session_scope() as session:
-            inspector = inspect(session.bind)
+            inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
             if not tables:
                 raise RuntimeError("Database initialized but no tables found")

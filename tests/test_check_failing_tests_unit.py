@@ -9,11 +9,12 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
+import pytest
 
 import check_failing_tests as cft
 
 
-def test_run_test_file_success(monkeypatch):
+def test_run_test_file_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Return (True, stdout) when subprocess returns code 0."""
 
     def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001
@@ -25,7 +26,7 @@ def test_run_test_file_success(monkeypatch):
     assert out == "OK-OUT"
 
 
-def test_run_test_file_failure(monkeypatch):
+def test_run_test_file_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Return (False, stdout+stderr) when subprocess returns non-zero."""
 
     def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001
@@ -37,7 +38,7 @@ def test_run_test_file_failure(monkeypatch):
     assert out == "STDOUT-STDERR"
 
 
-def test_run_test_file_timeout(monkeypatch):
+def test_run_test_file_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """Return TIMEOUT message when subprocess times out."""
 
     def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001
@@ -49,7 +50,7 @@ def test_run_test_file_timeout(monkeypatch):
     assert out.startswith("TIMEOUT: Test tests/fake_test_timeout.py timed out")
 
 
-def test_run_test_file_generic_exception(monkeypatch):
+def test_run_test_file_generic_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     """Return ERROR message including the exception text on generic error."""
 
     def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001

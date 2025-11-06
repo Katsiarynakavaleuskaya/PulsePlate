@@ -66,7 +66,9 @@ def test_validate_ingredient_mapping_blank_food_id() -> None:
 
 def test_validate_ingredient_mapping_not_mapping() -> None:
     """Cover line 442: not isinstance(ing, Mapping) check."""
-    assert fs._validate_ingredient_mapping("not-a-dict") is None
+    not_a_mapping: str = "not-a-dict"
+    result = fs._validate_ingredient_mapping(not_a_mapping)  # type: ignore[arg-type]
+    assert result is None
 
 
 def test_validate_csv_quotes_exception_in_production(

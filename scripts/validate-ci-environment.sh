@@ -46,9 +46,9 @@ ERRORS=()
 # This was relaxed during initial staging infrastructure setup. Set to false once staging is stable
 # to ensure CI fails early when SSH secrets are missing.
 # TODO: Remove this temporary allowance once staging infrastructure is stable
-# Tracking: [JIRA/TICKET-XXXX] or [GitHub Issue #XXXX]
-# Target review date: 2025-XX-XX (or Q2 2025)
-# Owner/Team: [DevOps/Infrastructure Team]
+# Tracking: GitHub Issue #<ISSUE_NUMBER> (create if not exists)
+# Target review date: <YYYY-MM-DD>
+# Owner/Team: @<GITHUB_USERNAME>
 ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-false}
 
 # Check GHCR_READ_TOKEN

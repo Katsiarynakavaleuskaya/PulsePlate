@@ -1178,6 +1178,26 @@ else:
     make_plate = _make_plate
     build_nutrition_targets = _build_nutrition_targets
 
+
+def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
+    """Return the first callable build_nutrition_targets from known module candidates."""
+    import sys as _sys
+
+    candidates = (
+        _sys.modules.get("app"),
+        _sys.modules.get("app_module"),
+        _sys.modules.get(__name__),
+        _sys.modules.get("_app_top_module"),
+    )
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        value = getattr(candidate, "build_nutrition_targets", None)
+        if callable(value):
+            return value
+    return build_nutrition_targets if callable(build_nutrition_targets) else None
+
+
 try:
     from core.exports import to_csv_day as _to_csv_day_fn
     from core.exports import to_csv_week as _to_csv_week_fn
@@ -1746,14 +1766,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         _candidates = [
             _sys.modules.get("app"),
             _sys.modules.get(__name__),
+            _sys.modules.get("app_module"),
             _sys.modules.get("_app_top_module"),
         ]
         _make_plate = resolve_attr("make_plate", make_plate, _candidates)
         _calc_bmr = resolve_attr("calculate_all_bmr", calculate_all_bmr, _candidates)
         _calc_tdee = resolve_attr("calculate_all_tdee", calculate_all_tdee, _candidates)
-        _build_targets = resolve_attr(
-            "build_nutrition_targets", build_nutrition_targets, _candidates
-        )
+        _build_targets = _resolve_build_targets_callable()
 
         # If backends are unavailable (e.g., patched to None in tests), return a safe fallback
         if _make_plate is None or _calc_bmr is None or _calc_tdee is None:
@@ -1780,15 +1799,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
             # Align with WHO targets if backend is available to keep macro deviation low
             # Prefer runtime-patched build_nutrition_targets on the app module (tests often monkeypatch it)
-            _app_pkg = _sys.modules.get("app")
-            _build_targets_resolved = None
-            if _app_pkg is not None:
-                _build_targets_resolved = getattr(_app_pkg, "build_nutrition_targets", None)
-            # Fallback to resolver if not found directly on app
-            if _build_targets_resolved is None:
-                _build_targets_resolved = resolve_attr(
-                    "build_nutrition_targets", build_nutrition_targets, _candidates
-                )
+            _build_targets_resolved = _build_targets
+            if not callable(_build_targets_resolved):
+                _build_targets_resolved = _resolve_build_targets_callable()
             # If we have a callable targets builder, call it and prefer its macros/kcal
             if callable(_build_targets_resolved):
                 try:
@@ -2340,11 +2353,15 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     try:
         import sys as _sys
 
-        # Resolve via the 'app' package so tests can patch app.build_nutrition_targets
-        _app_pkg = _sys.modules.get("app")
-        _getattr = getattr(_app_pkg, "getattr", getattr)
-        _build_targets = _getattr(_app_pkg, "build_nutrition_targets", None)
-        if _build_targets is None:
+        # Resolve through multiple module candidates so monkeypatched attributes are respected
+        _candidates = [
+            _sys.modules.get("app"),
+            _sys.modules.get(__name__),
+            _sys.modules.get("app_module"),
+            _sys.modules.get("_app_top_module"),
+        ]
+        _build_targets = _resolve_build_targets_callable()
+        if not callable(_build_targets):
             # Fallback: return a reasonable stub when backend is unavailable
             base_bmr = 24 * req.weight_kg
             activity_factor = get_activity_factor(req.activity)
