@@ -190,7 +190,8 @@ class _ResultWithConnectionCleanup:
 
         # Wrap all other callable methods to check if result was closed after execution
         # This handles methods like all(), first(), scalar() that implicitly close the result
-        if callable(attr):
+        # Exclude special methods (like __iter__, __next__) to avoid double-wrapping issues
+        if callable(attr) and not (name.startswith("__") and name.endswith("__")):
 
             @functools.wraps(attr)
             def wrapped(*args: Any, **kwargs: Any) -> Any:
