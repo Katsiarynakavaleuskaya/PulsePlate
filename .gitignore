@@ -231,6 +231,10 @@ reproduce_*.py
 
 # Allow tests under tests/ (do not ignore them)
 !tests/**
+# But still ignore __pycache__ and temporary files in tests/
+tests/**/__pycache__/
+tests/__pycache__/
+test_output.txt
 
 # Xcode user-specific files
 xcuserdata/
