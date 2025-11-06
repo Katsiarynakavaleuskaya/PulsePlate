@@ -1258,7 +1258,7 @@ async def get_recipe_templates(
         logging.exception("Error retrieving recipe templates: %s", e)
         return {
             "status": "error",
-            "message": f"Error retrieving recipe templates: {str(e)}",
+            "message": "An internal error occurred while retrieving recipe templates.",
             "templates": [],
         }
 
