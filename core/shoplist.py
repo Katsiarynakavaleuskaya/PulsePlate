@@ -293,21 +293,23 @@ class ShoplistGenerator:
 
             # Конвертируем обратно в исходные единицы
             unit = rule.unit
+            total_weight = total_grams
+            package_display_size = package_size
             if unit == "g" and total_grams >= 1000:
                 unit = "kg"
                 total_weight = total_grams / 1000
+                package_display_size = package_size / 1000
             elif unit == "ml" and total_grams >= 1000:
                 unit = "l"
                 total_weight = total_grams / 1000
-            else:
-                total_weight = total_grams
+                package_display_size = package_size / 1000
 
             shopping_item = ShoppingItem(
                 name=ingredient_name,
                 quantity=packages_needed,
                 unit=unit,
                 category=category,
-                package_size=package_size,
+                package_size=package_display_size,
                 packages_needed=packages_needed,
                 total_weight=total_weight,
             )

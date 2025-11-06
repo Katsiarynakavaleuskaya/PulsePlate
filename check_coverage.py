@@ -92,7 +92,7 @@ def run_detailed_coverage() -> bool:
 
     except subprocess.TimeoutExpired:
         print("⏳ Таймаут при создании детального отчета (300s). CI остановлен.")
-        raise
+        return False
     except Exception as e:
         print(f"❌ Ошибка при создании детального отчета: {e}")
         return False

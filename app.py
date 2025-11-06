@@ -1486,7 +1486,7 @@ async def _aggregate_meal_micronutrients(
     return meal_micros
 
 
-def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
+async def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
     """Try to get ingredients for a meal by looking up recipes.
 
     RU: Пытается получить ингредиенты блюда через поиск рецептов.
@@ -1502,7 +1502,7 @@ def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
         import json
 
         # Try to find a matching recipe
-        recipes = recipe_store.search_recipes(meal_title, limit=1)
+        recipes = await asyncio.to_thread(recipe_store.search_recipes, meal_title, limit=1)
         if not recipes:
             logger.debug(f"No recipe found for meal '{meal_title}'")
             return []
@@ -1512,7 +1512,7 @@ def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
             return []
 
         # Get full recipe details
-        recipe = recipe_store.get_recipe(recipe_id)
+        recipe = await asyncio.to_thread(recipe_store.get_recipe, recipe_id)
         if not recipe:
             return []
 
@@ -1574,7 +1574,7 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
 
             # If no ingredients in meal, try to look them up from recipes
             if not ingredients:
-                ingredients = _get_recipe_ingredients_for_meal(meal_title)
+                ingredients = await _get_recipe_ingredients_for_meal(meal_title)
 
             # Aggregate micronutrients from ingredients
             meal_micros_raw = await _aggregate_meal_micronutrients(
