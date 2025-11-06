@@ -90,7 +90,8 @@ def init_test_database() -> None:
             tables = inspector.get_table_names()
             if not tables:
                 raise RuntimeError("Database initialized but no tables found")
-            logging.info(f"Database initialized with {len(tables)} tables: {', '.join(tables)}")
+            tables_str = ", ".join(tables)
+            logging.info(f"Database initialized with {len(tables)} tables: {tables_str}")
     except Exception as e:
         # Log error and re-raise to fail fast in CI; tests requiring DB will not run
         logging.error(f"Failed to initialize test database: {e}", exc_info=True)
