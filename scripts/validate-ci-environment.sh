@@ -46,8 +46,8 @@ ERRORS=()
 # This was relaxed during initial staging infrastructure setup. Set to false once staging is stable
 # to ensure CI fails early when SSH secrets are missing.
 # Temporary allowance tracking:
-# - Issue: https://github.com/BMI-App/BMI-App_2025_clean/issues/42
-# - Review date: 2025-12-01
+# - Issue: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/42
+# - Review date: 2026-01-15
 # - Owner/Team: @pulseplate-team
 ALLOW_MISSING_STAGING_SSH=${ALLOW_MISSING_STAGING_SSH:-false}
 

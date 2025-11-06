@@ -72,11 +72,51 @@ CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"
 # Stage 3: Staging stage
 # Extends production with staging-specific configurations
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
+#
+# HOW TO BUILD FOR STAGING:
+#   docker build --target=staging -t myapp:staging .
+#   docker build --target=staging --build-arg LOG_LEVEL=INFO -t myapp:staging .
+#
+# HOW TO RUN STAGING CONTAINER:
+#   docker run -e LOG_LEVEL=INFO -e DATABASE_URL=staging_db_url myapp:staging
+#
 FROM production AS staging
 
-# Staging-specific environment variables (if needed)
-# ENV LOG_LEVEL=DEBUG
-# ENV ENABLE_DEBUG_FEATURES=true
+# COMMON STAGING ENV VARS (uncomment/modify as needed):
+#
+# Logging and debugging:
+# ENV LOG_LEVEL=INFO                    # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+# ENV ENABLE_DEBUG_FEATURES=true        # Enable debug endpoints/features
+# ENV ENABLE_PROFILING=true             # Enable performance profiling
+# ENV SENTRY_ENVIRONMENT=staging        # Sentry error tracking environment
+#
+# API and feature flags:
+# ENV API_RATE_LIMIT=1000               # Higher rate limits for testing
+# ENV ENABLE_BETA_FEATURES=true         # Enable beta/experimental features
+# ENV MOCK_EXTERNAL_APIS=false          # Use real APIs but with test credentials
+#
+# Database and caching:
+# ENV DATABASE_POOL_SIZE=10             # Smaller pool for staging resources
+# ENV REDIS_CACHE_TTL=300               # Shorter cache TTL for testing
+#
+# Security and monitoring:
+# ENV CORS_ALLOWED_ORIGINS="*"          # More permissive CORS for testing
+# ENV ENABLE_METRICS_EXPORT=true        # Export metrics to monitoring service
+#
+# HOW TO SET ENV VARS:
+# 1. Build-time (baked into image): Use ENV directive above or --build-arg
+# 2. Run-time (flexible): Use -e flag with docker run or docker-compose.yaml
+# 3. From file: Use --env-file staging.env with docker run
+#
+# CI/CD USAGE:
+# - In GitHub Actions: Set target in docker/build-push-action@v2 with 'target: staging'
+# - In GitLab CI: Add --target=staging to docker build command in .gitlab-ci.yml
+# - With docker-compose: Set 'target: staging' in docker-compose.staging.yaml
+#
+# For detailed staging setup and deployment instructions, see:
+# - STAGING_SETUP.md - Complete staging environment configuration
+# - DEPLOYMENT_FULL_GUIDE.md - Production and staging deployment workflows
+# - .github/workflows/ - CI/CD pipeline examples with staging targets
 
 # Stage 4: Development stage
 FROM production AS development

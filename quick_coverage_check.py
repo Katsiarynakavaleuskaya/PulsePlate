@@ -5,7 +5,13 @@ import os
 import subprocess  # nosec B404 - importing subprocess to invoke pytest for coverage checks; safe because we control the command and arguments
 import sys
 
-COVERAGE_CHECK_TIMEOUT = int(os.getenv("COVERAGE_CHECK_TIMEOUT", "300"))
+try:
+    COVERAGE_CHECK_TIMEOUT = int(os.getenv("COVERAGE_CHECK_TIMEOUT", "300"))
+    if COVERAGE_CHECK_TIMEOUT <= 0:
+        raise ValueError("Timeout must be positive")
+except ValueError as e:
+    print(f"❌ Invalid COVERAGE_CHECK_TIMEOUT: {e}")
+    sys.exit(1)
 
 
 def main() -> None:
@@ -15,7 +21,7 @@ def main() -> None:
 
     try:
         # Run tests with coverage / Запуск тестов с покрытием
-        result = subprocess.run(  # nosec B603
+        result = subprocess.run(  # nosec B603 - safe: args passed as list, shell=False
             [
                 sys.executable,
                 "-m",

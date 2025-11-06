@@ -133,7 +133,15 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     issues: list[str] = []
     issues += validate_food_aliases(repo_root / "data" / "food_aliases.csv")
-    issues += validate_cache_versions(repo_root / "cache" / "food_db" / "database_versions.json")
+    try:
+        issues += validate_cache_versions(
+            repo_root / "cache" / "food_db" / "database_versions.json"
+        )
+    except ValueError as e:
+        # Preserve JSON contract: collect error instead of exiting
+        issues.append(str(e))
+    except Exception as e:  # pragma: no cover
+        issues.append(str(e))
 
     if args.json:
         # Structured JSON output (to stdout only)

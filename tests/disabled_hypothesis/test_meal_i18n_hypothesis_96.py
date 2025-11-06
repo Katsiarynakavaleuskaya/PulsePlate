@@ -247,7 +247,7 @@ class TestMealI18nHypothesis96:
 
                     # Should return strings (even if they're the same as input)
                     assert all(isinstance(r, str) for r in [result1, result2, result3, result4])
-                except Exception:  # nosec B110  # intentional in test for coverage
+                except Exception:  # nosec B110 - intentional in test for coverage
                     # Some special characters might cause issues, that's okay
                     pass
 
@@ -272,7 +272,7 @@ class TestMealI18nHypothesis96:
 
                     # Should return strings
                     assert all(isinstance(r, str) for r in [result1, result2, result3, result4])
-                except Exception:  # nosec B110  # intentional in test for coverage
+                except Exception:  # nosec B110 - intentional in test for coverage
                     # Some unicode might cause issues, that's okay
                     pass
 

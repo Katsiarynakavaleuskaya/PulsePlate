@@ -259,7 +259,7 @@ class ShoplistGenerator:
         self,
         aggregated: Dict[str, float],
         packaging_db: Optional[Dict[str, Any]] = None,
-        rules: Optional[Mapping[str, Any]] = None,
+        rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
     ) -> List[ShoppingItem]:
         """Округляет агрегированные ингредиенты до упаковок.
 
@@ -530,7 +530,7 @@ def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
 def round_to_packages(
     aggregated: Dict[str, float],
     packaging_db: Optional[Dict[str, Any]] = None,
-    rules: Optional[Mapping[str, Any]] = None,
+    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
 ) -> List[ShoppingItem]:
     """Округляет агрегированные ингредиенты до упаковок."""
     return _get_generator().round_to_packages(aggregated, packaging_db, rules)
@@ -548,7 +548,7 @@ def get_shoplist(
     format_type: str = "json",
     locale: str = "ru",
     packaging_db: Optional[Dict[str, Any]] = None,
-    rules: Optional[Mapping[str, Any]] = None,
+    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
 ) -> Union[str, Dict]:
     """Собирает и форматирует список покупок из недельного плана.
 

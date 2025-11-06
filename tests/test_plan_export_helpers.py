@@ -47,12 +47,18 @@ def test_export_week_pdf_uses_custom_doc(monkeypatch: pytest.MonkeyPatch) -> Non
             self.width = 400
             self.built = False
 
-        def build(self, story: List[Any], onFirstPage=None, onLaterPages=None, canvasmaker=None):
+        def build(
+            self,
+            story: List[Any],
+            onFirstPage=None,
+            onLaterPages=None,
+            canvasmaker=None,
+        ) -> None:
             self.built = True
             self.story = story
             assert canvasmaker is plan_export.PageNumCanvas
 
-    def doc_factory(*args, **kwargs):
+    def doc_factory(*args, **kwargs) -> DummyDoc:
         doc = DummyDoc(*args, **kwargs)
         created_docs.append(doc)
         return doc

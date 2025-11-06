@@ -2,8 +2,10 @@
 import copy
 import json
 import logging
+import os
 import subprocess  # nosec B404
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
@@ -21,6 +23,11 @@ VERS: Path = Path("cache/food_db/database_versions.json")
 # Console preview limit for stdout/stderr (increased from 500)
 CONSOLE_PREVIEW_LIMIT: int = 1000
 
+# ASCII-safe status labels for CI/terminal compatibility
+STATUS_OK: str = "[OK]"
+STATUS_REJECTED: str = "[REJECTED]"
+STATUS_ERROR: str = "[ERROR]"
+
 CANDIDATES: list[str] = [
     "20250924_180009",  # YYYYMMDD_HHMMSS
     "20250924-180009",  # YYYYMMDD-HHMMSS
@@ -37,7 +44,7 @@ class DatabaseMetadataDict(TypedDict):
     version: str
     last_updated: str
     record_count: int
-    checksum: Optional[str]  # None indicates no checksum available
+    checksum: str
     metadata: Dict[str, Any]
 
 
@@ -53,7 +60,8 @@ DEFAULT_DATABASE_METADATA: DatabaseVersionsDict = {
         "version": "0.0.1",
         "last_updated": "1970-01-01T00:00:00.000000+00:00",
         "record_count": 0,
-        "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",  # Default SHA-256 to align with validate_data.py
+        # Default SHA-256 to align with validate_data.py
+        "checksum": ("44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"),
         "metadata": {
             "update_type": "default",
             "api_source": "Open Food Facts",
@@ -125,6 +133,8 @@ def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optio
         Creates logs directory if it doesn't exist.
         Writes content to a timestamped log file.
     """
+    temp_fd = None
+    temp_path = None
     try:
         logs_dir = Path("logs")
         logs_dir.mkdir(parents=True, exist_ok=True)
@@ -133,13 +143,67 @@ def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optio
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = logs_dir / f"{prefix}_{timestamp}.log"
 
-        # Write content to file using UTF-8 encoding
-        log_file.write_text(content, encoding="utf-8")
+        # Atomic write pattern: write to temp file, then atomically replace
+        # Create a temporary file in the same directory as the target
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=str(logs_dir), prefix=f".{prefix}_", suffix=".tmp"
+        )
+
+        # Write content to temporary file with UTF-8 encoding
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())  # Ensure data is written to disk
+
+        temp_fd = None  # File descriptor is closed by fdopen
+
+        # Atomically replace the target file
+        os.replace(temp_path, log_file)
+        temp_path = None  # Successfully moved, no need to clean up
 
         return log_file
     except Exception as e:
         logger.warning(f"Failed to write log file: {e}")
+        # Clean up temporary file if it exists
+        if temp_fd is not None:
+            try:
+                os.close(temp_fd)
+            except Exception as close_err:
+                logger.debug("Failed to close temporary file descriptor: %s", close_err)
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as unlink_err:
+                logger.debug("Failed to unlink temporary file %s: %s", temp_path, unlink_err)
         return None
+
+
+def _atomic_write_json(target_path: Path, data: Dict[str, Any]) -> None:
+    """Atomically write JSON to target_path.
+
+    RU: Атомарная запись JSON в файл: во временный файл в той же директории,
+    затем os.replace(). Гарантирует целостность при сбоях.
+    EN: Atomic JSON write using temp file in same directory followed by os.replace().
+    """
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = None
+    json_bytes = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+    try:
+        with tempfile.NamedTemporaryFile(dir=str(target_path.parent), delete=False) as tf:
+            tmp_file = Path(tf.name)
+            tf.write(json_bytes)
+            tf.flush()
+            os.fsync(tf.fileno())
+        # Replace atomically
+        os.replace(tmp_file, target_path)
+    except Exception:
+        # Best-effort cleanup
+        if tmp_file and tmp_file.exists():
+            try:
+                tmp_file.unlink()
+            except Exception as cleanup_err:
+                logger.debug("Failed to remove temporary JSON file %s: %s", tmp_file, cleanup_err)
+        raise
 
 
 def set_version(v: str) -> None:
@@ -159,15 +223,14 @@ def set_version(v: str) -> None:
     if not VERS.exists():
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
-        VERS.parent.mkdir(parents=True, exist_ok=True)
         meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
-        VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_json(VERS, meta)
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
         # Defensively validate meta: ensure it's a dict
         if not isinstance(meta, dict):
-            logger.warning(f"{VERS} contains non-dict data, replacing with empty dict")
-            meta = {}
+            logger.warning(f"{VERS} contains non-dict data, replacing with default structure")
+            meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
 
     # Defensively validate openfoodfacts: ensure it's a dict
     if not isinstance(meta.get("openfoodfacts"), dict):
@@ -175,11 +238,11 @@ def set_version(v: str) -> None:
             f"{VERS} openfoodfacts is not a dict (type: {type(meta.get('openfoodfacts'))}), "
             "overwriting with new dict"
         )
-        meta["openfoodfacts"] = {}
+        meta["openfoodfacts"] = copy.deepcopy(DEFAULT_DATABASE_METADATA["openfoodfacts"])
 
     # Set the version key on the validated dict
     meta["openfoodfacts"]["version"] = v
-    VERS.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_json(VERS, meta)
 
 
 def validate() -> int:
@@ -302,11 +365,11 @@ def main() -> int:
         set_version(v)
         code = validate()
         if code == 0:
-            logger.info(f"✅ version accepted: {v}")
+            logger.info(f"{STATUS_OK} version accepted: {v}")
             return 0
         else:
-            logger.info(f"… version rejected: {v}")
-    logger.error("❌ none of the candidates passed; keep last tried value")
+            logger.info(f"{STATUS_REJECTED} version rejected: {v}")
+    logger.error(f"{STATUS_ERROR} none of the candidates passed; keep last tried value")
     return 2
 
 

@@ -56,8 +56,11 @@ jobs:
           git fetch origin "${{ github.base_ref }}" --depth=1
           CHANGED=$(git diff --name-only --diff-filter=AMRT "origin/${{ github.base_ref }}"... | grep -E '\\.py$' || true)
           printf "Changed Python files:\n%s\n" "$CHANGED"
-          CHANGED_SP=${CHANGED//$'\n'/ }
-          echo "files=$CHANGED_SP" >> $GITHUB_OUTPUT
+          {
+            echo "files<<EOF"
+            printf '%s\n' "$CHANGED"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Mypy (changed files only)
         if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
@@ -70,8 +73,13 @@ jobs:
               echo "No changed files to check"
               exit 0
             fi
-            # Use null-delimited input for safety with special characters
-            echo "$CHANGED_FILES" | tr '\n' '\0' | xargs -0 -n1 sh -c 'mypy "$@"' _
+            # Iterate newline-delimited paths safely
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              mypy "$file"
+            done <<'EOF'
+            ${{ steps.changed.outputs.files }}
+            EOF
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"

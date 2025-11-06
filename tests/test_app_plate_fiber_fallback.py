@@ -8,7 +8,9 @@ import app
 
 
 @pytest.mark.asyncio
-async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(monkeypatch: pytest.MonkeyPatch):
+async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ensure invalid fiber values fall back to the minimum requirement."""
 
     def fake_make_plate(**_: object) -> dict[str, object]:
@@ -73,4 +75,4 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(monkeypatch: 
     response = await app.api_premium_plate(request)
 
     assert response.macros["fiber_g"] == app.FIBER_MIN_G
-    assert response.kcal > 0
+    assert response.kcal == 2100

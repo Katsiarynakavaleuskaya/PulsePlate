@@ -76,7 +76,17 @@ class ProductFinder:
             min_confidence_threshold: Minimum confidence threshold for product matching
                 (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD)
         """
-        self.min_confidence_threshold = min_confidence_threshold
+        # Validate threshold early to prevent invalid configuration from propagating.
+        # RU: Ранняя проверка порога уверенности (0.0–1.0), принимаются только числа.
+        if not isinstance(min_confidence_threshold, (int, float)):
+            raise ValueError("min_confidence_threshold must be a numeric value within [0.0, 1.0]")
+        threshold_value = float(min_confidence_threshold)
+        if threshold_value < 0.0 or threshold_value > 1.0:
+            raise ValueError(
+                "min_confidence_threshold must be within the inclusive range [0.0, 1.0]"
+            )
+
+        self.min_confidence_threshold = threshold_value
         self.usda_adapter = USDAAdapter()
         self.off_adapter = OFFAdapter()
         self.food_db = parse_food_db("data/food_db.csv")

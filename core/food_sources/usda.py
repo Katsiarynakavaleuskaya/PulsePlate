@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 import os
 from datetime import date
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from ..aliases import map_to_canonical
 from ..units import iu_vitd_from_ug
@@ -38,7 +38,7 @@ class USDAAdapter(BaseAdapter):
             )
         self.csv_path = csv_path
 
-    def fetch(self) -> Iterable[Dict]:
+    def fetch(self) -> Iterable[Dict[str, Any]]:
         """
         RU: Читаем один CSV или все CSV в директории (чанки).
         EN: Read a single CSV or all CSVs in a directory (chunks).

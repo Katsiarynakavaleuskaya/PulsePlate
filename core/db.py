@@ -165,9 +165,15 @@ class _ResultWithConnectionCleanup:
         attr = getattr(self._result, name)
         # If result is being closed, also close connection
         if name == "close" and callable(attr):
+            original_close = attr
 
-            def close_with_connection() -> None:
-                self._close_connection()
+            def close_with_connection(*args: Any, **kwargs: Any) -> Any:
+                try:
+                    result = original_close(*args, **kwargs)
+                finally:
+                    # Always attempt to close the underlying connection after the result is closed
+                    self._close_connection()
+                return result
 
             return close_with_connection
         return attr

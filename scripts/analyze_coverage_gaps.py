@@ -8,7 +8,6 @@ import re
 import subprocess  # nosec B404
 import sys
 import warnings
-from typing import List
 
 
 def parse_timeout_env(env_var: str, default: int = 180) -> int:
@@ -99,7 +98,7 @@ def run_coverage_analysis() -> bool:
         print(result.stderr)
 
     # Анализируем основные файлы с низким покрытием
-    critical_files: List[str] = ["app.py", "app/routers/vip.py", "conftest.py"]
+    critical_files: list[str] = ["app.py", "app/routers/vip.py", "conftest.py"]
 
     print("\n🎯 Критические файлы для улучшения покрытия:")
     for file in critical_files:

@@ -65,7 +65,7 @@ def test_run_test_file_generic_exception(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_main_mixed_pass_fail_timeout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Main prints a correct summary and returns 1 when any failures/timeouts exist."""
+    """Main prints a correct summary and returns 2 (1 failure + 1 timeout)."""
 
     # Limit discovered files to a controlled set
     monkeypatch.setattr(

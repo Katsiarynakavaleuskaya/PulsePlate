@@ -327,6 +327,17 @@ if VIP_MODULE_ENABLED and vip_router is not None:
 
 app.include_router(premium_week_router, dependencies=[protected_dependency])
 
+# Conditionally include test router for non-production environments
+_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+if _app_env in {"", "local", "dev", "development", "staging", "test"}:
+    try:
+        from app.routers import test as test_router
+
+        app.include_router(test_router.router)
+        logger.info("Test endpoints enabled for environment: %s", _app_env or "local")
+    except ImportError:
+        logger.debug("Test router not available")
+
 start_time = time.time()
 
 # Legacy event handlers - replaced with lifespan
@@ -2002,20 +2013,23 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             original_value = macros_aligned["fiber_g"]
             try:
                 fiber_float = float(original_value)
-                # Only enforce minimum fiber intake (WHO/EFSA guidelines)
-                # No upper limit is set as WHO/EFSA do not specify a maximum
-                macros_aligned["fiber_g"] = max(FIBER_MIN_G, fiber_float)
+                # Ensure resulting value is an integer for consistency
+                macros_aligned["fiber_g"] = int(round(max(FIBER_MIN_G, fiber_float)))
             except (ValueError, TypeError):
                 # Log warning and set to default minimum on conversion errors
                 logger.warning(
-                    "Failed to convert fiber_g value '%s' to float; setting to FIBER_MIN_G=%d",
+                    "Failed to convert fiber_g value '%s' to float; setting to FIBER_MIN_G=%.1f",
                     original_value,
                     FIBER_MIN_G,
                 )
-                macros_aligned["fiber_g"] = FIBER_MIN_G
+                macros_aligned["fiber_g"] = int(round(FIBER_MIN_G))
         for macro_key, macro_value in list(macros_aligned.items()):
-            with suppress(Exception):
+            try:
                 macros_aligned[macro_key] = int(round(float(macro_value)))
+            except (ValueError, TypeError):
+                logger.debug(
+                    "Could not coerce macro %s=%r to int; leaving as-is", macro_key, macro_value
+                )
         final_kcal_value = (
             target_kcal_override if target_kcal_override is not None else plate_data["kcal"]
         )
@@ -2353,13 +2367,6 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     try:
         import sys as _sys
 
-        # Resolve through multiple module candidates so monkeypatched attributes are respected
-        _candidates = [
-            _sys.modules.get("app"),
-            _sys.modules.get(__name__),
-            _sys.modules.get("app_module"),
-            _sys.modules.get("_app_top_module"),
-        ]
         _build_targets = _resolve_build_targets_callable()
         if not callable(_build_targets):
             # Fallback: return a reasonable stub when backend is unavailable

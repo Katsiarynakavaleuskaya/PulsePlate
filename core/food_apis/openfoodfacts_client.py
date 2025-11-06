@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -328,28 +329,30 @@ class OFFClient:
             True if any check indicates loop closure, False otherwise
         """
         try:
+            loop = asyncio.get_running_loop()
+            if loop.is_closed():
+                return True
+        except RuntimeError:
             try:
-                loop = asyncio.get_running_loop()
+                loop = asyncio.get_event_loop()
                 if loop.is_closed():
                     return True
             except RuntimeError:
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_closed():
-                        return True
-                except RuntimeError:
-                    pass
-        except Exception:  # nosec B110 - intentional broad catch for error handling
-            pass
+                pass
 
-        # Final fallback: inspect error message for loop closure hints
+        # Final fallback: stricter pattern matching for event loop closure
         error_msg = str(error).lower()
-        return any(hint in error_msg for hint in ["loop", "event loop", "closed", "is closed"])
+        # Match exact phrases: "event loop is closed" or "event loop" followed by "closed"
+        event_loop_closed_pattern = re.compile(r"event\s+loop\s+(is\s+)?closed")
+        return bool(event_loop_closed_pattern.search(error_msg))
 
     async def close(self):
         """Close the HTTP client."""
         try:
             await self.client.aclose()
         except RuntimeError as e:
-            # Event loop may be closed during test teardown
-            logger.debug("RuntimeError during client close (likely test shutdown): %s", e)
+            # Only suppress if it's an event loop closure error
+            if self._is_event_loop_closed(e):
+                logger.debug("RuntimeError during client close (event loop closed): %s", e)
+            else:
+                raise

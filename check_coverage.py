@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-def run_coverage_check():
+def run_coverage_check() -> bool:
     """Запустить проверку покрытия"""
     print("🔍 Проверка покрытия тестов...")
     print("=" * 50)
@@ -55,7 +55,7 @@ def run_coverage_check():
         return False
 
 
-def run_detailed_coverage():
+def run_detailed_coverage() -> bool:
     """Запустить детальную проверку покрытия"""
     print("\n🔍 Детальная проверка покрытия...")
     print("=" * 50)
@@ -98,7 +98,7 @@ def run_detailed_coverage():
         return False
 
 
-def main():
+def main() -> bool:
     """Основная функция"""
     print("🚀 Проверка покрытия тестов PulsePlate")
     print("=" * 50)
@@ -123,5 +123,5 @@ def main():
 
 
 if __name__ == "__main__":
-    success = main()
+    success: bool = main()
     sys.exit(0 if success else 1)

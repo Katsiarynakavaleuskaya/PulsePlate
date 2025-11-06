@@ -44,43 +44,89 @@
 
 **Security** → **WAF** → **Rate limiting rules** → **Create rule**:
 
-**Rule name:** `API Rate Limit`
+#### Правило 1: Admin Endpoints Rate Limit
+
+**Rule name:** `Admin API Rate Limit`
 **Rule expression:**
 
 ```text
-((http.request.uri.path starts_with "/api/v1/admin/" or http.request.uri.path starts_with "/api/v1/premium/") and http.request.method == "POST" and http.host eq "pulseplate.app")
+(http.request.uri.path starts_with "/api/v1/admin/" and http.request.method == "POST" and http.host eq "pulseplate.app")
 ```
 
 **Threshold:**
 
-- Requests: `10`
+- Requests: `30` (начальное значение для admin операций)
+- Period: `1 minute`
+
+**Action:** Block
+
+**IP Whitelisting (опционально):**
+
+- Добавьте условие для исключения известных admin IP:
+
+  ```text
+  and not (ip.src in {YOUR_ADMIN_IP_1 YOUR_ADMIN_IP_2})
+  ```
+
+- Или создайте IP List в **Manage Account** → **Configurations** → **Lists** для управления whitelist
+
+**Сохранить.**
+
+#### Правило 2: Premium Endpoints Rate Limit
+
+**Rule name:** `Premium API Rate Limit`
+**Rule expression:**
+
+```text
+(http.request.uri.path starts_with "/api/v1/premium/" and http.request.method == "POST" and http.host eq "pulseplate.app")
+```
+
+**Threshold:**
+
+- Requests: `20` (начальное значение для premium пользователей)
 - Period: `1 minute`
 
 **Action:** Block
 
 **Сохранить.**
 
-**📊 Мониторинг и настройка rate-limit:**
+**📊 Мониторинг и итеративная настройка rate-limit:**
 
-После настройки правила важно отслеживать его работу и корректировать порог при необходимости:
+После настройки правил критически важно отслеживать их работу и корректировать пороги на основе реального трафика:
 
-1. **Проверка блокировок в Cloudflare Analytics:**
+1. **Начальная настройка:**
+   - **Рекомендуется начать с более высоких порогов** (20-30 запросов/мин), чтобы избежать блокировки легитимных пользователей
+   - После сбора данных о реальном трафике (1-2 недели) постепенно ужесточайте лимиты
+
+2. **Проверка блокировок и false positives:**
    - Перейдите в **Analytics & Logs** → **Security Events**
-   - Фильтруйте по вашему rate-limit правилу
-   - Отслеживайте количество заблокированных запросов и паттерны
+   - Фильтруйте по каждому rate-limit правилу отдельно
+   - **Обязательно проверяйте логи на false positives** (легитимные запросы, которые были заблокированы)
+   - Отслеживайте паттерны блокировок по времени суток и типам операций
 
-2. **Корректировка порога:**
-   - Если легитимные admin-рабочие процессы (например, массовые операции) блокируются, увеличьте значение **Requests** (например, с `10` до `20-30` за минуту)
-   - Или измените **Period** (например, `2 минуты` вместо `1 минуты`)
+3. **Независимая корректировка порогов:**
+   - **Admin endpoints:** могут требовать более высоких лимитов (массовые операции, импорт данных)
+     - Типичный диапазон: 30-50 запросов/мин для admin операций
+   - **Premium endpoints:** обычно требуют умеренных лимитов
+     - Типичный диапазон: 20-30 запросов/мин для premium функций
+   - Корректируйте каждое правило независимо на основе его использования
 
-3. **Логирование и анализ:**
-   - Ведите логи инцидентов, когда легитимные запросы блокируются
-   - Анализируйте паттерны легитимного трафика (например, пиковые нагрузки при админ-операциях)
-   - Обновляйте значения **Requests/Period** для баланса между безопасностью и удобством использования
+4. **IP Whitelisting для администраторов:**
+   - Создайте IP List для известных admin IP адресов или диапазонов
+   - Исключите эти IP из rate limiting для критически важных операций
+   - Регулярно обновляйте список при изменении admin IP
 
-4. **Рекомендация:**
-   - Начните с более строгих лимитов и постепенно увеличивайте, если видите ложные срабатывания
-   - Для production рекомендуется мониторить первые 2-4 недели после настройки
+5. **Итеративный процесс настройки:**
+   - **Неделя 1-2:** Мониторинг с высокими порогами (30+ req/min)
+   - **Неделя 3-4:** Анализ логов, выявление паттернов, первая корректировка
+   - **Месяц 2:** Постепенное ужесточение на основе собранных данных
+   - **Далее:** Ежемесячный review логов и корректировка при необходимости
+
+6. **Рекомендации по мониторингу:**
+   - Настройте алерты на превышение порога блокировок (например, >10 блокировок за час)
+   - Ведите документацию изменений порогов и причин корректировки
+   - Анализируйте корреляцию между блокировками и жалобами пользователей
+   - Рассмотрите использование **Log Push** для экспорта логов в внешнюю систему анализа
 
 ### 5. Bot Fight Mode
 
@@ -128,6 +174,13 @@
 
 После настройки проверьте:
 
+### ⚠️ Важные замечания по тестированию rate limiting
+
+1. **Аутентификация обязательна**: Защищенные эндпоинты требуют валидные токены/API ключи
+2. **Валидное тело запроса**: Запросы должны содержать корректные данные для прохождения валидации
+3. **Тестовые эндпоинты**: Рекомендуется создать специальный `/api/v1/test/rate-limit` эндпоинт без аутентификации для тестирования
+4. **Мониторинг заголовков**: Проверяйте заголовки `X-RateLimit-*` в ответах для отладки
+
 ```bash
 # SSL сертификат
 curl -I https://pulseplate.app/health
@@ -135,13 +188,71 @@ curl -I https://pulseplate.app/health
 # HSTS заголовок
 curl -I https://pulseplate.app/health | grep -i strict-transport
 
-# Rate limit (правило выше применимо к POST – проверяем POST)
-# Если эндпоинт требует тело/заголовки, добавьте минимальные:
-#   -X POST -H 'Content-Type: application/json' -d '{}'
+# Rate limit тестирование с аутентификацией
+# Вариант 1: Используйте тестовый API ключ из переменной окружения
+export TEST_API_KEY="your-test-api-key-here"  # Замените на реальный ключ
+
+# Тест с валидным телом запроса и аутентификацией
 for i in {1..15}; do \
-  curl -s -o /dev/null -w "%{http_code}\n" \
-    -X POST -H 'Content-Type: application/json' -d '{}' \
+  echo "Request $i: "; \
+  curl -s -o /dev/null -w "HTTP %{http_code} - Time: %{time_total}s\n" \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${TEST_API_KEY}" \
+    -d '{"action": "get_status", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' \
     https://pulseplate.app/api/v1/admin/status; \
+  sleep 0.1; \
+done
+
+# Вариант 2: Используйте публичный эндпоинт для тестирования rate limiting
+# (например, эндпоинт калькулятора BMI с валидными данными)
+for i in {1..15}; do \
+  echo "Request $i: "; \
+  curl -s -o /dev/null -w "HTTP %{http_code}\n" \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"weight": 70, "height": 175, "age": 30, "sex": "male"}' \
+    https://pulseplate.app/api/v1/bmi/calculate; \
+done
+
+# Проверка заголовков rate limit в ответе
+curl -I -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TEST_API_KEY}" \
+  -d '{"action": "get_status"}' \
+  https://pulseplate.app/api/v1/admin/status | grep -i "x-ratelimit"
+```
+
+### 🧪 Создание тестового эндпоинта для rate limiting
+
+Для упрощения тестирования добавьте в FastAPI приложение:
+
+```python
+# app/routers/test.py (только для staging/development)
+from fastapi import APIRouter, Response
+from datetime import datetime
+
+router = APIRouter(prefix="/api/v1/test", tags=["test"])
+
+@router.post("/rate-limit")
+async def test_rate_limit(response: Response):
+    """Тестовый эндпоинт для проверки rate limiting без аутентификации."""
+    response.headers["X-Test-Timestamp"] = datetime.utcnow().isoformat()
+    return {"status": "ok", "message": "Rate limit test endpoint"}
+
+# В app.py добавьте условно:
+if settings.ENVIRONMENT in ["staging", "development"]:
+    from app.routers import test
+    app.include_router(test.router)
+```
+
+Тестирование с этим эндпоинтом:
+
+```bash
+# Простой тест без аутентификации
+for i in {1..15}; do \
+  echo "Request $i: $(curl -s -w ' - HTTP %{http_code}' \
+    -X POST https://pulseplate.app/api/v1/test/rate-limit)"; \
 done
 ```
 

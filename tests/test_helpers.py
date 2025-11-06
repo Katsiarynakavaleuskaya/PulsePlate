@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 import pytest
 
 
-def skip_if_no_plate_micros(plate_micros: dict) -> None:
+def skip_if_no_plate_micros(plate_micros: Mapping[str, Any]) -> None:
     """Skip tests when plate micros data is empty.
 
     RU: Пропустить тест, если словарь микронутриентов пуст (обычно из-за отсутствия ингредиентов).

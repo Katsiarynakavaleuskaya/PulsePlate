@@ -18,6 +18,7 @@ from core.recipe_synth import (
     RecipeSynthesizer,
     RecipeTemplate,
     get_recipe_synthesizer,
+    reset_recipe_synthesizer,
     synthesize_recipe_from_ingredients,
     synthesize_recipes_for_week,
 )
@@ -433,11 +434,10 @@ class TestRecipeSynthesizer:
 class TestConvenienceFunctions:
     """Тесты для удобных функций"""
 
-    @patch("core.recipe_synth._recipe_synthesizer", None)
     def test_get_recipe_synthesizer(self) -> None:
         """Тест получения глобального синтезатора"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         synthesizer = get_recipe_synthesizer()
 
@@ -447,7 +447,7 @@ class TestConvenienceFunctions:
     def test_get_recipe_synthesizer_initialization_with_default_dir(self) -> None:
         """Test that get_recipe_synthesizer initializes with default templates_dir"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         synthesizer = get_recipe_synthesizer()
 
@@ -458,7 +458,7 @@ class TestConvenienceFunctions:
     def test_get_recipe_synthesizer_initialization_with_custom_dir(self) -> None:
         """Test that get_recipe_synthesizer initializes with custom templates_dir"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         custom_dir = "custom/templates"
         synthesizer = get_recipe_synthesizer(templates_dir=custom_dir)
@@ -470,7 +470,7 @@ class TestConvenienceFunctions:
     def test_get_recipe_synthesizer_consistent_initialization(self) -> None:
         """Test that get_recipe_synthesizer accepts same templates_dir after initialization"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         # First call initializes
         synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
@@ -483,7 +483,7 @@ class TestConvenienceFunctions:
     def test_get_recipe_synthesizer_mismatch_raises_error(self) -> None:
         """Test that get_recipe_synthesizer raises ValueError when templates_dir differs"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         # First call initializes with default
         synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")
@@ -496,7 +496,7 @@ class TestConvenienceFunctions:
     def test_get_recipe_synthesizer_path_normalization(self) -> None:
         """Test that path normalization works (e.g., ./data/recipe_templates == data/recipe_templates)"""
         # Reset singleton to ensure fresh start
-        core.recipe_synth._recipe_synthesizer = None
+        reset_recipe_synthesizer()
 
         # Initialize with one path format
         synthesizer1 = get_recipe_synthesizer(templates_dir="data/recipe_templates")

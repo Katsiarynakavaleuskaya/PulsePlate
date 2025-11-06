@@ -123,7 +123,7 @@ def test_plate_targets_micros_coverage():
     target_micros = targets_data["priority_micros"]
 
     # Targets should always have micronutrient data
-    assert len(target_micros) > 0, "Targets should have micronutrient data"
+    assert target_micros, "Targets should have micronutrient data"
 
     # Plate day_micros may be empty if ingredients/recipes are not found (acceptable)
     # This test verifies integration when both are available

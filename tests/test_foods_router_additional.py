@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
@@ -36,7 +36,7 @@ def test_list_foods_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_list_foods_search_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     called: dict[str, tuple[Any, ...]] = {}
 
-    def fake_list_foods(*args: Any, **kwargs: Any) -> List[FoodHit]:
+    def fake_list_foods(*args: Any, **kwargs: Any) -> list[FoodHit]:
         called["args"] = (args, kwargs)
         return [FoodHit(id="fX", name="X", kcal=1, protein_g=0, fat_g=0, carbs_g=0)]
 

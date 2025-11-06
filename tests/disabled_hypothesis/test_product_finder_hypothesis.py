@@ -12,10 +12,46 @@ import logging
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from core.food_apis.unified_db import get_unified_food_db
+from core.food_apis.unified_db import UnifiedFoodItem, get_unified_food_db
 from core.food_db import FoodItem
 from core.product_finder import ProductFinder, ProductSearchResult
 from core.recipe_db import parse_recipe_db
+
+
+def unified_to_food_item(unified_item: UnifiedFoodItem) -> FoodItem:
+    """
+    RU: Конвертирует UnifiedFoodItem в FoodItem.
+    EN: Converts UnifiedFoodItem to FoodItem.
+
+    Maps nutrients from unified format to FoodItem format with proper
+    field mappings and default values.
+
+    Args:
+        unified_item: The UnifiedFoodItem to convert
+
+    Returns:
+        FoodItem with mapped nutrients and properties
+    """
+    nutrients = unified_item.nutrients_per_100g
+    return FoodItem(
+        name=unified_item.name,
+        unit_per=100,
+        unit="g",
+        protein_g=nutrients.get("protein_g", 0.0),
+        fat_g=nutrients.get("fat_g", 0.0),
+        carbs_g=nutrients.get("carbs_g", 0.0),
+        fiber_g=nutrients.get("fiber_g", 0.0),
+        Fe_mg=nutrients.get("iron_mg", 0.0),
+        Ca_mg=nutrients.get("calcium_mg", 0.0),
+        VitD_IU=nutrients.get("vitamin_d_iu", 0.0),
+        B12_ug=nutrients.get("b12_ug", 0.0),
+        Folate_ug=nutrients.get("folate_ug", 0.0),
+        Iodine_ug=nutrients.get("iodine_ug", 0.0),
+        K_mg=nutrients.get("potassium_mg", 0.0),
+        Mg_mg=nutrients.get("magnesium_mg", 0.0),
+        price_per_unit=unified_item.cost_per_100g,
+        flags=set(unified_item.tags),
+    )
 
 
 class TestProductFinderHypothesis:
@@ -30,26 +66,7 @@ class TestProductFinderHypothesis:
             common_foods = await unified_db.get_common_foods_database()
             food_db_local: dict[str, FoodItem] = {}
             for key, unified_item in common_foods.items():
-                nutrients = unified_item.nutrients_per_100g
-                food_db_local[key] = FoodItem(
-                    name=unified_item.name,
-                    unit_per=100,
-                    unit="g",
-                    protein_g=nutrients.get("protein_g", 0.0),
-                    fat_g=nutrients.get("fat_g", 0.0),
-                    carbs_g=nutrients.get("carbs_g", 0.0),
-                    fiber_g=nutrients.get("fiber_g", 0.0),
-                    Fe_mg=nutrients.get("iron_mg", 0.0),
-                    Ca_mg=nutrients.get("calcium_mg", 0.0),
-                    VitD_IU=nutrients.get("vitamin_d_iu", 0.0),
-                    B12_ug=nutrients.get("b12_ug", 0.0),
-                    Folate_ug=nutrients.get("folate_ug", 0.0),
-                    Iodine_ug=nutrients.get("iodine_ug", 0.0),
-                    K_mg=nutrients.get("potassium_mg", 0.0),
-                    Mg_mg=nutrients.get("magnesium_mg", 0.0),
-                    price_per_unit=unified_item.cost_per_100g,
-                    flags=set(unified_item.tags),
-                )
+                food_db_local[key] = unified_to_food_item(unified_item)
             return food_db_local
 
         try:

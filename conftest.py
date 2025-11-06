@@ -42,17 +42,25 @@ def init_test_database() -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
 
-        # Import models first to ensure they're registered with Base.metadata
-        import core.models  # noqa: F401
+        # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
+        import importlib
 
-        # Import init_db after models are loaded
-        from core.db import init_db
+        if "core.db" in sys.modules:
+            core_db = importlib.reload(sys.modules["core.db"])  # type: ignore[assignment]
+        else:
+            import core.db as core_db  # type: ignore[assignment]
+
+        # Reload or import models to ensure they're registered
+        if "core.models" in sys.modules:
+            importlib.reload(sys.modules["core.models"])  # noqa: F401
+        else:
+            import core.models  # noqa: F401
 
         # Initialize database - this creates all tables
-        init_db()
+        core_db.init_db()
 
         # Verify initialization succeeded by checking if tables exist
-        from core.db import session_scope
+        session_scope = core_db.session_scope
         from sqlalchemy import inspect
 
         with session_scope() as session:

@@ -111,12 +111,7 @@ class TestMenuEngineCoverage97:
         with pytest.raises(ValueError):
             make_weekly_menu(profile)
 
-    def test_make_weekly_menu_error_handling_coverage_lines_472_471(self):
-        """Test make_weekly_menu error handling coverage for lines 472-471."""
-        # Lines 472-471 in menu_engine.py are in meal aggregation context, not validation
-        # UserProfile validation happens in __post_init__, which would raise before make_weekly_menu
-        # Skip this test - the coverage may be for a different code path
-        pytest.skip("Lines 472-471 coverage - verify actual code context in menu_engine.py")
+    # Removed obsolete skipped test for lines 472-471 in menu_engine.py
 
     def test_make_weekly_menu_error_handling_coverage_lines_525_524(self):
         """Test make_weekly_menu error handling coverage for lines 525-524."""

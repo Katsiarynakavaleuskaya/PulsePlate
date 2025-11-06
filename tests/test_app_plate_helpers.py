@@ -53,7 +53,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
     import core.targets as real_targets  # type: ignore[C0415]
 
     monkeypatch.setattr(real_targets, "UserProfile", DummyProfile)
-    monkeypatch.setattr(real_targets, "FIBER_MIN_G", 25)
+    monkeypatch.setattr(real_targets, "FIBER_MIN_G", 25.0)
 
     called: dict[str, bool] = {}
 

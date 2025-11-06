@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 import pytest
 
 import core.weekly_plan as wp
+from core.weekly_plan import WeeklyPlanResult
 
 
 def _make_fake_day(index: int, kcal: int) -> Dict[str, Any]:
@@ -40,7 +41,7 @@ def test_generate_weekly_plan_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(wp, "create_daily_plate", fake_create_daily_plate)
 
     targets = SimpleNamespace(kcal_daily=2000)
-    plan = wp.generate_weekly_plan(targets)
+    plan: WeeklyPlanResult = wp.generate_weekly_plan(targets)
 
     assert len(plan["days"]) == 7
     assert "iron_mg" in plan["weekly_coverage"]

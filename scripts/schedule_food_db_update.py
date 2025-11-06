@@ -25,33 +25,51 @@ sys.path.insert(0, project_root)
 # Convert project_root to Path for pathlib operations
 project_root_path = Path(project_root)
 
-# Configure logging
-# Ensure logs directory exists before configuring file handler
-logs_dir = project_root_path / "logs"
-logs_dir_created = False
 
-try:
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    logs_dir_created = True
-except Exception as e:
-    print(
-        f"Warning: Failed to create logs directory '{logs_dir}': {e}\n"
-        "Continuing without file logging.",
-        file=sys.stderr,
-    )
+def _setup_log_handlers(project_root_path: Path) -> list[logging.Handler]:
+    """Set up logging handlers with StreamHandler and optional FileHandler.
 
-# Configure handlers - only add FileHandler if logs directory was created
-handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-if logs_dir_created:
+    Args:
+        project_root_path: Path to the project root directory.
+
+    Returns:
+        List of logging handlers with StreamHandler always present and
+        FileHandler if logs directory can be created.
+    """
+    # Always include StreamHandler
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+
+    # Try to set up FileHandler
     try:
+        # Ensure logs directory exists
+        logs_dir = project_root_path / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create FileHandler
         log_file_path = logs_dir / "food_db_update.log"
         handlers.append(logging.FileHandler(str(log_file_path)))
     except Exception as e:
-        print(
-            f"Warning: Failed to create file handler for '{log_file_path}': {e}\n"
-            "Continuing without file logging.",
-            file=sys.stderr,
-        )
+        # Determine if it was directory creation or file handler creation that failed
+        logs_dir = project_root_path / "logs"
+        if not logs_dir.exists():
+            print(
+                f"Warning: Failed to create logs directory '{logs_dir}': {e}\n"
+                "Continuing without file logging.",
+                file=sys.stderr,
+            )
+        else:
+            log_file_path = logs_dir / "food_db_update.log"
+            print(
+                f"Warning: Failed to create file handler for '{log_file_path}': {e}\n"
+                "Continuing without file logging.",
+                file=sys.stderr,
+            )
+
+    return handlers
+
+
+# Configure logging
+handlers = _setup_log_handlers(project_root_path)
 
 logging.basicConfig(
     level=logging.INFO,

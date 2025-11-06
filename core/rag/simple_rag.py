@@ -70,16 +70,9 @@ def _build_index() -> List[Tuple[str, str]]:
             if path.stat().st_size > MAX_FILE_SIZE:
                 continue
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except (OSError, UnicodeDecodeError, ValueError) as read_err:
-            # Catch anticipated file I/O errors (permissions, missing files),
-            # encoding issues, and parameter validation errors
+        except (OSError, UnicodeDecodeError) as read_err:
+            # Anticipated file I/O or decoding errors; skip and continue.
             logger.debug("Skipping %s during index build: %s", path, read_err)
-            continue
-        except Exception as read_err:  # noqa: BLE001
-            # Broad catch for untrusted documents: files may contain unexpected content
-            # or trigger edge cases in the file system that we don't anticipate.
-            # This prevents indexing failures from crashing the entire RAG system.
-            logger.debug("Skipping %s during index build (unexpected error): %s", path, read_err)
             continue
         for ch in _chunk(text):
             if ch:

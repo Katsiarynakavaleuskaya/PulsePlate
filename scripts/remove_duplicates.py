@@ -24,7 +24,6 @@ import argparse
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 ROOT = Path(".").resolve()
 SKIP_DIRS = {
@@ -54,8 +53,8 @@ def is_skipped_dir(p: Path) -> bool:
     return any(sd in parts for sd in SKIP_DIRS)
 
 
-def collect_files(include_tests: bool) -> List[Path]:
-    out: List[Path] = []
+def collect_files(include_tests: bool) -> list[Path]:
+    out: list[Path] = []
     for p in ROOT.rglob("*"):
         if not p.is_file():
             continue
@@ -68,8 +67,8 @@ def collect_files(include_tests: bool) -> List[Path]:
 
 
 def plan_removals(
-    files: List[Path],
-) -> Tuple[List[Tuple[Path, Path]], List[List[Path]], int]:
+    files: list[Path],
+) -> tuple[list[tuple[Path, Path]], list[list[Path]], int]:
     """Return (backup_twins, full_duplicates, skipped_count).
 
     backup_twins: list of (backup_file, base_file) to remove backup_file when hash equal
@@ -86,9 +85,9 @@ def plan_removals(
         - Integer count of skipped files
     """
     # Map base -> backups with safe suffixes
-    backups: List[Tuple[Path, Path]] = []
+    backups: list[tuple[Path, Path]] = []
     # Hash map for full duplicates
-    by_hash: Dict[str, List[Path]] = {}
+    by_hash: dict[str, list[Path]] = {}
     skipped_count = 0
 
     # Prepare lookup for base twins
@@ -184,11 +183,16 @@ def main() -> int:
             else:
                 print("  ", backup, "!=", base)
         except OSError as e:
-            logger.warning("Failed to remove backup file %s: %s", backup, e, exc_info=True)
+            logger.warning(
+                "Failed to remove backup file %s: %s",
+                backup,
+                e,
+                exc_info=logger.isEnabledFor(logging.DEBUG),
+            )
             skipped_files += 1
 
     print("\nFull duplicate groups (identical content):")
-    to_remove: List[Path] = []
+    to_remove: list[Path] = []
     suggestions = []
     for grp in dup_groups:
         if len(grp) < 2:
@@ -221,7 +225,12 @@ def main() -> int:
                     p.unlink()
                     to_remove.append(p)
                 except OSError as e:
-                    logger.warning("Error removing file %s: %s", p, e, exc_info=True)
+                    logger.warning(
+                        "Error removing file %s: %s",
+                        p,
+                        e,
+                        exc_info=logger.isEnabledFor(logging.DEBUG),
+                    )
                     skipped_files += 1
 
     if args.execute or args.apply_identical:

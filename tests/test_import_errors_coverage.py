@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 class TestImportErrorPaths:
     """Тестирование import error путей"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_prometheus_import_error_path(self):
+    def test_prometheus_import_error_path(self) -> None:
         """Тест import error для prometheus_client (строки 12-15)"""
         # Временно удаляем prometheus_client из sys.modules
         original_modules = sys.modules.copy()
@@ -57,12 +57,12 @@ class TestImportErrorPaths:
 class TestVIPRouterImportPath:
     """Тестирование VIP router import путей"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_vip_router_import_error_handling(self):
+    def test_vip_router_import_error_handling(self) -> None:
         """Тест import error для VIP router (строки 86-89)"""
         import os
 
@@ -98,12 +98,12 @@ class TestVIPRouterImportPath:
 class TestRateLimitingPath:
     """Тестирование rate limiting paths"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_rate_limiting_flag_handling(self):
+    def test_rate_limiting_flag_handling(self) -> None:
         """Тест обработки RATE_LIMITING_ENABLED флага (строки 113-114)"""
         import os
 
@@ -138,12 +138,12 @@ class TestRateLimitingPath:
 class TestEnvironmentVariablePaths:
     """Тестирование environment variable paths"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_environment_variable_coverage(self):
+    def test_environment_variable_coverage(self) -> None:
         """Тест покрытия environment variables"""
         import os
 
@@ -187,12 +187,12 @@ class TestEnvironmentVariablePaths:
 class TestApplicationStartupPaths:
     """Тестирование application startup paths"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_fastapi_app_initialization_paths(self):
+    def test_fastapi_app_initialization_paths(self) -> None:
         """Тест paths при инициализации FastAPI приложения"""
         from fastapi import FastAPI
 
