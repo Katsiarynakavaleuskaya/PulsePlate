@@ -255,6 +255,24 @@ class ShoplistGenerator:
 
         return amount * conversion_factors.get(unit.lower(), 1.0)
 
+    def _convert_unit_if_large(
+        self, unit: str, total_grams: float, package_size: float
+    ) -> tuple[str, float, float]:
+        """Convert unit to kg/l if total >= 1000g/ml and scale package_size accordingly.
+
+        Args:
+            unit: Original unit (g, ml, etc.)
+            total_grams: Total amount in grams/milliliters
+            package_size: Package size in original unit
+
+        Returns:
+            Tuple of (converted_unit, total_weight, package_display_size)
+        """
+        if (unit == "g" or unit == "ml") and total_grams >= 1000:
+            new_unit = "kg" if unit == "g" else "l"
+            return new_unit, total_grams / 1000, package_size / 1000
+        return unit, total_grams, package_size
+
     def round_to_packages(
         self,
         aggregated: Dict[str, float],
@@ -292,17 +310,9 @@ class ShoplistGenerator:
             )
 
             # Конвертируем обратно в исходные единицы
-            unit = rule.unit
-            total_weight = total_grams
-            package_display_size = package_size
-            if unit == "g" and total_grams >= 1000:
-                unit = "kg"
-                total_weight = total_grams / 1000
-                package_display_size = package_size / 1000
-            elif unit == "ml" and total_grams >= 1000:
-                unit = "l"
-                total_weight = total_grams / 1000
-                package_display_size = package_size / 1000
+            unit, total_weight, package_display_size = self._convert_unit_if_large(
+                rule.unit, total_grams, package_size
+            )
 
             shopping_item = ShoppingItem(
                 name=ingredient_name,

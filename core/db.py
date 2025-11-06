@@ -59,10 +59,18 @@ ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production")
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
-    if "DATABASE_URL" not in os.environ:
-        os.makedirs(os.path.dirname(default_path), exist_ok=True)
+    database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+
+    # Only create directory for file-based SQLite databases
+    if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
+        # Extract the file path from sqlite:/// URL
+        sqlite_path = database_url.replace("sqlite:///", "", 1)
+        db_dir = os.path.dirname(sqlite_path)
+        if db_dir:  # Only create if there's a parent directory
+            os.makedirs(db_dir, exist_ok=True)
+
     # Use file-based SQLite by default so the data survives across runs.
-    return os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+    return database_url
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
