@@ -1486,11 +1486,15 @@ async def _aggregate_meal_micronutrients(
     return meal_micros
 
 
-async def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
-    """Try to get ingredients for a meal by looking up recipes.
+def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
+    """Try to get ingredients for a meal by looking up recipes (sync version for tests).
 
-    RU: Пытается получить ингредиенты блюда через поиск рецептов.
-    EN: Tries to get meal ingredients by looking up recipes.
+    RU: Пытается получить ингредиенты блюда через поиск рецептов (синхронная версия для тестов).
+    EN: Tries to get meal ingredients by looking up recipes (sync version for tests).
+
+    Thread-safety: This function is safe to call from asyncio.to_thread() because recipe_store
+    functions (search_recipes, get_recipe) create their own SQLite connections per call
+    and do not share state between invocations.
 
     Args:
         meal_title: Meal title to search for.
@@ -1502,7 +1506,7 @@ async def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, An
         import json
 
         # Try to find a matching recipe
-        recipes = await asyncio.to_thread(recipe_store.search_recipes, meal_title, limit=1)
+        recipes = recipe_store.search_recipes(meal_title, limit=1)
         if not recipes:
             logger.debug(f"No recipe found for meal '{meal_title}'")
             return []
@@ -1512,7 +1516,7 @@ async def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, An
             return []
 
         # Get full recipe details
-        recipe = await asyncio.to_thread(recipe_store.get_recipe, recipe_id)
+        recipe = recipe_store.get_recipe(recipe_id)
         if not recipe:
             return []
 
@@ -1574,7 +1578,8 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
 
             # If no ingredients in meal, try to look them up from recipes
             if not ingredients:
-                ingredients = await _get_recipe_ingredients_for_meal(meal_title)
+                # Run sync function in thread pool to avoid blocking
+                ingredients = await asyncio.to_thread(_get_recipe_ingredients_for_meal, meal_title)
 
             # Aggregate micronutrients from ingredients
             meal_micros_raw = await _aggregate_meal_micronutrients(
