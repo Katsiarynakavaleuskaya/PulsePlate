@@ -47,7 +47,7 @@ In **closed Pull Request #235** ("Feature/cd secrets transport"), I discovered a
 
 Since the Bayesian files are not in the current main branch (they were in PR #235 which was closed), I created comprehensive documentation:
 
-### 1. `bayesian.py` (874 lines)
+### 1. `bayesian.py` (551 lines)
 A complete documentation file that includes:
 - ✅ Explanation of the Bayesian system
 - ✅ List of all 15 files found in PR #235

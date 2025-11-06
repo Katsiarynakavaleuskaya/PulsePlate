@@ -238,13 +238,14 @@ print(f"Рекомендации: {diagnosis.recommendations}")
 
 ```python
 # Предсказать вероятность падения теста
+context = {
+    "recent_changes": True,
+    "complex_dependencies": True,
+    "async_test": True
+}
 probability = analyzer.predict_test_failure_probability(
     test_name="test_database_connection",
-    context={
-        "recent_changes": True,
-        "complex_dependencies": True,
-        "async_test": True
-    }
+    context=context
 )
 
 print(f"Вероятность падения: {probability:.2%}")
