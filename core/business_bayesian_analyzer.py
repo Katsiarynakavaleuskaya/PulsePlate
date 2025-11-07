@@ -186,7 +186,9 @@ class BusinessBayesianAnalyzer:
             for token in tokenize.generate_tokens(StringIO(code).readline):
                 if token.type != tokenize.COMMENT:
                     tokens.append(token)
-            return tokenize.untokenize(tokens)
+            result = tokenize.untokenize(tokens)
+            # tokenize.untokenize returns bytes in some Python versions, ensure str
+            return result.decode("utf-8") if isinstance(result, bytes) else str(result)
         except (tokenize.TokenError, SyntaxError):
             # Fallback to simple regex if tokenization fails (e.g., incomplete code)
             # Only strip comments that start a line or are preceded by whitespace
