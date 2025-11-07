@@ -72,10 +72,7 @@ class BayesianPytestPlugin:
             error_message = None
         elif report.outcome == "failed":
             result = TestResult.FAILED
-            error_type_str, error_message = self._analyze_failure(report)
-
-            # Convert string error type to ErrorType enum
-            error_type = ErrorType(error_type_str) if error_type_str else None
+            error_type, error_message = self._analyze_failure(report)
 
             # Предоставить диагностику
             if error_message:
@@ -194,11 +191,11 @@ class BayesianPytestPlugin:
             pass
         return ""
 
-    def _analyze_failure(self, report) -> Tuple[Optional[str], Optional[str]]:
+    def _analyze_failure(self, report) -> Tuple[Optional[ErrorType], Optional[str]]:
         """Анализировать падение теста и определить тип ошибки и сообщение.
 
-        Returns a tuple (error_type, error_message) where error_type is the string
-        value of ErrorType enum, and values may be None if they cannot be determined.
+        Returns a tuple (error_type, error_message) where values may be None
+        if they cannot be determined from the report.
         """
         if not hasattr(report, "longrepr") or not report.longrepr:
             return None, None
@@ -221,28 +218,28 @@ class BayesianPytestPlugin:
         if error_message is None:
             error_message = error_text
 
-        error_type = None
+        error_type: Optional[ErrorType] = None
         error_lower = error_text.lower()
         if "assertionerror" in error_lower or "assert" in error_lower:
-            error_type = ErrorType.ASSERTION_ERROR.value
+            error_type = ErrorType.ASSERTION_ERROR
         elif "importerror" in error_lower or "modulenotfounderror" in error_lower:
-            error_type = ErrorType.IMPORT_ERROR.value
+            error_type = ErrorType.IMPORT_ERROR
         elif "typeerror" in error_lower:
-            error_type = ErrorType.TYPE_ERROR.value
+            error_type = ErrorType.TYPE_ERROR
         elif "attributeerror" in error_lower:
-            error_type = ErrorType.ATTRIBUTE_ERROR.value
+            error_type = ErrorType.ATTRIBUTE_ERROR
         elif "valueerror" in error_lower or "unprocessable" in error_lower:
-            error_type = ErrorType.VALUE_ERROR.value
+            error_type = ErrorType.VALUE_ERROR
         elif "runtimeerror" in error_lower:
-            error_type = ErrorType.RUNTIME_ERROR.value
+            error_type = ErrorType.RUNTIME_ERROR
         elif "timeouterror" in error_lower or "timeout" in error_lower:
-            error_type = ErrorType.TIMEOUT_ERROR.value
+            error_type = ErrorType.TIMEOUT_ERROR
         elif "coverage" in error_lower and "below" in error_lower:
-            error_type = ErrorType.COVERAGE_ERROR.value
+            error_type = ErrorType.COVERAGE_ERROR
         elif "mock" in error_lower or "patch" in error_lower:
-            error_type = ErrorType.MOCK_ERROR.value
+            error_type = ErrorType.MOCK_ERROR
         elif "asyncio" in error_lower or "await" in error_lower or "async" in error_lower:
-            error_type = ErrorType.ASYNC_ERROR.value
+            error_type = ErrorType.ASYNC_ERROR
 
         return error_type, error_message
 
