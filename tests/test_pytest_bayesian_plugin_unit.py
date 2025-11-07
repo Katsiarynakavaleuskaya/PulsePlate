@@ -2,6 +2,8 @@
 Unit tests to cover core logic of pytest_bayesian_plugin without relying on pytest runtime.
 """
 
+from __future__ import annotations
+
 import os
 from typing import Any, List
 from unittest.mock import MagicMock
@@ -25,7 +27,7 @@ class _FakeItem:
         # Minimal attributes for context gathering
         self.fixturenames = []
 
-    def iter_markers(self) -> List[Any]:
+    def iter_markers(self) -> List[_FakeMarker]:
         return [_FakeMarker(m) for m in self._markers]
 
 
@@ -117,7 +119,7 @@ def test_determine_category_exception_in_iter_markers() -> None:
             self.fspath = "tests/test_example.py"
             self.name = "test_x"
 
-        def iter_markers(self) -> List[Any]:
+        def iter_markers(self) -> List[_FakeMarker]:
             raise Exception("Marker iteration failed")
 
     item = _BrokenItem()

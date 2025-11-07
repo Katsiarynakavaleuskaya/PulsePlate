@@ -9,8 +9,8 @@ echo "======================================"
 echo ""
 
 # Check if Python script exists
-if [ ! -f "update_api_key.py" ]; then
-    echo "❌ Error: update_api_key.py not found in current directory"
+if [ ! -f "scripts/update_api_key.py" ]; then
+    echo "❌ Error: scripts/update_api_key.py not found"
     echo "   Please run this script from the project root"
     exit 1
 fi
@@ -50,7 +50,7 @@ case $choice in
         fi
 
         # Use Python script to update API key
-        python3 update_api_key.py "$api_key" || {
+        python3 scripts/update_api_key.py "$api_key" || {
             echo "❌ Failed to update API key"
             exit 1
         }
@@ -137,7 +137,20 @@ case $choice in
 
             if [ "$http_code" = "200" ]; then
                 echo "✅ OpenAI API connection successful!"
-                echo "   Models available: $(echo "$body" | grep -o '"id":' | wc -l | tr -d ' ') models"
+                # Robust model count using jq if available, otherwise skip count
+                if command -v jq &> /dev/null; then
+                    # Use jq to properly parse JSON and count models array length
+                    model_count=$(echo "$body" | jq -r '.data | length' 2>/dev/null || echo "unknown")
+                    if [ "$model_count" != "unknown" ] && [ -n "$model_count" ]; then
+                        echo "   Models available: $model_count models"
+                    else
+                        echo "   Models available: API reachable (count unavailable)"
+                    fi
+                else
+                    # Fallback: just report API is reachable without counting
+                    # This avoids fragile grep-based parsing that could miscount
+                    echo "   Models available: API reachable (install jq for model count)"
+                fi
             else
                 echo "❌ OpenAI API connection failed (HTTP $http_code)"
                 echo "   Response: $body"

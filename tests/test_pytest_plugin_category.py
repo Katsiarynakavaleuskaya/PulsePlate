@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Iterator
 
 from pytest_bayesian_plugin import BayesianPytestPlugin
 from core.bayesian_test_analyzer import TestCategory
@@ -17,7 +18,7 @@ class DummyItem:
         self.fspath = SimpleNamespace(**{"__str__": lambda self=self: path})
         self.name = name
 
-    def iter_markers(self):  # type: ignore[override]
+    def iter_markers(self) -> Iterator[DummyMarker]:  # type: ignore[override]
         return iter(self._markers)
 
 

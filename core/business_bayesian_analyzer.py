@@ -5,6 +5,8 @@
 """
 
 import re
+import tokenize
+from io import StringIO
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -177,13 +179,25 @@ class BusinessBayesianAnalyzer:
         self.test_results.extend(results)
         return results
 
+    def _remove_comments(self, code: str) -> str:
+        """Remove inline comments while preserving '#' inside string literals."""
+        try:
+            tokens = []
+            for token in tokenize.generate_tokens(StringIO(code).readline):
+                if token.type != tokenize.COMMENT:
+                    tokens.append(token)
+            return tokenize.untokenize(tokens)
+        except (tokenize.TokenError, SyntaxError):
+            # Fallback to simple regex if tokenization fails (e.g., incomplete code)
+            # Only strip comments that start a line or are preceded by whitespace
+            return re.sub(r"(^|\s)#.*", r"\1", code, flags=re.MULTILINE)
+
     def _analyze_monetization(self, code: str, test_name: str) -> List[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
         results = []
         # Ignore inline comments when scanning for strategy keywords to avoid false negatives
-        import re as _re
-
-        code_no_comments = _re.sub(r"#.*", "", code)
+        # Use tokenize to properly remove comments while preserving '#' inside string literals
+        code_no_comments = self._remove_comments(code)
 
         # Поиск упоминаний цен и платежей
         pricing_patterns = [

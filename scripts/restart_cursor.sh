@@ -4,10 +4,18 @@
 
 set -euo pipefail
 
+# Check if running on macOS
+if [ "$(uname -s)" != "Darwin" ]; then
+    echo "❌ Error: This script is macOS-only"
+    echo "   Detected OS: $(uname -s)"
+    echo "   Please use macOS to run this script"
+    exit 1
+fi
+
 echo "🔄 Restarting Cursor..."
 
 # Check if Cursor is running
-if pgrep -f "Cursor" > /dev/null; then
+if pgrep -x "Cursor" > /dev/null; then
     echo "📋 Closing Cursor..."
     # Try graceful quit first (saves files)
     osascript -e 'tell application "Cursor" to quit' 2>/dev/null || true
@@ -16,7 +24,7 @@ if pgrep -f "Cursor" > /dev/null; then
     sleep 2
 
     # Force kill if still running
-    if pgrep -f "Cursor" > /dev/null; then
+    if pgrep -x "Cursor" > /dev/null; then
         echo "⚠️  Force closing Cursor..."
         killall "Cursor" 2>/dev/null || true
         sleep 1

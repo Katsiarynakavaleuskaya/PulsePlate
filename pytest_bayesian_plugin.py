@@ -26,6 +26,16 @@ class BayesianPytestPlugin:
 
     DEFAULT_CATEGORY_MARKERS = ["smoke", "regression", "integration", "unit"]
 
+    # Mapping of marker names (lowercase) to TestCategory
+    MARKER_TO_CATEGORY = {
+        "integration": TestCategory.INTEGRATION,
+        "e2e": TestCategory.E2E,
+        "performance": TestCategory.PERFORMANCE,
+        "coverage": TestCategory.COVERAGE,
+        "monte_carlo": TestCategory.MONTE_CARLO,
+        "bayesian": TestCategory.BAYESIAN,
+    }
+
     def __init__(self, category_markers: Optional[list] = None) -> None:
         self.analyzer = BayesianTestAnalyzer()
         self.test_start_times: Dict[str, float] = {}
@@ -111,20 +121,7 @@ class BayesianPytestPlugin:
             if marker in all_markers:
                 # Map common strings to TestCategory when possible
                 name = marker.lower()
-                if name in {"integration"}:
-                    return TestCategory.INTEGRATION
-                if name in {"e2e"}:
-                    return TestCategory.E2E
-                if name in {"performance"}:
-                    return TestCategory.PERFORMANCE
-                if name in {"coverage"}:
-                    return TestCategory.COVERAGE
-                if name in {"monte_carlo"}:
-                    return TestCategory.MONTE_CARLO
-                if name in {"bayesian"}:
-                    return TestCategory.BAYESIAN
-                # Default unknown custom markers to UNIT
-                return TestCategory.UNIT
+                return self.MARKER_TO_CATEGORY.get(name, TestCategory.UNIT)
 
         # Известные маркеры
         if "integration" in all_markers:
