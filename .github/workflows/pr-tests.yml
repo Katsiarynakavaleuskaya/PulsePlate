@@ -74,12 +74,10 @@ jobs:
               exit 0
             fi
             # Iterate newline-delimited paths safely
-            while IFS= read -r file; do
+            echo "$CHANGED_FILES" | while IFS= read -r file; do
               [ -z "$file" ] && continue
               mypy "$file"
-            done <<-'EOF'
-            ${{ steps.changed.outputs.files }}
-            EOF
+            done
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
@@ -128,16 +126,17 @@ jobs:
           mkdir -p cache
 
           # Initialize database schema (create tables)
-          python -c "
+          python <<'EOF'
           import sys
           sys.path.insert(0, '.')
           import core.models  # noqa: F401 - ensure models are registered
           from core.db import init_db
           init_db()
           print('✅ Database initialized successfully')
-          "
+          EOF
+
           # Verify tables were created
-          python -c "
+          python <<'EOF'
           import sys
           sys.path.insert(0, '.')
           from core.db import session_scope
@@ -147,7 +146,7 @@ jobs:
               tables = inspector.get_table_names()
               print(f"✅ Found {len(tables)} tables: {', '.join(tables)}")
               assert 'users' in tables, 'users table not found'
-          "
+          EOF
 
       # paths-filter outputs: code, docs (always set by dorny/paths-filter@v3.0.2)
       - name: Determine changes
