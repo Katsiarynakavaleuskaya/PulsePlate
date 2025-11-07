@@ -5,6 +5,8 @@
 """
 
 import re
+import tokenize
+import io
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -149,6 +151,27 @@ class BusinessBayesianAnalyzer:
             },
         }
 
+    def _strip_comments(self, code: str) -> str:
+        """Strip Python comments from code while preserving string literals.
+
+        Uses tokenize module to properly handle comments without corrupting
+        strings that contain # characters (e.g., "Total: $#100").
+        """
+        try:
+            tokens = tokenize.generate_tokens(io.StringIO(code).readline)
+            result_tokens = []
+
+            for tok in tokens:
+                # Skip COMMENT tokens, keep everything else
+                if tok.type != tokenize.COMMENT:
+                    result_tokens.append((tok.type, tok.string))
+
+            # Reconstruct the code from non-comment tokens
+            return tokenize.untokenize(result_tokens)
+        except (tokenize.TokenError, IndentationError):
+            # If tokenization fails (malformed code), return original
+            return code
+
     def analyze_business_logic(self, test_code: str, test_name: str) -> List[BusinessTestResult]:
         """Анализирует бизнес-логику в тестах."""
         results: List[BusinessTestResult] = []
@@ -181,9 +204,8 @@ class BusinessBayesianAnalyzer:
         """Анализирует стратегии монетизации."""
         results = []
         # Ignore inline comments when scanning for strategy keywords to avoid false negatives
-        import re as _re
-
-        code_no_comments = _re.sub(r"#.*", "", code)
+        # Use tokenize to properly strip comments while preserving string literals
+        code_no_comments = self._strip_comments(code)
 
         # Поиск упоминаний цен и платежей
         pricing_patterns = [

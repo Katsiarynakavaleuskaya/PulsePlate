@@ -12,6 +12,7 @@ Outputs bayesian_quality_report.json with:
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Dict
 
@@ -44,8 +45,6 @@ def main() -> int:
     priors_norm = normalize(analyzer.prior_probabilities)
 
     # Estimate avg confidence from priors entropy proxy
-    import math
-
     probs = list(priors_norm.values())
     entropy = -sum(p * math.log2(p) if p > 0 else 0.0 for p in probs)
     max_entropy = math.log2(len(probs)) if probs else 1.0

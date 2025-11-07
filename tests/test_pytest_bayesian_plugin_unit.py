@@ -6,6 +6,8 @@ import os
 from typing import Any, List
 from unittest.mock import MagicMock
 
+import pytest
+
 from pytest_bayesian_plugin import BayesianPytestPlugin
 from core.bayesian_test_analyzer import TestCategory, ErrorType
 
@@ -187,7 +189,7 @@ def test_get_test_code_no_function() -> None:
     assert code == ""
 
 
-def test_get_test_code_exception(monkeypatch) -> None:
+def test_get_test_code_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
 
     def _func() -> None:
@@ -371,7 +373,7 @@ def test_print_diagnosis_disabled() -> None:
     plugin._print_diagnosis(diagnosis)  # Should not raise
 
 
-def test_print_diagnosis_enabled(monkeypatch) -> None:
+def test_print_diagnosis_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
     diagnosis = MagicMock()
     diagnosis.most_likely_cause = "Test error"

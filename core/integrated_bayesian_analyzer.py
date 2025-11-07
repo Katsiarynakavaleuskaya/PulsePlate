@@ -4,20 +4,14 @@ Integrated Bayesian analyzer combining technical and business aspects.
 Analyzes tests from the perspectives of code, nutrition, safety, and system philosophy.
 """
 
-import sys
-from pathlib import Path
 from typing import Dict, List, Any, Tuple
 import json
 import re
 from dataclasses import dataclass
 from enum import Enum
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
-from core.nutrition_bayesian_analyzer import (
+from .bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
+from .nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
     NutritionCategory,
     NutritionErrorType,
@@ -255,7 +249,9 @@ class IntegratedBayesianAnalyzer:
         )
 
         # Critical safety issues
-        critical_issues += sum(1 for issue in safety if "инъекция" in issue or "парол" in issue)
+        critical_issues += sum(
+            1 for issue in safety if "инъекция" in issue.lower() or "пароль" in issue.lower()
+        )
 
         # Critical philosophy violations
         critical_issues += sum(

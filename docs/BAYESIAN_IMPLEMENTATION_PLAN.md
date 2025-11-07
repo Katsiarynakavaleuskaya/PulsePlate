@@ -105,7 +105,7 @@ class BaseBayesianAnalyzer(ABC):
     ) -> float:
         """Теорема Байеса: P(H|E) = P(E|H) * P(H) / P(E)"""
         if evidence == 0:
-            return 0
+            raise ValueError("evidence is zero — invalid for Bayes update")
         return (likelihood * prior) / evidence
 
     def get_metrics(self) -> Dict[str, float]:
@@ -310,6 +310,10 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
         """Проверка физических ограничений (калории из макронутриентов)."""
         calculated_calories = (entry.protein * 4) + (entry.carbs * 4) + (entry.fat * 9)
         tolerance = 0.15  # 15% допуск
+
+        # Guard against zero or negative calories
+        if entry.calories <= 0:
+            return calculated_calories == 0
 
         return abs(calculated_calories - entry.calories) / entry.calories < tolerance
 
