@@ -503,15 +503,16 @@ class NutritionBayesianAnalyzer:
         if not self.test_results:
             return 1.0
 
-        safe_tests = sum(1 for result in self.test_results if result.success)
+        safe_tests = sum(result.success for result in self.test_results)
         total_tests = len(self.test_results)
 
         base_score = safe_tests / total_tests
 
         # Штрафы за критические проблемы
-        critical_penalty = 0.0
-        for result in self.test_results:
-            if not result.success and result.safety_level == "dangerous":
-                critical_penalty += 0.2
+        critical_penalty = sum(
+            0.2
+            for result in self.test_results
+            if not result.success and result.safety_level == "dangerous"
+        )
 
         return max(0.0, base_score - critical_penalty)
