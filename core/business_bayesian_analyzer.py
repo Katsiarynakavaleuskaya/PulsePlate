@@ -178,8 +178,6 @@ class BusinessBayesianAnalyzer:
 
         # Persist results for downstream diagnostics
         self.test_results.extend(results)
-        # Persist results for downstream diagnostics
-        self.test_results.extend(results)
         return results
 
     def _analyze_monetization(self, code: str, test_name: str) -> List[BusinessTestResult]:
