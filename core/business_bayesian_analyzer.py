@@ -154,7 +154,7 @@ class BusinessBayesianAnalyzer:
 
     def analyze_business_logic(self, test_code: str, test_name: str) -> List[BusinessTestResult]:
         """Анализирует бизнес-логику в тестах."""
-        results = []
+        results: List[BusinessTestResult] = []
 
         # Анализ монетизации
         monetization_issues = self._analyze_monetization(test_code, test_name)
@@ -176,6 +176,8 @@ class BusinessBayesianAnalyzer:
         retention_issues = self._analyze_customer_retention(test_code, test_name)
         results.extend(retention_issues)
 
+        # Persist results for downstream diagnostics
+        self.test_results.extend(results)
         # Persist results for downstream diagnostics
         self.test_results.extend(results)
         return results

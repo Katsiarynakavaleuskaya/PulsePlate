@@ -328,14 +328,14 @@ class ComprehensiveBayesianAnalyzer:
         customer_issues = 0
 
         # Технические проблемы, влияющие на клиентов
-        customer_issues += sum(1 for issue in technical if "пользователь" in issue.lower())
+        customer_issues += sum("пользователь" in issue.lower() for issue in technical)
 
         # Проблемы питания, влияющие на клиентов
-        customer_issues += sum(1 for issue in nutrition if "здоровье" in issue.lower())
+        customer_issues += sum("здоровье" in issue.lower() for issue in nutrition)
 
         # Бизнес-проблемы, влияющие на клиентов
         customer_issues += sum(
-            1 for issue in business if "клиент" in issue.lower() or "customer" in issue.lower()
+            "клиент" in issue.lower() or "customer" in issue.lower() for issue in business
         )
 
         if customer_issues == 0:
@@ -350,9 +350,7 @@ class ComprehensiveBayesianAnalyzer:
     def _assess_health_impact(self, nutrition_issues: List[str]) -> str:
         """Оценивает влияние на здоровье."""
         health_issues = sum(
-            1
-            for issue in nutrition_issues
-            if "опасно" in issue.lower() or "dangerous" in issue.lower()
+            "опасно" in issue.lower() or "dangerous" in issue.lower() for issue in nutrition_issues
         )
 
         if health_issues == 0:
@@ -395,7 +393,7 @@ class ComprehensiveBayesianAnalyzer:
 
         # Общая статистика
         total_tests = len(self.comprehensive_results)
-        successful_tests = sum(1 for r in self.comprehensive_results if r.success)
+        successful_tests = sum(r.success for r in self.comprehensive_results)
 
         # Средние баллы
         avg_technical = sum(r.technical_score for r in self.comprehensive_results) / total_tests

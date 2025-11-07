@@ -241,6 +241,30 @@ class TestBayesianTestAnalyzer:
         assert report["failed_tests"] == 1
         assert report["success_rate"] == 0.5
 
+    def test_predict_test_failure_probability_no_history(self, analyzer) -> None:
+        """Test predict_test_failure_probability for a test with no history."""
+        probability = analyzer.predict_test_failure_probability("test_no_history")
+        # Default probability for new tests with no history is 0.1
+        assert probability == 0.1
+
+    def test_optimize_test_order_equal_probability(self, analyzer) -> None:
+        """Тест оптимизации порядка тестов при равной вероятности падения."""
+        test_list = ["test_x", "test_y", "test_z"]
+
+        # Не добавляем данные о падениях — все тесты равны
+        optimized_order = analyzer.optimize_test_order(test_list)
+
+        assert len(optimized_order) == len(test_list)
+        assert set(optimized_order) == set(test_list)
+        # Порядок должен быть исходным, так как все вероятности равны
+        assert optimized_order == test_list
+
+    def test_generate_test_report_empty_history(self, analyzer) -> None:
+        """Test generate_test_report with empty history returns default report."""
+        report = analyzer.generate_test_report()
+        # Default report when no executions are recorded
+        assert report == {"message": "Нет данных для анализа"}
+
     def test_gather_evidence(self, analyzer) -> None:
         """Тест сбора доказательств."""
         # Добавить тестовые данные
