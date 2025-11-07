@@ -385,3 +385,33 @@ def test_print_diagnosis_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "1")
     plugin._print_diagnosis(diagnosis)  # Should not raise
+
+
+def test_determine_category_known_marker_e2e() -> None:
+    plugin = BayesianPytestPlugin()
+    item = _FakeItem(["e2e"])  # known mapping
+    assert plugin._determine_test_category(item) == TestCategory.E2E
+
+
+def test_determine_category_known_marker_performance() -> None:
+    plugin = BayesianPytestPlugin()
+    item = _FakeItem(["performance"])  # known mapping
+    assert plugin._determine_test_category(item) == TestCategory.PERFORMANCE
+
+
+def test_determine_category_known_marker_coverage() -> None:
+    plugin = BayesianPytestPlugin()
+    item = _FakeItem(["coverage"])  # known mapping
+    assert plugin._determine_test_category(item) == TestCategory.COVERAGE
+
+
+def test_determine_category_known_marker_monte_carlo() -> None:
+    plugin = BayesianPytestPlugin()
+    item = _FakeItem(["monte_carlo"])  # known mapping
+    assert plugin._determine_test_category(item) == TestCategory.MONTE_CARLO
+
+
+def test_determine_category_known_marker_bayesian() -> None:
+    plugin = BayesianPytestPlugin()
+    item = _FakeItem(["bayesian"])  # known mapping
+    assert plugin._determine_test_category(item) == TestCategory.BAYESIAN
