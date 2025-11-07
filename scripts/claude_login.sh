@@ -1,0 +1,158 @@
+#!/bin/bash
+# 🔐 Quick login/setup script for Claude/Cursor authentication
+# Usage: ./scripts/claude_login.sh
+
+set -euo pipefail
+
+echo "🔐 Claude/Cursor Authentication Setup"
+echo "======================================"
+echo ""
+
+# Check if Python script exists
+if [ ! -f "update_api_key.py" ]; then
+    echo "❌ Error: update_api_key.py not found in current directory"
+    echo "   Please run this script from the project root"
+    exit 1
+fi
+
+# Check if Python is available
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Error: python3 is not installed"
+    exit 1
+fi
+
+echo "📋 This script will help you set up authentication for Claude/Cursor"
+echo ""
+echo "Options:"
+echo "  1. Set up API key interactively (recommended)"
+echo "  2. Check current API key status"
+echo "  3. Test API key connection"
+echo ""
+
+read -p "Select option (1-3): " choice
+
+case $choice in
+    1)
+        echo ""
+        echo "🔑 Setting up API key..."
+        echo ""
+        echo "You can get your API key from:"
+        echo "  - OpenAI: https://platform.openai.com/api-keys"
+        echo "  - Anthropic: https://console.anthropic.com/settings/keys"
+        echo ""
+        read -p "Enter your API key: " -s api_key
+        echo ""
+        echo ""
+
+        if [ -z "$api_key" ]; then
+            echo "❌ Error: API key cannot be empty"
+            exit 1
+        fi
+
+        # Use Python script to update API key
+        python3 update_api_key.py "$api_key" || {
+            echo "❌ Failed to update API key"
+            exit 1
+        }
+
+        echo ""
+        echo "✅ API key updated successfully!"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Restart Cursor if it's running"
+        echo "  2. Test connection: ./scripts/claude_login.sh (option 3)"
+        ;;
+
+    2)
+        echo ""
+        echo "📊 Checking API key status..."
+        echo ""
+
+        # Check if .env file exists
+        if [ -f ~/.cursor/.env ]; then
+            echo "✅ Environment file found: ~/.cursor/.env"
+            if grep -q "OPENAI_API_KEY" ~/.cursor/.env; then
+                key_line=$(grep "OPENAI_API_KEY" ~/.cursor/.env | head -1)
+                if [[ "$key_line" == *"your_openai_api_key_here"* ]] || [[ "$key_line" == *"encrypted:"* ]]; then
+                    if [[ "$key_line" == *"encrypted:"* ]]; then
+                        echo "✅ API key is set (encrypted)"
+                    else
+                        echo "⚠️  API key placeholder detected - please update it"
+                    fi
+                else
+                    echo "✅ API key is set"
+                fi
+            else
+                echo "⚠️  OPENAI_API_KEY not found in .env file"
+            fi
+        else
+            echo "⚠️  Environment file not found: ~/.cursor/.env"
+            echo "   Run option 1 to create it"
+        fi
+
+        # Check MCP config
+        if [ -f ~/.cursor/mcp.json ]; then
+            echo "✅ MCP config found: ~/.cursor/mcp.json"
+        else
+            echo "⚠️  MCP config not found: ~/.cursor/mcp.json"
+        fi
+
+        # Check Cursor settings
+        if [ -f ~/.cursor/settings.json ]; then
+            echo "✅ Cursor settings found: ~/.cursor/settings.json"
+        else
+            echo "⚠️  Cursor settings not found: ~/.cursor/settings.json"
+        fi
+        ;;
+
+    3)
+        echo ""
+        echo "🧪 Testing API key connection..."
+        echo ""
+
+        # Try to get API key from environment or file
+        if [ -f ~/.cursor/.env ]; then
+            source ~/.cursor/.env 2>/dev/null || true
+        fi
+
+        if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "❌ Error: OPENAI_API_KEY not found"
+            echo "   Run option 1 to set it up"
+            exit 1
+        fi
+
+        # Remove 'encrypted:' prefix if present
+        api_key="${OPENAI_API_KEY#encrypted:}"
+
+        # Test OpenAI API (if it's an OpenAI key)
+        if [[ "$api_key" == sk-* ]]; then
+            echo "Testing OpenAI API connection..."
+            response=$(curl -s -w "\n%{http_code}" \
+                -H "Authorization: Bearer $api_key" \
+                -H "Content-Type: application/json" \
+                https://api.openai.com/v1/models 2>&1) || true
+
+            http_code=$(echo "$response" | tail -1)
+            body=$(echo "$response" | sed '$d')
+
+            if [ "$http_code" = "200" ]; then
+                echo "✅ OpenAI API connection successful!"
+                echo "   Models available: $(echo "$body" | grep -o '"id":' | wc -l | tr -d ' ') models"
+            else
+                echo "❌ OpenAI API connection failed (HTTP $http_code)"
+                echo "   Response: $body"
+            fi
+        else
+            echo "⚠️  API key format not recognized (expected sk-...)"
+            echo "   This might be an Anthropic key or invalid format"
+        fi
+        ;;
+
+    *)
+        echo "❌ Invalid option. Please select 1, 2, or 3"
+        exit 1
+        ;;
+esac
+
+echo ""
+echo "✨ Done!"
