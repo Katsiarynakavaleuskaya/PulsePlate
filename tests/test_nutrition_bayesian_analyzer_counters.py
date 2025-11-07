@@ -109,3 +109,43 @@ def test_multiple_analyses_counter_accumulation() -> None:
     # Verify total analyses counter
     assert analyzer._total_analyses == 3
     assert analyzer._failed_analyses <= 3
+
+
+def test_carb_percentage_validation_low() -> None:
+    """Test that carbs_min_percent key is used (not carb_min_percent)."""
+    analyzer = NutritionBayesianAnalyzer()
+
+    # Code with very low carb percentage (should trigger carbs_min_percent check)
+    code_low_carb = """
+    def test_low_carb():
+        protein = 100  # High protein
+        fat = 50       # Medium fat
+        carbs = 5      # Very low carbs
+        return {"protein": protein, "fat": fat, "carbs": carbs}
+    """
+
+    results = analyzer.analyze_nutrition_safety(code_low_carb, "test_low_carb")
+
+    # Should detect low carb percentage issue
+    # This exercises line 421: if carb_pct < limits["carbs_min_percent"] / 100:
+    assert len(results) > 0
+
+
+def test_carb_percentage_validation_high() -> None:
+    """Test that carbs_max_percent key is used (not carb_max_percent)."""
+    analyzer = NutritionBayesianAnalyzer()
+
+    # Code with very high carb percentage (should trigger carbs_max_percent check)
+    code_high_carb = """
+    def test_high_carb():
+        protein = 10   # Very low protein
+        fat = 10       # Very low fat
+        carbs = 200    # Very high carbs
+        return {"protein": protein, "fat": fat, "carbs": carbs}
+    """
+
+    results = analyzer.analyze_nutrition_safety(code_high_carb, "test_high_carb")
+
+    # Should detect high carb percentage issue
+    # This exercises line 433: if carb_pct > limits["carbs_max_percent"] / 100:
+    assert len(results) > 0
