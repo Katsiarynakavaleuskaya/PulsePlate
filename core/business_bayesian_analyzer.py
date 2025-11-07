@@ -508,7 +508,7 @@ class BusinessBayesianAnalyzer:
             return {}
 
         # Подсчитываем проблемы по категориям
-        category_counts = {}
+        category_counts: Dict[BusinessCategory, int] = {}
         total_issues = 0
 
         for result in self.test_results:

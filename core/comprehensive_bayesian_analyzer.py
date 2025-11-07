@@ -401,7 +401,7 @@ class ComprehensiveBayesianAnalyzer:
         avg_overall = sum(r.overall_score for r in self.comprehensive_results) / total_tests
 
         # Анализ рисков
-        risk_distribution = {}
+        risk_distribution: Dict[str, int] = {}
         for result in self.comprehensive_results:
             risk = result.risk_level
             risk_distribution[risk] = risk_distribution.get(risk, 0) + 1

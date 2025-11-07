@@ -69,8 +69,8 @@ class TestExecution:
     error_message: Optional[str] = None
     execution_time: float = 0.0
     coverage_percentage: Optional[float] = None
-    timestamp: datetime = None
-    dependencies: List[str] = None
+    timestamp: Optional[datetime] = None
+    dependencies: Optional[List[str]] = None
     file_path: str = ""
     line_number: Optional[int] = None
 
@@ -260,8 +260,8 @@ class BayesianTestAnalyzer:
         # Вычислить уверенность (энтропия распределения)
         confidence = self._calculate_confidence(cause_probabilities)
 
-        # Собрать доказательства
-        evidence = self._gather_evidence(symptoms, most_likely_cause[0], similar_cases)
+        # Собрать доказательства (список строк)
+        evidence_list = self._gather_evidence(symptoms, most_likely_cause[0], similar_cases)
 
         # Сгенерировать рекомендации
         recommendations = self._generate_recommendations(most_likely_cause[0], symptoms, context)
@@ -281,7 +281,7 @@ class BayesianTestAnalyzer:
             most_likely_cause=most_likely_cause[0].value,
             probability=most_likely_cause[1],
             confidence=confidence,
-            evidence=evidence,
+            evidence=evidence_list,
             recommendations=recommendations,
             alternative_causes=alternative_causes,
         )

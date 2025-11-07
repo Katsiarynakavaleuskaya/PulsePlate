@@ -16,7 +16,7 @@ from enum import Enum
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, ProblemCategory, ErrorType
+from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
 from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
     NutritionCategory,
@@ -305,7 +305,7 @@ class IntegratedBayesianAnalyzer:
         successful_tests = sum(1 for r in self.integrated_results if r.success)
 
         # Risk analysis
-        risk_distribution = {}
+        risk_distribution: Dict[str, int] = {}
         for result in self.integrated_results:
             risk = result.overall_risk_level
             risk_distribution[risk] = risk_distribution.get(risk, 0) + 1
