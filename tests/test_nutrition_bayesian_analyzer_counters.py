@@ -5,7 +5,6 @@ These tests ensure that the per-analysis counters (_total_analyses, _failed_anal
 are properly incremented and used in the safety score calculation.
 """
 
-import pytest
 from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer
 
 

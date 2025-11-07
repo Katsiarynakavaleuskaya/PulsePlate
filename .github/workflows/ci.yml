@@ -130,7 +130,7 @@ jobs:
           API_KEY: "test_key"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -209,7 +209,7 @@ jobs:
           API_KEY: "test_key"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -294,7 +294,7 @@ jobs:
           API_KEY: "test_key"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
         if: always()

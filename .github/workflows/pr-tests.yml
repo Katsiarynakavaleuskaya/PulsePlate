@@ -183,7 +183,7 @@ jobs:
           TEST_DB_PATH: cache/test_pr.sqlite
         run: |
           pytest -m "not slow and not monte_carlo and not demo" \
-            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+            --cov=. --cov-report=xml --cov-fail-under=97 --junitxml=junit.xml -ra tests
 
       - name: Fetch base branch for diff-cover
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
