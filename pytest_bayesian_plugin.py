@@ -191,10 +191,10 @@ class BayesianPytestPlugin:
             pass
         return ""
 
-    def _analyze_failure(self, report) -> Tuple[Optional[str], Optional[str]]:
+    def _analyze_failure(self, report) -> Tuple[Optional[ErrorType], Optional[str]]:
         """Анализировать падение теста и определить тип ошибки и сообщение.
 
-        Returns a tuple (error_type_str, error_message_str) where values may be None
+        Returns a tuple (error_type, error_message) where values may be None
         if they cannot be determined from the report.
         """
         if not hasattr(report, "longrepr") or not report.longrepr:

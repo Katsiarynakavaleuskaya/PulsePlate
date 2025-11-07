@@ -163,10 +163,11 @@ def analyze_failed_tests(failed_tests: List[Dict[str, Any]]) -> None:
     diagnosis = analyzer.get_comprehensive_diagnosis()
     if diagnosis.get("status") == "analyzed":
         print("\n📋 Комплексный диагноз:")
-        print(f"  Технический балл: {diagnosis.get('technical_score', 0):.2f}")
-        print(f"  Бизнес балл: {diagnosis.get('business_score', 0):.2f}")
+        avg_scores = diagnosis.get("average_scores", {})
+        print(f"  Технический балл: {avg_scores.get('technical', 0):.2f}")
+        print(f"  Бизнес балл: {avg_scores.get('business', 0):.2f}")
 
-        recommendations = diagnosis.get("recommendations", [])
+        recommendations = diagnosis.get("optimization_opportunities", [])
         if recommendations:
             print("\n🔧 Рекомендации:")
             for i, rec in enumerate(recommendations[:5], 1):

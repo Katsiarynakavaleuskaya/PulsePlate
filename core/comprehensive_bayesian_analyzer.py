@@ -10,9 +10,7 @@
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
-import json
-import re
+from typing import Dict, List, Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -20,19 +18,9 @@ from enum import Enum
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, TestCategory, ErrorType
-from core.nutrition_bayesian_analyzer import (
-    NutritionBayesianAnalyzer,
-    NutritionCategory,
-    NutritionErrorType,
-    NutritionTestResult,
-)
-from core.business_bayesian_analyzer import (
-    BusinessBayesianAnalyzer,
-    BusinessCategory,
-    BusinessErrorType,
-    BusinessTestResult,
-)
+from core.bayesian_test_analyzer import BayesianTestAnalyzer
+from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer
+from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 
 
 class ComprehensiveCategory(Enum):
@@ -463,6 +451,16 @@ class ComprehensiveBayesianAnalyzer:
     def generate_action_plan(self) -> Dict[str, List[str]]:
         """Генерирует план действий на основе анализа."""
         diagnosis = self.get_comprehensive_diagnosis()
+
+        # Handle no_data case to prevent KeyError
+        if diagnosis.get("status") == "no_data":
+            return {
+                "immediate_actions": [],
+                "short_term_actions": [],
+                "long_term_actions": [],
+                "cost_optimization": [],
+                "revenue_growth": [],
+            }
 
         action_plan: Dict[str, List[str]] = {
             "immediate_actions": [],

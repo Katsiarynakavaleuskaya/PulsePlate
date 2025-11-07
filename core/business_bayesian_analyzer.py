@@ -5,12 +5,9 @@
 """
 
 import re
-import json
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
-import math
-from pathlib import Path
 
 
 class BusinessCategory(Enum):
@@ -183,6 +180,10 @@ class BusinessBayesianAnalyzer:
     def _analyze_monetization(self, code: str, test_name: str) -> List[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
         results = []
+        # Ignore inline comments when scanning for strategy keywords to avoid false negatives
+        import re as _re
+
+        code_no_comments = _re.sub(r"#.*", "", code)
 
         # Поиск упоминаний цен и платежей
         pricing_patterns = [
@@ -229,8 +230,11 @@ class BusinessBayesianAnalyzer:
                     continue
 
         # Проверка на отсутствие стратегии монетизации
-        if ("payment" in code.lower() or "billing" in code.lower()) and not any(
-            keyword in code.lower() for keyword in ["subscription", "tier", "plan", "upgrade"]
+        if (
+            "payment" in code_no_comments.lower() or "billing" in code_no_comments.lower()
+        ) and not any(
+            keyword in code_no_comments.lower()
+            for keyword in ["subscription", "tier", "plan", "upgrade"]
         ):
             results.append(
                 BusinessTestResult(
