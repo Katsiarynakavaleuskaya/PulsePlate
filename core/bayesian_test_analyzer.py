@@ -11,7 +11,7 @@
 import json
 import os
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Set
@@ -69,8 +69,8 @@ class TestExecution:
     error_message: Optional[str] = None
     execution_time: float = 0.0
     coverage_percentage: Optional[float] = None
-    timestamp: Optional[datetime] = None
-    dependencies: Optional[List[str]] = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    dependencies: List[str] = field(default_factory=list)
     file_path: str = ""
     line_number: Optional[int] = None
 

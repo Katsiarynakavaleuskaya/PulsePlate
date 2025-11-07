@@ -463,7 +463,7 @@ class ComprehensiveBayesianAnalyzer:
         """Генерирует план действий на основе анализа."""
         diagnosis = self.get_comprehensive_diagnosis()
 
-        action_plan = {
+        action_plan: Dict[str, List[str]] = {
             "immediate_actions": [],
             "short_term_actions": [],
             "long_term_actions": [],
