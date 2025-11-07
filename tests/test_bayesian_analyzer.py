@@ -173,6 +173,12 @@ class TestBayesianTestAnalyzer:
         # Вероятность должна быть около 0.5 (1 из 2 тестов упал)
         assert 0.4 <= probability <= 0.6
 
+    def test_predict_test_failure_probability_no_history(self, analyzer) -> None:
+        """Test predict_test_failure_probability for a test with no history."""
+        probability = analyzer.predict_test_failure_probability("test_no_history")
+        # Default probability for new tests with no history
+        assert probability == 0.1
+
     def test_optimize_test_order(self, analyzer) -> None:
         """Тест оптимизации порядка тестов."""
         test_list = ["test_a", "test_b", "test_c"]
@@ -193,6 +199,18 @@ class TestBayesianTestAnalyzer:
         # test_b должен быть первым (наиболее вероятно упадет)
         assert optimized_order[0] == "test_b"
 
+    def test_optimize_test_order_equal_probability(self, analyzer) -> None:
+        """Тест оптимизации порядка тестов при равной вероятности падения."""
+        test_list = ["test_x", "test_y", "test_z"]
+
+        # Не добавляем данные о падениях — все тесты равны
+        optimized_order = analyzer.optimize_test_order(test_list)
+
+        assert len(optimized_order) == len(test_list)
+        assert set(optimized_order) == set(test_list)
+        # Порядок должен быть исходным, так как все вероятности равны
+        assert optimized_order == test_list
+
     def test_get_test_health_score(self, analyzer) -> None:
         """Тест получения оценки здоровья теста."""
         # Добавить успешные выполнения
@@ -211,6 +229,13 @@ class TestBayesianTestAnalyzer:
         assert 0 <= health_score <= 1
         # Здоровый тест должен иметь высокую оценку
         assert health_score > 0.8
+
+    def test_generate_test_report_empty_history(self, analyzer) -> None:
+        """Test generate_test_report with empty history returns default report."""
+        report = analyzer.generate_test_report()
+        # Should return a valid report structure even when empty
+        assert report is not None
+        assert isinstance(report, dict)
 
     def test_generate_test_report(self, analyzer) -> None:
         """Тест генерации отчета о тестах."""
@@ -240,12 +265,6 @@ class TestBayesianTestAnalyzer:
         assert report["passed_tests"] == 1
         assert report["failed_tests"] == 1
         assert report["success_rate"] == 0.5
-
-    def test_predict_test_failure_probability_no_history(self, analyzer) -> None:
-        """Test predict_test_failure_probability for a test with no history."""
-        probability = analyzer.predict_test_failure_probability("test_no_history")
-        # Default probability for new tests with no history is 0.1
-        assert probability == 0.1
 
     def test_optimize_test_order_equal_probability(self, analyzer) -> None:
         """Тест оптимизации порядка тестов при равной вероятности падения."""

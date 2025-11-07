@@ -119,6 +119,39 @@ class TestComprehensiveBayesianAnalyzer:
         assert result.overall_score >= 0.8
         assert len(result.critical_issues) == 0
 
+    def test_analyze_comprehensively_borderline_score(self) -> None:
+        """Тест анализа с пограничной бизнес-оценкой."""
+        analyzer = ComprehensiveBayesianAnalyzer()
+
+        # Код с низкой ценой (borderline business issue)
+        borderline_code = """
+        def test_borderline():
+            price = 1.0  # Low but not dangerously low
+            subscription = 5.0
+            return {"price": price, "subscription": subscription}
+        """
+
+        result = analyzer.analyze_comprehensively(
+            borderline_code, "test_borderline", "tests/test_business.py"
+        )
+
+        assert result.test_name == "test_borderline"
+        # Business score should be affected but not catastrophic
+        assert result.business_score < 1.0
+        assert len(result.optimization_opportunities) >= 0
+
+    def test_get_comprehensive_diagnosis_empty(self) -> None:
+        """Test get_comprehensive_diagnosis with no results."""
+        analyzer = ComprehensiveBayesianAnalyzer()
+
+        # Get diagnosis when no analyses have been run
+        diagnosis = analyzer.get_comprehensive_diagnosis()
+
+        # Should return a valid diagnosis even with no data
+        assert diagnosis is not None
+        assert isinstance(diagnosis, dict)
+        assert "status" in diagnosis
+
     def test_get_comprehensive_diagnosis(self) -> None:
         """Тест получения комплексного диагноза."""
         analyzer = ComprehensiveBayesianAnalyzer()
