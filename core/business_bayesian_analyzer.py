@@ -176,6 +176,8 @@ class BusinessBayesianAnalyzer:
         retention_issues = self._analyze_customer_retention(test_code, test_name)
         results.extend(retention_issues)
 
+        # Persist results for downstream diagnostics
+        self.test_results.extend(results)
         return results
 
     def _analyze_monetization(self, code: str, test_name: str) -> List[BusinessTestResult]:
@@ -227,21 +229,20 @@ class BusinessBayesianAnalyzer:
                     continue
 
         # Проверка на отсутствие стратегии монетизации
-        if "payment" in code.lower() or "billing" in code.lower():
-            if not any(
-                keyword in code.lower() for keyword in ["subscription", "tier", "plan", "upgrade"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.MONETIZATION,
-                        error_type=BusinessErrorType.REVENUE_LEAK,
-                        error_message="Обнаружены платежи без стратегии монетизации",
-                        revenue_impact="Неэффективная монетизация",
-                        optimization_potential="Реализовать многоуровневую модель ценообразования",
-                    )
+        if ("payment" in code.lower() or "billing" in code.lower()) and not any(
+            keyword in code.lower() for keyword in ["subscription", "tier", "plan", "upgrade"]
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.MONETIZATION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                    error_message="Обнаружены платежи без стратегии монетизации",
+                    revenue_impact="Неэффективная монетизация",
+                    optimization_potential="Реализовать многоуровневую модель ценообразования",
                 )
+            )
 
         return results
 
@@ -315,21 +316,22 @@ class BusinessBayesianAnalyzer:
                 )
 
         # Проверка на отсутствие кэширования
-        if any(keyword in code.lower() for keyword in ["database", "api", "request", "fetch"]):
-            if not any(
-                keyword in code.lower() for keyword in ["cache", "memoize", "redis", "memory"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.COST_OPTIMIZATION,
-                        error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                        error_message="Отсутствует кэширование для частых запросов",
-                        cost_impact="Избыточные затраты на инфраструктуру",
-                        optimization_potential="Добавить кэширование для снижения нагрузки",
-                    )
+        if any(
+            keyword in code.lower() for keyword in ["database", "api", "request", "fetch"]
+        ) and not any(
+            keyword in code.lower() for keyword in ["cache", "memoize", "redis", "memory"]
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                    error_message="Отсутствует кэширование для частых запросов",
+                    cost_impact="Избыточные затраты на инфраструктуру",
+                    optimization_potential="Добавить кэширование для снижения нагрузки",
                 )
+            )
 
         return results
 
@@ -341,41 +343,41 @@ class BusinessBayesianAnalyzer:
         analytics_keywords = ["analytics", "metrics", "tracking", "conversion", "revenue"]
         analytics_mentions = [kw for kw in analytics_keywords if kw in code.lower()]
 
-        if analytics_mentions:
-            # Проверка на отсутствие A/B тестирования
-            if not any(
-                keyword in code.lower()
-                for keyword in ["ab_test", "experiment", "variant", "control"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.REVENUE_GROWTH,
-                        error_type=BusinessErrorType.REVENUE_LEAK,
-                        error_message="Аналитика без A/B тестирования",
-                        revenue_impact="Упущенные возможности оптимизации",
-                        optimization_potential="Добавить A/B тестирование для роста конверсии",
-                    )
+        if analytics_mentions and not any(
+            keyword in code.lower() for keyword in ["ab_test", "experiment", "variant", "control"]
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.REVENUE_GROWTH,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                    error_message="Аналитика без A/B тестирования",
+                    revenue_impact="Упущенные возможности оптимизации",
+                    optimization_potential="Добавить A/B тестирование для роста конверсии",
                 )
+            )
 
         # Проверка на отсутствие персонализации
-        if "user" in code.lower() and "personal" in code.lower():
-            if not any(
+        if (
+            "user" in code.lower()
+            and "personal" in code.lower()
+            and not any(
                 keyword in code.lower()
                 for keyword in ["recommend", "suggest", "customize", "tailor"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.REVENUE_GROWTH,
-                        error_type=BusinessErrorType.REVENUE_LEAK,
-                        error_message="Персонализация без рекомендаций",
-                        revenue_impact="Снижение вовлеченности и LTV",
-                        optimization_potential="Добавить систему рекомендаций",
-                    )
+            )
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.REVENUE_GROWTH,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                    error_message="Персонализация без рекомендаций",
+                    revenue_impact="Снижение вовлеченности и LTV",
+                    optimization_potential="Добавить систему рекомендаций",
                 )
+            )
 
         return results
 
@@ -387,39 +389,36 @@ class BusinessBayesianAnalyzer:
         communication_keywords = ["notification", "email", "message", "alert", "reminder"]
         communication_mentions = [kw for kw in communication_keywords if kw in code.lower()]
 
-        if communication_mentions:
-            # Проверка на отсутствие сегментации
-            if not any(
-                keyword in code.lower() for keyword in ["segment", "group", "cohort", "tier"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.USER_RETENTION,
-                        error_type=BusinessErrorType.CUSTOMER_CHURN,
-                        error_message="Коммуникация без сегментации",
-                        customer_impact="Низкая релевантность сообщений",
-                        optimization_potential="Добавить сегментацию пользователей",
-                    )
+        if communication_mentions and not any(
+            keyword in code.lower() for keyword in ["segment", "group", "cohort", "tier"]
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                    error_message="Коммуникация без сегментации",
+                    customer_impact="Низкая релевантность сообщений",
+                    optimization_potential="Добавить сегментацию пользователей",
                 )
+            )
 
         # Проверка на отсутствие обратной связи
-        if "feedback" in code.lower() or "review" in code.lower():
-            if not any(
-                keyword in code.lower() for keyword in ["analyze", "process", "respond", "action"]
-            ):
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.USER_RETENTION,
-                        error_type=BusinessErrorType.CUSTOMER_CHURN,
-                        error_message="Сбор обратной связи без обработки",
-                        customer_impact="Неудовлетворенность клиентов",
-                        optimization_potential="Добавить обработку и реагирование на обратную связь",
-                    )
+        if ("feedback" in code.lower() or "review" in code.lower()) and not any(
+            keyword in code.lower() for keyword in ["analyze", "process", "respond", "action"]
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                    error_message="Сбор обратной связи без обработки",
+                    customer_impact="Неудовлетворенность клиентов",
+                    optimization_potential="Добавить обработку и реагирование на обратную связь",
                 )
+            )
 
         return results
 

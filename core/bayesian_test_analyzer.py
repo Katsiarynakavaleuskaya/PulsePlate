@@ -327,10 +327,12 @@ class BayesianTestAnalyzer:
             if execution.result == TestResult.FAILED and execution.error_type:
                 case_symptoms = self._extract_symptoms(execution.error_message or "", {})
 
-                # Вычислить схожесть симптомов
-                similarity = len(symptoms.intersection(case_symptoms)) / len(
-                    symptoms.union(case_symptoms)
-                )
+                # Вычислить схожесть симптомов (Jaccard), безопасно обрабатывая пустое объединение
+                union_size = len(symptoms.union(case_symptoms))
+                if union_size == 0:
+                    similarity = 0.0
+                else:
+                    similarity = len(symptoms.intersection(case_symptoms)) / union_size
 
                 if similarity > 0.3:  # Порог схожести
                     similar_cases.append(execution)
@@ -592,7 +594,7 @@ class BayesianTestAnalyzer:
             return 0.1  # Базовая вероятность для новых тестов
 
         # Вычислить частоту падений
-        failure_count = sum(1 for exec in test_history if exec.result == TestResult.FAILED)
+        failure_count = sum(exec.result == TestResult.FAILED for exec in test_history)
         total_count = len(test_history)
 
         base_probability = failure_count / total_count
@@ -631,7 +633,7 @@ class BayesianTestAnalyzer:
             return 0.5  # Нейтральная оценка для новых тестов
 
         # Факторы здоровья
-        success_rate = sum(1 for exec in test_history if exec.result == TestResult.PASSED) / len(
+        success_rate = sum(exec.result == TestResult.PASSED for exec in test_history) / len(
             test_history
         )
 
@@ -669,8 +671,8 @@ class BayesianTestAnalyzer:
 
         # Общая статистика
         total_tests = len(self.execution_history)
-        passed_tests = sum(1 for exec in self.execution_history if exec.result == TestResult.PASSED)
-        failed_tests = sum(1 for exec in self.execution_history if exec.result == TestResult.FAILED)
+        passed_tests = sum(exec.result == TestResult.PASSED for exec in self.execution_history)
+        failed_tests = sum(exec.result == TestResult.FAILED for exec in self.execution_history)
 
         # Статистика по типам ошибок
         error_stats = Counter(

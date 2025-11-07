@@ -1576,9 +1576,11 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
             # First, check if meal already has ingredients
             ingredients = meal.get("ingredients") or []
 
-            # If no ingredients in meal, try to look them up from recipes
+            # If no ingredients in meal, try to look them up from recipes (offload to thread)
             if not ingredients:
-                ingredients = _get_recipe_ingredients_for_meal(meal_title)
+                import asyncio
+
+                ingredients = await asyncio.to_thread(_get_recipe_ingredients_for_meal, meal_title)
 
             # Aggregate micronutrients from ingredients
             meal_micros_raw = await _aggregate_meal_micronutrients(

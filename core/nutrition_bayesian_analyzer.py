@@ -24,6 +24,7 @@ class NutritionCategory(Enum):
     NUTRITION_STANDARDS = "nutrition_standards"
     PORTION_CONTROL = "portion_control"
     MEAL_PLANNING = "meal_planning"
+    MACRONUTRIENT_BALANCE = "macronutrient_balance"
 
 
 class NutritionErrorType(Enum):
@@ -39,6 +40,12 @@ class NutritionErrorType(Enum):
     PORTION_UNREALISTIC = "portion_unrealistic"
     MEAL_UNBALANCED = "meal_unbalanced"
     CALCULATION_ERROR = "calculation_error"
+    PROTEIN_TOO_LOW = "protein_too_low"
+    PROTEIN_TOO_HIGH = "protein_too_high"
+    FAT_TOO_LOW = "fat_too_low"
+    FAT_TOO_HIGH = "fat_too_high"
+    CARB_TOO_LOW = "carb_too_low"
+    CARB_TOO_HIGH = "carb_too_high"
 
 
 @dataclass
@@ -141,6 +148,8 @@ class NutritionBayesianAnalyzer:
         standards_issues = self._analyze_nutrition_standards(test_code, test_name)
         results.extend(standards_issues)
 
+        # Persist results for downstream diagnostics
+        self.test_results.extend(results)
         return results
 
     def _analyze_calorie_calculations(self, code: str, test_name: str) -> List[NutritionTestResult]:
@@ -344,19 +353,86 @@ class NutritionBayesianAnalyzer:
             total = sum(macro_values.values())
             if total > 0:
                 protein_pct = macro_values.get("protein", 0) / total
+                fat_pct = macro_values.get("fat", 0) / total
+                carb_pct = macro_values.get("carbs", 0) / total
 
                 limits = self.nutrition_knowledge_base["nutrient_limits"]
 
+                # Protein checks
                 if protein_pct < limits["protein_min_percent"] / 100:
                     results.append(
                         NutritionTestResult(
                             test_name=test_name,
                             success=False,
-                            nutrition_category=NutritionCategory.NUTRITION_STANDARDS,
-                            error_type=NutritionErrorType.NUTRIENT_DEFICIENCY,
-                            error_message=f"Недостаточно белка: {protein_pct:.1%}",
-                            business_impact="Несбалансированное питание",
-                            safety_level="warning",
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.PROTEIN_TOO_LOW,
+                            error_message=f"Слишком низкий процент белка: {protein_pct:.2%}",
+                            business_impact="Риск недостатка белка",
+                            safety_level="dangerous",
+                        )
+                    )
+                if protein_pct > limits["protein_max_percent"] / 100:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.PROTEIN_TOO_HIGH,
+                            error_message=f"Слишком высокий процент белка: {protein_pct:.2%}",
+                            business_impact="Риск перегрузки белком",
+                            safety_level="dangerous",
+                        )
+                    )
+
+                # Fat checks
+                if fat_pct < limits["fat_min_percent"] / 100:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.FAT_TOO_LOW,
+                            error_message=f"Слишком низкий процент жиров: {fat_pct:.2%}",
+                            business_impact="Риск недостатка жиров",
+                            safety_level="dangerous",
+                        )
+                    )
+                if fat_pct > limits["fat_max_percent"] / 100:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.FAT_TOO_HIGH,
+                            error_message=f"Слишком высокий процент жиров: {fat_pct:.2%}",
+                            business_impact="Риск перегрузки жирами",
+                            safety_level="dangerous",
+                        )
+                    )
+
+                # Carbohydrate checks
+                if carb_pct < limits["carb_min_percent"] / 100:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.CARB_TOO_LOW,
+                            error_message=f"Слишком низкий процент углеводов: {carb_pct:.2%}",
+                            business_impact="Риск недостатка углеводов",
+                            safety_level="dangerous",
+                        )
+                    )
+                if carb_pct > limits["carb_max_percent"] / 100:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.CARB_TOO_HIGH,
+                            error_message=f"Слишком высокий процент углеводов: {carb_pct:.2%}",
+                            business_impact="Риск перегрузки углеводами",
+                            safety_level="dangerous",
                         )
                     )
 

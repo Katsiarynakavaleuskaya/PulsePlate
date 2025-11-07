@@ -52,9 +52,12 @@ def run_tests_fast() -> Dict[str, Any]:
     clean_cache()
 
     try:
+        # Security: Using list form (not shell=True) with static strings only.
+        # sys.executable is a Python built-in and not controllable by external actors.
+        # This prevents command injection vulnerabilities.
         result = subprocess.run(
             [
-                sys.executable,
+                sys.executable,  # Safe: Python built-in, returns interpreter path
                 "-m",
                 "pytest",
                 "tests/",
