@@ -168,7 +168,10 @@ class BusinessBayesianAnalyzer:
 
             # Reconstruct the code from non-comment tokens
             result = tokenize.untokenize(result_tokens)
-            return result.decode("utf-8") if isinstance(result, bytes) else result
+            # tokenize.untokenize returns bytes in Python 3
+            if isinstance(result, bytes):
+                return result.decode("utf-8")
+            return str(result)
         except (tokenize.TokenError, IndentationError):
             # If tokenization fails (malformed code), return original
             return code
