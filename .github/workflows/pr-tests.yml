@@ -173,6 +173,7 @@ jobs:
         if: (steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true') || github.event_name != 'pull_request'
         env:
           PYTHONUNBUFFERED: '1'
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
           BAYESIAN_PERSIST: '0'
           MC_SEED: '2025'
           MC_SAMPLES: '5'
