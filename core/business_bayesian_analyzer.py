@@ -60,7 +60,7 @@ class BusinessTestResult:
 class BusinessBayesianAnalyzer:
     """Байесовский анализатор для бизнес-логики."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.test_results: List[BusinessTestResult] = []
         self.business_knowledge_base = self._load_business_knowledge()
         self.monetization_strategies = self._load_monetization_strategies()

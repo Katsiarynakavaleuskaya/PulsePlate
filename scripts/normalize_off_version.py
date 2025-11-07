@@ -8,7 +8,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Dict, Optional, TypedDict, cast
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,7 +224,7 @@ def set_version(v: str) -> None:
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
-        _atomic_write_json(VERS, meta)
+        _atomic_write_json(VERS, cast(Dict[str, Any], meta))
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
         # Defensively validate meta: ensure it's a dict
@@ -242,7 +242,7 @@ def set_version(v: str) -> None:
 
     # Set the version key on the validated dict
     meta["openfoodfacts"]["version"] = v
-    _atomic_write_json(VERS, meta)
+    _atomic_write_json(VERS, cast(Dict[str, Any], meta))
 
 
 def validate() -> int:

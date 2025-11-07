@@ -251,6 +251,13 @@ def test_analyze_failure_import_error() -> None:
     assert err_type == ErrorType.IMPORT_ERROR
 
 
+def test_analyze_failure_modulenotfound_error() -> None:
+    plugin = BayesianPytestPlugin()
+    report = _FakeReport("ModuleNotFoundError: No module named 'xyz'")
+    err_type, _ = plugin._analyze_failure(report)
+    assert err_type == ErrorType.IMPORT_ERROR
+
+
 def test_analyze_failure_type_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("TypeError: unsupported operand type")
@@ -272,6 +279,13 @@ def test_analyze_failure_value_error() -> None:
     assert err_type == ErrorType.VALUE_ERROR
 
 
+def test_analyze_failure_unprocessable() -> None:
+    plugin = BayesianPytestPlugin()
+    report = _FakeReport("Request is unprocessable")
+    err_type, _ = plugin._analyze_failure(report)
+    assert err_type == ErrorType.VALUE_ERROR
+
+
 def test_analyze_failure_runtime_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("RuntimeError: something went wrong")
@@ -286,6 +300,13 @@ def test_analyze_failure_timeout_error() -> None:
     assert err_type == ErrorType.TIMEOUT_ERROR
 
 
+def test_analyze_failure_generic_timeout() -> None:
+    plugin = BayesianPytestPlugin()
+    report = _FakeReport("Operation timeout exceeded")
+    err_type, _ = plugin._analyze_failure(report)
+    assert err_type == ErrorType.TIMEOUT_ERROR
+
+
 def test_analyze_failure_coverage_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Coverage below threshold")
@@ -296,6 +317,13 @@ def test_analyze_failure_coverage_error() -> None:
 def test_analyze_failure_mock_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Mock was not called")
+    err_type, _ = plugin._analyze_failure(report)
+    assert err_type == ErrorType.MOCK_ERROR
+
+
+def test_analyze_failure_patch_error() -> None:
+    plugin = BayesianPytestPlugin()
+    report = _FakeReport("patch target not found")
     err_type, _ = plugin._analyze_failure(report)
     assert err_type == ErrorType.MOCK_ERROR
 

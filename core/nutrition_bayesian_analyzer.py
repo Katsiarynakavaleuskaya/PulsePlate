@@ -71,6 +71,9 @@ class NutritionBayesianAnalyzer:
         self.test_results: List[NutritionTestResult] = []
         self.nutrition_knowledge_base = self._load_nutrition_knowledge()
         self.safety_thresholds = self._load_safety_thresholds()
+        # Counters for per-analysis outcomes
+        self._total_analyses: int = 0
+        self._failed_analyses: int = 0
 
     def _load_nutrition_knowledge(self) -> Dict[str, Any]:
         """Загружает базу знаний о питании."""
@@ -150,6 +153,10 @@ class NutritionBayesianAnalyzer:
 
         # Persist results for downstream diagnostics
         self.test_results.extend(results)
+        # Update per-analysis counters
+        self._total_analyses += 1
+        if any(not r.success for r in results):
+            self._failed_analyses += 1
         return results
 
     def _analyze_calorie_calculations(self, code: str, test_name: str) -> List[NutritionTestResult]:
@@ -411,7 +418,7 @@ class NutritionBayesianAnalyzer:
                     )
 
                 # Carbohydrate checks
-                if carb_pct < limits["carb_min_percent"] / 100:
+                if carb_pct < limits["carbs_min_percent"] / 100:
                     results.append(
                         NutritionTestResult(
                             test_name=test_name,
@@ -423,7 +430,7 @@ class NutritionBayesianAnalyzer:
                             safety_level="dangerous",
                         )
                     )
-                if carb_pct > limits["carb_max_percent"] / 100:
+                if carb_pct > limits["carbs_max_percent"] / 100:
                     results.append(
                         NutritionTestResult(
                             test_name=test_name,
@@ -500,19 +507,16 @@ class NutritionBayesianAnalyzer:
 
     def get_safety_score(self) -> float:
         """Вычисляет общий балл безопасности питания."""
-        if not self.test_results:
+        if self._total_analyses == 0:
             return 1.0
 
-        safe_tests = sum(result.success for result in self.test_results)
-        total_tests = len(self.test_results)
+        base_score = (self._total_analyses - self._failed_analyses) / self._total_analyses
 
-        base_score = safe_tests / total_tests
-
-        # Штрафы за критические проблемы
+        # Smaller per-issue penalty to avoid over-penalizing when many findings are logged
         critical_penalty = sum(
-            0.2
+            0.05
             for result in self.test_results
             if not result.success and result.safety_level == "dangerous"
         )
 
-        return max(0.0, base_score - critical_penalty)
+        return max(0.0, min(1.0, base_score - critical_penalty))

@@ -26,14 +26,14 @@ class BayesianPytestPlugin:
 
     DEFAULT_CATEGORY_MARKERS = ["smoke", "regression", "integration", "unit"]
 
-    def __init__(self, category_markers: Optional[list] = None):
+    def __init__(self, category_markers: Optional[list] = None) -> None:
         self.analyzer = BayesianTestAnalyzer()
-        self.test_start_times = {}
-        self.test_contexts = {}
+        self.test_start_times: Dict[str, float] = {}
+        self.test_contexts: Dict[str, Dict[str, Any]] = {}
         # Allow custom markers, fallback to default
         self.category_markers = category_markers or self.DEFAULT_CATEGORY_MARKERS
 
-    def pytest_runtest_setup(self, item):
+    def pytest_runtest_setup(self, item) -> None:
         """Вызывается перед выполнением теста."""
         test_name = item.nodeid
         self.test_start_times[test_name] = time.time()
@@ -45,7 +45,7 @@ class BayesianPytestPlugin:
         context = self._gather_test_context(item)
         self.test_contexts[test_name] = {"category": category, "context": context}
 
-    def pytest_runtest_teardown(self, item, nextitem):
+    def pytest_runtest_teardown(self, item, nextitem) -> None:
         """Вызывается после выполнения теста."""
         test_name = item.nodeid
         start_time = self.test_start_times.get(test_name, time.time())
@@ -55,7 +55,7 @@ class BayesianPytestPlugin:
         self.test_start_times.pop(test_name, None)
         self.test_contexts.pop(test_name, None)
 
-    def pytest_runtest_logreport(self, report):
+    def pytest_runtest_logreport(self, report) -> None:
         """Вызывается при получении отчета о тесте."""
         if report.when != "call":  # Только для основного выполнения
             return
@@ -218,7 +218,7 @@ class BayesianPytestPlugin:
         if error_message is None:
             error_message = error_text
 
-        error_type = None
+        error_type: Optional[ErrorType] = None
         error_lower = error_text.lower()
         if "assertionerror" in error_lower or "assert" in error_lower:
             error_type = ErrorType.ASSERTION_ERROR
@@ -272,25 +272,25 @@ class BayesianPytestPlugin:
         print("=" * 60 + "\n")
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Конфигурация pytest plugin."""
     if not hasattr(config, "bayesian_plugin"):
         config.bayesian_plugin = BayesianPytestPlugin()
 
 
-def pytest_runtest_setup(item):
+def pytest_runtest_setup(item) -> None:
     """Хук для настройки теста."""
     if hasattr(item.config, "bayesian_plugin"):
         item.config.bayesian_plugin.pytest_runtest_setup(item)
 
 
-def pytest_runtest_teardown(item, nextitem):
+def pytest_runtest_teardown(item, nextitem) -> None:
     """Хук для завершения теста."""
     if hasattr(item.config, "bayesian_plugin"):
         item.config.bayesian_plugin.pytest_runtest_teardown(item, nextitem)
 
 
-def pytest_runtest_logreport(report):
+def pytest_runtest_logreport(report) -> None:
     """Хук для отчета о тесте."""
     if hasattr(report.config, "bayesian_plugin"):
         report.config.bayesian_plugin.pytest_runtest_logreport(report)
