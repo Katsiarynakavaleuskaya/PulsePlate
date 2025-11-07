@@ -24,10 +24,14 @@ from core.bayesian_test_analyzer import (
 class BayesianPytestPlugin:
     """Pytest plugin для байесовской диагностики."""
 
-    def __init__(self):
+    DEFAULT_CATEGORY_MARKERS = ["smoke", "regression", "integration", "unit"]
+
+    def __init__(self, category_markers: Optional[list] = None):
         self.analyzer = BayesianTestAnalyzer()
         self.test_start_times = {}
         self.test_contexts = {}
+        # Allow custom markers, fallback to default
+        self.category_markers = category_markers or self.DEFAULT_CATEGORY_MARKERS
 
     def pytest_runtest_setup(self, item):
         """Вызывается перед выполнением теста."""
@@ -92,24 +96,48 @@ class BayesianPytestPlugin:
         )
 
     def _determine_test_category(self, item) -> TestCategory:
-        """Определить категорию теста. Сначала по маркерам, затем по пути/имени."""
-        try:
-            markers = {m.name for m in getattr(item, "iter_markers", lambda: [])()}
-        except Exception:
-            markers = set()
+        """Определяет категорию теста на основе маркеров с поддержкой настроек.
 
-        # Приоритет по явным маркерам
-        if "integration" in markers:
+        Сначала проверяются настраиваемые маркеры, затем известные категории,
+        затем фоллбэк по имени/пути.
+        """
+        try:
+            all_markers = {m.name for m in getattr(item, "iter_markers", lambda: [])()}
+        except Exception:
+            all_markers = set()
+
+        # Настраиваемые маркеры
+        for marker in self.category_markers:
+            if marker in all_markers:
+                # Map common strings to TestCategory when possible
+                name = marker.lower()
+                if name in {"integration"}:
+                    return TestCategory.INTEGRATION
+                if name in {"e2e"}:
+                    return TestCategory.E2E
+                if name in {"performance"}:
+                    return TestCategory.PERFORMANCE
+                if name in {"coverage"}:
+                    return TestCategory.COVERAGE
+                if name in {"monte_carlo"}:
+                    return TestCategory.MONTE_CARLO
+                if name in {"bayesian"}:
+                    return TestCategory.BAYESIAN
+                # Default unknown custom markers to UNIT
+                return TestCategory.UNIT
+
+        # Известные маркеры
+        if "integration" in all_markers:
             return TestCategory.INTEGRATION
-        if "e2e" in markers:
+        if "e2e" in all_markers:
             return TestCategory.E2E
-        if "performance" in markers:
+        if "performance" in all_markers:
             return TestCategory.PERFORMANCE
-        if "coverage" in markers:
+        if "coverage" in all_markers:
             return TestCategory.COVERAGE
-        if "monte_carlo" in markers:
+        if "monte_carlo" in all_markers:
             return TestCategory.MONTE_CARLO
-        if "bayesian" in markers:
+        if "bayesian" in all_markers:
             return TestCategory.BAYESIAN
 
         # Фоллбэк по имени/пути
