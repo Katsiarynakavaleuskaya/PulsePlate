@@ -11,8 +11,8 @@ from unittest.mock import patch, MagicMock
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
-    TestExecution,
-    TestResult,
+    TestRecord,
+    TestStatus,
     ErrorType,
     TestCategory,
     BayesianDiagnosis,
@@ -45,10 +45,10 @@ class TestBayesianTestAnalyzer:
 
     def test_record_test_execution(self, analyzer) -> None:
         """Тест записи выполнения теста."""
-        execution = TestExecution(
+        execution = TestRecord(
             test_name="test_example",
             category=TestCategory.UNIT,
-            result=TestResult.PASSED,
+            result=TestStatus.PASSED,
             execution_time=1.5,
             coverage_percentage=95.0,
         )
@@ -57,18 +57,18 @@ class TestBayesianTestAnalyzer:
 
         assert len(analyzer.execution_history) == 1
         assert analyzer.execution_history[0].test_name == "test_example"
-        assert analyzer.execution_history[0].result == TestResult.PASSED
+        assert analyzer.execution_history[0].result == TestStatus.PASSED
 
     def test_save_and_load_history(self, analyzer, temp_data_file) -> None:
         """Тест сохранения и загрузки истории."""
         # Добавить тестовые данные
-        execution1 = TestExecution(
-            test_name="test_1", category=TestCategory.UNIT, result=TestResult.PASSED
+        execution1 = TestRecord(
+            test_name="test_1", category=TestCategory.UNIT, result=TestStatus.PASSED
         )
-        execution2 = TestExecution(
+        execution2 = TestRecord(
             test_name="test_2",
             category=TestCategory.INTEGRATION,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
             error_message="Assertion failed",
         )
@@ -97,10 +97,10 @@ class TestBayesianTestAnalyzer:
     def test_calculate_likelihood(self, analyzer) -> None:
         """Тест вычисления правдоподобия."""
         # Добавить тестовые данные
-        execution = TestExecution(
+        execution = TestRecord(
             test_name="test_example",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
             error_message="Assertion failed",
         )
@@ -132,10 +132,10 @@ class TestBayesianTestAnalyzer:
     def test_diagnose_test_failure(self, analyzer) -> None:
         """Тест диагностики падения теста."""
         # Добавить исторические данные
-        execution = TestExecution(
+        execution = TestRecord(
             test_name="test_similar",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
             error_message="AssertionError: Expected value",
         )
@@ -155,13 +155,13 @@ class TestBayesianTestAnalyzer:
     def test_predict_test_failure_probability(self, analyzer) -> None:
         """Тест предсказания вероятности падения теста."""
         # Добавить исторические данные
-        execution1 = TestExecution(
-            test_name="test_example", category=TestCategory.UNIT, result=TestResult.PASSED
+        execution1 = TestRecord(
+            test_name="test_example", category=TestCategory.UNIT, result=TestStatus.PASSED
         )
-        execution2 = TestExecution(
+        execution2 = TestRecord(
             test_name="test_example",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
         )
         analyzer.record_test_execution(execution1)
@@ -178,10 +178,10 @@ class TestBayesianTestAnalyzer:
         test_list = ["test_a", "test_b", "test_c"]
 
         # Добавить данные о падениях
-        execution = TestExecution(
+        execution = TestRecord(
             test_name="test_b",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
         )
         analyzer.record_test_execution(execution)
@@ -197,10 +197,10 @@ class TestBayesianTestAnalyzer:
         """Тест получения оценки здоровья теста."""
         # Добавить успешные выполнения
         for i in range(5):
-            execution = TestExecution(
+            execution = TestRecord(
                 test_name="test_healthy",
                 category=TestCategory.UNIT,
-                result=TestResult.PASSED,
+                result=TestStatus.PASSED,
                 execution_time=1.0,
                 coverage_percentage=95.0,
             )
@@ -215,13 +215,13 @@ class TestBayesianTestAnalyzer:
     def test_generate_test_report(self, analyzer) -> None:
         """Тест генерации отчета о тестах."""
         # Добавить тестовые данные
-        execution1 = TestExecution(
-            test_name="test_1", category=TestCategory.UNIT, result=TestResult.PASSED
+        execution1 = TestRecord(
+            test_name="test_1", category=TestCategory.UNIT, result=TestStatus.PASSED
         )
-        execution2 = TestExecution(
+        execution2 = TestRecord(
             test_name="test_2",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
         )
         analyzer.record_test_execution(execution1)
@@ -268,10 +268,10 @@ class TestBayesianTestAnalyzer:
     def test_gather_evidence(self, analyzer) -> None:
         """Тест сбора доказательств."""
         # Добавить тестовые данные
-        execution = TestExecution(
+        execution = TestRecord(
             test_name="test_example",
             category=TestCategory.UNIT,
-            result=TestResult.FAILED,
+            result=TestStatus.FAILED,
             error_type=ErrorType.ASSERTION_ERROR,
             error_message="Assertion failed",
             file_path="test_file.py",
@@ -340,7 +340,7 @@ class TestConvenienceFunctions:
         """Тест функции record_test_execution."""
         # Функция должна выполняться без ошибок
         record_test_execution(
-            test_name="test_example", category=TestCategory.UNIT, result=TestResult.PASSED
+            test_name="test_example", category=TestCategory.UNIT, result=TestStatus.PASSED
         )
 
         # Проверить, что данные записались
@@ -394,12 +394,12 @@ class TestTestCategoryEnum:
             assert isinstance(category.value, str)
 
 
-class TestTestResultEnum:
-    """Тесты для перечисления TestResult."""
+class TestTestStatusEnum:
+    """Тесты для перечисления TestStatus."""
 
     def test_test_results(self) -> None:
         """Тест всех результатов тестов."""
-        results = [TestResult.PASSED, TestResult.FAILED, TestResult.SKIPPED, TestResult.ERROR]
+        results = [TestStatus.PASSED, TestStatus.FAILED, TestStatus.SKIPPED, TestStatus.ERROR]
 
         assert len(results) == 4
         for result in results:
@@ -422,19 +422,19 @@ class TestIntegration:
 
             # 1. Записать несколько выполнений тестов
             executions = [
-                TestExecution("test_1", TestCategory.UNIT, TestResult.PASSED),
-                TestExecution(
+                TestRecord("test_1", TestCategory.UNIT, TestStatus.PASSED),
+                TestRecord(
                     "test_2",
                     TestCategory.UNIT,
-                    TestResult.FAILED,
+                    TestStatus.FAILED,
                     ErrorType.ASSERTION_ERROR,
                     "Assertion failed",
                 ),
-                TestExecution("test_3", TestCategory.INTEGRATION, TestResult.PASSED),
-                TestExecution(
+                TestRecord("test_3", TestCategory.INTEGRATION, TestStatus.PASSED),
+                TestRecord(
                     "test_2",
                     TestCategory.UNIT,
-                    TestResult.FAILED,
+                    TestStatus.FAILED,
                     ErrorType.TYPE_ERROR,
                     "Type error",
                 ),

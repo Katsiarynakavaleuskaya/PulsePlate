@@ -24,7 +24,7 @@ from core.bayesian_technical_utils import analyze_technical_aspects_common
 logger = logging.getLogger(__name__)
 
 
-class TestResult(Enum):
+class TestStatus(Enum):
     """Результат выполнения теста."""
 
     PASSED = "passed"
@@ -61,12 +61,12 @@ class TestCategory(Enum):
 
 
 @dataclass
-class TestExecution:
+class TestRecord:
     """Запись о выполнении теста."""
 
     test_name: str
     category: TestCategory
-    result: TestResult
+    result: TestStatus
     error_type: Optional[ErrorType] = None
     error_message: Optional[str] = None
     execution_time: float = 0.0
@@ -117,7 +117,7 @@ class BayesianTestAnalyzer:
             self.data_file = (
                 Path(history_path) if history_path else Path("test_execution_history.json")
             )
-        self.execution_history: List[TestExecution] = []
+        self.execution_history: List[TestRecord] = []
         self.error_patterns: Dict[ErrorType, Dict[str, float]] = defaultdict(
             lambda: defaultdict(float)
         )
@@ -149,10 +149,10 @@ class BayesianTestAnalyzer:
                 with open(self.data_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.execution_history = [
-                        TestExecution(
+                        TestRecord(
                             test_name=item["test_name"],
                             category=TestCategory(item["category"]),
-                            result=TestResult(item["result"]),
+                            result=TestStatus(item["result"]),
                             error_type=(
                                 ErrorType(item["error_type"]) if item.get("error_type") else None
                             ),
@@ -194,7 +194,7 @@ class BayesianTestAnalyzer:
         except Exception as e:
             logger.error(f"Ошибка сохранения истории тестов: {e}")
 
-    def record_test_execution(self, execution: TestExecution) -> None:
+    def record_test_execution(self, execution: TestRecord) -> None:
         """Записать выполнение теста."""
         self.execution_history.append(execution)
         self._update_patterns(execution)
@@ -202,9 +202,9 @@ class BayesianTestAnalyzer:
         self._refresh_priors_from_history()
         self.save_history()
 
-    def _update_patterns(self, execution: TestExecution) -> None:
+    def _update_patterns(self, execution: TestRecord) -> None:
         """Обновить паттерны ошибок и корреляций."""
-        if execution.result == TestResult.FAILED and execution.error_type:
+        if execution.result == TestStatus.FAILED and execution.error_type:
             # Обновить паттерны ошибок
             error_key = f"{execution.category.value}_{execution.file_path}"
             self.error_patterns[execution.error_type][error_key] += 1
@@ -213,7 +213,7 @@ class BayesianTestAnalyzer:
             for other_execution in self.execution_history[-10:]:  # Последние 10 тестов
                 if (
                     other_execution.test_name != execution.test_name
-                    and other_execution.result == TestResult.FAILED
+                    and other_execution.result == TestStatus.FAILED
                 ):
                     self.test_correlations[execution.test_name][other_execution.test_name] += 1
 
@@ -321,12 +321,12 @@ class BayesianTestAnalyzer:
 
         return symptoms
 
-    def _find_similar_cases(self, symptoms: Set[str]) -> List[TestExecution]:
+    def _find_similar_cases(self, symptoms: Set[str]) -> List[TestRecord]:
         """Найти похожие случаи в истории."""
         similar_cases = []
 
         for execution in self.execution_history:
-            if execution.result == TestResult.FAILED and execution.error_type:
+            if execution.result == TestStatus.FAILED and execution.error_type:
                 case_symptoms = self._extract_symptoms(execution.error_message or "", {})
 
                 # Вычислить схожесть симптомов (Jaccard), безопасно обрабатывая пустое объединение
@@ -342,7 +342,7 @@ class BayesianTestAnalyzer:
         return similar_cases
 
     def _calculate_likelihood(
-        self, symptoms: Set[str], error_type: ErrorType, similar_cases: List[TestExecution]
+        self, symptoms: Set[str], error_type: ErrorType, similar_cases: List[TestRecord]
     ) -> float:
         """Вычислить P(симптомы|причина) с учетом сглаживания и давности."""
         # Если нет истории — возвращаем сглаженную базу
@@ -391,7 +391,7 @@ class BayesianTestAnalyzer:
         prob = (weighted_num + alpha) / (weighted_den + 2 * alpha)
         return float(max(0.01, min(0.99, prob)))
 
-    def _calculate_evidence(self, symptoms: Set[str], similar_cases: List[TestExecution]) -> float:
+    def _calculate_evidence(self, symptoms: Set[str], similar_cases: List[TestRecord]) -> float:
         """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e)."""
         if not symptoms:
             return 1.0
@@ -431,7 +431,7 @@ class BayesianTestAnalyzer:
         return 1.0 - (entropy / max_entropy)
 
     def _gather_evidence(
-        self, symptoms: Set[str], error_type: ErrorType, similar_cases: List[TestExecution]
+        self, symptoms: Set[str], error_type: ErrorType, similar_cases: List[TestRecord]
     ) -> List[str]:
         """Собрать доказательства для диагноза."""
         evidence = []
@@ -554,7 +554,7 @@ class BayesianTestAnalyzer:
         weighted_counts: Dict[ErrorType, float] = {et: 0.0 for et in ErrorType}
         total_weight = 0.0
         for exec in self.execution_history:
-            if exec.result == TestResult.FAILED and exec.error_type is not None:
+            if exec.result == TestStatus.FAILED and exec.error_type is not None:
                 w = recency_weight(exec.timestamp)
                 weighted_counts[exec.error_type] = weighted_counts.get(exec.error_type, 0.0) + w
                 total_weight += w
@@ -596,7 +596,7 @@ class BayesianTestAnalyzer:
             return 0.1  # Базовая вероятность для новых тестов
 
         # Вычислить частоту падений
-        failure_count = sum(exec.result == TestResult.FAILED for exec in test_history)
+        failure_count = sum(exec.result == TestStatus.FAILED for exec in test_history)
         total_count = len(test_history)
 
         base_probability = failure_count / total_count
@@ -635,7 +635,7 @@ class BayesianTestAnalyzer:
             return 0.5  # Нейтральная оценка для новых тестов
 
         # Факторы здоровья
-        success_rate = sum(exec.result == TestResult.PASSED for exec in test_history) / len(
+        success_rate = sum(exec.result == TestStatus.PASSED for exec in test_history) / len(
             test_history
         )
 
@@ -673,8 +673,8 @@ class BayesianTestAnalyzer:
 
         # Общая статистика
         total_tests = len(self.execution_history)
-        passed_tests = sum(exec.result == TestResult.PASSED for exec in self.execution_history)
-        failed_tests = sum(exec.result == TestResult.FAILED for exec in self.execution_history)
+        passed_tests = sum(exec.result == TestStatus.PASSED for exec in self.execution_history)
+        failed_tests = sum(exec.result == TestStatus.FAILED for exec in self.execution_history)
 
         # Статистика по типам ошибок
         error_stats = Counter(
@@ -683,7 +683,7 @@ class BayesianTestAnalyzer:
 
         # Самые проблемные тесты
         test_failures = Counter(
-            exec.test_name for exec in self.execution_history if exec.result == TestResult.FAILED
+            exec.test_name for exec in self.execution_history if exec.result == TestStatus.FAILED
         )
 
         # Рекомендации по улучшению
@@ -737,7 +737,7 @@ def diagnose_test_failure(
 def record_test_execution(
     test_name: str,
     category: TestCategory,
-    result: TestResult,
+    result: TestStatus,
     error_type: Optional[ErrorType] = None,
     error_message: Optional[str] = None,
     execution_time: float = 0.0,
@@ -746,7 +746,7 @@ def record_test_execution(
     line_number: Optional[int] = None,
 ) -> None:
     """Удобная функция для записи выполнения теста."""
-    execution = TestExecution(
+    execution = TestRecord(
         test_name=test_name,
         category=category,
         result=result,
