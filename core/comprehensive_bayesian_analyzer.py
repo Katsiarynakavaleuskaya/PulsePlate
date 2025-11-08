@@ -167,6 +167,14 @@ class ComprehensiveBayesianAnalyzer:
         priority = self._calculate_priority(critical_issues, revenue_impact, health_impact)
 
         # Determine success: must pass threshold AND no critical issues (nutrition or business)
+        # EN: overall_score is capped to 0.0 when critical nutrition issues exist (see penalty above),
+        # so the 0.8 threshold would suffice; we still keep explicit
+        # "not has_critical_nutrition_issues" and "not has_critical_business_issues"
+        # for clarity and defensive programming.
+        # RU: при наличии критических проблем питания overall_score принудительно устанавливается в 0.0,
+        # поэтому одного порога 0.8 было бы достаточно; явные проверки
+        # "not has_critical_nutrition_issues" и "not has_critical_business_issues"
+        # оставлены ради ясности и защитного программирования.
         success = (
             overall_score >= 0.8
             and not has_critical_nutrition_issues

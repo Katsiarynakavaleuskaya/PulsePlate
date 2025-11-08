@@ -132,10 +132,6 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto --cov-fail-under=97
 
-      - name: Check overall coverage threshold
-        if: always()
-        run: |
-          coverage report --fail-under=97
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -216,10 +212,6 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto --cov-fail-under=97
 
-      - name: Check overall coverage threshold
-        if: always()
-        run: |
-          coverage report --fail-under=97
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -306,10 +298,6 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto --cov-fail-under=97
 
-      - name: Check overall coverage threshold
-        if: always()
-        run: |
-          coverage report --fail-under=97
 
       - name: Clean Python cache (post-test)
         if: always()

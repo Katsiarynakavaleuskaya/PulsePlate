@@ -19,6 +19,8 @@ from collections import defaultdict, Counter
 import math
 from datetime import datetime, timezone
 
+from core.bayesian_technical_utils import analyze_technical_aspects_common
+
 logger = logging.getLogger(__name__)
 
 
@@ -711,8 +713,6 @@ class BayesianTestAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Анализирует технические аспекты теста."""
-        from core.bayesian_technical_utils import analyze_technical_aspects_common
-
         return analyze_technical_aspects_common(code, test_name)
 
     def analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:

@@ -342,7 +342,7 @@ def test_analyze_failure_async_error() -> None:
 def test_analyze_failure_no_longrepr() -> None:
     plugin = BayesianPytestPlugin()
     report = MagicMock()
-    del report.longrepr
+    report.longrepr = None
     err_type, msg = plugin._analyze_failure(report)
     assert err_type is None
     assert msg is None

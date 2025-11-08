@@ -4,19 +4,17 @@ Integrated Bayesian analyzer combining technical and business aspects.
 Analyzes tests from the perspectives of code, nutrition, safety, and system philosophy.
 """
 
-from typing import Dict, List, Any, Tuple
-import json
+from typing import Dict, List, Any
 import re
 from dataclasses import dataclass
 from enum import Enum
 
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
+from core.bayesian_test_analyzer import BayesianTestAnalyzer
 from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
-    NutritionCategory,
-    NutritionErrorType,
-    NutritionTestResult,
 )
+
+from core.bayesian_technical_utils import analyze_technical_aspects_common
 
 
 class SystemPhilosophy(Enum):
@@ -135,8 +133,6 @@ class IntegratedBayesianAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
-        from core.bayesian_technical_utils import analyze_technical_aspects_common
-
         return analyze_technical_aspects_common(code, test_name)
 
     def _analyze_safety_aspects(self, code: str, test_name: str) -> List[str]:
@@ -233,11 +229,23 @@ class IntegratedBayesianAnalyzer:
         )
 
         # Critical safety issues
-        critical_issues += sum(1 for issue in safety if "инъекция" in issue or "парол" in issue)
+        critical_issues += sum(
+            1
+            for issue in safety
+            if "инъекция" in issue.lower()
+            or "injection" in issue.lower()
+            or "парол" in issue.lower()
+            or "password" in issue.lower()
+        )
 
         # Critical philosophy violations
         critical_issues += sum(
-            1 for issue in philosophy if "здоровье" in issue or "безопасность" in issue
+            1
+            for issue in philosophy
+            if "здоровье" in issue.lower()
+            or "health" in issue.lower()
+            or "безопас" in issue.lower()
+            or "safety" in issue.lower()
         )
 
         if critical_issues >= 3:
