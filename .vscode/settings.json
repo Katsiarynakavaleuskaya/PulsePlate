@@ -51,5 +51,41 @@
   ],
   "cursorpyright.analysis.typeCheckingMode": "basic",
   "editor.tabCompletion": "on",
-  "diffEditor.codeLens": true
+  "diffEditor.codeLens": true,
+
+  // 🚨 CRITICAL: Memory optimization to prevent 18-20GB usage
+  "terminal.integrated.persistentSessionScrollback": 100,
+  "terminal.integrated.scrollback": 1000,
+  "files.maxMemoryForLargeFilesMB": 2048,
+  "search.maxResults": 2000,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.git/logs/**": true,
+    "**/.venv/**": true,
+    "**/venv/**": true,
+    "**/node_modules/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/cache/**": true,
+    "**/test_cache/**": true,
+    "**/build/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/.git": true,
+    "**/.venv": true,
+    "**/venv": true,
+    "**/node_modules": true,
+    "**/__pycache__": true,
+    "**/cache": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/.mypy_cache": true
+  }
 }

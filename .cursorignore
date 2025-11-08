@@ -1,0 +1,79 @@
+# Cursor Memory Optimization
+# Prevents Cursor from indexing these files/directories
+# Reduces memory usage from 18-20GB to < 2GB
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+*.cover
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build directories
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Node modules
+node_modules/
+.npm/
+
+# Git internals (Cursor doesn't need to index git objects)
+.git/objects/
+.git/logs/
+
+# Cache directories
+cache/
+test_cache/
+.cache/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large data files
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.feather
+*.csv
+*.json
+*.xml
+*.log
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Releases
+releases/
+*.tar.gz
+*.zip
+
+# Frontend build artifacts
+frontend/dist/
+frontend/build/
+frontend/coverage/
+frontend/node_modules/
