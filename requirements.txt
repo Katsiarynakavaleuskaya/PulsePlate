@@ -20,3 +20,6 @@ email-validator==2.3.0
 faker==37.12.0
 cryptography==46.0.3
 pyarrow>=14.0.0
+# Bayesian methods infrastructure
+numpy>=1.24.0
+scipy>=1.10.0
