@@ -28,11 +28,11 @@ class TestBayesianPytestPluginAnalyzeFailure:
     """Tests for _analyze_failure method."""
 
     @pytest.fixture
-    def plugin(self):
+    def plugin(self) -> BayesianPytestPlugin:
         """Create a plugin instance."""
         return BayesianPytestPlugin()
 
-    def test_analyze_failure_no_longrepr(self, plugin):
+    def test_analyze_failure_no_longrepr(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with no longrepr attribute."""
         report = MagicMock()
         report.longrepr = None
@@ -42,7 +42,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
         assert error_type is None
         assert error_message is None
 
-    def test_analyze_failure_assertion_error(self, plugin):
+    def test_analyze_failure_assertion_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with AssertionError."""
         report = MagicMock()
         report.longrepr = "AssertionError: Expected 5 but got 3"
@@ -50,9 +50,10 @@ class TestBayesianPytestPluginAnalyzeFailure:
         error_type, error_message = plugin._analyze_failure(report)
 
         assert error_type == ErrorType.ASSERTION_ERROR
+        assert error_message is not None
         assert "AssertionError" in error_message
 
-    def test_analyze_failure_import_error(self, plugin):
+    def test_analyze_failure_import_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with ImportError."""
         report = MagicMock()
         report.longrepr = "ImportError: No module named 'missing_module'"
@@ -60,9 +61,10 @@ class TestBayesianPytestPluginAnalyzeFailure:
         error_type, error_message = plugin._analyze_failure(report)
 
         assert error_type == ErrorType.IMPORT_ERROR
+        assert error_message is not None
         assert "ImportError" in error_message
 
-    def test_analyze_failure_module_not_found_error(self, plugin):
+    def test_analyze_failure_module_not_found_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with ModuleNotFoundError."""
         report = MagicMock()
         report.longrepr = "ModuleNotFoundError: No module named 'foo'"
@@ -71,7 +73,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.IMPORT_ERROR
 
-    def test_analyze_failure_type_error(self, plugin):
+    def test_analyze_failure_type_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with TypeError."""
         report = MagicMock()
         report.longrepr = "TypeError: unsupported operand type(s)"
@@ -80,7 +82,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.TYPE_ERROR
 
-    def test_analyze_failure_attribute_error(self, plugin):
+    def test_analyze_failure_attribute_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with AttributeError."""
         report = MagicMock()
         report.longrepr = "AttributeError: 'NoneType' object has no attribute 'foo'"
@@ -89,7 +91,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.ATTRIBUTE_ERROR
 
-    def test_analyze_failure_value_error(self, plugin):
+    def test_analyze_failure_value_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with ValueError."""
         report = MagicMock()
         report.longrepr = "ValueError: invalid literal for int()"
@@ -98,7 +100,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.VALUE_ERROR
 
-    def test_analyze_failure_unprocessable_entity(self, plugin):
+    def test_analyze_failure_unprocessable_entity(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with unprocessable error."""
         report = MagicMock()
         report.longrepr = "422 Unprocessable Entity"
@@ -107,7 +109,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.VALUE_ERROR
 
-    def test_analyze_failure_runtime_error(self, plugin):
+    def test_analyze_failure_runtime_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with RuntimeError."""
         report = MagicMock()
         report.longrepr = "RuntimeError: maximum recursion depth exceeded"
@@ -116,7 +118,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.RUNTIME_ERROR
 
-    def test_analyze_failure_timeout_error(self, plugin):
+    def test_analyze_failure_timeout_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with TimeoutError."""
         report = MagicMock()
         report.longrepr = "TimeoutError: operation timed out"
@@ -125,7 +127,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.TIMEOUT_ERROR
 
-    def test_analyze_failure_timeout_keyword(self, plugin):
+    def test_analyze_failure_timeout_keyword(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with timeout keyword."""
         report = MagicMock()
         report.longrepr = "Test timeout after 5 seconds"
@@ -134,7 +136,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.TIMEOUT_ERROR
 
-    def test_analyze_failure_coverage_error(self, plugin):
+    def test_analyze_failure_coverage_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with coverage error."""
         report = MagicMock()
         report.longrepr = "coverage below threshold"
@@ -143,7 +145,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.COVERAGE_ERROR
 
-    def test_analyze_failure_mock_error(self, plugin):
+    def test_analyze_failure_mock_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with mock error."""
         report = MagicMock()
         report.longrepr = "mock.patch call failed"
@@ -152,7 +154,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.MOCK_ERROR
 
-    def test_analyze_failure_async_error(self, plugin):
+    def test_analyze_failure_async_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with async error."""
         report = MagicMock()
         report.longrepr = "asyncio.CancelledError: Task was cancelled"
@@ -161,7 +163,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.ASYNC_ERROR
 
-    def test_analyze_failure_await_error(self, plugin):
+    def test_analyze_failure_await_error(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with await error."""
         report = MagicMock()
         report.longrepr = "SyntaxError: await was used without async"
@@ -170,7 +172,7 @@ class TestBayesianPytestPluginAnalyzeFailure:
 
         assert error_type == ErrorType.ASYNC_ERROR
 
-    def test_analyze_failure_with_complex_longrepr(self, plugin):
+    def test_analyze_failure_with_complex_longrepr(self, plugin: BayesianPytestPlugin) -> None:
         """Test analyze_failure with complex pytest longrepr structure."""
         # Mock a complex pytest longrepr object
         message_obj = Mock()
@@ -200,11 +202,11 @@ class TestBayesianPytestPluginContext:
     """Tests for context gathering methods."""
 
     @pytest.fixture
-    def plugin(self):
+    def plugin(self) -> BayesianPytestPlugin:
         """Create a plugin instance."""
         return BayesianPytestPlugin()
 
-    def test_gather_test_context_async(self, plugin):
+    def test_gather_test_context_async(self, plugin: BayesianPytestPlugin) -> None:
         """Test gathering context for async test."""
 
         async def async_test_func():
@@ -220,7 +222,7 @@ class TestBayesianPytestPluginContext:
 
         assert context["is_async"] is True
 
-    def test_gather_test_context_sync(self, plugin):
+    def test_gather_test_context_sync(self, plugin: BayesianPytestPlugin) -> None:
         """Test gathering context for sync test."""
 
         def sync_test_func():
@@ -236,7 +238,7 @@ class TestBayesianPytestPluginContext:
 
         assert context["is_async"] is False
 
-    def test_gather_test_context_no_function(self, plugin):
+    def test_gather_test_context_no_function(self, plugin: BayesianPytestPlugin) -> None:
         """Test gathering context when item has no function."""
         item = Mock(spec=[])  # No 'function' attribute
         item.fixturenames = []
@@ -247,14 +249,14 @@ class TestBayesianPytestPluginContext:
 
         assert "is_async" in context
 
-    def test_gather_test_context_has_mocks(self, plugin):
+    def test_gather_test_context_has_mocks(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting mocks in test code."""
 
-        def test_with_mockup():  # Use "mockup" to avoid "mock" detection
-            import unittest.mock as m
+        def test_with_mockup():  # Use "mock_obj" to avoid "mock" detection
+            import unittest.mock as mock
 
-            mockup = m.Mock()
-            mockup.foo()
+            mock_obj = mock.Mock()
+            mock_obj.foo()
 
         item = MagicMock()
         item.function = test_with_mockup
@@ -268,7 +270,7 @@ class TestBayesianPytestPluginContext:
 
         assert context["has_mocks"] is True
 
-    def test_gather_test_context_no_mocks(self, plugin):
+    def test_gather_test_context_no_mocks(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting no mocks in test code."""
 
         def test_without_any_special_imports():
@@ -287,33 +289,33 @@ class TestBayesianPytestPluginContext:
 
         assert context["has_mocks"] is False
 
-    def test_gather_test_context_coverage_related(self, plugin):
+    def test_gather_test_context_coverage_related(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting coverage-related tests."""
         item = MagicMock()
         item.function = lambda: None
         item.fixturenames = []
         item.fspath = Mock()
         item.fspath.strpath = "/path/to/test_coverage_file.py"
-        item.fspath.__str__ = Mock(return_value="/path/to/test_coverage_file.py")
+        item.fspath.configure_mock(__str__=lambda self: "/path/to/test_coverage_file.py")
 
         context = plugin._gather_test_context(item)
 
         assert context["coverage_related"] is True
 
-    def test_gather_test_context_not_coverage_related(self, plugin):
+    def test_gather_test_context_not_coverage_related(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting non-coverage-related tests."""
         item = MagicMock()
         item.function = lambda: None
         item.fixturenames = []
         item.fspath = Mock()
         item.fspath.strpath = "/path/to/test_regular.py"
-        item.fspath.__str__ = Mock(return_value="/path/to/test_regular.py")
+        item.fspath.configure_mock(__str__=lambda self: "/path/to/test_regular.py")
 
         context = plugin._gather_test_context(item)
 
         assert context["coverage_related"] is False
 
-    def test_gather_test_context_complex_dependencies(self, plugin):
+    def test_gather_test_context_complex_dependencies(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting complex dependencies."""
         item = Mock()
         item.function = lambda: None
@@ -325,7 +327,7 @@ class TestBayesianPytestPluginContext:
 
         assert context["complex_dependencies"] is True
 
-    def test_gather_test_context_simple_dependencies(self, plugin):
+    def test_gather_test_context_simple_dependencies(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting simple dependencies."""
         item = Mock()
         item.function = lambda: None
@@ -337,7 +339,7 @@ class TestBayesianPytestPluginContext:
 
         assert context["complex_dependencies"] is False
 
-    def test_get_test_code_success(self, plugin):
+    def test_get_test_code_success(self, plugin: BayesianPytestPlugin) -> None:
         """Test getting test code successfully."""
 
         def test_func():
@@ -353,7 +355,7 @@ class TestBayesianPytestPluginContext:
         assert "x = 1 + 1" in code
         assert "assert x == 2" in code
 
-    def test_get_test_code_no_function(self, plugin):
+    def test_get_test_code_no_function(self, plugin: BayesianPytestPlugin) -> None:
         """Test getting test code when no function attribute."""
         item = Mock(spec=[])  # No 'function' attribute
 
@@ -361,7 +363,7 @@ class TestBayesianPytestPluginContext:
 
         assert code == ""
 
-    def test_get_test_code_no_code_attr(self, plugin):
+    def test_get_test_code_no_code_attr(self, plugin: BayesianPytestPlugin) -> None:
         """Test getting test code when function has no __code__ attribute."""
         item = Mock()
         item.function = Mock(spec=[])  # No '__code__' attribute
@@ -370,7 +372,7 @@ class TestBayesianPytestPluginContext:
 
         assert code == ""
 
-    def test_get_test_code_oserror(self, plugin):
+    def test_get_test_code_oserror(self, plugin: BayesianPytestPlugin) -> None:
         """Test getting test code handles OSError."""
         import inspect
 
@@ -385,7 +387,7 @@ class TestBayesianPytestPluginContext:
 
         assert code == ""
 
-    def test_get_test_code_typeerror(self, plugin):
+    def test_get_test_code_typeerror(self, plugin: BayesianPytestPlugin) -> None:
         """Test getting test code handles TypeError."""
         item = Mock()
         item.function = lambda: None  # Lambda might cause TypeError in some cases
@@ -400,12 +402,12 @@ class TestBayesianPytestPluginDiagnosis:
     """Tests for diagnosis printing."""
 
     @pytest.fixture
-    def plugin(self):
+    def plugin(self) -> BayesianPytestPlugin:
         """Create a plugin instance."""
         return BayesianPytestPlugin()
 
     @pytest.fixture
-    def diagnosis(self):
+    def diagnosis(self) -> BayesianDiagnosis:
         """Create a sample diagnosis."""
         return BayesianDiagnosis(
             most_likely_cause="Test data issue",
@@ -416,7 +418,13 @@ class TestBayesianPytestPluginDiagnosis:
             alternative_causes=[("Alternative cause", 0.10)],
         )
 
-    def test_print_diagnosis_enabled(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_enabled(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis when enabled."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "1")
 
@@ -430,7 +438,13 @@ class TestBayesianPytestPluginDiagnosis:
         assert "Evidence 1" in captured.out
         assert "Fix data" in captured.out
 
-    def test_print_diagnosis_enabled_true(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_enabled_true(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis with 'true' value."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "true")
 
@@ -439,7 +453,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
 
-    def test_print_diagnosis_enabled_yes(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_enabled_yes(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis with 'yes' value."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "yes")
 
@@ -448,7 +468,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
 
-    def test_print_diagnosis_enabled_on(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_enabled_on(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis with 'on' value."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "on")
 
@@ -457,7 +483,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
 
-    def test_print_diagnosis_enabled_case_insensitive(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_enabled_case_insensitive(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis with uppercase value."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "TRUE")
 
@@ -466,7 +498,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
 
-    def test_print_diagnosis_disabled(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_disabled(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis when disabled."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "0")
 
@@ -475,7 +513,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert captured.out == ""
 
-    def test_print_diagnosis_disabled_default(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_disabled_default(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis when env var not set."""
         monkeypatch.delenv("BAYESIAN_DIAG_VERBOSE", raising=False)
 
@@ -484,7 +528,13 @@ class TestBayesianPytestPluginDiagnosis:
         captured = capsys.readouterr()
         assert captured.out == ""
 
-    def test_print_diagnosis_disabled_empty(self, plugin, diagnosis, capsys, monkeypatch):
+    def test_print_diagnosis_disabled_empty(
+        self,
+        plugin: BayesianPytestPlugin,
+        diagnosis: BayesianDiagnosis,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test printing diagnosis with empty env var."""
         monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "")
 
@@ -497,7 +547,7 @@ class TestBayesianPytestPluginDiagnosis:
 class TestPytestHooks:
     """Tests for pytest hook functions."""
 
-    def test_pytest_configure_creates_plugin(self):
+    def test_pytest_configure_creates_plugin(self) -> None:
         """Test pytest_configure creates plugin."""
         config = Mock()
         del config.bayesian_plugin  # Ensure it doesn't exist
@@ -507,7 +557,7 @@ class TestPytestHooks:
         assert hasattr(config, "bayesian_plugin")
         assert isinstance(config.bayesian_plugin, BayesianPytestPlugin)
 
-    def test_pytest_configure_does_not_override(self):
+    def test_pytest_configure_does_not_override(self) -> None:
         """Test pytest_configure doesn't override existing plugin."""
         config = Mock()
         existing_plugin = BayesianPytestPlugin()
@@ -517,7 +567,7 @@ class TestPytestHooks:
 
         assert config.bayesian_plugin is existing_plugin
 
-    def test_pytest_runtest_setup_calls_plugin(self):
+    def test_pytest_runtest_setup_calls_plugin(self) -> None:
         """Test pytest_runtest_setup calls plugin method."""
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
@@ -530,7 +580,7 @@ class TestPytestHooks:
 
         plugin.pytest_runtest_setup.assert_called_once_with(item)
 
-    def test_pytest_runtest_setup_no_plugin(self):
+    def test_pytest_runtest_setup_no_plugin(self) -> None:
         """Test pytest_runtest_setup when plugin doesn't exist."""
         config = Mock(spec=[])  # No bayesian_plugin attribute
 
@@ -540,7 +590,7 @@ class TestPytestHooks:
         # Should not raise an error
         pytest_runtest_setup(item)
 
-    def test_pytest_runtest_teardown_calls_plugin(self):
+    def test_pytest_runtest_teardown_calls_plugin(self) -> None:
         """Test pytest_runtest_teardown calls plugin method."""
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
@@ -554,7 +604,7 @@ class TestPytestHooks:
 
         plugin.pytest_runtest_teardown.assert_called_once_with(item, nextitem)
 
-    def test_pytest_runtest_teardown_no_plugin(self):
+    def test_pytest_runtest_teardown_no_plugin(self) -> None:
         """Test pytest_runtest_teardown when plugin doesn't exist."""
         config = Mock(spec=[])
 
@@ -565,7 +615,7 @@ class TestPytestHooks:
         # Should not raise an error
         pytest_runtest_teardown(item, nextitem)
 
-    def test_pytest_runtest_logreport_calls_plugin(self):
+    def test_pytest_runtest_logreport_calls_plugin(self) -> None:
         """Test pytest_runtest_logreport calls plugin method."""
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
@@ -578,7 +628,7 @@ class TestPytestHooks:
 
         plugin.pytest_runtest_logreport.assert_called_once_with(report)
 
-    def test_pytest_runtest_logreport_no_plugin(self):
+    def test_pytest_runtest_logreport_no_plugin(self) -> None:
         """Test pytest_runtest_logreport when plugin doesn't exist."""
         config = Mock(spec=[])
 
@@ -593,11 +643,11 @@ class TestBayesianPytestPluginCategoryDetermination:
     """Tests for test category determination with markers."""
 
     @pytest.fixture
-    def plugin(self):
+    def plugin(self) -> BayesianPytestPlugin:
         """Create a plugin instance."""
         return BayesianPytestPlugin()
 
-    def test_determine_category_with_custom_markers(self):
+    def test_determine_category_with_custom_markers(self) -> None:
         """Test category determination with custom markers."""
         plugin = BayesianPytestPlugin(category_markers=["custom_marker"])
 
@@ -614,7 +664,7 @@ class TestBayesianPytestPluginCategoryDetermination:
 
         assert category == TestCategory.UNIT  # Default fallback
 
-    def test_determine_category_iter_markers_exception(self, plugin):
+    def test_determine_category_iter_markers_exception(self, plugin: BayesianPytestPlugin) -> None:
         """Test category determination when iter_markers raises exception."""
         item = Mock()
         item.iter_markers = Mock(side_effect=Exception("Error"))
