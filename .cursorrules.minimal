@@ -1,0 +1,15 @@
+# 🚨 MEMORY OPTIMIZATION FIX
+#
+# PROBLEM: Multiple AI systems eating 3.5-7GB RAM
+# SOLUTION: Disable all except Claude Code
+#
+# This file temporarily disables Cursor AI rules
+# Original backed up as: .cursorrules.backup
+#
+# To re-enable: mv .cursorrules.backup .cursorrules
+#
+# RECOMMENDED: Use Claude Code Web instead of local AI
+# https://claude.ai/code
+
+# Minimal Cursor rules (disabled)
+# All AI processing moved to Claude Code CLI
