@@ -275,8 +275,6 @@ def _log_missing_food(food_id: str) -> None:
     Args:
         food_id: The food ID that was not found
     """
-    global _MISSING_FOOD_COUNTER
-
     # Log individual missing food at DEBUG level to reduce noise
     logger.debug("nutrients_for: food not found for food_id=%s; skipping", food_id)
 
@@ -313,7 +311,6 @@ def reset_missing_food_counter() -> None:
     RU: Сброс счётчика отсутствующих продуктов (полезно для тестов).
     EN: Reset the missing food counter (useful for testing or manual resets).
     """
-    global _MISSING_FOOD_COUNTER
     with _MISSING_FOOD_LOCK:
         _MISSING_FOOD_COUNTER.clear()
 

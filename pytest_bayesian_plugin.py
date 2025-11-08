@@ -13,7 +13,7 @@ import os
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
-    TestResult,
+    TestStatus,
     ErrorType,
     TestCategory,
     record_test_execution,
@@ -75,11 +75,11 @@ class BayesianPytestPlugin:
 
         # Определить результат теста
         if report.outcome == "passed":
-            result = TestResult.PASSED
+            result = TestStatus.PASSED
             error_type = None
             error_message = None
         elif report.outcome == "failed":
-            result = TestResult.FAILED
+            result = TestStatus.FAILED
             error_type, error_message = self._analyze_failure(report)
 
             # Предоставить диагностику
@@ -87,7 +87,7 @@ class BayesianPytestPlugin:
                 diagnosis = diagnose_test_failure(test_name, error_message, context)
                 self._print_diagnosis(diagnosis)
         else:  # skipped, error
-            result = TestResult.SKIPPED if report.outcome == "skipped" else TestResult.ERROR
+            result = TestStatus.SKIPPED if report.outcome == "skipped" else TestStatus.ERROR
             error_type = None
             error_message = None
 

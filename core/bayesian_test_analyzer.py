@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 class TestStatus(Enum):
     """Результат выполнения теста."""
 
+    __test__ = False  # Tell pytest this is not a test class
+
     PASSED = "passed"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -51,6 +53,8 @@ class ErrorType(Enum):
 class TestCategory(Enum):
     """Категории тестов."""
 
+    __test__ = False  # Tell pytest this is not a test class
+
     UNIT = "unit"
     INTEGRATION = "integration"
     E2E = "e2e"
@@ -63,6 +67,8 @@ class TestCategory(Enum):
 @dataclass
 class TestRecord:
     """Запись о выполнении теста."""
+
+    __test__ = False  # Tell pytest this is not a test class
 
     test_name: str
     category: TestCategory

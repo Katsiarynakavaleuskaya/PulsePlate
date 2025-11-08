@@ -201,7 +201,7 @@ async def test_api_premium_plate_fallback_macro_values(
         28,
         30,
         38,
-    ), f"Expected fiber_g in { {25,28,30,38} }, got {fiber_actual}"
+    ), f"Expected fiber_g in {25, 28, 30, 38}, got {fiber_actual}"
 
     # Verify macro values are integers and within reasonable ranges
     assert isinstance(response.macros["protein_g"], int)
