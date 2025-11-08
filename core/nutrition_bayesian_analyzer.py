@@ -31,6 +31,7 @@ class NutritionErrorType(Enum):
     """Типы ошибок в области питания."""
 
     CALORIE_OVERFLOW = "calorie_overflow"
+    CALORIE_UNDERFLOW = "calorie_underflow"
     NUTRIENT_DEFICIENCY = "nutrient_deficiency"
     BMI_DANGEROUS = "bmi_dangerous"
     ALLERGEN_MISSING = "allergen_missing"
@@ -183,7 +184,7 @@ class NutritionBayesianAnalyzer:
                                 test_name=test_name,
                                 success=False,
                                 nutrition_category=NutritionCategory.CALORIE_CALCULATION,
-                                error_type=NutritionErrorType.CALORIE_OVERFLOW,
+                                error_type=NutritionErrorType.CALORIE_UNDERFLOW,
                                 error_message=f"Опасно низкое количество калорий: {calories}",
                                 business_impact="Риск недоедания и нарушения метаболизма",
                                 safety_level="dangerous",
@@ -357,11 +358,21 @@ class NutritionBayesianAnalyzer:
 
         # Проверка баланса макронутриентов
         if len(macro_values) >= 2:
-            total = sum(macro_values.values())
-            if total > 0:
-                protein_pct = macro_values.get("protein", 0) / total
-                fat_pct = macro_values.get("fat", 0) / total
-                carb_pct = macro_values.get("carbs", 0) / total
+            # Calculate calories for each macro (protein/carbs = 4 cal/g, fat = 9 cal/g)
+            protein_grams = macro_values.get("protein", 0)
+            fat_grams = macro_values.get("fat", 0)
+            carb_grams = macro_values.get("carbs", 0)
+
+            protein_cals = protein_grams * 4
+            fat_cals = fat_grams * 9
+            carb_cals = carb_grams * 4
+
+            total_calories = protein_cals + fat_cals + carb_cals
+
+            if total_calories > 0:
+                protein_pct = protein_cals / total_calories
+                fat_pct = fat_cals / total_calories
+                carb_pct = carb_cals / total_calories
 
                 limits = self.nutrition_knowledge_base["nutrient_limits"]
 

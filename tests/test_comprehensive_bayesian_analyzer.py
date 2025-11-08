@@ -65,13 +65,16 @@ class TestComprehensiveBayesianAnalyzer:
         )
 
         assert result.test_name == "test_nutrition_issues"
-        # Проблемы питания могут не влиять на общий балл питания
+        # Critical nutrition issues should be detected
         assert len(result.critical_issues) > 0
         assert any(
             "калорий" in issue.lower() or "bmi" in issue.lower() for issue in result.critical_issues
         )
-        # Тест может быть успешным, если общий балл >= 0.8
-        assert result.overall_score >= 0.8
+        # Health First policy: critical nutrition issues must cause failure
+        assert result.success is False, "Critical nutrition issues should cause test failure"
+        assert (
+            result.overall_score < 0.8
+        ), "Critical nutrition issues should reduce overall score below threshold"
 
     def test_analyze_comprehensively_business_issues(self) -> None:
         """Тест анализа бизнес-проблем."""

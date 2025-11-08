@@ -8,15 +8,9 @@
 - Экономия средств
 """
 
-import sys
-from pathlib import Path
 from typing import Dict, List, Any
 from dataclasses import dataclass
 from enum import Enum
-
-# Добавляем корневую директорию проекта в путь
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
 from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer
@@ -122,15 +116,36 @@ class ComprehensiveBayesianAnalyzer:
         business_score = self._calculate_business_score(business_issues)
 
         # Общий балл
-        # Для общей оценки используем нижнюю границу влияния питания,
-        # чтобы критичные, но локальные пищевые проблемы не занижали системный балл теста
-        nutrition_effective = max(nutrition_score, 0.8)
+        # Health First policy: nutrition issues should appropriately reduce overall score
+        # Use a minimal floor (0.3) to prevent division by zero, but allow nutrition failures
+        # to significantly impact the overall score
+        nutrition_effective = max(nutrition_score, 0.3)
         overall_score = (technical_score + nutrition_effective + business_score) / 3
 
         # Критические проблемы
         critical_issues = self._identify_critical_issues(
             technical_issues, nutrition_issues, business_issues
         )
+
+        # Health First policy: critical nutrition issues force failure
+        # Check for critical nutrition issues (very low calories, dangerous BMI, etc.)
+        has_critical_nutrition_issues = any(
+            "калорий" in issue.lower()
+            or "calorie" in issue.lower()
+            or "bmi" in issue.lower()
+            or "dangerous" in issue.lower()
+            or "опасно" in issue.lower()
+            for issue in critical_issues
+        )
+
+        # Check for critical business issues (revenue, customer impact)
+        has_critical_business_issues = any(
+            "business:" in issue.lower() for issue in critical_issues
+        )
+
+        # Apply heavy penalty for critical nutrition issues
+        if has_critical_nutrition_issues:
+            overall_score = min(overall_score, 0.0)
 
         # Возможности оптимизации
         optimization_opportunities = self._identify_optimization_opportunities(
@@ -151,9 +166,16 @@ class ComprehensiveBayesianAnalyzer:
         risk_level = self._calculate_risk_level(critical_issues, overall_score)
         priority = self._calculate_priority(critical_issues, revenue_impact, health_impact)
 
+        # Determine success: must pass threshold AND no critical issues (nutrition or business)
+        success = (
+            overall_score >= 0.8
+            and not has_critical_nutrition_issues
+            and not has_critical_business_issues
+        )
+
         result = ComprehensiveTestResult(
             test_name=test_name,
-            success=overall_score >= 0.8,
+            success=success,
             technical_score=technical_score,
             nutrition_score=nutrition_score,
             business_score=business_score,

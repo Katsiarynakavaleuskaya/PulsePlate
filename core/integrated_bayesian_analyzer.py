@@ -4,17 +4,11 @@ Integrated Bayesian analyzer combining technical and business aspects.
 Analyzes tests from the perspectives of code, nutrition, safety, and system philosophy.
 """
 
-import sys
-from pathlib import Path
 from typing import Dict, List, Any, Tuple
 import json
 import re
 from dataclasses import dataclass
 from enum import Enum
-
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
 from core.nutrition_bayesian_analyzer import (
@@ -141,25 +135,9 @@ class IntegratedBayesianAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
-        issues = []
+        from core.bayesian_technical_utils import analyze_technical_aspects_common
 
-        # Async checks
-        if "async" in code and "await" not in code:
-            issues.append("Async function without await usage")
-
-        # Mocking checks
-        if "Mock()" in code and "AsyncMock" not in code and "async" in code:
-            issues.append("Using Mock instead of AsyncMock for async methods")
-
-        # Exception handling checks
-        if "raise" in code and "try" not in code:
-            issues.append("Exception raised without handling")
-
-        # Return type hint checks
-        if "def " in code and "->" not in code:
-            issues.append("Missing return type annotations")
-
-        return issues
+        return analyze_technical_aspects_common(code, test_name)
 
     def _analyze_safety_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze safety aspects."""

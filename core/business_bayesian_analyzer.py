@@ -223,7 +223,7 @@ class BusinessBayesianAnalyzer:
                                 success=False,
                                 business_category=BusinessCategory.MONETIZATION,
                                 error_type=BusinessErrorType.PRICING_INEFFICIENCY,
-                                error_message=f"Слишком низкая цена: ${price}",
+                                error_message=f"Слишком низкая цена (${price}) приводит к потере дохода",
                                 revenue_impact="Потеря потенциального дохода",
                                 cost_impact="Не покрывает операционные расходы",
                                 optimization_potential="Увеличить цену до рыночного уровня",

@@ -8,6 +8,8 @@ import os
 from typing import Any, List
 from unittest.mock import MagicMock
 
+import pytest
+
 from pytest_bayesian_plugin import BayesianPytestPlugin
 from core.bayesian_test_analyzer import TestCategory, ErrorType
 
@@ -25,7 +27,7 @@ class _FakeItem:
         self.fspath = fspath
         self.name = name
         # Minimal attributes for context gathering
-        self.fixturenames = []
+        self.fixturenames: List[str] = []
 
     def iter_markers(self) -> List[_FakeMarker]:
         return [_FakeMarker(m) for m in self._markers]
@@ -189,7 +191,7 @@ def test_get_test_code_no_function() -> None:
     assert code == ""
 
 
-def test_get_test_code_exception(monkeypatch) -> None:
+def test_get_test_code_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
 
     def _func() -> None:
@@ -340,7 +342,7 @@ def test_analyze_failure_async_error() -> None:
 def test_analyze_failure_no_longrepr() -> None:
     plugin = BayesianPytestPlugin()
     report = MagicMock()
-    del report.longrepr  # type: ignore[attr-defined]
+    del report.longrepr
     err_type, msg = plugin._analyze_failure(report)
     assert err_type is None
     assert msg is None
@@ -355,7 +357,7 @@ def test_analyze_failure_with_reprtraceback() -> None:
     report = _FakeReport("", longrepr)
     err_type, msg = plugin._analyze_failure(report)
     assert err_type == ErrorType.ASSERTION_ERROR
-    assert "AssertionError" in msg or "test failed" in msg
+    assert msg is not None and ("AssertionError" in msg or "test failed" in msg)
 
 
 def test_print_diagnosis_disabled() -> None:

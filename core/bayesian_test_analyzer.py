@@ -711,25 +711,9 @@ class BayesianTestAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Анализирует технические аспекты теста."""
-        issues = []
+        from core.bayesian_technical_utils import analyze_technical_aspects_common
 
-        # Проверка на асинхронные методы
-        if "async" in code and "await" not in code:
-            issues.append("Асинхронный метод без await")
-
-        # Проверка на правильное мокирование
-        if "Mock()" in code and "AsyncMock" not in code and "async" in code:
-            issues.append("Использование Mock вместо AsyncMock для асинхронных методов")
-
-        # Проверка на обработку исключений
-        if "raise" in code and "try" not in code:
-            issues.append("Исключение без обработки")
-
-        # Проверка на типизацию
-        if "def " in code and "->" not in code:
-            issues.append("Отсутствует типизация возвращаемого значения")
-
-        return issues
+        return analyze_technical_aspects_common(code, test_name)
 
     def analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Public wrapper for analyzing technical aspects of a test.

@@ -58,8 +58,6 @@ class BayesianPytestPlugin:
     def pytest_runtest_teardown(self, item, nextitem) -> None:
         """Вызывается после выполнения теста."""
         test_name = item.nodeid
-        start_time = self.test_start_times.get(test_name, time.time())
-        _ = time.time() - start_time
 
         # Очистить временные данные
         self.test_start_times.pop(test_name, None)
@@ -123,19 +121,10 @@ class BayesianPytestPlugin:
                 name = marker.lower()
                 return self.MARKER_TO_CATEGORY.get(name, TestCategory.UNIT)
 
-        # Известные маркеры
-        if "integration" in all_markers:
-            return TestCategory.INTEGRATION
-        if "e2e" in all_markers:
-            return TestCategory.E2E
-        if "performance" in all_markers:
-            return TestCategory.PERFORMANCE
-        if "coverage" in all_markers:
-            return TestCategory.COVERAGE
-        if "monte_carlo" in all_markers:
-            return TestCategory.MONTE_CARLO
-        if "bayesian" in all_markers:
-            return TestCategory.BAYESIAN
+        # Известные маркеры - use MARKER_TO_CATEGORY mapping
+        for marker_name, category in self.MARKER_TO_CATEGORY.items():
+            if marker_name in all_markers:
+                return category
 
         # Фоллбэк по имени/пути
         test_path = str(item.fspath).lower()
