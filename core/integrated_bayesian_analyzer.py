@@ -118,7 +118,8 @@ class IntegratedBayesianAnalyzer:
             test_name=test_name,
             success=len(technical_issues) == 0
             and len(nutrition_issues) == 0
-            and len(safety_issues) == 0,
+            and len(safety_issues) == 0
+            and len(philosophy_violations) == 0,
             technical_issues=technical_issues,
             nutrition_issues=nutrition_issues,
             safety_issues=safety_issues,
@@ -135,18 +136,51 @@ class IntegratedBayesianAnalyzer:
         """Analyze technical aspects of the test."""
         return analyze_technical_aspects_common(code, test_name)
 
+    def _is_in_test_or_mock_context(self, code: str) -> bool:
+        """Check if code is in a test or mock context."""
+        test_markers = [
+            "@pytest.fixture",
+            "def test_",
+            "class Test",
+            "Mock(",
+            "unittest.mock",
+            "@mock",
+        ]
+        code_lower = code.lower()
+        return any(marker.lower() in code_lower for marker in test_markers)
+
     def _analyze_safety_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze safety aspects."""
         issues = []
 
-        # Hardcoded password check
-        if re.search(r'password\s*=\s*["\'][^"\']+["\']', code, re.IGNORECASE):
+        # Hardcoded password check (context-aware: skip test fixtures and mocks)
+        password_match = re.search(r'password\s*=\s*["\'][^"\']+["\']', code, re.IGNORECASE)
+        if password_match and not self._is_in_test_or_mock_context(code):
             issues.append("Hardcoded password in code")
 
-        # SQL injection check (string concatenation in SQL queries)
-        # Matches string concat with SELECT statements: "SELECT..." + var
-        if re.search(r'["\'].*SELECT.*["\'].*\+', code, re.IGNORECASE | re.DOTALL):
-            issues.append("Potential SQL injection")
+        # SQL injection check (comprehensive detection of unsafe SQL construction)
+        # Patterns cover: string concatenation, f-strings, .format(), multiline queries,
+        # and various SQL verbs (SELECT, INSERT, UPDATE, DELETE)
+        sql_concat_patterns = [
+            # String concatenation with + operator and SQL keywords
+            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\'].*\+',
+            r'\+.*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']',
+            # f-strings with SQL keywords
+            r'f["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*\{[^}]*\}',
+            r'f["\'].*\{[^}]*\}.*(?:SELECT|INSERT|UPDATE|DELETE)',
+            # .format() calls with SQL keywords
+            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']\.format\(',
+            # Multiline queries with concatenation
+            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\'].*\+',
+            r'\+.*["\'].*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']',
+            # Triple-quoted strings with SQL and concatenation
+            r'["\']{3}.*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']{3}.*\+',
+            r'\+.*["\']{3}.*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']{3}',
+        ]
+        if any(
+            re.search(pattern, code, re.IGNORECASE | re.DOTALL) for pattern in sql_concat_patterns
+        ):
+            issues.append("Potential SQL injection vulnerability")
 
         # Unsafe file handling
         if "open(" in code and "with" not in code:
@@ -221,7 +255,11 @@ class IntegratedBayesianAnalyzer:
 
         # Critical technical issues
         critical_issues += sum(
-            1 for issue in technical if "AsyncMock" in issue or "исключение" in issue
+            1
+            for issue in technical
+            if "asyncmock" in issue.lower()
+            or "исключен" in issue.lower()
+            or "exception" in issue.lower()
         )
 
         # Critical nutrition issues

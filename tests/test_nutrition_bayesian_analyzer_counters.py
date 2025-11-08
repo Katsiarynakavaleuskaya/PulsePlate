@@ -29,8 +29,8 @@ def test_counters_increment_on_successful_analysis() -> None:
 
     # Verify counter incremented
     assert analyzer._total_analyses == 1
-    # Safe code may or may not have failures depending on detection
-    assert analyzer._failed_analyses >= 0
+    # Safe code should not trigger failures
+    assert analyzer._failed_analyses == 0
 
 
 def test_counters_increment_on_failed_analysis() -> None:

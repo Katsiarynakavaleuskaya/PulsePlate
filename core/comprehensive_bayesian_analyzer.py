@@ -9,7 +9,7 @@
 """
 
 from typing import Dict, List, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
@@ -42,14 +42,14 @@ class ComprehensiveTestResult:
     nutrition_score: float
     business_score: float
     overall_score: float
-    critical_issues: List[str]
-    optimization_opportunities: List[str]
     revenue_impact: str
     cost_impact: str
     customer_impact: str
     health_impact: str
     risk_level: str  # low, medium, high, critical
     priority: str  # low, medium, high, urgent
+    critical_issues: List[str] = field(default_factory=list)
+    optimization_opportunities: List[str] = field(default_factory=list)
 
 
 class ComprehensiveBayesianAnalyzer:
@@ -61,6 +61,66 @@ class ComprehensiveBayesianAnalyzer:
         self.business_analyzer = BusinessBayesianAnalyzer()
         self.comprehensive_results: List[ComprehensiveTestResult] = []
         self.system_vision = self._load_system_vision()
+        # Configurable keywords for critical nutrition issues detection
+        # RU: Ключевые слова для обнаружения критических проблем питания
+        self._critical_nutrition_keywords = [
+            "калорий",
+            "calorie",
+            "bmi",
+            "dangerous",
+            "опасно",
+        ]
+        # Standardized business marker prefix for critical business issues
+        # RU: Стандартизированный префикс маркера для критических бизнес-проблем
+        self._business_marker_prefix = "business:"
+
+    def _has_critical_nutrition_issues(self, issues: List[str]) -> bool:
+        """
+        Проверяет наличие критических проблем питания в списке проблем.
+
+        Args:
+            issues: Список строк с описанием проблем
+
+        Returns:
+            True, если обнаружены критические проблемы питания, иначе False
+
+        EN: Checks for critical nutrition issues in the list of issues.
+        Uses configurable keywords (Russian and English) with case-insensitive matching.
+        """
+        if not issues:
+            return False
+
+        # Convert all keywords to lowercase for case-insensitive matching
+        # RU: Преобразуем все ключевые слова в нижний регистр для регистронезависимого поиска
+        keywords_lower = [keyword.lower() for keyword in self._critical_nutrition_keywords]
+
+        # Nested any loop: check if any issue contains any keyword
+        # RU: Вложенный цикл any: проверяем, содержит ли какая-либо проблема какое-либо ключевое слово
+        return any(any(keyword in issue.lower() for keyword in keywords_lower) for issue in issues)
+
+    def _has_critical_business_issues(self, issues: List[str]) -> bool:
+        """
+        Проверяет наличие критических бизнес-проблем в списке проблем.
+
+        Args:
+            issues: Список строк с описанием проблем
+
+        Returns:
+            True, если обнаружены критические бизнес-проблемы, иначе False
+
+        EN: Checks for critical business issues using a standardized marker prefix.
+        Uses case-insensitive startswith matching for the normalized prefix.
+        """
+        if not issues:
+            return False
+
+        # Normalize prefix to lowercase for case-insensitive matching
+        # RU: Нормализуем префикс в нижний регистр для регистронезависимого поиска
+        normalized_prefix = self._business_marker_prefix.lower()
+
+        # Check if any issue starts with the normalized business marker prefix
+        # RU: Проверяем, начинается ли какая-либо проблема с нормализованного префикса бизнес-маркера
+        return any(issue.lower().startswith(normalized_prefix) for issue in issues)
 
     def _load_system_vision(self) -> Dict[str, Any]:
         """Загружает видение системы PulsePlate."""
@@ -129,23 +189,16 @@ class ComprehensiveBayesianAnalyzer:
 
         # Health First policy: critical nutrition issues force failure
         # Check for critical nutrition issues (very low calories, dangerous BMI, etc.)
-        has_critical_nutrition_issues = any(
-            "калорий" in issue.lower()
-            or "calorie" in issue.lower()
-            or "bmi" in issue.lower()
-            or "dangerous" in issue.lower()
-            or "опасно" in issue.lower()
-            for issue in critical_issues
-        )
+        # RU: Проверка критических проблем питания через централизованный метод
+        has_critical_nutrition_issues = self._has_critical_nutrition_issues(critical_issues)
 
         # Check for critical business issues (revenue, customer impact)
-        has_critical_business_issues = any(
-            "business:" in issue.lower() for issue in critical_issues
-        )
+        # RU: Проверка критических бизнес-проблем через централизованный метод
+        has_critical_business_issues = self._has_critical_business_issues(critical_issues)
 
         # Apply heavy penalty for critical nutrition issues
         if has_critical_nutrition_issues:
-            overall_score = min(overall_score, 0.0)
+            overall_score = 0.0
 
         # Возможности оптимизации
         optimization_opportunities = self._identify_optimization_opportunities(

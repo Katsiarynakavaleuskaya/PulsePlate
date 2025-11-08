@@ -16,7 +16,7 @@ from core.integrated_bayesian_analyzer import (
 class TestIntegratedBayesianAnalyzer:
     """Тесты для интегрированного байесовского анализатора."""
 
-    def test_init(self):
+    def test_init(self) -> None:
         """Тест инициализации анализатора."""
         analyzer = IntegratedBayesianAnalyzer()
         assert analyzer.technical_analyzer is not None
@@ -26,7 +26,7 @@ class TestIntegratedBayesianAnalyzer:
         assert len(analyzer.system_philosophy["safety_requirements"]) > 0
         assert len(analyzer.system_philosophy["quality_standards"]) > 0
 
-    def test_load_system_philosophy(self):
+    def test_load_system_philosophy(self) -> None:
         """Тест загрузки философии системы."""
         analyzer = IntegratedBayesianAnalyzer()
         philosophy = analyzer._load_system_philosophy()
@@ -37,7 +37,7 @@ class TestIntegratedBayesianAnalyzer:
         assert len(philosophy["core_principles"]) == 7
         assert "97% покрытие тестами" in philosophy["quality_standards"]
 
-    def test_analyze_test_comprehensively_simple(self):
+    def test_analyze_test_comprehensively_simple(self) -> None:
         """Тест комплексного анализа простого теста."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -52,10 +52,11 @@ def test_simple():
         assert result.success is True  # no issues
         assert result.overall_risk_level in ["low", "medium", "high", "critical"]
 
-    def test_analyze_test_comprehensively_with_issues(self):
+    def test_analyze_test_comprehensively_with_issues(self) -> None:
         """Тест анализа теста с проблемами."""
         analyzer = IntegratedBayesianAnalyzer()
 
+        # Password in test context should NOT be flagged
         test_code = """
 def test_with_hardcoded_password():
     password = "admin123"
@@ -66,10 +67,10 @@ def test_with_hardcoded_password():
         )
 
         assert isinstance(result, IntegratedTestResult)
-        assert len(result.safety_issues) > 0
-        assert any("password" in issue.lower() for issue in result.safety_issues)
+        # Password in test context should not be flagged
+        assert not any("password" in issue.lower() for issue in result.safety_issues)
 
-    def test_analyze_technical_aspects(self):
+    def test_analyze_technical_aspects(self) -> None:
         """Тест анализа технических аспектов."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -82,8 +83,8 @@ async def test_async_function():
 
         assert isinstance(issues, list)
 
-    def test_analyze_safety_aspects_hardcoded_password(self):
-        """Тест обнаружения хардкоженного пароля."""
+    def test_analyze_safety_aspects_hardcoded_password_in_test_context(self) -> None:
+        """Тест: хардкоженный пароль в тестовом контексте не должен флажиться."""
         analyzer = IntegratedBayesianAnalyzer()
 
         test_code = """
@@ -93,10 +94,74 @@ def test_login():
 """
         issues = analyzer._analyze_safety_aspects(test_code, "test_login")
 
+        # Password in test context should NOT be flagged
+        assert not any("password" in issue.lower() for issue in issues)
+
+    def test_analyze_safety_aspects_hardcoded_password_in_non_test_context(self) -> None:
+        """Тест: хардкоженный пароль в нетest-контексте должен флажиться."""
+        analyzer = IntegratedBayesianAnalyzer()
+
+        # Password in regular code (not test context)
+        test_code = """
+def authenticate_user():
+    password = "secret123"
+    return check_password(password)
+"""
+        issues = analyzer._analyze_safety_aspects(test_code, "authenticate_user")
+
         assert len(issues) > 0
         assert any("password" in issue.lower() for issue in issues)
 
-    def test_analyze_safety_aspects_sql_injection(self):
+    def test_analyze_safety_aspects_hardcoded_password_in_fixture(self) -> None:
+        """Тест: хардкоженный пароль в pytest fixture не должен флажиться."""
+        analyzer = IntegratedBayesianAnalyzer()
+
+        test_code = """
+@pytest.fixture
+def test_user():
+    password = "test_password_123"
+    return {"username": "test", "password": password}
+"""
+        issues = analyzer._analyze_safety_aspects(test_code, "test_user")
+
+        # Password in fixture context should NOT be flagged
+        assert not any("password" in issue.lower() for issue in issues)
+
+    def test_analyze_safety_aspects_hardcoded_password_in_mock(self) -> None:
+        """Тест: хардкоженный пароль в mock не должен флажиться."""
+        analyzer = IntegratedBayesianAnalyzer()
+
+        test_code = """
+from unittest.mock import Mock
+
+def test_with_mock():
+    mock_user = Mock()
+    mock_user.password = "mock_password_123"
+    assert mock_user.password == "mock_password_123"
+"""
+        issues = analyzer._analyze_safety_aspects(test_code, "test_with_mock")
+
+        # Password in mock context should NOT be flagged
+        assert not any("password" in issue.lower() for issue in issues)
+
+    def test_analyze_safety_aspects_hardcoded_password_in_test_class(self) -> None:
+        """Тест: хардкоженный пароль в Test классе не должен флажиться."""
+        analyzer = IntegratedBayesianAnalyzer()
+
+        test_code = """
+class TestUserAuthentication:
+    def setup_method(self):
+        self.password = "test_password_456"
+
+    def test_login(self):
+        assert self.password is not None
+"""
+        issues = analyzer._analyze_safety_aspects(test_code, "TestUserAuthentication")
+
+        # Password in Test class context should NOT be flagged
+        assert not any("password" in issue.lower() for issue in issues)
+
+    def test_analyze_safety_aspects_sql_injection(self) -> None:
         """Тест обнаружения потенциальной SQL инъекции."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -112,7 +177,7 @@ def test_query():
         assert len(issues) > 0
         assert any("sql" in issue.lower() or "injection" in issue.lower() for issue in issues)
 
-    def test_analyze_safety_aspects_unsafe_file_open(self):
+    def test_analyze_safety_aspects_unsafe_file_open(self) -> None:
         """Тест обнаружения небезопасного открытия файлов."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -127,7 +192,7 @@ def test_file():
         assert len(issues) > 0
         assert any("file" in issue.lower() or "context" in issue.lower() for issue in issues)
 
-    def test_analyze_safety_aspects_logging_sensitive_data(self):
+    def test_analyze_safety_aspects_logging_sensitive_data(self) -> None:
         """Тест обнаружения логирования чувствительных данных."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -141,7 +206,7 @@ def test_logging():
         assert len(issues) > 0
         assert any("sensitive" in issue.lower() or "logging" in issue.lower() for issue in issues)
 
-    def test_analyze_philosophy_compliance_health_test(self):
+    def test_analyze_philosophy_compliance_health_test(self) -> None:
         """Тест проверки соответствия философии для health-теста."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -156,7 +221,7 @@ def test_health_metrics():
         assert len(violations) > 0
         assert any("health" in v.lower() or "metric" in v.lower() for v in violations)
 
-    def test_analyze_philosophy_compliance_nutrition_test(self):
+    def test_analyze_philosophy_compliance_nutrition_test(self) -> None:
         """Тест проверки соответствия философии для nutrition-теста."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -171,7 +236,7 @@ def test_nutrition_plan():
         assert len(violations) > 0
         assert any("nutrition" in v.lower() or "macronutrient" in v.lower() for v in violations)
 
-    def test_analyze_philosophy_compliance_user_test(self):
+    def test_analyze_philosophy_compliance_user_test(self) -> None:
         """Тест проверки соответствия философии для user-теста."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -186,7 +251,7 @@ def test_user_profile():
         assert len(violations) > 0
         assert any("error" in v.lower() or "handling" in v.lower() for v in violations)
 
-    def test_analyze_philosophy_compliance_personalization_test(self):
+    def test_analyze_philosophy_compliance_personalization_test(self) -> None:
         """Тест проверки соответствия философии для personalization-теста."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -204,28 +269,28 @@ def test_personalization():
             for v in violations
         )
 
-    def test_assess_business_impact_no_issues(self):
+    def test_assess_business_impact_no_issues(self) -> None:
         """Тест оценки бизнес-воздействия без проблем."""
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact([], [], [], [])
 
         assert impact == "No business impact"
 
-    def test_assess_business_impact_minimal(self):
+    def test_assess_business_impact_minimal(self) -> None:
         """Тест оценки минимального бизнес-воздействия."""
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(["issue1"], [], [], ["issue2"])
 
         assert impact == "Minimal impact on user experience"
 
-    def test_assess_business_impact_moderate(self):
+    def test_assess_business_impact_moderate(self) -> None:
         """Тест оценки умеренного бизнес-воздействия."""
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(["i1", "i2"], ["i3"], ["i4"], ["i5"])
 
         assert impact == "Moderate impact on product quality"
 
-    def test_assess_business_impact_high(self):
+    def test_assess_business_impact_high(self) -> None:
         """Тест оценки высокого бизнес-воздействия."""
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(
@@ -234,7 +299,7 @@ def test_personalization():
 
         assert impact == "High impact on reputation and safety"
 
-    def test_assess_business_impact_critical(self):
+    def test_assess_business_impact_critical(self) -> None:
         """Тест оценки критического бизнес-воздействия."""
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(
@@ -243,21 +308,21 @@ def test_personalization():
 
         assert impact == "Critical impact on business operations"
 
-    def test_calculate_risk_level_low(self):
+    def test_calculate_risk_level_low(self) -> None:
         """Тест расчета низкого уровня риска."""
         analyzer = IntegratedBayesianAnalyzer()
         risk = analyzer._calculate_risk_level([], [], [], [])
 
         assert risk == "low"
 
-    def test_calculate_risk_level_medium(self):
+    def test_calculate_risk_level_medium(self) -> None:
         """Тест расчета среднего уровня риска."""
         analyzer = IntegratedBayesianAnalyzer()
         risk = analyzer._calculate_risk_level(["AsyncMock issue"], [], [], [])
 
         assert risk == "medium"
 
-    def test_calculate_risk_level_high(self):
+    def test_calculate_risk_level_high(self) -> None:
         """Тест расчета высокого уровня риска."""
         analyzer = IntegratedBayesianAnalyzer()
         risk = analyzer._calculate_risk_level(
@@ -266,7 +331,7 @@ def test_personalization():
 
         assert risk == "high"
 
-    def test_calculate_risk_level_critical(self):
+    def test_calculate_risk_level_critical(self) -> None:
         """Тест расчета критического уровня риска."""
         analyzer = IntegratedBayesianAnalyzer()
         risk = analyzer._calculate_risk_level(
@@ -278,7 +343,7 @@ def test_personalization():
 
         assert risk == "critical"
 
-    def test_generate_integrated_recommendations(self):
+    def test_generate_integrated_recommendations(self) -> None:
         """Тест генерации интегрированных рекомендаций."""
         analyzer = IntegratedBayesianAnalyzer()
         recommendations = analyzer._generate_integrated_recommendations(
@@ -291,14 +356,14 @@ def test_personalization():
         assert any("safety" in r.lower() for r in recommendations)
         assert any("philosophy" in r.lower() for r in recommendations)
 
-    def test_get_comprehensive_diagnosis_no_data(self):
+    def test_get_comprehensive_diagnosis_no_data(self) -> None:
         """Тест получения диагноза без данных."""
         analyzer = IntegratedBayesianAnalyzer()
         diagnosis = analyzer.get_comprehensive_diagnosis()
 
         assert diagnosis["status"] == "no_data"
 
-    def test_get_comprehensive_diagnosis_with_data(self):
+    def test_get_comprehensive_diagnosis_with_data(self) -> None:
         """Тест получения диагноза с данными."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -316,7 +381,7 @@ def test_personalization():
         assert "problem_areas" in diagnosis
         assert "recommendations" in diagnosis
 
-    def test_generate_system_recommendations_no_issues(self):
+    def test_generate_system_recommendations_no_issues(self) -> None:
         """Тест генерации системных рекомендаций без проблем."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -327,7 +392,7 @@ def test_personalization():
 
         assert isinstance(recommendations, list)
 
-    def test_generate_system_recommendations_with_technical_issues(self):
+    def test_generate_system_recommendations_with_technical_issues(self) -> None:
         """Тест генерации рекомендаций с техническими проблемами."""
         analyzer = IntegratedBayesianAnalyzer()
 
@@ -350,7 +415,7 @@ def test_personalization():
 
         assert any("рефакторинг" in r.lower() or "refactor" in r.lower() for r in recommendations)
 
-    def test_system_philosophy_enum(self):
+    def test_system_philosophy_enum(self) -> None:
         """Тест enum SystemPhilosophy."""
         assert SystemPhilosophy.HEALTH_FIRST.value == "health_first"
         assert SystemPhilosophy.USER_SAFETY.value == "user_safety"
@@ -361,7 +426,7 @@ def test_personalization():
         assert SystemPhilosophy.PERSONALIZATION.value == "personalization"
         assert SystemPhilosophy.TRANSPARENCY.value == "transparency"
 
-    def test_integrated_test_result_dataclass(self):
+    def test_integrated_test_result_dataclass(self) -> None:
         """Тест dataclass IntegratedTestResult."""
         result = IntegratedTestResult(
             test_name="test_example",
