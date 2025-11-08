@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
-    TestResult,
+    TestStatus,
     ErrorType,
 )
 
@@ -39,7 +39,7 @@ def main() -> int:
     # Weighted error counts (simple counts as proxy)
     counts: Dict[ErrorType, float] = {et: 0.0 for et in ErrorType}
     for rec in history:
-        if rec.result == TestResult.FAILED and rec.error_type is not None:
+        if rec.result == TestStatus.FAILED and rec.error_type is not None:
             counts[rec.error_type] += 1.0
 
     priors_norm = normalize(analyzer.prior_probabilities)
