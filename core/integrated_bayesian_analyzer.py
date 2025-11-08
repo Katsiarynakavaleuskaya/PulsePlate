@@ -143,8 +143,9 @@ class IntegratedBayesianAnalyzer:
         if re.search(r'password\s*=\s*["\'][^"\']+["\']', code, re.IGNORECASE):
             issues.append("Hardcoded password in code")
 
-        # SQL injection check
-        if re.search(r'SELECT.*\+.*["\']', code, re.IGNORECASE):
+        # SQL injection check (string concatenation in SQL queries)
+        # Matches string concat with SELECT statements: "SELECT..." + var
+        if re.search(r'["\'].*SELECT.*["\'].*\+', code, re.IGNORECASE | re.DOTALL):
             issues.append("Potential SQL injection")
 
         # Unsafe file handling

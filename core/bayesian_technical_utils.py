@@ -34,7 +34,9 @@ def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
         has_raise = any(isinstance(node, ast.Raise) for node in ast.walk(tree))
         has_try = any(isinstance(node, ast.Try) for node in ast.walk(tree))
         missing_return_annotation = any(
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is None
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.returns is None
+            and not getattr(node, "name", "").startswith("test_")
             for node in ast.walk(tree)
         )
         has_mock_call = any(
