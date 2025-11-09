@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import json
 
@@ -44,6 +44,9 @@ def _make_record(
     EN: Simplifies constructing test records for analyzer state.
     """
 
+    resolved_timestamp = timestamp or datetime.now(timezone.utc)
+    resolved_dependencies: list[str] = []
+
     return TestRecord(
         test_name=test_name,
         category=TestCategory.UNIT,
@@ -52,9 +55,34 @@ def _make_record(
         error_message=error_message,
         execution_time=execution_time,
         coverage_percentage=coverage,
-        timestamp=timestamp,
-        dependencies=None,  # Trigger __post_init__ normalization
+        timestamp=resolved_timestamp,
+        dependencies=resolved_dependencies,
     )
+
+
+def test_normalize_priors_uniform_fallback() -> None:
+    """RU/EN: Zero-weight priors should produce a uniform distribution."""
+
+    priors = {error_type: 0.0 for error_type in ErrorType}
+    normalized = BayesianTestAnalyzer._normalize_priors(priors)
+
+    assert pytest.approx(sum(normalized.values())) == 1.0
+    assert len(set(normalized.values())) == 1
+
+
+def test_normalize_priors_scales_weights() -> None:
+    """RU/EN: Non-zero priors should be normalized proportionally."""
+
+    priors = {
+        ErrorType.ASSERTION_ERROR: 2.0,
+        ErrorType.IMPORT_ERROR: 1.0,
+        ErrorType.TIMEOUT_ERROR: 1.0,
+    }
+    normalized = BayesianTestAnalyzer._normalize_priors(priors)
+
+    assert pytest.approx(normalized[ErrorType.ASSERTION_ERROR]) == pytest.approx(0.5)
+    assert pytest.approx(normalized[ErrorType.IMPORT_ERROR]) == pytest.approx(0.25)
+    assert pytest.approx(normalized[ErrorType.TIMEOUT_ERROR]) == pytest.approx(0.25)
 
 
 def test_test_record_defaults_fill_timestamp_and_dependencies() -> None:
@@ -64,8 +92,8 @@ def test_test_record_defaults_fill_timestamp_and_dependencies() -> None:
         test_name="tests.sample::test_case",
         category=TestCategory.UNIT,
         result=TestStatus.PASSED,
-        timestamp=None,
-        dependencies=None,
+        timestamp=None,  # type: ignore[arg-type]
+        dependencies=None,  # type: ignore[arg-type]
     )
     assert record.timestamp.tzinfo is not None
     assert record.dependencies == []
@@ -75,7 +103,7 @@ def test_calculate_recency_weight_invalid_input_returns_one(tmp_path: Path) -> N
     """RU/EN: Invalid timestamp should fall back to neutral weight."""
 
     analyzer = BayesianTestAnalyzer(data_file=tmp_path / "history.json")
-    assert analyzer._calculate_recency_weight("not-a-datetime") == 1.0
+    assert analyzer._calculate_recency_weight("not-a-datetime") == 1.0  # type: ignore[arg-type]
 
 
 def test_load_history_reads_existing_file(tmp_path: Path) -> None:
@@ -229,26 +257,17 @@ def test_diagnose_test_failure_returns_bayesian_diagnosis(tmp_path: Path) -> Non
     assert diagnosis.recommendations
 
 
-def test_bayesian_analyzer_uniform_prior_branch(monkeypatch, tmp_path: Path) -> None:
-    """RU/EN: Force zero prior sum to exercise uniform fallback."""
-
-    import builtins
-
-    real_sum = builtins.sum
-
-    def fake_sum(iterable, *args, **kwargs):
-        values = list(iterable)
-        if fake_sum.first_call:
-            fake_sum.first_call = False
-            return 0.0
-        return real_sum(values, *args, **kwargs)
-
-    fake_sum.first_call = True
-    monkeypatch.setattr(builtins, "sum", fake_sum)
+def test_bayesian_analyzer_handles_degenerate_priors(tmp_path: Path) -> None:
+    """RU/EN: Analyzer remains functional when priors become degenerate."""
 
     analyzer = BayesianTestAnalyzer(data_file=tmp_path / "history.json")
-    uniform_values = set(analyzer.prior_probabilities.values())
-    assert len(uniform_values) == 1
+    analyzer.prior_probabilities = {error_type: 0.0 for error_type in ErrorType}
+
+    diagnosis = analyzer.diagnose_test_failure(
+        "suite::degenerate", "AssertionError: fallback", {"is_async": True}
+    )
+    assert diagnosis.probability >= 0.0
+    assert diagnosis.confidence >= 0.0
 
 
 def test_get_test_health_score_variants(tmp_path: Path) -> None:
@@ -266,6 +285,39 @@ def test_get_test_health_score_variants(tmp_path: Path) -> None:
         )
     ]
     assert analyzer.get_test_health_score("suite::health") == pytest.approx(1.0)
+
+
+def test_get_test_health_score_handles_zero_average_time(tmp_path: Path) -> None:
+    """RU/EN: Time stability should default to 1.0 when average time is non-positive."""
+
+    class TinyTime(float):
+        """Float subclass that compares greater than zero but sums to zero."""
+
+        def __new__(cls) -> "TinyTime":
+            return float.__new__(cls, 0.0)
+
+        def __gt__(self, other: float) -> bool:
+            return True
+
+    analyzer = BayesianTestAnalyzer(data_file=tmp_path / "history.json")
+    tiny_time = TinyTime()
+    analyzer.execution_history = [
+        _make_record(
+            test_name="suite::tiny_time",
+            result=TestStatus.PASSED,
+            coverage=80.0,
+            execution_time=tiny_time,
+        ),
+        _make_record(
+            test_name="suite::tiny_time",
+            result=TestStatus.PASSED,
+            coverage=85.0,
+            execution_time=tiny_time,
+        ),
+    ]
+
+    score = analyzer.get_test_health_score("suite::tiny_time")
+    assert 0.0 <= score <= 1.0
 
 
 def test_load_history_logs_warning_invalid_json(tmp_path: Path, caplog) -> None:
@@ -530,10 +582,8 @@ def test_get_test_health_score_zero_average(tmp_path: Path) -> None:
     assert analyzer.get_test_health_score("suite::zero_time") == pytest.approx(0.985)
 
 
-def test_get_test_health_score_avg_time_zero_branch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """RU/EN: Force avg_time<=0 branch via patched sum."""
+def test_get_test_health_score_tiny_average_time(tmp_path: Path) -> None:
+    """RU/EN: Tiny positive execution times keep health score within bounds."""
 
     analyzer = BayesianTestAnalyzer(data_file=tmp_path / "history.json")
     analyzer.execution_history = [
@@ -541,25 +591,16 @@ def test_get_test_health_score_avg_time_zero_branch(
             test_name="suite::timed",
             result=TestStatus.PASSED,
             coverage=80.0,
-            execution_time=1.0,
+            execution_time=1e-12,
         ),
         _make_record(
             test_name="suite::timed",
             result=TestStatus.PASSED,
             coverage=85.0,
-            execution_time=2.0,
+            execution_time=2e-12,
         ),
     ]
 
-    real_sum = sum
-
-    def fake_sum(iterable):
-        values = list(iterable)
-        if values == [1.0, 2.0]:
-            return 0.0
-        return real_sum(iterable)
-
-    monkeypatch.setattr("core.bayesian_test_analyzer.sum", fake_sum, raising=False)
     score = analyzer.get_test_health_score("suite::timed")
     assert 0.0 <= score <= 1.0
 

@@ -12,8 +12,12 @@ from __future__ import annotations
 import sys
 import types
 
+from typing import Any, cast
 
-def test_resolve_build_targets_callable_fallback(monkeypatch) -> None:
+import pytest
+
+
+def test_resolve_build_targets_callable_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """RU/EN: Verify fallback path uses module-level function."""
 
     import app  # Local import to avoid circular issues
@@ -34,26 +38,20 @@ def test_resolve_build_targets_callable_fallback(monkeypatch) -> None:
     assert resolved is build_targets_fn
 
 
-def test_resolve_build_targets_callable_none(monkeypatch) -> None:
+def test_resolve_build_targets_callable_none(monkeypatch: pytest.MonkeyPatch) -> None:
     """RU/EN: Ensure fallback returns None when no callable is registered."""
 
     import app
 
-    original_module = sys.modules["app"]
-    stub_module = types.ModuleType("app")
-    stub_module.build_nutrition_targets = None
+    for module_name in ("app", "app_module", "_app_top_module"):
+        module_obj = sys.modules.get(module_name)
+        if module_obj is not None:
+            monkeypatch.setattr(
+                cast(Any, module_obj), "build_nutrition_targets", None, raising=False
+            )
 
-    monkeypatch.setitem(sys.modules, "app", stub_module)
-    monkeypatch.setitem(sys.modules, "app_module", None)
-    monkeypatch.setitem(sys.modules, "_app_top_module", None)
+    assert getattr(app, "build_nutrition_targets") is None
 
-    globals_dict = app._resolve_build_targets_callable.__globals__
-    original_global = globals_dict["build_nutrition_targets"]
-    globals_dict["build_nutrition_targets"] = None
-    try:
-        resolved = app._resolve_build_targets_callable()
-    finally:
-        globals_dict["build_nutrition_targets"] = original_global
-        sys.modules["app"] = original_module
+    resolved = app._resolve_build_targets_callable()
 
     assert resolved is None

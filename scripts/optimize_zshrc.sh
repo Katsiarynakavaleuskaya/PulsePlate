@@ -28,6 +28,8 @@ if grep -q "SETUP_ALIASES_QUIET" "$ZSHRC_FILE"; then
     echo "⚠️  Похоже, оптимизация уже применена"
     echo "   Проверьте строки с SETUP_ALIASES_QUIET в $ZSHRC_FILE"
     echo ""
+    echo "ℹ️  Повторное применение не требуется. Прерываю выполнение."
+    exit 0
 fi
 
 # Ищем строку с загрузкой setup_cli_aliases.sh

@@ -40,11 +40,14 @@ def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:
         headers={"X-API-Key": "test_key"},
     )
     assert response.status_code == 200
-    url = response.json()["url"]
+    data = response.json()
+    if not isinstance(data, dict) or "url" not in data:
+        raise AssertionError("Signed URL response is missing 'url' field")
+    url = str(data["url"])
     if lang:
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}lang={lang}"
-    return url
+    return str(url)
 
 
 def test_week_export_pdf_ok(export_client: TestClient) -> None:
@@ -74,7 +77,8 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(plan.pdfmetrics, "registerFont", fake_register)
     monkeypatch.setattr(plan, "TTFont", lambda name, path: (name, path))
 
-    assert plan._register_font() == plan.FONT_NAME  # type: ignore[access-private-member]
+    register_font = getattr(plan, "_register_font")
+    assert register_font() == plan.FONT_NAME
     assert plan.FONT_NAME in registered
 
 
@@ -201,6 +205,11 @@ def test_slogan_fallback_to_default() -> None:
 
 
 def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
+    import importlib
+
+    global plan
+    plan = importlib.reload(plan)
+
     captured_story: List[Any] = []
 
     class DummyDoc:
@@ -211,7 +220,14 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
             right = kwargs.get("rightMargin", 0)
             self.width = width - left - right
 
-        def build(self, story, onFirstPage=None, onLaterPages=None, canvasmaker=None):  # type: ignore[override]
+        def build(
+            self,
+            story,
+            onFirstPage=None,
+            onLaterPages=None,
+            canvasmaker=None,
+            progressCallback=None,
+        ):
             captured_story.extend(story)
             canvas_cls = canvasmaker or plan.Canvas
             canvas = canvas_cls(BytesIO())

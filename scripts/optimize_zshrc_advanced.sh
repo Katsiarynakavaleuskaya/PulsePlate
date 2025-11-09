@@ -1,17 +1,54 @@
 #!/bin/bash
 # 🔧 Продвинутая оптимизация .zshrc для максимальной производительности
-# Usage: ./scripts/optimize_zshrc_advanced.sh [--dry-run]
+# Usage: ./scripts/optimize_zshrc_advanced.sh [--dry-run] [--force] [--help]
+# RU: Скрипт всегда сохраняет резервную копию ~/.zshrc и записывает оптимизированный блок в ~/.zshrc.optimized перед изменениями.
+# EN: The script always creates a timestamped backup of ~/.zshrc and writes the optimised block to ~/.zshrc.optimized before any mutation.
 
 set -euo pipefail
 
 ZSHRC_FILE="$HOME/.zshrc"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OPTIMIZED_FILE="${ZSHRC_FILE}.optimized"
 
-# Parse --dry-run flag
+print_usage() {
+    cat <<'USAGE'
+Usage: ./scripts/optimize_zshrc_advanced.sh [--dry-run] [--force] [--help]
+
+Options:
+  --dry-run   Show analysis and diffs only; no files will be modified.
+  --force     Replace the entire ~/.zshrc with the optimised block (requires explicit confirmation).
+  --help      Display this help message.
+
+By default the script performs a safe merge:
+  • creates ~/.zshrc.backup.<timestamp>
+  • writes the optimised block to ~/.zshrc.optimized
+  • replaces the existing “BEGIN/END PULSEPLATE OPTIMIZED BLOCK” section or appends it if missing.
+USAGE
+}
+
+# Parse flags
 DRY_RUN=false
-if [[ "${1:-}" == "--dry-run" ]]; then
-    DRY_RUN=true
-fi
+FORCE=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        --force)
+            FORCE=true
+            ;;
+        --help|-h)
+            print_usage
+            exit 0
+            ;;
+        *)
+            echo "❌ Unknown flag: $1"
+            print_usage
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 echo "🔧 Продвинутая оптимизация .zshrc..."
 if [ "$DRY_RUN" = true ]; then
@@ -19,58 +56,49 @@ if [ "$DRY_RUN" = true ]; then
 fi
 echo ""
 
-# Проверяем существование файла перед копированием
 if [ ! -f "$ZSHRC_FILE" ]; then
     echo "❌ Error: $ZSHRC_FILE does not exist or is not a regular file"
     exit 1
 fi
 
-# Создаем резервную копию (только если не dry-run)
+# Timestamped backup (non destructive path)
 if [ "$DRY_RUN" = false ]; then
     BACKUP_FILE="${ZSHRC_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
     cp "$ZSHRC_FILE" "$BACKUP_FILE"
     echo "✅ Создана резервная копия: $BACKUP_FILE"
     echo ""
+else
+    BACKUP_FILE="(dry-run: backup not created)"
 fi
 
-# Проверяем текущую конфигурацию
+# Quick analysis of current setup (mirrors legacy behaviour)
 echo "📊 Анализ текущей конфигурации:"
 echo ""
-
-# Проверяем наличие оптимизаций
 if grep -q "compinit.*-C" "$ZSHRC_FILE"; then
     echo "✅ compinit уже оптимизирован (кеширование)"
 else
     echo "⚠️  compinit не оптимизирован"
 fi
-
 if grep -q '\[[[:space:]]*\$-[[:space:]]*==[[:space:]]*\*i\*[[:space:]]*\]' "$ZSHRC_FILE"; then
     echo "✅ Проверка интерактивности присутствует"
 else
     echo "⚠️  Проверка интерактивности отсутствует"
 fi
-
 if grep -q "SETUP_ALIASES_QUIET" "$ZSHRC_FILE"; then
     echo "✅ Тихая загрузка алиасов настроена"
 else
     echo "⚠️  Тихая загрузка алиасов не настроена"
 fi
-
 echo ""
+
 echo "💡 Рекомендации по оптимизации:"
-echo ""
-echo "1. compinit должен использовать кеширование:"
-echo "   compinit -C -i  # вместо просто compinit"
-echo ""
-echo "2. Тяжелые операции должны выполняться только в интерактивных сессиях:"
-echo "   if [[ \$- == *i* ]]; then ... fi"
-echo ""
-echo "3. Pyenv полная инициализация только в интерактивных сессиях"
-echo ""
-echo "4. Docker completions загружать лениво"
+echo "1. compinit должен использовать кеширование (compinit -C -i)"
+echo "2. Тяжелые операции только в интерактивных сессиях (if [[ \$- == *i* ]])"
+echo "3. Pyenv полная инициализация выполняется лениво"
+echo "4. Docker completions подключаются только при необходимости"
 echo ""
 
-# Предлагаем применить оптимизации
+# Confirmation to proceed
 if [ "$DRY_RUN" = false ]; then
     read -p "Применить оптимизации? (y/N): " -n 1 -r
     echo ""
@@ -82,12 +110,17 @@ fi
 
 echo "📝 Генерирую оптимизированную версию..."
 
-# Создаем временный файл для новой конфигурации
+# Temporary artefacts
 TEMP_NEW_CONFIG=$(mktemp)
-trap "rm -f '$TEMP_NEW_CONFIG'" EXIT
+TEMP_BLOCK=$(mktemp)
+MERGED_PREVIEW=$(mktemp)
+cleanup() {
+    rm -f "$TEMP_NEW_CONFIG" "$TEMP_BLOCK" "$MERGED_PREVIEW"
+}
+trap cleanup EXIT
 
-# Генерируем оптимизированную версию во временный файл
-cat > "$TEMP_NEW_CONFIG" << 'EOF'
+# Base optimised snippet
+cat > "$TEMP_NEW_CONFIG" <<'EOF'
 # Оптимизированная загрузка для быстрого старта терминала
 # Тяжелые операции выполняются только в интерактивных сессиях
 
@@ -106,7 +139,6 @@ if [[ $- == *i* ]]; then
     fi
 
     # Оптимизированная инициализация системы автодополнения
-    # Кеширование compinit для ускорения последующих запусков
     autoload -Uz compinit
     if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
         compinit -i
@@ -124,69 +156,102 @@ fi
 if [[ $- == *i* ]]; then
     ALIASES_SCRIPT="__PROJECT_ROOT__/setup_cli_aliases.sh"
     if [[ -f "$ALIASES_SCRIPT" ]]; then
-        # Тихая загрузка - без вывода сообщений при автоматическом запуске
         SETUP_ALIASES_QUIET=true source "$ALIASES_SCRIPT"
     fi
 fi
 EOF
 
-# Replace placeholder with actual PROJECT_ROOT path
 sed -i.tmp "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$TEMP_NEW_CONFIG"
 rm -f "${TEMP_NEW_CONFIG}.tmp"
 
-# Показываем diff в dry-run режиме
+# Wrap snippet with markers
+BLOCK_START="# BEGIN PULSEPLATE OPTIMIZED BLOCK"
+BLOCK_END="# END PULSEPLATE OPTIMIZED BLOCK"
+{
+    printf "%s\n" "$BLOCK_START"
+    cat "$TEMP_NEW_CONFIG"
+    printf "%s\n" "$BLOCK_END"
+} > "$TEMP_BLOCK"
+
+# Compute safe-merge preview
+python3 - <<'PY' "$ZSHRC_FILE" "$TEMP_BLOCK" "$MERGED_PREVIEW" "$BLOCK_START" "$BLOCK_END"
+import sys
+from pathlib import Path
+
+zshrc_path, block_path, merged_path, block_start, block_end = sys.argv[1:]
+current = Path(zshrc_path).read_text(encoding="utf-8")
+block = Path(block_path).read_text(encoding="utf-8").rstrip() + "\n"
+
+if block_start in current and block_end in current:
+    pre, _, trailing = current.partition(block_start)
+    _, _, post = trailing.partition(block_end)
+    new_text = pre.rstrip("\n") + "\n" + block + post.lstrip("\n")
+else:
+    suffix = "" if current.endswith("\n") or current == "" else "\n"
+    new_text = current + suffix + "\n" + block
+
+Path(merged_path).write_text(new_text, encoding="utf-8")
+PY
+
+echo ""
+echo "📋 Diff безопасного мерджа (unified diff):"
+diff -u "$ZSHRC_FILE" "$MERGED_PREVIEW" || true
+
 if [ "$DRY_RUN" = true ]; then
     echo ""
-    echo "📋 Diff новой конфигурации (unified diff):"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━= true ]; then
-    diff -u "$ZSHRC_FILE" "$TEMP_NEW_CONFIG" || true
-    echo ""
-    echo "✅ Dry-run завершен. Используйте без --dry-run для применения изменений."
+    echo "✅ Dry-run завершен. Конфигурация не изменена."
+    echo "   Просмотрите временный блок: $TEMP_BLOCK"
     exit 0
 fi
 
-# Проверяем синтаксис новой конфигурации
+# Persist optimised block for manual audit
+cp "$TEMP_BLOCK" "$OPTIMIZED_FILE"
 echo ""
-echo "🔍 Проверяю синтаксис новой конфигурации..."
-if ! zsh -n "$TEMP_NEW_CONFIG" 2>&1; then
-    echo "❌ Ошибка синтаксиса в новой конфигурации!"
-    echo "   Файл не будет изменен. Проверьте ошибки выше."
+echo "✅ Оптимизированный блок сохранён: $OPTIMIZED_FILE"
+
+# Syntax validation
+echo ""
+echo "🔍 Проверяю синтаксис оптимизированного блока..."
+if ! zsh -n "$TEMP_BLOCK" 2>&1; then
+    echo "❌ Ошибка синтаксиса! Оригинальный файл не изменён."
     exit 1
 fi
 echo "✅ Синтаксис корректен"
 
-# Запрашиваем подтверждение перед применением
-echo ""
-echo "⚠️  WARNING: This will REPLACE your entire .zshrc file!"
-echo "   Your existing customizations will be lost."
-echo "   A backup will be saved to: $BACKUP_FILE"
-echo ""
-read -p "Continue with replacement? Type 'yes' to confirm: " -r
-echo ""
-if [[ ! $REPLY =~ ^(yes|YES)$ ]]; then
-    echo "❌ Изменения не применены (требуется явное подтверждение 'yes')"
-    exit 0
+if [ "$FORCE" = true ]; then
+    echo ""
+    echo "⚠️  FORCE MODE: полный перезапись $ZSHRC_FILE из $OPTIMIZED_FILE."
+    read -p "Type 'OVERWRITE' to confirm full replacement: " -r
+    echo ""
+    if [[ "$REPLY" != "OVERWRITE" ]]; then
+        echo "❌ Полная замена отменена. Исходный файл не изменён."
+        exit 0
+    fi
+    echo "📝 Выполняю полную замену..."
+    cp "$OPTIMIZED_FILE" "$ZSHRC_FILE"
+else
+    echo ""
+    read -p "Применить безопасный мердж (замена/добавление блока)? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "📝 Применяю безопасный мердж..."
+        cp "$MERGED_PREVIEW" "$ZSHRC_FILE"
+    else
+        echo "ℹ️  Оригинальный .zshrc оставлен без изменений. Используйте $OPTIMIZED_FILE для ручного аудита."
+        exit 0
+    fi
 fi
 
-# Применяем изменения
-echo "📝 Применяю изменения..."
-cp "$TEMP_NEW_CONFIG" "$ZSHRC_FILE"
-
-# Создаем sentinel файл для fail-safe восстановления
-SENTINEL_FILE="${ZSHRC_FILE}.new_pending"
-echo "$BACKUP_FILE" > "$SENTINEL_FILE"
-
-echo "✅ Оптимизации применены"
+echo ""
+echo "✅ Оптимизации применены без удаления пользовательских настроек"
+echo "💾 Резервная копия: $BACKUP_FILE"
+echo "🧩 Оптимизированный блок: $OPTIMIZED_FILE"
 echo ""
 echo "💡 Для применения изменений выполните:"
 echo "   source ~/.zshrc"
 echo ""
 echo "📊 Для проверки производительности:"
 echo "   time zsh -c 'source ~/.zshrc && echo Loaded'"
-echo ""
-echo "🛡️  Sentinel файл создан: $SENTINEL_FILE"
-echo "   Если shell не запускается, восстановите из: $BACKUP_FILE"
-
 echo ""
 echo "📊 Для диагностики проблем используйте:"
 echo "   $PROJECT_ROOT/scripts/diagnose_cursor.sh"

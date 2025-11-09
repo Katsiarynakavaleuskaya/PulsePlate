@@ -155,7 +155,7 @@ EOF
             # Write body to a temporary variable and status code separately
             temp_body=$(mktemp)
             # Install trap to ensure temp file is cleaned up on exit or signals
-            trap "rm -f '$temp_body'" EXIT INT TERM
+            trap 'rm -f "$temp_body"' EXIT INT TERM
             http_code=$(curl -s -w "%{http_code}" \
                 --max-time 10 \
                 --connect-timeout 5 \

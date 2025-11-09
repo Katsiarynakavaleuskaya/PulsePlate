@@ -385,6 +385,35 @@ def test_analyze_failure_with_reprtraceback() -> None:
     assert msg is not None and ("AssertionError" in msg or "test failed" in msg)
 
 
+def test_detect_mocks_in_ast_from_import() -> None:
+    """RU/EN: Detect mocks imported via unittest.mock."""
+
+    plugin = BayesianPytestPlugin()
+    code = "from unittest.mock import patch\npatch('module.call')"
+    assert plugin._detect_mocks_ast(code) is True
+
+
+def test_detect_mocks_in_ast_attribute_usage() -> None:
+    """RU/EN: Detect mocks via attribute access without direct import match."""
+
+    plugin = BayesianPytestPlugin()
+    code = """
+import unittest
+
+def use_patch():
+    unittest.mock.patch("module.func")
+"""
+    assert plugin._detect_mocks_ast(code) is True
+
+
+def test_detect_mocks_in_ast_no_keywords() -> None:
+    """RU/EN: Non-mock imports should not trigger detection."""
+
+    plugin = BayesianPytestPlugin()
+    code = "import math\nmath.sqrt(4)"
+    assert plugin._detect_mocks_ast(code) is False
+
+
 def test_print_diagnosis_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
     diagnosis = MagicMock()

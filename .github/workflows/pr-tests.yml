@@ -199,6 +199,7 @@ jobs:
             echo "⚠️  coverage.xml not found, skipping diff-cover step"
             exit 0
           fi
+          # TODO: Remove exclusions by 2025-12-31 - comprehensive tests for Bayesian modules pending
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97 \
             --exclude 'core/bayesian_recommendations.py' \
             --exclude 'core/bayesian_technical_utils.py' \

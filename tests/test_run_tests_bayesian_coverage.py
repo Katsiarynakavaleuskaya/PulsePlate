@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# sourcery skip: extract-duplicate-code
+
 import subprocess
 import sys
 from pathlib import Path
@@ -218,17 +220,17 @@ class TestRunTestsFast:
     def test_run_tests_fast_handles_parse_error(self) -> None:
         """Test run_tests_fast handles parsing errors gracefully."""
         with patch("subprocess.run") as mock_run:
-            result = Mock()
-            result.returncode = 1
-            result.stdout = "FAILED :: test_name\nERROR :: other_test"
-            result.stderr = ""
-            mock_run.return_value = result
+            process = Mock()
+            process.returncode = 1
+            process.stdout = "FAILED :: test_name\nERROR :: other_test"
+            process.stderr = ""
+            mock_run.return_value = process
 
             with patch("scripts.run_tests_bayesian.clean_cache"):
-                result = run_tests_fast()
+                run_result = run_tests_fast()
 
             # Should handle lines with :: but extract them safely
-            assert result["success"] is False
+            assert run_result["success"] is False
 
 
 class TestAnalyzeFailedTests:
@@ -350,8 +352,14 @@ class TestAnalyzeFailedTests:
 
         captured = capsys.readouterr()
         # Should only display first 5 recommendations
-        lines = [line for line in captured.out.split("\n") if line.strip().startswith("1.")]
-        assert len(lines) <= 5
+        recommendation_lines = [
+            line
+            for line in captured.out.split("\n")
+            if line.strip()
+            and line.strip()[0].isdigit()
+            and line.strip().split(".", 1)[0].isdigit()
+        ]
+        assert len(recommendation_lines) <= 5
 
 
 class TestMain:

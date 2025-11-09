@@ -108,7 +108,7 @@ omit = [
     "app/routers/vip.py",
     "conftest.py",
     "tests/*",
-    # TODO: Remove these exclusions by [DATE] - comprehensive tests pending
+    # TODO: Remove these exclusions by 2025-12-31 - comprehensive tests pending
     "core/bayesian_recommendations.py",
     "core/bayesian_technical_utils.py",
     "core/business_bayesian_analyzer.py",

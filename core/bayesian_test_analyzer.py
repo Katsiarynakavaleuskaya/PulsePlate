@@ -162,20 +162,28 @@ class BayesianTestAnalyzer:
             ErrorType.ASYNC_ERROR: 0.10,
         }
         # Нормализуем вероятности, чтобы сумма была равна 1.0
-        # Use epsilon to guard against very small sums that could produce extreme weights
-        EPSILON = 1e-12
-        prior_sum = sum(self.prior_probabilities.values())
-        if prior_sum <= EPSILON:
-            # Fallback to uniform distribution when sum is too small
-            uniform_weight = 1.0 / len(ErrorType)
-            self.prior_probabilities = {error_type: uniform_weight for error_type in ErrorType}
-        else:
-            self.prior_probabilities = {
-                error_type: weight / prior_sum
-                for error_type, weight in self.prior_probabilities.items()
-            }
+        self.prior_probabilities = self._normalize_priors(self.prior_probabilities)
 
         self.load_history()
+
+    @staticmethod
+    def _normalize_priors(priors: Dict[ErrorType, float]) -> Dict[ErrorType, float]:
+        """
+        Normalize prior probabilities, guarding against extremely small sums.
+
+        Args:
+            priors: Mapping of ErrorType to raw weight.
+
+        Returns:
+            Normalized probability distribution (sum ~= 1.0) or uniform distribution
+            when the incoming weights are effectively zero.
+        """
+        EPSILON = 1e-12
+        prior_sum = sum(priors.values())
+        if prior_sum <= EPSILON:
+            uniform_weight = 1.0 / len(ErrorType)
+            return {error_type: uniform_weight for error_type in ErrorType}
+        return {error_type: weight / prior_sum for error_type, weight in priors.items()}
 
     def _calculate_recency_weight(
         self, timestamp: datetime, half_life_hours: float = 24 * 7
@@ -738,6 +746,10 @@ class BayesianTestAnalyzer:
 
 
 # Глобальный экземпляр анализатора
+# NOTE: pytest-xdist запускает отдельные процессы для каждого воркера, поэтому
+# каждый воркер получает собственный singleton-экземпляр. Совместное обучение
+# между воркерами не происходит — это ожидаемое поведение и учитывается в
+# метриках.
 bayesian_analyzer = BayesianTestAnalyzer()
 
 

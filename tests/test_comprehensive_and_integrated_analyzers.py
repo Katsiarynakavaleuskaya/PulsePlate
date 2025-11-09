@@ -10,7 +10,7 @@ covering risk calculations, priority handling, and sensitive-data detection.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import List
+from typing import Any, List, cast
 
 import pytest
 
@@ -43,48 +43,57 @@ def test_comprehensive_analyzer_handles_critical_nutrition(monkeypatch: pytest.M
 
     analyzer = ComprehensiveBayesianAnalyzer()
 
-    analyzer.technical_analyzer = SimpleNamespace(
-        analyze_technical_aspects=lambda code, name: [
-            "AsyncMock missing",
-            "Cache invalidation",
-            "Проблемы производительности",
-            "Неэффективный сервис",
-            "Пользователь жалуется",
-        ]
+    analyzer.technical_analyzer = cast(
+        Any,
+        SimpleNamespace(
+            analyze_technical_aspects=lambda code, name: [
+                "AsyncMock missing",
+                "Cache invalidation",
+                "Проблемы производительности",
+                "Неэффективный сервис",
+                "Пользователь жалуется",
+            ]
+        ),
     )
 
-    analyzer.nutrition_analyzer = SimpleNamespace(
-        analyze_nutrition_safety=lambda code, name: [
-            _make_nutrition_result("Опасно низкий BMI"),
-            _make_nutrition_result("dangerous calorie deficit"),
-        ],
-        get_safety_score=lambda: 0.2,
+    analyzer.nutrition_analyzer = cast(
+        Any,
+        SimpleNamespace(
+            analyze_nutrition_safety=lambda code, name: [
+                _make_nutrition_result("Опасно низкий BMI"),
+                _make_nutrition_result("dangerous calorie deficit"),
+            ],
+            get_safety_score=lambda: 0.2,
+        ),
     )
 
-    analyzer.business_analyzer = SimpleNamespace(
-        analyze_business_logic=lambda code, name: [
-            BusinessTestResult(
-                test_name=name,
-                success=False,
-                business_category=BusinessCategory.MONETIZATION,
-                error_type=BusinessErrorType.REVENUE_LEAK,
-                error_message="Падение доходов и рост затрат",
-                revenue_impact="loss",
-                cost_impact="high spend",
-                customer_impact="churn",
-                optimization_potential="raise price",
-            ),
-            BusinessTestResult(
-                test_name=name,
-                success=False,
-                business_category=BusinessCategory.CUSTOMER_ACQUISITION,
-                error_type=BusinessErrorType.CUSTOMER_CHURN,
-                error_message="Клиент уходит без онбординга",
-                customer_impact="retention",
-            ),
-        ],
-        generate_cost_savings_recommendations=lambda: ["Оптимизировать инфраструктуру"],
-        generate_revenue_optimization_recommendations=lambda: ["Добавить A/B тестирование цен"],
+    analyzer.business_analyzer = cast(
+        Any,
+        SimpleNamespace(
+            analyze_business_logic=lambda code, name: [
+                BusinessTestResult(
+                    test_name=name,
+                    success=False,
+                    business_category=BusinessCategory.MONETIZATION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                    error_message="Падение доходов и рост затрат",
+                    revenue_impact="loss",
+                    cost_impact="high spend",
+                    customer_impact="churn",
+                    optimization_potential="raise price",
+                ),
+                BusinessTestResult(
+                    test_name=name,
+                    success=False,
+                    business_category=BusinessCategory.CUSTOMER_ACQUISITION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                    error_message="Клиент уходит без онбординга",
+                    customer_impact="retention",
+                ),
+            ],
+            generate_cost_savings_recommendations=lambda: ["Оптимизировать инфраструктуру"],
+            generate_revenue_optimization_recommendations=lambda: ["Добавить A/B тестирование цен"],
+        ),
     )
 
     result = analyzer.analyze_comprehensively(
@@ -143,22 +152,33 @@ def test_integrated_analyzer_comprehensive_output(monkeypatch: pytest.MonkeyPatc
 
     analyzer = IntegratedBayesianAnalyzer()
 
-    analyzer.technical_analyzer = SimpleNamespace(
-        _analyze_technical_aspects=lambda code, name: [
-            "Mock usage without AsyncMock",
-            "SQL injection risk",
-            "dangerous instruction logged",
-        ]
+    analyzer.technical_analyzer = cast(
+        Any,
+        SimpleNamespace(
+            _analyze_technical_aspects=lambda code, name: [
+                "Mock usage without AsyncMock",
+                "SQL injection risk",
+                "dangerous instruction logged",
+            ]
+        ),
     )
-    analyzer.nutrition_analyzer = SimpleNamespace(
-        analyze_nutrition_safety=lambda code, name: [_make_nutrition_result("dangerous allergen")],
+    analyzer.nutrition_analyzer = cast(
+        Any,
+        SimpleNamespace(
+            analyze_nutrition_safety=lambda code, name: [
+                _make_nutrition_result("dangerous allergen")
+            ],
+        ),
     )
-    analyzer._analyze_safety_aspects = lambda code, name: ["Hardcoded password detected"]
-    analyzer._analyze_philosophy_compliance = lambda code, name: [
+    cast(Any, analyzer)._analyze_safety_aspects = lambda code, name: ["Hardcoded password detected"]
+    cast(Any, analyzer)._analyze_philosophy_compliance = lambda code, name: [
         "Нарушение философии бренда",
         "Логирование чувствительных данных",
     ]
-    analyzer._assess_business_impact = lambda *args: {"revenue": "risk", "customers": "drop"}
+    cast(Any, analyzer)._assess_business_impact = lambda *args: {
+        "revenue": "risk",
+        "customers": "drop",
+    }
 
     result = analyzer.analyze_test_comprehensively(
         "password = '1234'\nlogger.info('token=%s', token)\n", "suite::test_phi", "tests/phi.py"
@@ -306,3 +326,109 @@ def test_identify_optimization_opportunities_full() -> None:
     assert "Добавить расширенную аналитику BMI" in opportunities
     assert "Оптимизировать стратегию ценообразования" in opportunities
     assert "Улучшить процесс привлечения клиентов" in opportunities
+
+
+def test_cost_impact_thresholds() -> None:
+    """RU/EN: Cover each cost impact classification branch."""
+
+    analyzer = ComprehensiveBayesianAnalyzer()
+    assert analyzer._assess_cost_impact([], [], []) == "Нет влияния на затраты"
+
+    minimal = analyzer._assess_cost_impact(
+        ["неэффективный код"],
+        [],
+        ["Снижение затрат на поддержку"],
+    )
+    assert minimal == "Минимальное влияние на затраты"
+
+    medium = analyzer._assess_cost_impact(
+        ["неэффективный алгоритм", "неэффективный кэш", "неэффективная БД"],
+        [],
+        [],
+    )
+    assert medium == "Среднее влияние на затраты"
+
+    critical = analyzer._assess_cost_impact(
+        ["неэффективный сервис"] * 3,
+        [],
+        ["Рост затрат"] * 3,
+    )
+    assert critical == "Критическое влияние на затраты"
+
+
+def test_health_impact_critical_branch() -> None:
+    """RU/EN: Health impact escalates to critical with many dangerous issues."""
+
+    analyzer = ComprehensiveBayesianAnalyzer()
+    assert (
+        analyzer._assess_health_impact(
+            ["Опасно низкие калории", "Dangerous sugar intake", "Опасно высокий холестерин"]
+        )
+        == "Среднее влияние на здоровье"
+    )
+    assert analyzer._assess_health_impact(["опасно"] * 6) == "Критическое влияние на здоровье"
+
+
+def test_action_plan_handles_no_data() -> None:
+    """RU/EN: Action plan should return empty actions without data."""
+
+    analyzer = ComprehensiveBayesianAnalyzer()
+    assert analyzer.generate_action_plan() == {
+        "immediate_actions": [],
+        "short_term_actions": [],
+        "long_term_actions": [],
+        "cost_optimization": [],
+        "revenue_growth": [],
+    }
+
+
+def test_unsafe_open_detector_handles_async_and_closing() -> None:
+    """RU/EN: Async contexts and contextlib.closing should not raise warnings."""
+
+    analyzer = IntegratedBayesianAnalyzer()
+    async_code = """
+import contextlib
+
+@contextlib.asynccontextmanager
+async def guard():
+    yield
+
+async def use_async():
+    async with guard():
+        open("file.txt")
+"""
+    assert analyzer._check_unsafe_file_opens(async_code) is False
+
+    closing_code_attr = """
+import contextlib
+
+def use_closing_attr():
+    handle = contextlib.closing(open("file.txt"))
+    return handle
+"""
+    assert analyzer._check_unsafe_file_opens(closing_code_attr) is False
+
+    closing_code_direct = """
+from contextlib import closing
+
+def use_closing_import():
+    resource = closing(open("data.csv"))
+    return resource
+"""
+    assert analyzer._check_unsafe_file_opens(closing_code_direct) is False
+
+
+def test_sensitive_logging_fallbacks_and_formats() -> None:
+    """RU/EN: Syntax fallback and formatted strings should detect leaks."""
+
+    analyzer = IntegratedBayesianAnalyzer()
+    syntax_error_code = 'logger.info("token"'
+    assert analyzer._check_sensitive_data_logging(syntax_error_code) is True
+
+    formatted_code = """
+import logging
+logger = logging.getLogger(__name__)
+api_key = "abc123"
+logger.warning(f"leak: {api_key}")
+"""
+    assert analyzer._check_sensitive_data_logging(formatted_code) is True

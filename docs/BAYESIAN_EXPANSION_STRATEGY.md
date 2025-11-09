@@ -120,9 +120,8 @@
 
 **Уникальность**:
 
-- Не требует A/B тестов заранее - учится автоматически
-- Адаптируется к изменениям предпочтений пользователя
-- Учитывает контекст (время суток, сезонность, цели)
+- Не требует A/B тестов заранее: алгоритм учится автоматически и адаптируется к изменениям предпочтений пользователя.
+- Учитывает контекст (время суток, сезонность, цели).
 
 **Файл**: `core/bayesian/adaptive_recommender.py`
 
@@ -137,9 +136,9 @@
 
 **Интеграция**:
 
-- Интеграция с `core/recommendations.py`
-- Обновление на основе кликов/игнорирования рекомендаций
-- Персонализация для каждого пользователя
+- Использует `core/recommendations.py` как точку расширения рекомендаций.
+- Обновляет веса на основе кликов и игнорирования.
+- Персонализирует выдачу для каждого пользователя.
 
 **Ожидаемый эффект**:
 
@@ -154,15 +153,14 @@
 
 **Решение**: **Bayesian Change Point Detection**:
 
-- Обнаруживает изменения в паттернах питания
-- Использует prior знания о нормальных паттернах
-- Вычисляет вероятность того, что изменение значимо
+- Обнаруживает изменения в паттернах питания.
+- Использует prior-знания о нормальных паттернах.
+- Вычисляет вероятность того, что изменение значимо.
 
 **Уникальность**:
 
-- Не требует пороговых значений - использует вероятностный подход
-- Учитывает естественную вариативность пользователя
-- Предупреждает о проблемах до того, как они станут критическими
+- Не требует жестких порогов: использует вероятностный подход и учитывает естественную вариативность пользователя.
+- Предупреждает о проблемах до того, как они станут критическими.
 
 **Файл**: `core/bayesian/health_anomaly_detector.py`
 
@@ -193,15 +191,12 @@
 
 **Решение**: **Bayesian Optimization** (Gaussian Process):
 
-- Оптимизирует гиперпараметры (TTL кэша, размер батча)
-- Учитывает неопределенность измерений
-- Балансирует exploration vs exploitation
+- Оптимизирует гиперпараметры (TTL кэша, размер батча) и учитывает неопределенность измерений.
+- Балансирует exploration и exploitation.
 
 **Уникальность**:
 
-- Автоматическая оптимизация без ручного тюнинга
-- Учитывает изменяющиеся паттерны нагрузки
-- Минимизирует количество экспериментов
+- Автоматически оптимизирует параметры без ручного тюнинга, учитывает изменяющиеся паттерны нагрузки и минимизирует количество экспериментов.
 
 **Файл**: `core/bayesian/api_performance_optimizer.py`
 
@@ -225,15 +220,11 @@
 
 **Решение**: **Contextual Bandits**:
 
-- Разные варианты UI = разные arms
-- Учитывает контекст пользователя (опыт, цели, устройство)
-- Обновляется на основе взаимодействий
+- Рассматривает разные варианты UI как arms, учитывает контекст пользователя (опыт, цели, устройство) и обновляется на основе взаимодействий.
 
 **Уникальность**:
 
-- Персонализация не только контента, но и интерфейса
-- Учитывает контекст использования
-- Автоматическая адаптация без ручной настройки
+- Персонализирует не только контент, но и интерфейс, учитывает контекст использования и автоматически адаптируется без ручной настройки.
 
 **Файл**: `core/bayesian/ui_personalizer.py`
 
@@ -257,14 +248,11 @@
 
 **Решение**: **Bayesian Network**:
 
-- Моделирует причинно-следственные связи
-- Учитывает неопределенность в данных
-- Предоставляет объяснимые диагнозы
+- Моделирует причинно-следственные связи, учитывает неопределенность в данных и предоставляет объяснимые диагнозы.
 
 **Уникальность**:
 
-- Объяснимый AI - показывает причинно-следственные связи
-- Учитывает множественные факторы одновременно
+- Объяснимый AI: показывает причинно-следственные связи и одновременно учитывает множественные факторы.
 - Предоставляет вероятностные диагнозы с уверенностью
 
 **Файл**: `core/bayesian/nutrition_diagnostic_engine.py`
@@ -929,54 +917,82 @@ class Insight(BaseModel):
 - аудита/объяснимости: запись причин, что повлияло на итоговые границы (baseline vs clamp, какие выбросы удалены).
 
 ```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Final, List, Tuple, TypedDict
+
+
+class BaselineOutlierReport(TypedDict, total=False):
+    """Структура отчёта об удалённых выбросах. EN: Outlier removal summary."""
+
+    method: str
+    removed_count: int
+    notes: str
+
+
+@dataclass
+class Limits:
+    """Итоговые безопасные границы. EN: Final personalised safety envelope."""
+
+    min_safe: float
+    max_safe: float
+    confidence: float
+    message: str
+    rationale: str
+
+
 class PersonalizedSafetyLimits:
-    # Абсолютные границы безопасности (подлежат мед. ревью перед продом)
-    # Absolute safety guardrails (require medical review before production)
-    MIN_SAFE_FLOOR_KCAL = 1000
-    MAX_SAFE_CEILING_KCAL = 4500
+    # RU: Значения-заглушки, NFR — требуется утверждение клинико‑нутриционного совета.
+    # EN: Placeholder guardrails — obtain approval via the Medical Safety Workflow (§ Medical Safety Approval Workflow).
+    MIN_SAFE_FLOOR_KCAL: Final[float] = 1000.0
+    MAX_SAFE_CEILING_KCAL: Final[float] = 4500.0
 
     def get_calorie_limits(self, user_id: int) -> Limits:
+        """Расчёт персональных безопасных границ по истории пользователя."""
         # 1) История пользователя
-        user_history = self._get_user_history(user_id)  # e.g., список дневных kcal
+        user_history: List[float] = self._get_user_history(user_id)  # e.g., список дневных kcal
 
         # 2) Робастная оценка базового уровня c mitigation выбросов
         #    Robust baseline estimation with outlier mitigation
         baseline_kcal, outlier_info = self._estimate_baseline_robust(user_history)
 
         # 3) Первичные персональные границы на основе baseline (байесовская усадка опциональна)
-        min_from_baseline = baseline_kcal * 0.8
-        max_from_baseline = baseline_kcal * 1.3
+        baseline_min: float = baseline_kcal * 0.8
+        baseline_max: float = baseline_kcal * 1.3
 
-        # 4) Применение абсолютных защитных границ (safety over personalization)
+        # 4) Применение абсолютных защитных границ (safety over personalisation)
         #    Clamp to absolute guardrails
-        clamped_min = max(min_from_baseline, self.MIN_SAFE_FLOOR_KCAL)
-        clamped_max = min(max_from_baseline, self.MAX_SAFE_CEILING_KCAL)
+        clamped_min: float = max(baseline_min, self.MIN_SAFE_FLOOR_KCAL)
+        clamped_max: float = min(baseline_max, self.MAX_SAFE_CEILING_KCAL)
 
         # 5) Определение доминирующего правила (baseline vs clamp)
         #    Which rule dominated the final limits
-        if clamped_min > min_from_baseline:
+        if clamped_min > baseline_min:
             dominant_rule = "clamp_floor"
-        elif clamped_max < max_from_baseline:
+        elif clamped_max < baseline_max:
             dominant_rule = "clamp_ceiling"
         else:
             dominant_rule = "baseline"
 
         # 6) Аудит и объяснение (audit + human‑readable rationale)
-        rationale = (
+        rationale: str = (
             f"Baseline={baseline_kcal:.0f} kcal; "
-            f"Initial=[{min_from_baseline:.0f},{max_from_baseline:.0f}] -> "
+            f"Initial=[{baseline_min:.0f},{baseline_max:.0f}] -> "
             f"Clamped=[{clamped_min:.0f},{clamped_max:.0f}] "
             f"(rule={dominant_rule}; removed_outliers={outlier_info.get('removed_count', 0)})"
         )
-        self._audit_logger.record({
-            "user_id": user_id,
-            "baseline_method": outlier_info.get("method", "trimmed_median_10pct"),
-            "removed_outliers_count": outlier_info.get("removed_count", 0),
-            "limits_before_clamp": [min_from_baseline, max_from_baseline],
-            "limits_after_clamp": [clamped_min, clamped_max],
-            "dominant_rule": dominant_rule,
-            "rationale": rationale,
-        })
+        self._audit_logger.record(
+            {
+                "user_id": user_id,
+                "baseline_method": outlier_info.get("method", "trimmed_median_10pct"),
+                "removed_outliers_count": outlier_info.get("removed_count", 0),
+                "limits_before_clamp": [baseline_min, baseline_max],
+                "limits_after_clamp": [clamped_min, clamped_max],
+                "dominant_rule": dominant_rule,
+                "rationale": rationale,
+            }
+        )
 
         # 7) Возврат рассчитанных границ с сообщением
         return Limits(
@@ -990,21 +1006,23 @@ class PersonalizedSafetyLimits:
             rationale=rationale,  # human‑readable для UI/логов
         )
 
-    def _estimate_baseline_robust(self, kcal_values: list[float]) -> tuple[float, dict]:
+    def _estimate_baseline_robust(
+        self, kcal_values: List[float]
+    ) -> Tuple[float, BaselineOutlierReport]:
         """
         RU: Робастная оценка baseline: фильтр невалидных значений, 10%-ое симметричное trimming,
             медиана как устойчивая оценка, отчёт об удалённых выбросах.
         EN: Robust baseline: drop invalids, 10% symmetric trimming, median as robust estimate,
             report removed outliers.
         """
-        cleaned = [v for v in kcal_values if isinstance(v, (int, float)) and v > 0]
+        cleaned: List[float] = [v for v in kcal_values if isinstance(v, (int, float)) and v > 0]
         if not cleaned:
             # Fallback на популяционный prior (пример)
-            return 2000.0, {"method": "fallback_prior", "removed_count": 0}
+            return 2000.0, BaselineOutlierReport(method="fallback_prior", removed_count=0)
         cleaned.sort()
         n = len(cleaned)
         trim = max(int(0.1 * n), 0)
-        trimmed = cleaned[trim:n - trim] if n - 2 * trim > 0 else cleaned
+        trimmed: List[float] = cleaned[trim : n - trim] if n - 2 * trim > 0 else cleaned
         removed_count = n - len(trimmed)
         # Медиана как робастная оценка
         mid = len(trimmed) // 2
@@ -1012,8 +1030,23 @@ class PersonalizedSafetyLimits:
             median_val = float(trimmed[mid])
         else:
             median_val = float((trimmed[mid - 1] + trimmed[mid]) / 2.0)
-        return median_val, {"method": "trimmed_median_10pct", "removed_count": removed_count}
+        return median_val, BaselineOutlierReport(
+            method="trimmed_median_10pct", removed_count=removed_count
+        )
 ```
+
+#### Medical Safety Approval Workflow
+
+- Подготовить предложение по guardrails в формате `safety_limits.proposal.yaml` и передать его клинико‑нутриционному совету (регламент: еженедельный Medical Review sync).
+- Зафиксировать утверждённые значения в репозитории конфигураций (`config/safety_limits.yaml`) и синхронизировать с продуктовой документацией.
+- Пройти юридический аудит на соответствие требованиям Apple/Google и локальных регуляторов до включения в прод.
+
+#### Recommended Unit Tests Before Production Enablement
+
+- **Empty history fallback**: ожидаем использование популяционного prior и корректное сообщение.
+- **All values flagged as outliers**: trimmed набор пустой → fallback не ломает расчёт, аудит фиксирует `removed_count == len(history)`.
+- **Extremal values**: сценарии с очень малыми/большими входами проверяют корректную работу guardrails (мин/макс не выходят за допустимые пределы).
+- **Clamp dominance reporting**: кейсы, в которых доминирует `clamp_floor` или `clamp_ceiling`, возвращают ожидаемое `dominant_rule` и человеко‑читаемую `rationale`.
 
 Важно:
 
@@ -1120,7 +1153,6 @@ Acceptance Criteria:
 - Batch: завершение ежедневных оффлайн‑обновлений ≤ 60 мин; алерты при SLA‑нарушениях.
 - Кэш: hit‑rate ≥ 80% для валидации/рекомендаций; корректная инвалидация при новых событиях.
 - Ответственные: Backend/SRE (кэш/очереди/SLO), DS/ML (идемпотентность статистик), QA (нагрузочные тесты).
-
 
 3) Data Privacy
 Проблема: GDPR/этика требуют законности, минимизации, прозрачности и безопасности обработки.

@@ -5,7 +5,8 @@ Uses property-based testing to maximize coverage without complex mocking.
 
 import os
 import time
-from typing import Dict, List
+import warnings
+from typing import Any, Dict, List
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -35,8 +36,11 @@ class TestPremiumWeekHypothesisSimple:
     def teardown_method(self):
         """RU/EN: Close TestClient to avoid lingering event loops."""
         self.client.close()
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
-    def _measure_response_time(self, url: str, payload: Dict, headers: Dict[str, str]) -> tuple:
+    def _measure_response_time(
+        self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
+    ) -> tuple[Any, float]:
         """
         Measure API request execution time.
 
@@ -51,6 +55,15 @@ class TestPremiumWeekHypothesisSimple:
         start_time = time.time()
         response = self.client.post(url, json=payload, headers=headers)
         generation_time = time.time() - start_time
+        if generation_time > MEAL_PLAN_GENERATION_WARNING:
+            warnings.warn(
+                (
+                    f"Meal plan generation exceeded warning threshold "
+                    f"({generation_time:.2f}s > {MEAL_PLAN_GENERATION_WARNING:.2f}s)"
+                ),
+                RuntimeWarning,
+                stacklevel=2,
+            )
         return response, generation_time
 
     @settings(deadline=DEADLINE_MS)

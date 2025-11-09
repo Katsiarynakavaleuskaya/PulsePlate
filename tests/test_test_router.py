@@ -1,10 +1,22 @@
 """Tests for the test router endpoints."""
 
-import pytest
-from datetime import datetime
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+import importlib
 import os
+import sys
+from datetime import datetime
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+def _load_app() -> Any:
+    """Reload app module to respect current environment variables."""
+    if "app" in sys.modules:
+        del sys.modules["app"]
+    module = importlib.import_module("app")
+    return module.app
 
 
 @pytest.fixture
@@ -23,10 +35,7 @@ def mock_env_production():
 
 def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
-    # Import app after setting environment
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     response = client.post("/api/v1/test/rate-limit")
 
@@ -49,9 +58,7 @@ def test_rate_limit_endpoint(mock_env_staging):
 
 def test_health_endpoint(mock_env_staging):
     """Test the health check endpoint."""
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     response = client.get("/api/v1/test/health")
 
@@ -68,9 +75,7 @@ def test_health_endpoint(mock_env_staging):
 
 def test_echo_endpoint(mock_env_staging):
     """Test the echo endpoint returns sent data."""
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     test_data = {"test_key": "test_value", "nested": {"key": "value"}, "array": [1, 2, 3]}
 
@@ -92,9 +97,7 @@ def test_echo_endpoint(mock_env_staging):
 
 def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     cf_ray_id = "test-cf-ray-123"
     response = client.post("/api/v1/test/rate-limit", headers={"cf-ray": cf_ray_id})
@@ -106,9 +109,7 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
 
 def test_rate_limit_with_request_id_header(mock_env_staging):
     """Test rate limit endpoint captures generic request ID."""
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     request_id = "test-request-456"
     response = client.post("/api/v1/test/rate-limit", headers={"x-request-id": request_id})
@@ -120,17 +121,7 @@ def test_rate_limit_with_request_id_header(mock_env_staging):
 
 def test_test_router_not_available_in_production(mock_env_production):
     """Test that test endpoints are not available in production."""
-    # Need to reimport app after environment change
-    import importlib
-    import sys
-
-    # Remove app from cache to force reimport with new env
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
-
-    client = TestClient(app)
+    client = TestClient(_load_app())
 
     # Test endpoints should return 404 in production
     response = client.post("/api/v1/test/rate-limit")

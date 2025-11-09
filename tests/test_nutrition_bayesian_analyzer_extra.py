@@ -9,11 +9,12 @@ privacy leaks, macro balance) to raise diff coverage.
 
 from __future__ import annotations
 
-import re
+import pytest
 
 from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
     NutritionCategory,
+    NutritionErrorType,
     NutritionTestResult,
 )
 
@@ -94,7 +95,9 @@ def test_add_nutrition_test_result_appends() -> None:
     assert analyzer.test_results
 
 
-def test_calorie_analysis_handles_value_error(monkeypatch) -> None:
+def test_calorie_analysis_handles_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """RU/EN: Guard against conversion errors when parsing calories."""
 
     analyzer = NutritionBayesianAnalyzer()
@@ -107,18 +110,18 @@ def test_calorie_analysis_handles_value_error(monkeypatch) -> None:
     assert analyzer._analyze_calorie_calculations("calories = 1200", "suite::cal") == []
 
 
-def test_bmi_analysis_handles_value_error(monkeypatch) -> None:
+def test_bmi_analysis_handles_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """RU/EN: BMI parser should ignore values raising ValueError."""
 
     analyzer = NutritionBayesianAnalyzer()
-    real_float = float
 
     def fake_float(value: str) -> float:
         raise ValueError("boom")
 
     monkeypatch.setattr("core.nutrition_bayesian_analyzer.float", fake_float, raising=False)
     assert analyzer._analyze_bmi_calculations("bmi = 22.5", "suite::bmi") == []
-    monkeypatch.setattr("core.nutrition_bayesian_analyzer.float", real_float, raising=False)
 
 
 def test_macro_threshold_breaches() -> None:
@@ -135,3 +138,73 @@ carbs = 600
     assert any("белка" in msg for msg in messages)
     assert any("жиров" in msg for msg in messages)
     assert any("углеводов" in msg for msg in messages)
+
+
+def test_macro_thresholds_low_variants() -> None:
+    """RU/EN: Ensure low-threshold detection fires for each macro."""
+
+    analyzer = NutritionBayesianAnalyzer()
+    protein_low = analyzer.analyze_nutrition_safety(
+        """
+protein = 1
+fat = 50
+carbs = 50
+""",
+        "suite::protein_low",
+    )
+    assert any(result.error_type == NutritionErrorType.PROTEIN_TOO_LOW for result in protein_low)
+
+    fat_low = analyzer.analyze_nutrition_safety(
+        """
+protein = 60
+fat = 1
+carbs = 60
+""",
+        "suite::fat_low",
+    )
+    assert any(result.error_type == NutritionErrorType.FAT_TOO_LOW for result in fat_low)
+
+    carb_low = analyzer.analyze_nutrition_safety(
+        """
+protein = 60
+fat = 60
+carbs = 1
+""",
+        "suite::carb_low",
+    )
+    assert any(result.error_type == NutritionErrorType.CARB_TOO_LOW for result in carb_low)
+
+
+def test_macro_thresholds_high_variants() -> None:
+    """RU/EN: Ensure high-threshold detection fires for each macro."""
+
+    analyzer = NutritionBayesianAnalyzer()
+    protein_high = analyzer.analyze_nutrition_safety(
+        """
+protein = 80
+fat = 5
+carbs = 5
+""",
+        "suite::protein_high",
+    )
+    assert any(result.error_type == NutritionErrorType.PROTEIN_TOO_HIGH for result in protein_high)
+
+    fat_high = analyzer.analyze_nutrition_safety(
+        """
+protein = 5
+fat = 80
+carbs = 5
+""",
+        "suite::fat_high",
+    )
+    assert any(result.error_type == NutritionErrorType.FAT_TOO_HIGH for result in fat_high)
+
+    carb_high = analyzer.analyze_nutrition_safety(
+        """
+protein = 5
+fat = 5
+carbs = 200
+""",
+        "suite::carb_high",
+    )
+    assert any(result.error_type == NutritionErrorType.CARB_TOO_HIGH for result in carb_high)
