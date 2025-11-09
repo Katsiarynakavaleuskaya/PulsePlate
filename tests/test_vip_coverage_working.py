@@ -8,6 +8,8 @@ EN: VIP module tests with real endpoints (echo mode)
 
 from fastapi.testclient import TestClient
 
+from core.recipe_synth import reset_recipe_synthesizer
+
 
 def _get_app():
     """Safely get the FastAPI app instance."""
@@ -24,6 +26,11 @@ import pytest
 @pytest.mark.smoke
 class TestVIPCoverageWorking:
     """VIP coverage tests for echo mode endpoints."""
+
+    def setup_method(self) -> None:
+        """RU/EN: Reset recipe synthesizer singleton before each test."""
+
+        reset_recipe_synthesizer()
 
     def test_vip_weekly_plan_endpoint(self):
         """Тест VIP weekly plan endpoint в echo режиме"""

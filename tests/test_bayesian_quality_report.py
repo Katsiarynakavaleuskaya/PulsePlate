@@ -42,6 +42,37 @@ class TestBayesianQualityReport:
         assert result_zero[ErrorType.ASSERTION_ERROR.value] == 0.0
         assert result_zero[ErrorType.TYPE_ERROR.value] == 0.0
 
+    def test_calculate_confidence_from_priors(self) -> None:
+        """Test calculate_confidence_from_priors function with various edge cases."""
+        from scripts.bayesian_quality_report import calculate_confidence_from_priors
+
+        # Empty distribution
+        assert calculate_confidence_from_priors({}) == 0.0
+
+        # Single probability (full confidence)
+        single = {"error1": 1.0}
+        assert calculate_confidence_from_priors(single) == 1.0
+
+        # All-zero priors
+        all_zero = {"error1": 0.0, "error2": 0.0}
+        assert calculate_confidence_from_priors(all_zero) == 0.0
+
+        # Uniform distribution (low confidence)
+        uniform = {"error1": 0.5, "error2": 0.5}
+        uniform_confidence = calculate_confidence_from_priors(uniform)
+        assert 0.0 <= uniform_confidence <= 1.0
+        assert uniform_confidence < 0.5  # Uniform should have low confidence
+
+        # Skewed distribution (higher confidence)
+        skewed = {"error1": 0.9, "error2": 0.1}
+        skewed_confidence = calculate_confidence_from_priors(skewed)
+        assert 0.0 <= skewed_confidence <= 1.0
+        assert skewed_confidence > uniform_confidence  # Skewed should have higher confidence
+
+        # Very small probabilities (near-zero sum)
+        small = {"error1": 1e-15, "error2": 1e-15}
+        assert calculate_confidence_from_priors(small) == 0.0
+
     def test_main_success(self, tmp_path: Path) -> None:
         """Тест успешного выполнения main()."""
         from scripts.bayesian_quality_report import main

@@ -385,7 +385,7 @@ def test_analyze_failure_with_reprtraceback() -> None:
     assert msg is not None and ("AssertionError" in msg or "test failed" in msg)
 
 
-def test_print_diagnosis_disabled() -> None:
+def test_print_diagnosis_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
     diagnosis = MagicMock()
     diagnosis.most_likely_cause = "Test error"
@@ -396,7 +396,7 @@ def test_print_diagnosis_disabled() -> None:
     diagnosis.alternative_causes = []
 
     # Should not print when env var is not set
-    os.environ.pop("BAYESIAN_DIAG_VERBOSE", None)
+    monkeypatch.delenv("BAYESIAN_DIAG_VERBOSE", raising=False)
     plugin._print_diagnosis(diagnosis)  # Should not raise
 
 

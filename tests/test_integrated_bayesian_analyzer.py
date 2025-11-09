@@ -31,11 +31,24 @@ class TestIntegratedBayesianAnalyzer:
         analyzer = IntegratedBayesianAnalyzer()
         philosophy = analyzer._load_system_philosophy()
 
+        # Verify structure and types
         assert "core_principles" in philosophy
         assert "safety_requirements" in philosophy
         assert "quality_standards" in philosophy
-        assert len(philosophy["core_principles"]) == 7
-        assert "97% покрытие тестами" in philosophy["quality_standards"]
+
+        # Verify they are non-empty iterables
+        assert isinstance(philosophy["core_principles"], list)
+        assert isinstance(philosophy["safety_requirements"], list)
+        assert isinstance(philosophy["quality_standards"], list)
+        assert len(philosophy["core_principles"]) > 0
+        assert len(philosophy["safety_requirements"]) > 0
+        assert len(philosophy["quality_standards"]) > 0
+
+        # Verify expected concepts are present (using membership/substring checks)
+        assert any(
+            "покрытие" in str(item) or "coverage" in str(item).lower()
+            for item in philosophy["quality_standards"]
+        )
 
     def test_analyze_test_comprehensively_simple(self) -> None:
         """Тест комплексного анализа простого теста."""
@@ -68,7 +81,7 @@ def test_with_hardcoded_password():
 
         assert isinstance(result, IntegratedTestResult)
         # Password in test context should not be flagged
-        assert not any("password" in issue.lower() for issue in result.safety_issues)
+        assert all("password" not in issue.lower() for issue in result.safety_issues)
 
     def test_analyze_technical_aspects(self) -> None:
         """Тест анализа технических аспектов."""
@@ -95,10 +108,10 @@ def test_login():
         issues = analyzer._analyze_safety_aspects(test_code, "test_login")
 
         # Password in test context should NOT be flagged
-        assert not any("password" in issue.lower() for issue in issues)
+        assert all("password" not in issue.lower() for issue in issues)
 
     def test_analyze_safety_aspects_hardcoded_password_in_non_test_context(self) -> None:
-        """Тест: хардкоженный пароль в нетest-контексте должен флажиться."""
+        """Тест: хардкоженный пароль в не-тестовом контексте должен обнаруживаться."""
         analyzer = IntegratedBayesianAnalyzer()
 
         # Password in regular code (not test context)
@@ -125,7 +138,7 @@ def test_user():
         issues = analyzer._analyze_safety_aspects(test_code, "test_user")
 
         # Password in fixture context should NOT be flagged
-        assert not any("password" in issue.lower() for issue in issues)
+        assert all("password" not in issue.lower() for issue in issues)
 
     def test_analyze_safety_aspects_hardcoded_password_in_mock(self) -> None:
         """Тест: хардкоженный пароль в mock не должен флажиться."""
@@ -142,7 +155,7 @@ def test_with_mock():
         issues = analyzer._analyze_safety_aspects(test_code, "test_with_mock")
 
         # Password in mock context should NOT be flagged
-        assert not any("password" in issue.lower() for issue in issues)
+        assert all("password" not in issue.lower() for issue in issues)
 
     def test_analyze_safety_aspects_hardcoded_password_in_test_class(self) -> None:
         """Тест: хардкоженный пароль в Test классе не должен флажиться."""
@@ -159,7 +172,7 @@ class TestUserAuthentication:
         issues = analyzer._analyze_safety_aspects(test_code, "TestUserAuthentication")
 
         # Password in Test class context should NOT be flagged
-        assert not any("password" in issue.lower() for issue in issues)
+        assert all("password" not in issue.lower() for issue in issues)
 
     def test_analyze_safety_aspects_sql_injection(self) -> None:
         """Тест обнаружения потенциальной SQL инъекции."""

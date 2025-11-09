@@ -13,6 +13,7 @@ from enum import Enum
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
 from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
+    NutritionTestResult,
 )
 
 from core.bayesian_technical_utils import analyze_technical_aspects_common
@@ -103,7 +104,9 @@ class IntegratedBayesianAnalyzer:
         technical_issues = self._analyze_technical_aspects(test_code, test_name)
 
         # Nutrition analysis
-        nutrition_results = self.nutrition_analyzer.analyze_nutrition_safety(test_code, test_name)
+        nutrition_results: List[NutritionTestResult] = (
+            self.nutrition_analyzer.analyze_nutrition_safety(test_code, test_name)
+        )
         nutrition_issues = [r.error_message for r in nutrition_results if not r.success]
 
         # Safety analysis
@@ -129,10 +132,10 @@ class IntegratedBayesianAnalyzer:
 
         result = IntegratedTestResult(
             test_name=test_name,
-            success=len(technical_issues) == 0
-            and len(nutrition_issues) == 0
-            and len(safety_issues) == 0
-            and len(philosophy_violations) == 0,
+            success=not technical_issues
+            and not nutrition_issues
+            and not safety_issues
+            and not philosophy_violations,
             technical_issues=technical_issues,
             nutrition_issues=nutrition_issues,
             safety_issues=safety_issues,
@@ -186,7 +189,7 @@ class IntegratedBayesianAnalyzer:
             def visit(self, node: ast.AST) -> None:
                 """Override visit to track parent nodes."""
                 self.parent_stack.append(node)
-                method = "visit_" + node.__class__.__name__
+                method = f"visit_{node.__class__.__name__}"
                 visitor = getattr(self, method, self.generic_visit)
                 visitor(node)
                 self.parent_stack.pop()
@@ -250,15 +253,107 @@ class IntegratedBayesianAnalyzer:
                 """Check if open() is wrapped by contextlib.closing()."""
                 # Check parent nodes in the stack
                 for parent in self.parent_stack:
-                    if isinstance(parent, ast.Call) and self._is_closing_call(parent):
-                        # Check if node is an argument to this closing call
-                        if any(arg is node for arg in parent.args):
-                            return True
+                    # Check if node is an argument to a closing() call
+                    if (
+                        isinstance(parent, ast.Call)
+                        and self._is_closing_call(parent)
+                        and any(arg is node for arg in parent.args)
+                    ):
+                        return True
                 return False
 
         checker = UnsafeOpenChecker()
         checker.visit(tree)
-        return len(checker.unsafe_opens) > 0
+        return bool(checker.unsafe_opens)
+
+    def _check_sensitive_data_logging(self, code: str) -> bool:
+        """
+        Check if sensitive data is being logged using AST parsing.
+
+        Parses code to find logger method calls (logger.info, logger.debug, etc.)
+        and checks if their arguments contain sensitive identifiers or strings.
+
+        Args:
+            code: Source code to analyze
+
+        Returns:
+            True if sensitive data appears to be logged, False otherwise
+        """
+        # Sensitive keywords to detect
+        sensitive_keywords = ["password", "token", "key", "secret", "api_key", "auth"]
+
+        try:
+            tree = ast.parse(code)
+        except (SyntaxError, ValueError):
+            # Fallback to simple regex if AST parsing fails
+            if "logger" in code.lower():
+                code_lower = code.lower()
+                return any(keyword in code_lower for keyword in sensitive_keywords)
+            return False
+
+        class SensitiveLoggingChecker(ast.NodeVisitor):
+            """Visitor to check for sensitive data in logger calls."""
+
+            def __init__(self) -> None:
+                self.found_sensitive_logging = False
+                self.sensitive_keywords = sensitive_keywords
+
+            def visit_Call(self, node: ast.Call) -> None:
+                """Check if this is a logger call with sensitive data."""
+                # Check if this is a logger method call (logger.info, logger.debug, etc.)
+                if isinstance(node.func, ast.Attribute):
+                    # Check if target is a logger-like variable
+                    if isinstance(node.func.value, ast.Name):
+                        logger_name = node.func.value.id.lower()
+                        if logger_name in ["logger", "log"]:
+                            # Check method name (info, debug, error, warning, etc.)
+                            method_name = node.func.attr.lower()
+                            if method_name in [
+                                "info",
+                                "debug",
+                                "error",
+                                "warning",
+                                "critical",
+                                "exception",
+                            ]:
+                                # Check arguments for sensitive data
+                                for arg in node.args:
+                                    if self._contains_sensitive_data(arg):
+                                        self.found_sensitive_logging = True
+                                        return
+
+                self.generic_visit(node)
+
+            def _contains_sensitive_data(self, node: ast.AST) -> bool:
+                """Check if AST node contains sensitive data."""
+                # Check for Name nodes (variable names)
+                if isinstance(node, ast.Name):
+                    name_lower = node.id.lower()
+                    return any(keyword in name_lower for keyword in self.sensitive_keywords)
+
+                # Check for Constant nodes (string literals)
+                if isinstance(node, ast.Constant):
+                    if isinstance(node.value, str):
+                        value_lower = node.value.lower()
+                        return any(keyword in value_lower for keyword in self.sensitive_keywords)
+
+                # Check for FormattedValue nodes (f-string parts)
+                if isinstance(node, ast.FormattedValue):
+                    if isinstance(node.value, ast.Name):
+                        name_lower = node.value.id.lower()
+                        return any(keyword in name_lower for keyword in self.sensitive_keywords)
+
+                # Check for JoinedStr nodes (f-strings)
+                if isinstance(node, ast.JoinedStr):
+                    for part in node.values:
+                        if self._contains_sensitive_data(part):
+                            return True
+
+                return False
+
+        checker = SensitiveLoggingChecker()
+        checker.visit(tree)
+        return checker.found_sensitive_logging
 
     def _analyze_safety_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze safety aspects."""
@@ -297,10 +392,8 @@ class IntegratedBayesianAnalyzer:
         if self._check_unsafe_file_opens(code):
             issues.append("Unsafe file open without context manager")
 
-        # Sensitive data logging
-        if "logger" in code and any(
-            sensitive in code.lower() for sensitive in ["password", "token", "key"]
-        ):
+        # Sensitive data logging - AST-based detection to avoid false positives
+        if self._check_sensitive_data_logging(code):
             issues.append("Logging sensitive data")
 
         return issues
@@ -310,16 +403,14 @@ class IntegratedBayesianAnalyzer:
         violations = []
 
         # Health orientation check
-        if (
-            "health" in test_name.lower()
-            and "bmi" not in code.lower()
-            and "calorie" not in code.lower()
+        if "health" in test_name.lower() and all(
+            metric not in code.lower() for metric in ["bmi", "calorie"]
         ):
             violations.append("Health test does not verify key metrics")
 
         # Scientific accuracy check
-        if "nutrition" in test_name.lower() and not any(
-            metric in code.lower() for metric in ["protein", "fat", "carbs", "vitamin"]
+        if "nutrition" in test_name.lower() and all(
+            metric not in code.lower() for metric in ["protein", "fat", "carbs", "vitamin"]
         ):
             violations.append("Nutrition test does not validate macronutrients")
 
@@ -503,7 +594,7 @@ class IntegratedBayesianAnalyzer:
 
         # Category statistics
         total_tests = len(self.integrated_results)
-        successful_tests = sum(1 for r in self.integrated_results if r.success)
+        successful_tests = sum(r.success for r in self.integrated_results)
 
         # Risk analysis
         risk_distribution: Dict[str, int] = {}

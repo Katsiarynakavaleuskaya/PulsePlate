@@ -46,32 +46,34 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     has_project_root=false
     has_aliases_script=false
 
-    while IFS= read -r line || [ -n "$line" ]; do
-        # Parse line character-by-character tracking quote state
-        # This avoids mis-detecting # inside quoted strings as comment start
-        in_single_quote=false
-        in_double_quote=false
-        unquoted_text=""
-        i=0
-        len=${#line}
+    # Helper function to extract unquoted portion of line (before comment)
+    # This avoids mis-detecting # inside quoted strings as comment start
+    parse_unquoted_part() {
+        local line="$1"
+        local in_single_quote=false
+        local in_double_quote=false
+        local unquoted_text=""
+        local i=0
+        local len=${#line}
 
         while [ $i -lt $len ]; do
-            char="${line:$i:1}"
-            next_char="${line:$((i+1)):1}"
+            local char="${line:$i:1}"
 
-            # Track quote state
+            # Track quote state transitions
+            # State: toggle single quote if not in double quote
             if [ "$char" = "'" ] && [ "$in_double_quote" = false ]; then
                 in_single_quote=$([ "$in_single_quote" = true ] && echo "false" || echo "true")
+            # State: toggle double quote if not in single quote
             elif [ "$char" = '"' ] && [ "$in_single_quote" = false ]; then
                 in_double_quote=$([ "$in_double_quote" = true ] && echo "false" || echo "true")
             fi
 
-            # Only treat # as comment start when not inside quotes
+            # Edge case: # is comment start only when outside all quotes
             if [ "$char" = "#" ] && [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
                 break
             fi
 
-            # Collect unquoted text for pattern matching
+            # Collect unquoted characters for pattern matching
             if [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
                 unquoted_text="${unquoted_text}${char}"
             fi
@@ -79,8 +81,13 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
             i=$((i+1))
         done
 
-        # Trim whitespace from unquoted text
-        cleaned_line=$(echo "$unquoted_text" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+        # Return trimmed unquoted portion
+        echo "$unquoted_text" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//'
+    }
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Extract unquoted portion using helper function
+        cleaned_line=$(parse_unquoted_part "$line")
 
         # Отслеживаем наличие определений переменных ПЕРЕД фильтрацией
         if echo "$cleaned_line" | grep -qiE "^[[:space:]]*PROJECT_ROOT[[:space:]]*="; then

@@ -44,6 +44,53 @@ fi
 _QUIET_MODE=false
 [ "$AUTO_LOAD" = "true" ] && _QUIET_MODE=true
 
+validate_command() {
+    # Validate a command string before creating an alias.
+    # Args:
+    #   command: The command string to validate
+    #   project_root: The PROJECT_ROOT path for variable expansion
+    # Returns:
+    #   Non-zero exit status on failure, outputs error message to stdout
+    local command="$1"
+    local project_root="${2:-$PROJECT_ROOT}"
+
+    # Extract first word to determine command type
+    local first_word
+    first_word=$(echo "$command" | awk '{print $1}')
+
+    # Check if command is a simple executable name (no slash, no spaces)
+    if [[ "$command" != */* ]] && [[ "$command" != *" "* ]]; then
+        if ! command -v "$command" >/dev/null 2>&1; then
+            echo "executable not found: $command"
+            return 1
+        fi
+    # Check if first word contains a path (contains a slash)
+    elif [[ "$first_word" == */* ]]; then
+        # Expand variables in the path using parameter substitution
+        local expanded_path="${first_word//\$PROJECT_ROOT/$project_root}"
+
+        if [ ! -x "$expanded_path" ]; then
+            if [ ! -f "$expanded_path" ]; then
+                echo "file not found: $expanded_path"
+            else
+                echo "file not executable: $expanded_path"
+            fi
+            return 1
+        fi
+    # Complex shell snippet - check syntax
+    else
+        # Expand variables for syntax check (but don't execute)
+        local expanded_command="${command//\$PROJECT_ROOT/$project_root}"
+
+        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
+            echo "syntax error in shell command"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 create_alias() {
     local alias_name="$1"
     local command="$2"
@@ -65,49 +112,16 @@ create_alias() {
     fi
 
     # Validate the command before creating the alias
-    local validation_failed=false
-    local validation_error=""
-
-    # Extract first word to determine command type
-    local first_word
-    first_word=$(echo "$command" | awk '{print $1}')
-
-    # Check if command is a simple executable name (no slash, no spaces)
-    if [[ "$command" != */* ]] && [[ "$command" != *" "* ]]; then
-        if ! command -v "$command" >/dev/null 2>&1; then
-            validation_failed=true
-            validation_error="executable not found: $command"
-        fi
-    # Check if first word contains a path (contains a slash)
-    elif [[ "$first_word" == */* ]]; then
-        # Expand variables in the path using parameter substitution
-        local expanded_path="${first_word//\$PROJECT_ROOT/$PROJECT_ROOT}"
-
-        if [ ! -x "$expanded_path" ]; then
-            validation_failed=true
-            if [ ! -f "$expanded_path" ]; then
-                validation_error="file not found: $expanded_path"
-            else
-                validation_error="file not executable: $expanded_path"
-            fi
-        fi
-    # Complex shell snippet - check syntax
-    else
-        # Expand variables for syntax check (but don't execute)
-        local expanded_command="${command//\$PROJECT_ROOT/$PROJECT_ROOT}"
-
-        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
-            validation_failed=true
-            validation_error="syntax error in shell command"
-        fi
-    fi
+    local validation_error
+    validation_error=$(validate_command "$command" "$PROJECT_ROOT")
+    local validation_failed=$?
 
     # shellcheck disable=SC2139
     # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
     # Note: Command substitutions in aliases also freeze at definition time
     alias "$alias_name"="$command"
 
-    if [ "$validation_failed" = "true" ]; then
+    if [ "$validation_failed" -ne 0 ]; then
         if [ "$_QUIET_MODE" = "false" ]; then
             echo "⚠️  Алиас '$alias_name' создан, но валидация не прошла: $validation_error"
         fi

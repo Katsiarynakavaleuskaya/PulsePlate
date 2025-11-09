@@ -65,8 +65,11 @@ class TestCleanCache:
     ) -> None:
         """Test clean_cache handles errors gracefully."""
         with patch("scripts.run_tests_bayesian.project_root", tmp_path):
-            with patch.object(Path, "glob", side_effect=Exception("Permission denied")):
+            with patch.object(Path, "glob", side_effect=PermissionError("Permission denied")):
                 clean_cache()
+                # Function should complete without raising
+                captured = capsys.readouterr()
+                assert "Очистка кеш-файлов" in captured.out
 
     def test_clean_cache_removes_pyo_files(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

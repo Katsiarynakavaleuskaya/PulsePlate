@@ -20,10 +20,29 @@
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   },
+  "cSpell.enabled": true,
+  "cSpell.enabledLanguageIds": [
+    "python",
+    "markdown",
+    "plaintext",
+    "shellscript",
+    "json",
+    "yaml"
+  ],
+  "cSpell.customDictionaries": {
+    "workspace-terms": {
+      "name": "workspace-terms",
+      "path": "./cspell-workspace.txt",
+      "addWords": true
+    }
+  },
   "cSpell.words": [
+    "батчинг",
+    "валидатор",
     "Гарантирует",
     "Генерировать",
     "гите",
+    "джоб",
     "изображение",
     "корневого",
     "ломать",
@@ -32,13 +51,20 @@
     "платного",
     "подключает",
     "премиальных",
+    "ретраями",
     "Сгенерировать",
+    "Фолбэк",
+    "afunc",
     "Alertmanager",
+    "bayesian",
     "BMIAPI",
+    "carlo",
+    "fixturenames",
     "nosniff",
     "openssl",
     "pesc",
     "pppull",
+    "reprtraceback",
     "sanitise",
     "shoplist",
     "urlopen",

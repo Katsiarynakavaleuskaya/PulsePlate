@@ -7,6 +7,12 @@ Outputs bayesian_quality_report.json with:
 - error_type_counts (weighted)
 - history_size
 - avg_confidence_estimate (approx via entropy of priors)
+
+Usage:
+    PYTHONPATH="$PWD:$PWD/core:$PWD/app" python scripts/bayesian_quality_report.py
+
+Note: This script requires PYTHONPATH to be set so imports resolve correctly.
+      Do not modify sys.path at runtime - use environment configuration instead.
 """
 
 from __future__ import annotations
@@ -17,13 +23,45 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
     TestStatus,
     ErrorType,
 )
+
+
+def calculate_confidence_from_priors(priors: Dict[str, float]) -> float:
+    """Calculate confidence estimate from normalized prior probabilities using entropy.
+
+    Args:
+        priors: Dictionary mapping error type strings to normalized probabilities.
+
+    Returns:
+        Confidence estimate between 0.0 and 1.0, where:
+        - 0.0 indicates no confidence (uniform or all-zero distribution)
+        - 1.0 indicates full confidence (single outcome has all probability mass)
+    """
+    probs = list(priors.values())
+    if not probs:
+        # Empty distribution: no confidence estimate
+        return 0.0
+    elif len(probs) == 1:
+        # Single-probability distribution: full confidence (all mass on one outcome)
+        return 1.0
+    else:
+        # Check for all-zero priors case
+        if all(abs(p) < 1e-10 for p in probs) or sum(probs) < 1e-10:
+            # All-zero priors: no confidence
+            return 0.0
+        else:
+            # Multiple probabilities: compute entropy-based confidence
+            entropy = -sum(p * math.log2(p) if p > 0 else 0.0 for p in probs)
+            max_entropy = math.log2(len(probs))
+            # Guard against division by zero
+            if max_entropy == 0:  # pragma: no cover - defensive guard for float precision
+                return 0.0
+            else:
+                return 1.0 - (entropy / max_entropy)
 
 
 def normalize(d: Dict[ErrorType, float]) -> Dict[str, float]:
@@ -36,8 +74,13 @@ def normalize(d: Dict[ErrorType, float]) -> Dict[str, float]:
         Dictionary mapping ErrorType string values to normalized probabilities.
         If all values are zero, returns zeros (avoids division by zero).
     """
-    s = float(sum(d.values()) or 1.0)
-    return {k.value: float(v) / s for k, v in d.items()}
+    prior_sum = sum(d.values())
+    # Explicit check for zero sum to avoid division by zero
+    if prior_sum == 0.0:
+        denominator = 1.0
+    else:
+        denominator = float(prior_sum)
+    return {k.value: float(v) / denominator for k, v in d.items()}
 
 
 def main() -> int:
@@ -54,27 +97,7 @@ def main() -> int:
         priors_norm = normalize(analyzer.prior_probabilities)
 
         # Estimate avg confidence from priors entropy proxy
-        probs = list(priors_norm.values())
-        if not probs:
-            # Empty distribution: no confidence estimate
-            avg_confidence_estimate = 0.0
-        elif len(probs) == 1:
-            # Single-probability distribution: full confidence (all mass on one outcome)
-            avg_confidence_estimate = 1.0
-        else:
-            # Check for all-zero priors case
-            if all(abs(p) < 1e-10 for p in probs) or sum(probs) < 1e-10:
-                # All-zero priors: no confidence
-                avg_confidence_estimate = 0.0
-            else:
-                # Multiple probabilities: compute entropy-based confidence
-                entropy = -sum(p * math.log2(p) if p > 0 else 0.0 for p in probs)
-                max_entropy = math.log2(len(probs))
-                # Guard against division by zero
-                if max_entropy == 0:
-                    avg_confidence_estimate = 0.0
-                else:
-                    avg_confidence_estimate = 1.0 - (entropy / max_entropy)
+        avg_confidence_estimate = calculate_confidence_from_priors(priors_norm)
 
         report = {
             "history_size": len(history),

@@ -4,6 +4,16 @@
 **Language / Язык:** This document is available in Russian (primary) and English (section headers).
 Документ доступен на русском (основной) и английском (заголовки разделов).
 
+## Quick Fix Summary / Краткая справка по исправлению
+
+| Symptom / Симптом | Quick Fix / Быстрое решение |
+|-------------------|----------------------------|
+| `command not found: claude` | **EN:** Install via `brew install claude-code` or download from https://claude.ai/download / ensure PATH contains Homebrew bin (`/opt/homebrew/bin`)<br/>**RU:** Установите через `brew install claude-code` или скачайте с https://claude.ai/download / убедитесь, что PATH содержит Homebrew bin (`/opt/homebrew/bin`) |
+| Alias `ppclaude` not working<br/>Алиас `ppclaude` не работает | **EN:** Run `source setup_cli_aliases.sh` or use script directly: `./scripts/claude_with_role.sh`<br/>**RU:** Выполните `source setup_cli_aliases.sh` или используйте скрипт напрямую: `./scripts/claude_with_role.sh` |
+| Role file not found<br/>Файл роли не найден | **EN:** Navigate to project root (`cd` to BMI-App_2025_clean) and ensure `.claude/role.md` exists<br/>**RU:** Перейдите в корень проекта (`cd` в BMI-App_2025_clean) и убедитесь, что `.claude/role.md` существует |
+| Session limit reached<br/>Достигнут лимит сессий | **EN:** Wait 24 hours for reset or check status at https://claude.ai<br/>**RU:** Подождите 24 часа до сброса или проверьте статус на https://claude.ai |
+| Interactive session won't start<br/>Интерактивная сессия не запускается | **EN:** Run `claude` then `/login` in the session, or check session limit / credit balance<br/>**RU:** Запустите `claude`, затем `/login` в сессии, или проверьте лимит сессий / баланс кредитов |
+
 ## Быстрая проверка / Quick Check
 
 ### 1. Проверка установки Claude CLI / Check Claude CLI Installation

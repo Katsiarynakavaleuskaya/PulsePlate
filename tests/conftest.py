@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Generator, cast
+from typing import Any, Generator, Iterator, cast
 
 import pytest
 from fastapi import FastAPI
@@ -219,3 +219,36 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("METRICS_ENABLED", "true")
     yield
     # Cleanup is automatic with monkeypatch
+
+
+# Test doubles for pytest plugin tests
+class DummyMarker:
+    """Mock marker for pytest plugin tests."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class DummyPath:
+    """Simple path mock that stores and returns the path string."""
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+
+    def __str__(self) -> str:
+        return self._path
+
+
+class DummyItem:
+    """Mock pytest item for plugin tests."""
+
+    def __init__(
+        self, markers: list[str], path: str = "tests/test_sample.py", name: str = "test_x"
+    ) -> None:
+        self._markers = [DummyMarker(m) for m in markers]
+        self.fspath = DummyPath(path)
+        self.name = name
+
+    def iter_markers(self) -> Iterator[DummyMarker]:
+        """Return iterator over markers."""
+        return iter(self._markers)

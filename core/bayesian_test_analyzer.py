@@ -123,7 +123,7 @@ class BayesianTestAnalyzer:
             data_file: Путь к файлу истории выполнения тестов.
             language: Код языка для рекомендаций (ru/en/es). По умолчанию используется DEFAULT_LANGUAGE.
         """
-        # Управление персистом истории:
+        # Управление персистентностью истории:
         # Если явно передан data_file в конструктор (как в тестах), считаем, что запись включена.
         truthy = {"1", "true", "yes", "on"}
         if data_file is not None:
@@ -162,8 +162,14 @@ class BayesianTestAnalyzer:
             ErrorType.ASYNC_ERROR: 0.10,
         }
         # Нормализуем вероятности, чтобы сумма была равна 1.0
+        # Use epsilon to guard against very small sums that could produce extreme weights
+        EPSILON = 1e-12
         prior_sum = sum(self.prior_probabilities.values())
-        if prior_sum:
+        if prior_sum <= EPSILON:
+            # Fallback to uniform distribution when sum is too small
+            uniform_weight = 1.0 / len(ErrorType)
+            self.prior_probabilities = {error_type: uniform_weight for error_type in ErrorType}
+        else:
             self.prior_probabilities = {
                 error_type: weight / prior_sum
                 for error_type, weight in self.prior_probabilities.items()
@@ -226,7 +232,7 @@ class BayesianTestAnalyzer:
 
     def save_history(self) -> None:
         """Сохранить историю выполнения тестов."""
-        # В CI по умолчанию отключаем запись истории, чтобы избежать флаки и гонок
+        # В CI по умолчанию отключаем запись истории, чтобы избежать нестабильных тестов и гонок
         if not self.persist_enabled:
             return
         try:
@@ -416,7 +422,8 @@ class BayesianTestAnalyzer:
             if not case_sy and not symptoms:
                 return 1.0
             inter = len(symptoms.intersection(case_sy))
-            union = len(symptoms.union(case_sy)) or 1
+            # Union is guaranteed to be non-zero here (both sets empty case handled above)
+            union = len(symptoms.union(case_sy))
             return inter / union
 
         # Взвешенные суммы
@@ -695,11 +702,17 @@ class BayesianTestAnalyzer:
                 "Высокий процент падающих тестов - пересмотрите стратегию тестирования"
             )
 
-        most_common_error = error_stats.most_common(1)[0] if error_stats else None
-        if most_common_error and most_common_error[1] > total_tests * 0.05:
-            recommendations.append(
-                f"Частая ошибка {most_common_error[0].value} - создайте общее решение"
-            )
+        # Explicit handling of most common error to avoid confusion about None vs tuple
+        most_common_error: tuple[ErrorType, int] | None = None
+        if error_stats:
+            most_common_list = error_stats.most_common(1)
+            if most_common_list:
+                most_common_error = most_common_list[0]  # Tuple[ErrorType, int]
+
+        if most_common_error is not None:
+            error, count = most_common_error
+            if count > total_tests * 0.05:
+                recommendations.append(f"Частая ошибка {error.value} - создайте общее решение")
 
         return {
             "total_tests": total_tests,

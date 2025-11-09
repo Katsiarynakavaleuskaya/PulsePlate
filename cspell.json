@@ -39,6 +39,7 @@
     "**/poetry.lock",
     "data/build_report.json",
     "data/food_merge_report.json",
+    "data/food_aliases.csv",
     "releases/**"
   ],
   "files": [

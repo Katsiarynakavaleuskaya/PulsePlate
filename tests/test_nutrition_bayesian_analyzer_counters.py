@@ -141,7 +141,7 @@ def test_carb_percentage_validation_low() -> None:
     assert any(
         r.error_type == NutritionErrorType.CARB_TOO_LOW or "carb" in (r.error_message or "").lower()
         for r in results
-    ), "Test failed to detect low carb percentage validation issue"
+    ), "did not detect low carb percentage"
 
 
 def test_carb_percentage_validation_high() -> None:
@@ -169,7 +169,7 @@ def test_carb_percentage_validation_high() -> None:
         or "carb" in (r.error_message or "").lower()
         or "carbs_max_percent" in (r.error_message or "").lower()
         for r in results
-    ), "Test failed to detect high carb percentage validation issue"
+    ), "failed to detect high carb validation"
 
 
 def test_calorie_overflow_detection() -> None:

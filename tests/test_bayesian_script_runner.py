@@ -5,6 +5,7 @@ import pytest
 
 
 def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that run_tests_fast returns success and captures output correctly."""
     # Import inside to ensure test discovery works even if path changes
     from scripts import run_tests_bayesian as runner
 

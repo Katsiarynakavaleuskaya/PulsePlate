@@ -62,9 +62,6 @@ jobs:
             --exclude 'releases/**' \
             --exclude 'cache/**' \
             --exclude 'data/**' \
-            --exclude 'core/bayesian_recommendations.py' \
-            --exclude 'core/bayesian_technical_utils.py' \
-            --exclude 'core/business_bayesian_analyzer.py' \
             --exclude 'external/**' \
             --exclude 'htmlcov/**' \
             --exclude 'coverage/**' \

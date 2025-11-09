@@ -26,8 +26,8 @@ echo ""
 echo "=== 3. Проверка файла роли ==="
 if [ -f ".claude/role.md" ]; then
     echo "✅ Файл роли найден"
-    echo "   Размер: $(wc -c < .claude/role.md | awk '{print $1}') байт"
-    echo "   Строк: $(wc -l < .claude/role.md | awk '{print $1}')"
+    echo "   Размер: $(( $(wc -c < .claude/role.md) )) байт"
+    echo "   Строк: $(( $(wc -l < .claude/role.md) ))"
 else
     echo "❌ Файл роли не найден"
 fi

@@ -1,25 +1,6 @@
-from types import SimpleNamespace
-from typing import Iterator
-
 from pytest_bayesian_plugin import BayesianPytestPlugin
 from core.bayesian_test_analyzer import TestCategory
-
-
-class DummyMarker:
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-
-class DummyItem:
-    def __init__(
-        self, markers: list[str], path: str = "tests/test_sample.py", name: str = "test_x"
-    ) -> None:
-        self._markers = [DummyMarker(m) for m in markers]
-        self.fspath = SimpleNamespace(**{"__str__": lambda self=self: path})
-        self.name = name
-
-    def iter_markers(self) -> Iterator[DummyMarker]:
-        return iter(self._markers)
+from tests.conftest import DummyItem
 
 
 def test_determine_category_custom_marker_fallback() -> None:

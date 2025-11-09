@@ -436,130 +436,51 @@ class TestBayesianPytestPluginDiagnosis:
             alternative_causes=[("Alternative cause", 0.10)],
         )
 
-    def test_print_diagnosis_enabled(
+    @pytest.mark.parametrize(
+        "env_value,should_print",
+        [
+            # Enabled values - should print banner
+            ("1", True),
+            ("true", True),
+            ("yes", True),
+            ("on", True),
+            ("TRUE", True),
+            # Disabled values - should not print
+            ("0", False),
+            ("", False),
+            # Missing env var - should not print
+            (None, False),
+        ],
+    )
+    def test_print_diagnosis_env_var(
         self,
         plugin: BayesianPytestPlugin,
         diagnosis: BayesianDiagnosis,
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
+        env_value: str | None,
+        should_print: bool,
     ) -> None:
-        """Test printing diagnosis when enabled."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "1")
+        """Test printing diagnosis based on BAYESIAN_DIAG_VERBOSE env var."""
+        if env_value is None:
+            monkeypatch.delenv("BAYESIAN_DIAG_VERBOSE", raising=False)
+        else:
+            monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", env_value)
 
         plugin._print_diagnosis(diagnosis)
 
         captured = capsys.readouterr()
-        assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
-        assert "Test data issue" in captured.out
-        assert "85.00%" in captured.out
-        assert "90.00%" in captured.out
-        assert "Evidence 1" in captured.out
-        assert "Fix data" in captured.out
-
-    def test_print_diagnosis_enabled_true(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis with 'true' value."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "true")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
-
-    def test_print_diagnosis_enabled_yes(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis with 'yes' value."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "yes")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
-
-    def test_print_diagnosis_enabled_on(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis with 'on' value."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "on")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
-
-    def test_print_diagnosis_enabled_case_insensitive(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis with uppercase value."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "TRUE")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
-
-    def test_print_diagnosis_disabled(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis when disabled."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "0")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert captured.out == ""
-
-    def test_print_diagnosis_disabled_default(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis when env var not set."""
-        monkeypatch.delenv("BAYESIAN_DIAG_VERBOSE", raising=False)
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert captured.out == ""
-
-    def test_print_diagnosis_disabled_empty(
-        self,
-        plugin: BayesianPytestPlugin,
-        diagnosis: BayesianDiagnosis,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test printing diagnosis with empty env var."""
-        monkeypatch.setenv("BAYESIAN_DIAG_VERBOSE", "")
-
-        plugin._print_diagnosis(diagnosis)
-
-        captured = capsys.readouterr()
-        assert captured.out == ""
+        if should_print:
+            assert "БАЙЕСОВСКАЯ ДИАГНОСТИКА" in captured.out
+            # For the first enabled test, also check detailed content
+            if env_value == "1":
+                assert "Test data issue" in captured.out
+                assert "85.00%" in captured.out
+                assert "90.00%" in captured.out
+                assert "Evidence 1" in captured.out
+                assert "Fix data" in captured.out
+        else:
+            assert captured.out == ""
 
 
 class TestPytestHooks:

@@ -398,7 +398,7 @@ def normalize_lang(lang: Optional[str]) -> Lang:
         >>> normalize_lang("es-MX")    # → "es" (mx in es exceptions)
         >>> normalize_lang("es-ES")    # → "en" (es default, ES not in exceptions)
         >>> normalize_lang("ru-RU")    # → "en" (ru default, no exceptions)
-        >>> normalize_lang("français") # → "en" (unsupported)
+        >>> normalize_lang("fr") # → "en" (unsupported, French not supported)
     """
     if not lang:
         return "en"

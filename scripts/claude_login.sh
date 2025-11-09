@@ -154,6 +154,8 @@ EOF
             # Use curl with timeout flags and separate status code capture
             # Write body to a temporary variable and status code separately
             temp_body=$(mktemp)
+            # Install trap to ensure temp file is cleaned up on exit or signals
+            trap "rm -f '$temp_body'" EXIT INT TERM
             http_code=$(curl -s -w "%{http_code}" \
                 --max-time 10 \
                 --connect-timeout 5 \
@@ -164,6 +166,8 @@ EOF
 
             body=$(cat "$temp_body" 2>/dev/null || echo "")
             rm -f "$temp_body"
+            # Clear trap after manual cleanup to avoid double deletion
+            trap - EXIT INT TERM
 
             if [ "$http_code" = "200" ]; then
                 echo "✅ OpenAI API connection successful!"

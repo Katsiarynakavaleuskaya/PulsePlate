@@ -2,6 +2,7 @@
 Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 """
 
+import asyncio
 import logging
 import os
 import sys
@@ -229,19 +230,22 @@ class TestTargetedCoverageBoost:
         # Add the synchronous wrapper method for testing
         import asyncio
 
+        loop = asyncio.new_event_loop()
         try:
-            loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             errors = loop.run_until_complete(manager._validate_food_data(foods))
             assert len(errors) >= 0  # Should not crash
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
             # Exception is expected, but the code should handle it gracefully
-            pass
+        finally:
+            loop.close()
 
     def test_update_manager_py_line_394(self):
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
+        loop = asyncio.new_event_loop()
         try:
+            asyncio.set_event_loop(loop)
             with patch(
                 "core.food_apis.update_manager.Path.glob",
                 side_effect=Exception("Test error"),
@@ -249,18 +253,14 @@ class TestTargetedCoverageBoost:
                 from core.food_apis.update_manager import DatabaseUpdateManager
 
                 manager = DatabaseUpdateManager()
-                # Test with async function properly
-                import asyncio
-
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 loop.run_until_complete(
                     manager._cleanup_old_backups("usda")
                 )  # Should not crash, just log error
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
             # Exception is expected, but the code should handle it gracefully
-            pass
+        finally:
+            loop.close()
 
     def test_update_manager_py_line_497(self):
         """Test line 497 in update_manager.py (get_database_status)."""

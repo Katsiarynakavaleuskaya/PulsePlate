@@ -37,8 +37,9 @@ def clean_cache() -> None:
                     path.unlink()
                 elif path.is_dir():
                     shutil.rmtree(path, ignore_errors=True)
-        except Exception as e:
-            print(f"⚠️ Ошибка очистки {pattern}: {e}")
+        except (PermissionError, OSError) as e:
+            # Log expected filesystem errors during cleanup
+            logging.warning(f"Error cleaning cache pattern {pattern}: {e}", exc_info=False)
 
     print("✅ Кеш очищен")
 
@@ -83,30 +84,16 @@ def run_tests_fast() -> Dict[str, Any]:
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if ("FAILED" in line or "ERROR" in line) and "::" in line:
-                    # Verify line is a string or coerce it
-                    if line is None:
-                        test_name = ""
+                    # Extract test name with simple error handling
+                    try:
+                        test_name = line.split("::")[-1].strip()
+                    except (AttributeError, IndexError) as e:
+                        # Fallback to stripped line if extraction fails
+                        test_name = line.strip() if line else ""
                         logging.warning(
-                            f"Line {i} is None when extracting test name, " f"using empty fallback"
+                            f"Failed to extract test name from line {i}: {e}, "
+                            f"using fallback: {test_name[:50]}"
                         )
-                    elif not isinstance(line, str):
-                        test_name = str(line)
-                        logging.warning(
-                            f"Line {i} is not a string (type: {type(line).__name__}), "
-                            f"coerced to string: {test_name[:50]}"
-                        )
-                    else:
-                        # Safe extraction with specific exception handling
-                        try:
-                            test_name = line.split("::")[-1].strip()
-                        except (AttributeError, IndexError) as e:
-                            # Fallback to stripped line if split fails
-                            test_name = line.strip() if line else ""
-                            logging.warning(
-                                f"Failed to extract test name from line {i} "
-                                f"(exception: {type(e).__name__}: {e}), "
-                                f"using fallback: {test_name[:50]}"
-                            )
                     failed_tests.append(
                         {
                             "name": test_name,
