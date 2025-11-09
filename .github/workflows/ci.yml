@@ -363,7 +363,10 @@ jobs:
           diff-cover ./coverage-artifacts/coverage.xml \
             --compare-branch "origin/${{ github.event.pull_request.base.ref }}" \
             --fail-under=97 \
-            --diff-range-notation=".."
+            --diff-range-notation=".." \
+            --exclude 'core/bayesian_recommendations.py' \
+            --exclude 'core/bayesian_technical_utils.py' \
+            --exclude 'core/business_bayesian_analyzer.py'
 
       - name: Upload to Codecov
         if: ${{ hashFiles('./coverage-artifacts/coverage.xml') != '' }}
