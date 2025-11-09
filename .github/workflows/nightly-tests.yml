@@ -54,9 +54,18 @@ jobs:
       - name: Generate Bayesian quality report
         if: always()
         run: |
-          python scripts/bayesian_quality_report.py || true
+          stderr_file=$(mktemp)
+          python scripts/bayesian_quality_report.py 2> "$stderr_file"
+          exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            echo "::warning::Bayesian quality report generation failed with exit code $exit_code"
+            echo "Error output:"
+            cat "$stderr_file"
+          fi
+          rm -f "$stderr_file"
       - name: Upload Bayesian quality report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bayesian-quality-report

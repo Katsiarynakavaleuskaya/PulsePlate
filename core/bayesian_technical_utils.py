@@ -5,10 +5,22 @@ Shared utility functions for technical aspects analysis in Bayesian analyzers.
 
 import ast
 import re
-from typing import List
+from typing import List, Union
 
 
-def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
+def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool:
+    """Check if function body contains return with value or yield statement."""
+    for child in ast.walk(node):
+        # Check for return with value (not just "return" alone)
+        if isinstance(child, ast.Return) and child.value is not None:
+            return True
+        # Check for yield or yield from
+        if isinstance(child, (ast.Yield, ast.YieldFrom)):
+            return True
+    return False
+
+
+def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[str]:
     """Shared logic for analyzing technical aspects of a test.
 
     This function contains the common technical analysis logic used by
@@ -16,9 +28,7 @@ def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
 
     Args:
         code: The test code to analyze
-        test_name: Name of the test being analyzed
-            TODO: Reserved for future use (logging/telemetry and per-test heuristics);
-            intentionally unused for now.
+        _test_name: Reserved for future logging/telemetry; currently unused.
 
     Returns:
         List of identified technical issues
@@ -37,6 +47,7 @@ def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.returns is None
             and not getattr(node, "name", "").startswith("test_")
+            and _has_explicit_return_or_yield(node)
             for node in ast.walk(tree)
         )
         has_mock_call = any(
@@ -82,6 +93,11 @@ def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
         try_present = re.search(r"\btry\b", code) is not None
         def_present = re.search(r"\bdef\b", code) is not None
         arrow_present = re.search(r"->", code) is not None
+        # Check for return with value (not just "return" alone) or yield
+        # Pattern: "return" followed by whitespace and non-newline character, or "yield"
+        return_with_value = re.search(r"return\s+[^\n]", code) is not None
+        yield_present = re.search(r"\byield\b", code) is not None
+        has_explicit_return_or_yield = return_with_value or yield_present
 
         if async_present and not await_present:
             issues.append("Async function without await usage")
@@ -89,7 +105,7 @@ def analyze_technical_aspects_common(code: str, test_name: str) -> List[str]:
             issues.append("Using Mock instead of AsyncMock for async methods")
         if raise_present and not try_present:
             issues.append("Exception raised without handling")
-        if def_present and not arrow_present:
+        if def_present and not arrow_present and has_explicit_return_or_yield:
             issues.append("Missing return type annotations")
 
     return issues

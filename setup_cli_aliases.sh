@@ -4,6 +4,8 @@
 
 # Определяем режим загрузки: автоматический (тихий) или интерактивный (с выводом)
 AUTO_LOAD="${SETUP_ALIASES_QUIET:-false}"
+# Флаг для отладки автоматического определения PROJECT_ROOT
+AUTO_LOAD_DEBUG="${SETUP_ALIASES_DEBUG:-false}"
 
 # Установка PROJECT_ROOT через переменную окружения или интерактивный ввод
 if [ -z "${PROJECT_ROOT:-}" ]; then
@@ -11,8 +13,12 @@ if [ -z "${PROJECT_ROOT:-}" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     # Проверяем наличие pyproject.toml и либо app.py, либо app/ директории
     if [ -f "$SCRIPT_DIR/pyproject.toml" ] && { [ -f "$SCRIPT_DIR/app.py" ] || [ -d "$SCRIPT_DIR/app" ]; }; then
+        # Валидация прошла успешно - устанавливаем PROJECT_ROOT
         PROJECT_ROOT="$SCRIPT_DIR"
-        [ "$AUTO_LOAD" != "true" ] && echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
+        # Выводим подтверждение только после успешной валидации и в соответствующем режиме
+        if [ "$AUTO_LOAD" != "true" ] || [ "$AUTO_LOAD_DEBUG" = "true" ]; then
+            echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
+        fi
     else
         # Интерактивный режим только если не тихая загрузка
         if [ "$AUTO_LOAD" != "true" ]; then
@@ -41,12 +47,75 @@ _QUIET_MODE=false
 create_alias() {
     local alias_name="$1"
     local command="$2"
+    local target_file="${3:-}"  # Optional third parameter: file path to validate
+
+    # If target_file is provided, validate it exists
+    if [ -n "$target_file" ]; then
+        # Expand the path (handle variables like $PROJECT_ROOT)
+        # Using parameter substitution to safely expand $PROJECT_ROOT
+        local expanded_path="${target_file//\$PROJECT_ROOT/$PROJECT_ROOT}"
+
+        # Check if the file exists using absolute path
+        if [ ! -f "$expanded_path" ]; then
+            if [ "$_QUIET_MODE" = "false" ]; then
+                echo "⚠️  Пропуск создания алиаса '$alias_name': файл не найден: $expanded_path"
+            fi
+            return 1
+        fi
+    fi
+
+    # Validate the command before creating the alias
+    local validation_failed=false
+    local validation_error=""
+
+    # Extract first word to determine command type
+    local first_word
+    first_word=$(echo "$command" | awk '{print $1}')
+
+    # Check if command is a simple executable name (no slash, no spaces)
+    if [[ "$command" != */* ]] && [[ "$command" != *" "* ]]; then
+        if ! command -v "$command" >/dev/null 2>&1; then
+            validation_failed=true
+            validation_error="executable not found: $command"
+        fi
+    # Check if first word contains a path (contains a slash)
+    elif [[ "$first_word" == */* ]]; then
+        # Expand variables in the path using parameter substitution
+        local expanded_path="${first_word//\$PROJECT_ROOT/$PROJECT_ROOT}"
+
+        if [ ! -x "$expanded_path" ]; then
+            validation_failed=true
+            if [ ! -f "$expanded_path" ]; then
+                validation_error="file not found: $expanded_path"
+            else
+                validation_error="file not executable: $expanded_path"
+            fi
+        fi
+    # Complex shell snippet - check syntax
+    else
+        # Expand variables for syntax check (but don't execute)
+        local expanded_command="${command//\$PROJECT_ROOT/$PROJECT_ROOT}"
+
+        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
+            validation_failed=true
+            validation_error="syntax error in shell command"
+        fi
+    fi
+
     # shellcheck disable=SC2139
     # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
     # Note: Command substitutions in aliases also freeze at definition time
     alias "$alias_name"="$command"
-    # Оптимизация: используем предвычисленную переменную вместо повторных проверок
-    [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
+
+    if [ "$validation_failed" = "true" ]; then
+        if [ "$_QUIET_MODE" = "false" ]; then
+            echo "⚠️  Алиас '$alias_name' создан, но валидация не прошла: $validation_error"
+        fi
+        return 1
+    else
+        # Оптимизация: используем предвычисленную переменную вместо повторных проверок
+        [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
+    fi
 }
 
 # Переход в директорию проекта
@@ -155,7 +224,7 @@ create_alias "ppdocker-run" "cd $PROJECT_ROOT && make docker-run"
 create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 
 # Claude Code с ролью PulsePlate
-create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh"
+create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh" "$PROJECT_ROOT/scripts/claude_with_role.sh"
 
 # Выводим информацию только в интерактивном режиме
 if [ "$AUTO_LOAD" != "true" ]; then

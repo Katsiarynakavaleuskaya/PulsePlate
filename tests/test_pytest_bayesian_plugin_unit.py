@@ -142,18 +142,36 @@ def test_gather_test_context_flags_present() -> None:
     assert "is_async" in ctx and "has_mocks" in ctx and "coverage_related" in ctx
 
 
-def test_gather_test_context_with_mocks() -> None:
+# Module-level functions for mock detection tests (needed for inspect.getsource)
+def _func_with_mock() -> None:
+    """Test function that uses unittest.mock."""
+    from unittest.mock import Mock
+
+    mock = Mock()
+
+
+def _func_without_mock() -> None:
+    """Test function that does not use mocks."""
+    x = 1
+    y = 2
+    assert x + y == 3
+
+
+@pytest.mark.parametrize(
+    "test_func,expected_has_mocks",
+    [
+        (_func_without_mock, False),  # Function without mocks
+        (_func_with_mock, True),  # Function with mocks
+    ],
+)
+def test_gather_test_context_has_mocks(test_func: Any, expected_has_mocks: bool) -> None:
+    """Test that _gather_test_context correctly detects presence/absence of mocks."""
     plugin = BayesianPytestPlugin()
 
-    def _func_with_mock() -> None:
-        from unittest.mock import Mock
-
-        mock = Mock()
-
     item = _FakeItem([])
-    item.function = _func_with_mock  # type: ignore[attr-defined]
+    item.function = test_func  # type: ignore[attr-defined]
     ctx = plugin._gather_test_context(item)
-    assert ctx["has_mocks"] is True
+    assert ctx["has_mocks"] is expected_has_mocks
 
 
 def test_gather_test_context_coverage_related() -> None:
@@ -375,7 +393,7 @@ def test_print_diagnosis_disabled() -> None:
     plugin._print_diagnosis(diagnosis)  # Should not raise
 
 
-def test_print_diagnosis_enabled(monkeypatch) -> None:
+def test_print_diagnosis_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     plugin = BayesianPytestPlugin()
     diagnosis = MagicMock()
     diagnosis.most_likely_cause = "Test error"

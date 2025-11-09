@@ -75,11 +75,47 @@ class ROIEstimate:
 class BusinessBayesianAnalyzer:
     """Байесовский анализатор для бизнес-логики."""
 
-    def __init__(self) -> None:
+    # Generic price thresholds (fallback defaults)
+    DEFAULT_LOW_PRICE_THRESHOLD: float = 1.0
+    DEFAULT_HIGH_PRICE_THRESHOLD: float = 1000.0
+
+    # Domain-specific thresholds for nutrition/health apps
+    NUTRITION_LOW_PRICE_THRESHOLD: float = 5.0
+    NUTRITION_HIGH_PRICE_THRESHOLD: float = 50.0
+
+    def __init__(
+        self,
+        low_price_threshold: Optional[float] = None,
+        high_price_threshold: Optional[float] = None,
+        domain: str = "nutrition",
+    ) -> None:
+        """
+        Инициализирует анализатор бизнес-логики.
+
+        Args:
+            low_price_threshold: Нижний порог цены (если None, используется доменная конфигурация)
+            high_price_threshold: Верхний порог цены (если None, используется доменная конфигурация)
+            domain: Домен приложения ("nutrition", "health", или "generic")
+        """
         self.test_results: List[BusinessTestResult] = []
         self.business_knowledge_base = self._load_business_knowledge()
         self.monetization_strategies = self._load_monetization_strategies()
         self.cost_optimization_rules = self._load_cost_optimization_rules()
+
+        # Configure price thresholds
+        if low_price_threshold is not None:
+            self.low_price_threshold = low_price_threshold
+        elif domain in ("nutrition", "health"):
+            self.low_price_threshold = self.NUTRITION_LOW_PRICE_THRESHOLD
+        else:
+            self.low_price_threshold = self.DEFAULT_LOW_PRICE_THRESHOLD
+
+        if high_price_threshold is not None:
+            self.high_price_threshold = high_price_threshold
+        elif domain in ("nutrition", "health"):
+            self.high_price_threshold = self.NUTRITION_HIGH_PRICE_THRESHOLD
+        else:
+            self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
 
     def analyze(self, test_code: str, test_name: str) -> List[BusinessTestResult]:
         """Public entry point for business logic analysis.
@@ -234,31 +270,44 @@ class BusinessBayesianAnalyzer:
                 try:
                     price = float(match.group(1))
 
-                    # Проверка на разумность цены
-                    if price < 1.0:
+                    # Проверка на разумность цены с использованием конфигурируемых порогов
+                    if price < self.low_price_threshold:
                         results.append(
                             BusinessTestResult(
                                 test_name=test_name,
                                 success=False,
                                 business_category=BusinessCategory.MONETIZATION,
                                 error_type=BusinessErrorType.PRICING_INEFFICIENCY,
-                                error_message=f"Слишком низкая цена (${price}) приводит к потере дохода",
+                                error_message=(
+                                    f"Слишком низкая цена (${price:.2f}) ниже порога "
+                                    f"${self.low_price_threshold:.2f} приводит к потере дохода"
+                                ),
                                 revenue_impact="Потеря потенциального дохода",
                                 cost_impact="Не покрывает операционные расходы",
-                                optimization_potential="Увеличить цену до рыночного уровня",
+                                optimization_potential=(
+                                    f"Увеличить цену до рыночного уровня "
+                                    f"(минимум ${self.low_price_threshold:.2f})"
+                                ),
                             )
                         )
-                    elif price > 1000.0:
+                    elif price > self.high_price_threshold:
                         results.append(
                             BusinessTestResult(
                                 test_name=test_name,
                                 success=False,
                                 business_category=BusinessCategory.MONETIZATION,
                                 error_type=BusinessErrorType.PRICING_INEFFICIENCY,
-                                error_message=f"Слишком высокая цена: ${price}",
+                                error_message=(
+                                    f"Слишком высокая цена: ${price:.2f} превышает порог "
+                                    f"${self.high_price_threshold:.2f}"
+                                ),
                                 revenue_impact="Снижение конверсии",
                                 customer_impact="Отпугивание клиентов",
-                                optimization_potential="Снизить цену или добавить ценностное предложение",
+                                optimization_potential=(
+                                    f"Снизить цену до разумного уровня "
+                                    f"(максимум ${self.high_price_threshold:.2f}) "
+                                    "или добавить ценностное предложение"
+                                ),
                             )
                         )
                 except ValueError:

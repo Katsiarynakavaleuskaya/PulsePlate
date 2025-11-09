@@ -6,6 +6,7 @@ Analyzes tests from the perspectives of code, nutrition, safety, and system phil
 
 from typing import Dict, List, Any
 import re
+import ast
 from dataclasses import dataclass
 from enum import Enum
 
@@ -149,6 +150,104 @@ class IntegratedBayesianAnalyzer:
         code_lower = code.lower()
         return any(marker.lower() in code_lower for marker in test_markers)
 
+    def _check_unsafe_file_opens(self, code: str) -> bool:
+        """
+        Check for unsafe file opens using AST analysis.
+
+        Returns True if unsafe open() calls are found (not in with statement
+        and not wrapped by contextlib.closing).
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            # If code cannot be parsed, fall back to safe assumption
+            return False
+
+        class UnsafeOpenChecker(ast.NodeVisitor):
+            """Visitor to check for unsafe open() calls."""
+
+            def __init__(self) -> None:
+                self.unsafe_opens: List[ast.Call] = []
+                self.parent_stack: List[ast.AST] = []
+                self.in_with_context = False
+
+            def visit(self, node: ast.AST) -> None:
+                """Override visit to track parent nodes."""
+                self.parent_stack.append(node)
+                method = "visit_" + node.__class__.__name__
+                visitor = getattr(self, method, self.generic_visit)
+                visitor(node)
+                self.parent_stack.pop()
+
+            def visit_With(self, node: ast.With) -> None:
+                """Track With nodes and their contents."""
+                # Mark that we're entering a with context
+                # All code inside the with body is considered safe
+                old_in_with = self.in_with_context
+                self.in_with_context = True
+                self.generic_visit(node)
+                self.in_with_context = old_in_with
+
+            def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+                """Track AsyncWith nodes and their contents."""
+                # Mark that we're entering an async with context
+                # All code inside the async with body is considered safe
+                old_in_with = self.in_with_context
+                self.in_with_context = True
+                self.generic_visit(node)
+                self.in_with_context = old_in_with
+
+            def visit_Call(self, node: ast.Call) -> None:
+                """Check if this is an unsafe open() call."""
+                # Check if this is a call to open()
+                if (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id == "open"
+                    and not self.in_with_context
+                    and not self._is_context_expression(node)
+                    and not self._is_wrapped_by_closing(node)
+                ):
+                    self.unsafe_opens.append(node)
+                self.generic_visit(node)
+
+            def _is_context_expression(self, node: ast.Call) -> bool:
+                """Check if open() is used directly as a context expression."""
+                # Check parent nodes in the stack
+                for parent in self.parent_stack:
+                    if isinstance(parent, (ast.With, ast.AsyncWith)):
+                        # Check if this node is the context_expr
+                        for item in parent.items:
+                            if item.context_expr is node:
+                                return True
+                return False
+
+            def _is_closing_call(self, node: ast.Call) -> bool:
+                """Check if this is a call to contextlib.closing."""
+                if isinstance(node.func, ast.Attribute):
+                    return (
+                        isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "contextlib"
+                        and node.func.attr == "closing"
+                    )
+                if isinstance(node.func, ast.Name) and node.func.id == "closing":
+                    # Could be from "from contextlib import closing"
+                    return True
+                return False
+
+            def _is_wrapped_by_closing(self, node: ast.Call) -> bool:
+                """Check if open() is wrapped by contextlib.closing()."""
+                # Check parent nodes in the stack
+                for parent in self.parent_stack:
+                    if isinstance(parent, ast.Call) and self._is_closing_call(parent):
+                        # Check if node is an argument to this closing call
+                        if any(arg is node for arg in parent.args):
+                            return True
+                return False
+
+        checker = UnsafeOpenChecker()
+        checker.visit(tree)
+        return len(checker.unsafe_opens) > 0
+
     def _analyze_safety_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze safety aspects."""
         issues = []
@@ -182,8 +281,8 @@ class IntegratedBayesianAnalyzer:
         ):
             issues.append("Potential SQL injection vulnerability")
 
-        # Unsafe file handling
-        if "open(" in code and "with" not in code:
+        # Unsafe file handling - AST-based check for precise detection
+        if self._check_unsafe_file_opens(code):
             issues.append("Unsafe file open without context manager")
 
         # Sensitive data logging

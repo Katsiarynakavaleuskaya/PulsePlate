@@ -36,18 +36,58 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     echo "   Обновляю для использования тихого режима..."
     echo ""
 
-    # Заменяем обычную загрузку на тихую
-    sed -i.bak "s|source.*setup_cli_aliases.sh|SETUP_ALIASES_QUIET=true source \"\$ALIASES_SCRIPT\"|g" "$ZSHRC_FILE"
-    rm -f "${ZSHRC_FILE}.bak"
+    # Создаем временный файл для безопасного редактирования
+    TEMP_FILE=$(mktemp "${ZSHRC_FILE}.tmp.XXXXXX")
+    trap "rm -f '$TEMP_FILE'" EXIT INT TERM
 
-    # Убеждаемся, что ALIASES_SCRIPT установлен перед использованием
-    if ! grep -q "ALIASES_SCRIPT=" "$ZSHRC_FILE"; then
-        # Добавляем определение ALIASES_SCRIPT перед загрузкой
-        sed -i.bak "/setup_cli_aliases.sh/i\\
-ALIASES_SCRIPT=\"\$HOME/Developer/BMI-App_2025_clean/setup_cli_aliases.sh\"\\
-" "$ZSHRC_FILE"
-        rm -f "${ZSHRC_FILE}.bak"
+    # Обрабатываем файл построчно, исключая строки с setup_cli_aliases.sh
+    # Паттерн допускает: пробелы, комментарии, различные формы кавычек и путей
+    # Также отслеживаем, определены ли уже PROJECT_ROOT или ALIASES_SCRIPT
+    has_project_root=false
+    has_aliases_script=false
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Проверяем, содержит ли строка setup_cli_aliases.sh (с учетом вариаций)
+        # Удаляем комментарии и лишние пробелы для проверки
+        cleaned_line=$(echo "$line" | sed 's/#.*$//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+
+        # Отслеживаем наличие определений переменных ПЕРЕД фильтрацией
+        if echo "$cleaned_line" | grep -qiE "^[[:space:]]*PROJECT_ROOT[[:space:]]*="; then
+            has_project_root=true
+        fi
+        if echo "$cleaned_line" | grep -qiE "^[[:space:]]*ALIASES_SCRIPT[[:space:]]*="; then
+            has_aliases_script=true
+        fi
+
+        # Пропускаем строки, которые являются командами source/. для setup_cli_aliases.sh
+        # Паттерн допускает: source/. перед именем, различные кавычки, пути, комментарии
+        # НО сохраняем определения переменных (PROJECT_ROOT, ALIASES_SCRIPT)
+        if echo "$cleaned_line" | grep -qiE "(source|\.)\s+.*setup_cli_aliases\.sh"; then
+            continue
+        fi
+
+        # Сохраняем все остальные строки (включая определения переменных)
+        echo "$line" >> "$TEMP_FILE"
+    done < "$ZSHRC_FILE"
+
+    # Добавляем определения переменных, если их нет
+    if [ "$has_project_root" = false ]; then
+        echo "PROJECT_ROOT=\"$PROJECT_ROOT\"" >> "$TEMP_FILE"
     fi
+    if [ "$has_aliases_script" = false ]; then
+        echo "ALIASES_SCRIPT=\"\$PROJECT_ROOT/setup_cli_aliases.sh\"" >> "$TEMP_FILE"
+    fi
+
+    # Добавляем канонический двухстрочный блок загрузки
+    echo "SETUP_ALIASES_QUIET=true" >> "$TEMP_FILE"
+    echo "source \"\$ALIASES_SCRIPT\"" >> "$TEMP_FILE"
+
+    # Создаем резервную копию перед атомарной заменой
+    cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak"
+
+    # Атомарно заменяем оригинальный файл
+    mv "$TEMP_FILE" "$ZSHRC_FILE"
+    trap - EXIT INT TERM
 
     echo "✅ Обновлено для тихого режима загрузки"
 else
@@ -55,7 +95,7 @@ else
     echo "   Добавьте вручную в $ZSHRC_FILE:"
     echo ""
     echo "   # PulsePlate aliases (тихая загрузка)"
-    echo "   ALIASES_SCRIPT=\"\$HOME/Developer/BMI-App_2025_clean/setup_cli_aliases.sh\""
+    echo "   ALIASES_SCRIPT=\"$ALIASES_SCRIPT\""
     echo "   if [[ -f \"\$ALIASES_SCRIPT\" ]] && [[ \$- == *i* ]]; then"
     echo "       SETUP_ALIASES_QUIET=true source \"\$ALIASES_SCRIPT\""
     echo "   fi"

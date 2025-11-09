@@ -47,6 +47,7 @@ class NutritionErrorType(Enum):
     FAT_TOO_HIGH = "fat_too_high"
     CARB_TOO_LOW = "carb_too_low"
     CARB_TOO_HIGH = "carb_too_high"
+    MACROS_SUM_INVALID = "macros_sum_invalid"
 
 
 @dataclass
@@ -375,6 +376,33 @@ class NutritionBayesianAnalyzer:
                 protein_pct = protein_cals / total_calories
                 fat_pct = fat_cals / total_calories
                 carb_pct = carb_cals / total_calories
+
+                # Validate that macronutrient percentages sum to approximately 100%
+                # Tolerance is configurable, default 0.01 (1%)
+                MACRO_SUM_TOLERANCE = 0.01
+                total_pct = protein_pct + fat_pct + carb_pct
+                if abs(total_pct - 1.0) > MACRO_SUM_TOLERANCE:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                            error_type=NutritionErrorType.MACROS_SUM_INVALID,
+                            error_message=(
+                                f"Проценты макронутриентов не суммируются до ~100%: "
+                                f"белок={protein_pct:.2%}, жиры={fat_pct:.2%}, "
+                                f"углеводы={carb_pct:.2%}, сумма={total_pct:.2%}"
+                            ),
+                            business_impact=(
+                                "Некорректные данные о питании могут привести к "
+                                "ошибкам в расчетах калорий и макронутриентов, "
+                                "что влияет на доверие пользователей"
+                            ),
+                            safety_level="dangerous",
+                        )
+                    )
+                    # Skip per-macro threshold checks if sum is invalid
+                    return results
 
                 limits = self.nutrition_knowledge_base["nutrient_limits"]
 

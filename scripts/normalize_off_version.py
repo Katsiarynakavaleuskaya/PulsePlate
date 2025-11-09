@@ -8,7 +8,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict, cast
+from typing import Any, Dict, Mapping, Optional, TypedDict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -178,7 +178,7 @@ def write_log_file(content: str, prefix: str = "normalize_off_version") -> Optio
         return None
 
 
-def _atomic_write_json(target_path: Path, data: Dict[str, Any]) -> None:
+def _atomic_write_json(target_path: Path, data: Mapping[str, Any]) -> None:
     """Atomically write JSON to target_path.
 
     RU: Атомарная запись JSON в файл: во временный файл в той же директории,
@@ -224,7 +224,7 @@ def set_version(v: str) -> None:
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
-        _atomic_write_json(VERS, cast(Dict[str, Any], meta))
+        _atomic_write_json(VERS, meta)
     else:
         meta = json.loads(VERS.read_text(encoding="utf-8"))
         # Defensively validate meta: ensure it's a dict
@@ -242,7 +242,7 @@ def set_version(v: str) -> None:
 
     # Set the version key on the validated dict
     meta["openfoodfacts"]["version"] = v
-    _atomic_write_json(VERS, cast(Dict[str, Any], meta))
+    _atomic_write_json(VERS, meta)
 
 
 def validate() -> int:

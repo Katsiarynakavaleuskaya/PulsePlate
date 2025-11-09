@@ -20,6 +20,12 @@ import math
 from datetime import datetime, timezone
 
 from core.bayesian_technical_utils import analyze_technical_aspects_common
+from core.bayesian_recommendations import (
+    get_recommendations,
+    get_error_type_key,
+    get_symptom_key,
+    DEFAULT_LANGUAGE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +115,14 @@ class BayesianTestAnalyzer:
     P(причина|симптомы) = P(симптомы|причина) * P(причина) / P(симптомы)
     """
 
-    def __init__(self, data_file: Optional[Path] = None) -> None:
-        """Инициализация анализатора."""
+    def __init__(self, data_file: Optional[Path] = None, language: Optional[str] = None) -> None:
+        """
+        Инициализация анализатора.
+
+        Args:
+            data_file: Путь к файлу истории выполнения тестов.
+            language: Код языка для рекомендаций (ru/en/es). По умолчанию используется DEFAULT_LANGUAGE.
+        """
         # Управление персистом истории:
         # Если явно передан data_file в конструктор (как в тестах), считаем, что запись включена.
         truthy = {"1", "true", "yes", "on"}
@@ -123,6 +135,10 @@ class BayesianTestAnalyzer:
             self.data_file = (
                 Path(history_path) if history_path else Path("test_execution_history.json")
             )
+
+        # Language configuration for recommendations
+        self.language = language or os.getenv("BAYESIAN_LANGUAGE", DEFAULT_LANGUAGE).strip().lower()
+
         self.execution_history: List[TestRecord] = []
         self.error_patterns: Dict[ErrorType, Dict[str, float]] = defaultdict(
             lambda: defaultdict(float)
@@ -145,6 +161,13 @@ class BayesianTestAnalyzer:
             ErrorType.MOCK_ERROR: 0.15,
             ErrorType.ASYNC_ERROR: 0.10,
         }
+        # Нормализуем вероятности, чтобы сумма была равна 1.0
+        prior_sum = sum(self.prior_probabilities.values())
+        if prior_sum:
+            self.prior_probabilities = {
+                error_type: weight / prior_sum
+                for error_type, weight in self.prior_probabilities.items()
+            }
 
         self.load_history()
 
@@ -228,7 +251,7 @@ class BayesianTestAnalyzer:
             self.coverage_patterns[execution.test_name].append(execution.coverage_percentage)
 
     def diagnose_test_failure(
-        self, test_name: str, error_message: str, context: Dict[str, Any] = None
+        self, test_name: str, error_message: str, context: Optional[Dict[str, Any]] = None
     ) -> BayesianDiagnosis:
         """
         Диагностировать причину падения теста с использованием теоремы Байеса.
@@ -465,72 +488,36 @@ class BayesianTestAnalyzer:
     def _generate_recommendations(
         self, error_type: ErrorType, symptoms: Set[str], context: Dict[str, Any]
     ) -> List[str]:
-        """Сгенерировать рекомендации по исправлению."""
+        """
+        Сгенерировать рекомендации по исправлению.
+
+        Использует централизованную конфигурацию рекомендаций из bayesian_recommendations
+        с поддержкой интернационализации.
+
+        Args:
+            error_type: Тип ошибки.
+            symptoms: Множество симптомов.
+            context: Контекстная информация (не используется, но сохранен для совместимости).
+
+        Returns:
+            Список рекомендаций по исправлению.
+        """
         recommendations = []
 
-        if error_type == ErrorType.ASSERTION_ERROR:
-            recommendations.extend(
-                [
-                    "Проверьте ожидаемые и фактические значения в assert",
-                    "Убедитесь, что моки настроены правильно",
-                    "Проверьте типы данных в сравнениях",
-                ]
+        # Получаем рекомендации для типа ошибки
+        error_key = get_error_type_key(error_type)
+        error_recommendations = get_recommendations(
+            error_key, language=self.language, fallback=[f"Review {error_type.value}"]
+        )
+        recommendations.extend(error_recommendations)
+
+        # Получаем контекстные рекомендации на основе симптомов
+        for symptom in symptoms:
+            symptom_key = get_symptom_key(symptom)
+            symptom_recommendations = get_recommendations(
+                symptom_key, language=self.language, fallback=[]
             )
-
-        elif error_type == ErrorType.IMPORT_ERROR:
-            recommendations.extend(
-                [
-                    "Проверьте правильность импортов",
-                    "Убедитесь, что все зависимости установлены",
-                    "Проверьте PYTHONPATH и sys.path",
-                ]
-            )
-
-        elif error_type == ErrorType.TYPE_ERROR:
-            recommendations.extend(
-                [
-                    "Проверьте типы аргументов функций",
-                    "Убедитесь в правильности сигнатур методов",
-                    "Проверьте аннотации типов",
-                ]
-            )
-
-        elif error_type == ErrorType.ATTRIBUTE_ERROR:
-            recommendations.extend(
-                [
-                    "Проверьте существование атрибутов/методов",
-                    "Убедитесь, что объекты инициализированы правильно",
-                    "Проверьте правильность моков",
-                ]
-            )
-
-        elif error_type == ErrorType.ASYNC_ERROR:
-            recommendations.extend(
-                [
-                    "Используйте AsyncMock для асинхронных методов",
-                    "Проверьте правильность await в тестах",
-                    "Убедитесь, что тесты помечены @pytest.mark.asyncio",
-                ]
-            )
-
-        elif error_type == ErrorType.MOCK_ERROR:
-            recommendations.extend(
-                [
-                    "Проверьте правильность настройки моков",
-                    "Убедитесь, что патчи применяются в правильном порядке",
-                    "Проверьте, что моки не конфликтуют друг с другом",
-                ]
-            )
-
-        # Контекстные рекомендации
-        if "async_context" in symptoms:
-            recommendations.append("Проверьте асинхронную логику теста")
-
-        if "mock_context" in symptoms:
-            recommendations.append("Пересмотрите настройку моков")
-
-        if "coverage_context" in symptoms:
-            recommendations.append("Добавьте тесты для непокрытых строк кода")
+            recommendations.extend(symptom_recommendations)
 
         return recommendations
 
@@ -589,7 +576,7 @@ class BayesianTestAnalyzer:
             self.prior_probabilities[et] = blended[et]
 
     def predict_test_failure_probability(
-        self, test_name: str, context: Dict[str, Any] = None
+        self, test_name: str, context: Optional[Dict[str, Any]] = None
     ) -> float:
         """Предсказать вероятность падения теста."""
         if context is None:
@@ -662,8 +649,14 @@ class BayesianTestAnalyzer:
 
         if execution_times and len(execution_times) > 1:
             avg_time = sum(execution_times) / len(execution_times)
-            time_variance = sum((t - avg_time) ** 2 for t in execution_times) / len(execution_times)
-            time_stability = 1.0 / (1.0 + time_variance / (avg_time**2))
+            # Guard against division by zero: only compute stability if avg_time > 0
+            if avg_time > 0:
+                time_variance = sum((t - avg_time) ** 2 for t in execution_times) / len(
+                    execution_times
+                )
+                time_stability = 1.0 / (1.0 + time_variance / (avg_time**2))
+            else:
+                time_stability = 1.0  # Safe default for near-zero average time
         else:
             time_stability = 1.0
 
@@ -734,7 +727,7 @@ bayesian_analyzer = BayesianTestAnalyzer()
 
 
 def diagnose_test_failure(
-    test_name: str, error_message: str, context: Dict[str, Any] = None
+    test_name: str, error_message: str, context: Optional[Dict[str, Any]] = None
 ) -> BayesianDiagnosis:
     """Удобная функция для диагностики падения теста."""
     return bayesian_analyzer.diagnose_test_failure(test_name, error_message, context)

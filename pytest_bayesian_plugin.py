@@ -8,6 +8,7 @@ import asyncio
 from typing import Dict, Any, Optional, Tuple
 import time
 import os
+import ast
 
 # Import modules via proper packaging/pytest configuration (no sys.path mutations)
 
@@ -35,6 +36,21 @@ class BayesianPytestPlugin:
         "monte_carlo": TestCategory.MONTE_CARLO,
         "bayesian": TestCategory.BAYESIAN,
     }
+
+    # Error detection patterns: (ErrorType, keywords list, require_all flag)
+    # COVERAGE_ERROR requires all keywords to be present, others use any()
+    ERROR_PATTERNS = [
+        (ErrorType.ASSERTION_ERROR, ["assertionerror", "assert"], False),
+        (ErrorType.IMPORT_ERROR, ["importerror", "modulenotfounderror"], False),
+        (ErrorType.TYPE_ERROR, ["typeerror"], False),
+        (ErrorType.ATTRIBUTE_ERROR, ["attributeerror"], False),
+        (ErrorType.VALUE_ERROR, ["valueerror", "unprocessable"], False),
+        (ErrorType.RUNTIME_ERROR, ["runtimeerror"], False),
+        (ErrorType.TIMEOUT_ERROR, ["timeouterror", "timeout"], False),
+        (ErrorType.COVERAGE_ERROR, ["coverage", "below"], True),  # Requires all keywords
+        (ErrorType.MOCK_ERROR, ["mock", "patch"], False),
+        (ErrorType.ASYNC_ERROR, ["asyncio", "await", "async"], False),
+    ]
 
     def __init__(self, category_markers: Optional[list] = None) -> None:
         self.analyzer = BayesianTestAnalyzer()
@@ -154,9 +170,7 @@ class BayesianPytestPlugin:
 
         # Проверить наличие моков в коде теста
         test_code = self._get_test_code(item)
-        context["has_mocks"] = any(
-            keyword in test_code.lower() for keyword in ["mock", "patch", "magicmock", "asyncmock"]
-        )
+        context["has_mocks"] = self._detect_mocks_ast(test_code)
 
         # Проверить, связан ли тест с покрытием
         context["coverage_related"] = "coverage" in str(item.fspath).lower()
@@ -176,6 +190,93 @@ class BayesianPytestPlugin:
         except (OSError, TypeError):
             pass
         return ""
+
+    def _detect_mocks_ast(self, test_code: str) -> bool:
+        """Обнаружить использование моков через AST-анализ.
+
+        Парсит код и ищет:
+        - Импорты модулей/имен, содержащих "mock" или "unittest.mock"
+        - Вызовы функций и атрибутов, содержащих "mock", "patch", "magicmock", "asyncmock"
+        (регистронезависимо)
+
+        Args:
+            test_code: Исходный код теста
+
+        Returns:
+            True если найдены моки, False иначе
+        """
+        if not test_code:
+            return False
+
+        try:
+            tree = ast.parse(test_code)
+        except SyntaxError:
+            # Если код невалиден, возвращаем False
+            return False
+
+        mock_keywords = {"mock", "patch", "magicmock", "asyncmock"}
+
+        class MockDetector(ast.NodeVisitor):
+            """Visitor для обнаружения использования моков в AST."""
+
+            def __init__(self, keywords: set) -> None:
+                self.has_mocks = False
+                self.mock_keywords = keywords
+
+            def visit_Import(self, node: ast.Import) -> None:
+                """Проверить импорты модулей."""
+                for alias in node.names:
+                    module_name = alias.name.lower()
+                    if "mock" in module_name or "unittest.mock" in module_name:
+                        self.has_mocks = True
+                        return
+                self.generic_visit(node)
+
+            def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+                """Проверить импорты из модулей."""
+                if node.module:
+                    module_name = node.module.lower()
+                    if "mock" in module_name or "unittest.mock" in module_name:
+                        self.has_mocks = True
+                        return
+                # Проверить импортируемые имена
+                for alias in node.names:
+                    name = alias.name.lower()
+                    if any(keyword in name for keyword in self.mock_keywords):
+                        self.has_mocks = True
+                        return
+                self.generic_visit(node)
+
+            def _check_name_or_attr(self, node: ast.AST) -> bool:
+                """Рекурсивно проверить имя или атрибут на наличие mock-ключевых слов."""
+                if isinstance(node, ast.Name):
+                    name = node.id.lower()
+                    return any(keyword in name for keyword in self.mock_keywords)
+                elif isinstance(node, ast.Attribute):
+                    attr_name = node.attr.lower()
+                    if any(keyword in attr_name for keyword in self.mock_keywords):
+                        return True
+                    # Рекурсивно проверить вложенные атрибуты (например, unittest.mock.patch)
+                    return self._check_name_or_attr(node.value)
+                return False
+
+            def visit_Call(self, node: ast.Call) -> None:
+                """Проверить вызовы функций."""
+                if self._check_name_or_attr(node.func):
+                    self.has_mocks = True
+                    return
+                self.generic_visit(node)
+
+            def visit_Attribute(self, node: ast.Attribute) -> None:
+                """Проверить использование атрибутов."""
+                if self._check_name_or_attr(node):
+                    self.has_mocks = True
+                    return
+                self.generic_visit(node)
+
+        detector = MockDetector(mock_keywords)
+        detector.visit(tree)
+        return detector.has_mocks
 
     def _analyze_failure(self, report) -> Tuple[Optional[ErrorType], Optional[str]]:
         """Анализировать падение теста и определить тип ошибки и сообщение.
@@ -206,26 +307,19 @@ class BayesianPytestPlugin:
 
         error_type: Optional[ErrorType] = None
         error_lower = error_text.lower()
-        if "assertionerror" in error_lower or "assert" in error_lower:
-            error_type = ErrorType.ASSERTION_ERROR
-        elif "importerror" in error_lower or "modulenotfounderror" in error_lower:
-            error_type = ErrorType.IMPORT_ERROR
-        elif "typeerror" in error_lower:
-            error_type = ErrorType.TYPE_ERROR
-        elif "attributeerror" in error_lower:
-            error_type = ErrorType.ATTRIBUTE_ERROR
-        elif "valueerror" in error_lower or "unprocessable" in error_lower:
-            error_type = ErrorType.VALUE_ERROR
-        elif "runtimeerror" in error_lower:
-            error_type = ErrorType.RUNTIME_ERROR
-        elif "timeouterror" in error_lower or "timeout" in error_lower:
-            error_type = ErrorType.TIMEOUT_ERROR
-        elif "coverage" in error_lower and "below" in error_lower:
-            error_type = ErrorType.COVERAGE_ERROR
-        elif "mock" in error_lower or "patch" in error_lower:
-            error_type = ErrorType.MOCK_ERROR
-        elif "asyncio" in error_lower or "await" in error_lower or "async" in error_lower:
-            error_type = ErrorType.ASYNC_ERROR
+
+        # Iterate over ERROR_PATTERNS to find matching error type
+        for pattern_error_type, keywords, require_all in self.ERROR_PATTERNS:
+            if require_all:
+                # COVERAGE_ERROR requires all keywords to be present
+                if all(keyword in error_lower for keyword in keywords):
+                    error_type = pattern_error_type
+                    break
+            else:
+                # Most error types match if any keyword is present
+                if any(keyword in error_lower for keyword in keywords):
+                    error_type = pattern_error_type
+                    break
 
         return error_type, error_message
 

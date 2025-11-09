@@ -49,11 +49,15 @@ case $choice in
             exit 1
         fi
 
-        # Use Python script to update API key
-        python3 scripts/update_api_key.py "$api_key" || {
+        # Use Python script to update API key securely / Используем Python-скрипт для безопасного обновления API-ключа
+        if ! python3 scripts/update_api_key.py <<EOF
+$api_key
+EOF
+        then
             echo "❌ Failed to update API key"
             exit 1
-        }
+        fi
+        unset api_key
 
         echo ""
         echo "✅ API key updated successfully!"
@@ -71,8 +75,8 @@ case $choice in
         # Check if .env file exists
         if [ -f ~/.cursor/.env ]; then
             echo "✅ Environment file found: ~/.cursor/.env"
-            if grep -q "OPENAI_API_KEY" ~/.cursor/.env; then
-                key_line=$(grep "OPENAI_API_KEY" ~/.cursor/.env | head -1)
+            if grep -q "^[[:space:]]*OPENAI_API_KEY=" ~/.cursor/.env; then
+                key_line=$(grep "^[[:space:]]*OPENAI_API_KEY=" ~/.cursor/.env | head -1)
                 if [[ "$key_line" == *"your_openai_api_key_here"* ]] || [[ "$key_line" == *"encrypted:"* ]]; then
                     if [[ "$key_line" == *"encrypted:"* ]]; then
                         echo "✅ API key is set (encrypted)"
@@ -112,7 +116,7 @@ case $choice in
 
         # Try to get API key from environment or file
         if [ -f ~/.cursor/.env ]; then
-            source ~/.cursor/.env 2>/dev/null || true
+            source "$HOME/.cursor/.env" 2>/dev/null || true
         fi
 
         if [ -z "${OPENAI_API_KEY:-}" ]; then
@@ -127,13 +131,19 @@ case $choice in
         # Test OpenAI API (if it's an OpenAI key)
         if [[ "$api_key" == sk-* ]]; then
             echo "Testing OpenAI API connection..."
-            response=$(curl -s -w "\n%{http_code}" \
+            # Use curl with timeout flags and separate status code capture
+            # Write body to a temporary variable and status code separately
+            temp_body=$(mktemp)
+            http_code=$(curl -s -w "%{http_code}" \
+                --max-time 10 \
+                --connect-timeout 5 \
                 -H "Authorization: Bearer $api_key" \
                 -H "Content-Type: application/json" \
-                https://api.openai.com/v1/models 2>&1) || true
+                -o "$temp_body" \
+                https://api.openai.com/v1/models 2>&1) || http_code="000"
 
-            http_code=$(echo "$response" | tail -1)
-            body=$(echo "$response" | sed '$d')
+            body=$(cat "$temp_body" 2>/dev/null || echo "")
+            rm -f "$temp_body"
 
             if [ "$http_code" = "200" ]; then
                 echo "✅ OpenAI API connection successful!"
@@ -155,6 +165,10 @@ case $choice in
                 echo "❌ OpenAI API connection failed (HTTP $http_code)"
                 echo "   Response: $body"
             fi
+        elif [[ "$api_key" == claude-* ]] || [[ "$api_key" == sk-ant-* ]]; then
+            echo "⚠️  Anthropic API key detected (claude-* or sk-ant-*)"
+            echo "   This OpenAI connectivity check does not support Anthropic keys"
+            echo "   Use Anthropic's API testing tools instead"
         else
             echo "⚠️  API key format not recognized (expected sk-...)"
             echo "   This might be an Anthropic key or invalid format"

@@ -1208,6 +1208,10 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
         )
         if callable(build_targets_func):
             return build_targets_func
+    # Fallback: protect against rare edge cases where current module is not present
+    # in sys.modules during tests or dynamic imports (e.g., when module is reloaded
+    # or imported via importlib.reload). In normal execution, candidates already
+    # includes _sys.modules.get(__name__), so this fallback should rarely execute.
     if callable(build_nutrition_targets):
         return build_nutrition_targets
     return None
@@ -1578,8 +1582,6 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
 
             # If no ingredients in meal, try to look them up from recipes (offload to thread)
             if not ingredients:
-                import asyncio
-
                 ingredients = await asyncio.to_thread(_get_recipe_ingredients_for_meal, meal_title)
 
             # Aggregate micronutrients from ingredients

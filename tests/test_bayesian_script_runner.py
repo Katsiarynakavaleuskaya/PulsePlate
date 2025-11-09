@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 from typing import Any, Dict
+import subprocess
 
 import pytest
 
@@ -8,14 +8,14 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # Import inside to ensure test discovery works even if path changes
     from scripts import run_tests_bayesian as runner
 
-    @dataclass
-    class DummyCompleted:
-        returncode: int = 0
-        stdout: str = "OK\n"
-        stderr: str = ""
-
-    def fake_run(*args: Any, **kwargs: Any) -> DummyCompleted:
-        return DummyCompleted()
+    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # Use subprocess.CompletedProcess directly instead of Mock
+        return subprocess.CompletedProcess(
+            args=args[0] if args else [],
+            returncode=0,
+            stdout="OK\n",
+            stderr="",
+        )
 
     monkeypatch.setattr("subprocess.run", fake_run)
 

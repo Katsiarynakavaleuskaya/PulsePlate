@@ -18,14 +18,19 @@ class DummyItem:
         self.fspath = SimpleNamespace(**{"__str__": lambda self=self: path})
         self.name = name
 
-    def iter_markers(self) -> Iterator[DummyMarker]:  # type: ignore[override]
+    def iter_markers(self) -> Iterator[DummyMarker]:
         return iter(self._markers)
 
 
-def test_determine_category_custom_marker() -> None:
-    plugin = BayesianPytestPlugin(category_markers=["regression", "integration"])  # custom + known
-    item = DummyItem(["regression"])  # not mapped, should fallback to UNIT
+def test_determine_category_custom_marker_fallback() -> None:
+    """Test that unmapped custom markers fallback to UNIT category."""
+    plugin = BayesianPytestPlugin(category_markers=["regression", "integration"])
+    item = DummyItem(["regression"])
     assert plugin._determine_test_category(item) == TestCategory.UNIT
 
-    item2 = DummyItem(["integration"])  # known -> INTEGRATION
+
+def test_determine_category_custom_marker_known() -> None:
+    """Test that known custom markers map to their correct category."""
+    plugin = BayesianPytestPlugin(category_markers=["regression", "integration"])
+    item2 = DummyItem(["integration"])
     assert plugin._determine_test_category(item2) == TestCategory.INTEGRATION

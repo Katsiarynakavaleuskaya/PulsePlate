@@ -65,6 +65,7 @@ jobs:
       - name: Mypy (changed files only)
         if: github.event_name != 'pull_request' || steps.changed.outputs.files != ''
         run: |
+          set -e
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # Safely split changed files output into array and quote each element
             # to handle newlines and special characters in filenames
@@ -74,10 +75,11 @@ jobs:
               exit 0
             fi
             # Iterate newline-delimited paths safely
-            echo "$CHANGED_FILES" | while IFS= read -r file; do
+            # Use here-string instead of pipe to avoid subshell (so exit codes propagate)
+            while IFS= read -r file; do
               [ -z "$file" ] && continue
-              mypy "$file"
-            done
+              mypy "$file" || exit 1
+            done <<< "$CHANGED_FILES"
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
@@ -186,13 +188,17 @@ jobs:
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Fetch base branch for diff-cover
-        if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
+        if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'
         run: |
-          git fetch origin "${{ github.base_ref }}" --depth=50
+          git fetch origin "${{ github.base_ref }}" --depth=100
 
       - name: Diff coverage on changed lines (PR)
-        if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
+        if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'
         run: |
+          if [ ! -f coverage.xml ]; then
+            echo "⚠️  coverage.xml not found, skipping diff-cover step"
+            exit 0
+          fi
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)

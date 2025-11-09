@@ -4,10 +4,8 @@
 
 import pytest
 import tempfile
-import json
 from pathlib import Path
-from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from typing import Iterator
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
@@ -19,13 +17,20 @@ from core.bayesian_test_analyzer import (
     diagnose_test_failure,
     record_test_execution,
 )
+from core.bayesian_recommendations import (
+    get_recommendations,
+    get_error_type_key,
+    get_symptom_key,
+    get_all_error_type_keys,
+    get_all_symptom_keys,
+)
 
 
 class TestBayesianTestAnalyzer:
     """Тесты для BayesianTestAnalyzer."""
 
     @pytest.fixture
-    def temp_data_file(self):
+    def temp_data_file(self) -> Iterator[Path]:
         """Временный файл для данных."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = Path(f.name)
@@ -33,7 +38,7 @@ class TestBayesianTestAnalyzer:
         temp_path.unlink(missing_ok=True)
 
     @pytest.fixture
-    def analyzer(self, temp_data_file):
+    def analyzer(self, temp_data_file: Path) -> BayesianTestAnalyzer:
         """Создать анализатор с временным файлом данных."""
         return BayesianTestAnalyzer(data_file=temp_data_file)
 
@@ -327,6 +332,19 @@ class TestBayesianDiagnosis:
 class TestConvenienceFunctions:
     """Тесты для удобных функций."""
 
+    @pytest.fixture
+    def temp_data_file(self) -> Iterator[Path]:
+        """Временный файл для данных."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            temp_path = Path(f.name)
+        yield temp_path
+        temp_path.unlink(missing_ok=True)
+
+    @pytest.fixture
+    def analyzer(self, temp_data_file: Path) -> BayesianTestAnalyzer:
+        """Создать анализатор с временным файлом данных."""
+        return BayesianTestAnalyzer(data_file=temp_data_file)
+
     def test_diagnose_test_failure_function(self) -> None:
         """Тест функции diagnose_test_failure."""
         diagnosis = diagnose_test_failure(
@@ -336,17 +354,28 @@ class TestConvenienceFunctions:
         assert isinstance(diagnosis, BayesianDiagnosis)
         assert diagnosis.most_likely_cause is not None
 
-    def test_record_test_execution_function(self) -> None:
-        """Тест функции record_test_execution."""
-        # Функция должна выполняться без ошибок
-        record_test_execution(
-            test_name="test_example", category=TestCategory.UNIT, result=TestStatus.PASSED
-        )
+    def test_record_test_execution_function(self, analyzer: BayesianTestAnalyzer) -> None:
+        """Тест функции record_test_execution с использованием изолированного fixture."""
+        # Очистить историю перед тестом для изоляции
+        analyzer.execution_history.clear()
 
-        # Проверить, что данные записались
-        from core.bayesian_test_analyzer import bayesian_analyzer
+        # Мокаем глобальный bayesian_analyzer, чтобы использовать наш изолированный fixture
+        from unittest.mock import patch
+        from core import bayesian_test_analyzer
 
-        assert len(bayesian_analyzer.execution_history) >= 1
+        with patch.object(bayesian_test_analyzer, "bayesian_analyzer", analyzer):
+            # Вызываем функцию record_test_execution, которая теперь использует наш fixture
+            record_test_execution(
+                test_name="test_example",
+                category=TestCategory.UNIT,
+                result=TestStatus.PASSED,
+            )
+
+        # Проверить, что данные записались в изолированную фикстуру
+        assert len(analyzer.execution_history) == 1
+        assert analyzer.execution_history[0].test_name == "test_example"
+        assert analyzer.execution_history[0].result == TestStatus.PASSED
+        assert analyzer.execution_history[0].category == TestCategory.UNIT
 
 
 class TestErrorTypeEnum:
@@ -467,3 +496,105 @@ class TestIntegration:
         finally:
             # Очистить временный файл
             temp_path.unlink(missing_ok=True)
+
+
+class TestRecommendationsCoverage:
+    """Тесты для проверки покрытия рекомендаций всеми типами ошибок и симптомами."""
+
+    @pytest.fixture
+    def temp_data_file(self) -> Iterator[Path]:
+        """Временный файл для данных."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            temp_path = Path(f.name)
+        yield temp_path
+        temp_path.unlink(missing_ok=True)
+
+    def test_all_error_types_have_recommendations(self) -> None:
+        """Проверка, что каждый ErrorType имеет хотя бы одну рекомендацию."""
+        for error_type in ErrorType:
+            error_key = get_error_type_key(error_type)
+            recommendations = get_recommendations(error_key, language="ru")
+            error_msg = (
+                f"ErrorType {error_type.name} ({error_type.value}) "
+                f"does not have any recommendations. Key: {error_key}"
+            )
+            assert len(recommendations) > 0, error_msg
+            # Проверяем, что рекомендации не пустые строки
+            empty_msg = f"ErrorType {error_type.name} has empty recommendation strings"
+            assert all(rec.strip() for rec in recommendations), empty_msg
+
+    def test_all_error_types_have_recommendations_all_languages(self) -> None:
+        """Проверка, что каждый ErrorType имеет рекомендации на всех языках."""
+        languages = ["ru", "en", "es"]
+        for error_type in ErrorType:
+            error_key = get_error_type_key(error_type)
+            for language in languages:
+                recommendations = get_recommendations(error_key, language=language)
+                assert len(recommendations) > 0, (
+                    f"ErrorType {error_type.name} ({error_type.value}) "
+                    f"does not have recommendations in language '{language}'. Key: {error_key}"
+                )
+
+    def test_known_symptoms_have_recommendations(self) -> None:
+        """Проверка, что известные симптомы имеют рекомендации."""
+        known_symptoms = ["async_context", "mock_context", "coverage_context"]
+        for symptom in known_symptoms:
+            symptom_key = get_symptom_key(symptom)
+            recommendations = get_recommendations(symptom_key, language="ru")
+            assert (
+                len(recommendations) > 0
+            ), f"Symptom '{symptom}' does not have any recommendations. Key: {symptom_key}"
+
+    def test_recommendations_fallback_mechanism(self) -> None:
+        """Проверка механизма fallback для рекомендаций."""
+        # Тест fallback на default language
+        error_key = get_error_type_key(ErrorType.ASSERTION_ERROR)
+        recommendations_en = get_recommendations(error_key, language="en")
+        recommendations_ru = get_recommendations(error_key, language="ru")
+        assert len(recommendations_en) > 0
+        assert len(recommendations_ru) > 0
+
+        # Тест fallback на переданный fallback список
+        unknown_key = "error_type.unknown_error"
+        fallback_recs = ["Default recommendation"]
+        recommendations = get_recommendations(unknown_key, language="ru", fallback=fallback_recs)
+        assert recommendations == fallback_recs
+
+    def test_analyzer_uses_recommendations(self, temp_data_file: Path) -> None:
+        """Проверка, что анализатор использует систему рекомендаций."""
+        analyzer = BayesianTestAnalyzer(data_file=temp_data_file, language="ru")
+
+        # Тестируем генерацию рекомендаций для каждого типа ошибки
+        for error_type in ErrorType:
+            symptoms = set()
+            recommendations = analyzer._generate_recommendations(error_type, symptoms, {})
+            assert (
+                len(recommendations) > 0
+            ), f"Analyzer did not generate recommendations for ErrorType {error_type.name}"
+
+    def test_analyzer_recommendations_with_symptoms(self, temp_data_file: Path) -> None:
+        """Проверка генерации рекомендаций с симптомами."""
+        analyzer = BayesianTestAnalyzer(data_file=temp_data_file, language="ru")
+
+        symptoms = {"async_context", "mock_context", "coverage_context"}
+        recommendations = analyzer._generate_recommendations(
+            ErrorType.ASSERTION_ERROR, symptoms, {}
+        )
+
+        # Должны быть рекомендации для типа ошибки и для симптомов
+        assert (
+            len(recommendations) > 3
+        ), "Analyzer should generate recommendations for error type and symptoms"
+
+    def test_analyzer_language_configuration(self, temp_data_file: Path) -> None:
+        """Проверка конфигурации языка в анализаторе."""
+        # Тест с явным указанием языка
+        analyzer_en = BayesianTestAnalyzer(data_file=temp_data_file, language="en")
+        assert analyzer_en.language == "en"
+
+        analyzer_ru = BayesianTestAnalyzer(data_file=temp_data_file, language="ru")
+        assert analyzer_ru.language == "ru"
+
+        # Тест с дефолтным языком
+        analyzer_default = BayesianTestAnalyzer(data_file=temp_data_file)
+        assert analyzer_default.language in ["ru", "en", "es"]

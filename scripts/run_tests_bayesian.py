@@ -6,14 +6,16 @@
 
 import sys
 import subprocess
+import shutil
+import logging
 from pathlib import Path
 from typing import List, Dict, Any
 
-# Добавляем корневую директорию проекта в путь
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
+# Package should be installed in editable mode (pip install -e .)
+# or PYTHONPATH should be set in the environment
 from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
+
+project_root = Path(__file__).parent.parent
 
 
 def clean_cache() -> None:
@@ -34,8 +36,6 @@ def clean_cache() -> None:
                 if path.is_file():
                     path.unlink()
                 elif path.is_dir():
-                    import shutil
-
                     shutil.rmtree(path, ignore_errors=True)
         except Exception as e:
             print(f"⚠️ Ошибка очистки {pattern}: {e}")
@@ -83,10 +83,30 @@ def run_tests_fast() -> Dict[str, Any]:
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if ("FAILED" in line or "ERROR" in line) and "::" in line:
-                    try:
-                        test_name = line.split("::")[-1].strip()
-                    except Exception:
-                        test_name = line.strip()
+                    # Verify line is a string or coerce it
+                    if line is None:
+                        test_name = ""
+                        logging.warning(
+                            f"Line {i} is None when extracting test name, " f"using empty fallback"
+                        )
+                    elif not isinstance(line, str):
+                        test_name = str(line)
+                        logging.warning(
+                            f"Line {i} is not a string (type: {type(line).__name__}), "
+                            f"coerced to string: {test_name[:50]}"
+                        )
+                    else:
+                        # Safe extraction with specific exception handling
+                        try:
+                            test_name = line.split("::")[-1].strip()
+                        except (AttributeError, IndexError) as e:
+                            # Fallback to stripped line if split fails
+                            test_name = line.strip() if line else ""
+                            logging.warning(
+                                f"Failed to extract test name from line {i} "
+                                f"(exception: {type(e).__name__}: {e}), "
+                                f"using fallback: {test_name[:50]}"
+                            )
                     failed_tests.append(
                         {
                             "name": test_name,

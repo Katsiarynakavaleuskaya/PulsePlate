@@ -6,7 +6,7 @@ This document describes how we apply Bayes' theorem (Beta–Bernoulli) and Thomp
 - Prior: Beta(α0, β0), typically α0=1, β0=1.
 - Observations: s successes, f failures.
 - Posterior: Beta(α0+s, β0+f).
-- Mean: α/(α+β). Thompson Sampling draws p ~ Beta(α, β) per variant and picks max p.
+- Mean: α/(α+β). Thompson Sampling: for each variant, draw one sample p ~ Beta(α, β) from its posterior distribution, then select the variant with the highest sampled p. This procedure balances exploration and exploitation by probabilistically favoring variants with higher posterior means while preserving uncertainty—variants with overlapping credible intervals remain explorable, ensuring we don't prematurely converge to suboptimal variants.
 
 ## Implementation Notes
 - Sampling via `random.betavariate(alpha, beta)` (no SciPy).
