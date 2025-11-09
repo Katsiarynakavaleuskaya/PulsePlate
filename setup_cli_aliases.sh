@@ -2,6 +2,9 @@
 # Настройка CLI алиасов для PulsePlate проекта
 # Использование: source setup_cli_aliases.sh
 
+# Определяем режим загрузки: автоматический (тихий) или интерактивный (с выводом)
+AUTO_LOAD="${SETUP_ALIASES_QUIET:-false}"
+
 # Установка PROJECT_ROOT через переменную окружения или интерактивный ввод
 if [ -z "${PROJECT_ROOT:-}" ]; then
     # Попробуем автоматически определить путь к проекту
@@ -9,22 +12,32 @@ if [ -z "${PROJECT_ROOT:-}" ]; then
     # Проверяем наличие pyproject.toml и либо app.py, либо app/ директории
     if [ -f "$SCRIPT_DIR/pyproject.toml" ] && { [ -f "$SCRIPT_DIR/app.py" ] || [ -d "$SCRIPT_DIR/app" ]; }; then
         PROJECT_ROOT="$SCRIPT_DIR"
-        echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
+        [ "$AUTO_LOAD" != "true" ] && echo "🔍 Автоматически определен путь к проекту: $PROJECT_ROOT"
     else
-        while true; do
-            read -r -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
-            if [ -n "$PROJECT_ROOT" ] && [ -d "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/pyproject.toml" ] && { [ -f "$PROJECT_ROOT/app.py" ] || [ -d "$PROJECT_ROOT/app" ]; }; then
-                break
-            else
-                echo "❌ Неверный путь. Убедитесь, что директория существует и содержит pyproject.toml и app.py (или app/ директорию)"
-            fi
-        done
+        # Интерактивный режим только если не тихая загрузка
+        if [ "$AUTO_LOAD" != "true" ]; then
+            while true; do
+                read -r -p "Введите путь к корню проекта PulsePlate: " PROJECT_ROOT
+                if [ -n "$PROJECT_ROOT" ] && [ -d "$PROJECT_ROOT" ] && [ -f "$PROJECT_ROOT/pyproject.toml" ] && { [ -f "$PROJECT_ROOT/app.py" ] || [ -d "$PROJECT_ROOT/app" ]; }; then
+                    break
+                else
+                    echo "❌ Неверный путь. Убедитесь, что директория существует и содержит pyproject.toml и app.py (или app/ директорию)"
+                fi
+            done
+        else
+            # Тихая загрузка - просто выходим если не можем определить путь
+            return 0 2>/dev/null || exit 0
+        fi
     fi
 fi
 
-echo "🚀 Настройка CLI алиасов для PulsePlate..."
+[ "$AUTO_LOAD" != "true" ] && echo "🚀 Настройка CLI алиасов для PulsePlate..."
 
 # Функция для создания алиаса
+# Оптимизировано: проверка AUTO_LOAD вынесена в переменную для производительности
+_QUIET_MODE=false
+[ "$AUTO_LOAD" = "true" ] && _QUIET_MODE=true
+
 create_alias() {
     local alias_name="$1"
     local command="$2"
@@ -32,7 +45,8 @@ create_alias() {
     # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
     # Note: Command substitutions in aliases also freeze at definition time
     alias "$alias_name"="$command"
-    echo "✅ Алиас '$alias_name' создан"
+    # Оптимизация: используем предвычисленную переменную вместо повторных проверок
+    [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
 }
 
 # Переход в директорию проекта
@@ -52,9 +66,10 @@ pptest-class() {
 pptest-method() {
   cd "$PROJECT_ROOT" && python -m pytest "tests/$1::$2::$3" -v
 }
-echo "✅ Функция 'pptest-file' создана"
-echo "✅ Функция 'pptest-class' создана"
-echo "✅ Функция 'pptest-method' создана"
+# Оптимизация: используем предвычисленную переменную
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-file' создана"
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-class' создана"
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-method' создана"
 
 # Покрытие кода
 create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
@@ -75,7 +90,7 @@ ppcov-html() {
     echo 'Откройте htmlcov/index.html в браузере'
   fi
 }
-echo "✅ Функция 'ppcov-html' создана"
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'ppcov-html' создана"
 
 # Линтинг и форматирование
 create_alias "pplint" "cd $PROJECT_ROOT && flake8 ."
@@ -119,8 +134,8 @@ pppull() {
   fi
   git pull origin "$BRANCH"
 }
-echo "✅ Функция 'pppush' создана"
-echo "✅ Функция 'pppull' создана"
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pppush' создана"
+[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pppull' создана"
 
 # Безопасные команды
 create_alias "ppsafe-push" "cd $PROJECT_ROOT && make safe-push"
@@ -142,38 +157,41 @@ create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 # Claude Code с ролью PulsePlate
 create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh"
 
-echo ""
-echo "🎯 CLI алиасы настроены!"
-echo ""
-echo "📋 Основные команды:"
-echo "  pp                    - Переход в директорию проекта"
-echo "  pptest               - Запуск всех тестов"
-echo "  ppcov                - Покрытие кода"
-echo "  pplint               - Линтинг"
-echo "  ppformat             - Форматирование кода"
-echo "  ppcheck              - Полная проверка (тесты + покрытие + линтинг + форматирование)"
-echo "  ppserver             - Запуск сервера на порту 8001"
-echo "  ppsafe-push          - Безопасный push"
-echo "  ppauto-push          - Автоматизированный push с проверками"
-echo "  pphelp               - Показать все доступные make команды"
-echo ""
-echo "🔧 Дополнительные команды:"
-echo "  pptest-quick         - Быстрые тесты"
-echo "  pptest-failed        - Только упавшие тесты"
-echo "  ppcov-html           - HTML отчет покрытия"
-echo "  ppformat-check       - Проверка форматирования"
-echo "  ppsmoke              - Smoke тесты"
-echo "  ppclean              - Очистка временных файлов"
-echo ""
-echo "💡 Примеры использования:"
-echo "  pp && pptest && ppcov && pplint && ppsafe-push"
-echo "  pp && ppcheck && ppauto-push"
-echo ""
-echo "🤖 Claude Code команды:"
-echo "  ppclaude              - Claude Code с автоматической загрузкой роли PulsePlate"
-echo "  claude                - Обычный Claude Code (без роли)"
-echo ""
-echo "✅ Готово! Все алиасы активны в текущей сессии."
-echo ""
-echo "💾 Для постоянного использования добавьте в ~/.zshrc (или ~/.bashrc):"
-echo "   source $PROJECT_ROOT/setup_cli_aliases.sh"
+# Выводим информацию только в интерактивном режиме
+if [ "$AUTO_LOAD" != "true" ]; then
+    echo ""
+    echo "🎯 CLI алиасы настроены!"
+    echo ""
+    echo "📋 Основные команды:"
+    echo "  pp                    - Переход в директорию проекта"
+    echo "  pptest               - Запуск всех тестов"
+    echo "  ppcov                - Покрытие кода"
+    echo "  pplint               - Линтинг"
+    echo "  ppformat             - Форматирование кода"
+    echo "  ppcheck              - Полная проверка (тесты + покрытие + линтинг + форматирование)"
+    echo "  ppserver             - Запуск сервера на порту 8001"
+    echo "  ppsafe-push          - Безопасный push"
+    echo "  ppauto-push          - Автоматизированный push с проверками"
+    echo "  pphelp               - Показать все доступные make команды"
+    echo ""
+    echo "🔧 Дополнительные команды:"
+    echo "  pptest-quick         - Быстрые тесты"
+    echo "  pptest-failed        - Только упавшие тесты"
+    echo "  ppcov-html           - HTML отчет покрытия"
+    echo "  ppformat-check       - Проверка форматирования"
+    echo "  ppsmoke              - Smoke тесты"
+    echo "  ppclean              - Очистка временных файлов"
+    echo ""
+    echo "💡 Примеры использования:"
+    echo "  pp && pptest && ppcov && pplint && ppsafe-push"
+    echo "  pp && ppcheck && ppauto-push"
+    echo ""
+    echo "🤖 Claude Code команды:"
+    echo "  ppclaude              - Claude Code с автоматической загрузкой роли PulsePlate"
+    echo "  claude                - Обычный Claude Code (без роли)"
+    echo ""
+    echo "✅ Готово! Все алиасы активны в текущей сессии."
+    echo ""
+    echo "💾 Для постоянного использования добавьте в ~/.zshrc (или ~/.bashrc):"
+    echo "   source $PROJECT_ROOT/setup_cli_aliases.sh"
+fi
