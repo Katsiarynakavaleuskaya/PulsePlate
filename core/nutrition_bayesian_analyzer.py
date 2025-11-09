@@ -77,20 +77,12 @@ class NutritionBayesianAnalyzer:
         self._failed_analyses: int = 0
 
     def _load_nutrition_knowledge(self) -> Dict[str, Any]:
-        """Загружает базу знаний о питании."""
+        """Загружает базу знаний о питании.
+
+        Note: BMI ranges and calorie limits are handled via safety_thresholds
+        (see _load_safety_thresholds) to avoid duplication with bmi_core.py.
+        """
         return {
-            "bmi_ranges": {
-                "underweight": (0, 18.5),
-                "normal": (18.5, 25),
-                "overweight": (25, 30),
-                "obese": (30, 100),
-            },
-            "calorie_limits": {
-                "min_daily": 1200,  # Updated to match calorie_dangerous_low
-                "max_daily": 5000,
-                "min_meal": 100,
-                "max_meal": 2000,
-            },
             "nutrient_limits": {
                 "protein_min_percent": 10,
                 "protein_max_percent": 15,
