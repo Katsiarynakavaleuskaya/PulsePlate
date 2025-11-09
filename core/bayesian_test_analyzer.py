@@ -189,7 +189,8 @@ class BayesianTestAnalyzer:
             now = datetime.now(timezone.utc)
             age_hours = max(0.0, (now - timestamp).total_seconds() / 3600.0)
             # Exponential decay: w = 0.5 ** (age / half_life)
-            return 0.5 ** (age_hours / half_life_hours)
+            weight: float = 0.5 ** (age_hours / half_life_hours)
+            return weight
         except Exception:
             return 1.0
 
