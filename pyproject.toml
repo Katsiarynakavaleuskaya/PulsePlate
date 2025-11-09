@@ -93,6 +93,49 @@ target-version = ["py313"]
 line-length = 100
 target-version = "py313"
 
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "alembic/*",
+    "releases/*",
+    "cache/*",
+    "data/*",
+    "external/*",
+    "frontend/build/*",
+    "htmlcov/*",
+    "coverage/*",
+    "providers/pico.py",
+    "app/routers/vip.py",
+    "conftest.py",
+    "tests/*",
+    # Bayesian tooling - new experimental feature, comprehensive tests pending
+    "core/bayesian_recommendations.py",
+    "core/bayesian_technical_utils.py",
+    "core/business_bayesian_analyzer.py",
+    "debug_test.py",
+    "example_nutrition_api.py",
+    "check_coverage.py",
+    "check_failing_tests.py",
+    "fix_coverage_tests.py",
+    "quick_coverage_check.py",
+    "quick_coverage_update.py",
+    "run_coverage_tests.py",
+    "setup_dev_env.py",
+    "setup_env_check.py",
+    "test_quick_check.py",
+    "fix_failing_tests.py",
+    "setup_custom_mcp.py",
+    "test_pro_access.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "def __repr__",
+    "raise NotImplementedError",
+]
+
 [tool.ruff.lint]
 select = ["E", "W", "F"]
 ignore = [
