@@ -9,7 +9,33 @@ from typing import List, Union
 
 
 def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool:
-    """Check if function body contains return with value or yield statement."""
+    """
+    Check if function body contains return with value or yield statement.
+
+    This function returns True only when the function body contains:
+    - A Return node with a non-None value (i.e., "return value", not just "return")
+    - Any Yield or YieldFrom node
+
+    A bare "return" statement (without a value) does not count, as it implicitly
+    returns None and does not require a return type annotation.
+
+    This distinction is important for return type annotation validation because:
+    - Functions that return values or yield require explicit return type annotations
+    - Functions that only have bare "return" statements implicitly return None
+      and the absence of a return type annotation is acceptable
+
+    AST node checks performed:
+    - ast.Return with child.value is not None: indicates return with value
+    - ast.Yield: indicates generator function
+    - ast.YieldFrom: indicates generator delegation
+
+    Args:
+        node: AST node representing a function definition (FunctionDef or AsyncFunctionDef)
+
+    Returns:
+        True if function contains return with value or yield/yield from,
+        False otherwise (including bare "return" statements)
+    """
     for child in ast.walk(node):
         # Check for return with value (not just "return" alone)
         if isinstance(child, ast.Return) and child.value is not None:
@@ -28,7 +54,8 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
 
     Args:
         code: The test code to analyze
-        _test_name: Reserved for future logging/telemetry; currently unused.
+        _test_name: Reserved for future logging/telemetry.
+            TODO: Use for test-specific context in issue messages (issue #TBD)
 
     Returns:
         List of identified technical issues

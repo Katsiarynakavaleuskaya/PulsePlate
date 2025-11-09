@@ -4,7 +4,7 @@ Integrated Bayesian analyzer combining technical and business aspects.
 Analyzes tests from the perspectives of code, nutrition, safety, and system philosophy.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 import re
 import ast
 from dataclasses import dataclass
@@ -16,6 +16,18 @@ from core.nutrition_bayesian_analyzer import (
 )
 
 from core.bayesian_technical_utils import analyze_technical_aspects_common
+
+
+class NormalizedIssueType(Enum):
+    """Language-agnostic normalized issue types for risk assessment."""
+
+    INJECTION = "injection"
+    PASSWORD_LEAK = "passwordLeak"  # nosec B105 - enum value, not hardcoded password
+    DANGEROUS_INSTRUCTION = "dangerousInstruction"
+    EXCEPTION_HANDLING = "exceptionHandling"
+    ASYNC_ERROR = "asyncError"
+    HEALTH_VIOLATION = "healthViolation"
+    SAFETY_VIOLATION = "safetyViolation"
 
 
 class SystemPhilosophy(Enum):
@@ -346,51 +358,116 @@ class IntegratedBayesianAnalyzer:
         else:
             return "Critical impact on business operations"
 
+    def _normalize_issue_type(self, issue: str) -> Set[NormalizedIssueType]:
+        """
+        Normalize issue string to language-agnostic issue types.
+
+        Maps issue descriptions to normalized types regardless of language.
+        Returns a set of normalized types found in the issue.
+        """
+        issue_lower = issue.lower()
+        normalized_types: Set[NormalizedIssueType] = set()
+
+        # Injection detection (SQL injection, code injection, etc.)
+        injection_keywords = [
+            "injection",
+            "инъекция",
+            "sql injection",
+            "sql инъекция",
+            "code injection",
+            "инъекция кода",
+            "vulnerability",
+            "уязвимость",
+        ]
+        if any(keyword in issue_lower for keyword in injection_keywords):
+            normalized_types.add(NormalizedIssueType.INJECTION)
+
+        # Password leak detection
+        password_keywords = [
+            "password",
+            "парол",
+            "hardcoded password",
+            "хардкод парол",
+            "password leak",
+            "утечка парол",
+            "sensitive",
+            "чувствительн",
+        ]
+        if any(keyword in issue_lower for keyword in password_keywords):
+            normalized_types.add(NormalizedIssueType.PASSWORD_LEAK)
+
+        # Dangerous instruction detection
+        dangerous_keywords = [
+            "dangerous",
+            "опасно",
+            "unsafe",
+            "небезопасн",
+            "risk",
+            "риск",
+            "critical",
+            "критичн",
+            "severe",
+            "серьезн",
+        ]
+        if any(keyword in issue_lower for keyword in dangerous_keywords):
+            normalized_types.add(NormalizedIssueType.DANGEROUS_INSTRUCTION)
+
+        # Exception handling issues
+        exception_keywords = [
+            "exception",
+            "исключен",
+            "error handling",
+            "обработка ошибок",
+            "asyncmock",
+            "mock error",
+            "ошибка мок",
+        ]
+        if any(keyword in issue_lower for keyword in exception_keywords):
+            normalized_types.add(NormalizedIssueType.EXCEPTION_HANDLING)
+
+        # Async error detection
+        async_keywords = ["asyncmock", "async error", "асинхронн ошибк", "await", "async"]
+        if any(keyword in issue_lower for keyword in async_keywords):
+            normalized_types.add(NormalizedIssueType.ASYNC_ERROR)
+
+        # Health violation detection
+        health_keywords = ["health", "здоровье", "nutrition", "питание", "bmi", "calorie", "калори"]
+        if any(keyword in issue_lower for keyword in health_keywords):
+            normalized_types.add(NormalizedIssueType.HEALTH_VIOLATION)
+
+        # Safety violation detection
+        safety_keywords = ["safety", "безопас", "security", "безопасност", "privacy", "приватност"]
+        if any(keyword in issue_lower for keyword in safety_keywords):
+            normalized_types.add(NormalizedIssueType.SAFETY_VIOLATION)
+
+        return normalized_types
+
     def _calculate_risk_level(
         self, technical: List[str], nutrition: List[str], safety: List[str], philosophy: List[str]
     ) -> str:
-        """Calculate overall risk level."""
-        critical_issues = 0
+        """Calculate overall risk level using language-agnostic normalized issue types."""
+        critical_issue_types: Set[NormalizedIssueType] = set()
 
-        # Critical technical issues
-        critical_issues += sum(
-            1
-            for issue in technical
-            if "asyncmock" in issue.lower()
-            or "исключен" in issue.lower()
-            or "exception" in issue.lower()
-        )
+        # Normalize all issues and collect critical types
+        all_issues = technical + nutrition + safety + philosophy
+        for issue in all_issues:
+            normalized = self._normalize_issue_type(issue)
+            # Critical types: injection, password leak, dangerous instruction
+            critical_types = {
+                NormalizedIssueType.INJECTION,
+                NormalizedIssueType.PASSWORD_LEAK,
+                NormalizedIssueType.DANGEROUS_INSTRUCTION,
+            }
+            critical_issue_types.update(normalized & critical_types)
 
-        # Critical nutrition issues
-        critical_issues += sum(
-            1 for issue in nutrition if "опасно" in issue.lower() or "dangerous" in issue.lower()
-        )
+        # Count unique critical issue types
+        critical_count = len(critical_issue_types)
 
-        # Critical safety issues
-        critical_issues += sum(
-            1
-            for issue in safety
-            if "инъекция" in issue.lower()
-            or "injection" in issue.lower()
-            or "парол" in issue.lower()
-            or "password" in issue.lower()
-        )
-
-        # Critical philosophy violations
-        critical_issues += sum(
-            1
-            for issue in philosophy
-            if "здоровье" in issue.lower()
-            or "health" in issue.lower()
-            or "безопас" in issue.lower()
-            or "safety" in issue.lower()
-        )
-
-        if critical_issues >= 3:
+        if critical_count >= 3:
             return "critical"
-        elif critical_issues >= 2:
+        elif critical_count >= 2:
             return "high"
-        elif critical_issues >= 1:
+        elif critical_count >= 1:
             return "medium"
         else:
             return "low"

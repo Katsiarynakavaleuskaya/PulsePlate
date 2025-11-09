@@ -4,6 +4,7 @@ Uses property-based testing to maximize coverage without complex mocking.
 """
 
 import os
+import time
 from typing import Dict, List
 from unittest.mock import patch
 
@@ -12,6 +13,13 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
+
+# Deadline constant for Hypothesis tests (500ms for complex plan generation)
+DEADLINE_MS = 500
+
+# Performance thresholds for meal plan generation (in seconds)
+MEAL_PLAN_GENERATION_TIMEOUT = 1.0  # 1 second timeout threshold
+MEAL_PLAN_GENERATION_WARNING = 0.5  # 0.5 second warning threshold
 
 
 class TestPremiumWeekHypothesisSimple:
@@ -22,7 +30,7 @@ class TestPremiumWeekHypothesisSimple:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app_mod.app)
 
-    @settings(deadline=500)  # Increase deadline to 500ms for complex plan generation
+    @settings(deadline=DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -64,11 +72,14 @@ class TestPremiumWeekHypothesisSimple:
                 "diet_flags": diet_flags,
             }
 
+            # Record execution time for meal plan generation
+            start_time = time.time()
             response = client.post(
                 "/api/v1/premium/plan/week",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
+            generation_time = time.time() - start_time
 
             # Should succeed and cover lines 93-117
             assert response.status_code == 200
@@ -76,7 +87,20 @@ class TestPremiumWeekHypothesisSimple:
             assert "daily_menus" in data
             assert "week_summary" in data
 
-    @settings(deadline=500)  # Increase deadline to 500ms for complex plan generation
+            # Performance observability: record timing metric
+            # In production, this would be emitted to metrics registry (Prometheus, etc.)
+            # For tests, we assert that generation completes within threshold
+            assert (
+                generation_time < MEAL_PLAN_GENERATION_TIMEOUT
+            ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+
+            # Log warning-level timing if generation is slow but within timeout
+            if generation_time > MEAL_PLAN_GENERATION_WARNING:
+                # In production: metrics.histogram.observe("meal_plan_generation_duration", generation_time)
+                # In production: metrics.counter.inc("meal_plan_generation_slow_warnings")
+                pass  # Test passes but generation was slow
+
+    @settings(deadline=DEADLINE_MS)
     @given(
         targets=st.dictionaries(
             keys=st.sampled_from(
@@ -124,11 +148,14 @@ class TestPremiumWeekHypothesisSimple:
         with patch.dict(os.environ, {"API_KEY": "test_key"}):
             payload = {"targets": targets, "lang": lang, "diet_flags": diet_flags}
 
+            # Record execution time for meal plan generation
+            start_time = time.time()
             response = client.post(
                 "/api/v1/premium/plan/week",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
+            generation_time = time.time() - start_time
 
             # Should succeed and cover lines 97-98, or fail validation
             assert response.status_code in [200, 422]
@@ -137,7 +164,14 @@ class TestPremiumWeekHypothesisSimple:
                 assert "daily_menus" in data
                 assert "week_summary" in data
 
-    @settings(deadline=500)  # Increase deadline to 500ms for complex plan generation
+                # Performance observability: record timing metric
+                assert (
+                    generation_time < MEAL_PLAN_GENERATION_TIMEOUT
+                ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+                if generation_time > MEAL_PLAN_GENERATION_WARNING:
+                    pass  # Test passes but generation was slow
+
+    @settings(deadline=DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -188,7 +222,7 @@ class TestPremiumWeekHypothesisSimple:
             # Should fail with 422 - Validation error (missing required field)
             assert response.status_code == 422
 
-    @settings(deadline=500)  # Increase deadline to 500ms for complex plan generation
+    @settings(deadline=DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -230,11 +264,14 @@ class TestPremiumWeekHypothesisSimple:
                 "diet_flags": diet_flags,
             }
 
+            # Record execution time for meal plan generation
+            start_time = time.time()
             response = client.post(
                 "/api/v1/premium/plan/week",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
+            generation_time = time.time() - start_time
 
             # Should succeed and cover lines 104-113
             # (estimate_targets_minimal call and targets check)
@@ -242,3 +279,10 @@ class TestPremiumWeekHypothesisSimple:
             data = response.json()
             assert "daily_menus" in data
             assert "week_summary" in data
+
+            # Performance observability: record timing metric
+            assert (
+                generation_time < MEAL_PLAN_GENERATION_TIMEOUT
+            ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+            if generation_time > MEAL_PLAN_GENERATION_WARNING:
+                pass  # Test passes but generation was slow

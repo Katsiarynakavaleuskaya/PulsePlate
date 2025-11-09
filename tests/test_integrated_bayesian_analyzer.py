@@ -316,29 +316,31 @@ def test_personalization():
         assert risk == "low"
 
     def test_calculate_risk_level_medium(self) -> None:
-        """Тест расчета среднего уровня риска."""
+        """Тест расчета среднего уровня риска (1 критический тип)."""
         analyzer = IntegratedBayesianAnalyzer()
-        risk = analyzer._calculate_risk_level(["AsyncMock issue"], [], [], [])
+        # "dangerous" maps to DANGEROUS_INSTRUCTION (critical type)
+        risk = analyzer._calculate_risk_level(["dangerous operation"], [], [], [])
 
         assert risk == "medium"
 
     def test_calculate_risk_level_high(self) -> None:
-        """Тест расчета высокого уровня риска."""
+        """Тест расчета высокого уровня риска (2 критических типа)."""
         analyzer = IntegratedBayesianAnalyzer()
-        risk = analyzer._calculate_risk_level(
-            ["AsyncMock issue"], ["опасно высокие калории"], [], []
-        )
+        # "dangerous" -> DANGEROUS_INSTRUCTION, "injection" -> INJECTION (2 critical types)
+        risk = analyzer._calculate_risk_level([], ["dangerous operation"], ["SQL injection"], [])
 
         assert risk == "high"
 
     def test_calculate_risk_level_critical(self) -> None:
-        """Тест расчета критического уровня риска."""
+        """Тест расчета критического уровня риска (3+ критических типа)."""
         analyzer = IntegratedBayesianAnalyzer()
+        # "dangerous" -> DANGEROUS_INSTRUCTION, "injection" -> INJECTION, "password" -> PASSWORD_LEAK
+        # (3 critical types)
         risk = analyzer._calculate_risk_level(
-            ["AsyncMock issue"],
-            ["опасно высокие калории"],
-            ["SQL injection"],
-            ["здоровье под угрозой"],
+            [],
+            ["dangerous operation"],
+            ["SQL injection", "hardcoded password"],
+            [],
         )
 
         assert risk == "critical"

@@ -171,6 +171,28 @@ class BayesianTestAnalyzer:
 
         self.load_history()
 
+    def _calculate_recency_weight(
+        self, timestamp: datetime, half_life_hours: float = 24 * 7
+    ) -> float:
+        """
+        Calculate recency weight for a timestamp using exponential decay.
+
+        Args:
+            timestamp: The timestamp to calculate weight for
+            half_life_hours: Half-life in hours (default: 1 week = 168 hours)
+
+        Returns:
+            Weight value between 0.0 and 1.0, with 1.0 for recent timestamps
+            and exponential decay for older ones. Returns 1.0 on any exception.
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            age_hours = max(0.0, (now - timestamp).total_seconds() / 3600.0)
+            # Exponential decay: w = 0.5 ** (age / half_life)
+            return 0.5 ** (age_hours / half_life_hours)
+        except Exception:
+            return 1.0
+
     def load_history(self) -> None:
         """Загрузить историю выполнения тестов."""
         try:
@@ -382,17 +404,6 @@ class BayesianTestAnalyzer:
         alpha = 1.0  # Laplace smoothing
         half_life_hours = 24 * 7  # полураспад 1 неделя
 
-        def recency_weight(ts):
-            try:
-                from datetime import datetime, timezone
-
-                now = datetime.now(timezone.utc)
-                age_hours = max(0.0, (now - ts).total_seconds() / 3600.0)
-                # экспоненциальный спад: w = 0.5 ** (age/half_life)
-                return 0.5 ** (age_hours / half_life_hours)
-            except Exception:
-                return 1.0
-
         # Все случаи данного типа
         type_all = [case for case in self.execution_history if case.error_type == error_type]
         if not type_all:
@@ -411,7 +422,7 @@ class BayesianTestAnalyzer:
         weighted_num = 0.0
         weighted_den = 0.0
         for case in type_all:
-            w = recency_weight(case.timestamp)
+            w = self._calculate_recency_weight(case.timestamp, half_life_hours)
             sim = symptoms_similarity(case.error_message or "")
             weighted_num += w * (1.0 if sim >= 0.3 else 0.0)
             weighted_den += w
@@ -533,22 +544,12 @@ class BayesianTestAnalyzer:
         # Взвешивание по давности
         half_life_hours = 24 * 7
 
-        def recency_weight(ts):
-            try:
-                from datetime import datetime, timezone
-
-                now = datetime.now(timezone.utc)
-                age_hours = max(0.0, (now - ts).total_seconds() / 3600.0)
-                return 0.5 ** (age_hours / half_life_hours)
-            except Exception:
-                return 1.0
-
         # Считаем только падения с указанным типом ошибки
         weighted_counts: Dict[ErrorType, float] = {et: 0.0 for et in ErrorType}
         total_weight = 0.0
         for exec in self.execution_history:
             if exec.result == TestStatus.FAILED and exec.error_type is not None:
-                w = recency_weight(exec.timestamp)
+                w = self._calculate_recency_weight(exec.timestamp, half_life_hours)
                 weighted_counts[exec.error_type] = weighted_counts.get(exec.error_type, 0.0) + w
                 total_weight += w
 

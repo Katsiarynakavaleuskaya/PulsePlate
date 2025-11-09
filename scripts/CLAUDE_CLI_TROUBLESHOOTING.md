@@ -1,8 +1,12 @@
 # 🔧 Диагностика проблем с Claude Code CLI
+# 🔧 Claude Code CLI Troubleshooting
 
-## Быстрая проверка
+**Language / Язык:** This document is available in Russian (primary) and English (section headers).
+Документ доступен на русском (основной) и английском (заголовки разделов).
 
-### 1. Проверка установки Claude CLI
+## Быстрая проверка / Quick Check
+
+### 1. Проверка установки Claude CLI / Check Claude CLI Installation
 ```bash
 which claude
 claude --version
@@ -10,22 +14,22 @@ claude --version
 
 **Ожидаемый результат:** Путь к команде и версия (например, `2.0.34`)
 
-### 2. Проверка скрипта с ролью
+### 2. Проверка скрипта с ролью / Check Role Script
 ```bash
 ./scripts/claude_with_role.sh --version
 ```
 
 **Ожидаемый результат:** Версия Claude CLI
 
-### 3. Проверка файла роли
+### 3. Проверка файла роли / Check Role File
 ```bash
 test -f .claude/role.md && echo "✅ Файл найден" || echo "❌ Файл не найден"
 wc -l .claude/role.md
 ```
 
-## Частые проблемы и решения
+## Частые проблемы и решения / Common Issues and Solutions
 
-### Проблема: "command not found: claude"
+### Проблема: "command not found: claude" / Issue: "command not found: claude"
 
 **Решение:**
 1. Установите Claude Code CLI:
@@ -37,7 +41,7 @@ wc -l .claude/role.md
    echo $PATH | grep -q "/opt/homebrew/bin" && echo "✅ Homebrew в PATH" || echo "⚠️ Добавьте в PATH"
    ```
 
-### Проблема: "Алиас ppclaude не работает"
+### Проблема: "Алиас ppclaude не работает" / Issue: "Alias ppclaude not working"
 
 **Решение:**
 Алиасы нужно загрузить в текущей сессии:
@@ -51,7 +55,7 @@ ppclaude --version
 ./scripts/claude_with_role.sh
 ```
 
-### Проблема: "Role file not found"
+### Проблема: "Role file not found" / Issue: "Role file not found"
 
 **Решение:**
 Проверьте, что вы находитесь в корне проекта:
@@ -60,7 +64,7 @@ pwd  # Должно быть: .../BMI-App_2025_clean
 ls -la .claude/role.md
 ```
 
-### Проблема: Интерактивная сессия не запускается
+### Проблема: Интерактивная сессия не запускается / Issue: Interactive session won't start
 
 **Возможные причины:**
 1. **Лимит сессий достигнут** - проверьте на https://claude.ai
@@ -74,37 +78,37 @@ ls -la .claude/role.md
    claude  # Без --append-system-prompt
    ```
 
-### Проблема: "Session limit reached"
+### Проблема: "Session limit reached" / Issue: "Session limit reached"
 
 **Решение:**
 1. Дождитесь сброса лимита (обычно каждые 24 часа)
 2. Используйте GitHub Copilot CLI или другие инструменты
 3. Проверьте баланс на https://claude.ai
 
-## Правильный запуск
+## Правильный запуск / Proper Launch
 
-### Вариант 1: Через алиас (после загрузки)
+### Вариант 1: Через алиас (после загрузки) / Option 1: Via alias (after loading)
 ```bash
 source setup_cli_aliases.sh
 ppclaude
 ```
 
-### Вариант 2: Напрямую через скрипт
+### Вариант 2: Напрямую через скрипт / Option 2: Directly via script
 ```bash
 ./scripts/claude_with_role.sh
 ```
 
-### Вариант 3: Обычный Claude (без роли)
+### Вариант 3: Обычный Claude (без роли) / Option 3: Regular Claude (without role)
 ```bash
 claude
 ```
 
-### Вариант 4: С явным указанием роли
+### Вариант 4: С явным указанием роли / Option 4: With explicit role specification
 ```bash
 claude --append-system-prompt "$(cat .claude/role.md)"
 ```
 
-## Для teleport-сессий
+## Для teleport-сессий / For teleport sessions
 
 Если нужен `--teleport`, сначала войдите в аккаунт:
 ```bash
@@ -118,7 +122,7 @@ claude
 ppclaude --teleport session_XXXXX
 ```
 
-## Диагностика проблем
+## Диагностика проблем / Problem Diagnostics
 
 Запустите полную диагностику:
 ```bash
@@ -137,7 +141,7 @@ echo "=== Алиасы ===" && \
 type ppclaude 2>/dev/null && echo "✅ Загружены" || echo "⚠️ Не загружены (запустите: source setup_cli_aliases.sh)"
 ```
 
-## Получение помощи
+## Получение помощи / Getting Help
 
 Если проблема не решена:
 1. Проверьте логи: `claude --debug`

@@ -15,11 +15,18 @@ from core.bayesian_test_analyzer import TestCategory, ErrorType
 
 
 class _FakeMarker:
+    name: str
+
     def __init__(self, name: str) -> None:
         self.name = name
 
 
 class _FakeItem:
+    _markers: List[str]
+    fspath: str
+    name: str
+    fixturenames: List[str]
+
     def __init__(
         self, markers: List[str], fspath: str = "tests/test_example.py", name: str = "test_x"
     ) -> None:
@@ -27,7 +34,7 @@ class _FakeItem:
         self.fspath = fspath
         self.name = name
         # Minimal attributes for context gathering
-        self.fixturenames: List[str] = []
+        self.fixturenames = []
 
     def iter_markers(self) -> List[_FakeMarker]:
         return [_FakeMarker(m) for m in self._markers]

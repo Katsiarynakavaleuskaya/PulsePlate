@@ -14,10 +14,6 @@ omit =
     app/routers/vip.py
     conftest.py
     tests/*
-    # Bayesian tooling - new experimental feature, comprehensive tests pending
-    core/bayesian_recommendations.py
-    core/bayesian_technical_utils.py
-    core/business_bayesian_analyzer.py
     debug_test.py
     example_nutrition_api.py
     check_coverage.py

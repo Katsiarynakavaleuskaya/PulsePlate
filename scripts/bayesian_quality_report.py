@@ -62,10 +62,19 @@ def main() -> int:
             # Single-probability distribution: full confidence (all mass on one outcome)
             avg_confidence_estimate = 1.0
         else:
-            # Multiple probabilities: compute entropy-based confidence
-            entropy = -sum(p * math.log2(p) if p > 0 else 0.0 for p in probs)
-            max_entropy = math.log2(len(probs))
-            avg_confidence_estimate = 1.0 - (entropy / max_entropy)
+            # Check for all-zero priors case
+            if all(abs(p) < 1e-10 for p in probs) or sum(probs) < 1e-10:
+                # All-zero priors: no confidence
+                avg_confidence_estimate = 0.0
+            else:
+                # Multiple probabilities: compute entropy-based confidence
+                entropy = -sum(p * math.log2(p) if p > 0 else 0.0 for p in probs)
+                max_entropy = math.log2(len(probs))
+                # Guard against division by zero
+                if max_entropy == 0:
+                    avg_confidence_estimate = 0.0
+                else:
+                    avg_confidence_estimate = 1.0 - (entropy / max_entropy)
 
         report = {
             "history_size": len(history),

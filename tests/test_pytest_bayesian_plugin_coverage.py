@@ -253,6 +253,13 @@ class TestBayesianPytestPluginContext:
         """Test detecting mocks in test code."""
         from unittest.mock import Mock, patch
 
+        # Test code with Mock() call that should be detected
+        test_code_with_mock = """def test_with_mock():
+    from unittest.mock import Mock
+    test_mock = Mock()
+    test_mock.foo()
+    return test_mock"""
+
         def test_with_mock():
             """Test function that uses proper mocking."""
             test_mock = Mock()
@@ -266,15 +273,20 @@ class TestBayesianPytestPluginContext:
 
         item.fspath.strpath = "/path/to/test_file.py"
 
-        # Verify mock detection works correctly
-        # The test uses proper Mock() from unittest.mock, which should be detected
-        context = plugin._gather_test_context(item)
-        # Assert that context is gathered successfully
-        assert context is not None
-        # Verify context is a dictionary with expected structure
-        assert isinstance(context, dict)
-        # The context should contain test metadata (exact keys may vary)
-        assert len(context) > 0
+        # Mock _get_test_code to return code that contains Mock() call
+        with patch.object(plugin, "_get_test_code", return_value=test_code_with_mock):
+            # Verify mock detection works correctly
+            # The test uses proper Mock() from unittest.mock, which should be detected
+            context = plugin._gather_test_context(item)
+            # Assert that context is gathered successfully
+            assert context is not None
+            # Verify context is a dictionary with expected structure
+            assert isinstance(context, dict)
+            # The context should contain test metadata (exact keys may vary)
+            assert len(context) > 0
+            # Verify mock detection flag is present and True
+            assert "has_mocks" in context
+            assert context["has_mocks"] is True
 
     def test_gather_test_context_no_mocks(self, plugin: BayesianPytestPlugin) -> None:
         """Test detecting no mocks in test code."""

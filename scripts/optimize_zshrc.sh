@@ -47,9 +47,40 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     has_aliases_script=false
 
     while IFS= read -r line || [ -n "$line" ]; do
-        # Проверяем, содержит ли строка setup_cli_aliases.sh (с учетом вариаций)
-        # Удаляем комментарии и лишние пробелы для проверки
-        cleaned_line=$(echo "$line" | sed 's/#.*$//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+        # Parse line character-by-character tracking quote state
+        # This avoids mis-detecting # inside quoted strings as comment start
+        in_single_quote=false
+        in_double_quote=false
+        unquoted_text=""
+        i=0
+        len=${#line}
+
+        while [ $i -lt $len ]; do
+            char="${line:$i:1}"
+            next_char="${line:$((i+1)):1}"
+
+            # Track quote state
+            if [ "$char" = "'" ] && [ "$in_double_quote" = false ]; then
+                in_single_quote=$([ "$in_single_quote" = true ] && echo "false" || echo "true")
+            elif [ "$char" = '"' ] && [ "$in_single_quote" = false ]; then
+                in_double_quote=$([ "$in_double_quote" = true ] && echo "false" || echo "true")
+            fi
+
+            # Only treat # as comment start when not inside quotes
+            if [ "$char" = "#" ] && [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
+                break
+            fi
+
+            # Collect unquoted text for pattern matching
+            if [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
+                unquoted_text="${unquoted_text}${char}"
+            fi
+
+            i=$((i+1))
+        done
+
+        # Trim whitespace from unquoted text
+        cleaned_line=$(echo "$unquoted_text" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 
         # Отслеживаем наличие определений переменных ПЕРЕД фильтрацией
         if echo "$cleaned_line" | grep -qiE "^[[:space:]]*PROJECT_ROOT[[:space:]]*="; then
@@ -60,8 +91,7 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
         fi
 
         # Пропускаем строки, которые являются командами source/. для setup_cli_aliases.sh
-        # Паттерн допускает: source/. перед именем, различные кавычки, пути, комментарии
-        # НО сохраняем определения переменных (PROJECT_ROOT, ALIASES_SCRIPT)
+        # Проверяем только unquoted portion (source/. invocation should be in unquoted part)
         if echo "$cleaned_line" | grep -qiE "(source|\.)\s+.*setup_cli_aliases\.sh"; then
             continue
         fi
@@ -69,6 +99,13 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
         # Сохраняем все остальные строки (включая определения переменных)
         echo "$line" >> "$TEMP_FILE"
     done < "$ZSHRC_FILE"
+
+    # Validation: warn if variables were set but script invocation was skipped
+    if [ "$has_project_root" = true ] || [ "$has_aliases_script" = true ]; then
+        if ! grep -q "setup_cli_aliases\.sh" "$TEMP_FILE"; then
+            echo "⚠️  Warning: PROJECT_ROOT/ALIASES_SCRIPT found but setup_cli_aliases.sh invocation was removed" >&2
+        fi
+    fi
 
     # Добавляем определения переменных, если их нет
     if [ "$has_project_root" = false ]; then

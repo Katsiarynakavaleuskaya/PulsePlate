@@ -115,8 +115,28 @@ EOF
         echo ""
 
         # Try to get API key from environment or file
+        # Safely parse .env file without executing arbitrary code
         if [ -f ~/.cursor/.env ]; then
-            source "$HOME/.cursor/.env" 2>/dev/null || true
+            while IFS= read -r line || [ -n "$line" ]; do
+                # Skip blank lines and comments
+                line="${line%%#*}"  # Remove comments
+                line="${line#"${line%%[![:space:]]*}"}"  # Trim leading whitespace
+                line="${line%"${line##*[![:space:]]}"}"  # Trim trailing whitespace
+                [ -z "$line" ] && continue
+
+                # Only accept strict KEY=VALUE pattern (keys: A-Z0-9_)
+                if [[ "$line" =~ ^([A-Z0-9_]+)=(.*)$ ]]; then
+                    key="${BASH_REMATCH[1]}"
+                    value="${BASH_REMATCH[2]}"
+                    # Strip surrounding quotes from value
+                    value="${value#\"}"
+                    value="${value%\"}"
+                    value="${value#\'}"
+                    value="${value%\'}"
+                    # Export validated key=value (no expansions, substitutions, or backticks)
+                    export "$key=$value"
+                fi
+            done < "$HOME/.cursor/.env"
         fi
 
         if [ -z "${OPENAI_API_KEY:-}" ]; then

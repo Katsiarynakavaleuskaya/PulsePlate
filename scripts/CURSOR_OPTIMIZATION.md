@@ -24,7 +24,7 @@
 **Результат:** Время загрузки ~0.003s, создается 27 алиасов без перегрузки Cursor
 
 **Методология измерения:**
-- **Машина:** macOS 25.0.0 (darwin), Apple Silicon
+- **Машина:** macOS (Darwin kernel), Apple Silicon
 - **Команда:** `time zsh -c 'SETUP_ALIASES_QUIET=true source setup_cli_aliases.sh'`
 - **Количество запусков:** 10 последовательных запусков (warm runs после первого cold run)
 - **Результат:** Среднее время `real` из 10 запусков = 0.003s (диапазон: 0.002s - 0.004s)
