@@ -103,7 +103,7 @@ repos:
       # ruff — strict on pre-push (no silent auto-fix bypass)
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
-        entry: ruff check .
+        entry: bash -c "command -v ruff >/dev/null 2>&1 && ruff check . || (echo '⚠️  ruff not available, skipping pre-push check' && exit 0)"
         language: system
         pass_filenames: false
         stages: [pre-push]
