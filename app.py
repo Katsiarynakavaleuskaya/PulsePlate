@@ -1296,7 +1296,7 @@ def _targets_disabled() -> bool:
 
     module_value = globals().get("build_nutrition_targets", _TARGETS_SENTINEL)
     if module_value is None:
-        logger.info("_targets_disabled: globals override detected (explicit None)")
+        logger.debug("_targets_disabled: globals override detected (explicit None)")
         _targets_runtime_disabled = True
         return True
 
@@ -1305,12 +1305,12 @@ def _targets_disabled() -> bool:
         _APP_PACKAGE_REF = current_app
     primary_app = _APP_PACKAGE_REF or current_app
     if primary_app is None:
-        logger.info("_targets_disabled: primary app module missing")
+        logger.debug("_targets_disabled: primary app module missing")
         _targets_runtime_disabled = False
         alias_app = _sys.modules.get("app_module")
         if alias_app is not None:
             alias_value = getattr(alias_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-            logger.info(
+            logger.debug(
                 "_targets_disabled: alias_present=%s alias_attr_is_none=%s",
                 True,
                 alias_value is None,
@@ -1320,7 +1320,7 @@ def _targets_disabled() -> bool:
                 return True
         return False
     value = getattr(primary_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-    logger.info(
+    logger.debug(
         "_targets_disabled: module_value_present=%s primary_attr_is_none=%s primary_id=%s primary_value=%r",
         module_value is not _TARGETS_SENTINEL,
         value is None,
@@ -1328,7 +1328,7 @@ def _targets_disabled() -> bool:
         value,
     )
     alias_app = _sys.modules.get("app_module")
-    logger.info(
+    logger.debug(
         "_targets_disabled: primary make_plate=%r alias make_plate=%r",
         getattr(primary_app, "make_plate", None),
         getattr(alias_app, "make_plate", None) if alias_app is not None else None,
@@ -1339,7 +1339,7 @@ def _targets_disabled() -> bool:
     )
     _sync_app_attr_sources(alias_app, packages_to_sync)
     if alias_app is not None:
-        logger.info(
+        logger.debug(
             "_targets_disabled: after propagation alias make_plate=%r",
             getattr(alias_app, "make_plate", None),
         )
@@ -1349,7 +1349,7 @@ def _targets_disabled() -> bool:
 
     if alias_app is not None:
         alias_value = getattr(alias_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-        logger.info(
+        logger.debug(
             "_targets_disabled: alias_present=%s alias_attr_is_none=%s alias_id=%s alias_value=%r",
             True,
             alias_value is None,
@@ -1368,7 +1368,7 @@ def _targets_disabled() -> bool:
         except Exception:  # nosec B112 - safe: module inspection, continue on error
             continue
         if module_value_candidate is None:
-            logger.info("_targets_disabled: detected external disable on module %s", module_name)
+            logger.debug("_targets_disabled: detected external disable on module %s", module_name)
             _targets_runtime_disabled = True
             return True
 
@@ -2074,7 +2074,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         targets_disabled = _targets_disabled()
         _build_targets = None if targets_disabled else _resolve_build_targets_callable()
         _make_plate = resolve_attr("make_plate", make_plate, _candidates)
-        logger.info("premium_plate make_plate resolved to %r", _make_plate)
+        logger.debug("premium_plate make_plate resolved to %r", _make_plate)
         _calc_bmr = resolve_attr("calculate_all_bmr", calculate_all_bmr, _candidates)
         _calc_tdee = resolve_attr("calculate_all_tdee", calculate_all_tdee, _candidates)
 
@@ -2333,7 +2333,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             final_kcal_value = int(round(float(final_kcal_value)))
 
         if targets_are_disabled or _build_targets is None:
-            logger.info("premium_plate alignment: using heuristic fallback")
+            logger.debug("premium_plate alignment: using heuristic fallback")
             # Heuristic fallback if WHO targets backend is unavailable
             # Use final kcal (not plate_data kcal) to match test expectations
             prot_ref = int(round(1.6 * req.weight_kg))

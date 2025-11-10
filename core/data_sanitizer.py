@@ -17,20 +17,26 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.nutrition_constants import (
+    CARBS_G_MAX,
+    CARBS_G_MIN,
+    FAT_G_MAX,
+    FAT_G_MIN,
+    FIBER_MAX_G,
+    FIBER_MIN_G,
+    KCAL_MAX_SAFE,
+    KCAL_MIN_SUPERVISED,
+    PROTEIN_G_MAX,
+    PROTEIN_G_MIN,
+)
+
 logger = logging.getLogger(__name__)
 
-
-# Safe ranges for nutrition values (based on WHO/EFSA guidelines)
-KCAL_MIN = 800
-KCAL_MAX = 6000
-PROTEIN_G_MIN = 0
-PROTEIN_G_MAX = 500
-FAT_G_MIN = 0
-FAT_G_MAX = 400
-CARBS_G_MIN = 0
-CARBS_G_MAX = 1000
-FIBER_G_MIN = 0
-FIBER_G_MAX = 100
+# Reuse central thresholds to stay aligned with WHO/USDA data
+KCAL_MIN = int(KCAL_MIN_SUPERVISED)
+KCAL_MAX = int(KCAL_MAX_SAFE)
+FIBER_G_MIN = int(FIBER_MIN_G)
+FIBER_G_MAX = int(FIBER_MAX_G)
 
 
 class NutritionData(BaseModel):

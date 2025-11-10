@@ -70,31 +70,35 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
 
     Args:
         kcal: Calorie value to check
-        context: Optional context string (variable name, test name) for hints
+        context: Optional context string (variable name, test name, code snippet)
 
     Returns:
         True if value appears to be meal-level, False if daily total
 
-    Heuristics:
-    - Values < 1000 are typically meals
-    - Variable names containing "meal", "breakfast", "lunch", "dinner" → meal
-    - Variable names containing "daily", "total", "day" → daily total
+    Heuristics (require explicit cues, default to daily):
+    - Explicit daily keywords → daily total
+    - Explicit meal keywords → meal
+    - Very small portions (≤ 300 kcal) → meal
+    - Otherwise → daily total (conservative: flag potential issues)
     """
-    if kcal < 1000:
-        return True  # Almost certainly a meal
-
-    # Check context for hints
     context_lower = context.lower()
     meal_keywords = ["meal", "breakfast", "lunch", "dinner", "snack", "portion"]
     daily_keywords = ["daily", "total", "day", "tdee", "intake"]
 
-    if any(keyword in context_lower for keyword in meal_keywords):
-        return True
+    # Strong daily signal - definitely not a meal
     if any(keyword in context_lower for keyword in daily_keywords):
         return False
 
-    # Ambiguous - assume meal if < 1500, daily if >= 1500
-    return kcal < 1500
+    # Strong meal signal
+    if any(keyword in context_lower for keyword in meal_keywords):
+        return True
+
+    # Only tiny portions default to meal without context
+    if kcal <= 300:
+        return True
+
+    # Ambiguous - assume daily to avoid missing real issues
+    return False
 
 
 __all__ = [

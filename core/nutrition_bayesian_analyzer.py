@@ -200,9 +200,13 @@ class NutritionBayesianAnalyzer:
                 try:
                     calories = int(match.group(1))
 
-                    # Skip meal-level values (< 1000 kcal typically means single meal)
+                    # Extract surrounding context (40 chars before match) to detect meal identifiers
+                    context_start = max(0, match.start() - 40)
+                    context_snippet = f"{test_name} {code[context_start:match.end()]}"
+
+                    # Skip meal-level values (detect via keywords and heuristics)
                     # Only flag daily totals as dangerous
-                    if is_meal_level_value(calories, context=test_name):
+                    if is_meal_level_value(calories, context=context_snippet):
                         continue
 
                     # Проверка на опасные значения (только для daily totals)
