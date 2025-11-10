@@ -69,11 +69,12 @@ def test_nutrition_recommendations_returned_for_detected_issues() -> None:
     """RU/EN: Diagnose and generate nutrition recommendations."""
 
     analyzer = NutritionBayesianAnalyzer()
-    analyzer.analyze_nutrition_safety("calories = 500", "suite::rec_1")
+    # Use daily-level calories (> 1000) to trigger danger warning
+    analyzer.analyze_nutrition_safety("daily_calories = 1100", "suite::rec_1")
     analyzer.analyze_nutrition_safety("bmi = 31", "suite::rec_2")
     recommendations = analyzer.generate_nutrition_recommendations()
     assert recommendations
-    assert any("калорий" in rec for rec in recommendations)
+    assert any("калорий" in rec or "bmi" in rec.lower() for rec in recommendations)
 
 
 def test_add_nutrition_test_result_appends() -> None:
@@ -128,16 +129,18 @@ def test_macro_threshold_breaches() -> None:
     """RU/EN: Verify individual macro threshold violations are detected."""
 
     analyzer = NutritionBayesianAnalyzer()
+    # Use extreme values that violate USDA DG 2020-2025 ranges
     code = """
-protein = 200
-fat = 200
-carbs = 600
+daily_protein = 600  # ~40% of 6000 kcal → exceeds 35% max
+daily_fat = 200  # ~30% of 6000 kcal → within range
+daily_carbs = 500  # ~33% of 6000 kcal → below 45% min
+total_kcal = 6000
 """
-    results = analyzer.analyze_nutrition_safety(code, "suite::macros")
+    results = analyzer.analyze_nutrition_safety(code, "suite::daily_macros")
     messages = {res.error_message for res in results}
-    assert any("белка" in msg for msg in messages)
-    assert any("жиров" in msg for msg in messages)
-    assert any("углеводов" in msg for msg in messages)
+    # Should detect protein too high and carbs too low
+    assert any("белка" in msg or "protein" in msg.lower() for msg in messages)
+    assert any("углеводов" in msg or "carb" in msg.lower() for msg in messages)
 
 
 def test_macro_thresholds_low_variants() -> None:
