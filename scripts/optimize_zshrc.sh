@@ -57,17 +57,36 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
         local unquoted_text=""
         local i=0
         local len=${#line}
+        local prev_char=""
 
         while [ $i -lt $len ]; do
             local char="${line:$i:1}"
 
+            # Skip escaped characters
+            if [ "$prev_char" = "\\" ]; then
+                if [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
+                    unquoted_text="${unquoted_text}${char}"
+                fi
+                prev_char=""
+                i=$((i+1))
+                continue
+            fi
+
             # Track quote state transitions
             # State: toggle single quote if not in double quote
             if [ "$char" = "'" ] && [ "$in_double_quote" = false ]; then
-                in_single_quote=$([ "$in_single_quote" = true ] && echo "false" || echo "true")
+                if [ "$in_single_quote" = true ]; then
+                    in_single_quote=false
+                else
+                    in_single_quote=true
+                fi
             # State: toggle double quote if not in single quote
             elif [ "$char" = '"' ] && [ "$in_single_quote" = false ]; then
-                in_double_quote=$([ "$in_double_quote" = true ] && echo "false" || echo "true")
+                if [ "$in_double_quote" = true ]; then
+                    in_double_quote=false
+                else
+                    in_double_quote=true
+                fi
             fi
 
             # Edge case: # is comment start only when outside all quotes
@@ -80,6 +99,7 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
                 unquoted_text="${unquoted_text}${char}"
             fi
 
+            prev_char="$char"
             i=$((i+1))
         done
 

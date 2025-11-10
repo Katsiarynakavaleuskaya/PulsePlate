@@ -67,8 +67,8 @@ class Recipe(Base):
     # Recipe metadata
     servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     ingredients: Mapped[dict] = mapped_column(JSON, nullable=False)  # {food_id: grams}
-    tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    allergens: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    tags: Mapped[list] = mapped_column(JSON, nullable=False)  # App-layer default: []
+    allergens: Mapped[list] = mapped_column(JSON, nullable=False)  # App-layer default: []
 
     # Source tracking
     source: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -155,7 +155,7 @@ class FoodItem(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     food_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     canonical_name: Mapped[str] = mapped_column(String(500), nullable=False)
-    group: Mapped[str] = mapped_column(String(100), nullable=False)
+    food_group: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Nutritional data per 100g (validated by CHECK constraints)
     kcal_per_100g: Mapped[float] = mapped_column(Float, nullable=False)
@@ -167,8 +167,8 @@ class FoodItem(Base):
     # Micronutrients
     micros_data: Mapped[dict] = mapped_column(JSON, nullable=True)
 
-    # Metadata
-    flags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)  # VEG, GF, etc.
+    # Metadata (app-layer defaults via Pydantic, not DB-level)
+    flags: Mapped[list] = mapped_column(JSON, nullable=False)  # VEG, GF, etc.
     brand: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # Source tracking

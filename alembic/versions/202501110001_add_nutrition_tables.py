@@ -19,7 +19,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """RU: Добавить таблицы Recipe, Meal, FoodItem с валидацией.
     EN: Add Recipe, Meal, FoodItem tables with validation."""
 
@@ -37,8 +37,8 @@ def upgrade():
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("servings", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("ingredients", sa.JSON(), nullable=False),
-        sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"),
-        sa.Column("allergens", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column("tags", sa.JSON(), nullable=False),
+        sa.Column("allergens", sa.JSON(), nullable=False),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("version_date", sa.String(length=20), nullable=False),
         sa.Column(
@@ -105,14 +105,14 @@ def upgrade():
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("food_id", sa.String(length=255), nullable=False, unique=True),
         sa.Column("canonical_name", sa.String(length=500), nullable=False),
-        sa.Column("group", sa.String(length=100), nullable=False),
+        sa.Column("food_group", sa.String(length=100), nullable=False),
         sa.Column("kcal_per_100g", sa.Float(), nullable=False),
         sa.Column("protein_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fat_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("carbs_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("micros_data", sa.JSON(), nullable=True),
-        sa.Column("flags", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column("flags", sa.JSON(), nullable=False),
         sa.Column("brand", sa.String(length=255), nullable=True),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("source_id", sa.String(length=255), nullable=True),
@@ -142,7 +142,7 @@ def upgrade():
     op.create_index("ix_food_items_canonical_name", "food_items", ["canonical_name"])
 
 
-def downgrade():
+def downgrade() -> None:
     """RU: Откатить миграцию (удалить таблицы).
     EN: Revert migration (drop tables)."""
 

@@ -840,12 +840,20 @@ class BusinessBayesianAnalyzer:
             sample_mean = sum(data) / len(data) if data else prior_mean
             sample_log_mean = math.log(1 + sample_mean)
 
+            # Calculate sample standard deviation
+            if len(data) > 1:
+                sample_variance = sum((x - sample_mean) ** 2 for x in data) / (len(data) - 1)
+                sample_std = math.sqrt(sample_variance)
+                sample_log_std = sample_std / (1 + sample_mean)
+            else:
+                sample_log_std = prior_log_std
+
             # Байесовское обновление (упрощенная модель)
             # Используем взвешенное среднее априорного и выборочного среднего
             n = len(data)
             # Precision (обратная дисперсия)
             prior_precision = 1 / (prior_log_std**2) if prior_log_std > 0 else 1.0
-            sample_precision = n / (prior_log_std**2) if prior_log_std > 0 else n
+            sample_precision = n / (sample_log_std**2) if sample_log_std > 0 else n
 
             # Апостериорное среднее (взвешенное среднее)
             posterior_log_mean = (

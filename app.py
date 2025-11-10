@@ -147,7 +147,7 @@ async def lifespan(app: FastAPI):
         except Exception as db_err:
             logger.error(f"Failed to initialize database: {db_err}")
             # Fallback to in-memory SQLite to avoid environment-specific disk I/O errors in CI
-            with suppress(Exception):
+            with suppress(OSError, IOError):
                 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
                 init_db()
                 logger.info("Database initialized with in-memory SQLite fallback")

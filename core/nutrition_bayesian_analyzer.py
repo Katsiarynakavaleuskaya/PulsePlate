@@ -10,6 +10,18 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from core.nutrition_constants import (
+    CARBS_MAX_PERCENT,
+    CARBS_MIN_PERCENT,
+    FAT_MAX_PERCENT,
+    FAT_MIN_PERCENT,
+    KCAL_DANGEROUS_HIGH,
+    KCAL_DANGEROUS_LOW,
+    PROTEIN_MAX_PERCENT,
+    PROTEIN_MIN_PERCENT,
+    is_meal_level_value,
+)
+
 
 class NutritionCategory(Enum):
     """Категории проблем в области питания."""
@@ -80,17 +92,21 @@ class NutritionBayesianAnalyzer:
     def _load_nutrition_knowledge(self) -> Dict[str, Any]:
         """Загружает базу знаний о питании.
 
-        Note: BMI ranges and calorie limits are handled via safety_thresholds
-        (see _load_safety_thresholds) to avoid duplication with bmi_core.py.
+        RU: Макронутриентные диапазоны базируются на USDA Dietary Guidelines 2020-2025
+        и рекомендациях ВОЗ по здоровому питанию.
+        EN: Macronutrient ranges based on USDA Dietary Guidelines 2020-2025
+        and WHO Healthy Diet guidance.
+
+        Note: Constants imported from core.nutrition_constants for consistency.
         """
         return {
             "nutrient_limits": {
-                "protein_min_percent": 10,
-                "protein_max_percent": 15,
-                "fat_min_percent": 15,
-                "fat_max_percent": 30,
-                "carbs_min_percent": 55,
-                "carbs_max_percent": 75,
+                "protein_min_percent": PROTEIN_MIN_PERCENT,  # 10% per USDA DG 2020-2025
+                "protein_max_percent": PROTEIN_MAX_PERCENT,  # 35% per USDA DG 2020-2025
+                "fat_min_percent": FAT_MIN_PERCENT,  # 20% per USDA DG 2020-2025
+                "fat_max_percent": FAT_MAX_PERCENT,  # 35% per USDA DG 2020-2025
+                "carbs_min_percent": CARBS_MIN_PERCENT,  # 45% per USDA DG 2020-2025
+                "carbs_max_percent": CARBS_MAX_PERCENT,  # 65% per USDA DG 2020-2025
             },
             "allergens": [
                 "milk",
@@ -113,12 +129,16 @@ class NutritionBayesianAnalyzer:
         }
 
     def _load_safety_thresholds(self) -> Dict[str, float]:
-        """Загружает пороговые значения безопасности."""
+        """Загружает пороговые значения безопасности.
+
+        RU: Использует централизованные константы из core.nutrition_constants.
+        EN: Uses centralized constants from core.nutrition_constants.
+        """
         return {
             "bmi_dangerous_low": 16.0,
             "bmi_dangerous_high": 30.0,
-            "calorie_dangerous_low": 1200,
-            "calorie_dangerous_high": 6000,
+            "calorie_dangerous_low": KCAL_DANGEROUS_LOW,  # From nutrition_constants
+            "calorie_dangerous_high": KCAL_DANGEROUS_HIGH,  # From nutrition_constants
             "nutrient_imbalance_threshold": 0.3,
             "allergen_risk_threshold": 0.8,
         }
@@ -180,7 +200,12 @@ class NutritionBayesianAnalyzer:
                 try:
                     calories = int(match.group(1))
 
-                    # Проверка на опасные значения
+                    # Skip meal-level values (< 1000 kcal typically means single meal)
+                    # Only flag daily totals as dangerous
+                    if is_meal_level_value(calories, context=test_name):
+                        continue
+
+                    # Проверка на опасные значения (только для daily totals)
                     if calories < self.safety_thresholds["calorie_dangerous_low"]:
                         results.append(
                             NutritionTestResult(
@@ -188,7 +213,7 @@ class NutritionBayesianAnalyzer:
                                 success=False,
                                 nutrition_category=NutritionCategory.CALORIE_CALCULATION,
                                 error_type=NutritionErrorType.CALORIE_UNDERFLOW,
-                                error_message=f"Опасно низкое количество калорий: {calories}",
+                                error_message=f"Опасно низкое количество калорий (daily): {calories}",
                                 business_impact="Риск недоедания и нарушения метаболизма",
                                 safety_level="dangerous",
                             )

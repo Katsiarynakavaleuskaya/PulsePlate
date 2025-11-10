@@ -60,12 +60,12 @@ class TestNutritionData:
         }
         result = NutritionData.model_validate(data)
 
-        # NaN should be converted to 0, then clamped to safe minimum
-        assert result.kcal == KCAL_MIN  # 0 → clamped to 800
-        assert result.protein_g == PROTEIN_G_MIN  # 0 (allowed minimum)
-        assert result.fat_g == FAT_G_MIN
-        assert result.carbs_g == CARBS_G_MIN
-        assert result.fiber_g == FIBER_G_MIN
+        # NaN should be converted to 0 (no data state)
+        assert result.kcal == 0
+        assert result.protein_g == 0
+        assert result.fat_g == 0
+        assert result.carbs_g == 0
+        assert result.fiber_g == 0
 
     def test_nutrition_data_handles_inf_values(self) -> None:
         """Verify infinity values are converted to 0, then clamped."""
@@ -78,24 +78,24 @@ class TestNutritionData:
         }
         result = NutritionData.model_validate(data)
 
-        # Infinity should be converted to 0, then clamped to minimum
-        assert result.kcal == KCAL_MIN  # inf → 0 → clamped to 800
-        assert result.protein_g == PROTEIN_G_MIN
-        assert result.fat_g == FAT_G_MIN
-        assert result.carbs_g == CARBS_G_MIN
-        assert result.fiber_g == FIBER_G_MIN
+        # Infinity should be converted to 0 (no data state)
+        assert result.kcal == 0
+        assert result.protein_g == 0
+        assert result.fat_g == 0
+        assert result.carbs_g == 0
+        assert result.fiber_g == 0
 
     def test_nutrition_data_clamps_kcal_to_range(self) -> None:
         """Verify kcal is clamped to valid range."""
-        # Below minimum
+        # Below minimum (negative → 0)
         data_low = {"kcal": -100}
         result_low = NutritionData.model_validate(data_low)
-        assert KCAL_MIN <= result_low.kcal <= KCAL_MAX
+        assert result_low.kcal == 0
 
         # Above maximum
         data_high = {"kcal": 10000}
         result_high = NutritionData.model_validate(data_high)
-        assert KCAL_MIN <= result_high.kcal <= KCAL_MAX
+        assert result_high.kcal == KCAL_MAX
 
     def test_nutrition_data_clamps_protein_to_range(self) -> None:
         """Verify protein_g is clamped to valid range."""
@@ -132,11 +132,11 @@ class TestNutritionData:
         }
         result = NutritionData.model_validate(data)
 
-        # Invalid strings should become 0 then clamped, valid strings should parse
-        assert result.kcal == KCAL_MIN  # "invalid" → 0 → clamped to 800
+        # Invalid strings should become 0, valid strings should parse
+        assert result.kcal == 0  # "invalid" → 0
         assert result.protein_g == 100  # "100.5" → 100 (rounded down)
         assert result.fat_g == 50  # "50" → 50
-        assert result.carbs_g == CARBS_G_MIN  # "abc" → 0
+        assert result.carbs_g == 0  # "abc" → 0
         assert result.fiber_g == 25  # "25" → 25
 
 
@@ -144,14 +144,15 @@ class TestSanitizeFunctions:
     """Unit tests for sanitization functions."""
 
     def test_sanitize_nutrition_dict_handles_empty_dict(self) -> None:
-        """Verify empty dict returns safe defaults."""
+        """Verify empty dict returns zero defaults (no data state)."""
         result = sanitize_nutrition_dict({})
 
-        assert result["kcal"] >= KCAL_MIN
-        assert result["protein_g"] >= PROTEIN_G_MIN
-        assert result["fat_g"] >= FAT_G_MIN
-        assert result["carbs_g"] >= CARBS_G_MIN
-        assert result["fiber_g"] >= FIBER_G_MIN
+        # Empty dict should return all zeros (no data)
+        assert result["kcal"] == 0
+        assert result["protein_g"] == 0
+        assert result["fat_g"] == 0
+        assert result["carbs_g"] == 0
+        assert result["fiber_g"] == 0
 
     def test_sanitize_nutrition_dict_handles_partial_data(self) -> None:
         """Verify partial data is filled with defaults."""

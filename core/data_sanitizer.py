@@ -38,13 +38,15 @@ class NutritionData(BaseModel):
 
     RU: Санитизированные данные о питании с валидированными диапазонами.
     EN: Sanitized nutrition data with validated ranges.
+
+    Default values are all zeros to clearly indicate "no data" state.
     """
 
-    kcal: int = Field(default=2000)
+    kcal: int = Field(default=0)
     protein_g: int = Field(default=0)
     fat_g: int = Field(default=0)
     carbs_g: int = Field(default=0)
-    fiber_g: int = Field(default=25)
+    fiber_g: int = Field(default=0)
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g", mode="before")
     @classmethod
@@ -70,27 +72,29 @@ class NutritionData(BaseModel):
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g")
     @classmethod
     def clamp_to_safe_ranges(cls, value: int, info) -> int:
-        """Clamp nutrition values to safe ranges.
+        """Clamp nutrition values to safe maximum ranges.
 
-        RU: Ограничить значения нутриентов безопасными диапазонами.
-        EN: Clamp nutrition values to safe ranges.
+        RU: Ограничить значения нутриентов безопасными максимумами (минимум = 0).
+        EN: Clamp nutrition values to safe maximum ranges (minimum = 0).
+
+        Note: Minimum is always 0 to preserve "no data" state.
         """
         field_name = info.field_name
 
-        # Define ranges for each field
-        ranges = {
-            "kcal": (KCAL_MIN, KCAL_MAX),
-            "protein_g": (PROTEIN_G_MIN, PROTEIN_G_MAX),
-            "fat_g": (FAT_G_MIN, FAT_G_MAX),
-            "carbs_g": (CARBS_G_MIN, CARBS_G_MAX),
-            "fiber_g": (FIBER_G_MIN, FIBER_G_MAX),
+        # Define max ranges for each field (min is always 0)
+        max_ranges = {
+            "kcal": KCAL_MAX,
+            "protein_g": PROTEIN_G_MAX,
+            "fat_g": FAT_G_MAX,
+            "carbs_g": CARBS_G_MAX,
+            "fiber_g": FIBER_G_MAX,
         }
 
-        min_val, max_val = ranges.get(field_name, (0, float("inf")))
+        max_val = max_ranges.get(field_name, float("inf"))
 
-        if value < min_val:
-            logger.warning("%s %s below minimum %s, clamping", field_name, value, min_val)
-            return int(min_val)
+        if value < 0:
+            logger.warning("%s %s below zero, clamping to 0", field_name, value)
+            return 0
         if value > max_val:
             logger.warning("%s %s above maximum %s, clamping", field_name, value, max_val)
             return int(max_val)
@@ -308,15 +312,21 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
         meals = plate_data.get("meals", [])
         meals = sanitize_meal_list(meals)
 
-        # Keep other fields as-is (portions, layout, etc.)
-        return {
-            "kcal": kcal,
-            "macros": macros,
-            "meals": meals,
-            "portions": plate_data.get("portions", {}),
-            "layout": plate_data.get("layout", []),
-            "meals_per_day": plate_data.get("meals_per_day", 3),
-        }
+        # Keep other fields as-is (portions, layout, micros, etc.)
+        # Preserve all original fields except those we sanitized
+        result = dict(plate_data)
+        result.update(
+            {
+                "kcal": kcal,
+                "macros": macros,
+                "meals": meals,
+            }
+        )
+        # Ensure required fields have defaults
+        result.setdefault("portions", {})
+        result.setdefault("layout", [])
+        result.setdefault("meals_per_day", 3)
+        return result
     except Exception as e:
         logger.error("Failed to apply sanity filter to plate data: %s", e, exc_info=True)
         # Return minimal safe defaults

@@ -10,12 +10,14 @@
 ## 📋 Executive Summary
 
 Этот план описывает поэтапное внедрение продвинутых байесовских анализаторов для улучшения:
+
 - ✅ **Качества данных** (валидация нереалистичных значений)
 - ✅ **Персонализации** (предсказание поведения пользователей)
 - ✅ **Рекомендаций** (адаптивная система на основе feedback)
 - ✅ **Производительности** (байесовская оптимизация API)
 
 **Ожидаемые результаты**:
+
 - 📈 Увеличение retention на 15-20%
 - 🎯 Улучшение точности рекомендаций на 25-30%
 - ⚡ Снижение аномальных данных на 40%
@@ -55,9 +57,10 @@ docs/
 
 ## 📅 Phase 1: Подготовка Архитектуры (2-3 дня)
 
-### Задачи:
+### Задачи
 
 #### 1.1. Создать базовый класс `BaseBayesianAnalyzer`
+
 **Файл**: `core/bayesian/base_analyzer.py`
 
 ```python
@@ -122,12 +125,14 @@ class BaseBayesianAnalyzer(ABC):
 ```
 
 **Критерии готовности**:
+
 - ✅ Класс создан и покрыт тестами
 - ✅ Существующие анализаторы могут наследоваться от него (backward compatible)
 
 ---
 
 #### 1.2. Система метрик `BayesianMetrics`
+
 **Файл**: `core/bayesian/metrics.py`
 
 ```python
@@ -190,6 +195,7 @@ class BayesianMetrics:
 ```
 
 **Критерии готовности**:
+
 - ✅ Метрики собираются автоматически
 - ✅ Можно экспортировать в Prometheus/Grafana
 
@@ -198,11 +204,13 @@ class BayesianMetrics:
 ## 📅 Phase 2: NutritionDataValidationAnalyzer (3-4 дня) ⭐ QUICK WIN
 
 ### Цель
+
 Предотвратить ввод нереалистичных данных о питании, используя байесовскую вероятность.
 
-### Задачи:
+### Задачи
 
 #### 2.1. Создать валидатор
+
 **Файл**: `core/bayesian/nutrition_data_validator.py`
 
 ```python
@@ -533,6 +541,7 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
 ```
 
 **Критерии готовности**:
+
 - ✅ Валидатор создан и протестирован
 - ✅ Покрытие тестами > 80%
 - ✅ Ложных срабатываний < 5%
@@ -540,6 +549,7 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
 ---
 
 #### 2.2. Тесты для валидатора
+
 **Файл**: `tests/test_nutrition_data_validator.py`
 
 ```python
@@ -632,6 +642,7 @@ class TestNutritionDataValidator:
 ---
 
 #### 2.3. Интеграция в app.py
+
 **Модификация**: `app.py`
 
 ```python
@@ -764,12 +775,14 @@ async def validate_meal_data(
 ```
 
 **Зависимости**:
+
 - `fastapi-limiter`: для rate limiting (`pip install fastapi-limiter`)
 - `pydantic`: для валидации входных данных (уже включен в FastAPI)
 - `get_current_user`: dependency для аутентификации (должен быть реализован в `api/auth.py` или аналогичном модуле)
 - `User`: модель пользователя из системы аутентификации
 
 **Тестирование**:
+
 - Unit тесты: валидация Pydantic модели, проверка граничных значений
 - Integration тесты: проверка аутентификации, авторизации, rate limiting
 - Security тесты: проверка отсутствия PHI в логах, проверка шифрования
@@ -780,11 +793,13 @@ async def validate_meal_data(
 ## 📅 Phase 3: UserBehaviorBayesianAnalyzer (4-5 дней)
 
 ### Цель
+
 Предсказание поведения пользователей для улучшения retention и персонализации.
 
-### Задачи:
+### Задачи
 
 #### 3.1. Создать анализатор поведения
+
 **Файл**: `core/bayesian/user_behavior_analyzer.py`
 
 ```python
@@ -851,6 +866,7 @@ class UserBehaviorBayesianAnalyzer(BaseBayesianAnalyzer):
 ## 📅 Phase 4: AdaptiveRecommendationEngine (3-4 дня)
 
 ### Цель
+
 Адаптивная система рекомендаций, которая учится на feedback пользователей.
 
 **Файл**: `core/bayesian/adaptive_recommender.py`
@@ -907,9 +923,10 @@ class AdaptiveRecommendationEngine:
 
 ## 📅 Phase 5: Документация и Мониторинг (2 дня)
 
-### Задачи:
+### Задачи
 
 #### 5.1. Документация архитектуры
+
 **Файл**: `docs/bayesian_architecture.md`
 
 - Описание каждого анализатора
@@ -918,9 +935,11 @@ class AdaptiveRecommendationEngine:
 - Best practices
 
 #### 5.2. Grafana дашборд
+
 **Файл**: `docs/bayesian_metrics_dashboard.md`
 
 Метрики для мониторинга:
+
 - Точность предсказаний (accuracy)
 - Количество аномалий
 - Время выполнения анализа
@@ -930,13 +949,15 @@ class AdaptiveRecommendationEngine:
 
 ## 🎯 Критерии Успеха
 
-### Технические метрики:
+### Технические метрики
+
 - ✅ **Покрытие тестами**: > 97% (требование проекта)
 - ✅ **Точность валидации**: > 90%
 - ✅ **Ложные срабатывания**: < 5%
 - ✅ **Время отклика API**: < 100ms для валидации
 
-### Бизнес метрики:
+### Бизнес метрики
+
 - 📈 **User retention**: +15-20%
 - 🎯 **Точность рекомендаций**: +25-30%
 - ⚡ **Аномальные данные**: -40%
@@ -947,16 +968,19 @@ class AdaptiveRecommendationEngine:
 ## 🚀 Стратегия Деплоя
 
 ### Этап 1: Canary Deployment
+
 - Включить для 5% пользователей
 - Мониторить метрики 3-5 дней
 - Собрать feedback
 
 ### Этап 2: Gradual Rollout
+
 - 25% пользователей (1 неделя)
 - 50% пользователей (1 неделя)
 - 100% пользователей
 
 ### Этап 3: Optimization
+
 - Анализ A/B тестов
 - Тюнинг гиперпараметров
 - Оптимизация производительности
@@ -976,12 +1000,14 @@ class AdaptiveRecommendationEngine:
 
 ## 📚 Ресурсы
 
-### Библиотеки:
+### Библиотеки
+
 - `numpy` - математические операции
 - `scipy` - статистические распределения
 - `pymc3` (optional) - продвинутые байесовские модели
 
-### Документация:
+### Документация
+
 - [Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/book/)
 - [Thompson Sampling Tutorial](https://web.stanford.edu/~bvr/pubs/TS_Tutorial.pdf)
 - [Multi-Armed Bandits](https://arxiv.org/abs/1904.07272)
@@ -991,6 +1017,7 @@ class AdaptiveRecommendationEngine:
 ## 📝 Чеклист для Нового PR
 
 Перед созданием PR убедитесь:
+
 - [ ] Все тесты проходят
 - [ ] Покрытие тестами > 85%
 - [ ] Документация обновлена

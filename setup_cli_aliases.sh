@@ -116,20 +116,19 @@ create_alias() {
     validation_error=$(validate_command "$command" "$PROJECT_ROOT")
     local validation_failed=$?
 
-    # shellcheck disable=SC2139
-    # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
-    # Note: Command substitutions in aliases also freeze at definition time
-    alias "$alias_name"="$command"
-
     if [ "$validation_failed" -ne 0 ]; then
         if [ "$_QUIET_MODE" = "false" ]; then
             echo "⚠️  Алиас '$alias_name' создан, но валидация не прошла: $validation_error"
         fi
-        return 1
+        # Still create alias for non-critical failures (allows user to fix issues later)
     else
-        # Оптимизация: используем предвычисленную переменную вместо повторных проверок
         [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
     fi
+
+    # shellcheck disable=SC2139
+    # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
+    # Note: Command substitutions in aliases also freeze at definition time
+    alias "$alias_name"="$command"
 }
 
 # Переход в директорию проекта
