@@ -24,7 +24,7 @@ from core.plate import (
 class TestCorePlateLogic:
     """Test core plate generation logic."""
 
-    def testtarget_kcal_calculation(self) -> None:
+    def test_target_kcal_calculation(self) -> None:
         """Test target calorie calculation for different goals."""
         tdee = 2000
 
@@ -94,7 +94,7 @@ class TestCorePlateLogic:
         )
         assert abs(total_kcal_low - low_kcal) <= 50  # Allow some tolerance for edge cases
 
-    def testportions_from_macros(self) -> None:
+    def test_portions_from_macros(self) -> None:
         """Test conversion of macros to hand/cup portions."""
         macros = {"protein_g": 120, "fat_g": 60, "carbs_g": 200, "fiber_g": 30}
 
@@ -322,20 +322,31 @@ class TestCorePlateLogic:
 
     def test_plate_goal_consistency(self) -> None:
         """Test different goals produce consistent results."""
-        base_params = {"weight_kg": 70, "tdee_val": 2000, "diet_flags": None}
+        base_params: dict[str, float | None] = {
+            "weight_kg": 70.0,
+            "tdee_val": 2000.0,
+            "diet_flags": None,
+        }
 
         # Test loss goal
-        plate_loss = make_plate(goal="loss", deficit_pct=15, surplus_pct=None, **base_params)
+        plate_loss = make_plate(
+            goal="loss", deficit_pct=15.0, surplus_pct=None, **base_params  # type: ignore[arg-type]
+        )
         assert plate_loss["kcal"] < 2000  # Should be below TDEE
 
         # Test maintain goal
         plate_maintain = make_plate(
-            goal="maintain", deficit_pct=None, surplus_pct=None, **base_params
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            **base_params,  # type: ignore[arg-type]
         )
         assert plate_maintain["kcal"] == 2000  # Should equal TDEE
 
         # Test gain goal
-        plate_gain = make_plate(goal="gain", deficit_pct=None, surplus_pct=12, **base_params)
+        plate_gain = make_plate(
+            goal="gain", deficit_pct=None, surplus_pct=12.0, **base_params  # type: ignore[arg-type]
+        )
         assert plate_gain["kcal"] > 2000  # Should be above TDEE
 
         # Loss should have relatively more protein
@@ -385,9 +396,9 @@ class TestCorePlateLogic:
 
     def test_meals_per_day_validation(self) -> None:
         """Test meals_per_day parameter validation."""
-        base_params = {
-            "weight_kg": 70,
-            "tdee_val": 2000,
+        base_params: dict[str, float | str | None] = {
+            "weight_kg": 70.0,
+            "tdee_val": 2000.0,
             "goal": "maintain",
             "deficit_pct": None,
             "surplus_pct": None,
@@ -395,41 +406,41 @@ class TestCorePlateLogic:
         }
 
         # Test valid values at boundaries
-        plate_min = make_plate(**base_params, meals_per_day=1)
+        plate_min = make_plate(**base_params, meals_per_day=1)  # type: ignore[arg-type]
         assert plate_min["meals_per_day"] == 1
 
-        plate_max = make_plate(**base_params, meals_per_day=12)
+        plate_max = make_plate(**base_params, meals_per_day=12)  # type: ignore[arg-type]
         assert plate_max["meals_per_day"] == 12
 
-        plate_default = make_plate(**base_params)  # Should default to 3
+        plate_default = make_plate(**base_params)  # type: ignore[arg-type]  # Should default to 3
         assert plate_default["meals_per_day"] == 3
 
         # Test invalid type - should raise ValueError
         with pytest.raises(ValueError, match="must be an integer"):
-            make_plate(**base_params, meals_per_day="3")  # type: ignore
+            make_plate(**base_params, meals_per_day="3")  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="must be an integer"):
-            make_plate(**base_params, meals_per_day=3.5)  # type: ignore
+            make_plate(**base_params, meals_per_day=3.5)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="must be an integer"):
-            make_plate(**base_params, meals_per_day=None)  # type: ignore
+            make_plate(**base_params, meals_per_day=None)  # type: ignore[arg-type]
 
         # Test invalid range - should raise ValueError
         with pytest.raises(ValueError, match="must be between 1 and 12"):
-            make_plate(**base_params, meals_per_day=0)
+            make_plate(**base_params, meals_per_day=0)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="must be between 1 and 12"):
-            make_plate(**base_params, meals_per_day=-1)
+            make_plate(**base_params, meals_per_day=-1)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="must be between 1 and 12"):
-            make_plate(**base_params, meals_per_day=13)
+            make_plate(**base_params, meals_per_day=13)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="must be between 1 and 12"):
-            make_plate(**base_params, meals_per_day=100)
+            make_plate(**base_params, meals_per_day=100)  # type: ignore[arg-type]
 
         # Test that valid meals_per_day affects portion calculations
-        plate_1_meal = make_plate(**base_params, meals_per_day=1)
-        plate_6_meals = make_plate(**base_params, meals_per_day=6)
+        plate_1_meal = make_plate(**base_params, meals_per_day=1)  # type: ignore[arg-type]
+        plate_6_meals = make_plate(**base_params, meals_per_day=6)  # type: ignore[arg-type]
 
         # With 1 meal per day, portions should be larger
         assert plate_1_meal["portions"]["protein_palm"] > plate_6_meals["portions"]["protein_palm"]
