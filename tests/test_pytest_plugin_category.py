@@ -13,5 +13,5 @@ def test_determine_category_custom_marker_fallback() -> None:
 def test_determine_category_custom_marker_known() -> None:
     """Test that known custom markers map to their correct category."""
     plugin = BayesianPytestPlugin(category_markers=["regression", "integration"])
-    item2 = DummyItem(["integration"])
-    assert plugin._determine_test_category(item2) == TestCategory.INTEGRATION
+    integration_item = DummyItem(["integration"])
+    assert plugin._determine_test_category(integration_item) == TestCategory.INTEGRATION

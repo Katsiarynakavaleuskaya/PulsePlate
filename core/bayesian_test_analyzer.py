@@ -44,6 +44,8 @@ class TestStatus(Enum):
 class ErrorType(Enum):
     """Типы ошибок в тестах."""
 
+    __test__ = False  # Tell pytest this is not a test class
+
     ASSERTION_ERROR = "assertion_error"
     IMPORT_ERROR = "import_error"
     TYPE_ERROR = "type_error"

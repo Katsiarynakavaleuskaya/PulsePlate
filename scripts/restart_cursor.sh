@@ -1,12 +1,13 @@
 #!/bin/bash
 # 🔄 Restart Cursor IDE
-# Usage: ./scripts/restart_cursor.sh [--grace-period SECONDS] [--reopen-delay SECONDS] [--help]
+# Usage: ./scripts/restart_cursor.sh [--grace-period SECONDS] [--reopen-delay SECONDS] [--verbose|--debug] [--help]
 
 set -euo pipefail
 
 # Default values
 GRACE_PERIOD=2
 REOPEN_DELAY=1
+VERBOSE=false
 
 # Function to print usage and exit
 show_help() {
@@ -19,6 +20,7 @@ Usage:
 Options:
     --grace-period SECONDS    Wait time after graceful quit and after force kill (default: 2)
     --reopen-delay SECONDS    Wait time before reopening Cursor (default: 1)
+    --verbose, --debug        Enable verbose/debug output
     --help                    Show this help message and exit
 
 Examples:
@@ -78,6 +80,10 @@ while [[ $# -gt 0 ]]; do
             REOPEN_DELAY="$2"
             shift 2
             ;;
+        --verbose|--debug)
+            VERBOSE=true
+            shift
+            ;;
         *)
             echo "❌ Error: Unknown option: $1"
             echo "   Use --help for usage information"
@@ -86,7 +92,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Debug: Show parsed arguments
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Debug: Parsed arguments:"
+    echo "  GRACE_PERIOD=$GRACE_PERIOD"
+    echo "  REOPEN_DELAY=$REOPEN_DELAY"
+    echo "  VERBOSE=$VERBOSE"
+fi
+
 # Check if running on macOS
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Debug: Checking OS..."
+    echo "Debug: Detected OS: $(uname -s)"
+fi
 if [ "$(uname -s)" != "Darwin" ]; then
     echo "❌ Error: This script is macOS-only"
     echo "   Detected OS: $(uname -s)"
@@ -97,31 +115,65 @@ fi
 echo "🔄 Restarting Cursor..."
 
 # Check if Cursor is running
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Debug: Checking if Cursor is running..."
+fi
 if pgrep -x "Cursor" > /dev/null; then
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: Cursor process found via pgrep"
+    fi
     echo "📋 Closing Cursor..."
     # Try graceful quit first (saves files)
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: Attempting graceful quit via osascript..."
+    fi
     osascript -e 'tell application "Cursor" to quit' 2>/dev/null || true
 
     # Wait a bit for graceful shutdown
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: Waiting $GRACE_PERIOD seconds for graceful shutdown..."
+    fi
     sleep "$GRACE_PERIOD"
 
     # Force kill if still running
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: Checking if Cursor is still running..."
+    fi
     if pgrep -x "Cursor" > /dev/null; then
+        if [[ "$VERBOSE" == "true" ]]; then
+            echo "Debug: Cursor still running, force killing..."
+        fi
         echo "⚠️  Force closing Cursor..."
         killall "Cursor" 2>/dev/null || true
+        if [[ "$VERBOSE" == "true" ]]; then
+            echo "Debug: Waiting $GRACE_PERIOD seconds after force kill..."
+        fi
         sleep "$GRACE_PERIOD"
+    else
+        if [[ "$VERBOSE" == "true" ]]; then
+            echo "Debug: Cursor closed gracefully"
+        fi
     fi
 
     echo "✅ Cursor closed"
 else
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: Cursor process not found via pgrep"
+    fi
     echo "ℹ️  Cursor is not running"
 fi
 
 # Wait a moment before reopening
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Debug: Waiting $REOPEN_DELAY seconds before reopening..."
+fi
 sleep "$REOPEN_DELAY"
 
 # Open Cursor
 echo "🚀 Opening Cursor..."
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Debug: Executing 'open -a Cursor'..."
+fi
 open -a "Cursor" 2>/dev/null || {
     echo "❌ Error: Could not open Cursor"
     echo "   Please open Cursor manually from Applications"

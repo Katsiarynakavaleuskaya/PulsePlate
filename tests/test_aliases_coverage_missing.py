@@ -2,7 +2,6 @@
 
 import csv
 import os
-import types
 from pathlib import Path
 from typing import Any
 

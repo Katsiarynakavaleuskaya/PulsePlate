@@ -34,7 +34,7 @@ def mock_env_production():
 
 
 @pytest.fixture
-def reloaded_client():
+def reloaded_client() -> TestClient:
     """Return a TestClient with a freshly reloaded app module."""
     return TestClient(_load_app())
 

@@ -138,7 +138,7 @@ def upgrade() -> None:
         sa.CheckConstraint("fiber_g_per_100g >= 0", name="ck_food_fiber_positive"),
         sa.CheckConstraint("fiber_g_per_100g <= 100", name="ck_food_fiber_max"),
     )
-    op.create_index("ix_food_items_food_id", "food_items", ["food_id"], unique=True)
+    op.create_index("ix_food_items_food_id", "food_items", ["food_id"])
     op.create_index("ix_food_items_canonical_name", "food_items", ["canonical_name"])
 
 

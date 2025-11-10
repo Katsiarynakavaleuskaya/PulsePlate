@@ -5,18 +5,21 @@ Test coverage for setup_custom_mcp.py
 import json
 import os
 import tempfile
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from pathlib import Path
-from typing import Tuple
+from typing import Generator, Tuple
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
 import setup_custom_mcp
 
+# Type alias for long Tuple annotation to keep lines under 100 characters
+MockTuple = Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]
+
 
 @pytest.fixture
-def mcp_setup_mocks() -> Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
+def mcp_setup_mocks() -> Generator[MockTuple, None, None]:
     """Fixture that patches pathlib and builtin functions for setup_custom_mcp tests.
 
     Yields:
@@ -28,24 +31,26 @@ def mcp_setup_mocks() -> Tuple[MagicMock, MagicMock, MagicMock, MagicMock, Magic
         - mock_print: builtins.print mock
         - mock_cwd: Path.cwd mock
     """
-    with patch("pathlib.Path.home") as mock_home:
-        with patch("pathlib.Path.mkdir") as mock_mkdir:
-            with patch("builtins.open", mock_open()) as mock_file:
-                with patch("json.dump") as mock_json_dump:
-                    with patch("builtins.print") as mock_print:
-                        with patch("pathlib.Path.cwd") as mock_cwd:
-                            # Configure mocks
-                            mock_home.return_value = Path("/fake/home")
-                            mock_cwd.return_value = Path("/fake/cwd")
+    with ExitStack() as stack:
+        mock_home = stack.enter_context(patch("pathlib.Path.home"))
+        mock_mkdir = stack.enter_context(patch("pathlib.Path.mkdir"))
+        mock_file = stack.enter_context(patch("builtins.open", mock_open()))
+        mock_json_dump = stack.enter_context(patch("json.dump"))
+        mock_print = stack.enter_context(patch("builtins.print"))
+        mock_cwd = stack.enter_context(patch("pathlib.Path.cwd"))
 
-                            yield (
-                                mock_home,
-                                mock_mkdir,
-                                mock_file,
-                                mock_json_dump,
-                                mock_print,
-                                mock_cwd,
-                            )
+        # Configure mocks
+        mock_home.return_value = Path("/fake/home")
+        mock_cwd.return_value = Path("/fake/cwd")
+
+        yield (
+            mock_home,
+            mock_mkdir,
+            mock_file,
+            mock_json_dump,
+            mock_print,
+            mock_cwd,
+        )
 
 
 class TestSetupCustomMcpCoverage:
@@ -53,7 +58,7 @@ class TestSetupCustomMcpCoverage:
 
     def test_setup_custom_mcp_function(
         self,
-        mcp_setup_mocks: Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock],
+        mcp_setup_mocks: MockTuple,
     ) -> None:
         """Test setup_custom_mcp function"""
         mock_home, mock_mkdir, mock_file, mock_json_dump, mock_print, mock_cwd = mcp_setup_mocks

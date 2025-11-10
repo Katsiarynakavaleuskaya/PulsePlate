@@ -453,8 +453,8 @@ class BusinessBayesianAnalyzer:
         # 2. SELECT *: only flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
         if re.search(select_star_pattern, code, re.IGNORECASE):
-            # Skip if test_name contains "test_" or code contains "fixture"
-            if "test_" not in test_name.lower() and "fixture" not in code.lower():
+            # Skip if test_name starts with "test_" or code contains "fixture"
+            if not test_name.lower().startswith("test_") and "fixture" not in code.lower():
                 results.append(
                     BusinessTestResult(
                         test_name=test_name,

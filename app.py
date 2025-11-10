@@ -146,7 +146,7 @@ async def lifespan(app: FastAPI):
             init_db()
             logger.info("Database schema initialized")
         except Exception as db_err:
-            logger.error(f"Failed to initialize database: {db_err}")
+            logger.error("Failed to initialize database: %s", db_err)
             # Allow fallback only for dev-like envs or explicit override
             allow_fallback = env_name in {"local", "dev", "development"} or os.getenv(
                 "ALLOW_DB_INMEMORY_FALLBACK"
@@ -169,10 +169,10 @@ async def lifespan(app: FastAPI):
     try:
         validate_template_dir()
     except RuntimeError as template_err:
-        logger.error(f"Failed to validate recipe templates directory: {template_err}")
+        logger.error("Failed to validate recipe templates directory: %s", template_err)
         raise
     except Exception as template_err:
-        logger.error(f"Unexpected error validating recipe templates directory: {template_err}")
+        logger.error("Unexpected error validating recipe templates directory: %s", template_err)
         raise
 
     try:
@@ -185,12 +185,12 @@ async def lifespan(app: FastAPI):
             if _pkg and hasattr(_pkg, "start_background_updates")
             else start_background_updates
         )
+        _task: Optional[asyncio.Task[Any]] = None
         if callable(_start):
             result = _start(update_interval_hours=24)
             if _inspect.isawaitable(result):
                 # Apply a configurable timeout to avoid hangs on startup
                 _timeout = float(os.getenv("BACKGROUND_START_TIMEOUT_SEC", "10"))
-                _task: Optional[asyncio.Task[Any]] = None
                 try:
                     # Ensure we have a Task to be able to cancel on timeout
                     _task = asyncio.ensure_future(result)
@@ -204,12 +204,12 @@ async def lifespan(app: FastAPI):
                         with suppress(Exception):
                             await _task
                 except Exception as e:
-                    logger.error(f"Failed to start background updates (async): {e}")
+                    logger.error("Failed to start background updates (async): %s", e)
         # Log only when start succeeded to reduce noise
         if _task is None or not _task.done() or _task.exception() is None:
             logger.info("Started background database updates")
     except Exception as e:
-        logger.error(f"Failed to start background updates: {e}")
+        logger.error("Failed to start background updates: %s", e)
 
     yield
 
@@ -231,7 +231,7 @@ async def lifespan(app: FastAPI):
                 await result
         logger.info("Stopped background database updates")
     except Exception as e:
-        logger.error(f"Error stopping background updates: {e}")
+        logger.error("Error stopping background updates: %s", e)
 
 
 app = FastAPI(title="PulsePlate", lifespan=lifespan)
@@ -1408,7 +1408,7 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
         if build_targets_primary is None:
             return None
         if callable(build_targets_primary):
-            return build_targets_primary  # type: ignore[return-value]
+            return build_targets_primary
 
     for candidate in (
         _sys.modules.get("app_module"),
@@ -1715,7 +1715,9 @@ async def _aggregate_meal_micronutrients(
         grams_raw = ing.get("grams")
 
         if not food_id or not isinstance(food_id, str):
-            logger.debug(f"Skipping ingredient with missing/invalid food_id in meal '{meal_title}'")
+            logger.debug(
+                "Skipping ingredient with missing/invalid food_id in meal '%s'", meal_title
+            )
             continue
 
         try:
@@ -1813,7 +1815,7 @@ def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
         # Try to find a matching recipe
         recipes = recipe_store.search_recipes(meal_title, limit=1)
         if not recipes:
-            logger.debug(f"No recipe found for meal '{meal_title}'")
+            logger.debug("No recipe found for meal '%s'", meal_title)
             return []
 
         recipe_id = recipes[0].get("recipe_id")
@@ -1850,7 +1852,7 @@ def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
         return normalized_ingredients
 
     except Exception as e:
-        logger.debug(f"Error looking up recipe for meal '{meal_title}': {e}")
+        logger.debug("Error looking up recipe for meal '%s': %s", meal_title, e)
         return []
 
 

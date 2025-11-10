@@ -10,9 +10,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
-_default_lang = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru")
-# Validate that the value is a non-empty string
-DEFAULT_LANGUAGE = _default_lang if isinstance(_default_lang, str) and _default_lang else "ru"
+DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
 
 # Recommendation messages organized by language and error type/symptom
 RECOMMENDATIONS: Dict[str, Dict[str, List[str]]] = {

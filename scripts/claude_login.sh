@@ -133,8 +133,16 @@ EOF
                     value="${value%\"}"
                     value="${value#\'}"
                     value="${value%\'}"
-                    # Export validated key=value (no expansions, substitutions, or backticks)
-                    export "$key=$value"
+                    # Sanitize value: reject control chars, newlines, and command injection chars
+                    # Allow only printable ASCII (32-126) excluding dangerous chars: `$();&|<>*?\ and newlines
+                    if [[ "$value" =~ [^[:print:]] ]] || [[ "$value" =~ [\`\$\(\)\;\&\|\<\>\*\\\?] ]]; then
+                        echo "⚠️  Warning: Skipping unsafe value for $key (contains control chars or injection chars)" >&2
+                        continue
+                    fi
+                    # Export sanitized value using printf %q to safely quote, then eval
+                    # This prevents shell expansion while preserving the value
+                    sanitized_value=$(printf '%q' "$value")
+                    eval "export $key=$sanitized_value"
                 fi
             done < "$HOME/.cursor/.env"
         fi

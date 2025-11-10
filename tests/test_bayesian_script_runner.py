@@ -75,7 +75,7 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["success"] is False
     assert result["returncode"] == 1
     assert isinstance(result.get("output"), str)
-    assert result["failed_tests"]
+    assert len(result["failed_tests"]) > 0
     assert result["failed_tests"][0]["name"].startswith("test_example")
 
 

@@ -174,12 +174,11 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
             primary_lower = primary_raw.lower()
             if primary_lower not in canonical_to_aliases:
                 canonical_to_aliases[primary_lower] = []
-            # Collect all values after primary as aliases (handles unquoted commas)
+            # Collect all values after primary as aliases
+            # csv.reader has already split on commas; only handle explicit secondary separators
             alias_parts: list[str] = []
             for val in row_values[primary_idx + 1 :]:
-                # Split each value by semicolon first, then by comma
-                for semicolon_part in val.split(";"):
-                    alias_parts.extend(semicolon_part.split(","))
+                alias_parts.extend(val.split(";"))
             # Process each alias part
             seen = set(canonical_to_aliases[primary_lower])
             for alias_raw in alias_parts:

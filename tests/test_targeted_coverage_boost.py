@@ -28,13 +28,9 @@ class TestTargetedCoverageBoost:
     """Targeted tests to boost coverage for specific uncovered lines."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
@@ -173,15 +169,14 @@ class TestTargetedCoverageBoost:
             pass
 
     @pytest.mark.asyncio
-    async def test_unified_db_py_line_165(self):
+    async def test_unified_db_py_line_165(self) -> None:
         """Test line 165 in unified_db.py (get_food_by_id with invalid ID)."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
-        db = UnifiedFoodDatabase()
+        db: UnifiedFoodDatabase = UnifiedFoodDatabase()
         # Test with async function properly
         try:
             _ = await db.get_food_by_id("usda", "invalid_id")
-            # Use _ to indicate we're not using the variable
             # Should handle invalid ID gracefully
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
@@ -205,45 +200,68 @@ class TestTargetedCoverageBoost:
             pass
 
     @pytest.mark.asyncio
-    async def test_update_manager_py_lines_264_296(self):
+    async def test_update_manager_py_lines_264_296(self) -> None:
         """Test lines 264-296 in update_manager.py (_validate_food_data)."""
         from core.food_apis.unified_db import UnifiedFoodItem
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         manager = DatabaseUpdateManager()
 
-        # Test with missing required fields - fix the constructor
-        foods = {
-            "test_food": UnifiedFoodItem(
+        # Test with two food items to verify both error types are detected:
+        # 1. Empty name (missing required fields)
+        # 2. Negative protein value
+        foods: dict[str, UnifiedFoodItem] = {
+            "test_food_empty_name": UnifiedFoodItem(
                 name="",  # Missing name
                 source="test",
                 source_id="123",
+                nutrients_per_100g={"protein_g": 10.0},
+                cost_per_100g=0.0,
+                tags=[],
+                availability_regions=[],
+            ),
+            "test_food_negative_protein": UnifiedFoodItem(
+                name="Valid Food",  # Valid name to allow nutrient validation
+                source="test",
+                source_id="456",
                 nutrients_per_100g={"protein_g": -5.0},  # Negative value
                 cost_per_100g=0.0,
                 tags=[],
                 availability_regions=[],
-            )
+            ),
         }
 
-        errors = await manager._validate_food_data(foods)
+        errors: list[str] = await manager._validate_food_data(foods)
         # Validate that errors are detected for invalid data (empty name, negative protein)
         assert isinstance(errors, list), "errors should be a list"
         assert len(errors) > 0, "validation should detect errors for invalid food data"
-        # Verify that errors contain meaningful messages
-        assert any(
-            isinstance(err, (str, dict)) for err in errors
-        ), "errors should contain validation messages"
+
+        # Explicitly check for empty name error
+        error_messages: str = " ".join(errors).lower()
+        assert (
+            "missing required fields" in error_messages
+        ), "validation should detect empty/missing name"
+        assert (
+            "test_food_empty_name" in error_messages
+        ), "error should reference the food item with missing name"
+
+        # Explicitly check for negative protein error
+        assert "negative" in error_messages, "validation should detect negative nutrient value"
+        assert "protein" in error_messages, "error should mention protein nutrient"
+        assert (
+            "test_food_negative_protein" in error_messages
+        ), "error should reference the food item with negative protein"
 
     @pytest.mark.asyncio
-    async def test_update_manager_py_line_394(self):
+    async def test_update_manager_py_line_394(self) -> None:
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
         with patch(
             "core.food_apis.update_manager.Path.glob",
             side_effect=Exception("Test error"),
         ):
-            from core.food_apis.update_manager import DatabaseUpdateManager
-
-            manager = DatabaseUpdateManager()
+            manager: DatabaseUpdateManager = DatabaseUpdateManager()
             try:
                 await manager._cleanup_old_backups("usda")
                 # Should not crash, just log error

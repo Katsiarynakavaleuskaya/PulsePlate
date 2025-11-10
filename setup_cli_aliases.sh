@@ -236,10 +236,9 @@ create_alias "ppdocker-build" "cd $PROJECT_ROOT && make docker-build"
 create_alias "ppdocker-run" "cd $PROJECT_ROOT && make docker-run"
 create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 
-# Claude Code с ролью PulsePlate
-# DISABLED: Account banned - GPU usage disabled
+# Claude Code with PulsePlate role
+# Alias disabled due to account suspension; re-enable by uncommenting after account restoration
 # create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh" "$PROJECT_ROOT/scripts/claude_with_role.sh"
-# To re-enable: uncomment above line after account restoration
 
 # Выводим информацию только в интерактивном режиме
 if [ "$AUTO_LOAD" != "true" ]; then

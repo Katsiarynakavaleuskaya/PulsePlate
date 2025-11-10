@@ -82,10 +82,16 @@ class Recipe(Base):
         MutableDict.as_mutable(JSON), nullable=False
     )  # {food_id: grams}
     tags: Mapped[list] = mapped_column(
-        MutableList.as_mutable(JSON), nullable=False, server_default=text("'[]'")
+        MutableList.as_mutable(JSON),
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )  # App-layer default: []
     allergens: Mapped[list] = mapped_column(
-        MutableList.as_mutable(JSON), nullable=False, server_default=text("'[]'")
+        MutableList.as_mutable(JSON),
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )  # App-layer default: []
 
     # Source tracking
@@ -191,7 +197,10 @@ class FoodItem(Base):
 
     # Metadata (app-layer defaults via Pydantic, not DB-level)
     flags: Mapped[list] = mapped_column(
-        MutableList.as_mutable(JSON), nullable=False, server_default=text("'[]'")
+        MutableList.as_mutable(JSON),
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )  # VEG, GF, etc.
     brand: Mapped[str] = mapped_column(String(255), nullable=True)
 

@@ -14,6 +14,8 @@ All values represent daily totals unless otherwise specified.
 
 from __future__ import annotations
 
+import math
+
 # Calorie Safety Thresholds (kcal/day)
 # Based on WHO/USDA guidelines and medical supervision requirements
 
@@ -80,7 +82,21 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
     - Explicit meal keywords → meal
     - Very small portions (≤ 300 kcal) → meal
     - Otherwise → daily total (conservative: flag potential issues)
+
+    Raises:
+        TypeError: If kcal is not a number (int or float)
+        ValueError: If kcal is NaN, Infinity, or negative
     """
+    # Input validation: fail fast on invalid inputs
+    if not isinstance(kcal, (int, float)):
+        raise TypeError(f"kcal must be a number (int or float), got {type(kcal).__name__}")
+
+    if not math.isfinite(kcal):
+        raise ValueError(f"kcal must be a finite number, got {kcal} (NaN or Infinity)")
+
+    if kcal < 0:
+        raise ValueError(f"kcal must be non-negative, got {kcal}")
+
     context_lower = context.lower()
     meal_keywords = ["meal", "breakfast", "lunch", "dinner", "snack", "portion"]
     daily_keywords = ["daily", "total", "day", "tdee", "intake"]

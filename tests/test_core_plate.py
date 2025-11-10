@@ -53,7 +53,7 @@ class TestCorePlateLogic:
         target = target_kcal(very_low_tdee, "loss", 25, None)
         assert target == 1200  # Should not go below 1200
 
-    def testmacros_by_rules(self):
+    def test_macros_by_rules(self) -> None:
         """Test macro distribution rules for different goals."""
         weight = 70  # kg
         kcal = 2000

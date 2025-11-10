@@ -127,10 +127,12 @@ class TestAppMissingLinesTargeted:
             {"weight": float("inf"), "height": 175, "age": 30},  # Infinity
         ],
     )
-    def test_extreme_numeric_values_edge_cases(self, case):
+    def test_extreme_numeric_values_edge_cases(self, case: dict[str, object]) -> None:
         """Test extreme numeric values that might trigger different paths"""
+        import json
+
         case_with_defaults = {**case, "sex": "M", "lang": "en"}
-        with suppress(Exception):
+        with suppress((TypeError, ValueError, json.JSONDecodeError)):
             # Some cases might cause JSON serialization errors, which is expected
             response = self.client.post("/bmi", json=case_with_defaults)
             assert response.status_code in [200, 400, 422, 500]
@@ -173,7 +175,7 @@ class TestAppMissingLinesTargeted:
 class TestAppLargePayloadsAndLimits:
     """Test large payloads and various limits"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_large_text_fields(self):
@@ -229,7 +231,7 @@ class TestAppLargePayloadsAndLimits:
 class TestAppErrorHandlingPaths:
     """Test specific error handling paths"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_database_connection_errors(self):
@@ -265,7 +267,7 @@ class TestAppErrorHandlingPaths:
             "application/xml",
         ],
     )
-    def test_various_content_types(self, content_type):
+    def test_various_content_types(self, content_type: str) -> None:
         """Test various content types"""
         test_data = '{"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": "en"}'
         response = self.client.post(
@@ -278,7 +280,7 @@ class TestAppErrorHandlingPaths:
 class TestAppSpecificMissingBlocks:
     """Test specific missing code blocks identified in coverage"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_export_endpoints_if_available(self):
@@ -291,7 +293,7 @@ class TestAppSpecificMissingBlocks:
         assert response.status_code in [200, 404, 405, 422, 500]
 
     @pytest.mark.parametrize("endpoint", ["/premium_bmr", "/premium_targets"])
-    def test_premium_endpoints_without_auth(self, endpoint):
+    def test_premium_endpoints_without_auth(self, endpoint: str) -> None:
         """Test premium endpoints without authentication"""
         premium_data = {
             "weight": 70,
@@ -356,10 +358,12 @@ class TestAppSpecificMissingBlocks:
             "zh-CN",
         ],
     )
-    def test_edge_case_language_handling(self, lang):
+    def test_edge_case_language_handling(self, lang: str | None) -> None:
         """Test edge cases in language handling"""
+        import json
+
         test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": lang}
-        with suppress(Exception):
+        with suppress(ValueError, TypeError, json.JSONDecodeError):
             # Some language values might cause JSON errors
             response = self.client.post("/bmi", json=test_data)
             assert response.status_code in [200, 400, 422]

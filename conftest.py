@@ -28,7 +28,6 @@ def init_test_database() -> None:
     then calls init_db() to create all tables.
     """
     import logging
-    import os
 
     # Ensure test environment variables are set
     os.environ.setdefault("APP_ENV", "test")

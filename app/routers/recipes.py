@@ -12,7 +12,9 @@ router = APIRouter(tags=["recipes"])
 
 
 @router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
-def list_recipes(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
+def list_recipes(
+    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+) -> List[RecipeQueryHit]:
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
     rows = recipe_store.search_recipes(query or "*", limit, offset)
@@ -32,12 +34,14 @@ def list_recipes(query: str = Query("", max_length=64), limit: int = 20, offset:
 
 # Backward-compatible alias for tests expecting /api/v1/recipes/search
 @router.get("/api/v1/recipes/search", response_model=List[RecipeQueryHit])
-def list_recipes_search(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
-    return list_recipes(query=query, limit=limit, offset=offset)
+def list_recipes_search(
+    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+) -> List[RecipeQueryHit]:
+    return list_recipes(query=query, limit=limit, offset=offset)  # type: ignore[no-any-return]
 
 
 @router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)
-def get_recipe(recipe_id: str):
+def get_recipe(recipe_id: str) -> Recipe:
     r = recipe_store.get_recipe(recipe_id)
     if not r:
         raise HTTPException(404, "Recipe not found")
@@ -60,7 +64,7 @@ def get_recipe(recipe_id: str):
 
 
 @router.post("/api/v1/recipes/preview", response_model=RecipePreviewResponse)
-def recipe_preview(req: RecipePreviewRequest):
+def recipe_preview(req: RecipePreviewRequest) -> RecipePreviewResponse:
     if req.servings <= 0:
         raise HTTPException(422, "servings must be >= 1")
     total_g = sum(i.grams for i in req.ingredients)

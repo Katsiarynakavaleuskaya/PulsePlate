@@ -6,12 +6,13 @@ import logging
 import os
 import sys
 import tempfile
+from contextlib import suppress
 
 import pytest
 
 from core import recipe_db, shoplist, weekly_plan
-from core.recommendations import build_nutrition_targets
-from core.targets import NutritionTargets, UserProfile
+
+# (remaining imports from the original file, with the two specified imports removed)
 
 
 def test_parse_recipe_db_food_db_none() -> None:
@@ -80,10 +81,9 @@ def test_llm_ollama_timeout_invalid(
     importlib.reload(llm)
 
     # Call get_provider to trigger the timeout parsing code path
-    from contextlib import suppress
-
+    # Suppress only specific exceptions that can occur during provider initialization
     with caplog.at_level(logging.WARNING):
-        with suppress(Exception):
+        with suppress(ModuleNotFoundError, ImportError, RuntimeError):
             provider = llm.get_provider()
             # Provider might be None or OllamaLiteProvider if OllamaProvider fails
             # The important part is that the warning was logged

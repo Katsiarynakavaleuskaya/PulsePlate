@@ -78,8 +78,16 @@ def run_coverage_check() -> bool:
                     print(f"⏭️  Tests skipped: {skipped}")
             else:
                 print("⚠️  Could not parse test results from JUnit XML")
-        except Exception as xml_error:
-            print(f"⚠️  Error parsing JUnit XML: {xml_error}")
+        except ET.ParseError as xml_error:
+            print(f"⚠️  Error parsing JUnit XML (malformed XML): {xml_error}")
+            # Fallback to stdout parsing
+            print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+        except (FileNotFoundError, PermissionError) as file_error:
+            print(f"⚠️  Error accessing JUnit XML file: {file_error}")
+            # Fallback to stdout parsing
+            print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+        except Exception as e:
+            print(f"⚠️  Unexpected error parsing JUnit XML: {e}")
             # Fallback to stdout parsing
             print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
 

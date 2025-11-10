@@ -10,7 +10,9 @@ router = APIRouter(tags=["foods"])
 
 
 @router.get("/api/v1/foods", response_model=List[FoodHit])
-def list_foods(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
+def list_foods(
+    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+) -> List[FoodHit]:
     if limit > 100 or limit < 1:
         raise HTTPException(422, "limit must be in [1,100]")
     rows = food_store.search_foods(query, limit, offset)
@@ -29,12 +31,14 @@ def list_foods(query: str = Query("", max_length=64), limit: int = 20, offset: i
 
 # Backward-compatible alias for tests expecting /api/v1/foods/search
 @router.get("/api/v1/foods/search", response_model=List[FoodHit])
-def list_foods_search(query: str = Query("", max_length=64), limit: int = 20, offset: int = 0):
-    return list_foods(query=query, limit=limit, offset=offset)
+def list_foods_search(
+    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+) -> List[FoodHit]:
+    return list_foods(query=query, limit=limit, offset=offset)  # type: ignore[no-any-return]
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
-def get_food(food_id: str):
+def get_food(food_id: str) -> FoodItem:
     row = food_store.get_food(food_id)
     if not row:
         raise HTTPException(status_code=404, detail="Food not found")

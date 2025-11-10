@@ -6,7 +6,7 @@ Uses property-based testing to maximize coverage without complex mocking.
 import os
 import time
 import warnings
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -14,7 +14,6 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
-from typing import Optional
 
 # Deadline constant for Hypothesis tests (None disables per-test deadline)
 DEADLINE_MS: Optional[int] = None
@@ -66,6 +65,20 @@ class TestPremiumWeekHypothesisSimple:
                 stacklevel=2,
             )
         return response, generation_time
+
+    def _assert_generation_time_acceptable(self, generation_time: float) -> None:
+        """
+        Assert that meal plan generation time is within acceptable threshold.
+
+        Args:
+            generation_time: Generation time in seconds
+
+        Raises:
+            AssertionError: If generation time exceeds MEAL_PLAN_GENERATION_TIMEOUT
+        """
+        assert (
+            generation_time < MEAL_PLAN_GENERATION_TIMEOUT
+        ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
 
     @settings(deadline=DEADLINE_MS)
     @given(
@@ -123,9 +136,7 @@ class TestPremiumWeekHypothesisSimple:
             # Performance observability: record timing metric
             # In production, this would be emitted to metrics registry (Prometheus, etc.)
             # For tests, we assert that generation completes within threshold
-            assert (
-                generation_time < MEAL_PLAN_GENERATION_TIMEOUT
-            ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+            self._assert_generation_time_acceptable(generation_time)
 
     @settings(deadline=DEADLINE_MS)
     @given(
@@ -188,9 +199,7 @@ class TestPremiumWeekHypothesisSimple:
                 assert "week_summary" in data
 
                 # Performance observability: record timing metric
-                assert (
-                    generation_time < MEAL_PLAN_GENERATION_TIMEOUT
-                ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+                self._assert_generation_time_acceptable(generation_time)
 
     @settings(deadline=DEADLINE_MS)
     @given(
@@ -296,6 +305,4 @@ class TestPremiumWeekHypothesisSimple:
             assert "week_summary" in data
 
             # Performance observability: record timing metric
-            assert (
-                generation_time < MEAL_PLAN_GENERATION_TIMEOUT
-            ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+            self._assert_generation_time_acceptable(generation_time)

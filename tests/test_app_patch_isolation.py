@@ -1,14 +1,14 @@
 import os
 import sys
 from types import SimpleNamespace
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 import pytest
 
 import app
 
 
-def _namespaced_attrs(overrides: Dict[str, Any] | None = None) -> SimpleNamespace:
+def _namespaced_attrs(overrides: dict[str, Any] | None = None) -> SimpleNamespace:
     """Create a namespace that contains all patched attrs used by app helpers."""
 
     base = {attr: object() for attr in app._PATCHED_ATTRS}
@@ -29,13 +29,20 @@ def test_propagate_app_patches_copies_all_known_attrs() -> None:
         assert getattr(target, attr) is getattr(source, attr)
 
 
+def primary_callable(*_: Any, **__: Any) -> str:
+    """Primary callable for testing patch isolation."""
+    return "primary"
+
+
+def secondary_callable(*_: Any, **__: Any) -> str:
+    """Secondary callable for testing patch isolation."""
+    return "secondary"
+
+
 def test_sync_app_attr_sources_skips_current_value_before_copy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Alias that already references primary helper should be switched to the next candidate."""
-
-    primary_callable = lambda *_, **__: "primary"  # noqa: E731
-    secondary_callable = lambda *_, **__: "secondary"  # noqa: E731
 
     alias_module = _namespaced_attrs({"make_plate": primary_callable})
     primary = _namespaced_attrs({"make_plate": primary_callable})
@@ -111,12 +118,12 @@ async def test_premium_plate_alignment_uses_heuristic_when_targets_disabled(
     top_module = sys.modules.get("_app_top_module")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    async def fake_aggregate(_meals: Any) -> Dict[str, Any]:
+    async def fake_aggregate(_meals: Any) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(app, "_aggregate_day_micronutrients", fake_aggregate, raising=False)
 
-    def fake_make_plate(**_: Any) -> Dict[str, Any]:
+    def fake_make_plate(**_: Any) -> dict[str, Any]:
         return {
             "macros": {"protein_g": 90, "fat_g": 40, "carbs_g": 60, "fiber_g": 10},
             "portions": {"protein_palm": 1.0},

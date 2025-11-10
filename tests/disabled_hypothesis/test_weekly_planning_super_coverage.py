@@ -43,7 +43,7 @@ class TestWeeklyPlanningBlocks:
             # Создать 7 дней меню
             for i in range(7):
                 day_menu = MagicMock()
-                day_menu.date = f"2025-01-0{i + 1}" if i < 9 else f"2025-01-{i + 1}"
+                day_menu.date = f"2025-01-{i + 1:02d}"
                 day_menu.meals = {
                     "breakfast": f"breakfast_{i + 1}",
                     "lunch": f"lunch_{i + 1}",

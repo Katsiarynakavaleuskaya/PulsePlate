@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import create_engine, text
 
+from core import db
 from core.db import EngineCompat, _derive_async_url, create_async_engine
 
 
@@ -133,8 +134,6 @@ def test_finalize_transaction_error_in_production(monkeypatch: pytest.MonkeyPatc
 
     from sqlalchemy import exc as sa_exc
 
-    from core import db
-
     engine = db.EngineCompat(object())
 
     class FakeConn:
@@ -166,8 +165,6 @@ def test_finalize_transaction_unexpected_exception(monkeypatch: pytest.MonkeyPat
     """Cover line 259: unexpected exception branch."""
     import logging
 
-    from core import db
-
     engine = db.EngineCompat(object())
 
     class FakeConn:
@@ -196,8 +193,6 @@ def test_finalize_transaction_unexpected_exception(monkeypatch: pytest.MonkeyPat
 
 def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 328: skip pool config for sqlite+aiosqlite."""
-    from core import db
-
     if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 

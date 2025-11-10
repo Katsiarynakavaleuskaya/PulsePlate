@@ -55,24 +55,26 @@ class ComprehensiveTestResult:
 class ComprehensiveBayesianAnalyzer:
     """Комплексный байесовский анализатор для всех аспектов системы."""
 
+    # Configurable keywords for critical nutrition issues detection
+    # RU: Ключевые слова для обнаружения критических проблем питания
+    CRITICAL_NUTRITION_KEYWORDS = (
+        "калорий",
+        "calorie",
+        "bmi",
+        "dangerous",
+        "опасно",
+    )
+
+    # Standardized business marker prefix for critical business issues
+    # RU: Стандартизированный префикс маркера для критических бизнес-проблем
+    BUSINESS_MARKER_PREFIX = "business:"
+
     def __init__(self) -> None:
         self.technical_analyzer = BayesianTestAnalyzer()
         self.nutrition_analyzer = NutritionBayesianAnalyzer()
         self.business_analyzer = BusinessBayesianAnalyzer()
         self.comprehensive_results: List[ComprehensiveTestResult] = []
         self.system_vision = self._load_system_vision()
-        # Configurable keywords for critical nutrition issues detection
-        # RU: Ключевые слова для обнаружения критических проблем питания
-        self._critical_nutrition_keywords = [
-            "калорий",
-            "calorie",
-            "bmi",
-            "dangerous",
-            "опасно",
-        ]
-        # Standardized business marker prefix for critical business issues
-        # RU: Стандартизированный префикс маркера для критических бизнес-проблем
-        self._business_marker_prefix = "business:"
 
     def _has_critical_nutrition_issues(self, issues: List[str]) -> bool:
         """
@@ -92,7 +94,7 @@ class ComprehensiveBayesianAnalyzer:
 
         # Convert all keywords to lowercase for case-insensitive matching
         # RU: Преобразуем все ключевые слова в нижний регистр для регистронезависимого поиска
-        keywords_lower = [keyword.lower() for keyword in self._critical_nutrition_keywords]
+        keywords_lower = [keyword.lower() for keyword in self.CRITICAL_NUTRITION_KEYWORDS]
 
         # Nested any loop: check if any issue contains any keyword
         # RU: Вложенный цикл any: проверяем, содержит ли какая-либо проблема какое-либо ключевое слово
@@ -116,7 +118,7 @@ class ComprehensiveBayesianAnalyzer:
 
         # Normalize prefix to lowercase for case-insensitive matching
         # RU: Нормализуем префикс в нижний регистр для регистронезависимого поиска
-        normalized_prefix = self._business_marker_prefix.lower()
+        normalized_prefix = self.BUSINESS_MARKER_PREFIX.lower()
 
         # Check if any issue starts with the normalized business marker prefix
         # RU: Проверяем, начинается ли какая-либо проблема с нормализованного префикса бизнес-маркера

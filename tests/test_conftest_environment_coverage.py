@@ -123,7 +123,7 @@ class TestConftestEnvironmentCoverage:
         # Verify that key directories are included
         path_segments = pythonpath.split(os.pathsep)
         assert any(
-            dir_name in segment for segment in path_segments
+            os.path.basename(os.path.normpath(segment)) == dir_name for segment in path_segments
         ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):

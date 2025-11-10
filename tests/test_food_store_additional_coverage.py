@@ -115,7 +115,6 @@ def test_validate_csv_quotes_exception_in_dev(
 
 def test_parse_primary_aliases_schema_empty_row() -> None:
     """Cover line 169: continue when row_values is empty or too short."""
-    import csv
     from io import StringIO
 
     # CSV with empty row in primary/aliases format
