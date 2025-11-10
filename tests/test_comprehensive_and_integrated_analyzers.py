@@ -19,6 +19,16 @@ from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
 from core.nutrition_bayesian_analyzer import NutritionCategory, NutritionTestResult
 
+# Test threshold constants for risk and health assessment
+# RU: Константы порогов для оценки рисков и здоровья
+MEDIUM_SCORE_THRESHOLD = 0.6  # Score threshold for medium-severity issues
+HIGH_SCORE_THRESHOLD = 0.95  # Score threshold for high-quality systems
+EXCELLENT_HEALTH_THRESHOLD = 0.85  # Score for excellent system health
+GOOD_HEALTH_THRESHOLD = 0.65  # Score for good/fair system health
+CRITICAL_ISSUES_COUNT = 3  # Number of critical issues triggering urgent priority
+HIGH_ISSUES_COUNT = 2  # Number of issues for high-quality threshold
+LOW_ISSUES_COUNT = 1  # Minimum issue count for fair health status
+
 
 def _make_nutrition_result(message: str, success: bool = False) -> NutritionTestResult:
     """RU/EN: Helper to create nutrition results with bilingual comment."""
@@ -227,14 +237,34 @@ def test_comprehensive_assessment_levels() -> None:
         analyzer._assess_health_impact(["Опасно низкие калории"])
         == "Минимальное влияние на здоровье"
     )
-    assert analyzer._calculate_risk_level(["critical_issue"] * 3, 0.6) == "high"
-    assert analyzer._calculate_risk_level([], 0.95) == "low"
+    # Risk level: medium score (0.6) with 3 critical issues → high risk
+    assert (
+        analyzer._calculate_risk_level(
+            ["critical_issue"] * CRITICAL_ISSUES_COUNT, MEDIUM_SCORE_THRESHOLD
+        )
+        == "high"
+    )
+    # Risk level: high score (0.95) with no issues → low risk
+    assert analyzer._calculate_risk_level([], HIGH_SCORE_THRESHOLD) == "low"
+    # Priority: 3 critical issues with critical health impact → urgent priority
     assert (
         analyzer._calculate_priority(["crit1", "crit2", "crit3"], "мин", "критическое") == "urgent"
     )
-    assert analyzer._calculate_system_health(0.95, {"low": 2}) == "excellent"
-    assert analyzer._calculate_system_health(0.85, {"high": 2}) == "good"
-    assert analyzer._calculate_system_health(0.65, {"critical": 1}) == "fair"
+    # System health: high score (0.95) with 2 low-severity issues → excellent
+    assert (
+        analyzer._calculate_system_health(HIGH_SCORE_THRESHOLD, {"low": HIGH_ISSUES_COUNT})
+        == "excellent"
+    )
+    # System health: good score (0.85) with 2 high-severity issues → good
+    assert (
+        analyzer._calculate_system_health(EXCELLENT_HEALTH_THRESHOLD, {"high": HIGH_ISSUES_COUNT})
+        == "good"
+    )
+    # System health: fair score (0.65) with 1 critical issue → fair
+    assert (
+        analyzer._calculate_system_health(GOOD_HEALTH_THRESHOLD, {"critical": LOW_ISSUES_COUNT})
+        == "fair"
+    )
 
 
 def test_integrated_normalize_issue_type_variants() -> None:

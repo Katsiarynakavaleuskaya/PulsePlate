@@ -81,7 +81,6 @@ def test_add_nutrition_test_result_appends() -> None:
     """RU/EN: Ensure add_nutrition_test_result stores entries."""
 
     analyzer = NutritionBayesianAnalyzer()
-    result = _build_test_code()
     analyzer.add_nutrition_test_result(
         NutritionTestResult(
             test_name="suite::manual",

@@ -168,7 +168,15 @@ class ComprehensiveBayesianAnalyzer:
         # Анализ питания
         nutrition_results = self.nutrition_analyzer.analyze_nutrition_safety(test_code, test_name)
         nutrition_issues = [r.error_message for r in nutrition_results if not r.success]
-        nutrition_score = self.nutrition_analyzer.get_safety_score()
+        # Compute per-test nutrition score from results (not cumulative state)
+        # RU: Вычисляем балл питания для этого теста на основе результатов (не накопительный)
+        if nutrition_results:
+            successful_checks = sum(1 for r in nutrition_results if r.success)
+            total_checks = len(nutrition_results)
+            nutrition_score = successful_checks / total_checks
+        else:
+            # No checks performed → perfect score by default
+            nutrition_score = 1.0
 
         # Бизнес-анализ
         business_results = self.business_analyzer.analyze_business_logic(test_code, test_name)

@@ -8,7 +8,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, Float, Index, Integer, String, func
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -107,14 +117,14 @@ class Meal(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, nullable=True)  # Optional: link to user
-    recipe_id: Mapped[int] = mapped_column(Integer, nullable=True)  # Optional: link to recipe
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    recipe_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("recipes.id"), nullable=True)
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     title_translated: Mapped[str] = mapped_column(String(500), nullable=True)
 
     # Nutritional data (validated by CHECK constraints)
-    kcal: Mapped[int] = mapped_column(Integer, nullable=False)
+    kcal: Mapped[float] = mapped_column(Float, nullable=False)
     protein_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     fat_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     carbs_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)

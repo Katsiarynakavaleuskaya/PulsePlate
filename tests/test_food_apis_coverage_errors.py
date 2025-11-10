@@ -152,10 +152,6 @@ class TestFoodAPIsUpdatePipelineBasic:
         assert isinstance(versions, dict)
 
 
-from core.food_apis.unified_db import UnifiedFoodDatabase
-from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
-
-
 class TestFoodAPIsUpdatePipeline:
     """Test Food APIs update pipeline error handling and fallbacks."""
 
