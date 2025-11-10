@@ -64,8 +64,13 @@ strict = false
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true
+warn_unreachable = true
+warn_no_return = true
 no_implicit_optional = false
 ignore_missing_imports = true
+disallow_untyped_defs = false  # Set to true to enforce type hints on all functions
+disallow_incomplete_defs = false  # Set to true to enforce complete type hints
+check_untyped_defs = true  # Check untyped function definitions
 plugins = []
 explicit_package_bases = true
 namespace_packages = true
@@ -139,19 +144,21 @@ exclude_lines = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "W", "F"]
+select = ["E", "W", "F", "ANN"]  # Added ANN for type annotation checks
 ignore = [
     "E402",  # Module level import not at top of file
     "E501",  # Line too long
     "F811",  # Redefinition of unused variable
     "F401",  # Imported but unused
     "F841",  # Local variable assigned but never used
+    "ANN101",  # Missing type annotation for self in method
+    "ANN102",  # Missing type annotation for cls in classmethod
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["E402", "F811", "F401", "F841"]
-"scripts/*.py" = ["E402"]
-"releases/**/*.py" = ["E402"]
+"tests/*.py" = ["E402", "F811", "F401", "F841", "ANN201"]  # ANN201: Missing return type annotation for public function
+"scripts/*.py" = ["E402", "ANN201"]
+"releases/**/*.py" = ["E402", "ANN201"]
 
 [tool.pyright]
 pythonVersion = "3.13"

@@ -28,7 +28,7 @@ repos:
         language_version: python3
         files: ^(?!frontend/).+\.py$
 
-  # --- Lint: Ruff (fast flake8 + isort)
+  # --- Lint: Ruff (fast flake8 + isort + type hints)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.2
     hooks:
@@ -36,6 +36,11 @@ repos:
         name: ruff (lint, local)
         files: ^(?!frontend/).+\.py$
         args: [--fix]
+      - id: ruff
+        name: ruff (type hints check)
+        files: ^(?!frontend/).+\.py$
+        args: [--select, ANN, --fix]  # Check and auto-fix type annotations
+        stages: [pre-push]  # Run on pre-push for stricter enforcement
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
