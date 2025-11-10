@@ -147,7 +147,9 @@ jobs:
               inspector = inspect(session.bind)
               tables = inspector.get_table_names()
               print(f"✅ Found {len(tables)} tables: {', '.join(tables)}")
-              assert 'users' in tables, 'users table not found'
+              expected_tables = ['users', 'recipes', 'meals', 'food_items']
+              for table in expected_tables:
+                  assert table in tables, f'{table} table not found'
           EOF
 
       # paths-filter outputs: code, docs (always set by dorny/paths-filter@v3.0.2)
