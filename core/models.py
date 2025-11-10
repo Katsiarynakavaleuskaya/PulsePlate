@@ -176,7 +176,7 @@ class FoodItem(Base):
         CheckConstraint("carbs_g_per_100g <= 100", name="ck_food_carbs_max"),
         CheckConstraint("fiber_g_per_100g >= 0", name="ck_food_fiber_positive"),
         CheckConstraint("fiber_g_per_100g <= 100", name="ck_food_fiber_max"),
-        Index("ix_food_items_food_id", "food_id", unique=True),
+        # Note: ix_food_items_food_id index removed - food_id column already has unique=True constraint
         Index("ix_food_items_canonical_name", "canonical_name"),
     )
 

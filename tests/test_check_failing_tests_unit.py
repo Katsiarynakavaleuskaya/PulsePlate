@@ -7,6 +7,7 @@ real pytest runs. Ensures deterministic outputs for CI coverage.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -72,13 +73,15 @@ def test_main_mixed_pass_fail_timeout(
     # Patch Path.glob to return controlled test files
     original_glob = Path.glob
 
-    def mock_glob(self: Path, pattern: str):
+    def mock_glob(self: Path, pattern: str) -> Iterator[Path]:
         if pattern == "test_*.py" and str(self) == "tests":
-            return [
-                Path("tests/t_ok.py"),
-                Path("tests/t_fail.py"),
-                Path("tests/t_to.py"),
-            ]
+            return iter(
+                [
+                    Path("tests/t_ok.py"),
+                    Path("tests/t_fail.py"),
+                    Path("tests/t_to.py"),
+                ]
+            )
         return original_glob(self, pattern)
 
     monkeypatch.setattr(Path, "glob", mock_glob)
@@ -132,13 +135,13 @@ def test_main_all_passing(
     # Patch Path.glob to return controlled test files
     original_glob = Path.glob
 
-    def mock_glob(self: Path, pattern: str):
+    def mock_glob(self: Path, pattern: str) -> list[Path]:
         if pattern == "test_*.py" and str(self) == "tests":
             return [
                 Path("tests/t_ok1.py"),
                 Path("tests/t_ok2.py"),
             ]
-        return original_glob(self, pattern)
+        return list(original_glob(self, pattern))
 
     monkeypatch.setattr(Path, "glob", mock_glob)
     monkeypatch.setattr(Path, "is_file", lambda self: True)

@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 class TestAppDatabaseFallback:
     """Тесты для database fallback логики в app.py lifespan (строки 145-163)"""
 
-    def test_database_init_failure_with_fallback(self, test_environment):
+    def test_database_init_failure_with_fallback(self, _test_environment) -> None:
         """Test database initialization failure triggers fallback to in-memory SQLite (lines 145-163)"""
         import app
         from core.db import init_db
@@ -46,7 +46,7 @@ class TestAppDatabaseFallback:
                     response = client.get("/health")
                     assert response.status_code == 200
 
-    def test_database_fallback_oserror_handling(self, test_environment):
+    def test_database_fallback_oserror_handling(self, _test_environment) -> None:
         """Test database fallback handles OSError specifically (line 152)"""
         import app
         from core.db import init_db
@@ -61,7 +61,7 @@ class TestAppDatabaseFallback:
                         response = client.get("/health")
                         assert response.status_code in [200, 503]  # May fail gracefully
 
-    def test_database_fallback_ioerror_handling(self, test_environment):
+    def test_database_fallback_ioerror_handling(self, _test_environment) -> None:
         """Test database fallback handles IOError specifically (line 152)"""
         import app
         from core.db import init_db
@@ -77,7 +77,7 @@ class TestAppDatabaseFallback:
                     except Exception:
                         pass
 
-    def test_database_fallback_failure_propagation(self, test_environment):
+    def test_database_fallback_failure_propagation(self, _test_environment) -> None:
         """Test that database fallback failure propagates exception (line 163)"""
         import app
         from core.db import init_db
@@ -103,7 +103,7 @@ class TestAppDatabaseFallback:
 class TestAppTestRouterImport:
     """Тесты для test router ImportError handling (строки 357-358)"""
 
-    def test_test_router_import_error_handling(self, test_environment):
+    def test_test_router_import_error_handling(self, _test_environment) -> None:
         """Test ImportError handling when test router is not available (lines 357-358)"""
         import app
 
@@ -128,7 +128,7 @@ class TestAppTestRouterImport:
 class TestAppDynamicPatching:
     """Тесты для dynamic patching exception handling (строки 1276, 1279-1280, 1287-1288)"""
 
-    def test_sync_app_attr_sources_none_source_skip(self, test_environment):
+    def test_sync_app_attr_sources_none_source_skip(self, _test_environment) -> None:
         """Test _sync_app_attr_sources skips None source (line 1276)"""
         import app
 
@@ -140,7 +140,7 @@ class TestAppDynamicPatching:
         # Function may return None or continue processing
         # Main thing is it doesn't crash on None source
 
-    def test_sync_app_attr_sources_attribute_error(self, test_environment):
+    def test_sync_app_attr_sources_attribute_error(self, _test_environment) -> None:
         """Test _sync_app_attr_sources handles AttributeError (lines 1279-1280)"""
         import app
 
@@ -156,7 +156,7 @@ class TestAppDynamicPatching:
         result = app._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception
 
-    def test_sync_app_attr_sources_setattr_exception(self, test_environment):
+    def test_sync_app_attr_sources_setattr_exception(self, _test_environment) -> None:
         """Test _sync_app_attr_sources handles setattr exception (lines 1287-1288)"""
         import app
 
@@ -179,7 +179,7 @@ class TestAppDynamicPatching:
 class TestAppTargetsDisabled:
     """Тесты для _targets_disabled edge cases (строки 1312, 1315-1320, 1325-1328)"""
 
-    def test_targets_disabled_app_package_ref_set(self, test_environment):
+    def test_targets_disabled_app_package_ref_set(self, _test_environment) -> None:
         """Test _targets_disabled when _APP_PACKAGE_REF is set (line 1312)"""
         import app
 
@@ -191,7 +191,7 @@ class TestAppTargetsDisabled:
         # Should return boolean
         assert isinstance(result, bool)
 
-    def test_targets_disabled_primary_app_missing(self, test_environment):
+    def test_targets_disabled_primary_app_missing(self, _test_environment) -> None:
         """Test _targets_disabled when primary app module is missing (lines 1315-1320)"""
         import app
 
@@ -211,7 +211,7 @@ class TestAppTargetsDisabled:
         # Restore
         app._APP_PACKAGE_REF = original_ref
 
-    def test_targets_disabled_alias_app_none_attr(self, test_environment):
+    def test_targets_disabled_alias_app_none_attr(self, _test_environment) -> None:
         """Test _targets_disabled when alias app has None attribute (lines 1325-1328)"""
         import app
 
@@ -246,7 +246,7 @@ class TestAppTargetsDisabled:
 class TestAppModuleInspection:
     """Тесты для module inspection exception handling (строки 1375-1376, 1380)"""
 
-    def test_targets_disabled_module_inspection_exception(self, test_environment):
+    def test_targets_disabled_module_inspection_exception(self, _test_environment) -> None:
         """Test _targets_disabled handles module inspection exception (lines 1375-1376, 1380)"""
         import app
 
@@ -268,7 +268,7 @@ class TestAppModuleInspection:
 class TestAppCallableCheck:
     """Тесты для callable check (строка 1418)"""
 
-    def test_resolve_attr_callable_check(self, test_environment):
+    def test_resolve_attr_callable_check(self, _test_environment) -> None:
         """Test resolve_attr checks if function is callable (line 1418)"""
         import app
 
@@ -290,7 +290,7 @@ class TestAppCallableCheck:
 class TestAppAttributeDeletion:
     """Тесты для attribute deletion (строки 1479-1480)"""
 
-    def test_plate_env_snapshot_attribute_deletion(self, test_environment):
+    def test_plate_env_snapshot_attribute_deletion(self, _test_environment) -> None:
         """Test _plate_env_snapshot deletes attributes that didn't exist (lines 1479-1480)"""
         import app
         import sys
@@ -321,7 +321,7 @@ class TestAppAsyncWrapper:
     """Тесты для async wrapper (строка 1501)"""
 
     @pytest.mark.asyncio
-    async def test_with_plate_env_snapshot_async_wrapper(self, test_environment):
+    async def test_with_plate_env_snapshot_async_wrapper(self, _test_environment) -> None:
         """Test _with_plate_env_snapshot async wrapper (line 1501)"""
         import app
 
@@ -339,7 +339,7 @@ class TestAppPremiumPlate:
     """Тесты для premium_plate edge cases (строки 2292, 2296, 2344-2345, 2348)"""
 
     @pytest.mark.asyncio
-    async def test_premium_plate_non_callable_aggregate(self, test_environment):
+    async def test_premium_plate_non_callable_aggregate(self, _test_environment) -> None:
         """Test premium_plate handles non-callable _aggregate_day_micronutrients (lines 2292, 2296)"""
         import app
         import os
@@ -362,7 +362,7 @@ class TestAppPremiumPlate:
                     assert resp.day_micros == {}
 
     @pytest.mark.asyncio
-    async def test_premium_plate_targets_exception(self, test_environment):
+    async def test_premium_plate_targets_exception(self, _test_environment) -> None:
         """Test premium_plate handles targets exception (lines 2344-2345, 2348)"""
         import app
         import os

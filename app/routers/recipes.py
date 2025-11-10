@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
-from typing import List
+from typing import List, cast
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -37,7 +37,7 @@ def list_recipes(
 def list_recipes_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[RecipeQueryHit]:
-    return list_recipes(query=query, limit=limit, offset=offset)  # type: ignore[no-any-return]
+    return cast(List[RecipeQueryHit], list_recipes(query=query, limit=limit, offset=offset))
 
 
 @router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)

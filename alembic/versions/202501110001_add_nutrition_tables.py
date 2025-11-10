@@ -74,7 +74,9 @@ def upgrade() -> None:
         sa.Column("recipe_id", sa.Integer(), nullable=True),
         sa.Column("title", sa.String(length=500), nullable=False),
         sa.Column("title_translated", sa.String(length=500), nullable=True),
-        sa.Column("kcal", sa.Integer(), nullable=False),
+        sa.Column(
+            "kcal", sa.Float(), nullable=False
+        ),  # Changed from Integer to Float to match model
         sa.Column("protein_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fat_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),

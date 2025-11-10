@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, exc as sa_exc, text
 
 from core import db
 from core.db import EngineCompat, _derive_async_url, create_async_engine
@@ -131,8 +131,6 @@ def test_finalize_transaction_debug_logging(monkeypatch: pytest.MonkeyPatch) -> 
 def test_finalize_transaction_error_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 255: logging branch when not in debug and production."""
     import logging
-
-    from sqlalchemy import exc as sa_exc
 
     engine = db.EngineCompat(object())
 
