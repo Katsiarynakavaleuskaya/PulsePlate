@@ -13,7 +13,7 @@ import threading
 from collections import defaultdict
 from pathlib import Path
 from collections.abc import Iterator, Mapping, Sequence
-from typing import Any, Tuple
+from typing import Any
 
 # Initialize logger early for setup-time logging
 logger = logging.getLogger(__name__)
@@ -422,7 +422,7 @@ def get_food(food_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Tuple[str, float] | None:
+def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> tuple[str, float] | None:
     """
     Validate ingredient mapping and extract food_id and grams.
 

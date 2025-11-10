@@ -85,9 +85,15 @@ validate_command() {
         # Expand variables for syntax check (but don't execute)
         local expanded_command="${command//\$PROJECT_ROOT/$project_root}"
 
-        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
-            echo "syntax error in shell command"
-            return 1
+        # Check if bash is available before syntax validation
+        if command -v bash >/dev/null 2>&1; then
+            if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
+                echo "syntax error in shell command"
+                return 1
+            fi
+        else
+            # bash -n not available; skip syntax check (non-fatal)
+            :
         fi
     fi
 
@@ -121,7 +127,7 @@ create_alias() {
 
     if [ "$validation_failed" -ne 0 ]; then
         if [ "$_QUIET_MODE" = "false" ]; then
-            echo "⚠️  Алиас '$alias_name' создан, но валидация не прошла: $validation_error"
+            echo "⚠️  Алиас '$alias_name' НЕ создан из-за ошибки валидации: $validation_error"
         fi
         # Skip creating alias if validation fails
         return 1
@@ -238,6 +244,7 @@ create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 
 # Claude Code with PulsePlate role
 # Alias disabled due to account suspension; re-enable by uncommenting after account restoration
+# TODO: Re-enable ppclaude when Claude Code account is restored; verify claude_with_role.sh is available
 # create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh" "$PROJECT_ROOT/scripts/claude_with_role.sh"
 
 # Выводим информацию только в интерактивном режиме

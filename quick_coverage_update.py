@@ -38,6 +38,7 @@ def run_coverage_check() -> bool:
             "tests/test_product_finder_simple.py",
             "tests/test_bmi_core_validation_edges.py",
             "--cov=.",
+            "--cov-fail-under=97",
             f"--junitxml={junit_path}",  # JUnit XML for test results
             f"--cov-report=json:{cov_json_path}",  # JSON for coverage data
             "--cov-report=term-missing",  # Keep terminal output for fallback
@@ -50,7 +51,9 @@ def run_coverage_check() -> bool:
         # nosec B603: Safe subprocess invocation - cmd is a static list built from
         # sys.executable and hardcoded pytest arguments only; no user input or
         # external data is used. Timeout (600s) prevents hangs.
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)  # nosec B603
+        result = subprocess.run(  # nosec B603
+            cmd, capture_output=True, text=True, timeout=600, cwd=Path(__file__).parent
+        )
         elapsed = time.time() - start_time
 
         print(f"⏱️  Execution time: {elapsed:.1f}s")

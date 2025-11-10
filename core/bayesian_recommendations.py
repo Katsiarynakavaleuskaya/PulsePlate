@@ -243,9 +243,8 @@ def get_recommendations(
 
     # Use provided fallback if still empty
     if not recommendations:
-        recommendations = fallback
-
-    return recommendations
+        return list(fallback)
+    return list(recommendations)
 
 
 def get_error_type_key(error_type: Enum) -> str:

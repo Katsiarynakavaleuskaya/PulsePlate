@@ -52,9 +52,9 @@ class TestPremiumWeekHypothesisSimple:
         Returns:
             Tuple of (response, generation_time) where generation_time is in seconds
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         response = self.client.post(url, json=payload, headers=headers)
-        generation_time = time.time() - start_time
+        generation_time = time.perf_counter() - start_time
         if generation_time > MEAL_PLAN_GENERATION_WARNING:
             warnings.warn(
                 (

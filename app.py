@@ -421,10 +421,10 @@ async def csp_nonce_middleware(request: Request, call_next):
 async def log_requests(request: Request, call_next):
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
-    logger.info("Request: %s %s from %s", request.method, request.url.path, client_host)
+    logger.debug("Request: %s %s from %s", request.method, request.url.path, client_host)
     response = await call_next(request)
     process_time = time.time() - start_time_req
-    logger.info("Response: %s in %.4fs", response.status_code, process_time)
+    logger.debug("Response: %s in %.4fs", response.status_code, process_time)
     return response
 
 
@@ -1432,11 +1432,12 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
     return None
 
 
+# WARNING: NOT THREAD-SAFE - do not use with concurrent threads
 @contextmanager
 def _plate_env_snapshot() -> Generator[None, None, None]:
-    """Isolate premium plate globals/env for each request/test run.
+    """WARNING: NOT THREAD-SAFE - Isolate premium plate globals/env for each request/test run.
 
-    WARNING: This context manager is NOT thread-safe and is intended ONLY for
+    DANGER: This context manager is NOT thread-safe and is intended ONLY for
     single-threaded test/request isolation. It modifies module attributes via
     setattr/delattr which can cause race conditions in concurrent execution.
 
@@ -1447,7 +1448,17 @@ def _plate_env_snapshot() -> Generator[None, None, None]:
     The restoration logic uses setattr/delattr on module objects (sys.modules[__name__])
     instead of direct globals() mutation to maintain cleaner module state management,
     but this is still not atomic and not thread-safe.
+
+    Raises:
+        RuntimeError: If called in a multithreaded context (threading.active_count() > 1)
     """
+    # Runtime guard: fail-fast if used in multithreaded context
+    if threading.active_count() > 1:
+        raise RuntimeError(
+            f"_plate_env_snapshot() is not thread-safe and cannot be used with "
+            f"concurrent threads. Current thread count: {threading.active_count()}. "
+            f"Use single-threaded test execution (pytest -n 0) or function-scoped fixtures."
+        )
 
     import sys as _sys
 
@@ -2307,6 +2318,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         # Otherwise, use a simple heuristic fallback for carbs.
         macros_aligned = dict(plate_data["macros"])
         target_kcal_override: Optional[int] = None
+        alignment_succeeded = False
 
         # Check if targets are disabled
         targets_are_disabled = _targets_runtime_disabled or _targets_disabled()
@@ -2346,6 +2358,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                         target_val = getattr(target_macros, macro_name, None)
                         if target_val is not None and macro_name in macros_aligned:
                             macros_aligned[macro_name] = int(target_val)
+                            alignment_succeeded = True
                 kcal_override = getattr(_targets, "kcal_daily", None)
                 if kcal_override is not None:
                     target_kcal_override = int(kcal_override)
@@ -2362,7 +2375,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         with suppress(Exception):
             final_kcal_value = int(round(float(final_kcal_value)))
 
-        if targets_are_disabled or _build_targets is None:
+        # Only apply heuristic fallback if alignment did not succeed
+        if (targets_are_disabled or _build_targets is None) and not alignment_succeeded:
             logger.debug("premium_plate alignment: using heuristic fallback")
             # Heuristic macronutrient fallback: used only when targets are disabled
             # to ensure predictable behavior. Ratios based on WHO/IOM guidance:
@@ -2865,6 +2879,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "magnesium_mg": 400.0,
                 "potassium_mg": 3500.0,
                 "b12_ug": 2.4,
+                "iodine_ug": 150.0,  # Add iodine to fallback priority micros
             }
             exc_fallback_priority_micros = _alias_micros(exc_fallback_priority_micros)
 
@@ -2876,12 +2891,11 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
             exc_fallback_warnings: list[dict[str, str]] = []
             if req.life_stage in ("pregnant", "lactating"):
-                exc_fallback_warnings.append(
-                    {
-                        "code": "life_stage",
-                        "message": "Special nutrition considerations apply",
-                    }
+                # Use proper warning codes from _life_stage_warnings (already imported above)
+                fallback_warnings = _life_stage_warnings(
+                    age=req.age, life_stage=req.life_stage, lang=req.lang
                 )
+                exc_fallback_warnings.extend(fallback_warnings)
 
             return WHOTargetsResponse(
                 kcal_daily=int(kcal_daily),
@@ -3149,6 +3163,12 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
 @app.get("/debug_env")
 async def debug_env():
+    # Gate /debug_env to avoid leaking environment details in production
+    if (
+        os.getenv("APP_ENV", "").strip().lower() not in {"", "local", "dev", "development", "test"}
+        and os.getenv("PYTEST_CURRENT_TEST") is None
+    ):
+        raise HTTPException(status_code=404, detail="Not found")
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
         "LLM_PROVIDER": os.getenv("LLM_PROVIDER", ""),
